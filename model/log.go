@@ -108,16 +108,26 @@ func RecordLog(userId int, logType int, content string) {
 
 // RecordLogWithAdminInfo 记录操作日志，并将管理员相关信息存入 Other.admin_info，
 func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo map[string]interface{}) {
+	RecordLogWithAdminInfoAndMetadata(userId, logType, content, 0, "", adminInfo)
+}
+
+// RecordLogWithAdminInfoAndMetadata 记录操作日志，并额外写入渠道、分组等可筛选字段。
+func RecordLogWithAdminInfoAndMetadata(userId int, logType int, content string, channelId int, group string, adminInfo map[string]interface{}) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
 		return
 	}
-	username, _ := GetUsernameById(userId, false)
+	username := "system"
+	if userId > 0 {
+		username, _ = GetUsernameById(userId, false)
+	}
 	log := &Log{
 		UserId:    userId,
 		Username:  username,
 		CreatedAt: common.GetTimestamp(),
 		Type:      logType,
 		Content:   content,
+		ChannelId: channelId,
+		Group:     group,
 	}
 	if len(adminInfo) > 0 {
 		other := map[string]interface{}{

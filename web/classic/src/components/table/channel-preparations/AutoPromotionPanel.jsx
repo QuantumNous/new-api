@@ -9,7 +9,6 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -19,6 +18,7 @@ import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 
 const SETTING_PREFIX = 'channel_preparation_auto_promotion_setting.';
 const DEFAULT_STRATEGY = 'priority_weighted';
+const STRATEGY_LABEL = '优先级 + 权重';
 
 const DEFAULT_SETTINGS = {
   scheduler_enabled: false,
@@ -100,12 +100,27 @@ function formatUSD(value) {
   return numeric.toFixed(4);
 }
 
+function formatTimestamp(seconds) {
+  if (!seconds) return '-';
+  return new Date(seconds * 1000).toLocaleString();
+}
+
+function buildNextCheckText(status, t) {
+  if (!status) return t('加载中');
+  if (!status.is_master_node) return t('非主节点不执行定时任务');
+  if (!status.scheduler_enabled) return t('未启用');
+  if (status.running) return t('正在检查');
+  if (status.next_check_at > 0) return formatTimestamp(status.next_check_at);
+  return t('等待调度器同步');
+}
+
 const AutoPromotionPanel = ({ t, refreshPreparations }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [canConfigure, setCanConfigure] = useState(true);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [schedulerStatus, setSchedulerStatus] = useState(null);
   const [lastSummary, setLastSummary] = useState(null);
 
   const updateSettings = useCallback((patch) => {
@@ -170,6 +185,20 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
     return true;
   }, [settings, t]);
 
+  const loadSchedulerStatus = useCallback(async () => {
+    try {
+      const res = await API.get(
+        '/api/channel/preparations/auto-promotion/status',
+        { skipErrorHandler: true },
+      );
+      if (res.data.success) {
+        setSchedulerStatus(res.data.data || null);
+      }
+    } catch (error) {
+      setSchedulerStatus(null);
+    }
+  }, []);
+
   const loadSettings = useCallback(async () => {
     setLoading(true);
     try {
@@ -186,9 +215,15 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
     }
   }, [t]);
 
+  const reloadAll = useCallback(async () => {
+    await Promise.all([loadSettings(), loadSchedulerStatus()]);
+  }, [loadSettings, loadSchedulerStatus]);
+
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    reloadAll();
+    const timer = setInterval(loadSchedulerStatus, 30000);
+    return () => clearInterval(timer);
+  }, [loadSchedulerStatus, reloadAll]);
 
   const saveSettings = useCallback(async () => {
     if (!validateSettings()) return;
@@ -210,13 +245,13 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
         }
       }
       showSuccess(t('自动晋升配置已保存'));
-      await loadSettings();
+      await reloadAll();
     } catch (error) {
       showError(error.message || t('保存自动晋升配置失败'));
     } finally {
       setSaving(false);
     }
-  }, [loadSettings, settings, t, validateSettings]);
+  }, [reloadAll, settings, t, validateSettings]);
 
   const runAutoPromotion = useCallback(
     async (ruleId = '') => {
@@ -239,111 +274,14 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
           }),
         );
         refreshPreparations?.();
+        loadSchedulerStatus();
       } catch (error) {
         showError(error.message || t('执行自动晋升失败'));
       } finally {
         setRunning(false);
       }
     },
-    [refreshPreparations, t],
-  );
-
-  const columns = useMemo(
-    () => [
-      {
-        title: t('启用'),
-        dataIndex: 'enabled',
-        width: 80,
-        render: (_, record) => (
-          <Switch
-            size='small'
-            checked={!!record.enabled}
-            onChange={(value) => updateRule(record.id, { enabled: value })}
-          />
-        ),
-      },
-      {
-        title: t('分组'),
-        dataIndex: 'group',
-        width: 140,
-        render: (_, record) => (
-          <Input
-            size='small'
-            value={record.group}
-            placeholder='default'
-            onChange={(value) => updateRule(record.id, { group: value })}
-          />
-        ),
-      },
-      {
-        title: t('渠道类型'),
-        dataIndex: 'type',
-        width: 190,
-        render: (_, record) => (
-          <Select
-            size='small'
-            value={record.type}
-            onChange={(value) => updateRule(record.id, { type: value })}
-            style={{ width: 170 }}
-          >
-            {CHANNEL_OPTIONS.map((option) => (
-              <Select.Option key={option.value} value={option.value}>
-                {option.label}
-              </Select.Option>
-            ))}
-          </Select>
-        ),
-      },
-      {
-        title: t('触发阈值'),
-        dataIndex: 'threshold_usd',
-        width: 140,
-        render: (_, record) => (
-          <InputNumber
-            size='small'
-            min={0.0001}
-            step={1}
-            value={record.threshold_usd}
-            suffix='USD'
-            onChange={(value) =>
-              updateRule(record.id, { threshold_usd: Number(value || 0) })
-            }
-          />
-        ),
-      },
-      {
-        title: t('策略'),
-        dataIndex: 'strategy',
-        width: 130,
-        render: () => <Tag color='blue'>priority_weighted</Tag>,
-      },
-      {
-        title: t('操作'),
-        dataIndex: 'operate',
-        width: 150,
-        render: (_, record) => (
-          <Space>
-            <Button
-              size='small'
-              type='tertiary'
-              loading={running}
-              onClick={() => runAutoPromotion(record.id)}
-            >
-              {t('执行')}
-            </Button>
-            <Button
-              size='small'
-              type='danger'
-              theme='borderless'
-              onClick={() => removeRule(record.id)}
-            >
-              {t('删除')}
-            </Button>
-          </Space>
-        ),
-      },
-    ],
-    [removeRule, runAutoPromotion, running, t, updateRule],
+    [loadSchedulerStatus, refreshPreparations, t],
   );
 
   const resultContent = useMemo(() => {
@@ -390,6 +328,11 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
     );
   }, [lastSummary, t]);
 
+  const nextCheckText = buildNextCheckText(schedulerStatus, t);
+  const lastCheckText = schedulerStatus?.last_check_at
+    ? formatTimestamp(schedulerStatus.last_check_at)
+    : '';
+
   if (!canConfigure) {
     return (
       <div className='mb-3 rounded-xl border border-gray-100 bg-white dark:bg-zinc-900 p-4'>
@@ -401,13 +344,24 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
           )}
           className='mb-3'
         />
+        <div className='mb-3 rounded-lg bg-gray-50 dark:bg-zinc-800 p-3 text-sm'>
+          <div>
+            <Typography.Text strong>{t('下次检查')}：</Typography.Text>
+            <Typography.Text>{nextCheckText}</Typography.Text>
+          </div>
+          {lastCheckText && (
+            <div className='mt-1 text-gray-500'>
+              {t('上次检查')}：{lastCheckText}
+            </div>
+          )}
+        </div>
         <Button
           size='small'
           type='warning'
           loading={running}
           onClick={() => runAutoPromotion('')}
         >
-          {t('执行自动晋升检查')}
+          {t('执行全部规则检查')}
         </Button>
         <Modal
           title={t('自动晋升执行结果')}
@@ -441,7 +395,7 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
               size='small'
               icon={<IconRefresh />}
               loading={loading}
-              onClick={loadSettings}
+              onClick={reloadAll}
             >
               {t('重新加载')}
             </Button>
@@ -461,12 +415,12 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
               loading={running}
               onClick={() => runAutoPromotion('')}
             >
-              {t('执行自动晋升检查')}
+              {t('执行全部规则检查')}
             </Button>
           </Space>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-3'>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3'>
           <div>
             <div className='mb-1 font-semibold'>{t('定时自动晋升')}</div>
             <Switch
@@ -497,6 +451,17 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
               }
             />
           </div>
+          <div>
+            <div className='mb-1 font-semibold'>{t('下次检查')}</div>
+            <div className='min-h-[32px] flex items-center text-sm text-gray-700 dark:text-gray-200'>
+              {nextCheckText}
+            </div>
+            {lastCheckText && (
+              <div className='text-xs text-gray-500'>
+                {t('上次检查')}：{lastCheckText}
+              </div>
+            )}
+          </div>
         </div>
 
         <Banner
@@ -514,14 +479,108 @@ const AutoPromotionPanel = ({ t, refreshPreparations }) => {
             {t('添加规则')}
           </Button>
         </div>
-        <Table
-          rowKey='id'
-          size='small'
-          columns={columns}
-          dataSource={settings.rules || []}
-          pagination={false}
-          scroll={{ x: 'max-content' }}
-        />
+        <div className='space-y-3'>
+          {(settings.rules || []).length === 0 ? (
+            <div className='rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500'>
+              {t('暂无自动晋升规则，请先添加规则。')}
+            </div>
+          ) : (
+            (settings.rules || []).map((rule) => (
+              <div
+                key={rule.id}
+                className='rounded-lg border border-gray-100 p-3'
+              >
+                <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 items-end'>
+                  <div>
+                    <div className='mb-1 text-sm font-semibold'>
+                      {t('启用')}
+                    </div>
+                    <Switch
+                      size='small'
+                      checked={!!rule.enabled}
+                      onChange={(value) =>
+                        updateRule(rule.id, { enabled: value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <div className='mb-1 text-sm font-semibold'>
+                      {t('分组')}
+                    </div>
+                    <Input
+                      size='small'
+                      value={rule.group}
+                      placeholder='default'
+                      onChange={(value) =>
+                        updateRule(rule.id, { group: value })
+                      }
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div className='xl:col-span-2'>
+                    <div className='mb-1 text-sm font-semibold'>
+                      {t('渠道类型')}
+                    </div>
+                    <Select
+                      size='small'
+                      value={rule.type}
+                      onChange={(value) => updateRule(rule.id, { type: value })}
+                      style={{ width: '100%' }}
+                    >
+                      {CHANNEL_OPTIONS.map((option) => (
+                        <Select.Option key={option.value} value={option.value}>
+                          {option.label}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <div className='mb-1 text-sm font-semibold'>
+                      {t('触发阈值')}
+                    </div>
+                    <InputNumber
+                      size='small'
+                      min={0.0001}
+                      step={1}
+                      value={rule.threshold_usd}
+                      suffix='USD'
+                      onChange={(value) =>
+                        updateRule(rule.id, {
+                          threshold_usd: Number(value || 0),
+                        })
+                      }
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <div className='mb-1 text-sm font-semibold'>
+                      {t('策略')}
+                    </div>
+                    <Tag color='blue'>{t(STRATEGY_LABEL)}</Tag>
+                  </div>
+                </div>
+                <div className='mt-3 flex flex-wrap gap-2 justify-end'>
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    loading={running}
+                    onClick={() => runAutoPromotion(rule.id)}
+                  >
+                    {t('执行本规则')}
+                  </Button>
+                  <Button
+                    size='small'
+                    type='danger'
+                    theme='borderless'
+                    onClick={() => removeRule(rule.id)}
+                  >
+                    {t('删除')}
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <Modal

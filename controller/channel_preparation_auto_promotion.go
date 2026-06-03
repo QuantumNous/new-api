@@ -70,6 +70,18 @@ type channelPreparationAutoPromotionRunSummary struct {
 	SkippedReason string                                       `json:"skipped_reason,omitempty"`
 }
 
+type channelPreparationAutoPromotionSchedulerStatus struct {
+	SchedulerEnabled bool    `json:"scheduler_enabled"`
+	IntervalMinutes  float64 `json:"interval_minutes"`
+	NextCheckAt      int64   `json:"next_check_at"`
+	LastCheckAt      int64   `json:"last_check_at"`
+	LastFinishedAt   int64   `json:"last_finished_at"`
+	LastPromoted     int     `json:"last_promoted"`
+	Running          bool    `json:"running"`
+	IsMasterNode     bool    `json:"is_master_node"`
+	ServerTimestamp  int64   `json:"server_timestamp"`
+}
+
 type channelPreparationAutoPromotionCapacityAggregate struct {
 	EligibleChannelCount int64   `gorm:"column:eligible_channel_count"`
 	BalanceSumUSD        float64 `gorm:"column:balance_sum_usd"`
@@ -77,9 +89,44 @@ type channelPreparationAutoPromotionCapacityAggregate struct {
 }
 
 var (
-	channelPreparationAutoPromotionRunMutex sync.Mutex
-	channelPreparationAutoPromotionTaskOnce sync.Once
+	channelPreparationAutoPromotionRunMutex       sync.Mutex
+	channelPreparationAutoPromotionTaskOnce       sync.Once
+	channelPreparationAutoPromotionStatusMutex    sync.RWMutex
+	channelPreparationAutoPromotionStatusSnapshot channelPreparationAutoPromotionSchedulerStatus
 )
+
+func updateChannelPreparationAutoPromotionSchedulerStatus(update func(*channelPreparationAutoPromotionSchedulerStatus)) {
+	channelPreparationAutoPromotionStatusMutex.Lock()
+	defer channelPreparationAutoPromotionStatusMutex.Unlock()
+	update(&channelPreparationAutoPromotionStatusSnapshot)
+}
+
+func getChannelPreparationAutoPromotionSchedulerStatus() channelPreparationAutoPromotionSchedulerStatus {
+	channelPreparationAutoPromotionStatusMutex.RLock()
+	status := channelPreparationAutoPromotionStatusSnapshot
+	channelPreparationAutoPromotionStatusMutex.RUnlock()
+
+	setting := operation_setting.GetChannelPreparationAutoPromotionSetting()
+	status.SchedulerEnabled = setting.SchedulerEnabled
+	status.IntervalMinutes = setting.IntervalMinutes
+	status.IsMasterNode = common.IsMasterNode
+	status.ServerTimestamp = common.GetTimestamp()
+	if !setting.SchedulerEnabled && !status.Running {
+		status.NextCheckAt = 0
+	}
+	if setting.SchedulerEnabled && common.IsMasterNode && !status.Running && status.NextCheckAt == 0 {
+		intervalMinutes := int(math.Round(setting.IntervalMinutes))
+		if intervalMinutes <= 0 {
+			intervalMinutes = 10
+		}
+		status.NextCheckAt = time.Now().Add(time.Duration(intervalMinutes) * time.Minute).Unix()
+	}
+	return status
+}
+
+func GetChannelPreparationAutoPromotionSchedulerStatus(c *gin.Context) {
+	common.ApiSuccess(c, getChannelPreparationAutoPromotionSchedulerStatus())
+}
 
 func normalizeAutoPromotionDeficit(threshold float64, capacity float64) float64 {
 	deficit := threshold - capacity
@@ -226,6 +273,27 @@ func normalizeChannelPreparationAutoPromotionRules(rules []operation_setting.Cha
 	return normalized
 }
 
+func recordChannelPreparationAutoPromotionManageLog(adminUserId *int, content string, channelId int, group string, adminInfo map[string]interface{}) {
+	logUserId := 0
+	actor := "system"
+	if adminUserId != nil && *adminUserId > 0 {
+		logUserId = *adminUserId
+		actor = "admin"
+	}
+
+	enrichedInfo := make(map[string]interface{}, len(adminInfo)+5)
+	for key, value := range adminInfo {
+		enrichedInfo[key] = value
+	}
+	enrichedInfo["event"] = "channel_preparation_auto_promotion"
+	enrichedInfo["actor"] = actor
+	enrichedInfo["node_name"] = common.NodeName
+	enrichedInfo["server_ip"] = common.GetIp()
+	enrichedInfo["version"] = common.Version
+
+	model.RecordLogWithAdminInfoAndMetadata(logUserId, model.LogTypeManage, content, channelId, group, enrichedInfo)
+}
+
 func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId string, adminUserId *int) (channelPreparationAutoPromotionRunSummary, error) {
 	settingSnapshot := *operation_setting.GetChannelPreparationAutoPromotionSetting()
 	settingSnapshot.Rules = normalizeChannelPreparationAutoPromotionRules(settingSnapshot.Rules)
@@ -363,19 +431,17 @@ func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId str
 			})
 			logContent := fmt.Sprintf("自动晋升候选渠道：规则=%s 分组=%s 类型=%d 候选ID=%d 渠道ID=%d 余额=%.4f 容量 %.4f -> %.4f 触发=%s", rule.Id, rule.Group, rule.Type, candidate.Id, channelId, candidate.Balance, before, currentCapacity, trigger)
 			common.SysLog(logContent)
-			if adminUserId != nil && *adminUserId > 0 {
-				model.RecordLogWithAdminInfo(*adminUserId, model.LogTypeManage, logContent, map[string]interface{}{
-					"rule_id":           rule.Id,
-					"group":             rule.Group,
-					"type":              rule.Type,
-					"preparation_id":    candidate.Id,
-					"channel_id":        channelId,
-					"candidate_balance": candidate.Balance,
-					"capacity_before":   before,
-					"capacity_after":    currentCapacity,
-					"trigger":           trigger,
-				})
-			}
+			recordChannelPreparationAutoPromotionManageLog(adminUserId, logContent, channelId, rule.Group, map[string]interface{}{
+				"rule_id":           rule.Id,
+				"group":             rule.Group,
+				"type":              rule.Type,
+				"preparation_id":    candidate.Id,
+				"channel_id":        channelId,
+				"candidate_balance": candidate.Balance,
+				"capacity_before":   before,
+				"capacity_after":    currentCapacity,
+				"trigger":           trigger,
+			})
 		}
 
 		if summary.TotalPromoted >= maxPromotions && currentCapacity < rule.ThresholdUSD {
@@ -420,10 +486,11 @@ func RunChannelPreparationAutoPromotionManually(c *gin.Context) {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
-	model.RecordLogWithAdminInfo(adminUserId, model.LogTypeManage, fmt.Sprintf("手动执行渠道备货池自动晋升：晋升 %d 个渠道", summary.TotalPromoted), map[string]interface{}{
+	recordChannelPreparationAutoPromotionManageLog(&adminUserId, fmt.Sprintf("手动执行渠道备货池自动晋升：晋升 %d 个渠道", summary.TotalPromoted), 0, "", map[string]interface{}{
 		"rule_id":        request.RuleId,
 		"total_promoted": summary.TotalPromoted,
 		"limit_reached":  summary.LimitReached,
+		"trigger":        channelPreparationAutoPromotionTriggerManual,
 	})
 	common.ApiSuccess(c, summary)
 }
@@ -438,6 +505,12 @@ func StartChannelPreparationAutoPromotionTask() {
 			for {
 				setting := operation_setting.GetChannelPreparationAutoPromotionSetting()
 				if !setting.SchedulerEnabled {
+					updateChannelPreparationAutoPromotionSchedulerStatus(func(status *channelPreparationAutoPromotionSchedulerStatus) {
+						status.SchedulerEnabled = false
+						status.IntervalMinutes = setting.IntervalMinutes
+						status.NextCheckAt = 0
+						status.Running = false
+					})
 					time.Sleep(1 * time.Minute)
 					continue
 				}
@@ -445,17 +518,51 @@ func StartChannelPreparationAutoPromotionTask() {
 				if intervalMinutes <= 0 {
 					intervalMinutes = 10
 				}
-				time.Sleep(time.Duration(intervalMinutes) * time.Minute)
+				intervalDuration := time.Duration(intervalMinutes) * time.Minute
+				nextCheckAt := time.Now().Add(intervalDuration).Unix()
+				updateChannelPreparationAutoPromotionSchedulerStatus(func(status *channelPreparationAutoPromotionSchedulerStatus) {
+					status.SchedulerEnabled = true
+					status.IntervalMinutes = float64(intervalMinutes)
+					status.NextCheckAt = nextCheckAt
+					status.Running = false
+				})
+				time.Sleep(intervalDuration)
 				if !operation_setting.GetChannelPreparationAutoPromotionSetting().SchedulerEnabled {
+					updateChannelPreparationAutoPromotionSchedulerStatus(func(status *channelPreparationAutoPromotionSchedulerStatus) {
+						status.SchedulerEnabled = false
+						status.NextCheckAt = 0
+						status.Running = false
+					})
 					continue
 				}
 				common.SysLog(fmt.Sprintf("running channel preparation auto promotion with interval %d minutes", intervalMinutes))
+				updateChannelPreparationAutoPromotionSchedulerStatus(func(status *channelPreparationAutoPromotionSchedulerStatus) {
+					status.Running = true
+					status.NextCheckAt = 0
+					status.LastCheckAt = common.GetTimestamp()
+				})
 				summary, err := RunChannelPreparationAutoPromotion(channelPreparationAutoPromotionTriggerScheduler, "", nil)
 				if err != nil {
+					updateChannelPreparationAutoPromotionSchedulerStatus(func(status *channelPreparationAutoPromotionSchedulerStatus) {
+						status.Running = false
+						status.LastFinishedAt = common.GetTimestamp()
+					})
 					common.SysError("channel preparation auto promotion failed: " + err.Error())
 					continue
 				}
+				updateChannelPreparationAutoPromotionSchedulerStatus(func(status *channelPreparationAutoPromotionSchedulerStatus) {
+					status.Running = false
+					status.LastFinishedAt = common.GetTimestamp()
+					status.LastPromoted = summary.TotalPromoted
+				})
 				common.SysLog(fmt.Sprintf("channel preparation auto promotion finished: promoted=%d, limit_reached=%v", summary.TotalPromoted, summary.LimitReached))
+				if summary.TotalPromoted > 0 || summary.LimitReached {
+					recordChannelPreparationAutoPromotionManageLog(nil, fmt.Sprintf("定时执行渠道备货池自动晋升：晋升 %d 个渠道", summary.TotalPromoted), 0, "", map[string]interface{}{
+						"total_promoted": summary.TotalPromoted,
+						"limit_reached":  summary.LimitReached,
+						"trigger":        channelPreparationAutoPromotionTriggerScheduler,
+					})
+				}
 			}
 		}()
 	})
