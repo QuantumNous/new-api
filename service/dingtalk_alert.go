@@ -64,6 +64,8 @@ var (
 	dingTalkRequestTimeout          = 10 * time.Second
 )
 
+const maxDingTalkChannelAlertBatchSize = 5
+
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
 	return &DingTalkAlertCooldown{lastAt: make(map[int]time.Time)}
 }
@@ -152,7 +154,7 @@ func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Du
 	reservation, allowed, err := reserveDingTalkAlertCooldownDB(channelID, now, cooldown)
 	if err != nil {
 		common.SysError("failed to reserve dingtalk alert cooldown in database: " + err.Error())
-		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
+		return nil, false
 	}
 	return reservation, allowed
 }
@@ -436,15 +438,26 @@ func NotifyDingTalkChannelTestFailures(alerts []DingTalkChannelAlert) error {
 		}
 		reservations = append(reservations, reservation)
 		sendableAlerts = append(sendableAlerts, alert)
-	}
-	if len(sendableAlerts) == 0 {
-		return nil
+		if len(sendableAlerts) == maxDingTalkChannelAlertBatchSize {
+			if err := sendReservedDingTalkChannelAlertBatch(setting, reservations, sendableAlerts); err != nil {
+				return err
+			}
+			reservations = reservations[:0]
+			sendableAlerts = sendableAlerts[:0]
+		}
 	}
 
+	return sendReservedDingTalkChannelAlertBatch(setting, reservations, sendableAlerts)
+}
+
+func sendReservedDingTalkChannelAlertBatch(setting *operation_setting.MonitorSetting, reservations []*dingTalkAlertCooldownReservation, alerts []DingTalkChannelAlert) error {
+	if len(alerts) == 0 {
+		return nil
+	}
 	if err := SendDingTalkText(
 		setting.DingTalkAlertWebhookURL,
 		setting.DingTalkAlertSecret,
-		BuildDingTalkChannelAlertBatchContent(sendableAlerts),
+		BuildDingTalkChannelAlertBatchContent(alerts),
 	); err != nil {
 		for _, reservation := range reservations {
 			reservation.Rollback()

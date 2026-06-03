@@ -329,6 +329,62 @@ func TestNotifyDingTalkFailuresSendsOneBatchForMultipleChannels(t *testing.T) {
 	require.Contains(t, content, "Channel ID: 100")
 }
 
+func TestNotifyDingTalkFailuresSplitsLargeBatches(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
+	})
+
+	var requests int32
+	contents := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		var payload struct {
+			Text struct {
+				Content string `json:"content"`
+			} `json:"text"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+		contents <- payload.Text.Content
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alerts := make([]DingTalkChannelAlert, maxDingTalkChannelAlertBatchSize+1)
+	for index := range alerts {
+		alerts[index] = DingTalkChannelAlert{
+			ChannelID:       200 + index,
+			ChannelName:     fmt.Sprintf("channel-%d", index),
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+			Now:             time.Date(2026, 6, 2, 13, 0, index, 0, time.UTC),
+		}
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	require.Equal(t, int32(2), atomic.LoadInt32(&requests))
+	firstContent := <-contents
+	secondContent := <-contents
+	require.Contains(t, firstContent, fmt.Sprintf("Total Failures: %d", maxDingTalkChannelAlertBatchSize))
+	require.Contains(t, secondContent, "Channel ID: 205")
+	require.NotContains(t, firstContent, "Channel ID: 205")
+}
+
 func TestNotifyDingTalkFailureSharesCooldownThroughDatabase(t *testing.T) {
 	allowDingTalkTestServer(t)
 	originalSetting := *operation_setting.GetMonitorSetting()
@@ -380,6 +436,29 @@ func TestNotifyDingTalkFailureSharesCooldownThroughDatabase(t *testing.T) {
 	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
 
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+}
+
+func TestReserveDingTalkAlertCooldownFailsClosedWhenDatabaseReservationErrors(t *testing.T) {
+	originalDB := model.DB
+	originalCooldown := dingTalkAlertCooldown
+	t.Cleanup(func() {
+		model.DB = originalDB
+		dingTalkAlertCooldown = originalCooldown
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:dingtalk-alert-closed-db?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	model.DB = db
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+
+	reservation, allowed := reserveDingTalkAlertCooldown(32, time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC), time.Hour)
+
+	require.False(t, allowed)
+	require.Nil(t, reservation)
+	require.True(t, dingTalkAlertCooldown.Allow(32, time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC), time.Hour))
 }
 
 func TestReserveDingTalkAlertCooldownAfterCreateConflictUsesExistingRecord(t *testing.T) {
