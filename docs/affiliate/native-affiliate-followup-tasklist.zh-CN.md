@@ -101,7 +101,7 @@
 - [x] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
 - [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
-- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；2026-06-04 已把 KPI/佣金/人头费日志扫描和 settlement event id 扫描进度写入既有 cursor 字段；2026-06-04 已支持同 idempotency key 的 failed job run 原地恢复并幂等重跑；2026-06-04 已增加 active running 拦截与 6 小时 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload，并修复 settlement grouping 失败时 cursor 被事务回滚的问题；2026-06-04 Docker probe 仍不可用，schema diff 未生成；cursor 跳扫式 resume 和 Docker PostgreSQL schema diff 仍待补。）
+- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；2026-06-04 已把 KPI/佣金/人头费日志扫描和 settlement event id 扫描进度写入既有 cursor 字段；2026-06-04 已支持同 idempotency key 的 failed job run 原地恢复并幂等重跑；2026-06-04 已增加 active running 拦截与 6 小时 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload，并修复 settlement grouping 失败时 cursor 被事务回滚的问题；2026-06-04 已修复 failed job run resume 初始化清空 cursor payload 的问题，为后续跳扫式 resume 保留 typed cursor；2026-06-04 Docker probe 仍不可用，schema diff 未生成；真正按 cursor 跳扫、Docker PostgreSQL schema diff 仍待补。）
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
@@ -158,7 +158,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看、发布/归档二次确认、佣金/人头费启停状态、结算自动开关和备注。风控动作仍按第 6 节单项任务保留。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 Docker probe 仍不可用，schema diff 未生成；cursor 跳扫式 resume、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 Docker probe 仍不可用，schema diff 未生成；真正按 cursor 跳扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；手机号注册归因、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -459,7 +459,7 @@
 ## P1-22 failed job run 原地恢复复盘（2026-06-04 本线程）
 
 - RED：先新增 `TestRunAffiliateSettlementPipelineResumesFailedJobRunForSameIdempotencyKey` 与 `TestGenerateAffiliateSettlementsWithJobRunResumesFailedJobRunForSameIdempotencyKey`；旧实现第二次执行同参数时会创建新的 `affiliate_job_runs` 记录，失败断言显示 `JobRunId` 从 1 变为 2。
-- 完成内容：pipeline 与 standalone settlement generate 创建 job run 前先按 `job_type + idempotency_key + failed status` 查找最近失败记录；命中后把同一记录重置为 `running`、清空错误和旧 result/count/cursor，并刷新 actor、input snapshot、started_at，再复用既有幂等阶段从头重跑。
+- 完成内容：pipeline 与 standalone settlement generate 创建 job run 前先按 `job_type + idempotency_key + failed status` 查找最近失败记录；命中后把同一记录重置为 `running`、清空错误和旧计数，并刷新 actor、input snapshot、started_at，再复用既有幂等阶段重跑。2026-06-04 P1-31 已修正 failed resume 初始化清空 cursor payload 的问题，改为保留 typed cursor 供后续跳扫式 resume 使用。
 - 语义说明：本轮只复用 `failed` job run，不复用 `succeeded` job run，因此成功后重复执行仍会保留新的成功审计记录；当时也不复用 `running` job run，避免误抢正在执行的任务。`running` active/stale 语义已在 P1-24 收口。
 - 验证命令：RED 阶段 `go test -count=1 ./service -run "ResumesFailedJobRunForSameIdempotencyKey"` 失败；实现后同命令通过。
 - 回归验证：`go test -count=1 ./service -run "RunAffiliateSettlementPipeline(IsIdempotent|RecordsJobRun|ResumesFailed)|GenerateAffiliateSettlementsWithJobRun(Records|ResumesFailed)|GenerateAffiliateSettlements"` 通过，确认成功重复运行审计语义和 settlement generate 既有行为未被破坏。`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter|JobRun"` 通过；`git diff --check` 通过。
@@ -536,6 +536,15 @@
 - 验证命令：RED 阶段 `go test -count=1 ./service -run "RiskStrategies|AffiliateRuleSetDraft"` 因缺字段编译失败；default/classic targeted `bun test` 因旧 snapshot 缺字段和列顺序失败。实现后 `go test -count=1 ./service -run "RiskStrategies|AffiliateRuleSetDraft"` 通过；`go test -count=1 ./model ./service` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，25 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs` 通过，15 pass；`cd web/default && bun run build` 与 `cd web/classic && bun run build` 均通过。
 - 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate/admin` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate/admin` 未登录正常跳转到 classic login。classic 新增控制台消息为既有未登录 401/登录过期提示，不是本轮风控表格列渲染异常。
 - 残留风险：本轮没有把风控动作接入佣金/KPI/人头费/结算生成逻辑的自动处置，只完成配置模型化和运营表格化；真实业务动作是否降档、暂缓佣金、排除 KPI 或仅复核，仍需后续结合飞书风控口径和生成任务 TDD 单独实现。Docker PostgreSQL schema diff、登录态管理员真实点击保存 smoke、cursor 跳扫式 resume 和完整周期双跑仍待做。
+
+## P1-31 failed resume cursor payload 保留复盘（2026-06-04 本线程）
+
+- RED：新增 `TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart`，直接锁定 failed job run 原地恢复初始化语义。旧实现会在 `resetAffiliateJobRunForResume` 中把 `last_cursor_id` 清零并清空 `result_snapshot`，测试失败于 retry 后 cursor 从 `2345` 变成 `0`。
+- 完成内容：failed job run resume 现在保留 `last_cursor_created_at`、`last_cursor_id` 和 result snapshot 中的 typed cursor 字段，包括 KPI/佣金/人头费日志 cursor、settlement commission/head fee event cursor 以及通用 last cursor；同时继续清空错误、计数、finished_at 并刷新 actor、input snapshot 和 started_at。
+- 语义边界：仅 failed job run 保留 cursor payload；stale running job run 仍保持原先“接管前重置 cursor 和计数”的语义，避免把未知运行中进度误认为安全完成段。本轮仍不是按 cursor 跳过扫描，只是保证后续跳扫实现可以读取上次失败前保存的 typed cursor。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart` 失败；实现后同命令通过。
+- 回归验证：`go test -count=1 ./service -run "GenerateAffiliateSettlementsWithJobRun(PreservesStageCursor|ResumesFailed|ResumesStale|Records)|ResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart"` 通过；`go test -count=1 ./model ./service -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|JobRun"` 通过。
+- 残留风险：真正 cursor 跳扫式 resume 仍未完成。尤其 settlement grouping 当前把 groups 累积在内存中，如果失败发生在 draft/upsert 前，直接跳过已扫描 pending events 可能导致事件长期未结算；后续必须先定义 stage completed 标记、可持久化聚合或批次级 durable side effect，再按 TDD 实现跳扫。
 
 ## P2-2 SMS DB-backed 限流复盘（2026-06-04 本线程）
 

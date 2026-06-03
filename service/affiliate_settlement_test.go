@@ -241,6 +241,42 @@ func TestGenerateAffiliateSettlementsWithJobRunPreservesStageCursorOnFailure(t *
 	}
 }
 
+func TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	jobRun := model.AffiliateJobRun{
+		JobType:        model.AffiliateJobRunTypeSettlementGenerate,
+		Status:         model.AffiliateJobRunStatusFailed,
+		IdempotencyKey: "resume-preserves-cursor",
+		CurrentStage:   affiliateJobRunStageSettlementCommissionEvents,
+		LastCursorId:   2345,
+		ResultSnapshot: `{"status":"failed","settlement_commission_event_id":2345}`,
+		ErrorMessage:   "forced failure after commission event scan",
+		StartedAt:      1000,
+		CreatedAt:      1000,
+		UpdatedAt:      1000,
+	}
+	if err := db.Create(&jobRun).Error; err != nil {
+		t.Fatalf("seed failed job run: %v", err)
+	}
+
+	resumedRun, resumed, err := resumeFailedAffiliateJobRun(db, jobRun.JobType, jobRun.IdempotencyKey, 9, 2000, `{"retry":true}`)
+	if err != nil {
+		t.Fatalf("resume failed job run returned error: %v", err)
+	}
+	if !resumed || resumedRun.Id != jobRun.Id {
+		t.Fatalf("expected failed job run to be resumed in place, resumed=%v run=%+v", resumed, resumedRun)
+	}
+	if resumedRun.Status != model.AffiliateJobRunStatusRunning || resumedRun.ErrorMessage != "" {
+		t.Fatalf("expected failed job run state to be reset for retry, got %+v", resumedRun)
+	}
+	if resumedRun.LastCursorId != jobRun.LastCursorId {
+		t.Fatalf("expected retry to preserve last cursor id %d, got %+v", jobRun.LastCursorId, resumedRun)
+	}
+	if !strings.Contains(resumedRun.ResultSnapshot, `"settlement_commission_event_id":2345`) {
+		t.Fatalf("expected retry to preserve typed cursor snapshot, got %q", resumedRun.ResultSnapshot)
+	}
+}
+
 func TestGenerateAffiliateSettlementsWithJobRunResumesFailedJobRunForSameIdempotencyKey(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	input := AffiliateSettlementBuildInput{

@@ -146,7 +146,7 @@ func resumeRestartableAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKe
 		if !isAffiliateJobRunStale(jobRun, startedAt) {
 			return model.AffiliateJobRun{}, false, fmt.Errorf("affiliate %s job run is already running for the same parameters", jobType)
 		}
-		return resetAffiliateJobRunForResume(db, jobRun, model.AffiliateJobRunStatusRunning, actorUserId, startedAt, inputSnapshot)
+		return resetAffiliateJobRunForResume(db, jobRun, model.AffiliateJobRunStatusRunning, actorUserId, startedAt, inputSnapshot, false)
 	}
 	return resumeFailedAffiliateJobRun(db, jobType, idempotencyKey, actorUserId, startedAt, inputSnapshot)
 }
@@ -188,10 +188,10 @@ func resumeFailedAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey str
 		return model.AffiliateJobRun{}, false, err
 	}
 
-	return resetAffiliateJobRunForResume(db, jobRun, model.AffiliateJobRunStatusFailed, actorUserId, startedAt, inputSnapshot)
+	return resetAffiliateJobRunForResume(db, jobRun, model.AffiliateJobRunStatusFailed, actorUserId, startedAt, inputSnapshot, true)
 }
 
-func resetAffiliateJobRunForResume(db *gorm.DB, jobRun model.AffiliateJobRun, expectedStatus string, actorUserId int, startedAt int64, inputSnapshot string) (model.AffiliateJobRun, bool, error) {
+func resetAffiliateJobRunForResume(db *gorm.DB, jobRun model.AffiliateJobRun, expectedStatus string, actorUserId int, startedAt int64, inputSnapshot string, preserveCursor bool) (model.AffiliateJobRun, bool, error) {
 	updates := map[string]interface{}{
 		"status":                 model.AffiliateJobRunStatusRunning,
 		"actor_user_id":          actorUserId,
@@ -208,6 +208,11 @@ func resetAffiliateJobRunForResume(db *gorm.DB, jobRun model.AffiliateJobRun, ex
 		"started_at":             startedAt,
 		"finished_at":            0,
 	}
+	if preserveCursor {
+		updates["last_cursor_created_at"] = jobRun.LastCursorCreatedAt
+		updates["last_cursor_id"] = jobRun.LastCursorId
+		updates["result_snapshot"] = affiliateJobRunResumeCursorSnapshot(jobRun)
+	}
 	query := db.Model(&model.AffiliateJobRun{}).Where("id = ? AND status = ?", jobRun.Id, expectedStatus)
 	if expectedStatus == model.AffiliateJobRunStatusRunning {
 		query = query.Where("started_at = ? AND updated_at = ?", jobRun.StartedAt, jobRun.UpdatedAt)
@@ -223,6 +228,44 @@ func resetAffiliateJobRunForResume(db *gorm.DB, jobRun model.AffiliateJobRun, ex
 		return model.AffiliateJobRun{}, false, err
 	}
 	return jobRun, true, nil
+}
+
+func affiliateJobRunResumeCursorSnapshot(jobRun model.AffiliateJobRun) string {
+	snapshot := map[string]interface{}{}
+	if strings.TrimSpace(jobRun.ResultSnapshot) != "" {
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(jobRun.ResultSnapshot), &parsed); err == nil {
+			for _, key := range affiliateJobRunResumeCursorSnapshotKeys() {
+				if value, ok := parsed[key]; ok {
+					snapshot[key] = value
+				}
+			}
+		}
+	}
+	if jobRun.LastCursorId > 0 {
+		for key, value := range affiliateJobRunCursorSnapshotFields(jobRun.CurrentStage, jobRun.LastCursorCreatedAt, jobRun.LastCursorId) {
+			snapshot[key] = value
+		}
+	}
+	if len(snapshot) == 0 {
+		return ""
+	}
+	return common.GetJsonString(snapshot)
+}
+
+func affiliateJobRunResumeCursorSnapshotKeys() []string {
+	return []string{
+		"kpi_log_id",
+		"kpi_log_created_at",
+		"commission_log_id",
+		"commission_log_created_at",
+		"head_fee_log_id",
+		"head_fee_log_created_at",
+		"settlement_commission_event_id",
+		"settlement_head_fee_event_id",
+		"last_cursor_id",
+		"last_cursor_created_at",
+	}
 }
 
 func updateAffiliateJobRunProgress(db *gorm.DB, jobRunId int, stage string, updates map[string]interface{}) error {
