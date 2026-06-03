@@ -200,7 +200,7 @@ func AdminGenerateAffiliateSettlements(c *gin.Context) {
 		return
 	}
 
-	settlements, err := service.GenerateAffiliateSettlements(model.DB, service.AffiliateSettlementBuildInput{
+	settlements, _, err := service.GenerateAffiliateSettlementsWithJobRun(model.DB, service.AffiliateSettlementBuildInput{
 		RuleSetId:   req.RuleSetId,
 		PeriodStart: req.PeriodStart,
 		PeriodEnd:   req.PeriodEnd,

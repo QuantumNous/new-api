@@ -383,6 +383,16 @@ func TestAdminSettlementLifecycleGenerateFreezePay(t *testing.T) {
 	if settlement.AffiliateUserId != 100 || settlement.Status != model.AffiliateSettlementStatusDraft || settlement.PayableCents != 1500 {
 		t.Fatalf("unexpected generated settlement: %+v", settlement)
 	}
+	var jobRun model.AffiliateJobRun
+	if err := db.Where("job_type = ?", model.AffiliateJobRunTypeSettlementGenerate).First(&jobRun).Error; err != nil {
+		t.Fatalf("expected standalone settlement generate job run: %v", err)
+	}
+	if jobRun.Status != model.AffiliateJobRunStatusSucceeded || jobRun.SettlementCount != 1 || jobRun.ActorUserId != 1 {
+		t.Fatalf("unexpected standalone settlement generate job run: %+v", jobRun)
+	}
+	if !strings.Contains(jobRun.InputSnapshot, `"has_reason":true`) || strings.Contains(jobRun.InputSnapshot, "monthly close") {
+		t.Fatalf("expected job run input snapshot to redact reason content, got %q", jobRun.InputSnapshot)
+	}
 
 	frozen := performAdminSettlementStatusRequest(t, http.MethodPatch, "/api/affiliate/admin/settlements/"+strconv.Itoa(settlement.Id)+"/freeze", settlement.Id, "freeze", `{"reason":"reviewed"}`)
 	if !frozen.Success || frozen.Data.Status != model.AffiliateSettlementStatusFrozen {

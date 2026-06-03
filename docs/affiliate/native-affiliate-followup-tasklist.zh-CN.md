@@ -100,7 +100,7 @@
 - [x] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
 - [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
-- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；单独 generate endpoint、可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
+- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
@@ -311,3 +311,14 @@
 - 回归验证：`git diff --check` 通过。
 - 残留风险：分销商端趋势图还没有正式数据接口和 UI；管理端结算审核完整表格 UI、规则 import/export/diff/copy previous version 仍待做。
 - 下一步：继续优先处理 KPI snapshot 有效用户口径、规则 import/export/diff，或为 `AdminGenerateAffiliateSettlements` 单独入口补 job run。
+
+## P1-13 standalone settlement generate job run 复盘（2026-06-04 本线程）
+
+- RED：新增 `TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess` 与 `TestGenerateAffiliateSettlementsWithJobRunRecordsFailure` 后，旧代码因缺少 `GenerateAffiliateSettlementsWithJobRun` 和 `AffiliateJobRunTypeSettlementGenerate` 编译失败。
+- 完成内容：新增 `settlement_generate` job type 和 `GenerateAffiliateSettlementsWithJobRun` wrapper，保留原 `GenerateAffiliateSettlements` 纯生成语义；standalone endpoint 生成 draft settlement 时写入 running/succeeded/failed job run。
+- 完成内容：job run 记录 rule set、周期、actor、stage、started/finished、settlement_count、idempotency_key、input_snapshot 和 result/error snapshot；input 只记录 `has_reason`，不写 reason 原文，错误信息继续走敏感 KV 脱敏。
+- 完成内容：`AdminGenerateAffiliateSettlements` 改为调用 wrapper，但响应仍返回 settlement list，避免破坏前端和旧调用方。
+- 验证命令：`go test -count=1 ./service -run "TestGenerateAffiliateSettlementsWithJobRunRecords|TestGenerateAffiliateSettlementsCreatesDraftAndLinksEvents"` 通过。
+- 验证命令：`go test -count=1 ./controller -run "TestAdminSettlementLifecycleGenerateFreezePay|TestAdminVoidAffiliateSettlement"` 通过。
+- 残留风险：`affiliate_job_runs` 仍没有真正持久化 cursor/progress 以支持中断恢复；Docker PostgreSQL schema diff 仍待 Docker 恢复后补；外部完整周期 dry-run/正式 run 双跑仍待验收。
+- 下一步：继续可恢复 cursor 设计，或先补规则 import/export/diff/copy previous version。

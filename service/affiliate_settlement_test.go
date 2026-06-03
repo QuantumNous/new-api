@@ -69,6 +69,87 @@ func TestGenerateAffiliateSettlementsCreatesDraftAndLinksEvents(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-generate-job-success")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	seedAffiliateSettlementHeadFeeEvent(t, db, ruleSet.Id, 100, 500, 1000, 2000)
+
+	settlements, jobRun, err := GenerateAffiliateSettlementsWithJobRun(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+		ActorUserId: 9,
+		Reason:      "monthly close secret=hidden",
+		GeneratedAt: 3000,
+	})
+	if err != nil {
+		t.Fatalf("GenerateAffiliateSettlementsWithJobRun returned error: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("expected one settlement, got %+v", settlements)
+	}
+	if jobRun.Id <= 0 || jobRun.Status != model.AffiliateJobRunStatusSucceeded {
+		t.Fatalf("expected succeeded job run, got %+v", jobRun)
+	}
+
+	var saved model.AffiliateJobRun
+	if err := db.First(&saved, jobRun.Id).Error; err != nil {
+		t.Fatalf("load job run: %v", err)
+	}
+	if saved.JobType != model.AffiliateJobRunTypeSettlementGenerate || saved.CurrentStage != affiliateJobRunStageComplete {
+		t.Fatalf("unexpected job run type/stage: %+v", saved)
+	}
+	if saved.RuleSetId != ruleSet.Id || saved.PeriodStart != 1000 || saved.PeriodEnd != 2000 || saved.ActorUserId != 9 {
+		t.Fatalf("unexpected job run identity: %+v", saved)
+	}
+	if saved.StartedAt != 3000 || saved.FinishedAt != 3000 || saved.SettlementCount != 1 {
+		t.Fatalf("unexpected job run timing/count: %+v", saved)
+	}
+	if saved.IdempotencyKey == "" || !strings.HasPrefix(saved.IdempotencyKey, model.AffiliateJobRunTypeSettlementGenerate+":") {
+		t.Fatalf("unexpected idempotency key: %+v", saved)
+	}
+	if !strings.Contains(saved.InputSnapshot, `"has_reason":true`) || strings.Contains(saved.InputSnapshot, "secret=hidden") {
+		t.Fatalf("expected input snapshot to redact reason content, got %q", saved.InputSnapshot)
+	}
+	if !strings.Contains(saved.ResultSnapshot, `"settlement_count":1`) || !strings.Contains(saved.ResultSnapshot, `"settlement_ids"`) {
+		t.Fatalf("expected result snapshot to record settlement ids, got %q", saved.ResultSnapshot)
+	}
+}
+
+func TestGenerateAffiliateSettlementsWithJobRunRecordsFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+
+	settlements, jobRun, err := GenerateAffiliateSettlementsWithJobRun(db, AffiliateSettlementBuildInput{
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		ActorUserId: 9,
+		Reason:      "token=secret-value",
+		GeneratedAt: 3000,
+	})
+	if err == nil {
+		t.Fatalf("expected GenerateAffiliateSettlementsWithJobRun to fail without a published rule set, settlements=%+v jobRun=%+v", settlements, jobRun)
+	}
+	if jobRun.Id <= 0 || jobRun.Status != model.AffiliateJobRunStatusFailed {
+		t.Fatalf("expected failed job run result, got %+v", jobRun)
+	}
+
+	var saved model.AffiliateJobRun
+	if err := db.First(&saved, jobRun.Id).Error; err != nil {
+		t.Fatalf("load failed job run: %v", err)
+	}
+	if saved.JobType != model.AffiliateJobRunTypeSettlementGenerate || saved.CurrentStage != affiliateJobRunStageSettlement {
+		t.Fatalf("unexpected failed job run type/stage: %+v", saved)
+	}
+	if saved.ErrorMessage == "" || !strings.Contains(saved.ErrorMessage, "no published affiliate rule set") {
+		t.Fatalf("expected sanitized failure error, got %+v", saved)
+	}
+	if strings.Contains(saved.InputSnapshot, "token=secret-value") || strings.Contains(saved.ErrorMessage, "secret-value") {
+		t.Fatalf("job run should not leak raw reason or secrets: %+v", saved)
+	}
+}
+
 func TestGenerateAffiliateSettlementsMergesNewPendingEventsIntoExistingDraft(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-merge-existing-draft")

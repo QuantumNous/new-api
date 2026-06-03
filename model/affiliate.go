@@ -21,6 +21,7 @@ const (
 	AffiliateSettlementStatusVoid   = "void"
 
 	AffiliateJobRunTypeSettlementPipeline = "settlement_pipeline"
+	AffiliateJobRunTypeSettlementGenerate = "settlement_generate"
 
 	AffiliateJobRunStatusRunning   = "running"
 	AffiliateJobRunStatusSucceeded = "succeeded"
