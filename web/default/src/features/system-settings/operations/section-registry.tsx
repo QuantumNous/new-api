@@ -59,6 +59,10 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':
             settings['monitor_setting.auto_test_channel_minutes'],
+          'monitor_setting.auto_test_channel_allowed_types':
+            settings['monitor_setting.auto_test_channel_allowed_types'],
+          'monitor_setting.auto_test_channel_ignored_types':
+            settings['monitor_setting.auto_test_channel_ignored_types'],
           'monitor_setting.dingtalk_alert_enabled':
             settings['monitor_setting.dingtalk_alert_enabled'],
           'monitor_setting.dingtalk_alert_webhook_url':

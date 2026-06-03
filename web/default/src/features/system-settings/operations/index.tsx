@@ -40,6 +40,8 @@ const defaultOperationsSettings: OperationsSettings = {
     '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
   'monitor_setting.auto_test_channel_enabled': false,
   'monitor_setting.auto_test_channel_minutes': 10,
+  'monitor_setting.auto_test_channel_allowed_types': [],
+  'monitor_setting.auto_test_channel_ignored_types': [],
   'monitor_setting.dingtalk_alert_enabled': false,
   'monitor_setting.dingtalk_alert_webhook_url': '',
   'monitor_setting.dingtalk_alert_secret': '',

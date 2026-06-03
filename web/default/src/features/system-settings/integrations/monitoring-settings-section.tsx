@@ -16,13 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -35,6 +46,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { CHANNEL_TYPE_OPTIONS } from '@/features/channels/constants'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -45,6 +57,13 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import {
+  areAllKnownChannelTypesSelected,
+  getUnknownChannelTypeIds,
+  normalizeChannelTypeIds,
+  selectAllKnownChannelTypeIds,
+  shouldShowChannelTypeSelectAllShortcut,
+} from './monitoring-channel-types'
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
@@ -76,6 +95,8 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      auto_test_channel_allowed_types: z.array(z.number().int()),
+      auto_test_channel_ignored_types: z.array(z.number().int()),
       dingtalk_alert_enabled: z.boolean(),
       dingtalk_alert_webhook_url: z.string(),
       dingtalk_alert_secret: z.string(),
@@ -147,6 +168,8 @@ type MonitoringSettingsSectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.auto_test_channel_allowed_types': number[]
+    'monitor_setting.auto_test_channel_ignored_types': number[]
     'monitor_setting.dingtalk_alert_enabled': boolean
     'monitor_setting.dingtalk_alert_webhook_url': string
     'monitor_setting.dingtalk_alert_secret': string
@@ -168,10 +191,196 @@ type NormalizedMonitoringValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.auto_test_channel_allowed_types': number[]
+  'monitor_setting.auto_test_channel_ignored_types': number[]
   'monitor_setting.dingtalk_alert_enabled': boolean
   'monitor_setting.dingtalk_alert_webhook_url': string
   'monitor_setting.dingtalk_alert_secret': string
   'monitor_setting.dingtalk_alert_cooldown_minutes': number
+}
+
+function serializeOptionValue(
+  key: keyof NormalizedMonitoringValues,
+  value: NormalizedMonitoringValues[keyof NormalizedMonitoringValues]
+): string | boolean | number {
+  if (
+    key === 'monitor_setting.auto_test_channel_allowed_types' ||
+    key === 'monitor_setting.auto_test_channel_ignored_types'
+  ) {
+    return JSON.stringify(value)
+  }
+  return value as string | boolean | number
+}
+
+function areMonitoringValuesEqual(
+  key: keyof NormalizedMonitoringValues,
+  next: NormalizedMonitoringValues[keyof NormalizedMonitoringValues],
+  previous: NormalizedMonitoringValues[keyof NormalizedMonitoringValues]
+) {
+  if (
+    key === 'monitor_setting.auto_test_channel_allowed_types' ||
+    key === 'monitor_setting.auto_test_channel_ignored_types'
+  ) {
+    return JSON.stringify(next) === JSON.stringify(previous)
+  }
+  return next === previous
+}
+
+type ChannelTypePickerProps = {
+  title: string
+  description: string
+  emptySummary: string
+  showSelectAllShortcut?: boolean
+  value: number[]
+  onChange: (value: number[]) => void
+}
+
+function ChannelTypePicker(props: ChannelTypePickerProps) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const selected = new Set(props.value)
+  const allSelected = areAllKnownChannelTypesSelected(props.value)
+  const showSelectAll = shouldShowChannelTypeSelectAllShortcut(
+    props.showSelectAllShortcut
+  )
+  const selectedLabels = props.value
+    .map((id) => CHANNEL_TYPE_OPTIONS.find((option) => option.value === id))
+    .filter((option): option is (typeof CHANNEL_TYPE_OPTIONS)[number] =>
+      Boolean(option)
+    )
+  const unknownIds = getUnknownChannelTypeIds(props.value)
+  const hasVisibleSelection = selectedLabels.length > 0 || unknownIds.length > 0
+
+  const toggleChannelType = (id: number) => {
+    const next = new Set(props.value)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    props.onChange(normalizeChannelTypeIds(Array.from(next)))
+  }
+
+  const selectAllChannelTypes = () => {
+    props.onChange(selectAllKnownChannelTypeIds(props.value))
+  }
+
+  return (
+    <div className='space-y-3'>
+      <div className='flex flex-col gap-2 sm:flex-row'>
+        <Button
+          type='button'
+          variant='outline'
+          className='min-w-0 flex-1 justify-between'
+          onClick={() => setOpen(true)}
+        >
+          <span>{t('Select channel types')}</span>
+          <span className='text-muted-foreground text-xs'>
+            {props.value.length === 0 && t(props.emptySummary)}
+            {props.value.length > 0 &&
+              !allSelected &&
+              t('{{count}} selected', { count: props.value.length })}
+            {allSelected && t('All channel types selected')}
+          </span>
+        </Button>
+        {showSelectAll && (
+          <Button
+            type='button'
+            variant={allSelected ? 'secondary' : 'outline'}
+            className='shrink-0'
+            onClick={selectAllChannelTypes}
+            disabled={allSelected}
+          >
+            {t('Select all')}
+          </Button>
+        )}
+      </div>
+
+      {allSelected && unknownIds.length === 0 ? (
+        <Badge variant='outline'>{t('All channel types selected')}</Badge>
+      ) : !hasVisibleSelection ? (
+        <p className='text-muted-foreground text-sm'>{t(props.emptySummary)}</p>
+      ) : (
+        <div className='flex flex-wrap gap-2'>
+          {allSelected && (
+            <Badge variant='outline'>{t('All channel types selected')}</Badge>
+          )}
+          {selectedLabels.map((option) => (
+            <Badge key={option.value} variant='outline'>
+              {t(option.label)}
+            </Badge>
+          ))}
+          {unknownIds.map((id) => (
+            <Badge key={id} variant='outline'>
+              {t('Unknown channel type #{{id}}', { id })}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className='sm:max-w-xl'>
+          <DialogHeader>
+            <DialogTitle>{props.title}</DialogTitle>
+            <DialogDescription>{props.description}</DialogDescription>
+          </DialogHeader>
+          {showSelectAll && (
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                type='button'
+                variant={allSelected ? 'default' : 'outline'}
+                size='sm'
+                className='rounded-full'
+                onClick={selectAllChannelTypes}
+              >
+                {t('Select all')}
+              </Button>
+            </div>
+          )}
+          <div className='grid max-h-[50vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2'>
+            {CHANNEL_TYPE_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className='hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm'
+              >
+                <Checkbox
+                  checked={selected.has(option.value)}
+                  onCheckedChange={() => toggleChannelType(option.value)}
+                />
+                <span>{t(option.label)}</span>
+              </label>
+            ))}
+          </div>
+          {unknownIds.length > 0 && (
+            <div className='space-y-2'>
+              <p className='text-muted-foreground text-sm'>
+                {t('Unknown channel types are preserved from saved settings.')}
+              </p>
+              <div className='flex flex-wrap gap-2'>
+                {unknownIds.map((id) => (
+                  <Badge key={id} variant='outline'>
+                    {t('Unknown channel type #{{id}}', { id })}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => props.onChange([])}
+            >
+              {t('Clear')}
+            </Button>
+            <Button type='button' onClick={() => setOpen(false)}>
+              {t('Confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
 
 const buildFormDefaults = (
@@ -191,6 +400,12 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    auto_test_channel_allowed_types: normalizeChannelTypeIds(
+      defaults['monitor_setting.auto_test_channel_allowed_types']
+    ),
+    auto_test_channel_ignored_types: normalizeChannelTypeIds(
+      defaults['monitor_setting.auto_test_channel_ignored_types']
+    ),
     dingtalk_alert_enabled:
       defaults['monitor_setting.dingtalk_alert_enabled'] ?? false,
     dingtalk_alert_webhook_url:
@@ -222,6 +437,12 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.auto_test_channel_allowed_types': normalizeChannelTypeIds(
+    defaults['monitor_setting.auto_test_channel_allowed_types']
+  ),
+  'monitor_setting.auto_test_channel_ignored_types': normalizeChannelTypeIds(
+    defaults['monitor_setting.auto_test_channel_ignored_types']
+  ),
   'monitor_setting.dingtalk_alert_enabled':
     defaults['monitor_setting.dingtalk_alert_enabled'] ?? false,
   'monitor_setting.dingtalk_alert_webhook_url': (
@@ -254,6 +475,12 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.auto_test_channel_allowed_types': normalizeChannelTypeIds(
+    values.monitor_setting.auto_test_channel_allowed_types
+  ),
+  'monitor_setting.auto_test_channel_ignored_types': normalizeChannelTypeIds(
+    values.monitor_setting.auto_test_channel_ignored_types
+  ),
   'monitor_setting.dingtalk_alert_enabled':
     values.monitor_setting.dingtalk_alert_enabled,
   'monitor_setting.dingtalk_alert_webhook_url':
@@ -304,7 +531,11 @@ export function MonitoringSettingsSection({
       if (key === 'monitor_setting.dingtalk_alert_secret') {
         return normalized[key] !== ''
       }
-      return normalized[key] !== baselineRef.current[key]
+      return !areMonitoringValuesEqual(
+        key,
+        normalized[key],
+        baselineRef.current[key]
+      )
     })
 
     if (updates.length === 0) {
@@ -316,7 +547,7 @@ export function MonitoringSettingsSection({
       const value = normalized[key]
       await updateOption.mutateAsync({
         key,
-        value,
+        value: serializeOptionValue(key, value),
       })
     }
 
@@ -374,6 +605,61 @@ export function MonitoringSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('How frequently the system tests all channels')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='monitor_setting.auto_test_channel_allowed_types'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Required test channel types')}</FormLabel>
+                  <FormControl>
+                    <ChannelTypePicker
+                      title={t('Required test channel types')}
+                      description={t(
+                        'When selected, scheduled tests only include these channel types unless they are excluded.'
+                      )}
+                      emptySummary='All channel types'
+                      showSelectAllShortcut
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Leave empty to test all channel types.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.auto_test_channel_ignored_types'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Excluded test channel types')}</FormLabel>
+                  <FormControl>
+                    <ChannelTypePicker
+                      title={t('Excluded test channel types')}
+                      description={t(
+                        'Excluded channel types are skipped before required channel types are applied.'
+                      )}
+                      emptySummary='No channel types excluded'
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Excluded channel types have higher priority than required channel types.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
