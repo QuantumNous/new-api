@@ -209,8 +209,13 @@ func resetAffiliateJobRunForResume(db *gorm.DB, jobRun model.AffiliateJobRun, ex
 		"finished_at":            0,
 	}
 	if preserveCursor {
+		updates["current_stage"] = jobRun.CurrentStage
 		updates["last_cursor_created_at"] = jobRun.LastCursorCreatedAt
 		updates["last_cursor_id"] = jobRun.LastCursorId
+		updates["kpi_snapshot_count"] = jobRun.KPISnapshotCount
+		updates["commission_event_count"] = jobRun.CommissionEventCount
+		updates["head_fee_event_count"] = jobRun.HeadFeeEventCount
+		updates["settlement_count"] = jobRun.SettlementCount
 		updates["result_snapshot"] = affiliateJobRunResumeCursorSnapshot(jobRun)
 	}
 	query := db.Model(&model.AffiliateJobRun{}).Where("id = ? AND status = ?", jobRun.Id, expectedStatus)

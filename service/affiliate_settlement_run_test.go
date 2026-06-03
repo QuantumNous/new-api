@@ -1,10 +1,12 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"gorm.io/gorm"
 )
 
 func TestRunAffiliateSettlementPipelineBuildsKPICommissionHeadFeeAndSettlement(t *testing.T) {
@@ -296,6 +298,76 @@ func TestRunAffiliateSettlementPipelineResumesFailedJobRunForSameIdempotencyKey(
 	}
 	if runCount != 1 {
 		t.Fatalf("expected failed run to be resumed in place, got %d job runs", runCount)
+	}
+}
+
+func TestRunAffiliateSettlementPipelineResumesFailedSettlementStageWithoutRescanningLogs(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-resume-skip-completed-stages"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 2)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "resume settlement stage without rescanning logs",
+	}
+
+	failSettlementQuery := "fail_settlement_query_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Query().Before("gorm:query").Register(failSettlementQuery, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_settlements" {
+			return
+		}
+		tx.AddError(errors.New("forced settlement stage failure"))
+	}); err != nil {
+		t.Fatalf("register settlement failure callback: %v", err)
+	}
+	first, err := RunAffiliateSettlementPipeline(db, db, input)
+	_ = db.Callback().Query().Remove(failSettlementQuery)
+	if err == nil {
+		t.Fatalf("expected first settlement run to fail at settlement stage, got %+v", first)
+	}
+
+	var failedRun model.AffiliateJobRun
+	if err := db.First(&failedRun, first.JobRunId).Error; err != nil {
+		t.Fatalf("load failed job run: %v", err)
+	}
+	if failedRun.Status != model.AffiliateJobRunStatusFailed || failedRun.CurrentStage != affiliateJobRunStageSettlement {
+		t.Fatalf("expected failed job run at settlement stage, got %+v", failedRun)
+	}
+	if failedRun.KPISnapshotCount != 1 || failedRun.CommissionEventCount != 3 || failedRun.HeadFeeEventCount != 2 {
+		t.Fatalf("expected failed settlement-stage run to retain completed stage counts, got %+v", failedRun)
+	}
+
+	rejectLogQuery := "reject_log_rescan_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Query().Before("gorm:query").Register(rejectLogQuery, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "logs" {
+			return
+		}
+		tx.AddError(errors.New("resume should not rescan usage logs after completed stages"))
+	}); err != nil {
+		t.Fatalf("register log rescan guard: %v", err)
+	}
+	defer func() {
+		_ = db.Callback().Query().Remove(rejectLogQuery)
+	}()
+
+	second, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("retry should resume from settlement stage without rescanning logs: %v", err)
+	}
+	if second.JobRunId != failedRun.Id || second.KPISnapshotCount != 1 || second.CommissionEventCount != 3 || second.HeadFeeEventCount != 2 || len(second.Settlements) != 1 {
+		t.Fatalf("unexpected resumed pipeline result: first=%+v second=%+v", failedRun, second)
 	}
 }
 

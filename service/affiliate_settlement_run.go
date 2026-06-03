@@ -49,6 +49,7 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 	if err != nil {
 		return AffiliateSettlementRunResult{}, err
 	}
+	resumeStage := affiliateSettlementRunStageRank(jobRun.CurrentStage)
 	failedResult := func(stage string, cause error) (AffiliateSettlementRunResult, error) {
 		if updateErr := finishAffiliateJobRunFailure(db, jobRun, stage, cause, input.Now); updateErr != nil {
 			return AffiliateSettlementRunResult{
@@ -64,61 +65,73 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		}, cause
 	}
 
-	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageKPI, nil); err != nil {
-		return failedResult(affiliateJobRunStageKPI, err)
-	}
-	kpiSnapshots, err := BuildAffiliateKPISnapshots(db, logDB, AffiliateKPIBuildInput{
-		RuleSetId:       input.RuleSetId,
-		PeriodStart:     input.PeriodStart,
-		PeriodEnd:       input.PeriodEnd,
-		QuotaPerUnit:    input.QuotaPerUnit,
-		USDExchangeRate: input.USDExchangeRate,
-		JobRunId:        jobRun.Id,
-	})
-	if err != nil {
-		return failedResult(affiliateJobRunStageKPI, err)
-	}
-
-	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageCommission, map[string]interface{}{
-		"kpi_snapshot_count": len(kpiSnapshots),
-	}); err != nil {
-		return failedResult(affiliateJobRunStageCommission, err)
-	}
-	commissionEvents, err := BuildAffiliatePendingCommissionEvents(db, logDB, AffiliateCommissionBuildInput{
-		RuleSetId:       input.RuleSetId,
-		PeriodStart:     input.PeriodStart,
-		PeriodEnd:       input.PeriodEnd,
-		QuotaPerUnit:    input.QuotaPerUnit,
-		USDExchangeRate: input.USDExchangeRate,
-		JobRunId:        jobRun.Id,
-	})
-	if err != nil {
-		return failedResult(affiliateJobRunStageCommission, err)
+	kpiSnapshotCount := jobRun.KPISnapshotCount
+	if resumeStage <= affiliateSettlementRunStageRank(affiliateJobRunStageKPI) {
+		if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageKPI, nil); err != nil {
+			return failedResult(affiliateJobRunStageKPI, err)
+		}
+		kpiSnapshots, err := BuildAffiliateKPISnapshots(db, logDB, AffiliateKPIBuildInput{
+			RuleSetId:       input.RuleSetId,
+			PeriodStart:     input.PeriodStart,
+			PeriodEnd:       input.PeriodEnd,
+			QuotaPerUnit:    input.QuotaPerUnit,
+			USDExchangeRate: input.USDExchangeRate,
+			JobRunId:        jobRun.Id,
+		})
+		if err != nil {
+			return failedResult(affiliateJobRunStageKPI, err)
+		}
+		kpiSnapshotCount = len(kpiSnapshots)
 	}
 
-	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageHeadFee, map[string]interface{}{
-		"kpi_snapshot_count":     len(kpiSnapshots),
-		"commission_event_count": len(commissionEvents),
-	}); err != nil {
-		return failedResult(affiliateJobRunStageHeadFee, err)
+	commissionEventCount := jobRun.CommissionEventCount
+	if resumeStage <= affiliateSettlementRunStageRank(affiliateJobRunStageCommission) {
+		if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageCommission, map[string]interface{}{
+			"kpi_snapshot_count": kpiSnapshotCount,
+		}); err != nil {
+			return failedResult(affiliateJobRunStageCommission, err)
+		}
+		commissionEvents, err := BuildAffiliatePendingCommissionEvents(db, logDB, AffiliateCommissionBuildInput{
+			RuleSetId:       input.RuleSetId,
+			PeriodStart:     input.PeriodStart,
+			PeriodEnd:       input.PeriodEnd,
+			QuotaPerUnit:    input.QuotaPerUnit,
+			USDExchangeRate: input.USDExchangeRate,
+			JobRunId:        jobRun.Id,
+		})
+		if err != nil {
+			return failedResult(affiliateJobRunStageCommission, err)
+		}
+		commissionEventCount = len(commissionEvents)
 	}
-	headFeeEvents, err := BuildAffiliatePendingHeadFeeEvents(db, logDB, AffiliateHeadFeeBuildInput{
-		RuleSetId:       input.RuleSetId,
-		PeriodStart:     input.PeriodStart,
-		PeriodEnd:       input.PeriodEnd,
-		Now:             input.Now,
-		QuotaPerUnit:    input.QuotaPerUnit,
-		USDExchangeRate: input.USDExchangeRate,
-		JobRunId:        jobRun.Id,
-	})
-	if err != nil {
-		return failedResult(affiliateJobRunStageHeadFee, err)
+
+	headFeeEventCount := jobRun.HeadFeeEventCount
+	if resumeStage <= affiliateSettlementRunStageRank(affiliateJobRunStageHeadFee) {
+		if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageHeadFee, map[string]interface{}{
+			"kpi_snapshot_count":     kpiSnapshotCount,
+			"commission_event_count": commissionEventCount,
+		}); err != nil {
+			return failedResult(affiliateJobRunStageHeadFee, err)
+		}
+		headFeeEvents, err := BuildAffiliatePendingHeadFeeEvents(db, logDB, AffiliateHeadFeeBuildInput{
+			RuleSetId:       input.RuleSetId,
+			PeriodStart:     input.PeriodStart,
+			PeriodEnd:       input.PeriodEnd,
+			Now:             input.Now,
+			QuotaPerUnit:    input.QuotaPerUnit,
+			USDExchangeRate: input.USDExchangeRate,
+			JobRunId:        jobRun.Id,
+		})
+		if err != nil {
+			return failedResult(affiliateJobRunStageHeadFee, err)
+		}
+		headFeeEventCount = len(headFeeEvents)
 	}
 
 	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageSettlement, map[string]interface{}{
-		"kpi_snapshot_count":     len(kpiSnapshots),
-		"commission_event_count": len(commissionEvents),
-		"head_fee_event_count":   len(headFeeEvents),
+		"kpi_snapshot_count":     kpiSnapshotCount,
+		"commission_event_count": commissionEventCount,
+		"head_fee_event_count":   headFeeEventCount,
 	}); err != nil {
 		return failedResult(affiliateJobRunStageSettlement, err)
 	}
@@ -140,9 +153,9 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		JobRunId:             jobRun.Id,
 		JobRunStatus:         model.AffiliateJobRunStatusSucceeded,
 		IdempotencyKey:       jobRun.IdempotencyKey,
-		KPISnapshotCount:     len(kpiSnapshots),
-		CommissionEventCount: len(commissionEvents),
-		HeadFeeEventCount:    len(headFeeEvents),
+		KPISnapshotCount:     kpiSnapshotCount,
+		CommissionEventCount: commissionEventCount,
+		HeadFeeEventCount:    headFeeEventCount,
 		SettlementCount:      len(settlements),
 		Settlements:          settlements,
 	}
@@ -150,4 +163,21 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		return result, err
 	}
 	return result, nil
+}
+
+func affiliateSettlementRunStageRank(stage string) int {
+	switch stage {
+	case affiliateJobRunStageKPI:
+		return 1
+	case affiliateJobRunStageCommission:
+		return 2
+	case affiliateJobRunStageHeadFee:
+		return 3
+	case affiliateJobRunStageSettlement, affiliateJobRunStageSettlementCommissionEvents, affiliateJobRunStageSettlementHeadFeeEvents:
+		return 4
+	case affiliateJobRunStageComplete:
+		return 5
+	default:
+		return 0
+	}
 }
