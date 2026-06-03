@@ -57,7 +57,7 @@
 - [ ] 如果 Network 显示缓存，先让浏览器勾选 Disable cache 并硬刷新，必要时清站点缓存。
 - [x] 评估当前前端 `_t` cache buster 和 `Cache-Control: no-cache` 临时修复是否保留、改成统一 API no-cache 封装，或改为后端对 `/api/*` 返回 `Cache-Control: no-store`。（见 P0-1 复盘；当前保留前端规避）
 - [x] 如果保留前端 cache buster，必须补 default/classic 对应测试或至少用浏览器 Network 证明 Request URL 已带 `_t` 且不再命中 disk cache。（见 P0-1 复盘）
-- [ ] 如果改为后端 no-store，必须覆盖 `/api/affiliate/team`、登录态 API 和通用 API 响应，避免缓存 401/404/敏感 JSON。
+- [x] 如果改为后端 no-store，必须覆盖 `/api/affiliate/team`、登录态 API 和通用 API 响应，避免缓存 401/404/敏感 JSON。（见 P0-5 复盘）
 - [x] 收口后提交一个独立 commit，说明这是缓存/部署链路修复，不是后端路由实现。（已按 P0-1/P0-3 分主题提交）
 
 ## 5. Scoped 使用日志脱敏优先级
@@ -205,6 +205,15 @@
 - 构建验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
 - 残留风险：本轮未做浏览器截图 smoke；后端仍是安全边界，前端 UI 清理用于避免展示无意义空敏感列和继续提交敏感 filter。
 - 下一步：可继续推进后端 `/api/*` no-store 统一缓存头，或进入规则 diff/import/export/copy previous version。
+
+## P0-5 `/api/*` 后端 no-store 缓存头复盘（2026-06-04 本线程）
+
+- RED：新增 `TestApiRouterDisablesHttpCaching` 后，旧 `/api/status` 响应没有 `Cache-Control`，证明 `/api` group 还没有统一 no-store 头，旧 401/404 或敏感 JSON 仍可能被浏览器缓存。
+- 完成内容：在 `router.SetApiRouter` 的 `/api` group 上复用现有 `middleware.DisableCache()`，统一设置 `Cache-Control: no-store, no-cache, must-revalidate, private, max-age=0`、`Pragma: no-cache` 和 `Expires: 0`。
+- 覆盖范围：该中间件挂在 `/api` group，覆盖 `/api/affiliate/team`、登录态 API、用户 API、管理 API 和通用 JSON API；不改变 `/v1` relay、静态前端资源或公开视频代理的缓存策略。
+- 验证命令：`go test -count=1 ./router -run TestApiRouterDisablesHttpCaching` 通过；`go test -count=1 ./controller ./router -run Affiliate` 通过；`git diff --check` 通过。
+- 残留风险：若个别 `/api` handler 后续显式覆盖 `Cache-Control`，仍可能改变 no-store 语义；发布后仍需用真实浏览器 Network 验证响应头。
+- 下一步：P0 本地可控项基本收口，继续 P1 规则 diff/import/export/copy previous version 或 job run 可恢复 cursor/progress。
 
 ## P1-1 dev/prod 镜像治理复盘（2026-06-03 本线程）
 
