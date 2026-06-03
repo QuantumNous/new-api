@@ -25,8 +25,8 @@
 - [x] 使用 `ChengyuWang0807` 登录并带 `New-Api-User` header 后，`3000`、`5173`、`5174` 的 `/api/affiliate/team` 均已返回 200 且 `total=9`。
 - [x] 当前前端 dev server 已在 WSL 内用 `tmux` 启动，session 为 `new-api-web`，window 为 `default` 和 `classic`。
 - [x] 当前端口约定：`5173` 是 default 前端，`5174` 是 classic 前端，`3000` 是 new-api 后端容器 HTTP 入口。
-- [x] 当前工作区已有两处未提交的前端缓存规避改动：`web/default/src/features/affiliate/api.ts` 和 `web/classic/src/pages/Affiliate/index.jsx`。
-- [ ] 后续开始任何代码改动前先运行 `git status --short --branch`，明确区分用户已有改动、上一轮缓存规避改动和本轮新增改动。
+- [x] P0 收口前曾有两处未提交的前端缓存规避改动：`web/default/src/features/affiliate/api.ts` 和 `web/classic/src/pages/Affiliate/index.jsx`；已随本线程 P0 提交收口。
+- [x] 后续开始任何代码改动前先运行 `git status --short --branch`，明确区分用户已有改动、上一轮缓存规避改动和本轮新增改动。
 
 ## 2. Dev 前端运行与重启后恢复
 
@@ -40,13 +40,13 @@
 
 ## 3. Dev 与生产镜像治理
 
-- [ ] 明确 dev compose 的 `new-api` 服务当前应从仓库本地源码构建 `new-api:dev`，不是直接跑官方 `calciumion/new-api:latest` 应用镜像。
-- [ ] 明确 dev compose 中 Redis/PostgreSQL 使用官方 `latest` 只代表基础设施镜像是最新，不代表应用代码来自官方 latest。
-- [ ] 明确生产 `docker-compose.yml` 如果仍使用 `calciumion/new-api:latest`，则不会包含当前仓库的二开代码，分销路由和前端改动都会丢失。
-- [ ] 给生产切换准备独立 compose override 或发布文档，把生产应用镜像改为本仓库 `Dockerfile` 构建出的带 tag 镜像，例如 `new-api-rain:YYYYMMDD-HHMM`，不要依赖浮动 latest。
-- [ ] 发布前确认生产 `Dockerfile` 同时构建并嵌入 default/classic 前端 dist，避免只发布后端而页面仍是旧 bundle。
-- [ ] 发布前确认生产环境变量、PostgreSQL、Redis、日志、反代、HTTPS、备份和回滚策略，不把 dev volume 或本地 dump 带到生产。
-- [ ] 提供从 dev 切回生产模式的 checklist：停止 dev compose，备份生产库，构建本地生产镜像，切 compose image，`docker compose up -d`，验证 `/api/status`、登录、分销中心、管理端规则页和结算任务。
+- [x] 明确 dev compose 的 `new-api` 服务当前应从仓库本地源码构建 `new-api:dev`，不是直接跑官方 `calciumion/new-api:latest` 应用镜像。
+- [x] 明确 dev compose 中 Redis/PostgreSQL 使用官方 `latest` 只代表基础设施镜像是最新，不代表应用代码来自官方 latest。
+- [x] 明确生产 `docker-compose.yml` 如果仍使用 `calciumion/new-api:latest`，则不会包含当前仓库的二开代码，分销路由和前端改动都会丢失。
+- [x] 给生产切换准备独立 compose override 或发布文档，把生产应用镜像改为本仓库 `Dockerfile` 构建出的带 tag 镜像，例如 `new-api-rain:YYYYMMDD-HHMM`，不要依赖浮动 latest。
+- [x] 发布前确认生产 `Dockerfile` 同时构建并嵌入 default/classic 前端 dist，避免只发布后端而页面仍是旧 bundle。
+- [x] 发布前确认生产环境变量、PostgreSQL、Redis、日志、反代、HTTPS、备份和回滚策略，不把 dev volume 或本地 dump 带到生产。
+- [x] 提供从 dev 切回生产模式的 checklist：停止 dev compose，备份生产库，构建本地生产镜像，切 compose image，`docker compose up -d`，验证 `/api/status`、登录、分销中心、管理端规则页和结算任务。
 
 ## 4. `/api/affiliate/team` 旧 404 缓存收口
 
@@ -152,10 +152,10 @@
 
 ## 14. 建议执行顺序
 
-- [ ] P0：确认并收口 Windows 浏览器 `/api/affiliate/team` 旧 404，是缓存、错误端口、错误后端还是旧 bundle。
-- [ ] P0：修复 scoped 使用日志和 CSV 导出的 channel/token 泄漏风险，先 TDD，再实现。
-- [ ] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
-- [ ] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
+- [x] P0：确认并收口 Windows 浏览器 `/api/affiliate/team` 旧 404，是缓存、错误端口、错误后端还是旧 bundle。
+- [x] P0：修复 scoped 使用日志和 CSV 导出的 channel/token 泄漏风险，先 TDD，再实现。
+- [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
+- [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
@@ -194,3 +194,13 @@
 - 验证命令：`bash -n scripts/dev-web-tmux.sh` 通过；当前已有 `new-api-web` session 时运行 `./scripts/dev-web-tmux.sh` 输出 existing-session 提示并退出 0；`curl -I http://127.0.0.1:5173/` 与 `curl -I http://127.0.0.1:5174/` 均返回 200；`curl -i http://127.0.0.1:5173/api/affiliate/team` 与 `5174` 未登录均返回 401；`git diff --check` 通过。
 - 残留风险：本轮没有 kill 当前运行中的 `new-api-web` session 做冷启动演练，避免打断正在使用的 5173/5174；脚本冷启动路径由语法检查、当前 tmux 命令读取和依赖路径检查覆盖，后续如电脑重启可直接执行脚本验证。
 - 下一步：P0 已完成本地收口，后续建议先按主题提交 `cache/dev-server runbook` 与 `scoped logs redaction` 两个 commit，或继续进入 P1 dev/prod 镜像治理。
+
+## P1-1 dev/prod 镜像治理复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `docs/affiliate/native-affiliate-production-cutover-runbook.zh-CN.md`，明确 dev compose、生产 `Dockerfile`、官方 `calciumion/new-api:latest`、不可变 tag、compose override、发布前检查、dev 切回生产、上线 smoke、回滚和残留风险。
+- 完成内容：新增 `docker-compose.prod.local.example.yml`，提供不含 secret 的生产应用镜像 override 示例，要求 `NEW_API_IMAGE` 必须是从当前仓库 `Dockerfile` 构建出的不可变 tag。更新根 `docker-compose.yml` 顶部注释，明确按原样使用会拉官方镜像，不包含本仓库分销二开。
+- 完成内容：更新 `native-affiliate-dev-compose-runbook.zh-CN.md`，补充 dev `new-api:dev` 与生产镜像区别，说明 `5173`/`5174` 是前端 dev server，生产发布必须用根 `Dockerfile` 构建并嵌入 default/classic dist。
+- 验证命令：`NEW_API_IMAGE=new-api-rain:test docker compose -f docker-compose.yml -f docker-compose.prod.local.example.yml config --quiet` 通过，证明 override 示例语法可被 compose 解析。
+- 验证命令：`git diff --check` 通过；`git status --short --branch` 用于确认本轮只包含 P1 文档治理和 compose 示例改动。
+- 残留风险：本轮没有实际构建生产镜像或连接外部 staging/生产环境，不能作为发布验收；后续真正上线仍需按 external acceptance runbook 验证真实充值、真实 relay 消耗、退款、结算和灰度。
+- 下一步：进入 P1 分销管理规则表格化评估与实现，优先把 default/classic 的规则配置从 JSON textarea 转为运营友好的表格/矩阵，同时保留高级 JSON 导入导出。

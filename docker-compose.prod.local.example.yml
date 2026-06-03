@@ -1,0 +1,12 @@
+# Affiliate fork production image override example.
+# Copy to docker-compose.prod.local.yml or pass this file directly with -f.
+# NEW_API_IMAGE must be an immutable image tag built from this repository Dockerfile.
+#
+# Example:
+#   export NEW_API_IMAGE=new-api-rain:20260603-1200-abcdef12
+#   docker compose -f docker-compose.yml -f docker-compose.prod.local.example.yml config --quiet
+#   docker compose -f docker-compose.yml -f docker-compose.prod.local.example.yml up -d new-api
+
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:?set NEW_API_IMAGE to an immutable image built from this repository Dockerfile}

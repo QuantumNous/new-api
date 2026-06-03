@@ -1,6 +1,6 @@
 # 原生分销本地 dev compose runbook
 
-更新日期：2026-06-02
+更新日期：2026-06-03
 
 ## 适用范围
 
@@ -36,6 +36,12 @@ timeout 60s docker ps --filter 'name=new-api'
 - 主容器：`new-api`
 - PostgreSQL：`postgres:latest`，容器 `new-api-postgres`
 - Redis：`redis:latest`，容器 `new-api-redis`
+
+## Dev 与生产镜像区别
+
+本地 dev compose 的 `new-api:dev` 来自当前仓库源码和 `Dockerfile.dev`，用于快速重建后端开发容器。`5173` default 与 `5174` classic 前端不在该容器内，而是 WSL 内单独运行的 Rsbuild dev server。
+
+生产发布不能把官方 `calciumion/new-api:latest` 当作包含本仓库二开功能的应用镜像。生产应使用当前仓库根目录 `Dockerfile` 构建不可变 tag，该 Dockerfile 会构建并嵌入 default/classic 前端 dist。切换步骤见 `docs/affiliate/native-affiliate-production-cutover-runbook.zh-CN.md`。
 
 ## 恢复本地 dump
 

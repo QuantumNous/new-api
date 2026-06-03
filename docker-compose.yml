@@ -4,11 +4,19 @@
 #   1. docker-compose up -d
 #   2. Access at http://localhost:3000
 #
+# Affiliate fork note:
+#   This upstream example uses calciumion/new-api:latest for the application.
+#   That official image does not contain this repository's affiliate custom code.
+#   For affiliate production, build an immutable image from this repository
+#   Dockerfile and override services.new-api.image.
+#   See docs/affiliate/native-affiliate-production-cutover-runbook.zh-CN.md
+#   and docker-compose.prod.local.example.yml.
+#
 # Using MySQL instead of PostgreSQL:
-#   1. Comment out the postgres service and SQL_DSN line 15
-#   2. Uncomment the mysql service and SQL_DSN line 16
-#   3. Uncomment mysql in depends_on (line 28)
-#   4. Uncomment mysql_data in volumes section (line 64)
+#   1. Comment out the postgres service and PostgreSQL SQL_DSN
+#   2. Uncomment the mysql service and MySQL SQL_DSN
+#   3. Uncomment mysql in depends_on
+#   4. Uncomment mysql_data in volumes
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
 
