@@ -57,6 +57,7 @@ import {
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
+import { trackSignupConversion, ensureGtagLoaded } from '@/lib/analytics/gtag'
 
 export function SignUpForm({
   className,
@@ -135,6 +136,12 @@ export function SignUpForm({
   }, [requiresLegalConsent])
 
   useEffect(() => {
+    // Warm up gtag.js on mount so the conversion ping isn't lost to the
+    // post-signup redirect. No-op when tracking is disabled.
+    void ensureGtagLoaded()
+  }, [])
+
+  useEffect(() => {
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
     if (aff) {
       saveAffiliateCode(aff)
@@ -173,6 +180,8 @@ export function SignUpForm({
       })
 
       if (res?.success) {
+        // Fire Google Ads signup conversion (no-op unless configured via env).
+        trackSignupConversion()
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
