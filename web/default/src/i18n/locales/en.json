@@ -4687,6 +4687,7 @@
     "Period Start": "Period Start",
     "Rules grouped by affiliate level": "Rules grouped by affiliate level",
     "This level has no rules for this rule type.": "This level has no rules for this rule type.",
-    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "The promotion relationship tree API returned 404. Restart or deploy the backend version containing /api/affiliate/team."
+    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "The promotion relationship tree API returned 404. Restart or deploy the backend version containing /api/affiliate/team.",
+    "Switch between editable rule tables and raw JSON for batch edits": "Switch between editable rule tables and raw JSON for batch edits"
   }
 }

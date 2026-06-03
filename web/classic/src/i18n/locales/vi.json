@@ -4323,6 +4323,7 @@
     "Level-two Affiliate Rules": "Quy tắc tiếp thị liên kết cấp hai",
     "Minimum Effective New Users": "Số người dùng mới hiệu quả tối thiểu",
     "Rules grouped by affiliate level": "Quy tắc được nhóm theo cấp tiếp thị liên kết",
-    "This level has no rules for this rule type.": "Cấp này chưa có quy tắc cho loại này."
+    "This level has no rules for this rule type.": "Cấp này chưa có quy tắc cho loại này.",
+    "可在可编辑规则表格与原始 JSON 文本之间切换。": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và văn bản JSON thô để chỉnh sửa hàng loạt."
   }
 }

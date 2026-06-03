@@ -59,6 +59,8 @@ const RULE_FIELD_LABELS = {
   value: 'Value',
 };
 
+const RULE_FIELD_ORDER = Object.keys(RULE_FIELD_LABELS);
+
 function parseRuleArray(value) {
   const text = String(value || '').trim();
   if (!text) {
@@ -141,6 +143,33 @@ function getRuleFieldLabel(key) {
   return RULE_FIELD_LABELS[key] || key;
 }
 
+function getRuleTableColumns(items, hiddenKeys = []) {
+  const hidden = new Set(hiddenKeys);
+  const fieldOrder = new Map(
+    RULE_FIELD_ORDER.map((field, index) => [field, index]),
+  );
+  const columns = new Set();
+
+  for (const item of items) {
+    for (const key of Object.keys(item || {})) {
+      if (!hidden.has(key)) {
+        columns.add(key);
+      }
+    }
+  }
+
+  return [...columns].sort((a, b) => {
+    const aOrder = fieldOrder.get(a);
+    const bOrder = fieldOrder.get(b);
+    if (aOrder === undefined && bOrder === undefined) {
+      return a.localeCompare(b);
+    }
+    if (aOrder === undefined) return 1;
+    if (bOrder === undefined) return -1;
+    return aOrder - bOrder;
+  });
+}
+
 function getRuleLevelTitle(t, level) {
   if (Number(level) === 1) {
     return t('Level-one Affiliate Rules');
@@ -151,36 +180,105 @@ function getRuleLevelTitle(t, level) {
   return t('Affiliate Level {{level}}').replace('{{level}}', String(level));
 }
 
-const RuleFields = ({ t, item, onChange, hiddenKeys = [] }) => (
-  <div className='grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2'>
-    {Object.entries(item)
-      .filter(([key]) => !hiddenKeys.includes(key))
-      .map(([key, fieldValue]) => (
-        <div key={key}>
-          <div className='flex items-baseline gap-1 min-h-[18px]'>
-            <Text size='small'>{t(getRuleFieldLabel(key))}</Text>
-          </div>
-          {typeof fieldValue === 'boolean' ? (
-            <Select
-              className='w-full'
-              value={String(fieldValue)}
-              onChange={(nextValue) => onChange(key, nextValue)}
-            >
-              <Select.Option value='true'>true</Select.Option>
-              <Select.Option value='false'>false</Select.Option>
-            </Select>
-          ) : (
-            <Input
-              type={typeof fieldValue === 'number' ? 'number' : 'text'}
-              step={isPercentField(key) || isYuanField(key) ? 0.01 : undefined}
-              value={getDisplayValue(key, fieldValue)}
-              onChange={(nextValue) => onChange(key, nextValue)}
-            />
-          )}
-        </div>
-      ))}
-  </div>
-);
+function getRuleCellValue(item, key) {
+  return Object.prototype.hasOwnProperty.call(item, key) ? item[key] : '';
+}
+
+const RuleFieldControl = ({ fieldKey, fieldValue, onChange }) => {
+  if (typeof fieldValue === 'boolean') {
+    return (
+      <Select
+        className='min-w-[112px]'
+        value={String(fieldValue)}
+        onChange={(nextValue) => onChange(nextValue)}
+      >
+        <Select.Option value='true'>true</Select.Option>
+        <Select.Option value='false'>false</Select.Option>
+      </Select>
+    );
+  }
+
+  return (
+    <Input
+      className='min-w-[128px]'
+      type={
+        typeof fieldValue === 'number' ||
+        isPercentField(fieldKey) ||
+        isYuanField(fieldKey)
+          ? 'number'
+          : 'text'
+      }
+      step={isPercentField(fieldKey) || isYuanField(fieldKey) ? 0.01 : undefined}
+      value={getDisplayValue(fieldKey, fieldValue)}
+      onChange={(nextValue) => onChange(nextValue)}
+    />
+  );
+};
+
+const RuleTable = ({ t, rows, hiddenKeys = [], onChange, onRemove }) => {
+  const columns = getRuleTableColumns(
+    rows.map((row) => row.item),
+    hiddenKeys,
+  );
+
+  return (
+    <div className='overflow-x-auto rounded-lg border'>
+      <table className='min-w-full border-collapse text-sm'>
+        <thead className='bg-semi-color-fill-0'>
+          <tr>
+            <th className='w-14 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
+              #
+            </th>
+            {columns.map((key) => (
+              <th
+                key={key}
+                className='min-w-[144px] border-b px-3 py-2 text-left font-medium text-semi-color-text-2'
+              >
+                {t(getRuleFieldLabel(key))}
+              </th>
+            ))}
+            <th className='w-24 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
+              {t('Actions')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, visualIndex) => (
+            <tr key={row.index} className='border-b last:border-b-0'>
+              <td className='px-3 py-2 align-middle text-semi-color-text-2'>
+                #{visualIndex + 1}
+              </td>
+              {columns.map((key) => {
+                const fieldValue = getRuleCellValue(row.item, key);
+                return (
+                  <td key={key} className='px-3 py-2 align-middle'>
+                    <RuleFieldControl
+                      fieldKey={key}
+                      fieldValue={fieldValue}
+                      onChange={(nextValue) =>
+                        onChange(row.index, key, nextValue)
+                      }
+                    />
+                  </td>
+                );
+              })}
+              <td className='px-3 py-2 align-middle'>
+                <Button
+                  htmlType='button'
+                  type='danger'
+                  theme='borderless'
+                  onClick={() => onRemove(row.index)}
+                >
+                  {t('Remove')}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
   const [revision, setRevision] = useState(0);
@@ -247,36 +345,12 @@ const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
             )}
           />
         ) : (
-          <div className='flex flex-col gap-2'>
-            {parsed.items.map((item, index) => (
-              <Card
-                key={index}
-                className='!rounded-lg bg-semi-color-fill-0'
-                bodyStyle={{ padding: 10 }}
-              >
-                <div className='flex justify-between items-center mb-2'>
-                  <Text strong>
-                    {title} #{index + 1}
-                  </Text>
-                  <Button
-                    htmlType='button'
-                    type='danger'
-                    theme='borderless'
-                    onClick={() => removeItem(index)}
-                  >
-                    {t('Remove')}
-                  </Button>
-                </div>
-                <RuleFields
-                  t={t}
-                  item={item}
-                  onChange={(key, nextValue) =>
-                    updateItem(index, key, nextValue)
-                  }
-                />
-              </Card>
-            ))}
-          </div>
+          <RuleTable
+            t={t}
+            rows={parsed.items.map((item, index) => ({ item, index }))}
+            onChange={updateItem}
+            onRemove={removeItem}
+          />
         )}
 
         <Form.TextArea field={field} style={{ display: 'none' }} />
@@ -405,44 +479,17 @@ export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
                           )}
                         />
                       ) : (
-                        <div className='flex flex-col gap-2'>
-                          {items.map(({ item, index }, visualIndex) => (
-                            <Card
-                              key={`${section.field}-${index}`}
-                              className='!rounded-lg'
-                              bodyStyle={{ padding: 10 }}
-                            >
-                              <div className='flex items-center justify-between gap-2 mb-2'>
-                                <Text strong>
-                                  {section.title} #{visualIndex + 1}
-                                </Text>
-                                <Button
-                                  htmlType='button'
-                                  type='danger'
-                                  theme='borderless'
-                                  onClick={() =>
-                                    removeItem(section.field, index)
-                                  }
-                                >
-                                  {t('Remove')}
-                                </Button>
-                              </div>
-                              <RuleFields
-                                t={t}
-                                item={item}
-                                hiddenKeys={['affiliate_level']}
-                                onChange={(key, nextValue) =>
-                                  updateItem(
-                                    section.field,
-                                    index,
-                                    key,
-                                    nextValue,
-                                  )
-                                }
-                              />
-                            </Card>
-                          ))}
-                        </div>
+                        <RuleTable
+                          t={t}
+                          rows={items}
+                          hiddenKeys={['affiliate_level']}
+                          onChange={(index, key, nextValue) =>
+                            updateItem(section.field, index, key, nextValue)
+                          }
+                          onRemove={(index) =>
+                            removeItem(section.field, index)
+                          }
+                        />
                       )}
                     </div>
                   );

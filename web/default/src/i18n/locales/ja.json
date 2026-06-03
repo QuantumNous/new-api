@@ -4687,6 +4687,7 @@
     "Period Start": "期間開始",
     "Rules grouped by affiliate level": "アフィリエイトレベル別にグループ化されたルール",
     "This level has no rules for this rule type.": "このレベルにはこの種類のルールがありません。",
-    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "プロモーション関係ツリー API が 404 を返しました。/api/affiliate/team を含むバックエンドを再起動またはデプロイしてください。"
+    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "プロモーション関係ツリー API が 404 を返しました。/api/affiliate/team を含むバックエンドを再起動またはデプロイしてください。",
+    "Switch between editable rule tables and raw JSON for batch edits": "一括編集用に、編集可能なルール表と生の JSON を切り替えます"
   }
 }

@@ -3918,6 +3918,7 @@
     "Level-two Affiliate Rules": "二级分销商规则",
     "Minimum Effective New Users": "有效新用户数下限",
     "Rules grouped by affiliate level": "按分销等级分组的规则",
-    "This level has no rules for this rule type.": "该分销等级暂无此类规则。"
+    "This level has no rules for this rule type.": "该分销等级暂无此类规则。",
+    "可在可编辑规则表格与原始 JSON 文本之间切换。": "可在可编辑规则表格与原始 JSON 文本之间切换。"
   }
 }

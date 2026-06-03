@@ -3809,6 +3809,7 @@
     "Level-two Affiliate Rules": "Правила партнёра второго уровня",
     "Minimum Effective New Users": "Минимум эффективных новых пользователей",
     "Rules grouped by affiliate level": "Правила, сгруппированные по партнёрскому уровню",
-    "This level has no rules for this rule type.": "Для этого уровня нет правил данного типа."
+    "This level has no rules for this rule type.": "Для этого уровня нет правил данного типа.",
+    "可在可编辑规则表格与原始 JSON 文本之间切换。": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок."
   }
 }

@@ -735,7 +735,7 @@ const AffiliateAdmin = () => {
                   <Text strong>{t('规则明细')}</Text>
                   <div>
                     <Text type='secondary'>
-                      {t('可在可视化规则卡片与原始 JSON 文本之间切换。')}
+                      {t('可在可编辑规则表格与原始 JSON 文本之间切换。')}
                     </Text>
                   </div>
                 </div>

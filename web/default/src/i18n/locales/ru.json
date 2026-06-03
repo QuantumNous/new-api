@@ -4687,6 +4687,7 @@
     "Period Start": "Начало периода",
     "Rules grouped by affiliate level": "Правила, сгруппированные по партнёрскому уровню",
     "This level has no rules for this rule type.": "Для этого уровня нет правил данного типа.",
-    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "API дерева продвижения вернул 404. Перезапустите или разверните backend с /api/affiliate/team."
+    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "API дерева продвижения вернул 404. Перезапустите или разверните backend с /api/affiliate/team.",
+    "Switch between editable rule tables and raw JSON for batch edits": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок"
   }
 }

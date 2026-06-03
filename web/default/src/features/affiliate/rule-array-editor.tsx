@@ -23,6 +23,10 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 
 type RuleValue = string | number | boolean | null
 type RuleRecord = Record<string, RuleValue>
+type RuleTableRow = {
+  item: RuleRecord
+  index: number
+}
 
 const RULE_FIELD_LABELS: Record<string, string> = {
   affiliate_level: 'Affiliate Level',
@@ -52,6 +56,8 @@ const RULE_FIELD_LABELS: Record<string, string> = {
   max_refund_ratio_bps: 'Max Refund Ratio (%)',
   value: 'Value',
 }
+
+const RULE_FIELD_ORDER = Object.keys(RULE_FIELD_LABELS)
 
 function parseRuleArray(value: string | undefined): {
   items: RuleRecord[]
@@ -141,50 +147,149 @@ function getRuleFieldLabel(key: string): string {
   return RULE_FIELD_LABELS[key] ?? key
 }
 
+function getRuleTableColumns(
+  items: RuleRecord[],
+  hiddenKeys: string[] = []
+): string[] {
+  const hidden = new Set(hiddenKeys)
+  const fieldOrder = new Map(
+    RULE_FIELD_ORDER.map((field, index) => [field, index])
+  )
+  const columns = new Set<string>()
+
+  for (const item of items) {
+    for (const key of Object.keys(item)) {
+      if (!hidden.has(key)) columns.add(key)
+    }
+  }
+
+  return [...columns].sort((a, b) => {
+    const aOrder = fieldOrder.get(a)
+    const bOrder = fieldOrder.get(b)
+    if (aOrder === undefined && bOrder === undefined) {
+      return a.localeCompare(b)
+    }
+    if (aOrder === undefined) return 1
+    if (bOrder === undefined) return -1
+    return aOrder - bOrder
+  })
+}
+
 function getRuleLevelTitle(level: number, t: (key: string) => string): string {
   if (level === 1) return t('Level-one Affiliate Rules')
   if (level === 2) return t('Level-two Affiliate Rules')
   return t('Affiliate Level {{level}}').replace('{{level}}', String(level))
 }
 
-function RuleFields(props: {
-  item: RuleRecord
-  hiddenKeys?: string[]
-  onChange: (key: string, value: string) => void
+function getRuleCellValue(item: RuleRecord, key: string): RuleValue {
+  return Object.prototype.hasOwnProperty.call(item, key) ? item[key] : ''
+}
+
+function RuleFieldControl(props: {
+  fieldKey: string
+  value: RuleValue
+  onChange: (value: string) => void
 }) {
-  const { t } = useTranslation()
-  const hidden = new Set(props.hiddenKeys || [])
+  if (typeof props.value === 'boolean') {
+    return (
+      <NativeSelect
+        className='min-w-28'
+        value={String(props.value)}
+        onChange={(event) => props.onChange(event.target.value)}
+      >
+        <NativeSelectOption value='true'>true</NativeSelectOption>
+        <NativeSelectOption value='false'>false</NativeSelectOption>
+      </NativeSelect>
+    )
+  }
 
   return (
-    <div className='grid grid-cols-2 gap-2 lg:grid-cols-3 2xl:grid-cols-4'>
-      {Object.entries(props.item)
-        .filter(([key]) => !hidden.has(key))
-        .map(([key, value]) => (
-          <label key={key} className='space-y-1'>
-            <span className='flex items-baseline gap-1 text-xs'>
-              <span>{t(getRuleFieldLabel(key))}</span>
-            </span>
-            {typeof value === 'boolean' ? (
-              <NativeSelect
-                className='w-full'
-                value={String(value)}
-                onChange={(event) => props.onChange(key, event.target.value)}
+    <Input
+      className='min-w-32'
+      type={
+        typeof props.value === 'number' ||
+        isPercentField(props.fieldKey) ||
+        isYuanField(props.fieldKey)
+          ? 'number'
+          : 'text'
+      }
+      step={
+        isPercentField(props.fieldKey) || isYuanField(props.fieldKey)
+          ? 0.01
+          : undefined
+      }
+      value={getDisplayValue(props.fieldKey, props.value)}
+      onChange={(event) => props.onChange(event.target.value)}
+    />
+  )
+}
+
+function RuleTable(props: {
+  rows: RuleTableRow[]
+  hiddenKeys?: string[]
+  onChange: (index: number, key: string, value: string) => void
+  onRemove: (index: number) => void
+}) {
+  const { t } = useTranslation()
+  const columns = getRuleTableColumns(
+    props.rows.map((row) => row.item),
+    props.hiddenKeys
+  )
+
+  return (
+    <div className='overflow-x-auto rounded-lg border'>
+      <table className='min-w-full border-collapse text-sm'>
+        <thead className='bg-muted/60'>
+          <tr>
+            <th className='text-muted-foreground w-14 border-b px-3 py-2 text-left font-medium'>
+              #
+            </th>
+            {columns.map((key) => (
+              <th
+                key={key}
+                className='text-muted-foreground min-w-36 border-b px-3 py-2 text-left font-medium'
               >
-                <NativeSelectOption value='true'>true</NativeSelectOption>
-                <NativeSelectOption value='false'>false</NativeSelectOption>
-              </NativeSelect>
-            ) : (
-              <Input
-                type={typeof value === 'number' ? 'number' : 'text'}
-                step={
-                  isPercentField(key) || isYuanField(key) ? 0.01 : undefined
-                }
-                value={getDisplayValue(key, value)}
-                onChange={(event) => props.onChange(key, event.target.value)}
-              />
-            )}
-          </label>
-        ))}
+                {t(getRuleFieldLabel(key))}
+              </th>
+            ))}
+            <th className='text-muted-foreground w-24 border-b px-3 py-2 text-left font-medium'>
+              {t('Actions')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.rows.map((row, visualIndex) => (
+            <tr key={row.index} className='border-b last:border-b-0'>
+              <td className='text-muted-foreground px-3 py-2 align-middle'>
+                #{visualIndex + 1}
+              </td>
+              {columns.map((key) => {
+                const value = getRuleCellValue(row.item, key)
+                return (
+                  <td key={key} className='px-3 py-2 align-middle'>
+                    <RuleFieldControl
+                      fieldKey={key}
+                      value={value}
+                      onChange={(nextValue) =>
+                        props.onChange(row.index, key, nextValue)
+                      }
+                    />
+                  </td>
+                )
+              })}
+              <td className='px-3 py-2 align-middle'>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => props.onRemove(row.index)}
+                >
+                  {t('Remove')}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -256,28 +361,11 @@ export function RuleArrayEditor(props: {
           )}
         </div>
       ) : (
-        <div className='space-y-2'>
-          {items.map((item, index) => (
-            <div key={index} className='bg-muted/20 rounded-lg border p-2.5'>
-              <div className='mb-2 flex items-center justify-between gap-2'>
-                <div className='text-sm font-medium'>
-                  {props.title} #{index + 1}
-                </div>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => removeItem(index)}
-                >
-                  {t('Remove')}
-                </Button>
-              </div>
-              <RuleFields
-                item={item}
-                onChange={(key, value) => updateItem(index, key, value)}
-              />
-            </div>
-          ))}
-        </div>
+        <RuleTable
+          rows={items.map((item, index) => ({ item, index }))}
+          onChange={updateItem}
+          onRemove={removeItem}
+        />
       )}
     </div>
   )
@@ -412,34 +500,14 @@ export function RuleLevelGroupedEditor(props: {
                         {t('This level has no rules for this rule type.')}
                       </div>
                     ) : (
-                      <div className='space-y-2'>
-                        {items.map(({ item, index }, visualIndex) => (
-                          <div
-                            key={`${section.field}-${index}`}
-                            className='bg-muted/10 rounded-lg border p-2.5'
-                          >
-                            <div className='mb-2 flex items-center justify-between gap-2'>
-                              <div className='text-sm font-medium'>
-                                {section.title} #{visualIndex + 1}
-                              </div>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => removeItem(section.field, index)}
-                              >
-                                {t('Remove')}
-                              </Button>
-                            </div>
-                            <RuleFields
-                              item={item}
-                              hiddenKeys={['affiliate_level']}
-                              onChange={(key, value) =>
-                                updateItem(section.field, index, key, value)
-                              }
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      <RuleTable
+                        rows={items}
+                        hiddenKeys={['affiliate_level']}
+                        onChange={(index, key, value) =>
+                          updateItem(section.field, index, key, value)
+                        }
+                        onRemove={(index) => removeItem(section.field, index)}
+                      />
                     )}
                   </div>
                 )
@@ -450,4 +518,10 @@ export function RuleLevelGroupedEditor(props: {
       </div>
     </div>
   )
+}
+
+export const __ruleArrayEditorTestUtils = {
+  coerceRuleFieldValue,
+  getDisplayValue,
+  getRuleTableColumns,
 }

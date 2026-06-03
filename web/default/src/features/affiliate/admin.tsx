@@ -859,7 +859,7 @@ function RuleSetDraftForm(props: {
               <div className='font-medium'>{t('Rule Details')}</div>
               <div className='text-muted-foreground text-xs'>
                 {t(
-                  'Switch between visual rule cards and raw JSON for batch edits'
+                  'Switch between editable rule tables and raw JSON for batch edits'
                 )}
               </div>
             </div>

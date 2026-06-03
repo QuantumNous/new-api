@@ -3789,6 +3789,7 @@
     "Level-two Affiliate Rules": "Règles d’affiliation de niveau deux",
     "Minimum Effective New Users": "Nombre minimal de nouveaux utilisateurs effectifs",
     "Rules grouped by affiliate level": "Règles regroupées par niveau d’affiliation",
-    "This level has no rules for this rule type.": "Ce niveau ne comporte aucune règle pour ce type."
+    "This level has no rules for this rule type.": "Ce niveau ne comporte aucune règle pour ce type.",
+    "可在可编辑规则表格与原始 JSON 文本之间切换。": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots."
   }
 }

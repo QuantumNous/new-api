@@ -72,16 +72,16 @@
 
 ## 6. 分销管理指标体系表格化
 
-- [ ] 分销管理里的规则、指标、KPI、人头费、风控和结算配置建议做成表格或矩阵，而不是继续以 JSON textarea 或散卡片为主。
+- [x] 分销管理里的规则、指标、KPI、人头费、风控和结算配置建议做成表格或矩阵，而不是继续以 JSON textarea 或散卡片为主。
 - [ ] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。
 - [ ] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。
 - [ ] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。
 - [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。
 - [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。
-- [ ] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
+- [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
 - [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。
 - [ ] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。
-- [ ] default 与 classic 需要保持功能 parity，但视觉可以遵循各自设计系统。
+- [x] default 与 classic 需要保持功能 parity，但视觉可以遵循各自设计系统。
 
 ## 7. Feishu 业务口径复核与种子规则
 
@@ -156,7 +156,7 @@
 - [x] P0：修复 scoped 使用日志和 CSV 导出的 channel/token 泄漏风险，先 TDD，再实现。
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
-- [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。
+- [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
@@ -204,3 +204,15 @@
 - 验证命令：`git diff --check` 通过；`git status --short --branch` 用于确认本轮只包含 P1 文档治理和 compose 示例改动。
 - 残留风险：本轮没有实际构建生产镜像或连接外部 staging/生产环境，不能作为发布验收；后续真正上线仍需按 external acceptance runbook 验证真实充值、真实 relay 消耗、退款、结算和灰度。
 - 下一步：进入 P1 分销管理规则表格化评估与实现，优先把 default/classic 的规则配置从 JSON textarea 转为运营友好的表格/矩阵，同时保留高级 JSON 导入导出。
+
+## P1-2 分销管理规则表格化复盘（2026-06-03 本线程）
+
+- 完成内容：将 default `RuleArrayEditor` / `RuleLevelGroupedEditor` 与 classic `RuleArrayEditor` / `RuleLevelGroupedEditor` 从“每条规则一张卡片”改为“每类规则一张可横向滚动编辑表格”。每张表按稳定字段顺序展示列，按分销等级分组时隐藏 `affiliate_level`，但底层仍写回原 JSON 字符串。
+- 完成内容：保留 default 高级 JSON 模式与 classic 原始 JSON 文本模式；更新页面说明为“可编辑规则表格”；补 default 6 个 locale 与 classic 8 个 locale 的新增文案翻译。
+- 完成内容：补 default `rule-array-editor.test.ts`，覆盖表格列顺序、隐藏分组字段、百分比和元字段在运营展示值与后端 bps/cents 之间可逆转换。
+- RED/GREEN 验证：新增测试先因 `__ruleArrayEditorTestUtils` 未导出失败；实现后 `cd web/default && bun --bun test src/features/affiliate/rule-array-editor.test.ts src/features/affiliate/admin-lib.test.ts` 通过 17 项；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过 7 项。
+- 构建验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 浏览器验证：使用 `runtime/smoke/node_modules/playwright` 和本地 secret 中 `super_admin` 做脱敏 API 登录 smoke，不输出密码/cookie。`http://127.0.0.1:5173/affiliate/admin` 与 `http://127.0.0.1:5174/console/affiliate/admin` 均登录成功；两端各有 12 张页面表格，其中各有 10 张匹配 `Default Rate (%)`、`Minimum Settlement Amount`、`Base Rate (%)`、`KPI Coefficient`、`Reward Amount`、`Gift-Only` 等分销规则字段的表格；页面文案均包含“可编辑规则表格”口径。
+- i18n 注意：`web/default && bun run i18n:sync` 通过；`web/classic && bun run i18n:sync` 在当前依赖组合下失败，错误为 `react-i18next@17` 期待 `i18next.keyFromSelector` 但 classic 使用的 `i18next` 未提供该 export。本轮已手动补齐 classic locale，后续可单独治理 classic i18n CLI 版本匹配。
+- 残留风险：当前表格是基于现有 JSON 字段的通用编辑表，不会强制新增“启停状态”等后端尚未固定的字段；导入/导出按钮、规则变更 diff 预览、复制上一版本、发布/覆盖二次确认仍待做。
+- 下一步：继续 P1 结算可靠性，优先审计佣金、KPI、人头费和结算任务的无界扫描、幂等记录和可恢复 run record。

@@ -4687,6 +4687,7 @@
     "Period Start": "周期开始",
     "Rules grouped by affiliate level": "按分销等级分组的规则",
     "This level has no rules for this rule type.": "该分销等级暂无此类规则。",
-    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。"
+    "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。",
+    "Switch between editable rule tables and raw JSON for batch edits": "在可编辑规则表格和原始 JSON 之间切换，用于批量编辑"
   }
 }

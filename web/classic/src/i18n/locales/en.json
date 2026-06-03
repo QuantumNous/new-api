@@ -3935,6 +3935,7 @@
     "Level-two Affiliate Rules": "Level-two Affiliate Rules",
     "Minimum Effective New Users": "Minimum Effective New Users",
     "Rules grouped by affiliate level": "Rules grouped by affiliate level",
-    "This level has no rules for this rule type.": "This level has no rules for this rule type."
+    "This level has no rules for this rule type.": "This level has no rules for this rule type.",
+    "可在可编辑规则表格与原始 JSON 文本之间切换。": "Switch between editable rule tables and raw JSON for batch edits."
   }
 }
