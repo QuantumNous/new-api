@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestCheckSMSRateLimitBlocksByPhoneWithinScene(t *testing.T) {
@@ -101,6 +104,48 @@ func TestCheckSMSRateLimitBlocksByIPAccountAndScene(t *testing.T) {
 	}
 }
 
+func TestCheckSMSRateLimitWithDBBlocksAcrossLimiterInstancesWithoutRawIdentifiers(t *testing.T) {
+	db := newSMSRateLimitTestDB(t)
+	config := SMSRateLimitConfig{
+		Enabled:       true,
+		WindowSeconds: 60,
+		PhoneCount:    1,
+		IPCount:       1,
+		AccountCount:  1,
+		SceneCount:    0,
+	}
+	input := SMSRateLimitInput{
+		Phone:     "13800138000",
+		IP:        "203.0.113.9",
+		AccountID: "42",
+		Scene:     common.SMSSceneRegister,
+	}
+
+	if err := CheckSMSRateLimitWithDB(db, input, config); err != nil {
+		t.Fatalf("first request should be allowed: %v", err)
+	}
+	err := CheckSMSRateLimitWithDB(db, input, config)
+	if err == nil || !strings.Contains(err.Error(), "phone") {
+		t.Fatalf("expected persisted phone rate limit error, got %v", err)
+	}
+
+	var counters []model.SMSRateLimitCounter
+	if err := db.Find(&counters).Error; err != nil {
+		t.Fatalf("query sms rate limit counters: %v", err)
+	}
+	if len(counters) != 3 {
+		t.Fatalf("expected phone/ip/account counters, got %+v", counters)
+	}
+	for _, counter := range counters {
+		serialized := counter.RateKeyHash + counter.Dimension + counter.Scene
+		for _, forbidden := range []string{"13800138000", "203.0.113.9", "42"} {
+			if strings.Contains(serialized, forbidden) {
+				t.Fatalf("sms rate limit counter leaked raw identifier %q: %+v", forbidden, counter)
+			}
+		}
+	}
+}
+
 func resetSMSRateLimitGlobals(t *testing.T) {
 	t.Helper()
 	originalEnabled := common.SMSRateLimitEnabled
@@ -124,4 +169,16 @@ func resetSMSRateLimitGlobals(t *testing.T) {
 	common.SMSRateLimitIPCount = 0
 	common.SMSRateLimitAccountCount = 0
 	common.SMSRateLimitSceneCount = 0
+}
+
+func newSMSRateLimitTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(model.SMSSidecarModels()...); err != nil {
+		t.Fatalf("migrate sms sidecar models: %v", err)
+	}
+	return db
 }

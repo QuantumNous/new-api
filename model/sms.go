@@ -16,6 +16,7 @@ func SMSSidecarModels() []interface{} {
 	return []interface{}{
 		&UserPhoneBinding{},
 		&SMSSendLog{},
+		&SMSRateLimitCounter{},
 	}
 }
 
@@ -62,4 +63,21 @@ type UserPhoneBinding struct {
 
 func (UserPhoneBinding) TableName() string {
 	return "user_phone_bindings"
+}
+
+type SMSRateLimitCounter struct {
+	Id            int    `json:"id"`
+	Dimension     string `json:"dimension" gorm:"type:varchar(32);not null;default:'';index"`
+	Scene         string `json:"scene" gorm:"type:varchar(32);not null;default:'';index"`
+	RateKeyHash   string `json:"rate_key_hash" gorm:"type:varchar(128);not null;default:'';uniqueIndex:idx_sms_rate_limit_counter_window,priority:1"`
+	WindowStart   int64  `json:"window_start" gorm:"bigint;not null;default:0;uniqueIndex:idx_sms_rate_limit_counter_window,priority:2;index"`
+	WindowSeconds int    `json:"window_seconds" gorm:"type:int;not null;default:0"`
+	Count         int    `json:"count" gorm:"type:int;not null;default:0"`
+	ExpiresAt     int64  `json:"expires_at" gorm:"bigint;not null;default:0;index"`
+	CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime;column:created_at;index"`
+	UpdatedAt     int64  `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
+}
+
+func (SMSRateLimitCounter) TableName() string {
+	return "sms_rate_limit_counters"
 }

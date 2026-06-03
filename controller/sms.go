@@ -35,12 +35,12 @@ func AdminTestSMS(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := service.CheckSMSRateLimit(service.SMSRateLimitInput{
+	if err := service.CheckSMSRateLimitWithDB(model.DB, service.SMSRateLimitInput{
 		Phone:     phone,
 		IP:        c.ClientIP(),
 		AccountID: smsRequestAccountID(c),
 		Scene:     req.Scene,
-	}); err != nil {
+	}, service.DefaultSMSRateLimitConfig()); err != nil {
 		common.ApiError(c, err)
 		return
 	}

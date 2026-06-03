@@ -241,6 +241,90 @@ func TestAdminTestSMSAppliesRateLimitBeforeProvider(t *testing.T) {
 	}
 }
 
+func TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSRegisterTemplate
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalRateLimitWindow := common.SMSRateLimitWindowSeconds
+	originalRateLimitPhone := common.SMSRateLimitPhoneCount
+	originalRateLimitIP := common.SMSRateLimitIPCount
+	originalRateLimitAccount := common.SMSRateLimitAccountCount
+	originalRateLimitScene := common.SMSRateLimitSceneCount
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalTemplate
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSRateLimitWindowSeconds = originalRateLimitWindow
+		common.SMSRateLimitPhoneCount = originalRateLimitPhone
+		common.SMSRateLimitIPCount = originalRateLimitIP
+		common.SMSRateLimitAccountCount = originalRateLimitAccount
+		common.SMSRateLimitSceneCount = originalRateLimitScene
+		common.SMSProviderFactory = originalFactory
+		service.ResetSMSRateLimiterForTest()
+	})
+
+	model.DB = newSMSControllerTestDB(t)
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
+	common.SMSProductName = "分销系统"
+	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSRateLimitEnabled = true
+	common.SMSRateLimitWindowSeconds = 60
+	common.SMSRateLimitPhoneCount = 1
+	common.SMSRateLimitIPCount = 0
+	common.SMSRateLimitAccountCount = 0
+	common.SMSRateLimitSceneCount = 0
+	service.ResetSMSRateLimiterForTest()
+
+	providerCalls := 0
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return countingSMSProvider{calls: &providerCalls}, nil
+	}
+
+	first := httptest.NewRecorder()
+	firstCtx, _ := gin.CreateTestContext(first)
+	firstCtx.Request = httptest.NewRequest(http.MethodPost, "/api/sms/admin/test", bytes.NewBufferString(`{
+		"phone":"13800138000",
+		"scene":"register",
+		"code":"123456"
+	}`))
+	AdminTestSMS(firstCtx)
+	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"success":true`) {
+		t.Fatalf("first request should pass, status=%d body=%s", first.Code, first.Body.String())
+	}
+
+	service.ResetSMSRateLimiterForTest()
+	second := httptest.NewRecorder()
+	secondCtx, _ := gin.CreateTestContext(second)
+	secondCtx.Request = httptest.NewRequest(http.MethodPost, "/api/sms/admin/test", bytes.NewBufferString(`{
+		"phone":"13800138000",
+		"scene":"register",
+		"code":"123456"
+	}`))
+	AdminTestSMS(secondCtx)
+
+	if second.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", second.Code, second.Body.String())
+	}
+	if !strings.Contains(second.Body.String(), "sms rate limit exceeded: phone") {
+		t.Fatalf("expected persisted phone rate limit message, got %s", second.Body.String())
+	}
+	if providerCalls != 1 {
+		t.Fatalf("provider should be called once before persisted rate limit blocks, got %d", providerCalls)
+	}
+}
+
 func TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	originalDB := model.DB

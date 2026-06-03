@@ -14,6 +14,13 @@
 - 当前仓库已有通用邮箱验证码、secure verification、Turnstile、前端 mobile 响应式组件，但这些不是手机号/SMS 能力。
 - 因此 Phase 5A 如继续实现，不能假设已有官方手机号入口；需要新增独立能力，并接入 Phase 5 的统一 invite context。
 
+2026-06-04 当前分支补充：
+
+- 当前分支已新增 SMS provider 抽象、短信宝 provider、管理员 SMS 配置、测试发送、状态查询、脱敏发送日志和 `user_phone_bindings` sidecar。
+- 当前分支已新增 `sms_rate_limit_counters` sidecar，管理员测试发送优先走 DB-backed 固定窗口限流；`model.DB=nil` 的测试或极简运行态保留内存 fallback。
+- 当前仍未启用真实手机号注册/登录主链路，`/api/sms/verification`、`/api/user/login/phone` 和注册归因接入仍待后续 TDD。
+- Docker 当前不可用，`sms_rate_limit_counters` 的 PostgreSQL before/after schema diff 尚未生成；生产发布前必须补 schema impact。
+
 ## 旧 fork 可参考点
 
 - `common/sms.go`：包含手机号规范化、短信宝发送 URL 构造、短信宝返回码映射和发送入口。

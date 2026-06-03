@@ -43,11 +43,30 @@ func TestSMSSidecarModelsMigrateUserPhoneBindings(t *testing.T) {
 	}
 }
 
+func TestSMSSidecarModelsMigrateSMSRateLimitCounters(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(SMSSidecarModels()...); err != nil {
+		t.Fatalf("migrate sms sidecar models: %v", err)
+	}
+	if !db.Migrator().HasTable("sms_rate_limit_counters") {
+		t.Fatal("expected sms_rate_limit_counters table")
+	}
+	for _, column := range []string{"dimension", "scene", "rate_key_hash", "window_start", "window_seconds", "count", "expires_at", "created_at", "updated_at"} {
+		if !db.Migrator().HasColumn(&SMSRateLimitCounter{}, column) {
+			t.Fatalf("expected sms_rate_limit_counters.%s column", column)
+		}
+	}
+}
+
 func TestSMSSidecarTableNamesIncludesSMSModels(t *testing.T) {
 	names := SMSSidecarTableNames()
 	expected := map[string]bool{
-		"sms_send_logs":       false,
-		"user_phone_bindings": false,
+		"sms_rate_limit_counters": false,
+		"sms_send_logs":           false,
+		"user_phone_bindings":     false,
 	}
 	for _, name := range names {
 		if _, ok := expected[name]; ok {

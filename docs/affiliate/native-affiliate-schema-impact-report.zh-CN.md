@@ -1,6 +1,6 @@
 # 原生分销 schema impact 发布复核
 
-复核日期：2026-06-03
+复核日期：2026-06-04
 
 ## 范围
 
@@ -11,15 +11,17 @@
 - 分销 sidecar：`20260602T150911Z-compose-official-baseline.sql` 到 `20260602T152044Z-affiliate-sidecar-after.sql`，diff 为 `20260602T152044Z-affiliate-sidecar.diff`。
 - SMS sidecar：`20260602T175546Z-sms-sidecar-before.sql` 到 `20260602T175809Z-sms-sidecar-after.sql`，diff 为 `20260602T175809Z-sms-sidecar.diff`。
 - Quota source sidecar：`20260603T003059Z-quota-source-before.sql` 到 `20260603T003059Z-quota-source-after.sql`，diff 为 `20260603T003059Z-quota-source.diff`。
-- 代码侧来源：`model.AffiliateSidecarModels()` 当前声明 16 个 `affiliate_*` 模型，`model.SMSSidecarModels()` 当前声明 `sms_send_logs` 与 `user_phone_bindings` 两个 SMS sidecar 模型，`model.QuotaSourceSidecarModels()` 当前声明 `user_quota_source_balances` 与 `user_quota_source_events` 两个 quota source sidecar 模型。
+- 代码侧来源：`model.AffiliateSidecarModels()` 当前声明 16 个 `affiliate_*` 模型，`model.SMSSidecarModels()` 当前声明 `sms_send_logs`、`user_phone_bindings` 与 `sms_rate_limit_counters` 三个 SMS sidecar 模型，`model.QuotaSourceSidecarModels()` 当前声明 `user_quota_source_balances` 与 `user_quota_source_events` 两个 quota source sidecar 模型。
 - 2026-06-03 新增代码侧 sidecar：`affiliate_job_runs`，用于记录分销结算 pipeline job execution，不改官方核心表。
+- 2026-06-04 新增代码侧 SMS sidecar：`sms_rate_limit_counters`，用于短信发送 DB-backed 固定窗口限流，不保存完整手机号、IP 或账号。
 
 ## 复核结果
 
 - 分销 sidecar diff 只新增 `affiliate_*` 表、序列、主键和索引。
-- SMS sidecar diff 只新增 `sms_send_logs`、`user_phone_bindings` 及其序列、主键和索引。
+- SMS sidecar diff 只新增 `sms_send_logs`、`user_phone_bindings` 及其序列、主键和索引；`sms_rate_limit_counters` 为 2026-06-04 新增代码侧 sidecar，当前因 Docker 不可用尚未生成 PostgreSQL diff。
 - Quota source sidecar diff 只新增 `user_quota_source_balances`、`user_quota_source_events` 及其序列、主键和索引。
 - `affiliate_job_runs` 当前已进入 `AffiliateSidecarModels()` 和 `AffiliateSidecarTableNames()`，本地 SQLite AutoMigrate 测试可创建该表；预期 PostgreSQL schema impact 只新增 `affiliate_job_runs` 表、序列、主键和索引。
+- `sms_rate_limit_counters` 当前已进入 `SMSSidecarModels()` 和 `SMSSidecarTableNames()`，本地 SQLite AutoMigrate 测试可创建该表；预期 PostgreSQL schema impact 只新增 `sms_rate_limit_counters` 表、序列、主键和索引。表内只保存 `dimension`、`scene`、`rate_key_hash`、窗口和计数，不保存原始手机号、IP 或账号。
 - diff 中没有删除 DDL。
 - diff 中没有非 sidecar 的新增 `CREATE`、`ALTER` 或 `DROP` DDL。
 - 未发现 `users` 或其他官方核心表的结构变更。
@@ -30,11 +32,12 @@
 
 ```bash
 sha256sum -c runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql.sha256 runtime/schema-impact/20260602T152044Z-affiliate-sidecar-after.sql.sha256 runtime/schema-impact/20260602T175546Z-sms-sidecar-before.sql.sha256 runtime/schema-impact/20260602T175809Z-sms-sidecar-after.sql.sha256 runtime/schema-impact/20260603T003059Z-quota-source-before.sql.sha256 runtime/schema-impact/20260603T003059Z-quota-source-after.sql.sha256
-rg '^\+(CREATE|ALTER|DROP)' runtime/schema-impact/*.diff | rg -v 'public\.(affiliate_|sms_send_logs|user_phone_bindings|user_quota_source_)' || true
+rg '^\+(CREATE|ALTER|DROP)' runtime/schema-impact/*.diff | rg -v 'public\.(affiliate_|sms_send_logs|sms_rate_limit_counters|user_phone_bindings|user_quota_source_)' || true
 rg '^-(CREATE|ALTER|DROP|COMMENT)' runtime/schema-impact/*.diff
 git check-ignore -v runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql runtime/schema-impact/20260602T152044Z-affiliate-sidecar-after.sql runtime/schema-impact/20260602T175546Z-sms-sidecar-before.sql runtime/schema-impact/20260602T175809Z-sms-sidecar-after.sql runtime/schema-impact/20260603T003059Z-quota-source-before.sql runtime/schema-impact/20260603T003059Z-quota-source-after.sql runtime/schema-impact/20260603T003059Z-quota-source.diff
 go test -count=1 ./model -run 'QuotaSourceSidecar|AffiliateSidecarModels|MigrateDBCreatesAffiliateSidecar'
 go test -count=1 ./model -run 'AffiliateSidecarTableNames|AffiliateSidecarModels|MigrateDBCreatesAffiliateSidecar'
+go test -count=1 ./model ./service ./controller -run 'SMSRateLimit|SMSSidecar|TestAdminTestSMS(AppliesRateLimitBeforeProvider|UsesPersistedRateLimitAcrossLimiterReset)'
 ```
 
 ## 残留风险
@@ -43,3 +46,4 @@ go test -count=1 ./model -run 'AffiliateSidecarTableNames|AffiliateSidecarModels
 - 后续如新增 GORM model、修改 sidecar 字段或索引，必须重新导出 before/after schema 并更新本报告。
 - Quota source sidecar schema impact 只证明新增表对象安全；真实支付、relay 钱包扣费和退款链路的本地 thin hook 已接入并有 Go 测试覆盖，但仍需 staging/生产真实链路 smoke 证明来源事件持续写入。
 - `affiliate_job_runs` 本轮已有代码级 sidecar 复核和 model AutoMigrate 测试，但缺少 Docker PostgreSQL diff 文件；生产发布前不得用本报告替代现场 schema impact。
+- `sms_rate_limit_counters` 本轮已有代码级 sidecar 复核和 model AutoMigrate 测试，但缺少 Docker PostgreSQL diff 文件；生产发布前不得用本报告替代现场 schema impact。

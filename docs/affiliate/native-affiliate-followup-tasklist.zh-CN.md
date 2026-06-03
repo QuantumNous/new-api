@@ -116,7 +116,7 @@
 
 ## 10. 手机号/SMS 后续
 
-- [ ] 当前 SMS 限流为内存实现，生产多实例前必须评估 Redis/数据库分布式限流，否则不同实例之间会绕过限制。
+- [x] 当前 SMS 限流为内存实现，生产多实例前必须评估 Redis/数据库分布式限流，否则不同实例之间会绕过限制。（2026-06-04 已新增 `sms_rate_limit_counters` sidecar 固定窗口 DB 计数，管理员测试发送优先走 DB-backed limiter；`model.DB=nil` 时保留内存 fallback。Docker PostgreSQL schema diff 因 Docker 不可用仍待补。）
 - [ ] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。
 - [ ] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。
 - [ ] 短信宝真实通道 smoke 必须在签名审核通过、模板确认和脱敏日志策略明确后执行。
@@ -159,7 +159,7 @@
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看和发布/归档二次确认。启停字段、风控动作、自动结算等后端未模型化字段仍按第 6 节单项任务保留。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume；2026-06-04 Docker probe 仍不可用，schema diff 未生成；cursor 跳扫式 resume、running zombie/stale lease、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
-- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
+- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流；手机号注册归因、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
 
 ## 15. 文档维护规则
@@ -460,3 +460,13 @@
 - 结论：当前 Docker 运行态仍不可用，无法基于本地 PostgreSQL 容器导出 native affiliate sidecar schema diff；本轮不继续重复 Docker probe，避免无效等待。
 - 残留风险：`affiliate_job_runs` 相关字段已经在 Go model 中使用，但 Docker PostgreSQL baseline/schema impact 仍需要在 Docker 恢复后补验，尤其要确认 sidecar 表结构和索引符合预期。
 - 下一步：Docker 恢复后优先执行 dev compose 状态检查、PostgreSQL schema 导出和 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md` 更新。
+
+## P2-2 SMS DB-backed 限流复盘（2026-06-04 本线程）
+
+- RED：先新增 `TestSMSSidecarModelsMigrateSMSRateLimitCounters`、`TestCheckSMSRateLimitWithDBBlocksAcrossLimiterInstancesWithoutRawIdentifiers` 和 `TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset`；旧实现因缺少 `SMSRateLimitCounter`、`CheckSMSRateLimitWithDB` 失败，controller 旧实现清空内存 limiter 后第二次发送仍成功。
+- 完成内容：新增 `sms_rate_limit_counters` SMS sidecar 表，按 `dimension`、`scene`、`rate_key_hash`、固定窗口、计数和过期时间记录限流状态；`rate_key_hash` 由手机号/IP/账号/场景规则 key 哈希生成，不保存完整手机号、IP 或账号。
+- 完成内容：新增 DB-backed 固定窗口 SMS limiter；管理员测试发送优先调用 DB limiter，`model.DB=nil` 时保留既有内存 limiter fallback，避免极简测试或未初始化 DB 的路径直接失败。
+- 验证命令：RED 阶段 `go test -count=1 ./model ./service -run "SMSRateLimit|SMSSidecar"` 因缺少模型和函数失败；`go test -count=1 ./controller -run "TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset"` 因第二次请求成功失败。实现后 `go test -count=1 ./model ./service ./controller -run "SMSRateLimit|SMSSidecar|TestAdminTestSMS(AppliesRateLimitBeforeProvider|UsesPersistedRateLimitAcrossLimiterReset)"` 通过。
+- 回归验证：`go test -count=1 ./common ./model ./service ./controller -run "SMS|Phone"` 通过。
+- 残留风险：本轮是 DB 固定窗口计数，不是 Redis 滑动窗口；高并发下仍需结合数据库隔离、唯一索引和生产压测复核。Docker 当前不可用，`sms_rate_limit_counters` 的 PostgreSQL schema diff 未生成。手机号注册归因、手机号登录/绑定真实入口和短信宝真实通道 smoke 仍待做。
+- 下一步：Docker 恢复后补 SMS schema diff；如继续 SMS P2，应优先 TDD 手机号注册复用统一 invite context 和初始额度，真实短信宝 smoke 只在签名/模板审核完成后做脱敏验收。
