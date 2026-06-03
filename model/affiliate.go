@@ -233,6 +233,7 @@ type AffiliateHeadFeeRule struct {
 	RuleSetId             int    `json:"rule_set_id" gorm:"not null;index;uniqueIndex:idx_affiliate_head_fee_rule,priority:1"`
 	AffiliateLevel        int    `json:"affiliate_level" gorm:"type:int;not null;index;uniqueIndex:idx_affiliate_head_fee_rule,priority:2"`
 	KPITierCode           string `json:"kpi_tier_code" gorm:"type:varchar(32);not null;uniqueIndex:idx_affiliate_head_fee_rule,priority:3"`
+	Status                string `json:"status" gorm:"type:varchar(32);not null;default:'active';index"`
 	AmountCents           int64  `json:"amount_cents" gorm:"bigint;not null;default:0"`
 	FirstRechargeMinCents int64  `json:"first_recharge_min_cents" gorm:"bigint;not null;default:0"`
 	PeriodNetPaidMinCents int64  `json:"period_net_paid_min_cents" gorm:"bigint;not null;default:0"`

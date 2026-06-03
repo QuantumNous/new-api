@@ -113,6 +113,22 @@ function normalizeCommissionRulesForForm(
   })
 }
 
+function normalizeHeadFeeRulesForForm(
+  value: unknown
+): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return { status: 'active', value: rule }
+    }
+    const record = rule as Record<string, unknown>
+    return {
+      ...record,
+      status: String(record.status || '').trim() || 'active',
+    }
+  })
+}
+
 function stringifyStable(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stringifyStable(item)).join(',')}]`
@@ -460,7 +476,9 @@ export function buildAffiliateRuleSetDraftFormValues(
     ),
     commissionTiersJson: stringifyPretty(snapshot.commission_tiers),
     kpiTiersJson: stringifyPretty(snapshot.kpi_tiers),
-    headFeeRulesJson: stringifyPretty(snapshot.head_fee_rules),
+    headFeeRulesJson: stringifyPretty(
+      normalizeHeadFeeRulesForForm(snapshot.head_fee_rules)
+    ),
     riskRulesJson: stringifyPretty(snapshot.risk_rules),
   }
 }
@@ -519,7 +537,9 @@ export function parseAffiliateRuleSetImportJson(
     ),
     commissionTiersJson: stringifyPretty(imported.commission_tiers),
     kpiTiersJson: stringifyPretty(imported.kpi_tiers),
-    headFeeRulesJson: stringifyPretty(imported.head_fee_rules),
+    headFeeRulesJson: stringifyPretty(
+      normalizeHeadFeeRulesForForm(imported.head_fee_rules)
+    ),
     riskRulesJson: stringifyPretty(imported.risk_rules),
   }
 }
@@ -815,80 +835,82 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         sort_order: 4,
       },
     ]),
-    headFeeRulesJson: stringifyPretty([
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'observe',
-        amount_cents: 0,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'qualified',
-        amount_cents: 160,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'growth',
-        amount_cents: 180,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'excellent',
-        amount_cents: 200,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'observe',
-        amount_cents: 0,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'base',
-        amount_cents: 70,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'growth',
-        amount_cents: 85,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'excellent',
-        amount_cents: 100,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-    ]),
+    headFeeRulesJson: stringifyPretty(
+      normalizeHeadFeeRulesForForm([
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'observe',
+          amount_cents: 0,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'qualified',
+          amount_cents: 160,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'growth',
+          amount_cents: 180,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'excellent',
+          amount_cents: 200,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'observe',
+          amount_cents: 0,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'base',
+          amount_cents: 70,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'growth',
+          amount_cents: 85,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'excellent',
+          amount_cents: 100,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+      ])
+    ),
     riskRulesJson: stringifyPretty([
       {
         affiliate_level: 1,

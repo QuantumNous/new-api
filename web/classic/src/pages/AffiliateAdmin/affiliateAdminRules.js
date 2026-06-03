@@ -47,6 +47,21 @@ const normalizeCommissionRulesForForm = (value) => {
   });
 };
 
+const normalizeHeadFeeRulesForForm = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return { status: 'active', value: rule };
+    }
+    return {
+      ...rule,
+      status: String(rule.status || '').trim() || 'active',
+    };
+  });
+};
+
 const stringifyStable = (value) => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stringifyStable(item)).join(',')}]`;
@@ -166,10 +181,10 @@ export function buildAffiliateRuleSetRollbackPayload(t, ruleSet = {}) {
   return {
     version: `${version}-rollback`,
     name: `${name} ${translate(t, '回滚草稿')}`,
-    reason: translate(
-      t,
-      '管理员从规则集 {{version}} 创建回滚草稿',
-    ).replace('{{version}}', getAffiliateRuleSetDisplayIdentity(ruleSet)),
+    reason: translate(t, '管理员从规则集 {{version}} 创建回滚草稿').replace(
+      '{{version}}',
+      getAffiliateRuleSetDisplayIdentity(ruleSet),
+    ),
   };
 }
 
@@ -257,7 +272,9 @@ export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
     ),
     commission_tiers_json: stringifyPretty(snapshot.commission_tiers),
     kpi_tiers_json: stringifyPretty(snapshot.kpi_tiers),
-    head_fee_rules_json: stringifyPretty(snapshot.head_fee_rules),
+    head_fee_rules_json: stringifyPretty(
+      normalizeHeadFeeRulesForForm(snapshot.head_fee_rules),
+    ),
     risk_rules_json: stringifyPretty(snapshot.risk_rules),
   };
 }
@@ -314,7 +331,9 @@ export function parseAffiliateRuleSetImportJson(value = '') {
     ),
     commission_tiers_json: stringifyPretty(parsed.commission_tiers),
     kpi_tiers_json: stringifyPretty(parsed.kpi_tiers),
-    head_fee_rules_json: stringifyPretty(parsed.head_fee_rules),
+    head_fee_rules_json: stringifyPretty(
+      normalizeHeadFeeRulesForForm(parsed.head_fee_rules),
+    ),
     risk_rules_json: stringifyPretty(parsed.risk_rules),
   };
 }
@@ -600,80 +619,82 @@ function buildAffiliateRuleSetDefaultSeedFormValues() {
         sort_order: 4,
       },
     ]),
-    head_fee_rules_json: stringifyPretty([
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'observe',
-        amount_cents: 0,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'qualified',
-        amount_cents: 160,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'growth',
-        amount_cents: 180,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 1,
-        kpi_tier_code: 'excellent',
-        amount_cents: 200,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'observe',
-        amount_cents: 0,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'base',
-        amount_cents: 70,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'growth',
-        amount_cents: 85,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-      {
-        affiliate_level: 2,
-        kpi_tier_code: 'excellent',
-        amount_cents: 100,
-        first_recharge_min_cents: 1000,
-        period_net_paid_min_cents: 1000,
-        qualification_days: 14,
-        unlock_delay_days: 7,
-      },
-    ]),
+    head_fee_rules_json: stringifyPretty(
+      normalizeHeadFeeRulesForForm([
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'observe',
+          amount_cents: 0,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'qualified',
+          amount_cents: 160,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'growth',
+          amount_cents: 180,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 1,
+          kpi_tier_code: 'excellent',
+          amount_cents: 200,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'observe',
+          amount_cents: 0,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'base',
+          amount_cents: 70,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'growth',
+          amount_cents: 85,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+        {
+          affiliate_level: 2,
+          kpi_tier_code: 'excellent',
+          amount_cents: 100,
+          first_recharge_min_cents: 1000,
+          period_net_paid_min_cents: 1000,
+          qualification_days: 14,
+          unlock_delay_days: 7,
+        },
+      ]),
+    ),
     risk_rules_json: stringifyPretty([
       {
         affiliate_level: 1,

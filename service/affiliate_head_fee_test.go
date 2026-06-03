@@ -199,6 +199,36 @@ func TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage
 	}
 }
 
+func TestBuildAffiliatePendingHeadFeeEventsSkipsDisabledHeadFeeRule(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	input := newAffiliateHeadFeeRuleSetInput("head-fee-disabled-rule")
+	for i := range input.HeadFeeRules {
+		if input.HeadFeeRules[i].AffiliateLevel == 1 && input.HeadFeeRules[i].KPITierCode == "growth" {
+			input.HeadFeeRules[i].Status = model.AffiliateProfileStatusDisabled
+		}
+	}
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, input)
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateHeadFeeInviteEvent(t, db, 100, 200, 1000)
+	seedAffiliateHeadFeeKPISnapshot(t, db, 100, ruleSet.Id, "growth", 1000, 2000)
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 500, Other: `{"quota_source":"paid"}`})
+
+	events, err := BuildAffiliatePendingHeadFeeEvents(db, db, AffiliateHeadFeeBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Now:             1000 + 21*affiliateSecondsPerDay + 1,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingHeadFeeEvents returned error: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected disabled head fee rule to be skipped, got %+v", events)
+	}
+}
+
 func newAffiliateHeadFeeRuleSetInput(version string) AffiliateRuleSetDraftInput {
 	input := newAffiliateKPIRuleSetInput(version)
 	input.HeadFeeRules = []AffiliateHeadFeeRuleInput{

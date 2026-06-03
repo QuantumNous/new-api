@@ -172,7 +172,7 @@ func getAffiliateHeadFeeKPISnapshot(db *gorm.DB, affiliateUserId int, ruleSetId 
 func getAffiliateHeadFeeRule(db *gorm.DB, ruleSetId int, affiliateLevel int, kpiTierCode string) (*model.AffiliateHeadFeeRule, error) {
 	var rule model.AffiliateHeadFeeRule
 	err := db.
-		Where("rule_set_id = ? AND affiliate_level = ? AND kpi_tier_code = ?", ruleSetId, affiliateLevel, kpiTierCode).
+		Where("rule_set_id = ? AND affiliate_level = ? AND kpi_tier_code = ? AND status = ?", ruleSetId, affiliateLevel, kpiTierCode, model.AffiliateProfileStatusActive).
 		First(&rule).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil

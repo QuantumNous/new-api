@@ -96,6 +96,7 @@ func affiliateSeedHeadFeeRule(level int, kpiTierCode string, amountYuan float64)
 	return AffiliateHeadFeeRuleInput{
 		AffiliateLevel:        level,
 		KPITierCode:           kpiTierCode,
+		Status:                model.AffiliateProfileStatusActive,
 		AmountCents:           affiliateSeedYuanToCents(amountYuan),
 		FirstRechargeMinCents: affiliateSeedYuanToCents(10),
 		PeriodNetPaidMinCents: affiliateSeedYuanToCents(10),

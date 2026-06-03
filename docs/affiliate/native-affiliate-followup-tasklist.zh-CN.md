@@ -76,7 +76,7 @@
 - [x] 分销管理里的规则、指标、KPI、人头费、风控和结算配置建议做成表格或矩阵，而不是继续以 JSON textarea 或散卡片为主。
 - [x] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。（2026-06-04 审计：tier 表格字段已覆盖净付费区间、比例、cap、人工审批和排序；2026-06-04 已补 `AffiliateCommissionRuleInput.status`、默认 seed/fallback active 状态、草稿保存/发布/回滚复制和佣金生成跳过 disabled 等级；2026-06-04 已补 default/classic 规则表格 status 标签、固定列顺序、编辑值转换测试，以及旧 rule snapshot/import/copy 缺失 status 时补 `active` 的兼容展示。）
 - [x] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。（2026-06-04 审计：`kpi_tiers` 已覆盖这些字段，default/classic 表格编辑器会按字段动态生成运营表格，并对百分比字段做 bps/percent 转换。）
-- [ ] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。（2026-06-04 审计：金额、首充、周期净付费、资格天数和解锁天数已覆盖；人头费 rule model/input 尚无启停字段。）
+- [x] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。（2026-06-04 审计：金额、首充、周期净付费、资格天数和解锁天数已覆盖；2026-06-04 已补 `AffiliateHeadFeeRuleInput.status`、`affiliate_head_fee_rules.status` sidecar 字段、默认 seed/fallback active 状态、草稿保存/发布/回滚复制和人头费生成跳过 disabled 档位。）
 - [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
 - [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。（2026-06-04 审计：周期、冻结天数、最低结算金额和人工复核开关已覆盖；自动结算开关与备注尚未模型化。）
 - [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
@@ -507,6 +507,14 @@
 - 验证命令：`cd web/default && bun test src/features/affiliate/rule-array-editor.test.ts src/features/affiliate/admin-lib.test.ts` 通过，24 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过，14 pass；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
 - 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate/admin` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate/admin` 未登录正常跳转到 classic login，控制台错误为既有未登录/登录过期提示，不是本轮 RuleArrayEditor 运行时异常。
 - 残留风险：本轮只收口佣金规则已有 `status` 字段在运营表格中的显示与历史快照兼容；人头费规则启停、风控处理动作、结算自动开关和备注仍未模型化。Docker engine 当前仍不可查询，未做登录态管理员真实点击保存 smoke。
+
+## P1-28 人头费规则启停状态复盘（2026-06-04 本线程）
+
+- RED：先补 `TestSaveAffiliateRuleSetDraftPersistsHeadFeeRuleStatus` 和 `TestBuildAffiliatePendingHeadFeeEventsSkipsDisabledHeadFeeRule`；旧实现因 `AffiliateHeadFeeRuleInput` 与 `AffiliateHeadFeeRule` 都没有 `Status` 编译失败。再补 default/classic admin rules 测试，要求旧 snapshot、导入 JSON、复制历史规则集和默认 seed 中缺失 `head_fee_rules.status` 的规则自动在表单中显示为 `active`；旧实现这些入口均缺 status。
+- 完成内容：人头费规则输入新增 `status`，保存草稿时规范化并校验 `active/disabled`，持久化到新增 sidecar 字段 `affiliate_head_fee_rules.status`；从已发布/已归档版本复制为草稿时保留原状态；默认 seed 与 default/classic 前端 fallback seed 都显式回填 active。人头费事件构建只查询 active 的人头费规则；如果某个 KPI 档位人头费规则被 disabled，则跳过该档位，不再生成 pending head fee event。
+- schema impact：本轮修改 GORM sidecar model，只新增 `affiliate_head_fee_rules.status` 字段，仍不改官方核心表。`go test -count=1 ./model ./service -run "AffiliateSidecar|MigrateDBCreatesAffiliateSidecar|AffiliateRuleSet|HeadFee|DefaultAffiliateRuleSetSeed|CommissionRuleStatus"` 已覆盖 SQLite AutoMigrate 与 service 行为；Docker engine 当前仍不可用，PostgreSQL before/after diff 需恢复后补。
+- 验证命令：`go test -count=1 ./service -run "HeadFeeRuleStatus|DisabledHeadFeeRule"` 先 RED 后 GREEN；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts --test-name-pattern "hydrates|imports|copies"` 先 RED 后 GREEN；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs --test-name-pattern "hydrates|imports|copies|default seed"` 先 RED 后 GREEN。完整相关验证：`go test -count=1 ./model ./service -run "AffiliateSidecar|MigrateDBCreatesAffiliateSidecar|AffiliateRuleSet|HeadFee|DefaultAffiliateRuleSetSeed|CommissionRuleStatus"` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，24 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs` 通过，14 pass。
+- 残留风险：本轮只补人头费规则启停；风控处理动作、结算自动开关/备注、cursor 跳扫式 resume、Docker PostgreSQL schema diff 和登录态管理员真实点击保存 smoke 仍待做。
 
 ## P2-2 SMS DB-backed 限流复盘（2026-06-04 本线程）
 

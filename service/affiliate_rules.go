@@ -75,6 +75,7 @@ type AffiliateKPITierInput struct {
 type AffiliateHeadFeeRuleInput struct {
 	AffiliateLevel        int    `json:"affiliate_level"`
 	KPITierCode           string `json:"kpi_tier_code"`
+	Status                string `json:"status"`
 	AmountCents           int64  `json:"amount_cents"`
 	FirstRechargeMinCents int64  `json:"first_recharge_min_cents"`
 	PeriodNetPaidMinCents int64  `json:"period_net_paid_min_cents"`
@@ -476,6 +477,7 @@ func normalizeAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) Affil
 	}
 	for i := range input.HeadFeeRules {
 		input.HeadFeeRules[i].KPITierCode = strings.TrimSpace(input.HeadFeeRules[i].KPITierCode)
+		input.HeadFeeRules[i].Status = normalizeAffiliateRuleStatus(input.HeadFeeRules[i].Status)
 	}
 	for i := range input.RiskRules {
 		input.RiskRules[i].Code = strings.TrimSpace(input.RiskRules[i].Code)
@@ -604,6 +606,9 @@ func validateAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) error 
 		}
 		if rule.KPITierCode == "" {
 			return errors.New("head fee kpi tier code is required")
+		}
+		if err := validateAffiliateRuleStatus(rule.Status); err != nil {
+			return err
 		}
 		if rule.AmountCents < 0 || rule.FirstRechargeMinCents < 0 || rule.PeriodNetPaidMinCents < 0 {
 			return errors.New("head fee amount cannot be negative")
@@ -763,6 +768,7 @@ func replaceAffiliateRuleSetChildren(tx *gorm.DB, ruleSetId int, input Affiliate
 			RuleSetId:             ruleSetId,
 			AffiliateLevel:        rule.AffiliateLevel,
 			KPITierCode:           rule.KPITierCode,
+			Status:                rule.Status,
 			AmountCents:           rule.AmountCents,
 			FirstRechargeMinCents: rule.FirstRechargeMinCents,
 			PeriodNetPaidMinCents: rule.PeriodNetPaidMinCents,
@@ -885,6 +891,7 @@ func buildAffiliateRuleSetDraftInputFromPersistedConfig(db *gorm.DB, ruleSet mod
 		input.HeadFeeRules = append(input.HeadFeeRules, AffiliateHeadFeeRuleInput{
 			AffiliateLevel:        rule.AffiliateLevel,
 			KPITierCode:           rule.KPITierCode,
+			Status:                normalizeAffiliateRuleStatus(rule.Status),
 			AmountCents:           rule.AmountCents,
 			FirstRechargeMinCents: rule.FirstRechargeMinCents,
 			PeriodNetPaidMinCents: rule.PeriodNetPaidMinCents,

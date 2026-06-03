@@ -197,6 +197,13 @@ describe('affiliate admin rule set helpers', () => {
         default_cap_rate_bps: 3000,
       },
     ]);
+    expect(JSON.parse(values.head_fee_rules_json)).toEqual([
+      {
+        affiliate_level: 1,
+        status: 'active',
+        kpi_tier_code: 'base',
+      },
+    ]);
   });
 
   test('converts settlement amount yuan fields to backend cents', () => {
@@ -249,6 +256,9 @@ describe('affiliate admin rule set helpers', () => {
     expect(JSON.parse(imported.commission_rules_json)).toEqual([
       { affiliate_level: 1, status: 'active' },
     ]);
+    expect(JSON.parse(imported.head_fee_rules_json)).toEqual([
+      { kpi_tier_code: 'base', status: 'active' },
+    ]);
   });
 
   test('copies previous rule sets as a new clean draft', () => {
@@ -268,6 +278,7 @@ describe('affiliate admin rule set helpers', () => {
           manual_review_enabled: true,
         },
         commission_rules: [{ affiliate_level: 1, default_cap_rate_bps: 3000 }],
+        head_fee_rules: [{ affiliate_level: 1, kpi_tier_code: 'base' }],
       }),
     });
 
@@ -279,6 +290,13 @@ describe('affiliate admin rule set helpers', () => {
         affiliate_level: 1,
         status: 'active',
         default_cap_rate_bps: 3000,
+      },
+    ]);
+    expect(JSON.parse(copied.head_fee_rules_json)).toEqual([
+      {
+        affiliate_level: 1,
+        status: 'active',
+        kpi_tier_code: 'base',
       },
     ]);
   });
@@ -416,6 +434,7 @@ describe('affiliate admin rule set helpers', () => {
       expect.objectContaining({
         affiliate_level: 1,
         kpi_tier_code: 'qualified',
+        status: 'active',
         amount_cents: 160,
       }),
     );

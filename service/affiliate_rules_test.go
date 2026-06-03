@@ -86,6 +86,53 @@ func TestSaveAffiliateRuleSetDraftPersistsCommissionRuleStatus(t *testing.T) {
 	}
 }
 
+func TestSaveAffiliateRuleSetDraftPersistsHeadFeeRuleStatus(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	input := newAffiliateRuleSetDraftInput("rules-head-fee-status")
+	input.HeadFeeRules[0].Status = model.AffiliateProfileStatusActive
+	input.HeadFeeRules[1].Status = model.AffiliateProfileStatusDisabled
+
+	ruleSet, err := SaveAffiliateRuleSetDraft(db, input)
+	if err != nil {
+		t.Fatalf("SaveAffiliateRuleSetDraft returned error: %v", err)
+	}
+
+	var rules []model.AffiliateHeadFeeRule
+	if err := db.Where("rule_set_id = ?", ruleSet.Id).Order("affiliate_level asc, kpi_tier_code asc").Find(&rules).Error; err != nil {
+		t.Fatalf("load head fee rules: %v", err)
+	}
+	if len(rules) != 2 {
+		t.Fatalf("expected two head fee rules, got %+v", rules)
+	}
+	if rules[0].Status != model.AffiliateProfileStatusActive || rules[1].Status != model.AffiliateProfileStatusDisabled {
+		t.Fatalf("expected head fee rule statuses to be persisted, got %+v", rules)
+	}
+
+	published, err := PublishAffiliateRuleSet(db, ruleSet.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish head fee status test",
+	})
+	if err != nil {
+		t.Fatalf("publish head fee status test: %v", err)
+	}
+	rollbackDraft, err := RollbackAffiliateRuleSetToDraft(db, published.Id, AffiliateRuleSetRollbackInput{
+		Version:     "rules-head-fee-status-rollback",
+		Name:        "Head Fee Status Rollback",
+		ActorUserId: 7,
+		Reason:      "verify head fee status copy",
+	})
+	if err != nil {
+		t.Fatalf("RollbackAffiliateRuleSetToDraft returned error: %v", err)
+	}
+	rules = nil
+	if err := db.Where("rule_set_id = ?", rollbackDraft.Id).Order("affiliate_level asc, kpi_tier_code asc").Find(&rules).Error; err != nil {
+		t.Fatalf("load rollback head fee rules: %v", err)
+	}
+	if len(rules) != 2 || rules[1].Status != model.AffiliateProfileStatusDisabled {
+		t.Fatalf("expected rollback draft to preserve disabled head fee rule status, got %+v", rules)
+	}
+}
+
 func TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 

@@ -304,14 +304,24 @@ describe('default affiliate admin rule set helpers', () => {
         default_cap_rate_bps: 3000,
       },
     ])
+    assert.deepEqual(JSON.parse(values.headFeeRulesJson || '[]'), [
+      {
+        affiliate_level: 1,
+        status: 'active',
+        kpi_tier_code: 'base',
+      },
+    ])
 
     const seed = buildAffiliateRuleSetDraftFormValues()
     const commissionRules = JSON.parse(seed.commissionRulesJson || '[]')
     const commissionTiers = JSON.parse(seed.commissionTiersJson || '[]')
+    const headFeeRules = JSON.parse(seed.headFeeRulesJson || '[]')
     assert.equal(seed.settlementCycle, 'monthly')
     assert.equal(seed.manualReviewEnabled, true)
     assert.equal(commissionRules[0]?.status, 'active')
     assert.equal(commissionRules[1]?.status, 'active')
+    assert.equal(headFeeRules[0]?.status, 'active')
+    assert.equal(headFeeRules[1]?.status, 'active')
     assert.equal(commissionTiers.length, 10)
     assert.deepEqual(commissionTiers[4], {
       affiliate_level: 1,
@@ -374,6 +384,9 @@ describe('default affiliate admin rule set helpers', () => {
     assert.deepEqual(JSON.parse(imported.commissionRulesJson || '[]'), [
       { affiliate_level: 1, status: 'active' },
     ])
+    assert.deepEqual(JSON.parse(imported.headFeeRulesJson || '[]'), [
+      { kpi_tier_code: 'base', status: 'active' },
+    ])
   })
 
   test('copies previous rule sets as a new clean draft', () => {
@@ -393,6 +406,7 @@ describe('default affiliate admin rule set helpers', () => {
           manual_review_enabled: true,
         },
         commission_rules: [{ affiliate_level: 1, default_cap_rate_bps: 3000 }],
+        head_fee_rules: [{ affiliate_level: 1, kpi_tier_code: 'base' }],
       }),
     })
 
@@ -404,6 +418,13 @@ describe('default affiliate admin rule set helpers', () => {
         affiliate_level: 1,
         status: 'active',
         default_cap_rate_bps: 3000,
+      },
+    ])
+    assert.deepEqual(JSON.parse(copied.headFeeRulesJson || '[]'), [
+      {
+        affiliate_level: 1,
+        status: 'active',
+        kpi_tier_code: 'base',
       },
     ])
   })
