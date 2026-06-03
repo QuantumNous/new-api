@@ -228,11 +228,14 @@ func TestNotifyDingTalkFailureDoesNotConsumeCooldownOnSendFailure(t *testing.T) 
 	originalSetting := *operation_setting.GetMonitorSetting()
 	originalCooldown := dingTalkAlertCooldown
 	originalHTTPClient := httpClient
+	originalDB := model.DB
 	t.Cleanup(func() {
 		*operation_setting.GetMonitorSetting() = originalSetting
 		dingTalkAlertCooldown = originalCooldown
 		httpClient = originalHTTPClient
+		model.DB = originalDB
 	})
+	model.DB = nil
 
 	var requests int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -272,11 +275,14 @@ func TestNotifyDingTalkFailuresSendsOneBatchForMultipleChannels(t *testing.T) {
 	originalSetting := *operation_setting.GetMonitorSetting()
 	originalCooldown := dingTalkAlertCooldown
 	originalHTTPClient := httpClient
+	originalDB := model.DB
 	t.Cleanup(func() {
 		*operation_setting.GetMonitorSetting() = originalSetting
 		dingTalkAlertCooldown = originalCooldown
 		httpClient = originalHTTPClient
+		model.DB = originalDB
 	})
+	model.DB = nil
 
 	var requests int32
 	contents := make(chan string, 1)
@@ -334,11 +340,14 @@ func TestNotifyDingTalkFailuresSplitsLargeBatches(t *testing.T) {
 	originalSetting := *operation_setting.GetMonitorSetting()
 	originalCooldown := dingTalkAlertCooldown
 	originalHTTPClient := httpClient
+	originalDB := model.DB
 	t.Cleanup(func() {
 		*operation_setting.GetMonitorSetting() = originalSetting
 		dingTalkAlertCooldown = originalCooldown
 		httpClient = originalHTTPClient
+		model.DB = originalDB
 	})
+	model.DB = nil
 
 	var requests int32
 	contents := make(chan string, 2)
