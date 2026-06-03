@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -90,8 +91,21 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 		return
 	}
 
+	// Channels are fetched concurrently. Each refreshed key would otherwise
+	// trigger its own full channel-cache rebuild; collect the refresh signal
+	// instead and rebuild the cache once after the batch completes.
+	var (
+		refreshMu    sync.Mutex
+		cacheRefresh bool
+	)
 	fetcher := service.CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
-		return fetchCodexChannelUsage(ctx, channel)
+		statusCode, body, refreshed, err := fetchCodexChannelUsageRefresh(ctx, channel)
+		if refreshed {
+			refreshMu.Lock()
+			cacheRefresh = true
+			refreshMu.Unlock()
+		}
+		return statusCode, body, err
 	})
 	reportCtx, cancel := newCodexLimitReportContext(c.Request.Context())
 	defer cancel()
@@ -103,6 +117,9 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 		startTimestamp,
 		endTimestamp,
 	)
+	if cacheRefresh {
+		rebuildCodexChannelCache()
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -126,33 +143,50 @@ func getCodexLimitReportRange(c *gin.Context) (int64, int64) {
 	return startTimestamp, endTimestamp
 }
 
+// fetchCodexChannelUsage fetches a single channel's usage and rebuilds the
+// global channel cache inline when the channel key was refreshed. Use this for
+// single-channel callers; batch callers should use fetchCodexChannelUsageRefresh
+// to coalesce cache rebuilds.
 func fetchCodexChannelUsage(ctx context.Context, ch *model.Channel) (int, []byte, error) {
+	statusCode, body, refreshed, err := fetchCodexChannelUsageRefresh(ctx, ch)
+	if refreshed {
+		rebuildCodexChannelCache()
+	}
+	return statusCode, body, err
+}
+
+// fetchCodexChannelUsageRefresh fetches a single channel's usage. When the
+// channel key is refreshed it is persisted to the database and refreshed=true is
+// returned, but the global channel cache is NOT rebuilt here. This lets batch
+// callers (e.g. the limit report) collapse many concurrent refreshes into a
+// single cache rebuild instead of triggering one full rebuild per channel.
+func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int, []byte, bool, error) {
 	if ch == nil {
-		return 0, nil, errors.New("channel not found")
+		return 0, nil, false, errors.New("channel not found")
 	}
 	if ch.Type != constant.ChannelTypeCodex {
-		return 0, nil, errors.New("channel type is not Codex")
+		return 0, nil, false, errors.New("channel type is not Codex")
 	}
 	if ch.ChannelInfo.IsMultiKey {
-		return 0, nil, errors.New("multi-key channel is not supported")
+		return 0, nil, false, errors.New("multi-key channel is not supported")
 	}
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, false, err
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
 	accountID := strings.TrimSpace(oauthKey.AccountID)
 	if accessToken == "" {
-		return 0, nil, errors.New("codex channel: access_token is required")
+		return 0, nil, false, errors.New("codex channel: access_token is required")
 	}
 	if accountID == "" {
-		return 0, nil, errors.New("codex channel: account_id is required")
+		return 0, nil, false, errors.New("codex channel: account_id is required")
 	}
 
 	client, err := service.NewProxyHttpClient(ch.GetSetting().Proxy)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, false, err
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -160,9 +194,10 @@ func fetchCodexChannelUsage(ctx context.Context, ch *model.Channel) (int, []byte
 
 	statusCode, body, err := service.FetchCodexWhamUsage(reqCtx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
-		return statusCode, nil, err
+		return statusCode, nil, false, err
 	}
 
+	refreshed := false
 	if (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) && strings.TrimSpace(oauthKey.RefreshToken) != "" {
 		refreshCtx, refreshCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer refreshCancel()
@@ -179,19 +214,26 @@ func fetchCodexChannelUsage(ctx context.Context, ch *model.Channel) (int, []byte
 
 			encoded, encErr := common.Marshal(oauthKey)
 			if encErr == nil {
-				_ = model.UpdateChannelKey(ch.Id, string(encoded))
-				model.InitChannelCache()
-				service.ResetProxyClientCache()
+				if updateErr := model.UpdateChannelKey(ch.Id, string(encoded)); updateErr == nil {
+					refreshed = true
+				}
 			}
 
 			ctx2, cancel2 := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel2()
 			statusCode, body, err = service.FetchCodexWhamUsage(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
-				return statusCode, nil, err
+				return statusCode, nil, refreshed, err
 			}
 		}
 	}
 
-	return statusCode, body, nil
+	return statusCode, body, refreshed, nil
+}
+
+// rebuildCodexChannelCache reloads the global channel cache and resets cached
+// proxy clients so refreshed channel keys take effect on other request paths.
+func rebuildCodexChannelCache() {
+	model.InitChannelCache()
+	service.ResetProxyClientCache()
 }
