@@ -50,6 +50,8 @@ services:
     image: postgres:15-alpine
     container_name: new-api-dev-pg
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: 123456
