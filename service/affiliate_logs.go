@@ -223,6 +223,10 @@ func listSecondLevelScopedLogUsers(db *gorm.DB, secondLevelAffiliateId int, limi
 func sanitizeAffiliateScopedLogs(logs []*model.Log, startIdx int) {
 	for i := range logs {
 		logs[i].Id = startIdx + i + 1
+		logs[i].ChannelId = 0
+		logs[i].ChannelName = ""
+		logs[i].TokenId = 0
+		logs[i].TokenName = ""
 		logs[i].Ip = ""
 		logs[i].RequestId = ""
 		logs[i].UpstreamRequestId = ""

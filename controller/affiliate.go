@@ -135,16 +135,12 @@ func buildAffiliateScopedLogsInput(c *gin.Context, scope service.AffiliateScope,
 func buildAffiliateScopedLogsCsv(logs []*model.Log, quotaPerUnit float64, usdExchangeRate float64) string {
 	var builder strings.Builder
 	writer := csv.NewWriter(&builder)
-	_ = writer.Write([]string{"time", "user_id", "username", "channel_id", "channel_name", "token_id", "token_name", "type", "model", "group", "consumption_rmb", "raw_quota"})
+	_ = writer.Write([]string{"time", "user_id", "username", "type", "model", "group", "consumption_rmb", "raw_quota"})
 	for _, log := range logs {
 		_ = writer.Write([]string{
 			formatAffiliateCsvTimestamp(log.CreatedAt),
 			strconv.Itoa(log.UserId),
 			log.Username,
-			strconv.Itoa(log.ChannelId),
-			log.ChannelName,
-			strconv.Itoa(log.TokenId),
-			log.TokenName,
 			strconv.Itoa(log.Type),
 			log.ModelName,
 			log.Group,

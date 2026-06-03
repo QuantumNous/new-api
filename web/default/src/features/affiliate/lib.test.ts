@@ -141,21 +141,21 @@ describe('default affiliate helpers', () => {
           type: 2,
           content: '',
           username: '',
-          token_name: '',
+          token_name: 'secret-token',
           model_name: 'gpt-4o,mini',
           quota: 2500,
           prompt_tokens: 12,
           completion_tokens: 34,
           use_time: 456,
           is_stream: false,
-          channel: 0,
-          channel_name: '',
-          token_id: 0,
+          channel: 9,
+          channel_name: 'secret-channel',
+          token_id: 88,
           group: 'default',
-          ip: '',
+          ip: '127.0.0.1',
           other: '',
-          request_id: '',
-          upstream_request_id: '',
+          request_id: 'req-secret',
+          upstream_request_id: 'upstream-secret',
         },
       ],
       {
@@ -167,9 +167,12 @@ describe('default affiliate helpers', () => {
     const lines = csv.split('\n')
     assert.equal(
       lines[0],
-      'time,user_id,username,channel_id,channel_name,token_id,token_name,type,model,group,consumption_rmb,raw_quota'
+      'time,user_id,username,type,model,group,consumption_rmb,raw_quota'
     )
     assert.match(lines[1], /^2026-/)
-    assert.match(lines[1], /,200,,,,,,2,"gpt-4o,mini",default,¥17\.5,2500$/)
+    assert.match(lines[1], /,200,,2,"gpt-4o,mini",default,¥17\.5,2500$/)
+    assert.equal(csv.includes('secret-channel'), false)
+    assert.equal(csv.includes('secret-token'), false)
+    assert.equal(csv.includes('req-secret'), false)
   })
 })

@@ -648,7 +648,7 @@ func TestAffiliateInviterAdminRouteRejectsCommonUser(t *testing.T) {
 	}
 }
 
-func TestGetAffiliateScopedLogsFiltersScopeAndKeepsScopedDisplayFields(t *testing.T) {
+func TestGetAffiliateScopedLogsFiltersScopeAndRedactsSensitiveFields(t *testing.T) {
 	db := newAffiliateLogsControllerTestDB(t)
 	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
 	seedAffiliateRelation(t, db, 100, 300, 2, model.AffiliateProfileStatusActive)
@@ -680,8 +680,11 @@ func TestGetAffiliateScopedLogsFiltersScopeAndKeepsScopedDisplayFields(t *testin
 		t.Fatalf("unexpected scoped log order/items: %+v", body.Data.Items)
 	}
 	for _, item := range body.Data.Items {
-		if item.ChannelId == 0 || item.TokenId == 0 || item.TokenName == "" || item.Username == "" {
-			t.Fatalf("scoped log should keep channel, user and token display fields: %+v", item)
+		if item.Username == "" {
+			t.Fatalf("scoped log should keep authorized user display fields: %+v", item)
+		}
+		if item.ChannelId != 0 || item.ChannelName != "" || item.TokenId != 0 || item.TokenName != "" {
+			t.Fatalf("scoped log leaked channel/token fields: %+v", item)
 		}
 		if item.Ip != "" || item.RequestId != "" || item.UpstreamRequestId != "" {
 			t.Fatalf("scoped log leaked request identity fields: %+v", item)
@@ -871,16 +874,16 @@ func TestExportAffiliateScopedLogsReturnsScopedRmbCsv(t *testing.T) {
 	if len(lines) != 3 {
 		t.Fatalf("expected header plus 2 scoped rows, got %d lines body=%s", len(lines), body)
 	}
-	if lines[0] != "time,user_id,username,channel_id,channel_name,token_id,token_name,type,model,group,consumption_rmb,raw_quota" {
+	if lines[0] != "time,user_id,username,type,model,group,consumption_rmb,raw_quota" {
 		t.Fatalf("unexpected csv header: %q", lines[0])
 	}
-	if !strings.Contains(lines[1], ",300,downstream,0,,0,,2,gpt-4,default,¥0.007,1") {
+	if !strings.Contains(lines[1], ",300,downstream,2,gpt-4,default,¥0.007,1") {
 		t.Fatalf("expected newest scoped row with minimum RMB display, got %q", lines[1])
 	}
-	if !strings.Contains(lines[2], ",200,level2,9,,88,secret-token,2,gpt-4,default,¥17.5,2500") {
+	if !strings.Contains(lines[2], ",200,level2,2,gpt-4,default,¥17.5,2500") {
 		t.Fatalf("expected older scoped row with RMB conversion, got %q", lines[2])
 	}
-	for _, forbidden := range []string{"127.0.0.1", "req-secret", "upstream-secret"} {
+	for _, forbidden := range []string{"secret-channel", "secret-token", "127.0.0.1", "req-secret", "upstream-secret"} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("scoped export leaked sensitive field %q in body=%s", forbidden, body)
 		}
@@ -899,7 +902,7 @@ func TestBuildAffiliateScopedLogsCsvKeepsTinyNegativeRefundVisible(t *testing.T)
 		},
 	}, 10000000, 1)
 
-	if !strings.Contains(csv, ",200,,0,,0,,6,gpt-4,default,-¥0.000001,-1") {
+	if !strings.Contains(csv, ",200,,6,gpt-4,default,-¥0.000001,-1") {
 		t.Fatalf("expected tiny negative refund RMB to stay visible, got %s", csv)
 	}
 }
