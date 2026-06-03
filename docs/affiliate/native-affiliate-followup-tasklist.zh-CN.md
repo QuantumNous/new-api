@@ -8,15 +8,15 @@
 
 ## 0. 接手前必须读取
 
-- [ ] 先读取 `docs/affiliate/native-affiliate-master-plan.zh-CN.md`，确认业务口径、分销层级、Feishu 方案和验收目标。
-- [ ] 先读取 `docs/affiliate/native-affiliate-development-principles.zh-CN.md`，严格遵守最小侵入、sidecar、TDD、脱敏、RMB 单位、权限和发布证据原则。
-- [ ] 先读取 `docs/affiliate/native-affiliate-new-thread-tasklist.zh-CN.md`，理解 Phase 1 到 Phase 13 的已完成项、残留风险和历史复盘。
-- [ ] 先读取 `docs/affiliate/native-affiliate-dev-compose-runbook.zh-CN.md`，确认 WSL2 Docker Compose dev 的启停、重建、dump 恢复和清理方式。
-- [ ] 先读取 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，外部验收不得用本地 smoke 冒充 staging/生产验收。
-- [ ] 先读取 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`，新增或修改 GORM model 前后必须重新做 schema impact。
-- [ ] 先读取 `docs/affiliate/native-affiliate-sms-reference-audit.zh-CN.md`，手机号/SMS 只走 provider/sidecar 路线，不能直接迁移旧 fork 的侵入式实现。
-- [ ] 继续按 `.agents/skills` 和可用 MCP/plugin/CLI 工作。当前项目相关技能至少包括 `classic-to-default-sync`、`i18n-translate`、`shadcn-ui`、`vercel-react-best-practices`、`superpowers:systematic-debugging` 和飞书文档相关 skill。
-- [ ] 飞书资料作为业务口径来源继续复核，但不得把内部账号、密码、DSN、cookie、完整手机号、生产地址或敏感截图写入仓库、tasklist、commit message 或测试日志。
+- [x] 先读取 `docs/affiliate/native-affiliate-master-plan.zh-CN.md`，确认业务口径、分销层级、Feishu 方案和验收目标。（2026-06-04 已重读）
+- [x] 先读取 `docs/affiliate/native-affiliate-development-principles.zh-CN.md`，严格遵守最小侵入、sidecar、TDD、脱敏、RMB 单位、权限和发布证据原则。（2026-06-04 已重读）
+- [x] 先读取 `docs/affiliate/native-affiliate-new-thread-tasklist.zh-CN.md`，理解 Phase 1 到 Phase 13 的已完成项、残留风险和历史复盘。（2026-06-04 已重读）
+- [x] 先读取 `docs/affiliate/native-affiliate-dev-compose-runbook.zh-CN.md`，确认 WSL2 Docker Compose dev 的启停、重建、dump 恢复和清理方式。（2026-06-04 已重读）
+- [x] 先读取 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，外部验收不得用本地 smoke 冒充 staging/生产验收。（2026-06-04 已重读）
+- [x] 先读取 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`，新增或修改 GORM model 前后必须重新做 schema impact。（2026-06-04 已重读）
+- [x] 先读取 `docs/affiliate/native-affiliate-sms-reference-audit.zh-CN.md`，手机号/SMS 只走 provider/sidecar 路线，不能直接迁移旧 fork 的侵入式实现。（2026-06-04 已重读）
+- [x] 继续按 `.agents/skills` 和可用 MCP/plugin/CLI 工作。当前项目相关技能至少包括 `classic-to-default-sync`、`i18n-translate`、`shadcn-ui`、`vercel-react-best-practices`、`superpowers:systematic-debugging` 和飞书文档相关 skill。（2026-06-04 已读取 Superpowers 调试、TDD、验证与收口流程；前端改动前仍需按具体任务读取对应 `.agents/skills`。）
+- [x] 飞书资料作为业务口径来源继续复核，但不得把内部账号、密码、DSN、cookie、完整手机号、生产地址或敏感截图写入仓库、tasklist、commit message 或测试日志。（2026-06-04 已确认该安全边界，后续飞书口径变更仍需单独脱敏记录。）
 
 ## 1. 当前运行态基线
 
@@ -52,6 +52,7 @@
 
 - [ ] 在 Windows 浏览器 DevTools Network 中复核 `/api/affiliate/team` 的 Request URL、Status、是否 from disk cache/from memory cache、Response Body 和 Request Headers。
 - [ ] 如果 Response Body 仍是 `Invalid URL (GET /api/affiliate/team)`，优先判断为旧后端 404 HTTP 缓存或命中错误端口，不要先改后端路由。
+- [x] 使用 in-app Browser fresh context 复核 default/classic dev server 的 `/api/affiliate/team` Network：`5173` 与 `5174` 均为 401 JSON，不是旧 `Invalid URL` 404；该证据不能替代用户 Windows 既有浏览器缓存状态。（见 P0-6 复盘）
 - [x] 继续验证未登录 curl：`http://127.0.0.1:5173/api/affiliate/team`、`http://127.0.0.1:5174/api/affiliate/team`、`http://127.0.0.1:3000/api/affiliate/team` 均应返回 401，不应返回 404。（见 P0-1 复盘）
 - [x] 登录后用浏览器控制台、DevTools request replay 或 curl 带 cookie 与 `New-Api-User` header 验证 `/api/affiliate/team` 返回 200 且 `total` 非 0。（见 P0-1 复盘）
 - [ ] 如果 Network 显示缓存，先让浏览器勾选 Disable cache 并硬刷新，必要时清站点缓存。
@@ -214,6 +215,17 @@
 - 验证命令：`go test -count=1 ./router -run TestApiRouterDisablesHttpCaching` 通过；`go test -count=1 ./controller ./router -run Affiliate` 通过；`git diff --check` 通过。
 - 残留风险：若个别 `/api` handler 后续显式覆盖 `Cache-Control`，仍可能改变 no-store 语义；发布后仍需用真实浏览器 Network 验证响应头。
 - 下一步：P0 本地可控项基本收口，继续 P1 规则 diff/import/export/copy previous version 或 job run 可恢复 cursor/progress。
+
+## P0-6 接手运行态基线复核（2026-06-04 本线程）
+
+- 读取范围：已重读 master plan、development principles、new-thread tasklist、dev compose runbook、external acceptance runbook、schema impact report、SMS reference audit 和当前 followup tasklist；已确认继续遵守 sidecar 最小侵入、scoped 脱敏、RMB/百分比运营单位、classic/default parity、TDD 和脱敏证据原则。
+- Git 基线：`git status --short --branch` 显示当前 `feature/native-affiliate-minimal` 工作树干净；`git log --oneline -8` 显示 HEAD 为 `80a8bbb7 feat: persist affiliate commission rule status`，最近还有 typed cursor、stale job run、SMS sidecar 审计与限流提交。
+- 运行态证据：`tmux ls` 显示 `new-api-web` session；`tmux list-windows -t new-api-web` 显示 default/classic 两个 window；`ss -ltnp` 显示 5173/5174 分别由 WSL 内 node/rsbuild 监听，3000 由 Docker Desktop/WSL 端口转发监听但无本地进程归属。
+- HTTP 证据：`curl -i http://127.0.0.1:3000/api/affiliate/team`、`curl -i http://127.0.0.1:5173/api/affiliate/team`、`curl -i http://127.0.0.1:5174/api/affiliate/team` 未登录均返回 401 JSON，不是 404；in-app Browser Network 对 `5173/api/affiliate/team` 和 `5174/api/affiliate/team` 也均为 401，response body 不是旧 `Invalid URL (GET /api/affiliate/team)`。
+- 发现的新风险：当前 3000/5173/5174 的实际 401 响应头缺少 `Cache-Control`/`Pragma`/`Expires`，但源码中 `middleware.DisableCache()` 已挂到 `SetApiRouter`，且 `go test -count=1 ./router -run TestApiRouterDisablesHttpCaching -v` 通过。更可能是当前 3000 后端运行态不是包含 no-store 提交的最新构建，或 Docker Desktop/WSL 转发到了旧容器。
+- Docker 状态：`timeout 12s docker version` 只返回 client 信息并以 code 1 退出，`timeout 20s docker ps --filter "name=new-api"` 和 `timeout 45s docker compose -f docker-compose.dev.yml ps new-api` 均无有效 server 输出；`docker compose version` 可返回 v5.1.4。当前不继续盲目重建容器，避免在 Docker server 不可用时反复操作。
+- 残留风险：用户 Windows 既有浏览器仍可能有旧 404 disk/memory cache；本轮 in-app Browser 只能证明 fresh context 和当前 dev server 不再拿 404，不能替代用户在 Windows DevTools 对原浏览器 tab 的 cache 状态检查。Docker 恢复后应重建 `new-api:dev` 并重新验证 `/api/*` no-store header。
+- 下一步：优先让用户在 Windows 浏览器 DevTools 勾选 Disable cache 后硬刷新或清站点缓存；若仍缺 `Cache-Control`，先修复 Docker Desktop/WSL server 可用性并执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`，再复测 `3000/5173/5174` 的 `/api/affiliate/team` 状态与缓存头。
 
 ## P1-1 dev/prod 镜像治理复盘（2026-06-03 本线程）
 
