@@ -109,7 +109,7 @@
 ## 9. Dashboard 与统计口径
 
 - [ ] 复核 `service/affiliate_summary.go` 的有效新用户统计，避免只按 invite event 简单计数而没有套用飞书有效用户门槛。
-- [ ] 复核 dashboard 的净消耗统计，确保只统计 paid 净付费消耗并正确扣除退款，不把赠金、试用、legacy_unknown 或异常流量算入业绩。
+- [x] 复核 dashboard 的净消耗统计，确保只统计 paid 净付费消耗并正确扣除退款，不把赠金、试用、legacy_unknown 或异常流量算入业绩。（2026-06-04 已修复 `service/affiliate_summary.go`，dashboard 净消耗改为按 cursor 扫描日志并只累计 paid attribution，同时跳过 abnormal 流量。）
 - [ ] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。
 - [ ] 管理端指标配置和结算审核更适合表格化，分销商端看板更适合“摘要卡片 + 趋势 + 表格明细”。
 - [ ] default/classic 都要显示 RMB 主单位，必要时 raw quota 只作为调试或附加列，不作为主要展示。
@@ -278,4 +278,14 @@
 - 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage|TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage"` 通过，说明当前实现已满足 unknown/legacy_unknown 不计 paid 的服务层口径。
 - 回归验证：`go test -count=1 ./service -run "TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage|TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage|TestBuildAffiliatePendingCommissionEventsUsesOnlyPaidFromMixedSourcesAndPartialRefund"` 通过；`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`git diff --check` 通过。
 - 残留风险：该策略仍需在运营回填 runbook 中定义历史数据复核口径、抽样规则和回滚方式；外部验收仍需确认真实支付、relay、任务钱包和退款链路持续写入可信 source sidecar。
-- 下一步：继续复核 dashboard 净消耗统计，确保前端/汇总层也只展示 paid 净付费消耗。
+- 下一步：继续复核 `service/affiliate_summary.go` 的有效新用户统计是否需要套用飞书有效用户门槛，并完善 dashboard 前端 RMB 主单位展示。
+
+## P1-10 dashboard paid 净消耗复盘（2026-06-04 本线程）
+
+- RED：新增 `TestBuildAffiliateDashboardSummaryCountsPaidNetConsumptionOnly` 后，旧实现返回 `NetConsumptionQuota=16400`，暴露 dashboard 会把 gift、trial、legacy_unknown、无来源、abnormal 与 partial sidecar 原始 quota 一并汇总。
+- 完成内容：`sumAffiliateNetConsumptionQuota` 从 SQL 原始 `SUM(quota)` 改为复用 `scanAffiliateLogsByCreatedAtCursor` 和 `resolveAffiliateLogQuotaAttribution`，只累计 `PaidRawQuota`；`affiliate_abnormal`/`abnormal` 日志直接跳过。
+- 完成内容：既有 summary happy path 测试数据改为显式 `quota_source=paid`，controller scoped summary 测试库同步迁移 quota source sidecar，避免测试环境落后于当前 native affiliate schema。
+- 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateDashboardSummaryCountsPaidNetConsumptionOnly|TestBuildAffiliateDashboardSummaryForLevelOneScope|TestBuildAffiliateDashboardSummaryRejectsNoneScope"` 通过。
+- 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus"` 通过。
+- 残留风险：有效新用户仍只是 affiliate invite event 去重，尚未套用飞书“有效用户”门槛；dashboard 前端 RMB 主单位和趋势口径还需继续复核。
+- 下一步：复核有效新用户统计和 dashboard 前端展示，不要把运营口径只停留在后端 summary 层。

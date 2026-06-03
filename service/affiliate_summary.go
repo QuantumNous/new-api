@@ -60,7 +60,7 @@ func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		return AffiliateDashboardSummary{}, err
 	}
 
-	summary.NetConsumptionQuota, err = sumAffiliateNetConsumptionQuota(logDB, visible, input)
+	summary.NetConsumptionQuota, err = sumAffiliateNetConsumptionQuota(db, logDB, visible, input)
 	if err != nil {
 		return AffiliateDashboardSummary{}, err
 	}
@@ -97,21 +97,31 @@ func countAffiliateEffectiveNewUsers(db *gorm.DB, visible AffiliateVisibleUserId
 	return int(count), nil
 }
 
-func sumAffiliateNetConsumptionQuota(logDB *gorm.DB, visible AffiliateVisibleUserIds, input AffiliateDashboardSummaryInput) (int64, error) {
+func sumAffiliateNetConsumptionQuota(db *gorm.DB, logDB *gorm.DB, visible AffiliateVisibleUserIds, input AffiliateDashboardSummaryInput) (int64, error) {
 	if !visible.Global && len(visible.UserIds) == 0 {
 		return 0, nil
 	}
 
-	tx := logDB.Model(&model.Log{}).
-		Select("COALESCE(SUM(CASE WHEN type = ? THEN quota WHEN type = ? THEN -quota ELSE 0 END), 0)", model.LogTypeConsume, model.LogTypeRefund).
-		Where("type IN ?", []int{model.LogTypeConsume, model.LogTypeRefund})
+	tx := logDB.Where("type IN ?", []int{model.LogTypeConsume, model.LogTypeRefund})
 	tx = applyAffiliateSummaryTimeRange(tx, input)
 	if !visible.Global {
 		tx = tx.Where("user_id IN ?", visible.UserIds)
 	}
 
 	var quota int64
-	if err := tx.Scan(&quota).Error; err != nil {
+	if err := scanAffiliateLogsByCreatedAtCursor(tx, func(logs []model.Log) error {
+		for _, log := range logs {
+			if affiliateLogBoolFlag(log, "affiliate_abnormal") || affiliateLogBoolFlag(log, "abnormal") {
+				continue
+			}
+			attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+			if err != nil {
+				return err
+			}
+			quota += attribution.PaidRawQuota
+		}
+		return nil
+	}); err != nil {
 		return 0, err
 	}
 	return quota, nil

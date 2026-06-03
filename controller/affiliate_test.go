@@ -1005,9 +1005,9 @@ func TestGetAffiliateSummaryReturnsScopedDashboard(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed invite events: %v", err)
 	}
-	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 20, Type: model.LogTypeConsume, Quota: 1000})
-	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 30, Type: model.LogTypeConsume, Quota: 2000})
-	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 35, Type: model.LogTypeRefund, Quota: 500})
+	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 20, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 30, Type: model.LogTypeConsume, Quota: 2000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 35, Type: model.LogTypeRefund, Quota: 500, Other: `{"quota_source":"paid"}`})
 	seedAffiliateLog(t, db, model.Log{UserId: 400, CreatedAt: 40, Type: model.LogTypeConsume, Quota: 4000})
 
 	recorder := httptest.NewRecorder()
@@ -1188,7 +1188,9 @@ func newAffiliateLogsControllerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(append(model.AffiliateSidecarModels(), &model.Log{}, &model.User{})...); err != nil {
+	models := append(model.AffiliateSidecarModels(), model.QuotaSourceSidecarModels()...)
+	models = append(models, &model.Log{}, &model.User{})
+	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate affiliate log models: %v", err)
 	}
 	model.DB = db
