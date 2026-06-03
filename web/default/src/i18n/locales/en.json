@@ -4694,6 +4694,7 @@
     "Read-only": "Read-only",
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Publish rule set {{version}}? This will activate it and archive the current published rule set.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Archive rule set {{version}}? This will stop this version from being selected automatically.",
+    "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.",
     "Switch between editable rule tables and raw JSON for batch edits": "Switch between editable rule tables and raw JSON for batch edits"
   }
 }

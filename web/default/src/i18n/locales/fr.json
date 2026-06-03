@@ -4694,6 +4694,7 @@
     "Read-only": "Lecture seule",
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Publier le jeu de règles {{version}} ? Cela l’activera et archivera le jeu de règles actuellement publié.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Archiver le jeu de règles {{version}} ? Cette version ne sera plus sélectionnée automatiquement.",
+    "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Écraser le brouillon du jeu de règles {{version}} ? Cela remplacera la configuration de brouillon existante.",
     "Switch between editable rule tables and raw JSON for batch edits": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots"
   }
 }

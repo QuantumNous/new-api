@@ -10,6 +10,7 @@ import {
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   parseAffiliateRuleSetImportJson,
@@ -453,6 +454,20 @@ describe('default affiliate admin rule set helpers', () => {
         t
       ),
       'Archive rule set #5? This will stop this version from being selected automatically.'
+    )
+  })
+
+  test('builds overwrite confirmation for saving existing draft rule sets', () => {
+    assert.equal(
+      buildAffiliateRuleSetSaveConfirmation(
+        { id: 9, version: 'rules-2026-09', name: 'September Rules' },
+        t
+      ),
+      'Overwrite draft rule set rules-2026-09? This will replace the existing draft configuration.'
+    )
+    assert.equal(
+      buildAffiliateRuleSetSaveConfirmation({ id: 9, version: '' }, t),
+      'Overwrite draft rule set #9? This will replace the existing draft configuration.'
     )
   })
 

@@ -121,6 +121,16 @@ export function buildAffiliateRuleSetStatusConfirmation(
   ).replace('{{version}}', identity);
 }
 
+export function buildAffiliateRuleSetSaveConfirmation(t, ruleSet = {}) {
+  const identity = ruleSet.version
+    ? String(ruleSet.version)
+    : `#${normalizeInteger(ruleSet.id)}`;
+  return translate(
+    t,
+    '确认覆盖保存规则集 {{version}}？保存后会替换现有草稿配置。',
+  ).replace('{{version}}', identity);
+}
+
 export function buildAffiliateRuleSetDraftPayload(values = {}) {
   return {
     id: normalizeInteger(values.id),

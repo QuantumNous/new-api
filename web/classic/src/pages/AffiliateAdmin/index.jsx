@@ -54,6 +54,7 @@ import {
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   getAffiliateRuleSetStatusMeta,
@@ -430,6 +431,15 @@ const AffiliateAdmin = () => {
     if (validationError) {
       showError(validationError);
       return;
+    }
+    if (payload.id > 0 || selectedRuleSet?.id > 0) {
+      const confirmation = buildAffiliateRuleSetSaveConfirmation(t, {
+        id: payload.id || selectedRuleSet?.id,
+        version: payload.version || selectedRuleSet?.version,
+      });
+      if (typeof window !== 'undefined' && !window.confirm(confirmation)) {
+        return;
+      }
     }
 
     setRuleSetSubmitLoading(true);

@@ -313,6 +313,18 @@ export function buildAffiliateRuleSetStatusConfirmation(
   ).replace('{{version}}', identity)
 }
 
+export function buildAffiliateRuleSetSaveConfirmation(
+  ruleSet: { id?: number; version?: string; name?: string },
+  t: Translate
+): string {
+  const identity = ruleSet.version
+    ? String(ruleSet.version)
+    : `#${normalizePositiveInteger(ruleSet.id)}`
+  return t(
+    'Overwrite draft rule set {{version}}? This will replace the existing draft configuration.'
+  ).replace('{{version}}', identity)
+}
+
 export function buildAffiliateRuleSetDraftPayload(
   values: AffiliateRuleSetDraftFormValues = {}
 ): AffiliateRuleSetDraftPayload {

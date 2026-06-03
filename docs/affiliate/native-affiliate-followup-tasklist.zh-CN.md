@@ -79,7 +79,7 @@
 - [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
 - [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。（2026-06-04 审计：周期、冻结天数、最低结算金额和人工复核开关已覆盖；自动结算开关与备注尚未模型化。）
 - [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
-- [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。（2026-06-04 已完成保存草稿前 diff 预览和发布/归档二次确认；回滚与覆盖保存二次确认仍待做。）
+- [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。（2026-06-04 已完成保存草稿前 diff 预览、发布/归档二次确认和已有草稿覆盖保存二次确认；回滚二次确认仍待做。）
 - [x] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。（2026-06-04 已完成 default/classic 复制上一版本、导入/导出 JSON、diff 面板、只读查看已发布/已归档版本，并保留高级 JSON 但不作为默认入口。）
 - [x] default 与 classic 需要保持功能 parity，但视觉可以遵循各自设计系统。
 
@@ -388,5 +388,16 @@
 - 验证命令：`cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，21 pass；`bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过，11 pass。
 - 构建验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过。
 - 浏览器验证：临时 `/tmp` Playwright 脚本读取本地 `super_admin` 测试账号但不输出账号、密码、cookie 或响应体；mock 规则集接口返回一个 `published` 和一个 `draft` 版本后，default 与 classic 均能进入只读视图、保存按钮禁用，草稿发布确认弹窗出现且取消后不提交状态变更。
-- 残留风险：本轮只补前端只读保护和发布/归档确认，未新增后端层面的 published/archived 保存拒绝测试；回滚与覆盖保存二次确认仍未实现；规则 diff 仍是 section 级摘要，不是字段级发布审批 diff。
-- 下一步：继续补规则回滚/覆盖保存确认与后端不可变保护，或转入 `affiliate_job_runs` 可恢复 cursor/progress 和外部结算周期 dry-run/正式 run 双跑。
+- 残留风险：本轮只补前端只读保护和发布/归档确认，未新增后端层面的 published/archived 保存拒绝测试；规则 diff 仍是 section 级摘要，不是字段级发布审批 diff。
+- 下一步：继续补覆盖保存确认、规则回滚确认与后端不可变保护，或转入 `affiliate_job_runs` 可恢复 cursor/progress 和外部结算周期 dry-run/正式 run 双跑。
+
+## P1-18 规则覆盖保存确认复盘（2026-06-04 本线程）
+
+- RED：default `admin-lib.test.ts` 与 classic `affiliateAdminRules.test.mjs` 先新增覆盖保存确认 helper 测试；旧代码因 `buildAffiliateRuleSetSaveConfirmation` 未导出失败，确认测试能捕捉缺失行为。
+- 完成内容：default/classic 新增覆盖保存确认文案 helper；保存已有草稿规则集时会根据规则版本或 ID 弹出二次确认，取消确认则不提交保存请求；新建草稿和复制为新草稿不弹覆盖确认。
+- 完成内容：default 保存流程按 payload `id > 0` 判断覆盖保存；classic 保存流程按 payload/selected rule set ID 判断覆盖保存，保持两个前端功能 parity。
+- i18n：补齐 default en/fr/ja/ru/vi/zh 6 个 locale 的覆盖保存确认文案；`cd web/default && bun run i18n:sync` 后报告显示全部 locale 的 missing/extras/untranslated 均为 0，且新增 key 在 6 个 locale 中均存在。
+- 验证命令：先观察 `cd web/default && bun test src/features/affiliate/admin-lib.test.ts` 和 `bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` RED，失败原因均为 `buildAffiliateRuleSetSaveConfirmation` 未导出；实现后 `cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，22 pass；`bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过，12 pass。
+- 构建验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过。
+- 残留风险：本轮未做浏览器级保存点击 smoke，覆盖确认由 helper 测试、页面保存流程接入和构建验证覆盖；规则回滚二次确认仍未实现；后端 published/archived 不可变保护当前已有基础检查但缺少专门测试。
+- 下一步：补后端 published/archived 不可变保护专门测试，或推进规则回滚能力/确认；也可转入 `affiliate_job_runs` 可恢复 cursor/progress。

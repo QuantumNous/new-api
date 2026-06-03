@@ -7,6 +7,7 @@ import {
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   formatAffiliateBpsPercent,
@@ -332,6 +333,19 @@ describe('affiliate admin rule set helpers', () => {
         name: 'August Rules',
       }),
     ).toBe('确认归档规则集 #5？归档后该版本不会再被自动选择。');
+  });
+
+  test('builds overwrite confirmation for saving existing draft rule sets', () => {
+    expect(
+      buildAffiliateRuleSetSaveConfirmation(t, {
+        id: 9,
+        version: 'rules-2026-09',
+        name: 'September Rules',
+      }),
+    ).toBe('确认覆盖保存规则集 rules-2026-09？保存后会替换现有草稿配置。');
+    expect(
+      buildAffiliateRuleSetSaveConfirmation(t, { id: 9, version: '' }),
+    ).toBe('确认覆盖保存规则集 #9？保存后会替换现有草稿配置。');
   });
 
   test('provides editable default seed values for new drafts', () => {

@@ -4694,6 +4694,7 @@
     "Read-only": "Только чтение",
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Опубликовать набор правил {{version}}? Он станет активным, а текущий опубликованный набор будет архивирован.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Архивировать набор правил {{version}}? Эта версия больше не будет выбираться автоматически.",
+    "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Перезаписать черновик набора правил {{version}}? Существующая конфигурация черновика будет заменена.",
     "Switch between editable rule tables and raw JSON for batch edits": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок"
   }
 }

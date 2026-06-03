@@ -4694,6 +4694,7 @@
     "Read-only": "Chỉ đọc",
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Phát hành bộ quy tắc {{version}}? Thao tác này sẽ kích hoạt nó và lưu trữ bộ quy tắc đang được phát hành hiện tại.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Lưu trữ bộ quy tắc {{version}}? Phiên bản này sẽ không còn được tự động chọn.",
+    "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Ghi đè bản nháp bộ quy tắc {{version}}? Thao tác này sẽ thay thế cấu hình bản nháp hiện có.",
     "Switch between editable rule tables and raw JSON for batch edits": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và JSON thô để chỉnh sửa hàng loạt"
   }
 }

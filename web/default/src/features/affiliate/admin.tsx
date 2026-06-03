@@ -54,6 +54,7 @@ import {
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
   buildAffiliateRuleSetExportJson,
+  buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   buildAffiliateSettlementRunPayload,
@@ -1867,6 +1868,13 @@ export function AffiliateAdmin() {
     if (validationError) {
       toast.error(validationError)
       return
+    }
+    if (payload.id > 0) {
+      const message = buildAffiliateRuleSetSaveConfirmation(
+        { id: payload.id, version: payload.version },
+        t
+      )
+      if (typeof window !== 'undefined' && !window.confirm(message)) return
     }
     saveRuleSetMutation.mutate(payload)
   }
