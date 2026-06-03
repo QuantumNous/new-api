@@ -103,7 +103,7 @@
 - [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；单独 generate endpoint、可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
-- [ ] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。
+- [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
 - [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。
 
 ## 9. Dashboard 与统计口径
@@ -268,4 +268,14 @@
 - 验证命令：`go test -count=1 ./service -run "TestRefundTaskQuota_WalletRestoresSourceSegments|TestRecalculate_PositiveDelta_WalletWritesQuotaSourceSidecar"` 通过，覆盖任务钱包扣费和异步任务退款 source segment 回补。
 - 回归验证：`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`git diff --check` 通过。
 - 残留风险：这些是本地 service/model 级样本，不替代真实支付、真实 relay、真实异步任务 provider 和生产/staging 退款链路 smoke；外部验收仍需确认真实 sidecar 事件持续写入。
-- 下一步：继续明确历史未标记日志处理策略，不得默认把 unknown/legacy_unknown 计为 paid。
+- 下一步：继续复核 dashboard 净消耗统计、`AdminGenerateAffiliateSettlements` 单独入口 job run 或规则导入导出/diff 能力。
+
+## P1-9 历史未标记日志 paid 排除策略复盘（2026-06-04 本线程）
+
+- 完成内容：新增 `TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage`，覆盖无来源消费日志和 `legacy_unknown` sidecar 不进入 KPI paid 原始消耗、paid 净消耗、gift-only 质量流量或二次付费比例。
+- 完成内容：新增 `TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage`，覆盖无来源消费日志和 `legacy_unknown` sidecar 即使存在 growth KPI snapshot 也不能触发人头费资格。
+- 策略结论：历史未标记日志默认排除，不默认回退为 paid；需要补算时应走灰度回填或人工复核，把可信 paid 来源补写为 `paid` sidecar 后再重新结算。
+- 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage|TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage"` 通过，说明当前实现已满足 unknown/legacy_unknown 不计 paid 的服务层口径。
+- 回归验证：`go test -count=1 ./service -run "TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage|TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage|TestBuildAffiliatePendingCommissionEventsUsesOnlyPaidFromMixedSourcesAndPartialRefund"` 通过；`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`git diff --check` 通过。
+- 残留风险：该策略仍需在运营回填 runbook 中定义历史数据复核口径、抽样规则和回滚方式；外部验收仍需确认真实支付、relay、任务钱包和退款链路持续写入可信 source sidecar。
+- 下一步：继续复核 dashboard 净消耗统计，确保前端/汇总层也只展示 paid 净付费消耗。

@@ -168,6 +168,37 @@ func TestBuildAffiliatePendingHeadFeeEventsUsesQuotaSourceSidecar(t *testing.T) 
 	}
 }
 
+func TestBuildAffiliatePendingHeadFeeEventsExcludesUnmarkedAndLegacyUnknownUsage(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("head-fee-legacy-unknown-excluded"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateHeadFeeInviteEvent(t, db, 100, 200, 1000)
+	seedAffiliateHeadFeeKPISnapshot(t, db, 100, ruleSet.Id, "growth", 1000, 2000)
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 5000})
+	legacyUnknownLog := seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 3000})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      200,
+		Source:      model.QuotaSourceLegacyUnknown,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      3000,
+		SourceLogId: legacyUnknownLog.Id,
+	})
+
+	events, err := BuildAffiliatePendingHeadFeeEvents(db, db, AffiliateHeadFeeBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Now:             1000 + 21*affiliateSecondsPerDay + 1,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingHeadFeeEvents returned error: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected unmarked and legacy_unknown usage not to qualify head fee, got %+v", events)
+	}
+}
+
 func newAffiliateHeadFeeRuleSetInput(version string) AffiliateRuleSetDraftInput {
 	input := newAffiliateKPIRuleSetInput(version)
 	input.HeadFeeRules = []AffiliateHeadFeeRuleInput{

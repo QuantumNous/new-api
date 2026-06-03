@@ -150,6 +150,45 @@ func TestBuildAffiliateKPISnapshotsUsesQuotaSourceSidecar(t *testing.T) {
 	}
 }
 
+func TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateKPIRuleSetInput("kpi-legacy-unknown-excluded"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 5000})
+	legacyUnknownLog := seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 3000})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      200,
+		Source:      model.QuotaSourceLegacyUnknown,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      3000,
+		SourceLogId: legacyUnknownLog.Id,
+	})
+
+	snapshots, err := BuildAffiliateKPISnapshots(db, db, AffiliateKPIBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateKPISnapshots returned error: %v", err)
+	}
+	if len(snapshots) != 1 {
+		t.Fatalf("expected one KPI snapshot, got %+v", snapshots)
+	}
+	snapshot := snapshots[0]
+	if snapshot.PaidConsumptionRawQuota != 0 || snapshot.NetPaidConsumptionCents != 0 {
+		t.Fatalf("expected unmarked and legacy_unknown usage to stay out of paid metrics, got %+v", snapshot)
+	}
+	if snapshot.GiftOnlyUserCount != 0 || snapshot.GiftOnlyRatioBps != 0 {
+		t.Fatalf("expected legacy_unknown usage not to be classified as gift-only quality traffic, got %+v", snapshot)
+	}
+	if snapshot.SecondPaymentRatioBps != 0 {
+		t.Fatalf("expected legacy_unknown usage not to count as second paid consumption, got %+v", snapshot)
+	}
+}
+
 func newAffiliateKPIRuleSetInput(version string) AffiliateRuleSetDraftInput {
 	input := newAffiliateRuleSetDraftInput(version)
 	input.KPITiers = []AffiliateKPITierInput{
