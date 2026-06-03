@@ -73,11 +73,11 @@
 ## 6. 分销管理指标体系表格化
 
 - [x] 分销管理里的规则、指标、KPI、人头费、风控和结算配置建议做成表格或矩阵，而不是继续以 JSON textarea 或散卡片为主。
-- [ ] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。
-- [ ] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。
-- [ ] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。
-- [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。
-- [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。
+- [ ] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。（2026-06-04 审计：tier 表格字段已覆盖净付费区间、比例、cap、人工审批和排序；`AffiliateCommissionRuleInput` 尚无 `status`，启停状态仍待后端输入与 UI 同步实现。）
+- [x] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。（2026-06-04 审计：`kpi_tiers` 已覆盖这些字段，default/classic 表格编辑器会按字段动态生成运营表格，并对百分比字段做 bps/percent 转换。）
+- [ ] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。（2026-06-04 审计：金额、首充、周期净付费、资格天数和解锁天数已覆盖；人头费 rule model/input 尚无启停字段。）
+- [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
+- [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。（2026-06-04 审计：周期、冻结天数、最低结算金额和人工复核开关已覆盖；自动结算开关与备注尚未模型化。）
 - [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
 - [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。
 - [ ] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。
@@ -322,3 +322,13 @@
 - 验证命令：`go test -count=1 ./controller -run "TestAdminSettlementLifecycleGenerateFreezePay|TestAdminVoidAffiliateSettlement"` 通过。
 - 残留风险：`affiliate_job_runs` 仍没有真正持久化 cursor/progress 以支持中断恢复；Docker PostgreSQL schema diff 仍待 Docker 恢复后补；外部完整周期 dry-run/正式 run 双跑仍待验收。
 - 下一步：继续可恢复 cursor 设计，或先补规则 import/export/diff/copy previous version。
+
+## P1-14 规则表格列完整性审计复盘（2026-06-04 本线程）
+
+- 完成内容：复核 `service/affiliate_rules.go`、`model/affiliate.go`、default `rule-array-editor` 和 classic `RuleArrayEditor`，确认当前表格化实现是基于现有 JSON/input 字段动态生成列，不会凭空补齐后端尚未模型化的运营字段。
+- 覆盖结论：KPI 档位表已覆盖层级、code、名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序；default/classic 均会把 `_bps` 字段展示为百分比，把 `_cents` 字段展示为元。
+- 部分覆盖结论：佣金 tier 已覆盖净付费区间、基准比例、cap、人工审批和排序，但佣金规则启停状态没有进入 `AffiliateCommissionRuleInput`；人头费规则已覆盖金额、首充、周期净付费、资格天数和解锁天数，但没有启停字段。
+- 缺口结论：风控规则只覆盖纯赠、异常、退款和二次付费率阈值，尚未把自刷/批量异常策略和处理动作模型化；结算配置只覆盖周期、冻结天数、最低结算金额和人工复核开关，尚无自动结算开关与备注。
+- 测试现状：default `rule-array-editor.test.ts` 当前覆盖稳定列顺序、隐藏分组字段和元/百分比双向转换；classic `affiliateAdminRules.test.mjs` 当前覆盖 draft payload、默认 seed 和状态 helper。两端尚未用业务列完整性测试固化上述缺口。
+- 验证命令：`rg -n "CommissionRuleInput|AffiliateCommissionRule\\{|Status|SettlementRuleConfig|ManualReviewEnabled|RiskRuleInput|Metadata" service/affiliate_rules.go web/default/src/features/affiliate web/classic/src/pages/AffiliateAdmin model/affiliate.go docs/affiliate/native-affiliate-followup-tasklist.zh-CN.md` 用于确认字段来源；`git diff --check` 通过。
+- 下一步：若继续做规则配置 P1，应优先 TDD 增加业务列完整性测试，再决定是否新增启停字段、风控动作、自动结算开关、备注、diff 预览、导入导出和复制上一版本。
