@@ -396,22 +396,48 @@ func upsertAffiliateSettlementDraft(db *gorm.DB, ruleSet model.AffiliateRuleSet,
 
 func linkAffiliateSettlementEvents(db *gorm.DB, settlementId int, group affiliateSettlementEventGroup) error {
 	if len(group.CommissionEventIds) > 0 {
-		if err := db.Model(&model.AffiliateCommissionEvent{}).
-			Where("id IN ?", group.CommissionEventIds).
-			Updates(map[string]interface{}{
-				"settlement_id": settlementId,
-				"status":        model.AffiliateEventStatusReady,
-			}).Error; err != nil {
+		if err := linkAffiliateCommissionEventsInBatches(db, settlementId, group.CommissionEventIds); err != nil {
 			return err
 		}
 	}
 	if len(group.HeadFeeEventIds) > 0 {
-		if err := db.Model(&model.AffiliateHeadFeeEvent{}).
-			Where("id IN ?", group.HeadFeeEventIds).
+		if err := linkAffiliateHeadFeeEventsInBatches(db, settlementId, group.HeadFeeEventIds); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func linkAffiliateCommissionEventsInBatches(db *gorm.DB, settlementId int, eventIDs []int) error {
+	return forEachAffiliateSettlementEventIDBatch(eventIDs, func(batch []int) error {
+		return db.Model(&model.AffiliateCommissionEvent{}).
+			Where("id IN ?", batch).
 			Updates(map[string]interface{}{
 				"settlement_id": settlementId,
 				"status":        model.AffiliateEventStatusReady,
-			}).Error; err != nil {
+			}).Error
+	})
+}
+
+func linkAffiliateHeadFeeEventsInBatches(db *gorm.DB, settlementId int, eventIDs []int) error {
+	return forEachAffiliateSettlementEventIDBatch(eventIDs, func(batch []int) error {
+		return db.Model(&model.AffiliateHeadFeeEvent{}).
+			Where("id IN ?", batch).
+			Updates(map[string]interface{}{
+				"settlement_id": settlementId,
+				"status":        model.AffiliateEventStatusReady,
+			}).Error
+	})
+}
+
+func forEachAffiliateSettlementEventIDBatch(eventIDs []int, handle func([]int) error) error {
+	batchSize := normalizedAffiliateSettlementEventScanBatchSize()
+	for start := 0; start < len(eventIDs); start += batchSize {
+		end := start + batchSize
+		if end > len(eventIDs) {
+			end = len(eventIDs)
+		}
+		if err := handle(eventIDs[start:end]); err != nil {
 			return err
 		}
 	}

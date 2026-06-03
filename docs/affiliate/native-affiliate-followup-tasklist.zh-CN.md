@@ -157,7 +157,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录和 settlement pending/ready event grouping 的 `id` cursor 分批扫描；可恢复 cursor、批量 link 更新拆分、单独 generate endpoint run record 和完整双跑幂等审计仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；可恢复 cursor、单独 generate endpoint run record 和完整双跑幂等审计仍待做。）
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -243,3 +243,11 @@
 - 回归验证：`go test -count=1 ./service -run TestGenerateAffiliateSettlementsScansEventsWithCursorLimit` 通过；`go test -count=1 ./service -run 'Affiliate(Commission|KPI|HeadFee|Settlement)'` 通过；`git diff --check` 通过。
 - 残留风险：本轮解决事件表查询侧无界 `Find`，但每个 affiliate group 仍会累积 event IDs，`linkAffiliateSettlementEvents` 仍用单次 `id IN ?` 更新；超大结算周期仍需要继续把 link 更新拆成批次，并把 cursor 写入 `affiliate_job_runs` 以支持可恢复。
 - 下一步：继续拆分 settlement event link updates，并为 `AdminGenerateAffiliateSettlements` 单独入口补 job run 或统一走 pipeline run record。
+
+## P1-6 settlement event link 更新批量拆分复盘（2026-06-04 本线程）
+
+- 完成内容：`linkAffiliateSettlementEvents` 不再对一个 affiliate group 的全部 commission/head fee event IDs 做单次 `id IN ?` 更新，改为按 settlement event batch size 分批更新，避免超大结算周期触发过长 SQL 或参数上限。
+- RED/GREEN 验证：新增 `TestGenerateAffiliateSettlementsLinksEventsInBatches`，测试把批大小设为 2、种 3 条 commission 与 3 条 head fee event，并注册 GORM update callback 拒绝超过 2 个 ID 的 link 更新；RED 阶段当前实现失败于 `affiliate settlement link update used 3 ids, want <= 2`，实现后目标测试通过。
+- 回归验证：`go test -count=1 ./service -run "TestGenerateAffiliateSettlementsLinksEventsInBatches|TestGenerateAffiliateSettlementsScansEventsWithCursorLimit"` 通过；`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller ./router -run Affiliate` 通过；`git diff --check` 通过。
+- 残留风险：本轮只拆分 link 更新，不改变每个 affiliate group 内存中累积 event IDs 的结构；真正可恢复执行还需要把 cursor/progress 写入 `affiliate_job_runs`，并为 `AdminGenerateAffiliateSettlements` 单独入口补 job run 或统一走 pipeline run record。
+- 下一步：继续做完整双跑幂等审计，验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。

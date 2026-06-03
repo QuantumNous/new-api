@@ -3,11 +3,13 @@ package service
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestGenerateAffiliateSettlementsCreatesDraftAndLinksEvents(t *testing.T) {
@@ -187,6 +189,51 @@ func TestGenerateAffiliateSettlementsScansEventsWithCursorLimit(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsLinksEventsInBatches(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	restoreBatchSize := setAffiliateSettlementEventScanBatchSizeForTest(2)
+	defer restoreBatchSize()
+	removeUpdateGuard := rejectOversizedAffiliateSettlementEventLinkUpdates(t, db, 2)
+	defer removeUpdateGuard()
+
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-link-update-batches")
+	for i := 0; i < 3; i++ {
+		seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, int64(100+i), 1000, 2000)
+		seedAffiliateSettlementHeadFeeEvent(t, db, ruleSet.Id, 100, int64(200+i), 1000, 2000)
+	}
+
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil {
+		t.Fatalf("GenerateAffiliateSettlements returned error: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("expected one settlement from batched link updates, got %+v", settlements)
+	}
+
+	var readyCommissionCount int64
+	if err := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("settlement_id = ? AND status = ?", settlements[0].Id, model.AffiliateEventStatusReady).
+		Count(&readyCommissionCount).Error; err != nil {
+		t.Fatalf("count ready commission events: %v", err)
+	}
+	if readyCommissionCount != 3 {
+		t.Fatalf("expected three commission events linked in batches, got %d", readyCommissionCount)
+	}
+	var readyHeadFeeCount int64
+	if err := db.Model(&model.AffiliateHeadFeeEvent{}).
+		Where("settlement_id = ? AND status = ?", settlements[0].Id, model.AffiliateEventStatusReady).
+		Count(&readyHeadFeeCount).Error; err != nil {
+		t.Fatalf("count ready head fee events: %v", err)
+	}
+	if readyHeadFeeCount != 3 {
+		t.Fatalf("expected three head fee events linked in batches, got %d", readyHeadFeeCount)
+	}
+}
+
 func TestAffiliateSettlementStatusTransitions(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-status-transitions")
@@ -348,5 +395,77 @@ func rejectUnboundedAffiliateSettlementEventQueries(t *testing.T, db *gorm.DB) f
 	}
 	return func() {
 		_ = db.Callback().Query().Remove(callbackName)
+	}
+}
+
+func rejectOversizedAffiliateSettlementEventLinkUpdates(t *testing.T, db *gorm.DB, maxIDs int) func() {
+	t.Helper()
+	callbackName := "reject_oversized_affiliate_settlement_event_link_updates_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		table := tx.Statement.Schema.Table
+		if table != "affiliate_commission_events" && table != "affiliate_head_fee_events" {
+			return
+		}
+		where, ok := tx.Statement.Clauses["WHERE"]
+		if !ok {
+			return
+		}
+		if ids := maxSliceLenInClauseExpression(where.Expression); ids > maxIDs {
+			tx.AddError(fmt.Errorf("affiliate settlement link update used %d ids, want <= %d", ids, maxIDs))
+		}
+	}); err != nil {
+		t.Fatalf("register oversized settlement event link update guard: %v", err)
+	}
+	return func() {
+		_ = db.Callback().Update().Remove(callbackName)
+	}
+}
+
+func maxSliceLenInClauseExpression(expression clause.Expression) int {
+	maxLen := 0
+	var inspect func(clause.Expression)
+	inspect = func(expr clause.Expression) {
+		switch typed := expr.(type) {
+		case clause.Where:
+			for _, nested := range typed.Exprs {
+				inspect(nested)
+			}
+		case clause.AndConditions:
+			for _, nested := range typed.Exprs {
+				inspect(nested)
+			}
+		case clause.OrConditions:
+			for _, nested := range typed.Exprs {
+				inspect(nested)
+			}
+		case clause.Expr:
+			for _, value := range typed.Vars {
+				if length := sliceLen(value); length > maxLen {
+					maxLen = length
+				}
+			}
+		case clause.IN:
+			if len(typed.Values) > maxLen {
+				maxLen = len(typed.Values)
+			}
+		}
+	}
+	inspect(expression)
+	return maxLen
+}
+
+func sliceLen(value interface{}) int {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return 0
+	}
+	switch reflected.Kind() {
+	case reflect.Array, reflect.Slice:
+		return reflected.Len()
+	default:
+		return 0
 	}
 }
