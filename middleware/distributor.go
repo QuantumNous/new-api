@@ -103,29 +103,33 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
-								return
+					if err != nil || preferred == nil {
+						service.InvalidateChannelAffinityForRequest(c, "channel_not_found", preferredChannelID)
+					} else if preferred.Status != common.ChannelStatusEnabled {
+						service.InvalidateChannelAffinityForRequest(c, "channel_disabled", preferred.Id)
+					} else if usingGroup == "auto" {
+						matched := false
+						userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+						autoGroups := service.GetUserAutoGroup(userGroup)
+						for _, g := range autoGroups {
+							if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+								selectGroup = g
+								common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+								channel = preferred
+								service.MarkChannelAffinityUsed(c, g, preferred.Id)
+								matched = true
+								break
 							}
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
-								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
+						if !matched {
+							service.InvalidateChannelAffinityForRequest(c, "channel_not_satisfied", preferred.Id)
+						}
+					} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+						channel = preferred
+						selectGroup = usingGroup
+						service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+					} else {
+						service.InvalidateChannelAffinityForRequest(c, "channel_not_satisfied", preferred.Id)
 					}
 				}
 
