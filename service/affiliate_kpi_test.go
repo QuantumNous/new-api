@@ -98,8 +98,8 @@ func TestBuildAffiliateKPISnapshotsFallsBackWhenQualityGateFails(t *testing.T) {
 		t.Fatalf("expected one KPI snapshot, got %+v", snapshots)
 	}
 	snapshot := snapshots[0]
-	if snapshot.GiftOnlyUserCount != 1 || snapshot.GiftOnlyRatioBps != 5000 {
-		t.Fatalf("expected one gift-only user and 50%% ratio, got %+v", snapshot)
+	if snapshot.GiftOnlyUserCount != 1 || snapshot.GiftOnlyRatioBps != 10000 {
+		t.Fatalf("expected one gift-only user and 100%% ratio against qualified effective users, got %+v", snapshot)
 	}
 	if snapshot.TierCode != "base" || snapshot.CoefficientBps != 10000 {
 		t.Fatalf("expected quality gate to fall back to base tier, got %+v", snapshot)
@@ -145,7 +145,7 @@ func TestBuildAffiliateKPISnapshotsUsesQuotaSourceSidecar(t *testing.T) {
 	if snapshot.PaidConsumptionRawQuota != 1000 || snapshot.NetPaidConsumptionCents != 100 {
 		t.Fatalf("expected sidecar paid consumption metrics, got %+v", snapshot)
 	}
-	if snapshot.GiftOnlyUserCount != 1 || snapshot.GiftOnlyRatioBps != 5000 {
+	if snapshot.GiftOnlyUserCount != 1 || snapshot.GiftOnlyRatioBps != 10000 {
 		t.Fatalf("expected sidecar gift-only quality metrics, got %+v", snapshot)
 	}
 }
@@ -189,12 +189,56 @@ func TestBuildAffiliateKPISnapshotsExcludesUnmarkedAndLegacyUnknownUsage(t *test
 	}
 }
 
+func TestBuildAffiliateKPISnapshotsCountsOnlyQualifiedEffectiveNewUsers(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	input := newAffiliateKPIRuleSetInput("kpi-qualified-effective-users")
+	input.HeadFeeRules = []AffiliateHeadFeeRuleInput{
+		{AffiliateLevel: 1, KPITierCode: "base", AmountCents: 1000, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 500, QualificationDays: 14, UnlockDelayDays: 7},
+		{AffiliateLevel: 2, KPITierCode: "base", AmountCents: 500, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 500, QualificationDays: 14, UnlockDelayDays: 7},
+	}
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, input)
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	for _, userId := range []int{300, 400, 500, 600, 700} {
+		seedAffiliateCommissionRelation(t, db, 100, userId, 1)
+	}
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300, 400, 500, 600, 700})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 6000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1200, Type: model.LogTypeRefund, Quota: 100, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 400, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 6000, Other: `{"quota_source":"paid","affiliate_abnormal":true}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 500, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 500, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 600, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 6000, Other: `{"quota_source":"gift"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 700, CreatedAt: 1100 + 15*affiliateSecondsPerDay, Type: model.LogTypeConsume, Quota: 6000, Other: `{"quota_source":"paid"}`})
+
+	snapshots, err := BuildAffiliateKPISnapshots(db, db, AffiliateKPIBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       1100 + 30*affiliateSecondsPerDay,
+		QuotaPerUnit:    1000,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateKPISnapshots returned error: %v", err)
+	}
+	if len(snapshots) != 1 {
+		t.Fatalf("expected one KPI snapshot, got %+v", snapshots)
+	}
+	if snapshots[0].EffectiveNewUserCount != 1 {
+		t.Fatalf("expected only the qualified paid invitee to count as KPI effective, got %+v", snapshots[0])
+	}
+}
+
 func newAffiliateKPIRuleSetInput(version string) AffiliateRuleSetDraftInput {
 	input := newAffiliateRuleSetDraftInput(version)
 	input.KPITiers = []AffiliateKPITierInput{
 		{AffiliateLevel: 1, Code: "base", Name: "Base", MinEffectiveNewUsers: 1, MinNetPaidAmountCents: 100, CoefficientBps: 10000, MaxGiftOnlyRatioBps: 10000, MaxAbnormalRatioBps: 10000, MinSecondPaymentRatioBps: 0, SortOrder: 1},
 		{AffiliateLevel: 1, Code: "growth", Name: "Growth", MinEffectiveNewUsers: 2, MinNetPaidAmountCents: 500, CoefficientBps: 15000, MaxGiftOnlyRatioBps: 2500, MaxAbnormalRatioBps: 2500, MinSecondPaymentRatioBps: 5000, SortOrder: 2},
 		{AffiliateLevel: 2, Code: "base", Name: "Base", MinEffectiveNewUsers: 1, MinNetPaidAmountCents: 100, CoefficientBps: 10000, MaxGiftOnlyRatioBps: 10000, MaxAbnormalRatioBps: 10000, MinSecondPaymentRatioBps: 0, SortOrder: 1},
+	}
+	input.HeadFeeRules = []AffiliateHeadFeeRuleInput{
+		{AffiliateLevel: 1, KPITierCode: "base", AmountCents: 1000, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 100, QualificationDays: 14, UnlockDelayDays: 7},
+		{AffiliateLevel: 1, KPITierCode: "growth", AmountCents: 2500, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 100, QualificationDays: 14, UnlockDelayDays: 7},
+		{AffiliateLevel: 2, KPITierCode: "base", AmountCents: 500, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 100, QualificationDays: 14, UnlockDelayDays: 7},
 	}
 	return input
 }

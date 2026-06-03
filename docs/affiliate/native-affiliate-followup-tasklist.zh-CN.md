@@ -297,8 +297,8 @@
 - 完成内容：每个 invitee 在邀请时间起的资格窗口内按 cursor 扫描 consume/refund 日志，复用 paid attribution；只有首笔 paid 消费达标、窗口 paid 净消耗达标、无 paid refund、无 `affiliate_abnormal`/`abnormal` 才计入有效新用户。
 - 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateDashboardSummaryDoesNotTreatInvitesAsEffectiveWithoutRules|TestBuildAffiliateDashboardSummaryCountsOnlyQualifiedEffectiveNewUsers|TestBuildAffiliateDashboardSummaryForLevelOneScope"` 通过。
 - 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus"` 通过；`git diff --check` 通过。
-- 残留风险：本轮只修 dashboard summary；`service/affiliate_kpi.go` 的 KPI snapshot 有效新用户仍按 invite event 去重，后续需要结合 KPI 最终档位规则单独审计，避免影响结算口径时缺少更完整验收。
-- 下一步：继续复核 KPI 有效用户、dashboard 前端 RMB 主单位和 default/classic 展示一致性。
+- 残留风险：本轮只修 dashboard summary；`service/affiliate_kpi.go` 的 KPI snapshot 有效新用户在当时仍按 invite event 去重。该缺口已在 2026-06-04 P1-15 收口。
+- 下一步：继续复核 dashboard 前端 RMB 主单位和 default/classic 展示一致性。
 
 ## P1-12 dashboard 前端展示与 RMB 主单位复盘（2026-06-04 本线程）
 
@@ -332,3 +332,14 @@
 - 测试现状：default `rule-array-editor.test.ts` 当前覆盖稳定列顺序、隐藏分组字段和元/百分比双向转换；classic `affiliateAdminRules.test.mjs` 当前覆盖 draft payload、默认 seed 和状态 helper。两端尚未用业务列完整性测试固化上述缺口。
 - 验证命令：`rg -n "CommissionRuleInput|AffiliateCommissionRule\\{|Status|SettlementRuleConfig|ManualReviewEnabled|RiskRuleInput|Metadata" service/affiliate_rules.go web/default/src/features/affiliate web/classic/src/pages/AffiliateAdmin model/affiliate.go docs/affiliate/native-affiliate-followup-tasklist.zh-CN.md` 用于确认字段来源；`git diff --check` 通过。
 - 下一步：若继续做规则配置 P1，应优先 TDD 增加业务列完整性测试，再决定是否新增启停字段、风控动作、自动结算开关、备注、diff 预览、导入导出和复制上一版本。
+
+## P1-15 KPI snapshot 有效新用户口径复盘（2026-06-04 本线程）
+
+- RED：新增 `TestBuildAffiliateKPISnapshotsCountsOnlyQualifiedEffectiveNewUsers` 后，旧实现把 6 个 affiliate invite event 全部计为 `EffectiveNewUserCount=6`，没有校验首充、周期 paid 净付费、退款、异常和资格窗口。
+- 完成内容：抽出 dashboard 已验证的 effective-user 资格 helper，KPI snapshot 现在按当前 rule set 和分销等级读取同层级 head fee 门槛，并逐个 invitee 校验首笔 paid 消费、资格窗口内 paid 净消耗、无 paid refund、无 `affiliate_abnormal`/`abnormal`。
+- 完成内容：`countAffiliateKPIEffectiveNewUsers` 不再做 `Distinct(invitee_user_id)` 计数，改为加载 invite events 后按去重 invitee 逐个判定；无同层级 head fee rule 时返回 0，避免把纯邀请当作有效新用户。
+- 测试调整：KPI 质量比例仍沿用现有 `EffectiveNewUserCount` 分母；修正 effective 口径后，已有 gift-only 测试中的 1 个 gift-only 用户相对 1 个合格 effective user 变为 100% 质量比例，相关断言已同步。
+- 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateKPISnapshots(CountsOnlyQualifiedEffectiveNewUsers|SelectsQualifiedTier|FallsBackWhenQualityGateFails|UsesQuotaSourceSidecar|ExcludesUnmarkedAndLegacyUnknownUsage|ScansUsageLogsWithCursorLimit)"` 通过。
+- 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestAdminSettlementLifecycleGenerateFreezePay"` 通过；`git diff --check` 通过。
+- 残留风险：gift-only、abnormal 和 second-payment 质量比例目前仍使用 existing KPI 统计语义，未单独切换为“总 invitee 数”或“全 team user 数”分母；如果飞书最终口径要求不同，需要另开 TDD 任务调整分母并重验 KPI tier 降档。
+- 下一步：继续规则 import/export/diff/copy previous version，或做 `affiliate_job_runs` 可恢复 cursor/progress。

@@ -79,7 +79,7 @@ func BuildAffiliateKPISnapshots(db *gorm.DB, logDB *gorm.DB, input AffiliateKPIB
 			if err != nil {
 				return err
 			}
-			metrics, err := buildAffiliateKPIMetrics(tx, logDB, visible.UserIds, input)
+			metrics, err := buildAffiliateKPIMetrics(tx, logDB, visible.UserIds, ruleSet.Id, profile.Level, input)
 			if err != nil {
 				return err
 			}
@@ -141,13 +141,13 @@ func findAffiliateKPIRuleSet(db *gorm.DB, input AffiliateKPIBuildInput) (model.A
 	return ruleSet, err
 }
 
-func buildAffiliateKPIMetrics(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int, input AffiliateKPIBuildInput) (affiliateKPIMetrics, error) {
+func buildAffiliateKPIMetrics(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int, ruleSetId int, affiliateLevel int, input AffiliateKPIBuildInput) (affiliateKPIMetrics, error) {
 	metrics := affiliateKPIMetrics{TeamUserCount: len(visibleUserIds)}
 	if len(visibleUserIds) == 0 {
 		return metrics, nil
 	}
 
-	effectiveCount, err := countAffiliateKPIEffectiveNewUsers(db, visibleUserIds, input)
+	effectiveCount, err := countAffiliateKPIEffectiveNewUsers(db, logDB, visibleUserIds, ruleSetId, affiliateLevel, input)
 	if err != nil {
 		return affiliateKPIMetrics{}, err
 	}
@@ -212,7 +212,19 @@ func buildAffiliateKPIMetrics(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int,
 	return metrics, nil
 }
 
-func countAffiliateKPIEffectiveNewUsers(db *gorm.DB, visibleUserIds []int, input AffiliateKPIBuildInput) (int, error) {
+func countAffiliateKPIEffectiveNewUsers(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int, ruleSetId int, affiliateLevel int, input AffiliateKPIBuildInput) (int, error) {
+	if len(visibleUserIds) == 0 {
+		return 0, nil
+	}
+
+	criteria, ok, err := loadAffiliateEffectiveUserCriteriaForRuleSet(db, ruleSetId, affiliateLevel)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, nil
+	}
+
 	tx := db.Model(&model.AffiliateInviteEvent{}).
 		Where("invite_source = ? AND invitee_user_id IN ?", AffiliateInviteSourceAffiliate, visibleUserIds)
 	if input.PeriodStart != 0 {
@@ -222,11 +234,33 @@ func countAffiliateKPIEffectiveNewUsers(db *gorm.DB, visibleUserIds []int, input
 		tx = tx.Where("created_at <= ?", input.PeriodEnd)
 	}
 
-	var count int64
-	if err := tx.Distinct("invitee_user_id").Count(&count).Error; err != nil {
+	var events []model.AffiliateInviteEvent
+	if err := tx.Order("created_at asc, id asc").Find(&events).Error; err != nil {
 		return 0, err
 	}
-	return int(count), nil
+
+	count := 0
+	seen := map[int]struct{}{}
+	window := affiliateEffectiveUserWindow{
+		StartTimestamp:  input.PeriodStart,
+		EndTimestamp:    input.PeriodEnd,
+		QuotaPerUnit:    input.QuotaPerUnit,
+		USDExchangeRate: input.USDExchangeRate,
+	}
+	for _, event := range events {
+		if _, ok := seen[event.InviteeUserId]; ok {
+			continue
+		}
+		seen[event.InviteeUserId] = struct{}{}
+		qualified, err := affiliateInviteeMeetsEffectiveCriteria(db, logDB, event, criteria, window)
+		if err != nil {
+			return 0, err
+		}
+		if qualified {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func selectAffiliateKPITier(db *gorm.DB, ruleSetId int, affiliateLevel int, metrics affiliateKPIMetrics) (model.AffiliateKPITier, error) {

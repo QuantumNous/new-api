@@ -110,7 +110,12 @@ func countAffiliateEffectiveNewUsers(db *gorm.DB, logDB *gorm.DB, visible Affili
 			continue
 		}
 		seen[event.InviteeUserId] = struct{}{}
-		qualified, err := affiliateSummaryInviteeMeetsEffectiveCriteria(db, logDB, event, criteria, input)
+		qualified, err := affiliateInviteeMeetsEffectiveCriteria(db, logDB, event, criteria, affiliateEffectiveUserWindow{
+			StartTimestamp:  input.StartTimestamp,
+			EndTimestamp:    input.EndTimestamp,
+			QuotaPerUnit:    input.QuotaPerUnit,
+			USDExchangeRate: input.USDExchangeRate,
+		})
 		if err != nil {
 			return 0, err
 		}
@@ -121,13 +126,20 @@ func countAffiliateEffectiveNewUsers(db *gorm.DB, logDB *gorm.DB, visible Affili
 	return count, nil
 }
 
-type affiliateSummaryEffectiveUserCriteria struct {
+type affiliateEffectiveUserCriteria struct {
 	FirstRechargeMinCents int64
 	PeriodNetPaidMinCents int64
 	QualificationDays     int
 }
 
-func loadAffiliateSummaryEffectiveUserCriteria(db *gorm.DB, input AffiliateDashboardSummaryInput) (affiliateSummaryEffectiveUserCriteria, bool, error) {
+type affiliateEffectiveUserWindow struct {
+	StartTimestamp  int64
+	EndTimestamp    int64
+	QuotaPerUnit    float64
+	USDExchangeRate float64
+}
+
+func loadAffiliateSummaryEffectiveUserCriteria(db *gorm.DB, input AffiliateDashboardSummaryInput) (affiliateEffectiveUserCriteria, bool, error) {
 	var ruleSet model.AffiliateRuleSet
 	tx := db.Where("status = ?", model.AffiliateRuleSetStatusPublished)
 	if input.EndTimestamp > 0 {
@@ -135,25 +147,33 @@ func loadAffiliateSummaryEffectiveUserCriteria(db *gorm.DB, input AffiliateDashb
 	}
 	err := tx.Order("effective_start desc, published_at desc, id desc").First(&ruleSet).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return affiliateSummaryEffectiveUserCriteria{}, false, nil
+		return affiliateEffectiveUserCriteria{}, false, nil
 	}
 	if err != nil {
-		return affiliateSummaryEffectiveUserCriteria{}, false, err
+		return affiliateEffectiveUserCriteria{}, false, err
 	}
 
-	ruleTx := db.Where("rule_set_id = ?", ruleSet.Id)
-	if input.Scope.AffiliateLevel > 0 {
-		ruleTx = ruleTx.Where("affiliate_level = ?", input.Scope.AffiliateLevel)
+	return loadAffiliateEffectiveUserCriteriaForRuleSet(db, ruleSet.Id, input.Scope.AffiliateLevel)
+}
+
+func loadAffiliateEffectiveUserCriteriaForRuleSet(db *gorm.DB, ruleSetId int, affiliateLevel int) (affiliateEffectiveUserCriteria, bool, error) {
+	if ruleSetId <= 0 {
+		return affiliateEffectiveUserCriteria{}, false, nil
+	}
+
+	ruleTx := db.Where("rule_set_id = ?", ruleSetId)
+	if affiliateLevel > 0 {
+		ruleTx = ruleTx.Where("affiliate_level = ?", affiliateLevel)
 	}
 	var rules []model.AffiliateHeadFeeRule
 	if err := ruleTx.Order("affiliate_level asc, id asc").Find(&rules).Error; err != nil {
-		return affiliateSummaryEffectiveUserCriteria{}, false, err
+		return affiliateEffectiveUserCriteria{}, false, err
 	}
 	if len(rules) == 0 {
-		return affiliateSummaryEffectiveUserCriteria{}, false, nil
+		return affiliateEffectiveUserCriteria{}, false, nil
 	}
 
-	criteria := affiliateSummaryEffectiveUserCriteria{
+	criteria := affiliateEffectiveUserCriteria{
 		FirstRechargeMinCents: rules[0].FirstRechargeMinCents,
 		PeriodNetPaidMinCents: rules[0].PeriodNetPaidMinCents,
 		QualificationDays:     rules[0].QualificationDays,
@@ -172,12 +192,12 @@ func loadAffiliateSummaryEffectiveUserCriteria(db *gorm.DB, input AffiliateDashb
 	return criteria, true, nil
 }
 
-func affiliateSummaryInviteeMeetsEffectiveCriteria(db *gorm.DB, logDB *gorm.DB, event model.AffiliateInviteEvent, criteria affiliateSummaryEffectiveUserCriteria, input AffiliateDashboardSummaryInput) (bool, error) {
-	qualificationEnd := input.EndTimestamp
+func affiliateInviteeMeetsEffectiveCriteria(db *gorm.DB, logDB *gorm.DB, event model.AffiliateInviteEvent, criteria affiliateEffectiveUserCriteria, window affiliateEffectiveUserWindow) (bool, error) {
+	qualificationEnd := window.EndTimestamp
 	if criteria.QualificationDays > 0 {
 		qualificationEnd = event.CreatedAt + int64(criteria.QualificationDays)*affiliateSecondsPerDay
-		if input.EndTimestamp > 0 && input.EndTimestamp < qualificationEnd {
-			qualificationEnd = input.EndTimestamp
+		if window.EndTimestamp > 0 && window.EndTimestamp < qualificationEnd {
+			qualificationEnd = window.EndTimestamp
 		}
 	}
 	tx := logDB.Where("user_id = ? AND type IN ?", event.InviteeUserId, []int{model.LogTypeConsume, model.LogTypeRefund}).
@@ -201,10 +221,10 @@ func affiliateSummaryInviteeMeetsEffectiveCriteria(db *gorm.DB, logDB *gorm.DB, 
 				continue
 			}
 			cents := affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput{
-				PeriodStart:     input.StartTimestamp,
-				PeriodEnd:       input.EndTimestamp,
-				QuotaPerUnit:    input.QuotaPerUnit,
-				USDExchangeRate: input.USDExchangeRate,
+				PeriodStart:     window.StartTimestamp,
+				PeriodEnd:       window.EndTimestamp,
+				QuotaPerUnit:    window.QuotaPerUnit,
+				USDExchangeRate: window.USDExchangeRate,
 			})
 			if log.Type == model.LogTypeRefund && cents < 0 {
 				stats.HasPaidRefund = true
