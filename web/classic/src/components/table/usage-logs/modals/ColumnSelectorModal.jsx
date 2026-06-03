@@ -120,6 +120,7 @@ const ColumnSelectorModal = ({
           if (
             isAffiliateScoped &&
             (column.key === COLUMN_KEYS.CHANNEL ||
+              column.key === COLUMN_KEYS.TOKEN ||
               column.key === COLUMN_KEYS.IP ||
               column.key === COLUMN_KEYS.RETRY)
           ) {

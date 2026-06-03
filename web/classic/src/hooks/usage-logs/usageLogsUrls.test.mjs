@@ -40,7 +40,7 @@ describe('usage log URL builders', () => {
     expect(url).toContain('request_id=req-123');
   });
 
-  test('builds the affiliate scoped list URL with token filter and without unsupported sensitive filters', () => {
+  test('builds the affiliate scoped list URL without unsupported sensitive filters', () => {
     const url = buildUsageLogsListUrl({
       mode: 'affiliate',
       isAdminUser: true,
@@ -56,11 +56,11 @@ describe('usage log URL builders', () => {
     expect(url).toContain('type=5');
     expect(url).toContain('model_name=gpt-4o');
     expect(url).toContain('group=default');
-    expect(url).toContain('token_name=secret-token');
     expect(url).toContain('user_id=200');
     expect(url).toContain('second_level_user_id=100');
     expect(url).toContain('request_status=error');
     expect(url).not.toContain('username=');
+    expect(url).not.toContain('token_name=');
     expect(url).not.toContain('channel=');
     expect(url).not.toContain('request_id=');
   });

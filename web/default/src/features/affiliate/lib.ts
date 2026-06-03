@@ -48,7 +48,6 @@ export function buildAffiliateLogsParams(
     page_size: pageSize,
     model_name: filters.model?.trim() || undefined,
     group: filters.group?.trim() || undefined,
-    token_name: filters.tokenName?.trim() || undefined,
     request_status: filters.requestStatus?.trim() || undefined,
     user_id: normalizePositiveInteger(filters.userId),
     second_level_user_id: normalizePositiveInteger(filters.secondLevelUserId),

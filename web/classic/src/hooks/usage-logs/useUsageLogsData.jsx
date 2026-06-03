@@ -128,7 +128,7 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       ...columns,
       [COLUMN_KEYS.CHANNEL]: false,
       [COLUMN_KEYS.USERNAME]: true,
-      [COLUMN_KEYS.TOKEN]: true,
+      [COLUMN_KEYS.TOKEN]: false,
       [COLUMN_KEYS.IP]: false,
       [COLUMN_KEYS.RETRY]: false,
     };
@@ -249,6 +249,7 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       } else if (
         isAffiliateScoped &&
         (key === COLUMN_KEYS.CHANNEL ||
+          key === COLUMN_KEYS.TOKEN ||
           key === COLUMN_KEYS.IP ||
           key === COLUMN_KEYS.RETRY)
       ) {
@@ -290,7 +291,7 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
 
     return {
       username: formValues.username || '',
-      token_name: formValues.token_name || '',
+      token_name: isAffiliateScoped ? '' : formValues.token_name || '',
       model_name: formValues.model_name || '',
       start_timestamp,
       end_timestamp,
@@ -427,7 +428,8 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       let expandDataLocal = [];
 
       if (
-        (isAdminUser || isAffiliateScoped) &&
+        isAdminUser &&
+        !isAffiliateScoped &&
         (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
       ) {
         expandDataLocal.push({

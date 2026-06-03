@@ -68,7 +68,6 @@ const DEFAULT_PAGE_SIZE = 20
 const EMPTY_FILTERS: AffiliateLogFilters = {
   model: '',
   group: '',
-  tokenName: '',
   userId: '',
   secondLevelUserId: '',
   requestStatus: '',
@@ -335,12 +334,6 @@ function AffiliateLogFiltersForm(props: {
             onChange={(event) => update('group', event.target.value)}
           />
           <Input
-            placeholder={t('Token')}
-            value={props.draftFilters.tokenName}
-            disabled={props.disabled}
-            onChange={(event) => update('tokenName', event.target.value)}
-          />
-          <Input
             placeholder={t('User ID')}
             value={props.draftFilters.userId}
             disabled={props.disabled}
@@ -447,7 +440,6 @@ function AffiliateLogsTable(props: {
             <TableRow>
               <TableHead>{t('Time')}</TableHead>
               <TableHead>{t('User')}</TableHead>
-              <TableHead>{t('Token')}</TableHead>
               <TableHead>{t('Type')}</TableHead>
               <TableHead>{t('Model')}</TableHead>
               <TableHead>{t('Group')}</TableHead>
@@ -459,7 +451,7 @@ function AffiliateLogsTable(props: {
             {props.isLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={7}
                   className='text-muted-foreground h-24 text-center'
                 >
                   {t('Loading')}
@@ -468,7 +460,7 @@ function AffiliateLogsTable(props: {
             ) : props.logs.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={7}
                   className='text-muted-foreground h-24 text-center'
                 >
                   {t('No affiliate logs')}
@@ -489,10 +481,6 @@ function AffiliateLogsTable(props: {
                           ID {log.user_id}
                         </span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {log.token_name ||
-                        (log.token_id ? `#${log.token_id}` : '-')}
                     </TableCell>
                     <TableCell>{log.type}</TableCell>
                     <TableCell>{log.model_name || '-'}</TableCell>

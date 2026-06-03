@@ -35,7 +35,6 @@ describe('default affiliate helpers', () => {
         page_size: params.page_size,
         model_name: params.model_name,
         group: params.group,
-        token_name: params.token_name,
         user_id: params.user_id,
         second_level_user_id: params.second_level_user_id,
         request_status: params.request_status,
@@ -45,13 +44,13 @@ describe('default affiliate helpers', () => {
         page_size: 20,
         model_name: 'gpt-4',
         group: 'default',
-        token_name: 'team-token',
         user_id: 200,
         second_level_user_id: 100,
         request_status: 'success',
       }
     )
     assert.equal(Object.keys(params).includes('channel'), false)
+    assert.equal(Object.keys(params).includes('token_name'), false)
     assert.equal(Object.keys(params).includes('request_id'), false)
   })
 

@@ -67,7 +67,7 @@
 - [x] 立即复核 default 前端 CSV 导出，当前疑点是 `web/default/src/features/affiliate/lib.ts` 仍导出 channel/token 字段。（见 P0-2 复盘）
 - [x] 按治理原则修正 scoped 使用日志：分销商视角不得看到渠道成本、内部渠道源、token、IP、request id、upstream request id 和非授权字段。（见 P0-2 复盘）
 - [x] 用 TDD 更新已有测试。先让 `controller/affiliate_test.go` 和 `web/default/src/features/affiliate/lib.test.ts` 中期待 channel/token 的断言 RED，再改实现到 GREEN。（见 P0-2 复盘）
-- [ ] 审核 classic/default 页面渲染，避免前端表格列继续展示已经脱敏或删除的内部字段。
+- [x] 审核 classic/default 页面渲染，避免前端表格列继续展示已经脱敏或删除的内部字段。（见 P0-4 复盘）
 - [x] 修复后补一条脱敏审计复盘到本 tasklist 或旧 tasklist，写清楚隐藏字段清单和测试命令。（见 P0-2 复盘）
 
 ## 6. 分销管理指标体系表格化
@@ -184,7 +184,7 @@
 - 完成内容：按 test-driven-development 先修改测试到安全口径并确认 RED，再修复实现。`ListAffiliateScopedLogs` 返回前现在清空 `channel`、`channel_name`、`token_id`、`token_name`、`ip`、`request_id`、`upstream_request_id`，并继续移除 `other.admin_info` 与 `other.stream_status`。后端 `/api/affiliate/logs/export` CSV 与 default 前端 CSV 均删除 channel/token 列，只保留 `time,user_id,username,type,model,group,consumption_rmb,raw_quota`。
 - RED 验证：`go test -count=1 ./controller -run 'TestGetAffiliateScopedLogsFiltersScopeAndRedactsSensitiveFields|TestExportAffiliateScopedLogsReturnsScopedRmbCsv'` 先失败，失败点分别为 scoped log 泄漏 channel/token 字段和 CSV header 仍包含 `channel_id,channel_name,token_id,token_name`；`cd web/default && bun --bun test src/features/affiliate/lib.test.ts` 先失败，失败点为 default CSV header 仍包含 channel/token 列。
 - GREEN 验证：同一 Go 目标测试修复后通过；`cd web/default && bun --bun test src/features/affiliate/lib.test.ts` 8 项通过；扩展验证 `go test -count=1 ./service ./controller ./router -run 'Affiliate'` 通过；`cd web/default && bun run build` 通过；`git diff --check` 通过。
-- 残留风险：classic 分销 scoped logs 页面依赖后端脱敏作为安全边界，当前后端已过滤敏感字段；classic UI 仍可在 affiliate mode 下尝试渲染“渠道信息”，但拿到的是后端清空后的空值，不构成敏感泄漏。后续可单独做 UI 清理，避免显示 `0 - [未知]` 这类无意义信息。
+- 残留风险：classic 分销 scoped logs 页面在本轮后仍依赖后端脱敏作为安全边界；当时 UI 仍可在 affiliate mode 下尝试渲染“渠道信息”。该 UI 清理已在 2026-06-04 P0-4 收口。
 - 下一步：进入 P0-3，补 WSL 前端 dev server 一键启动脚本和 runbook；如要更强运行时验证，可在重建后端容器后用真实页面再捕获 `/api/affiliate/logs` 响应，确认 channel/token 字段为空。
 
 ## P0-3 WSL 前端 dev server 脚本与 runbook 复盘（2026-06-03 本线程）
@@ -194,6 +194,17 @@
 - 验证命令：`bash -n scripts/dev-web-tmux.sh` 通过；当前已有 `new-api-web` session 时运行 `./scripts/dev-web-tmux.sh` 输出 existing-session 提示并退出 0；`curl -I http://127.0.0.1:5173/` 与 `curl -I http://127.0.0.1:5174/` 均返回 200；`curl -i http://127.0.0.1:5173/api/affiliate/team` 与 `5174` 未登录均返回 401；`git diff --check` 通过。
 - 残留风险：本轮没有 kill 当前运行中的 `new-api-web` session 做冷启动演练，避免打断正在使用的 5173/5174；脚本冷启动路径由语法检查、当前 tmux 命令读取和依赖路径检查覆盖，后续如电脑重启可直接执行脚本验证。
 - 下一步：P0 已完成本地收口，后续建议先按主题提交 `cache/dev-server runbook` 与 `scoped logs redaction` 两个 commit，或继续进入 P1 dev/prod 镜像治理。
+
+## P0-4 scoped logs 前端敏感列清理复盘（2026-06-04 本线程）
+
+- RED：default `lib.test.ts` 和 classic `usageLogsUrls.test.mjs` 先改为要求 affiliate scoped 请求不再带 `token_name`；旧实现分别仍生成 `token_name` 参数，两个测试均失败。
+- 完成内容：default 分销页删除 Token 过滤器、Token 表格列和 affiliate logs 请求参数 `token_name`，空表/加载态列数同步从 8 调整为 7。CSV 已在 P0-2 删除 channel/token，本轮不改变 CSV 字段。
+- 完成内容：classic `UsageLogsTable` 在 `mode='affiliate'` 下删除 token filter 参数，强制隐藏 Token/Channel/IP/Retry 列，并在列选择器里禁止重新打开这些列；展开详情只在非 affiliate 管理员日志里渲染渠道信息，不再显示 `0 - [未知]`。
+- 保留内容：管理员和普通自用日志仍保留原 token/channel 查询与列展示，避免破坏官方日志管理能力；本轮只收窄分销 scoped 视角。
+- 验证命令：`cd web/default && bun test src/features/affiliate/lib.test.ts` 通过，8 pass；`bun test web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 通过，3 pass。
+- 构建验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 残留风险：本轮未做浏览器截图 smoke；后端仍是安全边界，前端 UI 清理用于避免展示无意义空敏感列和继续提交敏感 filter。
+- 下一步：可继续推进后端 `/api/*` no-store 统一缓存头，或进入规则 diff/import/export/copy previous version。
 
 ## P1-1 dev/prod 镜像治理复盘（2026-06-03 本线程）
 
