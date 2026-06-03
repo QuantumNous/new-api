@@ -21,6 +21,8 @@ const (
 	affiliateJobRunStageHeadFee    = "head_fee"
 	affiliateJobRunStageSettlement = "settlement"
 	affiliateJobRunStageComplete   = "complete"
+
+	affiliateJobRunStaleAfterSeconds = 6 * 60 * 60
 )
 
 var affiliateJobRunSensitiveKVPattern = regexp.MustCompile(`(?i)\b(password|passwd|token|api[_-]?key|secret)=([^\s,;]+)`)
@@ -46,7 +48,7 @@ type affiliateSettlementGenerateIdempotencyPayload struct {
 func createAffiliateSettlementPipelineJobRun(db *gorm.DB, input AffiliateSettlementRunInput) (model.AffiliateJobRun, error) {
 	idempotencyKey := affiliateSettlementRunIdempotencyKey(input)
 	inputSnapshot := affiliateSettlementRunInputSnapshot(input)
-	if jobRun, ok, err := resumeFailedAffiliateJobRun(db, model.AffiliateJobRunTypeSettlementPipeline, idempotencyKey, input.ActorUserId, input.Now, inputSnapshot); err != nil {
+	if jobRun, ok, err := resumeRestartableAffiliateJobRun(db, model.AffiliateJobRunTypeSettlementPipeline, idempotencyKey, input.ActorUserId, input.Now, inputSnapshot); err != nil {
 		return model.AffiliateJobRun{}, err
 	} else if ok {
 		return jobRun, nil
@@ -110,7 +112,7 @@ func GenerateAffiliateSettlementsWithJobRun(db *gorm.DB, input AffiliateSettleme
 func createAffiliateSettlementGenerateJobRun(db *gorm.DB, input AffiliateSettlementBuildInput) (model.AffiliateJobRun, error) {
 	idempotencyKey := affiliateSettlementGenerateIdempotencyKey(input)
 	inputSnapshot := affiliateSettlementGenerateInputSnapshot(input)
-	if jobRun, ok, err := resumeFailedAffiliateJobRun(db, model.AffiliateJobRunTypeSettlementGenerate, idempotencyKey, input.ActorUserId, input.GeneratedAt, inputSnapshot); err != nil {
+	if jobRun, ok, err := resumeRestartableAffiliateJobRun(db, model.AffiliateJobRunTypeSettlementGenerate, idempotencyKey, input.ActorUserId, input.GeneratedAt, inputSnapshot); err != nil {
 		return model.AffiliateJobRun{}, err
 	} else if ok {
 		return jobRun, nil
@@ -134,6 +136,43 @@ func createAffiliateSettlementGenerateJobRun(db *gorm.DB, input AffiliateSettlem
 	return jobRun, nil
 }
 
+func resumeRestartableAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey string, actorUserId int, startedAt int64, inputSnapshot string) (model.AffiliateJobRun, bool, error) {
+	if jobRun, ok, err := findRunningAffiliateJobRun(db, jobType, idempotencyKey); err != nil {
+		return model.AffiliateJobRun{}, false, err
+	} else if ok {
+		if !isAffiliateJobRunStale(jobRun, startedAt) {
+			return model.AffiliateJobRun{}, false, fmt.Errorf("affiliate %s job run is already running for the same parameters", jobType)
+		}
+		return resetAffiliateJobRunForResume(db, jobRun, model.AffiliateJobRunStatusRunning, actorUserId, startedAt, inputSnapshot)
+	}
+	return resumeFailedAffiliateJobRun(db, jobType, idempotencyKey, actorUserId, startedAt, inputSnapshot)
+}
+
+func findRunningAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey string) (model.AffiliateJobRun, bool, error) {
+	var jobRun model.AffiliateJobRun
+	err := db.Where("job_type = ? AND idempotency_key = ? AND status = ?", jobType, idempotencyKey, model.AffiliateJobRunStatusRunning).
+		Order("id desc").
+		First(&jobRun).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.AffiliateJobRun{}, false, nil
+	}
+	if err != nil {
+		return model.AffiliateJobRun{}, false, err
+	}
+	return jobRun, true, nil
+}
+
+func isAffiliateJobRunStale(jobRun model.AffiliateJobRun, now int64) bool {
+	lastActivityAt := jobRun.UpdatedAt
+	if lastActivityAt <= 0 || jobRun.StartedAt > lastActivityAt {
+		lastActivityAt = jobRun.StartedAt
+	}
+	if now <= 0 || lastActivityAt <= 0 {
+		return false
+	}
+	return now-lastActivityAt >= affiliateJobRunStaleAfterSeconds
+}
+
 func resumeFailedAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey string, actorUserId int, startedAt int64, inputSnapshot string) (model.AffiliateJobRun, bool, error) {
 	var jobRun model.AffiliateJobRun
 	err := db.Where("job_type = ? AND idempotency_key = ? AND status = ?", jobType, idempotencyKey, model.AffiliateJobRunStatusFailed).
@@ -146,6 +185,10 @@ func resumeFailedAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey str
 		return model.AffiliateJobRun{}, false, err
 	}
 
+	return resetAffiliateJobRunForResume(db, jobRun, model.AffiliateJobRunStatusFailed, actorUserId, startedAt, inputSnapshot)
+}
+
+func resetAffiliateJobRunForResume(db *gorm.DB, jobRun model.AffiliateJobRun, expectedStatus string, actorUserId int, startedAt int64, inputSnapshot string) (model.AffiliateJobRun, bool, error) {
 	updates := map[string]interface{}{
 		"status":                 model.AffiliateJobRunStatusRunning,
 		"actor_user_id":          actorUserId,
@@ -162,10 +205,16 @@ func resumeFailedAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey str
 		"started_at":             startedAt,
 		"finished_at":            0,
 	}
-	if err := db.Model(&model.AffiliateJobRun{}).
-		Where("id = ? AND status = ?", jobRun.Id, model.AffiliateJobRunStatusFailed).
-		Updates(updates).Error; err != nil {
-		return model.AffiliateJobRun{}, false, err
+	query := db.Model(&model.AffiliateJobRun{}).Where("id = ? AND status = ?", jobRun.Id, expectedStatus)
+	if expectedStatus == model.AffiliateJobRunStatusRunning {
+		query = query.Where("started_at = ? AND updated_at = ?", jobRun.StartedAt, jobRun.UpdatedAt)
+	}
+	result := query.Updates(updates)
+	if result.Error != nil {
+		return model.AffiliateJobRun{}, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return model.AffiliateJobRun{}, false, fmt.Errorf("affiliate %s job run state changed while attempting resume", jobRun.JobType)
 	}
 	if err := db.First(&jobRun, jobRun.Id).Error; err != nil {
 		return model.AffiliateJobRun{}, false, err

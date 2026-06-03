@@ -203,6 +203,70 @@ func TestGenerateAffiliateSettlementsWithJobRunResumesFailedJobRunForSameIdempot
 	}
 }
 
+func TestGenerateAffiliateSettlementsWithJobRunResumesStaleRunningJobRunForSameIdempotencyKey(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-generate-stale-running")
+	input := AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+		ActorUserId: 9,
+		Reason:      "take over stale settlement generate job",
+		GeneratedAt: 1000 + affiliateJobRunStaleAfterSeconds + 10,
+	}
+	staleRun := model.AffiliateJobRun{
+		JobType:         model.AffiliateJobRunTypeSettlementGenerate,
+		Status:          model.AffiliateJobRunStatusRunning,
+		IdempotencyKey:  affiliateSettlementGenerateIdempotencyKey(input),
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     input.PeriodStart,
+		PeriodEnd:       input.PeriodEnd,
+		ActorUserId:     8,
+		CurrentStage:    affiliateJobRunStageSettlement,
+		LastCursorId:    5678,
+		SettlementCount: 6,
+		InputSnapshot:   `{"status":"stale"}`,
+		ResultSnapshot:  `{"status":"running"}`,
+		ErrorMessage:    "old settlement generate job never finished",
+		StartedAt:       1000,
+		CreatedAt:       1000,
+		UpdatedAt:       1000,
+	}
+	if err := db.Create(&staleRun).Error; err != nil {
+		t.Fatalf("seed stale generate job run: %v", err)
+	}
+
+	settlements, resumedRun, err := GenerateAffiliateSettlementsWithJobRun(db, input)
+	if err != nil {
+		t.Fatalf("stale GenerateAffiliateSettlementsWithJobRun retry returned error: %v", err)
+	}
+	if len(settlements) != 0 {
+		t.Fatalf("expected no settlements without pending events, got %+v", settlements)
+	}
+	if resumedRun.Id != staleRun.Id || resumedRun.IdempotencyKey != staleRun.IdempotencyKey {
+		t.Fatalf("expected retry to reuse stale running generate job run, stale=%+v resumed=%+v", staleRun, resumedRun)
+	}
+	if resumedRun.Status != model.AffiliateJobRunStatusSucceeded || resumedRun.CurrentStage != affiliateJobRunStageComplete {
+		t.Fatalf("expected resumed stale generate run to succeed, got %+v", resumedRun)
+	}
+	if resumedRun.StartedAt != input.GeneratedAt || resumedRun.FinishedAt != input.GeneratedAt || resumedRun.ActorUserId != input.ActorUserId {
+		t.Fatalf("expected resumed stale generate metadata to be refreshed, got %+v", resumedRun)
+	}
+	if resumedRun.ErrorMessage != "" || resumedRun.LastCursorId != 0 || resumedRun.SettlementCount != 0 {
+		t.Fatalf("expected stale generate state to be reset before rerun, got %+v", resumedRun)
+	}
+	var runCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("idempotency_key = ?", staleRun.IdempotencyKey).
+		Count(&runCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected stale generate run to be resumed in place, got %d job runs", runCount)
+	}
+}
+
 func TestGenerateAffiliateSettlementsMergesNewPendingEventsIntoExistingDraft(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-merge-existing-draft")

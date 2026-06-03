@@ -299,6 +299,136 @@ func TestRunAffiliateSettlementPipelineResumesFailedJobRunForSameIdempotencyKey(
 	}
 }
 
+func TestRunAffiliateSettlementPipelineRejectsActiveRunningJobRunForSameIdempotencyKey(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-active-running"))
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             5000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "duplicate click while the first run is still active",
+	}
+	activeRun := model.AffiliateJobRun{
+		JobType:        model.AffiliateJobRunTypeSettlementPipeline,
+		Status:         model.AffiliateJobRunStatusRunning,
+		IdempotencyKey: affiliateSettlementRunIdempotencyKey(input),
+		RuleSetId:      ruleSet.Id,
+		PeriodStart:    input.PeriodStart,
+		PeriodEnd:      input.PeriodEnd,
+		ActorUserId:    8,
+		CurrentStage:   affiliateJobRunStageCommission,
+		InputSnapshot:  `{"status":"running"}`,
+		StartedAt:      input.Now - 60,
+		CreatedAt:      input.Now - 60,
+		UpdatedAt:      input.Now - 60,
+	}
+	if err := db.Create(&activeRun).Error; err != nil {
+		t.Fatalf("seed active job run: %v", err)
+	}
+
+	result, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err == nil {
+		t.Fatalf("expected active running job run to block duplicate execution, got %+v", result)
+	}
+	if !strings.Contains(err.Error(), "already running") {
+		t.Fatalf("expected already running error, got %v", err)
+	}
+
+	var runCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("idempotency_key = ?", activeRun.IdempotencyKey).
+		Count(&runCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected duplicate active run to be rejected without creating another job run, got %d", runCount)
+	}
+	var saved model.AffiliateJobRun
+	if err := db.First(&saved, activeRun.Id).Error; err != nil {
+		t.Fatalf("load active job run: %v", err)
+	}
+	if saved.Status != model.AffiliateJobRunStatusRunning || saved.StartedAt != activeRun.StartedAt || saved.ActorUserId != activeRun.ActorUserId {
+		t.Fatalf("expected active job run to remain untouched, got %+v", saved)
+	}
+}
+
+func TestRunAffiliateSettlementPipelineResumesStaleRunningJobRunForSameIdempotencyKey(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-stale-running"))
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1000 + affiliateJobRunStaleAfterSeconds + 10,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "take over stale running settlement job",
+	}
+	staleRun := model.AffiliateJobRun{
+		JobType:              model.AffiliateJobRunTypeSettlementPipeline,
+		Status:               model.AffiliateJobRunStatusRunning,
+		IdempotencyKey:       affiliateSettlementRunIdempotencyKey(input),
+		RuleSetId:            ruleSet.Id,
+		PeriodStart:          input.PeriodStart,
+		PeriodEnd:            input.PeriodEnd,
+		ActorUserId:          8,
+		CurrentStage:         affiliateJobRunStageCommission,
+		LastCursorCreatedAt:  1234,
+		LastCursorId:         5678,
+		KPISnapshotCount:     9,
+		CommissionEventCount: 8,
+		HeadFeeEventCount:    7,
+		SettlementCount:      6,
+		InputSnapshot:        `{"status":"stale"}`,
+		ResultSnapshot:       `{"status":"running"}`,
+		ErrorMessage:         "old in-flight job never finished",
+		StartedAt:            1000,
+		CreatedAt:            1000,
+		UpdatedAt:            1000,
+	}
+	if err := db.Create(&staleRun).Error; err != nil {
+		t.Fatalf("seed stale job run: %v", err)
+	}
+
+	result, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("stale running retry returned error: %v", err)
+	}
+	if result.JobRunId != staleRun.Id || result.IdempotencyKey != staleRun.IdempotencyKey {
+		t.Fatalf("expected retry to reuse stale running job run, stale=%+v result=%+v", staleRun, result)
+	}
+
+	var resumedRun model.AffiliateJobRun
+	if err := db.First(&resumedRun, staleRun.Id).Error; err != nil {
+		t.Fatalf("load resumed stale job run: %v", err)
+	}
+	if resumedRun.Status != model.AffiliateJobRunStatusSucceeded || resumedRun.CurrentStage != affiliateJobRunStageComplete {
+		t.Fatalf("expected stale running job run to finish successfully, got %+v", resumedRun)
+	}
+	if resumedRun.StartedAt != input.Now || resumedRun.FinishedAt != input.Now || resumedRun.ActorUserId != input.ActorUserId {
+		t.Fatalf("expected resumed stale job run metadata to be refreshed, got %+v", resumedRun)
+	}
+	if resumedRun.ErrorMessage != "" || resumedRun.LastCursorCreatedAt != 0 || resumedRun.LastCursorId != 0 || resumedRun.SettlementCount != result.SettlementCount {
+		t.Fatalf("expected stale job run state to be reset before rerun, got %+v", resumedRun)
+	}
+	var runCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("idempotency_key = ?", staleRun.IdempotencyKey).
+		Count(&runCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected stale running run to be resumed in place, got %d job runs", runCount)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineRejectsInvalidPeriod(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	if _, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{
