@@ -69,8 +69,6 @@ const HomePage = () => {
   const isChinese = i18n.language.startsWith('zh');
   const docsLink = statusState?.status?.docs_link || '';
 
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-
   useEffect(() => {
     const scrollContainer = document.getElementById('app-scroll-shell');
     const syncScroll = () => {
