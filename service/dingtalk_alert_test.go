@@ -447,6 +447,82 @@ func TestNotifyDingTalkFailureSharesCooldownThroughDatabase(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 
+func TestSendReservedDingTalkBatchCommitFailureDoesNotAbortRemainingCommits(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:dingtalk-alert-commit-failure?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.DingTalkAlertCooldownRecord{}))
+	model.DB = db
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	now := time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC)
+	cooldown := time.Duration(setting.DingTalkAlertCooldownMinutes) * time.Minute
+
+	const failingChannel = 41
+	const committedChannel = 42
+
+	failing, allowed := reserveDingTalkAlertCooldown(failingChannel, now, cooldown)
+	require.True(t, allowed)
+	require.NotNil(t, failing)
+	committed, allowed := reserveDingTalkAlertCooldown(committedChannel, now, cooldown)
+	require.True(t, allowed)
+	require.NotNil(t, committed)
+
+	// Sabotage the first reservation so its Commit fails (pending_at/token cleared),
+	// mimicking another instance taking ownership between send and commit. The
+	// failing reservation is ordered first so a regression that aborts on the first
+	// Commit error would leave the second reservation uncommitted.
+	require.NoError(t, model.RollbackDingTalkAlertCooldown(failing.dbReservation))
+
+	alerts := []DingTalkChannelAlert{
+		{ChannelID: failingChannel, ChannelName: "codex-a", ChannelTypeName: "Codex", Error: types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized), Now: now},
+		{ChannelID: committedChannel, ChannelName: "codex-b", ChannelTypeName: "Codex", Error: types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized), Now: now},
+	}
+
+	// The alert was delivered, so a Commit failure must be non-fatal: the batch
+	// returns nil and the remaining reservation is still committed.
+	require.NoError(t, sendReservedDingTalkChannelAlertBatch(setting, []*dingTalkAlertCooldownReservation{failing, committed}, alerts))
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+
+	var committedRecord model.DingTalkAlertCooldownRecord
+	require.NoError(t, db.First(&committedRecord, "channel_id = ?", committedChannel).Error)
+	require.Equal(t, committed.dbReservation.ReservedAt, committedRecord.LastAt)
+	require.Equal(t, int64(0), committedRecord.PendingAt)
+
+	var failingRecord model.DingTalkAlertCooldownRecord
+	require.NoError(t, db.First(&failingRecord, "channel_id = ?", failingChannel).Error)
+	require.Equal(t, int64(0), failingRecord.LastAt)
+}
+
 func TestNotifyDingTalkFailureDatabaseCooldownUsesDatabaseTime(t *testing.T) {
 	allowDingTalkTestServer(t)
 	originalSetting := *operation_setting.GetMonitorSetting()
