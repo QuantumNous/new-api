@@ -54,6 +54,9 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		if err := s.funding.Settle(delta); err != nil {
 			return err
 		}
+		if wallet, ok := s.funding.(*WalletFunding); ok {
+			syncRelayWalletSourceBreakdown(s.relayInfo, wallet)
+		}
 		s.fundingSettled = true
 	}
 	// 2) 调整令牌额度
@@ -232,9 +235,11 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 func (s *BillingSession) reserveFunding(delta int) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.DecreaseUserQuota(funding.userId, delta, false); err != nil {
+		segments, err := model.DecreaseUserQuotaWithSource(funding.userId, delta, funding.relatedType, funding.requestId, funding.requestId, "wallet reserve extra debit")
+		if err != nil {
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
+		funding.sourceSegments = append(funding.sourceSegments, segments...)
 		funding.consumed += delta
 		return nil
 	case *SubscriptionFunding:
@@ -256,10 +261,15 @@ func (s *BillingSession) reserveFunding(delta int) error {
 func (s *BillingSession) rollbackFundingReserve(delta int) {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.IncreaseUserQuota(funding.userId, delta, false); err != nil {
+		refundSegments, remainingSegments := splitRefundQuotaSourceSegments(funding.sourceSegments, delta)
+		if err := model.IncreaseUserQuotaFromSourceSegments(funding.userId, refundSegments, funding.relatedType, funding.requestId, funding.requestId, "wallet reserve rollback"); err != nil {
 			common.SysLog("error rolling back wallet funding reserve: " + err.Error())
 		} else {
+			funding.sourceSegments = remainingSegments
 			funding.consumed -= delta
+			if funding.consumed < 0 {
+				funding.consumed = 0
+			}
 		}
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
@@ -321,6 +331,10 @@ func (s *BillingSession) syncRelayInfo() {
 	info.BillingSource = s.funding.Source()
 
 	if sub, ok := s.funding.(*SubscriptionFunding); ok {
+		info.WalletPaidQuotaConsumed = 0
+		info.WalletGiftQuotaConsumed = 0
+		info.WalletTrialQuotaConsumed = 0
+		info.WalletLegacyUnknownQuotaConsumed = 0
 		info.SubscriptionId = sub.subscriptionId
 		info.SubscriptionPreConsumed = sub.preConsumed + int64(s.extraReserved)
 		info.SubscriptionPostDelta = 0
@@ -329,9 +343,28 @@ func (s *BillingSession) syncRelayInfo() {
 		info.SubscriptionPlanId = sub.PlanId
 		info.SubscriptionPlanTitle = sub.PlanTitle
 	} else {
+		if wallet, ok := s.funding.(*WalletFunding); ok {
+			syncRelayWalletSourceBreakdown(info, wallet)
+		}
 		info.SubscriptionId = 0
 		info.SubscriptionPreConsumed = 0
+		info.SubscriptionPostDelta = 0
+		info.SubscriptionAmountTotal = 0
+		info.SubscriptionAmountUsedAfterPreConsume = 0
+		info.SubscriptionPlanId = 0
+		info.SubscriptionPlanTitle = ""
 	}
+}
+
+func syncRelayWalletSourceBreakdown(info *relaycommon.RelayInfo, wallet *WalletFunding) {
+	if info == nil || wallet == nil {
+		return
+	}
+	breakdown := wallet.SourceBreakdown()
+	info.WalletPaidQuotaConsumed = breakdown.Paid
+	info.WalletGiftQuotaConsumed = breakdown.Gift
+	info.WalletTrialQuotaConsumed = breakdown.Trial
+	info.WalletLegacyUnknownQuotaConsumed = breakdown.LegacyUnknown
 }
 
 // ---------------------------------------------------------------------------
@@ -368,7 +401,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 		session := &BillingSession{
 			relayInfo: relayInfo,
-			funding:   &WalletFunding{userId: relayInfo.UserId},
+			funding: &WalletFunding{
+				userId:      relayInfo.UserId,
+				requestId:   relayInfo.RequestId,
+				relatedType: "relay_request",
+			},
 		}
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
 			return nil, apiErr

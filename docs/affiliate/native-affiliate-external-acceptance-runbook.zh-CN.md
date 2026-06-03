@@ -179,6 +179,6 @@ limit 5;
 
 ## 8. 当前未决策/外部验证项
 
-- 是否需要把真实支付成功、钱包扣费和退款 thin hook 全面接入 `user_quota_source_*`。当前本地已新增 quota source sidecar 模型和 KPI/佣金/人头费读取逻辑：日志 `Other` 显式来源优先，缺失时按 sidecar 归因；未标记且无 sidecar 的日志仍不会默认当 paid。
+- 真实支付成功、relay 钱包扣费和退款 thin hook 已在本地接入 `user_quota_source_*`，并覆盖 paid top-up、wallet debit/refund、request_id 归因测试；外部验收仍需用真实支付网关回调、真实 relay 调用和退款失败路径确认 sidecar 事件持续写入。日志 `Other` 显式来源仍优先，缺失时按 sidecar 归因；未标记且无 sidecar 的日志仍不会默认当 paid。
 - 是否需要超大规模 scoped export。当前已有后端 `/api/affiliate/logs/export` 复用后端 scope 做安全分页导出；如需超过当前安全上限，应设计异步任务或后台导出队列，不能绕过后端 scope。
 - 是否启用手机号/SMS 注册登录入口。当前已具备 SMS provider、配置、测试发送、状态查询、限流、发送日志和手机号绑定 sidecar，但没有启用真实手机号注册/登录主链路。

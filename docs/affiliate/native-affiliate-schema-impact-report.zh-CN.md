@@ -37,4 +37,4 @@ go test -count=1 ./model -run 'QuotaSourceSidecar|AffiliateSidecarModels|Migrate
 
 - 本报告基于本地 dev PostgreSQL schema snapshot，不能替代 staging 或生产发布前的现场 schema impact 复核。
 - 后续如新增 GORM model、修改 sidecar 字段或索引，必须重新导出 before/after schema 并更新本报告。
-- Quota source sidecar 只证明本地 schema impact，不证明真实支付、钱包扣费或退款链路已持续写入来源事件。
+- Quota source sidecar schema impact 只证明新增表对象安全；真实支付、relay 钱包扣费和退款链路的本地 thin hook 已接入并有 Go 测试覆盖，但仍需 staging/生产真实链路 smoke 证明来源事件持续写入。

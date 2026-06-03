@@ -27,8 +27,11 @@ type FundingSource interface {
 // ---------------------------------------------------------------------------
 
 type WalletFunding struct {
-	userId   int
-	consumed int // 实际预扣的用户额度
+	userId         int
+	requestId      string
+	relatedType    string
+	sourceSegments []model.UserQuotaSourceSegment
+	consumed       int // 实际预扣的用户额度
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -37,9 +40,11 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+	segments, err := model.DecreaseUserQuotaWithSource(w.userId, amount, w.relatedType, w.requestId, w.requestId, "wallet pre-consume")
+	if err != nil {
 		return err
 	}
+	w.sourceSegments = append(w.sourceSegments, segments...)
 	w.consumed = amount
 	return nil
 }
@@ -49,18 +54,74 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		segments, err := model.DecreaseUserQuotaWithSource(w.userId, delta, w.relatedType, w.requestId, w.requestId, "wallet settlement extra debit")
+		if err != nil {
+			return err
+		}
+		w.sourceSegments = append(w.sourceSegments, segments...)
+		w.consumed += delta
+		return nil
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	refundSegments, remainingSegments := splitRefundQuotaSourceSegments(w.sourceSegments, -delta)
+	if err := model.IncreaseUserQuotaFromSourceSegments(w.userId, refundSegments, w.relatedType, w.requestId, w.requestId, "wallet settlement refund"); err != nil {
+		return err
+	}
+	w.sourceSegments = remainingSegments
+	w.consumed += delta
+	if w.consumed < 0 {
+		w.consumed = 0
+	}
+	return nil
 }
 
 func (w *WalletFunding) Refund() error {
 	if w.consumed <= 0 {
 		return nil
 	}
-	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
+	refundSegments, remainingSegments := splitRefundQuotaSourceSegments(w.sourceSegments, w.consumed)
+	// IncreaseUserQuotaFromSourceSegments 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	if err := model.IncreaseUserQuotaFromSourceSegments(w.userId, refundSegments, w.relatedType, w.requestId, w.requestId, "wallet pre-consume refund"); err != nil {
+		return err
+	}
+	w.sourceSegments = remainingSegments
+	w.consumed = int(model.SumQuotaSourceSegments(remainingSegments).Total)
+	return nil
+}
+
+func (w *WalletFunding) SourceBreakdown() model.UserQuotaSourceBreakdown {
+	return model.SumQuotaSourceSegments(w.sourceSegments)
+}
+
+func splitRefundQuotaSourceSegments(segments []model.UserQuotaSourceSegment, amount int) ([]model.UserQuotaSourceSegment, []model.UserQuotaSourceSegment) {
+	if amount <= 0 || len(segments) == 0 {
+		return nil, append([]model.UserQuotaSourceSegment(nil), segments...)
+	}
+	remaining := append([]model.UserQuotaSourceSegment(nil), segments...)
+	refund := make([]model.UserQuotaSourceSegment, 0, len(segments))
+	left := int64(amount)
+	for i := len(remaining) - 1; i >= 0 && left > 0; i-- {
+		if remaining[i].Amount <= 0 {
+			continue
+		}
+		take := remaining[i].Amount
+		if take > left {
+			take = left
+		}
+		refund = append(refund, model.UserQuotaSourceSegment{Source: remaining[i].Source, Amount: take})
+		remaining[i].Amount -= take
+		left -= take
+	}
+	if left > 0 {
+		refund = append(refund, model.UserQuotaSourceSegment{Source: model.QuotaSourceLegacyUnknown, Amount: left})
+	}
+	cleanRemaining := make([]model.UserQuotaSourceSegment, 0, len(remaining))
+	for _, segment := range remaining {
+		if segment.Amount > 0 {
+			cleanRemaining = append(cleanRemaining, segment)
+		}
+	}
+	return refund, cleanRemaining
 }
 
 // ---------------------------------------------------------------------------

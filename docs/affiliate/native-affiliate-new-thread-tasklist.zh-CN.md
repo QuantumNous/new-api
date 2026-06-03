@@ -144,6 +144,13 @@
 - 完成内容：新增 `model.QuotaSourceSidecarModels()`，包含 `user_quota_source_balances` 和 `user_quota_source_events`；接入 `migrateDB` / `migrateDBFast` AutoMigrate。佣金、KPI snapshot、人头费 paid stats 统一通过 quota attribution 解析：日志 `Other` 中显式 `quota_source` / `affiliate_quota_source` / `billing_source` 仍优先，缺失时按 `source_log_id` / `related_type=log` / `request_id` 查 quota source sidecar；同一日志混合 paid/gift/trial 时只按 paid 部分计佣，未标记且无 sidecar 的日志仍不默认 paid。
 - 验证方式：先观察 `go test -count=1 ./model -run 'QuotaSourceSidecar|AffiliateSidecarModels|MigrateDBCreatesAffiliateSidecar'` 与 `go test -count=1 ./service -run 'QuotaSourceSidecar'` RED；实现后目标测试通过。补充 `go test -count=1 ./service -run 'QuotaSourceSidecar|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateKPI|KPISnapshot|AffiliateHeadFee|HeadFee'` 通过。Docker schema impact 使用 `timeout 600s docker compose -f docker-compose.dev.yml up -d --build new-api` 触发迁移，`20260603T003059Z-quota-source.diff` 只新增 `user_quota_source_*` 表、序列、主键和索引，runtime 文件被 `.gitignore` 忽略。
 - 残留风险：本批完成 sidecar schema 和计算读取逻辑，但真实支付成功、钱包扣费和退款 thin hook 是否持续写入 `user_quota_source_events` 仍需 staging/生产链路验证；历史未标记日志不会被默认视为 paid，双跑差异仍可能来自来源缺失。
+
+### Phase 3 quota source 写入 hook 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 source-aware quota ledger helper：paid/gift/trial/legacy_unknown 来源余额与 credit/debit/refund 事件和 `users.quota` 同事务更新；钱包扣费按 legacy_unknown -> trial -> gift -> paid 顺序消耗，退款按原消费 segment 回补，保证 mixed source 时只把 paid 部分交给分销计算。Stripe、epay、Creem、Waffo、Waffo Pancake 和管理员补单成功路径写入 paid 来源账本；relay `WalletFunding` preconsume/settle/refund 写入 request_id 关联的 source debit/refund，并把钱包来源拆分写入日志 `Other`。
+- 验证方式：按 TDD 先观察 `go test -count=1 ./model -run 'QuotaSourceLedger|IncreaseUserQuotaWithSource|ManualCompleteTopUpCreditsPaidSourceLedger'` 和 `go test -count=1 ./service -run 'WalletFunding.*Source|NewBillingSessionWalletFunding'` RED（缺少 helper 和 wallet source segment 字段）；实现后两组测试通过。补充 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter|QuotaSource|TopUp|Waffo|PaymentMethod|Billing|WalletFunding'`、`go test -count=1 ./model`、`go test -count=1 ./service` 和 `git diff --check` 均通过。
+- 残留风险：本批只完成本地真实代码路径的 thin hook 和单元/集成测试，尚未在 staging/生产执行真实支付网关回调、真实 relay 调用和失败退款 smoke；任务编排钱包扣费仍需单独评估是否写入 source segment；历史未标记日志仍不会默认视为 paid。
+- 下一步：外部验收时按 runbook 采集真实充值、relay 消耗、退款和周期结算的脱敏证据；如需要覆盖任务编排钱包扣费，再新增 task billing source segment 设计。
 - 下一步：在完整结算周期双跑中重点核对真实 paid/gift/trial sidecar 事件覆盖率、退款归属和外接控制台口径差异。
 
 ### Phase 4 default 未开通状态复盘（2026-06-03 本线程）

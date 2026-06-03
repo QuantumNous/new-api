@@ -145,6 +145,9 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		if err != nil {
 			return err
 		}
+		if err := CreditUserQuotaSourceTx(tx, topUp.UserId, QuotaSourcePaid, int(quota), "topup", topUp.TradeNo, referenceId, "stripe topup"); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -374,6 +377,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
 			return err
 		}
+		if err := CreditUserQuotaSourceTx(tx, topUp.UserId, QuotaSourcePaid, quotaToAdd, "topup", topUp.TradeNo, tradeNo, "admin completed topup"); err != nil {
+			return err
+		}
 
 		userId = topUp.UserId
 		payMoney = topUp.Money
@@ -450,6 +456,9 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		if err != nil {
 			return err
 		}
+		if err := CreditUserQuotaSourceTx(tx, topUp.UserId, QuotaSourcePaid, int(quota), "topup", topUp.TradeNo, referenceId, "creem topup"); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -511,6 +520,9 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
 			return err
 		}
+		if err := CreditUserQuotaSourceTx(tx, topUp.UserId, QuotaSourcePaid, quotaToAdd, "topup", topUp.TradeNo, tradeNo, "waffo topup"); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -570,6 +582,9 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		}
 
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+		if err := CreditUserQuotaSourceTx(tx, topUp.UserId, QuotaSourcePaid, quotaToAdd, "topup", topUp.TradeNo, tradeNo, "waffo pancake topup"); err != nil {
 			return err
 		}
 
