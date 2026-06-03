@@ -517,21 +517,21 @@
 
 - 完成内容：新增后端 pending 佣金事件生成服务，只处理明确 `quota_source=paid` 的消费/退款日志；按 published 规则集、生效时间、分销 profile level、单用户累计净付费区间和 KPI snapshot 系数计算佣金；生成 `accrual` / `clawback` 事件，记录 `rule_set_id`、`rule_set_version`、raw quota、净付费 cents、累计 before/after、base/cap/final rate。
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliatePendingCommission|CommissionEvents|Commission'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|Admin'` 均通过。
-- 残留风险：当前 paid 来源依赖日志 `Other` 中明确标记，官方日志表本身没有 paid/gift/trial 列；后续如新增 `user_quota_source_*` sidecar，需要把来源判定接入 sidecar，不能把未标记日志默认当 paid；KPI 快照生成、人头费事件、结算单生成和分销商只读结算 API 尚未实现。
+- 残留风险：本批当时 paid 来源依赖日志 `Other` 中明确标记；后续已在 Phase 3 quota source 复盘中补齐 `user_quota_source_*` sidecar 读取和写入 hook。未标记且无 sidecar 的历史日志仍不能默认当 paid；KPI 快照生成、人头费事件、结算单生成和分销商只读结算 API 在后续批次补齐。
 - 下一步：实现 KPI snapshot 生成或 settlement draft/freeze/pay 流程，并把规则集版本继续贯穿 KPI 快照和结算单。
 
 ### Phase 10 阶段复盘（2026-06-03 KPI snapshot）
 
 - 完成内容：新增 KPI snapshot 生成服务，按 active 分销 profile 的可见下游用户、affiliate invite event 和明确来源日志计算有效新用户、paid 净消耗、gift-only 占比、异常占比、二次付费率，并按 published 规则集 KPI tier 从高到低选择符合阈值和质量门槛的档位。
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateKPI|KPISnapshot|KPISnapshots'` RED；实现后同命令通过，并补充 `go test -count=1 ./service -run 'AffiliateKPI|KPISnapshot|KPISnapshots|AffiliatePendingCommission|CommissionEvents|Commission'` 验证 KPI 与佣金事件联动。
-- 残留风险：当前 gift-only、abnormal、second-payment 质量指标依赖日志 `Other` 中明确标记或可推导的 paid 消费次数；仍未接入独立 paid/gift/trial quota source sidecar；人头费事件、结算单、分销商只读结算 API 尚未实现。
+- 残留风险：本批当时 gift-only、abnormal、second-payment 质量指标依赖日志 `Other` 中明确标记或可推导的 paid 消费次数；后续已补齐 quota source sidecar 归因。历史未标记且无 sidecar 的日志仍不能反推来源；人头费事件、结算单、分销商只读结算 API 在后续批次补齐。
 - 下一步：继续实现人头费事件或 settlement draft/freeze/pay 流程，并把 settlement 的 `rule_set_id`/版本快照补齐。
 
 ### Phase 10 阶段复盘（2026-06-03 人头费事件）
 
 - 完成内容：新增 pending 人头费事件生成服务，按 active 分销商、KPI snapshot 档位、`affiliate_head_fee_rules`、affiliate invite event 和明确 `quota_source=paid` 的消费/退款日志判断资格；支持首次付费门槛、周期净付费门槛、资格天数和解锁延迟，生成去重的 pending `affiliate_head_fee_events`。
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateHeadFee|HeadFee'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Admin'` 均通过。
-- 残留风险：首次付费和周期净付费仍依赖日志 `Other` 中明确 paid 来源；尚未接入真实充值 sidecar 或 paid/gift/trial quota source sidecar；人头费事件尚未进入结算单，分销商只读结算 API 仍未实现。
+- 残留风险：本批当时首次付费和周期净付费仍依赖日志 `Other` 中明确 paid 来源；后续已接入真实充值 paid source ledger、wallet source debit/refund 和 quota source sidecar 归因。历史未标记且无 sidecar 的日志仍不能反推来源；人头费事件进入结算单和分销商只读结算 API 在后续批次补齐。
 - 下一步：实现结算单生成、冻结、作废和标记已支付，并把佣金事件、人头费事件合并进 settlement。
 
 ### Phase 10 阶段复盘（2026-06-03 结算单）
