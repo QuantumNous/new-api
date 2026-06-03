@@ -1,0 +1,109 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/**
+ * Lightweight Google Ads / GA4 conversion tracking helper.
+ *
+ * Zero-dependency, opt-in by env var. When `VITE_GADS_CONVERSION_ID` is not
+ * set at build time, every export here becomes a no-op, so deployments without
+ * a Google Ads account are unaffected.
+ *
+ * Env vars (all optional, prefix VITE_ so Rsbuild exposes them to the client):
+ *   VITE_GADS_CONVERSION_ID    e.g. "AW-10868031754" — gtag.js account id
+ *   VITE_GADS_SIGNUP_SEND_TO   e.g. "AW-10867983435/GDIeCPiYtLgcEMuIob4o"
+ *                              — full send_to for the signup conversion
+ */
+
+type GtagFn = (...args: unknown[]) => void
+
+declare global {
+  interface Window {
+    dataLayer?: unknown[]
+    gtag?: GtagFn
+  }
+}
+
+const CONVERSION_ID = import.meta.env.VITE_GADS_CONVERSION_ID as
+  | string
+  | undefined
+// Full send_to value for the signup conversion, e.g. "AW-123456789/AbCdEfg".
+// Kept as a complete value (not assembled from CONVERSION_ID) because the
+// conversion's AW prefix can differ from the gtag account id loaded above.
+const SIGNUP_SEND_TO = import.meta.env.VITE_GADS_SIGNUP_SEND_TO as
+  | string
+  | undefined
+
+let loaderPromise: Promise<void> | null = null
+
+/** Whether tracking is enabled (a conversion id was provided at build time). */
+export function isGtagEnabled(): boolean {
+  return Boolean(CONVERSION_ID)
+}
+
+/**
+ * Lazily inject gtag.js exactly once. Safe to call repeatedly.
+ * Resolves immediately (and as a no-op) when tracking is disabled or when
+ * running outside the browser.
+ */
+export function ensureGtagLoaded(): Promise<void> {
+  if (!CONVERSION_ID || typeof window === 'undefined') {
+    return Promise.resolve()
+  }
+  if (loaderPromise) return loaderPromise
+
+  loaderPromise = new Promise<void>((resolve) => {
+    window.dataLayer = window.dataLayer || []
+    const gtag: GtagFn = function gtag() {
+      // gtag relies on `arguments` being pushed verbatim.
+      // eslint-disable-next-line prefer-rest-params
+      window.dataLayer!.push(arguments)
+    }
+    window.gtag = window.gtag || gtag
+    window.gtag('js', new Date())
+    window.gtag('config', CONVERSION_ID)
+
+    const script = document.createElement('script')
+    script.async = true
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${CONVERSION_ID}`
+    script.onload = () => resolve()
+    script.onerror = () => resolve() // never block UX on a blocked tracker
+    document.head.appendChild(script)
+  })
+
+  return loaderPromise
+}
+
+/**
+ * Fire the "sign up" conversion. No-op unless both the gtag account id and the
+ * signup send_to are configured. Best-effort: failures never throw.
+ */
+export function trackSignupConversion(): void {
+  if (!CONVERSION_ID || !SIGNUP_SEND_TO) return
+  void ensureGtagLoaded().then(() => {
+    try {
+      window.gtag?.('event', 'conversion', {
+        send_to: SIGNUP_SEND_TO,
+      })
+      // Also emit a GA4-style custom event for dashboards keyed on it.
+      window.gtag?.('event', 'signup_success')
+    } catch {
+      /* swallow — tracking must never break registration UX */
+    }
+  })
+}
