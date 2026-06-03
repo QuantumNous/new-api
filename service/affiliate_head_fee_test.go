@@ -45,6 +45,36 @@ func TestBuildAffiliatePendingHeadFeeEventsCreatesQualifiedEvent(t *testing.T) {
 	}
 }
 
+func TestBuildAffiliatePendingHeadFeeEventsScansPaidLogsWithCursorLimit(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	restoreBatchSize := setAffiliateLogScanBatchSizeForTest(2)
+	defer restoreBatchSize()
+	removeQueryGuard := rejectUnboundedAffiliateLogQueries(t, db)
+	defer removeQueryGuard()
+
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("head-fee-cursor-scan"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateHeadFeeInviteEvent(t, db, 100, 200, 1000)
+	seedAffiliateHeadFeeKPISnapshot(t, db, 100, ruleSet.Id, "growth", 1000, 2000)
+	for i, quota := range []int{1000, 500, 500} {
+		seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: int64(1100 + i), Type: model.LogTypeConsume, Quota: quota, Other: `{"quota_source":"paid"}`})
+	}
+
+	events, err := BuildAffiliatePendingHeadFeeEvents(db, db, AffiliateHeadFeeBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Now:             1000 + 21*affiliateSecondsPerDay + 1,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingHeadFeeEvents returned error: %v", err)
+	}
+	if len(events) != 1 || events[0].NetPaidCents != 2000 {
+		t.Fatalf("expected one cursor-scanned head fee event, got %+v", events)
+	}
+}
+
 func TestBuildAffiliatePendingHeadFeeEventsSkipsUnqualifiedUsersAndDeduplicates(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("head-fee-skip-unqualified"))

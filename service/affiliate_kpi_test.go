@@ -48,6 +48,34 @@ func TestBuildAffiliateKPISnapshotsSelectsQualifiedTier(t *testing.T) {
 	}
 }
 
+func TestBuildAffiliateKPISnapshotsScansUsageLogsWithCursorLimit(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	restoreBatchSize := setAffiliateLogScanBatchSizeForTest(2)
+	defer restoreBatchSize()
+	removeQueryGuard := rejectUnboundedAffiliateLogQueries(t, db)
+	defer removeQueryGuard()
+
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateKPIRuleSetInput("kpi-cursor-scan"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200})
+	for i := 0; i < 3; i++ {
+		seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: int64(1100 + i), Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	}
+
+	snapshots, err := BuildAffiliateKPISnapshots(db, db, AffiliateKPIBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    1000,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateKPISnapshots returned error: %v", err)
+	}
+	if len(snapshots) != 1 || snapshots[0].PaidConsumptionRawQuota != 3000 {
+		t.Fatalf("expected one KPI snapshot from cursor scan, got %+v", snapshots)
+	}
+}
+
 func TestBuildAffiliateKPISnapshotsFallsBackWhenQualityGateFails(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateKPIRuleSetInput("kpi-quality-fallback"))

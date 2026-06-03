@@ -153,46 +153,46 @@ func buildAffiliateKPIMetrics(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int,
 	}
 	metrics.EffectiveNewUserCount = effectiveCount
 
-	var logs []model.Log
 	tx := logDB.
-		Where("user_id IN ? AND type IN ?", visibleUserIds, []int{model.LogTypeConsume, model.LogTypeRefund}).
-		Order("created_at asc, id asc")
+		Where("user_id IN ? AND type IN ?", visibleUserIds, []int{model.LogTypeConsume, model.LogTypeRefund})
 	tx = applyAffiliateKPITimeRange(tx, input)
-	if err := tx.Find(&logs).Error; err != nil {
-		return affiliateKPIMetrics{}, err
-	}
 
 	stats := map[int]*affiliateKPIUserStats{}
 	for _, userId := range visibleUserIds {
 		stats[userId] = &affiliateKPIUserStats{}
 	}
-	for _, log := range logs {
-		userStats := stats[log.UserId]
-		if userStats == nil {
-			continue
-		}
-		if affiliateLogBoolFlag(log, "affiliate_abnormal") || affiliateLogBoolFlag(log, "abnormal") {
-			userStats.Abnormal = true
-		}
-		if affiliateLogBoolFlag(log, "affiliate_second_payment") || affiliateLogBoolFlag(log, "second_payment") {
-			userStats.HasSecondPaymentFlag = true
-		}
-
-		attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
-		if err != nil {
-			return affiliateKPIMetrics{}, err
-		}
-		if attribution.PaidRawQuota != 0 {
-			userStats.HasPaid = true
-			if log.Type == model.LogTypeConsume {
-				userStats.PaidConsumeCount++
+	if err := scanAffiliateLogsByCreatedAtCursor(tx, func(logs []model.Log) error {
+		for _, log := range logs {
+			userStats := stats[log.UserId]
+			if userStats == nil {
+				continue
 			}
-			metrics.PaidConsumptionRawQuota += attribution.PaidRawQuota
-			metrics.NetPaidConsumptionCents += affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput(input))
+			if affiliateLogBoolFlag(log, "affiliate_abnormal") || affiliateLogBoolFlag(log, "abnormal") {
+				userStats.Abnormal = true
+			}
+			if affiliateLogBoolFlag(log, "affiliate_second_payment") || affiliateLogBoolFlag(log, "second_payment") {
+				userStats.HasSecondPaymentFlag = true
+			}
+
+			attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+			if err != nil {
+				return err
+			}
+			if attribution.PaidRawQuota != 0 {
+				userStats.HasPaid = true
+				if log.Type == model.LogTypeConsume {
+					userStats.PaidConsumeCount++
+				}
+				metrics.PaidConsumptionRawQuota += attribution.PaidRawQuota
+				metrics.NetPaidConsumptionCents += affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput(input))
+			}
+			if attribution.GiftRawQuota != 0 || attribution.TrialRawQuota != 0 {
+				userStats.HasGiftOrTrial = true
+			}
 		}
-		if attribution.GiftRawQuota != 0 || attribution.TrialRawQuota != 0 {
-			userStats.HasGiftOrTrial = true
-		}
+		return nil
+	}); err != nil {
+		return affiliateKPIMetrics{}, err
 	}
 
 	for _, userStats := range stats {

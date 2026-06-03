@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -51,6 +52,39 @@ func TestBuildAffiliatePendingCommissionEventsCreatesPaidAccrual(t *testing.T) {
 	}
 	if !strings.Contains(event.Metadata, `"rule_set_version":"commission-paid-accrual"`) {
 		t.Fatalf("expected event metadata to record rule set version, got %q", event.Metadata)
+	}
+}
+
+func TestBuildAffiliatePendingCommissionEventsScansSourceLogsWithCursorLimit(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	restoreBatchSize := setAffiliateLogScanBatchSizeForTest(2)
+	defer restoreBatchSize()
+	removeQueryGuard := rejectUnboundedAffiliateLogQueries(t, db)
+	defer removeQueryGuard()
+
+	savePublishedAffiliateCommissionRuleSet(t, db, "commission-cursor-scan")
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 300, 1)
+	for i := 0; i < 3; i++ {
+		seedAffiliateCommissionLog(t, db, model.Log{
+			UserId:    300,
+			CreatedAt: int64(1100 + i),
+			Type:      model.LogTypeConsume,
+			Quota:     100,
+			Other:     `{"quota_source":"paid"}`,
+		})
+	}
+
+	events, err := BuildAffiliatePendingCommissionEvents(db, db, AffiliateCommissionBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingCommissionEvents returned error: %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("expected three commission events from cursor scan, got %+v", events)
 	}
 }
 
@@ -339,6 +373,32 @@ func seedAffiliateCommissionLog(t *testing.T, db *gorm.DB, log model.Log) model.
 		t.Fatalf("seed log: %v", err)
 	}
 	return log
+}
+
+func setAffiliateLogScanBatchSizeForTest(size int) func() {
+	original := affiliateLogScanBatchSize
+	affiliateLogScanBatchSize = size
+	return func() {
+		affiliateLogScanBatchSize = original
+	}
+}
+
+func rejectUnboundedAffiliateLogQueries(t *testing.T, db *gorm.DB) func() {
+	t.Helper()
+	callbackName := "reject_unbounded_affiliate_log_queries_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "logs" {
+			return
+		}
+		if _, ok := tx.Statement.Clauses["LIMIT"]; !ok {
+			tx.AddError(errors.New("unbounded logs query without LIMIT"))
+		}
+	}); err != nil {
+		t.Fatalf("register unbounded log query guard: %v", err)
+	}
+	return func() {
+		_ = db.Callback().Query().Remove(callbackName)
+	}
 }
 
 func seedAffiliateQuotaSourceEvent(t *testing.T, db *gorm.DB, event model.UserQuotaSourceEvent) model.UserQuotaSourceEvent {

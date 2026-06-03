@@ -218,43 +218,43 @@ func affiliateHeadFeeDelaySatisfied(inviteEvent model.AffiliateInviteEvent, rule
 }
 
 func buildAffiliateHeadFeePaidStats(db *gorm.DB, logDB *gorm.DB, userId int, inviteCreatedAt int64, input AffiliateHeadFeeBuildInput) (affiliateHeadFeePaidStats, error) {
-	var logs []model.Log
 	tx := logDB.
-		Where("user_id = ? AND type IN ?", userId, []int{model.LogTypeConsume, model.LogTypeRefund}).
-		Order("created_at asc, id asc")
+		Where("user_id = ? AND type IN ?", userId, []int{model.LogTypeConsume, model.LogTypeRefund})
 	if inviteCreatedAt != 0 {
 		tx = tx.Where("created_at >= ?", inviteCreatedAt)
 	}
 	if input.PeriodEnd != 0 {
 		tx = tx.Where("created_at <= ?", input.PeriodEnd)
 	}
-	if err := tx.Find(&logs).Error; err != nil {
-		return affiliateHeadFeePaidStats{}, err
-	}
 
 	stats := affiliateHeadFeePaidStats{}
-	for _, log := range logs {
-		attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
-		if err != nil {
-			return affiliateHeadFeePaidStats{}, err
+	if err := scanAffiliateLogsByCreatedAtCursor(tx, func(logs []model.Log) error {
+		for _, log := range logs {
+			attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+			if err != nil {
+				return err
+			}
+			if attribution.PaidRawQuota == 0 {
+				continue
+			}
+			cents := affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput{
+				RuleSetId:       input.RuleSetId,
+				PeriodStart:     input.PeriodStart,
+				PeriodEnd:       input.PeriodEnd,
+				QuotaPerUnit:    input.QuotaPerUnit,
+				USDExchangeRate: input.USDExchangeRate,
+			})
+			if log.Type == model.LogTypeConsume && cents > 0 && stats.FirstRechargeCents == 0 {
+				stats.FirstRechargeCents = cents
+			}
+			if input.PeriodStart != 0 && log.CreatedAt < input.PeriodStart {
+				continue
+			}
+			stats.NetPaidCents += cents
 		}
-		if attribution.PaidRawQuota == 0 {
-			continue
-		}
-		cents := affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput{
-			RuleSetId:       input.RuleSetId,
-			PeriodStart:     input.PeriodStart,
-			PeriodEnd:       input.PeriodEnd,
-			QuotaPerUnit:    input.QuotaPerUnit,
-			USDExchangeRate: input.USDExchangeRate,
-		})
-		if log.Type == model.LogTypeConsume && cents > 0 && stats.FirstRechargeCents == 0 {
-			stats.FirstRechargeCents = cents
-		}
-		if input.PeriodStart != 0 && log.CreatedAt < input.PeriodStart {
-			continue
-		}
-		stats.NetPaidCents += cents
+		return nil
+	}); err != nil {
+		return affiliateHeadFeePaidStats{}, err
 	}
 	return stats, nil
 }

@@ -264,8 +264,7 @@ func affiliateQuotaSourceEventsToAttribution(events []model.UserQuotaSourceEvent
 
 func listAffiliateCommissionSourceLogs(logDB *gorm.DB, input AffiliateCommissionBuildInput) ([]model.Log, error) {
 	tx := logDB.
-		Where("type IN ?", []int{model.LogTypeConsume, model.LogTypeRefund}).
-		Order("created_at asc, id asc")
+		Where("type IN ?", []int{model.LogTypeConsume, model.LogTypeRefund})
 	if input.PeriodStart != 0 {
 		tx = tx.Where("created_at >= ?", input.PeriodStart)
 	}
@@ -274,7 +273,10 @@ func listAffiliateCommissionSourceLogs(logDB *gorm.DB, input AffiliateCommission
 	}
 
 	var logs []model.Log
-	if err := tx.Find(&logs).Error; err != nil {
+	if err := scanAffiliateLogsByCreatedAtCursor(tx, func(batch []model.Log) error {
+		logs = append(logs, batch...)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return logs, nil
@@ -299,22 +301,22 @@ func loadAffiliatePriorPaidCentsByUser(db *gorm.DB, logDB *gorm.DB, sourceLogs [
 		return cumulative, nil
 	}
 
-	var priorLogs []model.Log
-	if err := logDB.
-		Where("user_id IN ? AND type IN ? AND created_at < ?", userIds, []int{model.LogTypeConsume, model.LogTypeRefund}, input.PeriodStart).
-		Order("created_at asc, id asc").
-		Find(&priorLogs).Error; err != nil {
+	priorTx := logDB.
+		Where("user_id IN ? AND type IN ? AND created_at < ?", userIds, []int{model.LogTypeConsume, model.LogTypeRefund}, input.PeriodStart)
+	if err := scanAffiliateLogsByCreatedAtCursor(priorTx, func(priorLogs []model.Log) error {
+		for _, log := range priorLogs {
+			attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+			if err != nil {
+				return err
+			}
+			if attribution.PaidRawQuota == 0 {
+				continue
+			}
+			cumulative[log.UserId] += affiliateRawQuotaToCents(attribution.PaidRawQuota, input)
+		}
+		return nil
+	}); err != nil {
 		return nil, err
-	}
-	for _, log := range priorLogs {
-		attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
-		if err != nil {
-			return nil, err
-		}
-		if attribution.PaidRawQuota == 0 {
-			continue
-		}
-		cumulative[log.UserId] += affiliateRawQuotaToCents(attribution.PaidRawQuota, input)
 	}
 	return cumulative, nil
 }

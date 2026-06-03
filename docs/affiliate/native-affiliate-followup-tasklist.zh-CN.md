@@ -97,9 +97,9 @@
 
 ## 8. 佣金、KPI、人头费与结算可靠性
 
-- [ ] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
-- [ ] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
-- [ ] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
+- [x] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
+- [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
+- [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
 - [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。
 - [ ] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。
 - [ ] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。
@@ -157,7 +157,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；run record、可恢复进度、结算事件分组分批和完整双跑幂等审计仍待做。）
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -216,3 +216,12 @@
 - i18n 注意：`web/default && bun run i18n:sync` 通过；`web/classic && bun run i18n:sync` 在当前依赖组合下失败，错误为 `react-i18next@17` 期待 `i18next.keyFromSelector` 但 classic 使用的 `i18next` 未提供该 export。本轮已手动补齐 classic locale，后续可单独治理 classic i18n CLI 版本匹配。
 - 残留风险：当前表格是基于现有 JSON 字段的通用编辑表，不会强制新增“启停状态”等后端尚未固定的字段；导入/导出按钮、规则变更 diff 预览、复制上一版本、发布/覆盖二次确认仍待做。
 - 下一步：继续 P1 结算可靠性，优先审计佣金、KPI、人头费和结算任务的无界扫描、幂等记录和可恢复 run record。
+
+## P1-3 usage logs 分批扫描复盘（2026-06-04 本线程）
+
+- 完成内容：新增 `service/affiliate_log_scan.go`，提供统一 `created_at,id` cursor scanner，默认批大小 500，测试可临时调小。scanner 每批查询都带 `LIMIT`，按 `created_at asc, id asc` 稳定推进。
+- 完成内容：`BuildAffiliatePendingCommissionEvents` 的 source logs 与 prior paid logs、`BuildAffiliateKPISnapshots` 的 KPI usage logs、`BuildAffiliatePendingHeadFeeEvents` 的 paid stats usage logs 均改为 cursor 分批扫描。KPI 与 head fee 不再一次性把周期内 logs 全部载入 slice；commission source logs 本轮仍返回列表以保留累计 tier 逻辑，但查询侧已经从无界单次 `Find(&logs)` 改为 cursor 分批读取。
+- RED/GREEN 验证：新增三个测试注册 GORM Query callback，任何针对 `logs` 表的无 `LIMIT` 查询都会失败；RED 阶段先因缺少 `affiliateLogScanBatchSize` 失败；实现后 `go test -count=1 ./service -run 'TestBuildAffiliatePendingCommissionEventsScansSourceLogsWithCursorLimit|TestBuildAffiliateKPISnapshotsScansUsageLogsWithCursorLimit|TestBuildAffiliatePendingHeadFeeEventsScansPaidLogsWithCursorLimit'` 通过。
+- 回归验证：`go test -count=1 ./service -run 'Affiliate(Commission|KPI|HeadFee|Settlement)'` 通过；`go test -count=1 ./service ./controller ./router -run Affiliate` 通过；`git diff --check` 通过。
+- 残留风险：本轮未新增 schema，因此未引入 run record 表；结算 event group 仍会一次性加载 pending commission/head fee events；commission 构建仍会把 source logs 累积成列表用于 prior cumulative 用户集合。后续需要继续做 job execution/run record、可恢复 cursor、dry-run/正式 run 双跑幂等和 settlement event group 分批。
+- 下一步：继续 P1 结算可靠性，优先设计不泄漏敏感信息的 `affiliate_job_runs` 或等价 sidecar run record，并做 schema impact 复核后再实现。
