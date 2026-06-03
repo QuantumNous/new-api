@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,8 +20,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type DingTalkChannelAlert struct {
@@ -40,12 +37,12 @@ type DingTalkAlertCooldown struct {
 }
 
 type dingTalkAlertCooldownReservation struct {
-	c           *DingTalkAlertCooldown
-	channelID   int
-	reservedAt  time.Time
-	previousAt  time.Time
-	hadPrevious bool
-	dbReserved  bool
+	c             *DingTalkAlertCooldown
+	channelID     int
+	reservedAt    time.Time
+	previousAt    time.Time
+	hadPrevious   bool
+	dbReservation *model.DingTalkAlertCooldownReservation
 }
 
 type dingTalkSendResponse struct {
@@ -111,8 +108,10 @@ func (r *dingTalkAlertCooldownReservation) Rollback() {
 	if r == nil {
 		return
 	}
-	if r.dbReserved {
-		r.rollbackDB()
+	if r.dbReservation != nil {
+		if err := model.RollbackDingTalkAlertCooldown(r.dbReservation); err != nil {
+			common.SysError("failed to rollback dingtalk alert cooldown reservation: " + err.Error())
+		}
 		return
 	}
 	if r.c == nil {
@@ -133,147 +132,33 @@ func (r *dingTalkAlertCooldownReservation) Rollback() {
 }
 
 func (r *dingTalkAlertCooldownReservation) Commit() error {
-	if r == nil || !r.dbReserved {
+	if r == nil || r.dbReservation == nil {
 		return nil
 	}
-	return r.commitDB()
-}
-
-func (r *dingTalkAlertCooldownReservation) commitDB() error {
-	if model.DB == nil {
-		return nil
-	}
-	reservedAt := r.reservedAt.UnixMilli()
-	result := model.DB.Model(&model.DingTalkAlertCooldownRecord{}).
-		Where("channel_id = ? AND pending_at = ?", r.channelID, reservedAt).
-		Updates(map[string]any{
-			"last_at":    reservedAt,
-			"pending_at": int64(0),
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
-}
-
-func (r *dingTalkAlertCooldownReservation) rollbackDB() {
-	if model.DB == nil {
-		return
-	}
-	reservedAt := r.reservedAt.UnixMilli()
-	_ = model.DB.Model(&model.DingTalkAlertCooldownRecord{}).
-		Where("channel_id = ? AND pending_at = ?", r.channelID, reservedAt).
-		Update("pending_at", int64(0)).Error
+	return model.CommitDingTalkAlertCooldown(r.dbReservation)
 }
 
 func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool) {
 	if model.DB == nil {
 		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
 	}
-	reservation, allowed, err := reserveDingTalkAlertCooldownDB(channelID, now, cooldown)
+	reservationToken, err := common.GenerateRandomCharsKey(32)
+	if err != nil {
+		common.SysError("failed to generate dingtalk alert cooldown reservation token: " + err.Error())
+		return nil, false
+	}
+	dbReservation, allowed, err := model.ReserveDingTalkAlertCooldown(channelID, cooldown, dingTalkAlertPendingReservationTTL, reservationToken)
 	if err != nil {
 		common.SysError("failed to reserve dingtalk alert cooldown in database: " + err.Error())
 		return nil, false
 	}
-	return reservation, allowed
-}
-
-func reserveDingTalkAlertCooldownDB(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool, error) {
-	if cooldown <= 0 {
-		return nil, true, nil
+	if !allowed || dbReservation == nil {
+		return nil, allowed
 	}
-	var reservation *dingTalkAlertCooldownReservation
-	allowed := false
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		var record model.DingTalkAlertCooldownRecord
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("channel_id = ?", channelID).
-			First(&record).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			record = model.DingTalkAlertCooldownRecord{
-				ChannelID: channelID,
-				PendingAt: now.UnixMilli(),
-			}
-			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&record)
-			if result.Error != nil {
-				return result.Error
-			}
-			if result.RowsAffected == 0 {
-				return reserveDingTalkAlertCooldownAfterCreateConflict(tx, channelID, now, cooldown, &reservation, &allowed)
-			}
-			reservation = &dingTalkAlertCooldownReservation{
-				channelID:  channelID,
-				reservedAt: now,
-				dbReserved: true,
-			}
-			allowed = true
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		last := time.UnixMilli(record.LastAt)
-		if record.LastAt > 0 && now.Sub(last) < cooldown {
-			allowed = false
-			return nil
-		}
-		pending := time.UnixMilli(record.PendingAt)
-		if record.PendingAt > 0 && now.Sub(pending) < dingTalkAlertPendingReservationTTL {
-			allowed = false
-			return nil
-		}
-		if err := tx.Model(&model.DingTalkAlertCooldownRecord{}).
-			Where("channel_id = ?", channelID).
-			Update("pending_at", now.UnixMilli()).Error; err != nil {
-			return err
-		}
-		reservation = &dingTalkAlertCooldownReservation{
-			channelID:   channelID,
-			reservedAt:  now,
-			previousAt:  last,
-			hadPrevious: true,
-			dbReserved:  true,
-		}
-		allowed = true
-		return nil
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	return reservation, allowed, nil
-}
-
-func reserveDingTalkAlertCooldownAfterCreateConflict(tx *gorm.DB, channelID int, now time.Time, cooldown time.Duration, reservation **dingTalkAlertCooldownReservation, allowed *bool) error {
-	var record model.DingTalkAlertCooldownRecord
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("channel_id = ?", channelID).
-		First(&record).Error; err != nil {
-		return err
-	}
-	last := time.UnixMilli(record.LastAt)
-	if record.LastAt > 0 && now.Sub(last) < cooldown {
-		*allowed = false
-		return nil
-	}
-	pending := time.UnixMilli(record.PendingAt)
-	if record.PendingAt > 0 && now.Sub(pending) < dingTalkAlertPendingReservationTTL {
-		*allowed = false
-		return nil
-	}
-	if err := tx.Model(&model.DingTalkAlertCooldownRecord{}).
-		Where("channel_id = ?", channelID).
-		Update("pending_at", now.UnixMilli()).Error; err != nil {
-		return err
-	}
-	*reservation = &dingTalkAlertCooldownReservation{
-		channelID:   channelID,
-		reservedAt:  now,
-		previousAt:  last,
-		hadPrevious: true,
-		dbReserved:  true,
-	}
-	*allowed = true
-	return nil
+	return &dingTalkAlertCooldownReservation{
+		channelID:     channelID,
+		dbReservation: dbReservation,
+	}, true
 }
 
 func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {

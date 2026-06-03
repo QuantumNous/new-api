@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "rsbuild dev",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "bun test ./src/**/*.test.ts",
     "build": "rsbuild build",
     "build:check": "tsc -b && rsbuild build",
     "typecheck": "tsc -b",
