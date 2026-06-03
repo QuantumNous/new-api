@@ -96,6 +96,20 @@ function stringifyPretty(value: unknown): string {
   return JSON.stringify(Array.isArray(value) ? value : [], null, 2)
 }
 
+function stringifyStable(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stringifyStable(item)).join(',')}]`
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stringifyStable(record[key])}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
 function parseJsonArray(
   label: string,
   value: unknown
@@ -349,6 +363,139 @@ export function buildAffiliateRuleSetDraftFormValues(
     headFeeRulesJson: stringifyPretty(snapshot.head_fee_rules),
     riskRulesJson: stringifyPretty(snapshot.risk_rules),
   }
+}
+
+export function buildAffiliateRuleSetCopyDraftFormValues(
+  ruleSet?: AffiliateRuleSet | null
+): AffiliateRuleSetDraftFormValues {
+  const values = buildAffiliateRuleSetDraftFormValues(ruleSet)
+  return {
+    ...values,
+    id: '',
+    version: values.version ? `${values.version}-copy` : '',
+    reason: '',
+  }
+}
+
+export function buildAffiliateRuleSetExportJson(
+  values: AffiliateRuleSetDraftFormValues = {}
+): string {
+  const payload = buildAffiliateRuleSetDraftPayload(values)
+  const { id: _id, reason: _reason, ...exportable } = payload
+  return JSON.stringify(exportable, null, 2)
+}
+
+export function parseAffiliateRuleSetImportJson(
+  value: string
+): AffiliateRuleSetDraftFormValues {
+  const parsed = JSON.parse(String(value || '').trim())
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Rule set import JSON must be an object')
+  }
+  const imported = parsed as Record<string, unknown>
+  const settlementConfig =
+    imported.settlement_config && typeof imported.settlement_config === 'object'
+      ? (imported.settlement_config as Record<string, unknown>)
+      : {}
+
+  return {
+    id: '',
+    version: String(imported.version || '').trim(),
+    name: String(imported.name || '').trim(),
+    effectiveStart: String(normalizePositiveInteger(imported.effective_start)),
+    effectiveEnd: String(normalizePositiveInteger(imported.effective_end)),
+    reason: '',
+    settlementCycle: String(settlementConfig.cycle || '').trim(),
+    freezeDays: String(normalizePositiveInteger(settlementConfig.freeze_days)),
+    minSettlementAmountCents: String(
+      normalizePositiveInteger(settlementConfig.min_settlement_amount_cents)
+    ),
+    minSettlementAmountYuan: formatCentsAsYuan(
+      settlementConfig.min_settlement_amount_cents
+    ),
+    manualReviewEnabled: settlementConfig.manual_review_enabled === true,
+    commissionRulesJson: stringifyPretty(imported.commission_rules),
+    commissionTiersJson: stringifyPretty(imported.commission_tiers),
+    kpiTiersJson: stringifyPretty(imported.kpi_tiers),
+    headFeeRulesJson: stringifyPretty(imported.head_fee_rules),
+    riskRulesJson: stringifyPretty(imported.risk_rules),
+  }
+}
+
+export function buildAffiliateRuleSetDiffPreview(
+  beforeValues: AffiliateRuleSetDraftFormValues = {},
+  afterValues: AffiliateRuleSetDraftFormValues = {}
+): Array<{ section: string; before: string; after: string }> {
+  const before = buildAffiliateRuleSetDraftPayload(beforeValues)
+  const after = buildAffiliateRuleSetDraftPayload(afterValues)
+  const items: Array<{ section: string; before: string; after: string }> = []
+
+  const appendScalar = (
+    section: string,
+    beforeValue: unknown,
+    afterValue: unknown
+  ) => {
+    const beforeText = String(beforeValue ?? '')
+    const afterText = String(afterValue ?? '')
+    if (beforeText === afterText) return
+    items.push({ section, before: beforeText, after: afterText })
+  }
+  const appendJson = (
+    section: string,
+    beforeValue: unknown,
+    afterValue: unknown
+  ) => {
+    if (stringifyStable(beforeValue) === stringifyStable(afterValue)) return
+    items.push({ section, before: 'changed', after: 'changed' })
+  }
+
+  appendScalar('Version', before.version, after.version)
+  appendScalar('Name', before.name, after.name)
+  appendScalar(
+    'Effective Start Timestamp',
+    before.effective_start,
+    after.effective_start
+  )
+  appendScalar(
+    'Effective End Timestamp',
+    before.effective_end,
+    after.effective_end
+  )
+  appendScalar(
+    'Settlement Cycle',
+    before.settlement_config?.cycle,
+    after.settlement_config?.cycle
+  )
+  appendScalar(
+    'Freeze Days',
+    before.settlement_config?.freeze_days,
+    after.settlement_config?.freeze_days
+  )
+  appendScalar(
+    'Minimum Settlement Amount (cents)',
+    before.settlement_config?.min_settlement_amount_cents,
+    after.settlement_config?.min_settlement_amount_cents
+  )
+  appendScalar(
+    'Manual Review',
+    before.settlement_config?.manual_review_enabled,
+    after.settlement_config?.manual_review_enabled
+  )
+  appendJson(
+    'Commission Base Rules',
+    before.commission_rules,
+    after.commission_rules
+  )
+  appendJson(
+    'Commission Tiers',
+    before.commission_tiers,
+    after.commission_tiers
+  )
+  appendJson('KPI Tiers', before.kpi_tiers, after.kpi_tiers)
+  appendJson('Head Fee Rules', before.head_fee_rules, after.head_fee_rules)
+  appendJson('Quality Thresholds', before.risk_rules, after.risk_rules)
+
+  return items
 }
 
 function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftFormValues {

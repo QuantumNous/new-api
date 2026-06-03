@@ -49,14 +49,18 @@ import {
   buildAffiliateCommissionAdjustmentPayload,
   buildAffiliateCommissionRecomputePayload,
   buildAffiliateProfilePayload,
+  buildAffiliateRuleSetCopyDraftFormValues,
+  buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
+  buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetStatusPayload,
   buildAffiliateSettlementRunPayload,
   formatAffiliateCentsRMB,
   getAffiliateProfileLevelLabel,
   getAffiliateProfileStatusMeta,
   getAffiliateRuleSetStatusMeta,
+  parseAffiliateRuleSetImportJson,
   validateAffiliateCommissionAdjustmentPayload,
   validateAffiliateCommissionRecomputePayload,
   validateAffiliateRuleSetDraftPayload,
@@ -555,6 +559,7 @@ function RuleSetsTable(props: {
   isLoading: boolean
   isMutating: boolean
   onEdit: (ruleSet: AffiliateRuleSet) => void
+  onCopy: (ruleSet: AffiliateRuleSet) => void
   onStatusChange: (
     ruleSet: AffiliateRuleSet,
     action: 'publish' | 'archive'
@@ -646,6 +651,14 @@ function RuleSetsTable(props: {
                         >
                           {t('Edit')}
                         </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={props.isMutating}
+                          onClick={() => props.onCopy(ruleSet)}
+                        >
+                          {t('Copy Draft')}
+                        </Button>
                         {ruleSet.status === 'draft' && (
                           <Button
                             size='sm'
@@ -725,6 +738,7 @@ function RuleSetsTable(props: {
 
 function RuleSetDraftForm(props: {
   values: AffiliateRuleSetDraftFormValues
+  baselineValues: AffiliateRuleSetDraftFormValues
   setValues: (values: AffiliateRuleSetDraftFormValues) => void
   onSubmit: () => void
   onNew: () => void
@@ -732,11 +746,46 @@ function RuleSetDraftForm(props: {
 }) {
   const { t } = useTranslation()
   const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual')
+  const [transferText, setTransferText] = useState('')
+  const [transferError, setTransferError] = useState('')
+  let diffItems: Array<{ section: string; before: string; after: string }> = []
+  try {
+    diffItems = buildAffiliateRuleSetDiffPreview(
+      props.baselineValues,
+      props.values
+    )
+  } catch {
+    diffItems = []
+  }
   const update = (
     key: keyof AffiliateRuleSetDraftFormValues,
     value: string
   ) => {
     props.setValues({ ...props.values, [key]: value })
+  }
+  const handleExport = () => {
+    try {
+      setTransferText(buildAffiliateRuleSetExportJson(props.values))
+      setTransferError('')
+      toast.success(t('Rule draft exported'))
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t('Rule JSON is invalid')
+      setTransferError(message)
+      toast.error(message)
+    }
+  }
+  const handleImport = () => {
+    try {
+      props.setValues(parseAffiliateRuleSetImportJson(transferText))
+      setTransferError('')
+      toast.success(t('Rule draft imported'))
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t('Rule JSON is invalid')
+      setTransferError(message)
+      toast.error(message)
+    }
   }
 
   return (
@@ -996,6 +1045,66 @@ function RuleSetDraftForm(props: {
           )}
         </div>
 
+        <div className='grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]'>
+          <Field
+            label={t('Rule Import / Export JSON')}
+            htmlFor='affiliate-rule-transfer-json'
+          >
+            <Textarea
+              id='affiliate-rule-transfer-json'
+              className='min-h-32 font-mono text-xs'
+              value={transferText}
+              placeholder={t(
+                'Export the current draft or paste rule JSON to import'
+              )}
+              onChange={(event) => setTransferText(event.target.value)}
+            />
+            {transferError && (
+              <div className='text-destructive mt-1 text-xs'>
+                {transferError}
+              </div>
+            )}
+          </Field>
+          <div className='rounded-lg border p-3'>
+            <div className='font-medium'>{t('Rule Draft Diff Preview')}</div>
+            <div className='text-muted-foreground mt-1 text-xs'>
+              {t('Only changed draft sections are listed before saving')}
+            </div>
+            <div className='mt-3 max-h-48 overflow-auto'>
+              {diffItems.length === 0 ? (
+                <div className='text-muted-foreground text-sm'>
+                  {t('No draft changes detected')}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('Section')}</TableHead>
+                      <TableHead>{t('Before')}</TableHead>
+                      <TableHead>{t('After')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {diffItems.map((item) => (
+                      <TableRow key={item.section}>
+                        <TableCell>{t(item.section)}</TableCell>
+                        <TableCell className='text-muted-foreground'>
+                          {item.before === 'changed'
+                            ? t('Changed')
+                            : item.before}
+                        </TableCell>
+                        <TableCell>
+                          {item.after === 'changed' ? t('Changed') : item.after}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className='flex flex-wrap gap-2'>
           <Button disabled={props.isSaving} onClick={props.onSubmit}>
             {props.isSaving ? t('Saving') : t('Save Rule Draft')}
@@ -1006,6 +1115,20 @@ function RuleSetDraftForm(props: {
             onClick={props.onNew}
           >
             {t('New Default Draft')}
+          </Button>
+          <Button
+            variant='outline'
+            disabled={props.isSaving}
+            onClick={handleExport}
+          >
+            {t('Export Draft JSON')}
+          </Button>
+          <Button
+            variant='outline'
+            disabled={props.isSaving || !transferText.trim()}
+            onClick={handleImport}
+          >
+            {t('Import Draft JSON')}
           </Button>
         </div>
       </CardContent>
@@ -1465,6 +1588,10 @@ export function AffiliateAdmin() {
     useState<AffiliateRuleSetDraftFormValues>(
       buildAffiliateRuleSetDraftFormValues()
     )
+  const [ruleSetBaselineValues, setRuleSetBaselineValues] =
+    useState<AffiliateRuleSetDraftFormValues>(
+      buildAffiliateRuleSetDraftFormValues()
+    )
   const [ruleSetFilters, setRuleSetFilters] =
     useState<AffiliateRuleSetFilters>(EMPTY_RULE_FILTERS)
   const [draftRuleSetFilters, setDraftRuleSetFilters] =
@@ -1572,7 +1699,9 @@ export function AffiliateAdmin() {
         return
       }
       toast.success(t('Affiliate rule set draft saved'))
-      setRuleSetFormValues(buildAffiliateRuleSetDraftFormValues(result.data))
+      const nextValues = buildAffiliateRuleSetDraftFormValues(result.data)
+      setRuleSetFormValues(nextValues)
+      setRuleSetBaselineValues(nextValues)
       setRuleSetPage(1)
       await ruleSetsQuery.refetch()
     },
@@ -1599,7 +1728,9 @@ export function AffiliateAdmin() {
         return
       }
       toast.success(t('Affiliate rule set updated'))
-      setRuleSetFormValues(buildAffiliateRuleSetDraftFormValues(result.data))
+      const nextValues = buildAffiliateRuleSetDraftFormValues(result.data)
+      setRuleSetFormValues(nextValues)
+      setRuleSetBaselineValues(nextValues)
       await ruleSetsQuery.refetch()
     },
     onError: () => toast.error(t('Failed to update affiliate rule set')),
@@ -1758,7 +1889,14 @@ export function AffiliateAdmin() {
   }
 
   const newRuleSetDraft = () => {
-    setRuleSetFormValues(buildAffiliateRuleSetDraftFormValues())
+    const nextValues = buildAffiliateRuleSetDraftFormValues()
+    setRuleSetFormValues(nextValues)
+    setRuleSetBaselineValues(nextValues)
+  }
+
+  const copyRuleSetDraft = (ruleSet: AffiliateRuleSet) => {
+    setRuleSetFormValues(buildAffiliateRuleSetCopyDraftFormValues(ruleSet))
+    setRuleSetBaselineValues(buildAffiliateRuleSetDraftFormValues(ruleSet))
   }
 
   return (
@@ -1821,11 +1959,12 @@ export function AffiliateAdmin() {
             pageSize={ruleSetPageSize}
             isLoading={ruleSetsQuery.isLoading || ruleSetsQuery.isFetching}
             isMutating={ruleSetStatusMutation.isPending}
-            onEdit={(ruleSet) =>
-              setRuleSetFormValues(
-                buildAffiliateRuleSetDraftFormValues(ruleSet)
-              )
-            }
+            onEdit={(ruleSet) => {
+              const nextValues = buildAffiliateRuleSetDraftFormValues(ruleSet)
+              setRuleSetFormValues(nextValues)
+              setRuleSetBaselineValues(nextValues)
+            }}
+            onCopy={copyRuleSetDraft}
             onStatusChange={(ruleSet, action) =>
               ruleSetStatusMutation.mutate({ ruleSet, action })
             }
@@ -1837,6 +1976,7 @@ export function AffiliateAdmin() {
           />
           <RuleSetDraftForm
             values={ruleSetFormValues}
+            baselineValues={ruleSetBaselineValues}
             setValues={setRuleSetFormValues}
             isSaving={saveRuleSetMutation.isPending}
             onSubmit={handleSaveRuleSet}

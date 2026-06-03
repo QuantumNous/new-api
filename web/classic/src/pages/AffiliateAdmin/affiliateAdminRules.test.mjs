@@ -3,10 +3,14 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
+  buildAffiliateRuleSetCopyDraftFormValues,
+  buildAffiliateRuleSetDiffPreview,
+  buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetStatusPayload,
   formatAffiliateBpsPercent,
   getAffiliateRuleSetStatusMeta,
+  parseAffiliateRuleSetImportJson,
   validateAffiliateRuleSetDraftPayload,
 } from './affiliateAdminRules.js';
 
@@ -195,6 +199,114 @@ describe('affiliate admin rule set helpers', () => {
     });
 
     expect(payload.settlement_config.min_settlement_amount_cents).toBe(8888);
+  });
+
+  test('exports and imports reusable rule set drafts without operation fields', () => {
+    const exportJson = buildAffiliateRuleSetExportJson({
+      id: 9,
+      version: ' rules-2026-08 ',
+      name: ' Native Affiliate ',
+      reason: ' should not leak ',
+      settlement_cycle: 'monthly',
+      freeze_days: 7,
+      min_settlement_amount_yuan: 88.88,
+      manual_review_enabled: true,
+      commission_rules_json: JSON.stringify([{ affiliate_level: 1 }]),
+      commission_tiers_json: JSON.stringify([{ affiliate_level: 1 }]),
+      kpi_tiers_json: JSON.stringify([{ code: 'base' }]),
+      head_fee_rules_json: JSON.stringify([{ kpi_tier_code: 'base' }]),
+      risk_rules_json: JSON.stringify([{ code: 'default' }]),
+    });
+    const exported = JSON.parse(exportJson);
+
+    expect(exported.id).toBeUndefined();
+    expect(exported.reason).toBeUndefined();
+    expect(exported.version).toBe('rules-2026-08');
+    expect(exported.settlement_config.min_settlement_amount_cents).toBe(8888);
+    expect(exported.commission_rules).toEqual([{ affiliate_level: 1 }]);
+
+    const imported = parseAffiliateRuleSetImportJson(
+      JSON.stringify({
+        ...exported,
+        id: 99,
+        reason: 'import should ignore this',
+      }),
+    );
+
+    expect(imported.id).toBe(0);
+    expect(imported.reason).toBe('');
+    expect(imported.version).toBe('rules-2026-08');
+    expect(imported.min_settlement_amount_yuan).toBe(88.88);
+    expect(JSON.parse(imported.commission_rules_json)).toEqual([
+      { affiliate_level: 1 },
+    ]);
+  });
+
+  test('copies previous rule sets as a new clean draft', () => {
+    const copied = buildAffiliateRuleSetCopyDraftFormValues({
+      id: 5,
+      version: 'rules-2026-07',
+      name: 'July Rules',
+      status: 'published',
+      effective_start: 1000,
+      effective_end: 2000,
+      published_at: 1100,
+      config_snapshot: JSON.stringify({
+        settlement_config: {
+          cycle: 'monthly',
+          freeze_days: 7,
+          min_settlement_amount_cents: 10000,
+          manual_review_enabled: true,
+        },
+        commission_rules: [{ affiliate_level: 1, default_cap_rate_bps: 3000 }],
+      }),
+    });
+
+    expect(copied.id).toBe(0);
+    expect(copied.version).toBe('rules-2026-07-copy');
+    expect(copied.reason).toBe('');
+    expect(JSON.parse(copied.commission_rules_json)).toEqual([
+      { affiliate_level: 1, default_cap_rate_bps: 3000 },
+    ]);
+  });
+
+  test('builds concise diff previews for changed draft sections only', () => {
+    const before = buildAffiliateRuleSetDraftFormValues({
+      id: 5,
+      version: 'rules-2026-07',
+      name: 'July Rules',
+      status: 'draft',
+      effective_start: 1000,
+      effective_end: 2000,
+      published_at: 0,
+      config_snapshot: JSON.stringify({
+        settlement_config: {
+          cycle: 'monthly',
+          freeze_days: 7,
+          min_settlement_amount_cents: 10000,
+          manual_review_enabled: true,
+        },
+        commission_tiers: [{ affiliate_level: 1, base_rate_bps: 2000 }],
+      }),
+    });
+    const after = {
+      ...before,
+      version: 'rules-2026-08',
+      freeze_days: 14,
+      commission_tiers_json: JSON.stringify([
+        { affiliate_level: 1, base_rate_bps: 1800 },
+      ]),
+    };
+
+    expect(buildAffiliateRuleSetDiffPreview(before, after)).toEqual([
+      {
+        section: 'Version',
+        before: 'rules-2026-07',
+        after: 'rules-2026-08',
+      },
+      { section: 'Freeze Days', before: '7', after: '14' },
+      { section: 'Commission Tiers', before: 'changed', after: 'changed' },
+    ]);
   });
 
   test('provides editable default seed values for new drafts', () => {

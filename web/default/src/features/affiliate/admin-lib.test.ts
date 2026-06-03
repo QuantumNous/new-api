@@ -6,8 +6,12 @@ import {
   buildAffiliateCommissionsQuery,
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
+  buildAffiliateRuleSetCopyDraftFormValues,
+  buildAffiliateRuleSetDiffPreview,
+  buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetStatusPayload,
+  parseAffiliateRuleSetImportJson,
   buildAffiliateSettlementRunPayload,
   buildAffiliateSettlementsQuery,
   buildAffiliateProfilePayload,
@@ -317,6 +321,114 @@ describe('default affiliate admin rule set helpers', () => {
     })
 
     assert.equal(payload.settlement_config?.min_settlement_amount_cents, 8888)
+  })
+
+  test('exports and imports reusable rule set drafts without operation fields', () => {
+    const exportJson = buildAffiliateRuleSetExportJson({
+      id: '9',
+      version: ' rules-2026-08 ',
+      name: ' Native Affiliate ',
+      reason: ' should not leak ',
+      settlementCycle: 'monthly',
+      freezeDays: '7',
+      minSettlementAmountYuan: '88.88',
+      manualReviewEnabled: true,
+      commissionRulesJson: JSON.stringify([{ affiliate_level: 1 }]),
+      commissionTiersJson: JSON.stringify([{ affiliate_level: 1 }]),
+      kpiTiersJson: JSON.stringify([{ code: 'base' }]),
+      headFeeRulesJson: JSON.stringify([{ kpi_tier_code: 'base' }]),
+      riskRulesJson: JSON.stringify([{ code: 'default' }]),
+    })
+    const exported = JSON.parse(exportJson)
+
+    assert.equal(exported.id, undefined)
+    assert.equal(exported.reason, undefined)
+    assert.equal(exported.version, 'rules-2026-08')
+    assert.equal(exported.settlement_config.min_settlement_amount_cents, 8888)
+    assert.deepEqual(exported.commission_rules, [{ affiliate_level: 1 }])
+
+    const imported = parseAffiliateRuleSetImportJson(
+      JSON.stringify({
+        ...exported,
+        id: 99,
+        reason: 'import should ignore this',
+      })
+    )
+
+    assert.equal(imported.id, '')
+    assert.equal(imported.reason, '')
+    assert.equal(imported.version, 'rules-2026-08')
+    assert.equal(imported.minSettlementAmountYuan, '88.88')
+    assert.deepEqual(JSON.parse(imported.commissionRulesJson || '[]'), [
+      { affiliate_level: 1 },
+    ])
+  })
+
+  test('copies previous rule sets as a new clean draft', () => {
+    const copied = buildAffiliateRuleSetCopyDraftFormValues({
+      id: 5,
+      version: 'rules-2026-07',
+      name: 'July Rules',
+      status: 'published',
+      effective_start: 1000,
+      effective_end: 2000,
+      published_at: 1100,
+      config_snapshot: JSON.stringify({
+        settlement_config: {
+          cycle: 'monthly',
+          freeze_days: 7,
+          min_settlement_amount_cents: 10000,
+          manual_review_enabled: true,
+        },
+        commission_rules: [{ affiliate_level: 1, default_cap_rate_bps: 3000 }],
+      }),
+    })
+
+    assert.equal(copied.id, '')
+    assert.equal(copied.version, 'rules-2026-07-copy')
+    assert.equal(copied.reason, '')
+    assert.deepEqual(JSON.parse(copied.commissionRulesJson || '[]'), [
+      { affiliate_level: 1, default_cap_rate_bps: 3000 },
+    ])
+  })
+
+  test('builds concise diff previews for changed draft sections only', () => {
+    const before = buildAffiliateRuleSetDraftFormValues({
+      id: 5,
+      version: 'rules-2026-07',
+      name: 'July Rules',
+      status: 'draft',
+      effective_start: 1000,
+      effective_end: 2000,
+      published_at: 0,
+      config_snapshot: JSON.stringify({
+        settlement_config: {
+          cycle: 'monthly',
+          freeze_days: 7,
+          min_settlement_amount_cents: 10000,
+          manual_review_enabled: true,
+        },
+        commission_tiers: [{ affiliate_level: 1, base_rate_bps: 2000 }],
+      }),
+    })
+    const after = {
+      ...before,
+      version: 'rules-2026-08',
+      freezeDays: '14',
+      commissionTiersJson: JSON.stringify([
+        { affiliate_level: 1, base_rate_bps: 1800 },
+      ]),
+    }
+
+    assert.deepEqual(buildAffiliateRuleSetDiffPreview(before, after), [
+      {
+        section: 'Version',
+        before: 'rules-2026-07',
+        after: 'rules-2026-08',
+      },
+      { section: 'Freeze Days', before: '7', after: '14' },
+      { section: 'Commission Tiers', before: 'changed', after: 'changed' },
+    ])
   })
 
   test('validates rule set payloads before saving drafts', () => {

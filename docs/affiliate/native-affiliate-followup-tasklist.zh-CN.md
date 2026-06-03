@@ -79,8 +79,8 @@
 - [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
 - [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。（2026-06-04 审计：周期、冻结天数、最低结算金额和人工复核开关已覆盖；自动结算开关与备注尚未模型化。）
 - [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
-- [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。
-- [ ] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。
+- [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。（2026-06-04 已完成保存草稿前 diff 预览；发布/归档/回滚/覆盖保存二次确认仍待做。）
+- [ ] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。（2026-06-04 已完成 default/classic 复制上一版本、导入/导出 JSON、diff 面板和保留高级 JSON；只读查看已发布版本仍待做。）
 - [x] default 与 classic 需要保持功能 parity，但视觉可以遵循各自设计系统。
 
 ## 7. Feishu 业务口径复核与种子规则
@@ -156,7 +156,7 @@
 - [x] P0：修复 scoped 使用日志和 CSV 导出的 channel/token 泄漏风险，先 TDD，再实现。
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
-- [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
+- [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览和复制上一版本。启停字段、风控动作、自动结算等后端未模型化字段仍按第 6 节单项任务保留。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；可恢复 cursor、单独 generate endpoint run record 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
@@ -363,3 +363,17 @@
 - 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestAdminSettlementLifecycleGenerateFreezePay"` 通过；`git diff --check` 通过。
 - 残留风险：gift-only、abnormal 和 second-payment 质量比例目前仍使用 existing KPI 统计语义，未单独切换为“总 invitee 数”或“全 team user 数”分母；如果飞书最终口径要求不同，需要另开 TDD 任务调整分母并重验 KPI tier 降档。
 - 下一步：继续规则 import/export/diff/copy previous version，或做 `affiliate_job_runs` 可恢复 cursor/progress。
+
+## P1-16 规则导入导出、diff 与复制上一版本复盘（2026-06-04 本线程）
+
+- RED：先在 default `admin-lib.test.ts` 和 classic `affiliateAdminRules.test.mjs` 增加导出、导入、复制上一版本和 diff 预览测试；旧实现因 `buildAffiliateRuleSetDiffPreview` 等 helper 未导出失败，确认测试覆盖新增能力而不是既有行为。
+- 完成内容：default/classic 均新增规则草稿导出 JSON、导入 JSON、复制上一版本和稳定 JSON diff helper。导出会先走现有 draft payload 归一化并移除 `id`、`reason` 等操作字段；导入会清理 `id`、`reason`，保留版本、名称、结算配置和五类规则 JSON；复制上一版本会清空 ID/原因并给版本追加 `-copy`。
+- 完成内容：default 管理页在规则集列表增加行级 `Copy Draft`，规则草稿表单增加 `Rule Import / Export JSON`、`Rule Draft Diff Preview`、`Export Draft JSON` 和 `Import Draft JSON`。diff 面板基于选中版本 baseline 与当前草稿对比，并对半截 JSON 输入容错，避免渲染期抛错。
+- 完成内容：classic 管理页保持 Semi Design 风格，规则集列表增加“复制草稿”，表单增加“规则导入 / 导出 JSON”“规则草稿差异预览”“导出 JSON”“导入 JSON”“预览变更”。classic 通过 Form API 获取当前草稿值，避免导入导出文本进入保存 payload。
+- i18n/技能：本轮使用 `classic-to-default-sync`、`i18n-translate` 和 `shadcn-ui` 约束；`cd web/default && bun run i18n:sync` 后 en/fr/ja/ru/vi/zh 的 missing/extras/untranslated 均为 0，未产生 locale 文件 diff。
+- 验证命令：RED 阶段 `cd web/default && bun test src/features/affiliate/admin-lib.test.ts` 与 `bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 均因 helper 未导出失败；GREEN 后 default 18 pass、classic 10 pass。
+- 回归验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 浏览器验证：in-app Browser 未登录打开 `http://127.0.0.1:5173/affiliate/admin` 跳转 `/sign-in?redirect=%2Faffiliate%2Fadmin`，default console warning/error 为 0；未登录打开 `http://127.0.0.1:5174/console/affiliate/admin` 跳转 `/login?expired=true`，console 只出现登录过期提示。
+- 脱敏登录 smoke：临时 `/tmp` Playwright 脚本读取 `.codex-local/affiliate-test-accounts.secret.json` 的 `super_admin` 但不输出账号、密码、cookie 或响应体。登录后 default 与 classic 的导入/导出/diff 面板均可见；当前本地规则集列表接口 `total=0`，因此行级复制按钮无数据行可渲染，复制行为由 helper 测试覆盖。classic 页面仍有 2 条既有 React DOM prop warning（`rangeSeparatorNode`、`iconOnly`），与本轮分销规则面板无直接关系。
+- 残留风险：本轮没有实现已发布版本只读查看、发布/归档/回滚二次确认，也没有新增后端未模型化字段（佣金启停、人头费启停、风控动作、自动结算开关、备注）。当前 diff 对规则数组只给出 section changed，不做逐字段明细 diff；后续如运营需要发布审批，可升级为字段级 diff 和确认弹窗。
+- 下一步：优先在规则管理上补发布/归档二次确认与已发布版本只读查看，或继续推进 `affiliate_job_runs` 可恢复 cursor/progress 和外部结算周期 dry-run/正式 run 双跑。

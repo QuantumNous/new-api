@@ -32,6 +32,19 @@ const yuanToCents = (value) => {
 
 const stringifyPretty = (value) => JSON.stringify(value || [], null, 2);
 
+const stringifyStable = (value) => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stringifyStable(item)).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stringifyStable(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
 function parseJsonArray(label, value) {
   if (Array.isArray(value)) {
     return value;
@@ -161,6 +174,129 @@ export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
     head_fee_rules_json: stringifyPretty(snapshot.head_fee_rules),
     risk_rules_json: stringifyPretty(snapshot.risk_rules),
   };
+}
+
+export function buildAffiliateRuleSetCopyDraftFormValues(ruleSet = null) {
+  const values = buildAffiliateRuleSetDraftFormValues(ruleSet);
+  return {
+    ...values,
+    id: 0,
+    version: values.version ? `${values.version}-copy` : '',
+    reason: '',
+  };
+}
+
+export function buildAffiliateRuleSetExportJson(values = {}) {
+  const {
+    id: _id,
+    reason: _reason,
+    ...exportable
+  } = buildAffiliateRuleSetDraftPayload(values);
+  return JSON.stringify(exportable, null, 2);
+}
+
+export function parseAffiliateRuleSetImportJson(value = '') {
+  const parsed = JSON.parse(String(value || '').trim());
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('规则集导入 JSON 必须是对象');
+  }
+  const settlementConfig =
+    parsed.settlement_config && typeof parsed.settlement_config === 'object'
+      ? parsed.settlement_config
+      : {};
+
+  return {
+    id: 0,
+    version: String(parsed.version || '').trim(),
+    name: String(parsed.name || '').trim(),
+    effective_start: normalizeInteger(parsed.effective_start),
+    effective_end: normalizeInteger(parsed.effective_end),
+    reason: '',
+    settlement_cycle: String(settlementConfig.cycle || '').trim(),
+    freeze_days: normalizeInteger(settlementConfig.freeze_days),
+    min_settlement_amount_cents: normalizeInteger(
+      settlementConfig.min_settlement_amount_cents,
+    ),
+    min_settlement_amount_yuan: centsToYuan(
+      settlementConfig.min_settlement_amount_cents,
+    ),
+    manual_review_enabled: normalizeBoolean(
+      settlementConfig.manual_review_enabled,
+    ),
+    commission_rules_json: stringifyPretty(parsed.commission_rules),
+    commission_tiers_json: stringifyPretty(parsed.commission_tiers),
+    kpi_tiers_json: stringifyPretty(parsed.kpi_tiers),
+    head_fee_rules_json: stringifyPretty(parsed.head_fee_rules),
+    risk_rules_json: stringifyPretty(parsed.risk_rules),
+  };
+}
+
+export function buildAffiliateRuleSetDiffPreview(
+  beforeValues = {},
+  afterValues = {},
+) {
+  const before = buildAffiliateRuleSetDraftPayload(beforeValues);
+  const after = buildAffiliateRuleSetDraftPayload(afterValues);
+  const items = [];
+
+  const appendScalar = (section, beforeValue, afterValue) => {
+    const beforeText = String(beforeValue ?? '');
+    const afterText = String(afterValue ?? '');
+    if (beforeText === afterText) return;
+    items.push({ section, before: beforeText, after: afterText });
+  };
+  const appendJson = (section, beforeValue, afterValue) => {
+    if (stringifyStable(beforeValue) === stringifyStable(afterValue)) return;
+    items.push({ section, before: 'changed', after: 'changed' });
+  };
+
+  appendScalar('Version', before.version, after.version);
+  appendScalar('Name', before.name, after.name);
+  appendScalar(
+    'Effective Start Timestamp',
+    before.effective_start,
+    after.effective_start,
+  );
+  appendScalar(
+    'Effective End Timestamp',
+    before.effective_end,
+    after.effective_end,
+  );
+  appendScalar(
+    'Settlement Cycle',
+    before.settlement_config?.cycle,
+    after.settlement_config?.cycle,
+  );
+  appendScalar(
+    'Freeze Days',
+    before.settlement_config?.freeze_days,
+    after.settlement_config?.freeze_days,
+  );
+  appendScalar(
+    'Minimum Settlement Amount (cents)',
+    before.settlement_config?.min_settlement_amount_cents,
+    after.settlement_config?.min_settlement_amount_cents,
+  );
+  appendScalar(
+    'Manual Review',
+    before.settlement_config?.manual_review_enabled,
+    after.settlement_config?.manual_review_enabled,
+  );
+  appendJson(
+    'Commission Base Rules',
+    before.commission_rules,
+    after.commission_rules,
+  );
+  appendJson(
+    'Commission Tiers',
+    before.commission_tiers,
+    after.commission_tiers,
+  );
+  appendJson('KPI Tiers', before.kpi_tiers, after.kpi_tiers);
+  appendJson('Head Fee Rules', before.head_fee_rules, after.head_fee_rules);
+  appendJson('Quality Thresholds', before.risk_rules, after.risk_rules);
+
+  return items;
 }
 
 function buildAffiliateRuleSetDefaultSeedFormValues() {

@@ -26,6 +26,7 @@ import {
   Space,
   Table,
   Tag,
+  TextArea,
   Typography,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -49,9 +50,13 @@ import {
 import {
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
+  buildAffiliateRuleSetCopyDraftFormValues,
+  buildAffiliateRuleSetDiffPreview,
+  buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetStatusPayload,
   getAffiliateRuleSetStatusMeta,
+  parseAffiliateRuleSetImportJson,
   validateAffiliateRuleSetDraftPayload,
 } from './affiliateAdminRules';
 import { RuleLevelGroupedEditor } from './RuleArrayEditor';
@@ -83,6 +88,15 @@ const AffiliateAdmin = () => {
   const [ruleSetFormKey, setRuleSetFormKey] = useState(0);
   const [ruleSetDraftFormApi, setRuleSetDraftFormApi] = useState(null);
   const [ruleEditorMode, setRuleEditorMode] = useState('visual');
+  const [ruleSetInitialValues, setRuleSetInitialValues] = useState(() =>
+    buildAffiliateRuleSetDraftFormValues(),
+  );
+  const [ruleSetBaselineValues, setRuleSetBaselineValues] = useState(() =>
+    buildAffiliateRuleSetDraftFormValues(),
+  );
+  const [ruleSetTransferText, setRuleSetTransferText] = useState('');
+  const [ruleSetTransferError, setRuleSetTransferError] = useState('');
+  const [ruleSetDiffPreview, setRuleSetDiffPreview] = useState([]);
 
   const loadProfiles = async (
     nextPage = page,
@@ -313,15 +327,80 @@ const AffiliateAdmin = () => {
   };
 
   const handleRuleSetSelect = (record) => {
+    const nextValues = buildAffiliateRuleSetDraftFormValues(record);
     setSelectedRuleSet(record);
+    setRuleSetInitialValues(nextValues);
+    setRuleSetBaselineValues(nextValues);
+    setRuleSetDiffPreview([]);
     setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
   };
 
   const handleRuleSetNew = () => {
+    const nextValues = buildAffiliateRuleSetDraftFormValues();
     setSelectedRuleSet(null);
+    setRuleSetInitialValues(nextValues);
+    setRuleSetBaselineValues(nextValues);
+    setRuleSetDiffPreview([]);
     setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
+  };
+
+  const handleRuleSetCopy = (record) => {
+    setSelectedRuleSet(null);
+    setRuleSetInitialValues(buildAffiliateRuleSetCopyDraftFormValues(record));
+    setRuleSetBaselineValues(buildAffiliateRuleSetDraftFormValues(record));
+    setRuleSetDiffPreview([]);
+    setRuleEditorMode('visual');
+    setRuleSetFormKey((value) => value + 1);
+  };
+
+  const getRuleSetFormValues = () =>
+    ruleSetDraftFormApi?.getValues?.() || ruleSetInitialValues;
+
+  const handleRuleSetExport = () => {
+    try {
+      setRuleSetTransferText(
+        buildAffiliateRuleSetExportJson(getRuleSetFormValues()),
+      );
+      setRuleSetTransferError('');
+      showSuccess(t('规则草稿 JSON 已导出'));
+    } catch (error) {
+      const message = error.message || t('规则 JSON 格式错误');
+      setRuleSetTransferError(message);
+      showError(message);
+    }
+  };
+
+  const handleRuleSetImport = () => {
+    try {
+      const imported = parseAffiliateRuleSetImportJson(ruleSetTransferText);
+      setSelectedRuleSet(null);
+      setRuleSetInitialValues(imported);
+      ruleSetDraftFormApi?.setValues?.(imported);
+      setRuleSetDiffPreview(
+        buildAffiliateRuleSetDiffPreview(ruleSetBaselineValues, imported),
+      );
+      setRuleSetTransferError('');
+      showSuccess(t('规则草稿 JSON 已导入'));
+    } catch (error) {
+      const message = error.message || t('规则 JSON 格式错误');
+      setRuleSetTransferError(message);
+      showError(message);
+    }
+  };
+
+  const handleRuleSetDiffPreview = () => {
+    try {
+      setRuleSetDiffPreview(
+        buildAffiliateRuleSetDiffPreview(
+          ruleSetBaselineValues,
+          getRuleSetFormValues(),
+        ),
+      );
+    } catch (error) {
+      showError(error.message || t('规则 JSON 格式错误'));
+    }
   };
 
   const handleRuleSetDraftSubmit = async (values) => {
@@ -351,7 +430,11 @@ const AffiliateAdmin = () => {
         return;
       }
       showSuccess(t('规则集草稿已保存'));
+      const nextValues = buildAffiliateRuleSetDraftFormValues(data || null);
       setSelectedRuleSet(data || null);
+      setRuleSetInitialValues(nextValues);
+      setRuleSetBaselineValues(nextValues);
+      setRuleSetDiffPreview([]);
       setRuleSetFormKey((value) => value + 1);
       await loadRuleSets(1, ruleSetPageSize, ruleSetFilters);
     } catch (error) {
@@ -380,7 +463,12 @@ const AffiliateAdmin = () => {
         return;
       }
       showSuccess(t('规则集状态已更新'));
-      setSelectedRuleSet(data || record);
+      const nextRuleSet = data || record;
+      const nextValues = buildAffiliateRuleSetDraftFormValues(nextRuleSet);
+      setSelectedRuleSet(nextRuleSet);
+      setRuleSetInitialValues(nextValues);
+      setRuleSetBaselineValues(nextValues);
+      setRuleSetDiffPreview([]);
       setRuleSetFormKey((value) => value + 1);
       await loadRuleSets(ruleSetPage, ruleSetPageSize, ruleSetFilters);
     } catch (error) {
@@ -521,7 +609,7 @@ const AffiliateAdmin = () => {
         title: t('操作'),
         dataIndex: 'operate',
         fixed: 'right',
-        width: 220,
+        width: 300,
         render: (_, record) => (
           <Space>
             <Button
@@ -531,6 +619,14 @@ const AffiliateAdmin = () => {
               onClick={() => handleRuleSetSelect(record)}
             >
               {t('编辑')}
+            </Button>
+            <Button
+              size='small'
+              type='tertiary'
+              theme='outline'
+              onClick={() => handleRuleSetCopy(record)}
+            >
+              {t('复制草稿')}
             </Button>
             {record.status === 'draft' && (
               <Button
@@ -693,7 +789,7 @@ const AffiliateAdmin = () => {
             key={`${selectedRuleSet?.id || 'new'}-${ruleSetFormKey}`}
             className='mt-3'
             layout='vertical'
-            initValues={buildAffiliateRuleSetDraftFormValues(selectedRuleSet)}
+            initValues={ruleSetInitialValues}
             getFormApi={(api) => setRuleSetDraftFormApi(api)}
             onSubmit={handleRuleSetDraftSubmit}
           >
@@ -728,6 +824,71 @@ const AffiliateAdmin = () => {
                 field='manual_review_enabled'
                 label={t('人工审核')}
               />
+            </div>
+            <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-3 mt-4'>
+              <div>
+                <Text strong>{t('规则导入 / 导出 JSON')}</Text>
+                <TextArea
+                  className='mt-2'
+                  autosize={{ minRows: 5, maxRows: 12 }}
+                  value={ruleSetTransferText}
+                  placeholder={t('可导出当前草稿，或粘贴规则 JSON 后导入')}
+                  onChange={setRuleSetTransferText}
+                />
+                {ruleSetTransferError && (
+                  <Text className='mt-1 block' type='danger'>
+                    {ruleSetTransferError}
+                  </Text>
+                )}
+              </div>
+              <div className='rounded-lg border p-3'>
+                <Text strong>{t('规则草稿差异预览')}</Text>
+                <div>
+                  <Text type='secondary'>
+                    {t('保存前可预览相对当前选中版本的变更。')}
+                  </Text>
+                </div>
+                <div className='mt-3 max-h-48 overflow-auto'>
+                  {ruleSetDiffPreview.length === 0 ? (
+                    <Text type='secondary'>{t('暂无草稿变更')}</Text>
+                  ) : (
+                    <table className='min-w-full border-collapse text-sm'>
+                      <thead className='bg-semi-color-fill-0'>
+                        <tr>
+                          <th className='border-b px-3 py-2 text-left'>
+                            {t('Section')}
+                          </th>
+                          <th className='border-b px-3 py-2 text-left'>
+                            {t('Before')}
+                          </th>
+                          <th className='border-b px-3 py-2 text-left'>
+                            {t('After')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ruleSetDiffPreview.map((item) => (
+                          <tr key={item.section}>
+                            <td className='border-b px-3 py-2'>
+                              {t(item.section)}
+                            </td>
+                            <td className='border-b px-3 py-2'>
+                              {item.before === 'changed'
+                                ? t('Changed')
+                                : item.before}
+                            </td>
+                            <td className='border-b px-3 py-2'>
+                              {item.after === 'changed'
+                                ? t('Changed')
+                                : item.after}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
             </div>
             <div className='flex flex-col gap-3 mt-2'>
               <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-2'>
@@ -840,6 +1001,28 @@ const AffiliateAdmin = () => {
               <Text type='secondary'>
                 {t('保存后可在上方列表发布或归档规则集。')}
               </Text>
+              <Button
+                htmlType='button'
+                type='tertiary'
+                onClick={handleRuleSetExport}
+              >
+                {t('导出 JSON')}
+              </Button>
+              <Button
+                htmlType='button'
+                type='tertiary'
+                disabled={!ruleSetTransferText.trim()}
+                onClick={handleRuleSetImport}
+              >
+                {t('导入 JSON')}
+              </Button>
+              <Button
+                htmlType='button'
+                type='tertiary'
+                onClick={handleRuleSetDiffPreview}
+              >
+                {t('预览变更')}
+              </Button>
             </Space>
           </Form>
         </div>
