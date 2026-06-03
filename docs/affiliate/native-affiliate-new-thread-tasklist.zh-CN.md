@@ -41,13 +41,13 @@
 - [x] 解除本地 Docker daemon 阻塞；2026-06-02 用户提示另一线程已构建 `new-api-rain021217`，旧线程按容器名、Compose project label、`docker compose -p new-api-rain021217 ps --all` 均超时，`docker ps -a`、`docker image ls`、`docker compose -f docker-compose.dev.yml ps --all` 均在 15s 超时无输出，`curl --unix-socket /var/run/docker.sock http://localhost/_ping` 也超时；本线程先按规则执行 `timeout 15s docker version`，超时且只返回 client 信息。用户随后要求 Phase 1/1A/2 优先并允许更长等待，本线程复跑 `timeout 60s docker version` 仍超时且只返回 client 信息。用户在 Windows 侧修复 Docker 后，本线程重跑 preflight 成功：`docker version` 返回 server Docker Desktop 4.76.0 / engine 29.5.2，`docker info --format '{{.ServerVersion}} {{.Name}}'` 返回 `29.5.2 docker-desktop`，`docker compose version` 返回 v5.1.4。
 - [x] 2026-06-03 用户切换网络后重新执行一次 Docker preflight：`timeout 60s docker version`、`timeout 60s docker info --format '{{.ServerVersion}} {{.Name}}'`、`timeout 60s docker compose version`、`timeout 60s docker ps --filter 'name=new-api'` 均在 timeout 内成功；目标容器 `new-api`、`new-api-postgres`、`new-api-redis` 均为 running。
 - [x] Docker 阻塞非 Docker 诊断：`/var/run/docker.sock` 存在，权限为 `root:docker` `660`，当前用户 `rain` 已在 `docker` 组；进程列表可见 Docker Desktop WSL proxy，但 daemon/server 仍未响应 `docker version`。
-- [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仓库未发现可直接使用的服务器连接 runbook。
+- [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仍需用户/运维提供真实入口，执行步骤和脱敏证据标准见 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`。
 - [x] 确认本机 `psql`、`pg_dump`、`pg_restore` 16.14 可用，本机 PostgreSQL service 未运行，符合优先使用 Docker PostgreSQL 隔离库的路径。
 - [x] 因服务器 PostgreSQL 为 18.4，按 PostgreSQL 官方 PGDG APT 源安装 `postgresql-client-18`，使用 `/usr/lib/postgresql/18/bin/pg_dump` / `pg_restore` 18.4 作为快照工具。
 - [x] 新增无密钥快照下载、Docker PostgreSQL 恢复、核心表行数采集 runbook 和脚本。
 - [x] Docker Desktop WSL 集成修复后重跑 `docker version`、`docker info`、`docker ps`，再执行本地隔离库恢复；2026-06-02 已确认 `new-api`、`new-api-postgres`、`new-api-redis` 运行。
-- [ ] 确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名。
-- [ ] 在服务器 compose 网络内执行 `pg_dump --format=custom --no-owner --no-privileges`。
+- [ ] 确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；不得把真实服务器地址、容器名或凭据写入仓库。
+- [ ] 在服务器 compose 网络内执行 `pg_dump --format=custom --no-owner --no-privileges`；命令模板和本地 sha256/`pg_restore --list` 验收步骤见 external acceptance runbook。
 - [x] 在 SSH 未授权但临时生产 PostgreSQL 端点可连的情况下，通过静默 stdin 读取临时 DSN，并用本机 PGDG `pg_dump` 18.4 直连下载最新快照；未把 DSN 写入 shell history、文件、commit 或报告。
 - [x] 下载到本地 runtime 目录：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`。
 - [x] 计算 dump sha256，并从仓库根目录执行 `sha256sum -c runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump.sha256` 校验通过。
@@ -604,10 +604,11 @@
 - [x] schema impact 报告无非预期官方表改动；见 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`。
 - [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke、classic browser smoke、default `/affiliate` browser smoke 和 Phase 9 RMB 页面核对，未输出用户名、密码、cookie 或 token。
 - [x] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期；当前完成范围为 classic/default JSON 规则区块，运营友好的动态表格仍待后续。
-- [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke。
-- [ ] 外接控制台与原生模块双跑一个完整结算周期。
-- [ ] 灰度启用分销入口。
-- [ ] 外接控制台只读归档。
+- [x] 新增外部验收 runbook，覆盖服务器内 pg_dump、SMS 真通道、完整结算周期双跑、灰度启用和外接控制台只读归档的无密钥执行步骤、证据标准和回滚口径。
+- [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke；真实通道执行步骤见 external acceptance runbook。
+- [ ] 外接控制台与原生模块双跑一个完整结算周期；对比维度、差异归因和证据标准见 external acceptance runbook。
+- [ ] 灰度启用分销入口；灰度范围、检查项和回滚方式见 external acceptance runbook。
+- [ ] 外接控制台只读归档；归档前置条件和验收证据见 external acceptance runbook。
 
 ### Phase 12 Go 测试基线复盘（2026-06-03 本线程）
 
@@ -629,6 +630,13 @@
 - 验证方式：`bun test web/classic/src/pages/Affiliate/affiliateDashboardCards.test.mjs web/classic/src/pages/Affiliate/affiliateViewState.test.mjs web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 9/9 通过；`cd web/classic && bun run build` 通过；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.config.cjs` 7/7 通过；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.default.config.cjs` 1/1 通过并输出 default 7 场景复核结果。
 - 残留风险：本轮为本地恢复库 + ignored runtime smoke 验证；没有提交截图或测试账号；default 管理端规则/佣金/结算逐按钮 smoke、SMS 真实通道 smoke 和完整结算周期双跑仍未覆盖。
 - 下一步：继续 SMS 真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台归档。
+
+### Phase 12 外部验收 runbook 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，把剩余外部验收拆成服务器 compose 网络内 `pg_dump`、短信宝真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台只读归档五组步骤；每组都明确前置条件、不可记录的敏感字段、脱敏证据和回滚口径。
+- 验证方式：本轮为文档 runbook，不执行外部服务器、真实短信宝或生产灰度操作；通过 tasklist 剩余未完成项反向核对，runbook 已覆盖每个剩余外部验收项；`git status --short` 进入本批前为空。
+- 残留风险：runbook 不能替代真实执行；服务器 SSH/compose 容器信息、短信宝真实配置、外接控制台导出、生产灰度窗口和归档审批仍需用户/运维提供。
+- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定新增 `user_quota_source_*` 或全量 scoped export，再进入新的设计/实现批次。
 
 ## Phase 13：Git 分批提交
 
