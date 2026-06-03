@@ -371,6 +371,57 @@ func TestRunAffiliateSettlementPipelineResumesFailedSettlementStageWithoutRescan
 	}
 }
 
+func TestRunAffiliateSettlementPipelineResumeRerunsWhenCompletedStageOutputsAreMissing(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-resume-validates-stage-outputs"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 2)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "resume should validate completed stage outputs",
+	}
+	failedRun := model.AffiliateJobRun{
+		JobType:              model.AffiliateJobRunTypeSettlementPipeline,
+		Status:               model.AffiliateJobRunStatusFailed,
+		IdempotencyKey:       affiliateSettlementRunIdempotencyKey(input),
+		RuleSetId:            ruleSet.Id,
+		PeriodStart:          input.PeriodStart,
+		PeriodEnd:            input.PeriodEnd,
+		ActorUserId:          8,
+		CurrentStage:         affiliateJobRunStageSettlement,
+		KPISnapshotCount:     1,
+		CommissionEventCount: 3,
+		HeadFeeEventCount:    2,
+		ErrorMessage:         "previous settlement-stage attempt failed after counters were written",
+		StartedAt:            input.Now - 60,
+		CreatedAt:            input.Now - 60,
+		UpdatedAt:            input.Now - 60,
+	}
+	if err := db.Create(&failedRun).Error; err != nil {
+		t.Fatalf("seed inconsistent failed job run: %v", err)
+	}
+
+	result, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("resume should rerun missing completed stages, got error: %v", err)
+	}
+	if result.JobRunId != failedRun.Id || result.KPISnapshotCount != 1 || result.CommissionEventCount != 3 || result.HeadFeeEventCount != 2 || len(result.Settlements) != 1 {
+		t.Fatalf("expected resume to rebuild missing persisted outputs before settlement, got %+v", result)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineRejectsActiveRunningJobRunForSameIdempotencyKey(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-active-running"))

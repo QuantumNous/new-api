@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -66,6 +67,10 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 	}
 
 	kpiSnapshotCount := jobRun.KPISnapshotCount
+	resumeStage, err = validateAffiliateSettlementPipelineResumeStage(db, jobRun, input, resumeStage)
+	if err != nil {
+		return failedResult(jobRun.CurrentStage, err)
+	}
 	if resumeStage <= affiliateSettlementRunStageRank(affiliateJobRunStageKPI) {
 		if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageKPI, nil); err != nil {
 			return failedResult(affiliateJobRunStageKPI, err)
@@ -180,4 +185,76 @@ func affiliateSettlementRunStageRank(stage string) int {
 	default:
 		return 0
 	}
+}
+
+func validateAffiliateSettlementPipelineResumeStage(db *gorm.DB, jobRun model.AffiliateJobRun, input AffiliateSettlementRunInput, resumeStage int) (int, error) {
+	if resumeStage <= affiliateSettlementRunStageRank(affiliateJobRunStageKPI) {
+		return resumeStage, nil
+	}
+	ruleSetId := input.RuleSetId
+	if ruleSetId <= 0 {
+		ruleSetId = jobRun.RuleSetId
+	}
+	if ruleSetId <= 0 {
+		return 0, nil
+	}
+
+	kpiRank := affiliateSettlementRunStageRank(affiliateJobRunStageKPI)
+	if resumeStage > kpiRank {
+		count, err := countAffiliatePipelineKPISnapshots(db, ruleSetId, input)
+		if err != nil {
+			return 0, err
+		}
+		if count < int64(jobRun.KPISnapshotCount) {
+			return kpiRank, nil
+		}
+	}
+
+	commissionRank := affiliateSettlementRunStageRank(affiliateJobRunStageCommission)
+	if resumeStage > commissionRank {
+		count, err := countAffiliatePipelineCommissionEvents(db, ruleSetId, input)
+		if err != nil {
+			return 0, err
+		}
+		if count < int64(jobRun.CommissionEventCount) {
+			return commissionRank, nil
+		}
+	}
+
+	headFeeRank := affiliateSettlementRunStageRank(affiliateJobRunStageHeadFee)
+	if resumeStage > headFeeRank {
+		count, err := countAffiliatePipelineHeadFeeEvents(db, ruleSetId, input)
+		if err != nil {
+			return 0, err
+		}
+		if count < int64(jobRun.HeadFeeEventCount) {
+			return headFeeRank, nil
+		}
+	}
+	return resumeStage, nil
+}
+
+func countAffiliatePipelineKPISnapshots(db *gorm.DB, ruleSetId int, input AffiliateSettlementRunInput) (int64, error) {
+	var count int64
+	err := db.Model(&model.AffiliateKPISnapshot{}).
+		Where("rule_set_id = ? AND period_start = ? AND period_end = ?", ruleSetId, input.PeriodStart, input.PeriodEnd).
+		Count(&count).Error
+	return count, err
+}
+
+func countAffiliatePipelineCommissionEvents(db *gorm.DB, ruleSetId int, input AffiliateSettlementRunInput) (int64, error) {
+	var count int64
+	err := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("rule_set_id = ? AND period_start = ? AND period_end = ?", ruleSetId, input.PeriodStart, input.PeriodEnd).
+		Count(&count).Error
+	return count, err
+}
+
+func countAffiliatePipelineHeadFeeEvents(db *gorm.DB, ruleSetId int, input AffiliateSettlementRunInput) (int64, error) {
+	var count int64
+	periodMarker := fmt.Sprintf("%%:period:%d-%d", input.PeriodStart, input.PeriodEnd)
+	err := db.Model(&model.AffiliateHeadFeeEvent{}).
+		Where("rule_set_id = ? AND synthetic_marker LIKE ?", ruleSetId, periodMarker).
+		Count(&count).Error
+	return count, err
 }
