@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
+  buildAffiliateLogsExportQuery,
   buildAffiliateLogsParams,
   buildAffiliateLogsQuery,
   buildAffiliateLogsCsv,
@@ -61,6 +62,19 @@ describe('default affiliate helpers', () => {
         user_id: 200,
       }),
       '/api/affiliate/logs?p=1&page_size=10&model_name=gpt-4&user_id=200'
+    )
+  })
+
+  test('builds scoped export query without pagination params', () => {
+    assert.equal(
+      buildAffiliateLogsExportQuery({
+        p: 3,
+        page_size: 20,
+        model_name: 'gpt-4',
+        group: 'default',
+        user_id: 200,
+      }),
+      '/api/affiliate/logs/export?model_name=gpt-4&group=default&user_id=200'
     )
   })
 

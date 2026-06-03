@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -732,6 +733,80 @@ func TestGetAffiliateScopedLogsSupportsSecondaryAffiliateAndRequestStatusFilters
 	}
 	if body.Data.Total != 1 || len(body.Data.Items) != 1 || body.Data.Items[0].UserId != 300 {
 		t.Fatalf("expected only second-level downstream error log, got %+v", body.Data)
+	}
+}
+
+func TestExportAffiliateScopedLogsReturnsScopedRmbCsv(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	originalQuotaPerUnit := common.QuotaPerUnit
+	originalUSDExchangeRate := operation_setting.USDExchangeRate
+	t.Cleanup(func() {
+		common.QuotaPerUnit = originalQuotaPerUnit
+		operation_setting.USDExchangeRate = originalUSDExchangeRate
+	})
+	common.QuotaPerUnit = 1000
+	operation_setting.USDExchangeRate = 7
+
+	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 300, 2, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 400, 3, model.AffiliateProfileStatusActive)
+	seedAffiliateLog(t, db, model.Log{UserId: 200, Username: "level2", CreatedAt: 20, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default", Quota: 2500, ChannelId: 9, ChannelName: "secret-channel", TokenId: 88, TokenName: "secret-token", Ip: "127.0.0.1", RequestId: "req-secret", UpstreamRequestId: "upstream-secret", Other: `{"admin_info":{"ip":"secret"},"safe":"kept"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, Username: "downstream", CreatedAt: 30, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default", Quota: 1})
+	seedAffiliateLog(t, db, model.Log{UserId: 400, Username: "too-deep", CreatedAt: 40, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default", Quota: 9000})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/logs/export?type=2&model_name=gpt-4&group=default&p=1&page_size=1", nil)
+	ctx.Set("affiliate_scope", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	ExportAffiliateScopedLogs(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Header().Get("Content-Type"), "text/csv") {
+		t.Fatalf("expected csv content type, got %q", recorder.Header().Get("Content-Type"))
+	}
+	body := recorder.Body.String()
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected header plus 2 scoped rows, got %d lines body=%s", len(lines), body)
+	}
+	if lines[0] != "time,user_id,type,model,group,consumption_rmb,raw_quota" {
+		t.Fatalf("unexpected csv header: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], ",300,2,gpt-4,default,¥0.007,1") {
+		t.Fatalf("expected newest scoped row with minimum RMB display, got %q", lines[1])
+	}
+	if !strings.Contains(lines[2], ",200,2,gpt-4,default,¥17.5,2500") {
+		t.Fatalf("expected older scoped row with RMB conversion, got %q", lines[2])
+	}
+	for _, forbidden := range []string{"secret-channel", "secret-token", "127.0.0.1", "req-secret", "upstream-secret"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("scoped export leaked sensitive field %q in body=%s", forbidden, body)
+		}
+	}
+}
+
+func TestBuildAffiliateScopedLogsCsvKeepsTinyNegativeRefundVisible(t *testing.T) {
+	csv := buildAffiliateScopedLogsCsv([]*model.Log{
+		{
+			UserId:    200,
+			CreatedAt: 1780416000,
+			Type:      model.LogTypeRefund,
+			ModelName: "gpt-4",
+			Group:     "default",
+			Quota:     -1,
+		},
+	}, 10000000, 1)
+
+	if !strings.Contains(csv, ",200,6,gpt-4,default,-¥0.000001,-1") {
+		t.Fatalf("expected tiny negative refund RMB to stay visible, got %s", csv)
 	}
 }
 

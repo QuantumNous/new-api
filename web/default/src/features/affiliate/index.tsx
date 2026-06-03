@@ -49,8 +49,8 @@ import {
   getAffiliateSummary,
 } from './api'
 import {
+  buildAffiliateLogsExportQuery,
   buildAffiliateLogsParams,
-  buildAffiliateLogsCsv,
   formatAffiliateRmbFromQuota,
   formatRawQuota,
   getAffiliateUnavailableMessage,
@@ -315,6 +315,7 @@ function AffiliateLogsTable(props: {
   total: number
   page: number
   pageSize: number
+  exportUrl: string
   isLoading: boolean
   onPageChange: (page: number) => void
 }) {
@@ -323,14 +324,10 @@ function AffiliateLogsTable(props: {
   const hasNext = props.page * props.pageSize < props.total
   const handleExport = () => {
     if (props.logs.length === 0) return
-    const csv = buildAffiliateLogsCsv(props.logs, currencyConfig)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `affiliate-logs-page-${props.page}.csv`
+    anchor.href = props.exportUrl
+    anchor.download = 'affiliate-logs.csv'
     anchor.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
@@ -575,6 +572,7 @@ export function Affiliate() {
                 total={logsPage?.total ?? 0}
                 page={page}
                 pageSize={DEFAULT_PAGE_SIZE}
+                exportUrl={buildAffiliateLogsExportQuery(logParams)}
                 isLoading={logsQuery.isLoading || logsQuery.isFetching}
                 onPageChange={setPage}
               />

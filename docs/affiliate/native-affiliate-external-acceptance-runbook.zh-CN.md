@@ -180,5 +180,5 @@ limit 5;
 ## 8. 当前未决策项
 
 - 是否需要新增 `user_quota_source_*` sidecar 来精确区分 paid/gift/trial。当前佣金链路只统计日志 `Other` 中明确标记的 paid 来源，不会把未标记日志默认当 paid。
-- 是否需要全量/跨页 scoped export。当前 default CSV 只导出当前页；如需全量导出，应优先设计后端 scoped export，不能绕过后端 scope。
+- 是否需要超大规模 scoped export。当前已有后端 `/api/affiliate/logs/export` 复用后端 scope 做安全分页导出；如需超过当前安全上限，应设计异步任务或后台导出队列，不能绕过后端 scope。
 - 是否启用手机号/SMS 注册登录入口。当前已具备 SMS provider、配置、测试发送、状态查询、限流、发送日志和手机号绑定 sidecar，但没有启用真实手机号注册/登录主链路。

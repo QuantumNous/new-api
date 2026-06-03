@@ -67,6 +67,23 @@ export function buildAffiliateLogsQuery(params: AffiliateLogsParams): string {
   return `/api/affiliate/logs?${query.toString()}`
 }
 
+export function buildAffiliateLogsExportQuery(
+  params: AffiliateLogsParams
+): string {
+  const query = new URLSearchParams()
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (key === 'p' || key === 'page_size') return
+    if (value === undefined || value === null || value === '') return
+    query.set(key, String(value))
+  })
+
+  const suffix = query.toString()
+  return suffix
+    ? `/api/affiliate/logs/export?${suffix}`
+    : '/api/affiliate/logs/export'
+}
+
 export function formatAffiliateRmbFromQuota(
   quota: number,
   config: { quotaPerUnit: number; usdExchangeRate: number },

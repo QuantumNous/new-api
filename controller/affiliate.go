@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"encoding/csv"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -12,6 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+const affiliateLogsExportLimit = 10000
+const affiliateLogsExportPageSize = 100
 
 func GetAffiliateStatus(c *gin.Context) {
 	userId := c.GetInt("id")
@@ -47,13 +53,55 @@ func GetAffiliateScopedLogs(c *gin.Context) {
 	}
 
 	pageInfo := common.GetPageQuery(c)
+	input := buildAffiliateScopedLogsInput(c, scope, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	logs, total, err := service.ListAffiliateScopedLogs(model.DB, model.LOG_DB, input)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func ExportAffiliateScopedLogs(c *gin.Context) {
+	scope, ok := getAffiliateScopeFromContext(c)
+	if !ok {
+		common.ApiErrorMsg(c, "分销 scope 未初始化")
+		return
+	}
+
+	var allLogs []*model.Log
+	for startIdx := 0; startIdx < affiliateLogsExportLimit; startIdx += affiliateLogsExportPageSize {
+		logs, _, err := service.ListAffiliateScopedLogs(
+			model.DB,
+			model.LOG_DB,
+			buildAffiliateScopedLogsInput(c, scope, startIdx, affiliateLogsExportPageSize),
+		)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		allLogs = append(allLogs, logs...)
+		if len(logs) < affiliateLogsExportPageSize {
+			break
+		}
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="affiliate-logs.csv"`)
+	c.String(200, buildAffiliateScopedLogsCsv(allLogs, common.QuotaPerUnit, operation_setting.USDExchangeRate))
+}
+
+func buildAffiliateScopedLogsInput(c *gin.Context, scope service.AffiliateScope, startIdx int, pageSize int) service.AffiliateScopedLogsInput {
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	userId, _ := strconv.Atoi(c.Query("user_id"))
 	secondLevelUserId, _ := strconv.Atoi(c.Query("second_level_user_id"))
 
-	logs, total, err := service.ListAffiliateScopedLogs(model.DB, model.LOG_DB, service.AffiliateScopedLogsInput{
+	return service.AffiliateScopedLogsInput{
 		Scope:                  scope,
 		LogType:                logType,
 		RequestStatus:          c.Query("request_status"),
@@ -63,17 +111,59 @@ func GetAffiliateScopedLogs(c *gin.Context) {
 		Group:                  c.Query("group"),
 		UserId:                 userId,
 		SecondLevelAffiliateId: secondLevelUserId,
-		StartIdx:               pageInfo.GetStartIdx(),
-		PageSize:               pageInfo.GetPageSize(),
-	})
-	if err != nil {
-		common.ApiError(c, err)
-		return
+		StartIdx:               startIdx,
+		PageSize:               pageSize,
 	}
+}
 
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(logs)
-	common.ApiSuccess(c, pageInfo)
+func buildAffiliateScopedLogsCsv(logs []*model.Log, quotaPerUnit float64, usdExchangeRate float64) string {
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+	_ = writer.Write([]string{"time", "user_id", "type", "model", "group", "consumption_rmb", "raw_quota"})
+	for _, log := range logs {
+		_ = writer.Write([]string{
+			formatAffiliateCsvTimestamp(log.CreatedAt),
+			strconv.Itoa(log.UserId),
+			strconv.Itoa(log.Type),
+			log.ModelName,
+			log.Group,
+			formatAffiliateCsvRMB(log.Quota, quotaPerUnit, usdExchangeRate),
+			strconv.Itoa(log.Quota),
+		})
+	}
+	writer.Flush()
+	return builder.String()
+}
+
+func formatAffiliateCsvTimestamp(timestamp int64) string {
+	if timestamp <= 0 {
+		return ""
+	}
+	return time.Unix(timestamp, 0).UTC().Format("2006-01-02 15:04:05")
+}
+
+func formatAffiliateCsvRMB(quota int, quotaPerUnit float64, usdExchangeRate float64) string {
+	if quotaPerUnit <= 0 {
+		quotaPerUnit = 1
+	}
+	if usdExchangeRate <= 0 {
+		usdExchangeRate = 1
+	}
+	value := float64(quota) / quotaPerUnit * usdExchangeRate
+	sign := ""
+	if value < 0 {
+		sign = "-"
+		value = -value
+	}
+	if quota != 0 && value > 0 && value < 0.000001 {
+		value = 0.000001
+	}
+	text := strconv.FormatFloat(value, 'f', 6, 64)
+	text = strings.TrimRight(strings.TrimRight(text, "0"), ".")
+	if text == "" {
+		text = "0"
+	}
+	return fmt.Sprintf("%s¥%s", sign, text)
 }
 
 func GetAffiliateCommissions(c *gin.Context) {

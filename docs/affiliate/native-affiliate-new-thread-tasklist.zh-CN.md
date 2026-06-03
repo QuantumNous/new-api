@@ -417,7 +417,7 @@
 - [x] classic 原始 quota/token 仅保留 tooltip、调试字段或导出附加列；scoped 使用日志花费列 tooltip 保留原始 quota。
 - [x] 用真实账号数据核对页面 RMB 值；2026-06-03 用本地恢复库管理员真实账号完成 default `/affiliate` quota 换算核对和 classic `/console/affiliate` 当前筛选页 RMB 明细核对。
 - [x] 导出文件同时包含 RMB 主字段和原始 quota 附加字段；default `/affiliate` 当前页 CSV 导出已包含 `consumption_rmb` 和 `raw_quota`。
-- [ ] 如需全量/跨页导出，另行设计后端 scoped export 或安全分页导出，不能绕过后端 scope。
+- [x] 如需全量/跨页导出，另行设计后端 scoped export 或安全分页导出，不能绕过后端 scope；2026-06-03 已新增后端 `/api/affiliate/logs/export`，复用 `AffiliateAuth` scope 和 scoped logs 过滤/脱敏逻辑，default 下载按钮改为请求后端 scoped CSV。
 
 ### Phase 9 classic RMB 使用日志复盘（2026-06-03 本线程）
 
@@ -446,6 +446,13 @@
 - 验证方式：`node --check runtime/smoke/affiliate-rmb-smoke.spec.cjs` 与 `node --check runtime/smoke/playwright.rmb.config.cjs` 通过；`timeout 600s runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.rmb.config.cjs` 1/1 通过。default 当前页用真实日志 `quota`、`quota_per_unit`、`usd_exchange_rate` 计算并核对 `¥0.006102`；classic 当前默认“今天”筛选页没有可见消费花费列，改核对 API 内容明细中已渲染的 `¥1.000000`。
 - 残留风险：本轮 classic RMB 核对覆盖当前可见页面明细，不等同于强制筛选到消费日志花费列；如需更强回归，需要在 smoke 中驱动 classic 筛选到历史消费日志或构造安全本地消费数据。runner、截图和测试账号仍位于 Git 忽略路径，不提交。
 - 下一步：继续 Phase 12 SMS 真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台归档。
+
+### Phase 9 scoped logs 后端 CSV 导出复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `GET /api/affiliate/logs/export`，路由使用 `UserAuth + AffiliateAuth`，导出逻辑复用 `ListAffiliateScopedLogs` 的 scope、二级分销筛选、用户筛选、时间、模型、分组和请求状态过滤；CSV 字段固定为 `time,user_id,type,model,group,consumption_rmb,raw_quota`，不导出 channel、token、IP、request_id、upstream_request_id 或敏感 `other` 字段；default `/affiliate` 下载按钮从前端当前页 Blob 改为后端 scoped export URL，并剔除分页参数。
+- 验证方式：按 TDD 先观察 `go test -count=1 ./controller -run 'TestExportAffiliateScopedLogsReturnsScopedRmbCsv'` 与 `cd web/default && bun --bun test src/features/affiliate/lib.test.ts` RED，分别失败于 controller/helper 不存在；实现后 `go test -count=1 ./controller -run 'TestExportAffiliateScopedLogsReturnsScopedRmbCsv|TestBuildAffiliateScopedLogsCsvKeepsTinyNegativeRefundVisible|TestGetAffiliateScopedLogs'` 通过，`cd web/default && bun --bun test src/features/affiliate/lib.test.ts` 8 项通过；补充 `go test -count=1 ./controller ./router -run 'Affiliate'`、`cd web/default && bun run build`、`git diff --check` 均通过。
+- 残留风险：导出采用安全分页聚合，当前最多导出 10000 条，避免一次性无限导出；如业务需要更大规模，应设计异步任务或后台导出队列。classic 官方使用日志仍未接入单独导出按钮。
+- 下一步：继续外部 SMS 真通道、结算周期双跑、灰度和归档验收；如后续新增 paid/gift/trial 来源 sidecar，需同步复核导出字段是否需要追加来源字段。
 
 ## Phase 10：KPI、佣金、人头费与结算
 
