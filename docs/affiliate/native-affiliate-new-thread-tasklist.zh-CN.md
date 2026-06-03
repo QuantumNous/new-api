@@ -149,9 +149,16 @@
 
 - 完成内容：新增 source-aware quota ledger helper：paid/gift/trial/legacy_unknown 来源余额与 credit/debit/refund 事件和 `users.quota` 同事务更新；钱包扣费按 legacy_unknown -> trial -> gift -> paid 顺序消耗，退款按原消费 segment 回补，保证 mixed source 时只把 paid 部分交给分销计算。Stripe、epay、Creem、Waffo、Waffo Pancake 和管理员补单成功路径写入 paid 来源账本；relay `WalletFunding` preconsume/settle/refund 写入 request_id 关联的 source debit/refund，并把钱包来源拆分写入日志 `Other`。
 - 验证方式：按 TDD 先观察 `go test -count=1 ./model -run 'QuotaSourceLedger|IncreaseUserQuotaWithSource|ManualCompleteTopUpCreditsPaidSourceLedger'` 和 `go test -count=1 ./service -run 'WalletFunding.*Source|NewBillingSessionWalletFunding'` RED（缺少 helper 和 wallet source segment 字段）；实现后两组测试通过。补充 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter|QuotaSource|TopUp|Waffo|PaymentMethod|Billing|WalletFunding'`、`go test -count=1 ./model`、`go test -count=1 ./service` 和 `git diff --check` 均通过。
-- 残留风险：本批只完成本地真实代码路径的 thin hook 和单元/集成测试，尚未在 staging/生产执行真实支付网关回调、真实 relay 调用和失败退款 smoke；任务编排钱包扣费仍需单独评估是否写入 source segment；历史未标记日志仍不会默认视为 paid。
-- 下一步：外部验收时按 runbook 采集真实充值、relay 消耗、退款和周期结算的脱敏证据；如需要覆盖任务编排钱包扣费，再新增 task billing source segment 设计。
+- 残留风险：本批只完成本地真实代码路径的 thin hook 和单元/集成测试，尚未在 staging/生产执行真实支付网关回调、真实 relay 调用和失败退款 smoke；历史未标记日志仍不会默认视为 paid。
+- 下一步：外部验收时按 runbook 采集真实充值、relay 消耗、退款和周期结算的脱敏证据。
 - 下一步：在完整结算周期双跑中重点核对真实 paid/gift/trial sidecar 事件覆盖率、退款归属和外接控制台口径差异。
+
+### Phase 3 task billing quota source segment 复盘（2026-06-03 本线程）
+
+- 完成内容：异步任务创建时把 relay wallet paid/gift/trial/legacy_unknown source breakdown 保存到 `tasks.private_data`；任务轮询阶段的 wallet 差额补扣改为 `DecreaseUserQuotaWithSource`，失败退款/差额退款按原消费 segment 回补；任务 billing 日志写入 `request_id=task_id`，日志 `Other` 记录本次 wallet 来源拆分，使佣金/KPI/人头费可通过 quota source sidecar request_id 归因任务扣费。
+- 验证方式：按 TDD 先观察 `go test -count=1 ./service -run 'TaskQuota_WalletRestoresSourceSegments|PositiveDelta_WalletWritesQuotaSourceSidecar'` RED（`TaskPrivateData` 缺少 wallet source segment 字段），实现后同命令通过；补充 `go test -count=1 ./service -run 'TaskQuota|Recalculate|Settle_|WalletFunding|QuotaSource'` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter|QuotaSource|TopUp|Waffo|PaymentMethod|Billing|WalletFunding|TaskQuota|Recalculate'` 通过。
+- 残留风险：本批仍是本地单元/集成覆盖，未用真实异步任务 provider 在 staging/生产验证任务创建、轮询成功/失败、退款和 sidecar/log request_id 对齐；历史任务没有 private_data source segment 时会按 legacy_unknown 回补，不能反推 paid。
+- 下一步：完整结算周期双跑时纳入异步任务样本，检查 task_id request_id 的 source event 覆盖率和 paid 归因金额。
 
 ### Phase 4 default 未开通状态复盘（2026-06-03 本线程）
 
@@ -552,14 +559,14 @@
 
 - 完成内容：新增 `RunAffiliateSettlementPipeline` 后端编排 service 和管理员 API `POST /api/affiliate/admin/settlement-runs`，同一请求按周期依次生成 KPI snapshot、pending 佣金事件、pending 人头费事件和 draft settlement；返回 KPI、佣金、人头费、结算数量及生成的结算单，保留原 `/settlements/generate` 只消费已存在 pending 事件的行为。
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateSettlementPipeline|SettlementRun'` 因缺少 pipeline 类型和函数 RED；实现后同命令通过；新增管理员入口测试 `go test -count=1 ./controller -run 'AdminRunAffiliateSettlementPipeline'` 通过；补充 `go test -count=1 ./service -run 'AffiliateSettlementPipeline|SettlementRun|AffiliateSettlement|AffiliateKPI|KPISnapshot|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateHeadFee|HeadFee'`、`go test -count=1 ./controller -run 'AdminRunAffiliateSettlementPipeline|AdminSettlement|AffiliateCommissions|AffiliateSettlements'` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter'` 均通过。
-- 残留风险：编排任务仍依赖日志 `Other` 中明确 paid/gift/trial 来源，尚未接入独立 `user_quota_source_*` sidecar；任务未做异步队列、幂等运行记录或后台进度展示；前端规则/结算管理页面仍待实现。
+- 残留风险：编排任务已可读取日志 `Other` 或 `user_quota_source_*` sidecar 归因；任务未做异步队列、幂等运行记录或后台进度展示；前端规则/结算管理页面仍待实现。
 - 下一步：佣金事件人工调整/作废/重算见下一节复盘；继续补管理员规则配置/结算管理 UI 或批次运行记录。
 
 ### Phase 10 阶段复盘（2026-06-03 管理员佣金事件管理 API）
 
 - 完成内容：新增管理员侧佣金事件管理 service 和 API：`POST /api/affiliate/admin/commissions/adjust` 创建手工 `manual_adjustment` pending 事件；`PATCH /api/affiliate/admin/commissions/:id/void` 作废未入结算且未 settled 的佣金事件；`POST /api/affiliate/admin/commissions/recompute` 作废同周期、同规则集、未入结算的自动 pending 佣金事件并重跑 paid 日志归因，保留手工调整事件不被重算覆盖。
 - 验证方式：先观察 `go test -count=1 ./service -run 'ManualCommission|VoidAffiliateCommissionEvent|RecomputeAffiliatePendingCommissionEvents'` 因缺少 service 类型和函数 RED；实现后同命令通过；新增 controller 测试 `go test -count=1 ./controller -run 'AdminCreateVoidAndRecomputeAffiliateCommissions'` 通过；补充 `go test -count=1 ./service -run 'ManualCommission|VoidAffiliateCommissionEvent|RecomputeAffiliatePendingCommissionEvents|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateSettlementPipeline|SettlementRun|AffiliateSettlement|AffiliateKPI|KPISnapshot|AffiliateHeadFee|HeadFee'`、`go test -count=1 ./controller -run 'AdminCreateVoidAndRecomputeAffiliateCommissions|AdminRunAffiliateSettlementPipeline|AdminSettlement|AffiliateCommissions|AffiliateSettlements'` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter'` 均通过。
-- 残留风险：作废 API 拒绝直接作废已入 settlement 的事件，避免结算单金额失配；如要支持 draft settlement 内单条事件作废，需要先设计结算单重算/重开流程；重算仍依赖日志 `Other` 中明确 paid/gift/trial 来源，尚未接入独立 quota source sidecar。
+- 残留风险：作废 API 拒绝直接作废已入 settlement 的事件，避免结算单金额失配；如要支持 draft settlement 内单条事件作废，需要先设计结算单重算/重开流程；重算可读取日志 `Other` 或 quota source sidecar 归因，但历史未标记日志仍不会默认当 paid。
 - 下一步：补管理员规则配置/结算管理 UI，或设计 settlement 内事件重开、批次运行记录和前端操作审计展示。
 
 ### Phase 10 阶段复盘（2026-06-03 classic 管理端佣金/结算操作）
@@ -657,7 +664,7 @@
 - 完成内容：新增 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，把剩余外部验收拆成服务器 compose 网络内 `pg_dump`、短信宝真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台只读归档五组步骤；每组都明确前置条件、不可记录的敏感字段、脱敏证据和回滚口径。
 - 验证方式：本轮为文档 runbook，不执行外部服务器、真实短信宝或生产灰度操作；通过 tasklist 剩余未完成项反向核对，runbook 已覆盖每个剩余外部验收项；`git status --short` 进入本批前为空。
 - 残留风险：runbook 不能替代真实执行；服务器 SSH/compose 容器信息、短信宝真实配置、外接控制台导出、生产灰度窗口和归档审批仍需用户/运维提供。
-- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定继续补任务编排钱包来源 segment 或超大规模 scoped export，再进入新的设计/实现批次。
+- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定继续补超大规模 scoped export，再进入新的设计/实现批次。
 
 ## Phase 13：Git 分批提交
 
@@ -681,4 +688,4 @@
 - 完成内容：按 `git log` 与 Phase 复盘核对原生分销本地提交批次，确认文档/基线、PG dump/runbook、dev compose、sidecar/service/thin hook、规则配置、邀请归因/SMS provider、scope/scoped logs、classic 前端、default parity、KPI/佣金/结算、用户管理 `inviter_id` 均已有对应本地 commit 和验证记录。
 - 验证方式：`git log --oneline --reverse --max-count=80` 覆盖从官方基线到 `63c28932 docs: record affiliate rmb browser check` 的本地提交链；`git status --short` 为空；`git check-ignore -v` 确认 runtime RMB smoke 和截图仍被忽略。
 - 残留风险：本收口只确认本地分批提交和本地验证记录，不代表 staging/生产验收；服务器 SSH/compose 容器信息、服务器内 pg_dump、SMS 真通道发送、外接控制台双跑、灰度启用和只读归档仍需外部信息或业务决策。
-- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定继续补任务编排钱包来源 segment 或全量 scoped export，再新增对应设计。
+- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定继续补全量 scoped export，再新增对应设计。

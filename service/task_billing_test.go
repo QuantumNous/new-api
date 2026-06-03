@@ -188,6 +188,31 @@ func countLogs(t *testing.T) int64 {
 	return count
 }
 
+func quotaSourceBalanceForTaskBillingTest(t *testing.T, userId int, source string) int64 {
+	t.Helper()
+	var balance model.UserQuotaSourceBalance
+	require.NoError(t, model.DB.Where("user_id = ? AND source = ?", userId, source).First(&balance).Error)
+	return balance.Balance
+}
+
+func taskBillingQuotaSourceEvents(t *testing.T, userId int, taskID string, eventType string) []model.UserQuotaSourceEvent {
+	t.Helper()
+	var events []model.UserQuotaSourceEvent
+	require.NoError(t, model.DB.
+		Where("user_id = ? AND request_id = ? AND event_type = ?", userId, taskID, eventType).
+		Order("id asc").
+		Find(&events).Error)
+	return events
+}
+
+func taskBillingLogOther(t *testing.T, log *model.Log) map[string]interface{} {
+	t.Helper()
+	require.NotNil(t, log)
+	other, err := common.StrToMap(log.Other)
+	require.NoError(t, err)
+	return other
+}
+
 // ===========================================================================
 // RefundTaskQuota tests
 // ===========================================================================
@@ -293,6 +318,45 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
 
+func TestRefundTaskQuota_WalletRestoresSourceSegments(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 5, 5
+	const preConsumed = 150
+
+	seedUser(t, userID, 0)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	task.TaskID = "task_wallet_source_refund"
+	task.PrivateData.WalletGiftQuotaConsumed = 100
+	task.PrivateData.WalletPaidQuotaConsumed = 50
+
+	RefundTaskQuota(ctx, task, "source refund")
+
+	assert.Equal(t, preConsumed, getUserQuota(t, userID))
+	assert.EqualValues(t, 100, quotaSourceBalanceForTaskBillingTest(t, userID, model.QuotaSourceGift))
+	assert.EqualValues(t, 50, quotaSourceBalanceForTaskBillingTest(t, userID, model.QuotaSourcePaid))
+
+	events := taskBillingQuotaSourceEvents(t, userID, task.TaskID, model.QuotaSourceEventRefund)
+	require.Len(t, events, 2)
+	breakdown := model.SumQuotaSourceSegments([]model.UserQuotaSourceSegment{
+		{Source: events[0].Source, Amount: events[0].Amount},
+		{Source: events[1].Source, Amount: events[1].Amount},
+	})
+	assert.EqualValues(t, 50, breakdown.Paid)
+	assert.EqualValues(t, 100, breakdown.Gift)
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, task.TaskID, log.RequestId)
+	other := taskBillingLogOther(t, log)
+	assert.Equal(t, BillingSourceWallet, other["billing_source"])
+	assert.InDelta(t, 50, other["wallet_paid_quota"], 0)
+	assert.InDelta(t, 100, other["wallet_gift_quota"], 0)
+}
+
 // ===========================================================================
 // RecalculateTaskQuota tests
 // ===========================================================================
@@ -328,6 +392,48 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeConsume, log.Type)
 	assert.Equal(t, actualQuota-preConsumed, log.Quota)
+}
+
+func TestRecalculate_PositiveDelta_WalletWritesQuotaSourceSidecar(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, channelID = 15, 15
+	const preConsumed = 500
+	const actualQuota = 650
+
+	seedUser(t, userID, 0)
+	seedChannel(t, channelID)
+	require.NoError(t, model.IncreaseUserQuotaWithSource(userID, 100, model.QuotaSourceGift, "test", "gift", "", "gift credit"))
+	require.NoError(t, model.IncreaseUserQuotaWithSource(userID, 200, model.QuotaSourcePaid, "test", "paid", "", "paid credit"))
+
+	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0)
+	task.TaskID = "task_wallet_source_debit"
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "source delta")
+
+	assert.Equal(t, 150, getUserQuota(t, userID))
+	assert.EqualValues(t, 0, quotaSourceBalanceForTaskBillingTest(t, userID, model.QuotaSourceGift))
+	assert.EqualValues(t, 150, quotaSourceBalanceForTaskBillingTest(t, userID, model.QuotaSourcePaid))
+	assert.EqualValues(t, 100, task.PrivateData.WalletGiftQuotaConsumed)
+	assert.EqualValues(t, 50, task.PrivateData.WalletPaidQuotaConsumed)
+
+	events := taskBillingQuotaSourceEvents(t, userID, task.TaskID, model.QuotaSourceEventDebit)
+	require.Len(t, events, 2)
+	breakdown := model.SumQuotaSourceSegments([]model.UserQuotaSourceSegment{
+		{Source: events[0].Source, Amount: events[0].Amount},
+		{Source: events[1].Source, Amount: events[1].Amount},
+	})
+	assert.EqualValues(t, 50, breakdown.Paid)
+	assert.EqualValues(t, 100, breakdown.Gift)
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, task.TaskID, log.RequestId)
+	other := taskBillingLogOther(t, log)
+	assert.Equal(t, BillingSourceWallet, other["billing_source"])
+	assert.InDelta(t, 50, other["wallet_paid_quota"], 0)
+	assert.InDelta(t, 100, other["wallet_gift_quota"], 0)
 }
 
 func TestRecalculate_NegativeDelta(t *testing.T) {

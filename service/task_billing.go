@@ -85,14 +85,20 @@ func taskIsSubscription(task *model.Task) bool {
 }
 
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
-func taskAdjustFunding(task *model.Task, delta int) error {
+func taskAdjustFunding(task *model.Task, delta int) ([]model.UserQuotaSourceSegment, error) {
 	if taskIsSubscription(task) {
-		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+		return nil, model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(task.UserId, delta, false)
+		segments, err := model.DecreaseUserQuotaWithSource(task.UserId, delta, "task_billing", task.TaskID, task.TaskID, "task extra debit")
+		if err != nil {
+			return nil, err
+		}
+		addTaskWalletSourceSegments(task, segments)
+		return segments, nil
 	}
-	return model.IncreaseUserQuota(task.UserId, -delta, false)
+	refundSegments := takeTaskWalletRefundSegments(task, -delta)
+	return refundSegments, model.IncreaseUserQuotaFromSourceSegments(task.UserId, refundSegments, "task_billing", task.TaskID, task.TaskID, "task refund")
 }
 
 // taskAdjustTokenQuota 调整任务的令牌额度，delta > 0 表示扣费，delta < 0 表示退还。
@@ -139,6 +145,62 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 	return other
 }
 
+func addTaskWalletSourceSegments(task *model.Task, segments []model.UserQuotaSourceSegment) {
+	if task == nil {
+		return
+	}
+	breakdown := model.SumQuotaSourceSegments(segments)
+	task.PrivateData.WalletPaidQuotaConsumed += breakdown.Paid
+	task.PrivateData.WalletGiftQuotaConsumed += breakdown.Gift
+	task.PrivateData.WalletTrialQuotaConsumed += breakdown.Trial
+	task.PrivateData.WalletLegacyUnknownQuotaConsumed += breakdown.LegacyUnknown
+}
+
+func takeTaskWalletRefundSegments(task *model.Task, amount int) []model.UserQuotaSourceSegment {
+	if task == nil || amount <= 0 {
+		return nil
+	}
+	remaining := int64(amount)
+	segments := make([]model.UserQuotaSourceSegment, 0, 4)
+	take := func(source string, current *int64) {
+		if remaining <= 0 || current == nil || *current <= 0 {
+			return
+		}
+		value := *current
+		if value > remaining {
+			value = remaining
+		}
+		segments = append(segments, model.UserQuotaSourceSegment{Source: source, Amount: value})
+		*current -= value
+		remaining -= value
+	}
+	// Wallet debit consumes non-paid before paid, so refunds return the paid tail first.
+	take(model.QuotaSourcePaid, &task.PrivateData.WalletPaidQuotaConsumed)
+	take(model.QuotaSourceGift, &task.PrivateData.WalletGiftQuotaConsumed)
+	take(model.QuotaSourceTrial, &task.PrivateData.WalletTrialQuotaConsumed)
+	take(model.QuotaSourceLegacyUnknown, &task.PrivateData.WalletLegacyUnknownQuotaConsumed)
+	if remaining > 0 {
+		segments = append(segments, model.UserQuotaSourceSegment{Source: model.QuotaSourceLegacyUnknown, Amount: remaining})
+	}
+	return segments
+}
+
+func appendTaskWalletSourceSegmentsToOther(other map[string]interface{}, segments []model.UserQuotaSourceSegment) {
+	if other == nil {
+		return
+	}
+	breakdown := model.SumQuotaSourceSegments(segments)
+	if breakdown.Total <= 0 {
+		return
+	}
+	other["billing_source"] = BillingSourceWallet
+	other["wallet_quota_deducted"] = breakdown.Total
+	other["wallet_paid_quota"] = breakdown.Paid
+	other["wallet_gift_quota"] = breakdown.Gift
+	other["wallet_trial_quota"] = breakdown.Trial
+	other["wallet_legacy_unknown_quota"] = breakdown.LegacyUnknown
+}
+
 // taskModelName 从 BillingContext 或 Properties 中获取模型名称。
 func taskModelName(task *model.Task) string {
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.OriginModelName != "" {
@@ -156,7 +218,8 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	}
 
 	// 1. 退还资金来源（钱包或订阅）
-	if err := taskAdjustFunding(task, -quota); err != nil {
+	sourceSegments, err := taskAdjustFunding(task, -quota)
+	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
 		return
 	}
@@ -166,6 +229,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 
 	// 3. 记录日志
 	other := taskBillingOther(task)
+	appendTaskWalletSourceSegmentsToOther(other, sourceSegments)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
@@ -177,6 +241,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		Quota:     quota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		RequestId: task.TaskID,
 		Other:     other,
 	})
 }
@@ -206,7 +271,8 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	))
 
 	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
+	sourceSegments, err := taskAdjustFunding(task, quotaDelta)
+	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
 		return
 	}
@@ -228,6 +294,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		logQuota = -quotaDelta
 	}
 	other := taskBillingOther(task)
+	appendTaskWalletSourceSegmentsToOther(other, sourceSegments)
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
@@ -240,6 +307,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Quota:     logQuota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		RequestId: task.TaskID,
 		Other:     other,
 	})
 }

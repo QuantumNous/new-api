@@ -105,6 +105,11 @@ type TaskPrivateData struct {
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// 钱包来源分段用于异步任务轮询阶段退款/差额结算归还原来源。
+	WalletPaidQuotaConsumed          int64 `json:"wallet_paid_quota_consumed,omitempty"`
+	WalletGiftQuotaConsumed          int64 `json:"wallet_gift_quota_consumed,omitempty"`
+	WalletTrialQuotaConsumed         int64 `json:"wallet_trial_quota_consumed,omitempty"`
+	WalletLegacyUnknownQuotaConsumed int64 `json:"wallet_legacy_unknown_quota_consumed,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。

@@ -581,6 +581,10 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		task.PrivateData.WalletPaidQuotaConsumed = relayInfo.WalletPaidQuotaConsumed
+		task.PrivateData.WalletGiftQuotaConsumed = relayInfo.WalletGiftQuotaConsumed
+		task.PrivateData.WalletTrialQuotaConsumed = relayInfo.WalletTrialQuotaConsumed
+		task.PrivateData.WalletLegacyUnknownQuotaConsumed = relayInfo.WalletLegacyUnknownQuotaConsumed
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
