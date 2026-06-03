@@ -2,7 +2,7 @@
 # 
 # Quick Start:
 #   1. docker-compose up -d
-#   2. Access at http://localhost:3000
+#   2. Access at http://localhost:3004
 #
 # Using MySQL instead of PostgreSQL:
 #   1. Comment out the postgres service and SQL_DSN line 15
@@ -17,7 +17,7 @@ version: '3.4' # For compatibility with older Docker versions
 services:
   new-api:
     build: .
-    image: yuansirrrrr/new-api:local
+    image: new-api:prod
     container_name: new-api
     restart: always
     command: --log-dir /app/logs

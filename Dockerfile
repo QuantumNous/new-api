@@ -1,21 +1,25 @@
 FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
 
+ARG BUN_REGISTRY=https://registry.npmjs.org
+
 WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --registry=${BUN_REGISTRY}
 COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
 RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 
 FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder-classic
 
+ARG BUN_REGISTRY=https://registry.npmjs.org
+
 WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --registry=${BUN_REGISTRY}
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
 RUN cd classic && VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
@@ -42,8 +46,11 @@ RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget \
+ARG DEBIAN_MIRROR=mirrors.aliyun.com
+
+RUN sed -i "s|http://deb.debian.org|http://${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates tzdata libasan8 wget \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
