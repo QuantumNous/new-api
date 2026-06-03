@@ -27,7 +27,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
   CircleDollarSign,
-  Gauge,
   Hash,
   LineChart,
   RefreshCw,
@@ -121,7 +120,6 @@ function SummaryMetric(props: {
   label: string
   value: string | number
   detail: string
-  tone?: 'default' | 'warning' | 'danger'
 }) {
   const Icon = props.icon
 
@@ -132,11 +130,7 @@ function SummaryMetric(props: {
         <span>{props.label}</span>
       </div>
       <div
-        className={cn(
-          'mt-2 font-mono text-2xl font-semibold tabular-nums',
-          props.tone === 'warning' && 'text-warning',
-          props.tone === 'danger' && 'text-destructive'
-        )}
+        className='mt-2 font-mono text-2xl font-semibold tabular-nums'
       >
         {props.value}
       </div>
@@ -171,25 +165,13 @@ function RangeStat(props: {
   )
 }
 
-function maxWindowPercent(
-  rows: CodexLimitReportRow[],
-  getWindow: (row: CodexLimitReportRow) => CodexLimitWindow | undefined
-): number {
-  return rows.reduce((max, row) => {
-    if (!row.success) return max
-    return Math.max(max, clampPercent(getWindow(row)?.used_percent))
-  }, 0)
-}
-
 function buildReportSummary(report?: CodexLimitReport) {
-  const rows = report?.rows ?? []
   return {
     total: report?.total_channels ?? 0,
     success: report?.success_count ?? 0,
     failure: report?.failure_count ?? 0,
     totalTokens: report?.total_token_used ?? 0,
     totalQuota: report?.total_quota ?? 0,
-    maxWeekly: maxWindowPercent(rows, (row) => row.base_weekly_window),
   }
 }
 
@@ -271,7 +253,6 @@ function ChannelStatus(props: { status: number }) {
 
 function ChannelPanel(props: { row: CodexLimitReportRow }) {
   const { t } = useTranslation()
-  const weeklyPercent = clampPercent(props.row.base_weekly_window?.used_percent)
 
   return (
     <div className='space-y-4 rounded-lg border p-4'>
@@ -300,7 +281,7 @@ function ChannelPanel(props: { row: CodexLimitReportRow }) {
         )}
       </div>
 
-      <div className='grid gap-3 md:grid-cols-3'>
+      <div className='grid gap-3 md:grid-cols-2'>
         <RangeStat
           icon={LineChart}
           label={t('Range Tokens')}
@@ -313,24 +294,6 @@ function ChannelPanel(props: { row: CodexLimitReportRow }) {
           value={formatQuota(props.row.range_quota)}
           detail={formatNumber(props.row.range_quota)}
         />
-        <div className='rounded-md border px-3 py-2.5'>
-          <div className='text-muted-foreground flex items-center justify-between gap-2 text-xs'>
-            <span>{t('Weekly Limit Progress')}</span>
-            <StatusBadge
-              label={formatPercent(weeklyPercent)}
-              variant={windowTone(props.row.base_weekly_window)}
-              copyable={false}
-            />
-          </div>
-          <Progress
-            value={weeklyPercent}
-            aria-label={`${t('Weekly Limit Progress')}: ${weeklyPercent}%`}
-            className='mt-3'
-          />
-          <div className='text-muted-foreground mt-2 text-[11px]'>
-            {t('Reset at:')} {formatUnixSeconds(props.row.base_weekly_window?.reset_at)}
-          </div>
-        </div>
       </div>
 
       <div className='grid gap-3 md:grid-cols-2'>
@@ -456,8 +419,8 @@ function CodexReportSkeleton() {
       <div className='flex items-center gap-1.5'>
         <Skeleton className='h-8 w-64' />
       </div>
-      <div className='grid gap-3 md:grid-cols-4'>
-        {Array.from({ length: 4 }).map((_, index) => (
+      <div className='grid gap-3 md:grid-cols-3'>
+        {Array.from({ length: 3 }).map((_, index) => (
           <div key={index} className='rounded-lg border px-4 py-3'>
             <Skeleton className='h-4 w-24' />
             <Skeleton className='mt-3 h-8 w-16' />
@@ -553,7 +516,7 @@ export function CodexLimitReportPanel() {
         </div>
       )}
 
-      <div className='grid gap-3 md:grid-cols-4'>
+      <div className='grid gap-3 md:grid-cols-3'>
         <SummaryMetric
           icon={Hash}
           label={t('Codex Channels')}
@@ -571,13 +534,6 @@ export function CodexLimitReportPanel() {
           label={t('Amount')}
           value={formatQuota(summary.totalQuota)}
           detail={formatNumber(summary.totalQuota)}
-        />
-        <SummaryMetric
-          icon={Gauge}
-          label={t('Peak Weekly Progress')}
-          value={formatPercent(summary.maxWeekly)}
-          detail={t('Highest channel weekly usage')}
-          tone={summary.maxWeekly >= 80 ? 'warning' : 'default'}
         />
       </div>
 
