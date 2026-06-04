@@ -116,16 +116,6 @@ const formatDate = (timestamp) => {
   return new Date(timestamp * 1000).toLocaleString();
 };
 
-const formatModels = (models) => {
-  if (!models) return '-';
-  const parts = String(models)
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (parts.length <= 4) return parts.join(', ') || '-';
-  return `${parts.slice(0, 4).join(', ')} ...`;
-};
-
 const channelTypeLabel = (type) => {
   const option = CHANNEL_OPTIONS.find((item) => item.value === type);
   return option?.label || type || '-';
@@ -215,6 +205,7 @@ const QueryKeyPage = () => {
     {
       title: t('渠道'),
       dataIndex: 'name',
+      width: 300,
       render: (name, record) => (
         <div className='flex items-center gap-2'>
           {getChannelIcon(record.type)}
@@ -230,11 +221,13 @@ const QueryKeyPage = () => {
     {
       title: t('类型'),
       dataIndex: 'type',
+      width: 150,
       render: (type) => channelTypeLabel(type),
     },
     {
       title: t('状态'),
       dataIndex: 'status',
+      width: 110,
       render: (status) =>
         status === 1 ? (
           <Tag color='green'>{t('已启用')}</Tag>
@@ -245,6 +238,7 @@ const QueryKeyPage = () => {
     {
       title: t('分组'),
       dataIndex: 'group',
+      width: 140,
       render: (group) => (
         <Space wrap>
           {String(group || '')
@@ -254,38 +248,39 @@ const QueryKeyPage = () => {
       ),
     },
     {
-      title: t('模型'),
-      dataIndex: 'models',
-      render: formatModels,
-    },
-    {
       title: t('匹配密钥数'),
       dataIndex: 'matched_key_count',
+      width: 120,
       render: (count) => count || 1,
     },
     {
       title: t('已用额度'),
       dataIndex: 'used_quota',
+      width: 160,
       render: (quota) => renderQuota(quota || 0),
     },
     {
       title: t('匹配已用金额'),
       dataIndex: 'matched_used_amount',
+      width: 180,
       render: (amount) => renderQuotaWithAmount(amount || 0),
     },
     {
       title: t('原始额度'),
       dataIndex: 'original_amount',
+      width: 180,
       render: (amount) => renderQuotaWithAmount(amount || 0),
     },
     {
       title: t('理论当前额度'),
       dataIndex: 'current_amount',
+      width: 180,
       render: (amount) => renderQuotaWithAmount(amount || 0),
     },
     {
       title: t('超刷金额'),
       dataIndex: 'over_brush_amount',
+      width: 160,
       render: (amount) => (
         <Text type={amount > 0 ? 'danger' : 'secondary'}>
           {renderQuotaWithAmount(amount || 0)}
@@ -295,6 +290,7 @@ const QueryKeyPage = () => {
     {
       title: t('余额更新时间'),
       dataIndex: 'balance_updated_time',
+      width: 180,
       render: formatDate,
     },
   ];
@@ -303,10 +299,10 @@ const QueryKeyPage = () => {
     {
       title: t('密钥'),
       dataIndex: 'key',
-      width: 260,
+      width: 520,
       render: (key) => (
         <div className='flex items-center gap-2 min-w-0'>
-          <Text code ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>
+          <Text code ellipsis={{ showTooltip: true }} style={{ maxWidth: 480 }}>
             {key}
           </Text>
           <Button
@@ -321,6 +317,7 @@ const QueryKeyPage = () => {
     {
       title: t('结果'),
       dataIndex: 'status',
+      width: 180,
       render: (status, record) => {
         const config = getStatusConfig(status);
         return (
@@ -336,20 +333,24 @@ const QueryKeyPage = () => {
     {
       title: t('渠道数'),
       dataIndex: 'channel_count',
+      width: 100,
     },
     {
       title: t('已用额度'),
       dataIndex: 'used_quota',
+      width: 160,
       render: (quota) => renderQuota(quota || 0),
     },
     {
       title: t('已用金额'),
       dataIndex: 'used_amount',
+      width: 160,
       render: (amount) => renderQuotaWithAmount(amount || 0),
     },
     {
       title: t('原始额度'),
       dataIndex: 'original_amount',
+      width: 190,
       render: (amount, record) => (
         <Space wrap>
           <Text>{renderQuotaWithAmount(amount || 0)}</Text>
@@ -362,11 +363,13 @@ const QueryKeyPage = () => {
     {
       title: t('理论当前额度'),
       dataIndex: 'current_amount',
+      width: 190,
       render: (amount) => renderQuotaWithAmount(amount || 0),
     },
     {
       title: t('超刷金额'),
       dataIndex: 'over_brush_amount',
+      width: 160,
       render: (amount) => (
         <Text type={amount > 0 ? 'danger' : 'secondary'}>
           {renderQuotaWithAmount(amount || 0)}
@@ -396,13 +399,15 @@ const QueryKeyPage = () => {
           rowKey={(channel) => `${record.key}-${channel.id}`}
           pagination={false}
           size='small'
+          scroll={{ x: 1900 }}
+          style={{ width: '100%' }}
         />
       </div>
     );
   };
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex w-full max-w-none flex-col gap-4 overflow-x-auto'>
       <div>
         <Title heading={3} style={{ margin: 0 }}>
           {t('批量密钥报告')}
@@ -527,7 +532,7 @@ const QueryKeyPage = () => {
             />
           </div>
 
-          <Card className='!rounded-2xl'>
+          <Card className='!rounded-2xl overflow-x-auto'>
             <div className='mb-3 flex flex-wrap gap-2'>
               {BUCKETS.map((bucket) => (
                 <Button
@@ -550,7 +555,8 @@ const QueryKeyPage = () => {
                 rowKey='key'
                 pagination={{ pageSize: 20 }}
                 expandedRowRender={expandedRowRender}
-                scroll={{ x: 1200 }}
+                scroll={{ x: 2200 }}
+                style={{ width: '100%' }}
               />
             )}
           </Card>

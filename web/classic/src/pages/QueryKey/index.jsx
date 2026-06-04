@@ -21,7 +21,7 @@ import React from 'react';
 import QueryKeyPage from '../../components/query-key/QueryKeyPage';
 
 const QueryKey = () => (
-  <div className='mt-[60px] px-2'>
+  <div className='mt-[60px] w-full max-w-none px-0 md:px-2'>
     <QueryKeyPage />
   </div>
 );
