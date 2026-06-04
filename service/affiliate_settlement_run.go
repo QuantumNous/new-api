@@ -231,6 +231,9 @@ func validateAffiliateSettlementPipelineResumeStage(db *gorm.DB, jobRun model.Af
 
 	kpiRank := affiliateSettlementRunStageRank(affiliateJobRunStageKPI)
 	if resumeStage > kpiRank {
+		if jobRun.KPISnapshotCount <= 0 {
+			return kpiRank, nil
+		}
 		count, err := countAffiliatePipelineKPISnapshots(db, ruleSetId, input)
 		if err != nil {
 			return 0, err
@@ -242,6 +245,9 @@ func validateAffiliateSettlementPipelineResumeStage(db *gorm.DB, jobRun model.Af
 
 	commissionRank := affiliateSettlementRunStageRank(affiliateJobRunStageCommission)
 	if resumeStage > commissionRank {
+		if jobRun.CommissionEventCount <= 0 {
+			return commissionRank, nil
+		}
 		count, err := countAffiliatePipelineCommissionEvents(db, ruleSetId, input)
 		if err != nil {
 			return 0, err
@@ -253,6 +259,9 @@ func validateAffiliateSettlementPipelineResumeStage(db *gorm.DB, jobRun model.Af
 
 	headFeeRank := affiliateSettlementRunStageRank(affiliateJobRunStageHeadFee)
 	if resumeStage > headFeeRank {
+		if jobRun.HeadFeeEventCount <= 0 {
+			return headFeeRank, nil
+		}
 		count, err := countAffiliatePipelineHeadFeeEvents(db, ruleSetId, input)
 		if err != nil {
 			return 0, err
