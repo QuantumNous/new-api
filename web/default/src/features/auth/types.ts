@@ -96,6 +96,8 @@ export interface SystemStatus {
     github_client_id?: string
     discord_oauth?: boolean
     discord_client_id?: string
+    google_oauth?: boolean
+    google_client_id?: string
     oidc_enabled?: boolean
     oidc_authorization_endpoint?: string
     oidc_client_id?: string
@@ -139,6 +141,8 @@ export interface SystemStatus {
   github_client_id?: string
   discord_oauth?: boolean
   discord_client_id?: string
+  google_oauth?: boolean
+  google_client_id?: string
   oidc_enabled?: boolean
   oidc_authorization_endpoint?: string
   oidc_client_id?: string

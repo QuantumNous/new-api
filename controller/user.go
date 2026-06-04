@@ -420,6 +420,7 @@ func GetSelf(c *gin.Context) {
 		"github_id":         user.GitHubId,
 		"discord_id":        user.DiscordId,
 		"oidc_id":           user.OidcId,
+		"google_id":         user.GoogleId,
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,

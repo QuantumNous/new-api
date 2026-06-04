@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SiGoogle } from 'react-icons/si'
 import {
   IconDiscord,
   IconGithub,
@@ -59,6 +60,7 @@ export function OAuthProviders({
     githubButtonDisabled,
     handleGitHubLogin,
     handleDiscordLogin,
+    handleGoogleLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
@@ -93,6 +95,15 @@ export function OAuthProviders({
       label: t('Continue with Discord'),
       onClick: handleDiscordLogin,
       icon: <IconDiscord className='h-4 w-4' />,
+    })
+  }
+
+  if (status?.google_oauth) {
+    providerButtons.push({
+      key: 'google',
+      label: t('Continue with Google'),
+      onClick: handleGoogleLogin,
+      icon: <SiGoogle className='h-4 w-4' />,
     })
   }
 
