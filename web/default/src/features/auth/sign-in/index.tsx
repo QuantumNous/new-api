@@ -52,11 +52,7 @@ export function SignIn() {
 
         <UserAuthForm redirectTo={redirect} />
 
-        <TermsFooter
-          variant='sign-in'
-          status={status}
-          className='text-center'
-        />
+        <TermsFooter status={status} className='text-center' />
       </div>
     </AuthLayout>
   )

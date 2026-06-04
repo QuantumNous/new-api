@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -45,6 +46,8 @@ import {
   SettingsForm,
   SettingsFormGrid,
   SettingsFormGridItem,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
@@ -64,6 +67,8 @@ const _systemInfoSchema = z.object({
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
+    refund_policy: z.string().optional(),
+    auth_notice_enabled: z.string().optional(),
   }),
 })
 
@@ -96,6 +101,11 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
+      refund_policy: normalizeValue(defaultValues.legal?.refund_policy),
+      auth_notice_enabled:
+        normalizeValue(defaultValues.legal?.auth_notice_enabled) === 'true'
+          ? 'true'
+          : 'false',
     },
   }
 
@@ -114,6 +124,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
+      refund_policy: z.string().optional(),
+      auth_notice_enabled: z.string().optional(),
     }),
   })
 
@@ -334,7 +346,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 name='legal.user_agreement'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('User Agreement')}</FormLabel>
+                    <FormLabel>{t('Terms of Service')}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder={t(
@@ -378,6 +390,62 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name='legal.refund_policy'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Refund Policy')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={t(
+                          'Provide Markdown, HTML, or an external URL for the refund policy'
+                        )}
+                        rows={6}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Leave empty to disable the refund policy requirement. Supports Markdown, HTML, or a full URL to redirect users.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name='legal.auth_notice_enabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>
+                          {t(
+                            'Show agreement notice on sign-in and sign-up pages'
+                          )}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'When enabled, a Terms of Service and Privacy Policy notice appears at the bottom of the sign-in and sign-up pages.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value === 'true'}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked ? 'true' : 'false')
+                          }
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+              </SettingsFormGridItem>
             </SettingsFormGrid>
           </SettingsForm>
         </Form>
