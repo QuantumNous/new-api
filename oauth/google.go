@@ -63,7 +63,17 @@ func (p *GoogleProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	logger.LogDebug(ctx, "[OAuth-Google] ExchangeToken: code=%s...", code[:min(len(code), 10)])
 
 	settings := system_setting.GetGoogleSettings()
-	redirectUri := fmt.Sprintf("%s/oauth/google", system_setting.ServerAddress)
+	// The redirect_uri sent here MUST byte-match the one the frontend used in the
+	// authorize step. When the web frontend and backend live on different domains
+	// (e.g. frontend flatkey.ai, backend ServerAddress router.flatkey.ai), deriving
+	// it from ServerAddress would mismatch and Google rejects the token exchange.
+	// Prefer the redirect_uri the frontend passes through; Google still enforces it
+	// matches the authorize value and the registered allowlist, so this is safe and
+	// is only used as a form field in the server-to-server token POST.
+	redirectUri := strings.TrimSpace(c.Query("redirect_uri"))
+	if redirectUri == "" {
+		redirectUri = fmt.Sprintf("%s/oauth/google", system_setting.ServerAddress)
+	}
 	values := url.Values{}
 	values.Set("client_id", settings.ClientId)
 	values.Set("client_secret", settings.ClientSecret)
