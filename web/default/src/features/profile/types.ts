@@ -73,6 +73,8 @@ export interface UserProfile {
   wechat_id?: string
   /** GitHub ID (OAuth) */
   github_id?: string
+  /** Google ID (OAuth) */
+  google_id?: string
   /** Discord ID (OAuth) */
   discord_id?: string
   /** OIDC ID (OAuth) */

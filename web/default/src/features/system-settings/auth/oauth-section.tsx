@@ -61,6 +61,11 @@ const oauthSchema = z.object({
     client_id: z.string(),
     client_secret: z.string(),
   }),
+  google: z.object({
+    enabled: z.boolean(),
+    client_id: z.string(),
+    client_secret: z.string(),
+  }),
   oidc: z.object({
     enabled: z.boolean(),
     client_id: z.string(),
@@ -92,6 +97,9 @@ type FlatOAuthDefaults = {
   'discord.enabled': boolean
   'discord.client_id': string
   'discord.client_secret': string
+  'google.enabled': boolean
+  'google.client_id': string
+  'google.client_secret': string
   'oidc.enabled': boolean
   'oidc.client_id': string
   'oidc.client_secret': string
@@ -124,6 +132,11 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
     client_id: defaults['discord.client_id'] ?? '',
     client_secret: defaults['discord.client_secret'] ?? '',
   },
+  google: {
+    enabled: defaults['google.enabled'],
+    client_id: defaults['google.client_id'] ?? '',
+    client_secret: defaults['google.client_secret'] ?? '',
+  },
   oidc: {
     enabled: defaults['oidc.enabled'],
     client_id: defaults['oidc.client_id'] ?? '',
@@ -153,6 +166,9 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   'discord.enabled': values.discord.enabled,
   'discord.client_id': values.discord.client_id,
   'discord.client_secret': values.discord.client_secret,
+  'google.enabled': values.google.enabled,
+  'google.client_id': values.google.client_id,
+  'google.client_secret': values.google.client_secret,
   'oidc.enabled': values.oidc.enabled,
   'oidc.client_id': values.oidc.client_id,
   'oidc.client_secret': values.oidc.client_secret,
@@ -294,9 +310,10 @@ export function OAuthSection(props: OAuthSectionProps) {
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-6'>
+              <TabsList className='grid w-full grid-cols-7'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
+                <TabsTrigger value='google'>{t('Google')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
                 <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
@@ -431,6 +448,78 @@ export function OAuthSection(props: OAuthSectionProps) {
                         <Input
                           type='password'
                           placeholder={t('Your Discord OAuth Client Secret')}
+                          autoComplete='new-password'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='google' className={oauthTabContentClassName}>
+                <FormField
+                  control={form.control}
+                  name='google.enabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable Google OAuth')}</FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with Google')}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='google.client_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Your Google OAuth Client ID')}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='google.client_secret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Your Google OAuth Client Secret')}
                           autoComplete='new-password'
                           value={field.value ?? ''}
                           onChange={(event) =>
