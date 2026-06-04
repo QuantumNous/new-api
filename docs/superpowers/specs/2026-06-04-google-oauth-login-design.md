@@ -16,7 +16,7 @@
 | 后端实现 | **专用 GoogleProvider**（照搬 `oauth/oidc.go` 模式，新建 `oauth/google.go` + `setting/system_setting/google.go`） |
 | 前端范围 | **仅 web/default**（React 19 默认主题），不改 web/classic |
 | Google 端点 | **硬编码标准端点**，管理员只填 Client ID/Secret + 启用开关 |
-| 账号校验 | **要求 `email_verified == true`** 才允许登录/绑定。账号标识以 Google `sub` 为唯一键；**不做按邮箱自动合并**（与现有 OIDC/GitHub/Discord 一致：邮箱相同的既有账号不会自动关联，会按 `sub` 新建独立账号）。是否需要按邮箱合并是独立产品决策，见 §9。 |
+| 账号校验 | **要求 `email_verified == true`** 才允许登录/绑定，沿用现有按邮箱关联逻辑 |
 
 ## 3. 架构与数据流
 
@@ -111,10 +111,9 @@ DB 迁移：GORM `AutoMigrate` 依据结构体 tag 自动加 `google_id` 列（S
 - 在 git worktree（分支 `feat/google-oauth-login`）中隔离开发。
 - 每个 task：TDD → 实现 → `oh-my-claudecode:code-reviewer` 子代理 review + `/code-review` → 修复问题 → 再进下一个 task。
 
-## 9. 非目标 / YAGNI / 待决策
+## 9. 非目标 / YAGNI
 
 - 不做 Google Workspace `hd`（hosted domain）域名白名单。
 - 不暴露可配置端点。
 - 不改 web/classic 主题。
 - 不引入 Google SDK，纯 HTTP（与现有 provider 一致）。
-- **按邮箱自动合并账号（待产品决策）**：当前与所有现有 provider 一致——Google 登录若邮箱与既有账号相同，不自动合并，而是按 `sub` 新建独立账号。若未来希望"同邮箱自动登入既有账号"，需在 `findOrCreateOAuthUser` 增加按 `email_verified` 的邮箱关联逻辑，并评估账号接管风险（须仅在 `email_verified==true` 且谨慎处理同邮箱多账号场景下进行）。本期不实现。
