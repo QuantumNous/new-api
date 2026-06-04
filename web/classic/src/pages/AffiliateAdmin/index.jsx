@@ -956,7 +956,7 @@ const AffiliateAdmin = () => {
                 { label: t('已归档'), value: 'archived' },
               ]}
             />
-            <div className='flex items-end self-end'>
+            <div className='flex items-end self-end md:mb-3'>
               <Button
                 className='min-w-[112px] whitespace-nowrap'
                 htmlType='submit'
@@ -1493,7 +1493,7 @@ const AffiliateAdmin = () => {
                 { label: t('禁用'), value: 'disabled' },
               ]}
             />
-            <div className='flex items-end gap-2 self-end'>
+            <div className='flex items-end gap-2 self-end md:mb-3'>
               <Button
                 className='min-w-[88px]'
                 htmlType='submit'
