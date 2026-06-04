@@ -9,6 +9,7 @@ DEFAULT_REMOTE_DEPLOY_DIR="/root/new-api/deploy/newapi-local"
 DEFAULT_REMOTE_TMP_DIR="/root"
 DEFAULT_LOCAL_BACKUP_DIR="${HOME}/newapi-104-env-backup"
 DEFAULT_VERIFY_PORT="18080"
+DEFAULT_VITE_HOME_ENTRY="en"
 
 REMOTE_HOST="${REMOTE_HOST:-}"
 REMOTE_USER="${REMOTE_USER:-$DEFAULT_REMOTE_USER}"
@@ -16,6 +17,7 @@ REMOTE_DEPLOY_DIR="${REMOTE_DEPLOY_DIR:-$DEFAULT_REMOTE_DEPLOY_DIR}"
 REMOTE_TMP_DIR="${REMOTE_TMP_DIR:-$DEFAULT_REMOTE_TMP_DIR}"
 LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR:-$DEFAULT_LOCAL_BACKUP_DIR}"
 VERIFY_PORT="${VERIFY_PORT:-$DEFAULT_VERIFY_PORT}"
+VITE_HOME_ENTRY="${VITE_HOME_ENTRY:-$DEFAULT_VITE_HOME_ENTRY}"
 PUBLIC_STATUS_URL="${PUBLIC_STATUS_URL:-${REMOTE_HOST:+http://${REMOTE_HOST}:3000/api/status}}"
 
 LOCAL_COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.postgres.yml"
@@ -57,6 +59,7 @@ Environment:
   REMOTE_TMP_DIR             Default: /root
   LOCAL_BACKUP_DIR           Default: $HOME/newapi-104-env-backup
   VERIFY_PORT                Default: 18080
+  VITE_HOME_ENTRY            Frontend classic home entry build arg. Default: en
   PUBLIC_STATUS_URL          Optional. Defaults to http://$REMOTE_HOST:3000/api/status
 
 Notes:
@@ -143,6 +146,7 @@ build_cmd() {
     cd "${REPO_ROOT}"
     docker build \
       --build-arg GOPROXY=https://goproxy.cn,direct \
+      --build-arg VITE_HOME_ENTRY="${VITE_HOME_ENTRY}" \
       -t "$(image_ref "${tag}")" .
   )
 }
