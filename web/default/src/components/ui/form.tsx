@@ -23,15 +23,78 @@ import {
   useFormContext,
   useFormState,
   type ControllerProps,
+  type FieldErrors,
   type FieldPath,
   type FieldValues,
+  type UseFormReturn,
 } from 'react-hook-form'
 import { useRender } from '@base-ui/react/use-render'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 
-const Form = FormProvider
+function isErrorLeaf(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+
+  const record = value as Record<string, unknown>
+  return 'message' in record || 'type' in record || 'ref' in record
+}
+
+function getFirstErrorFieldName(
+  errors: FieldErrors<FieldValues>,
+  parentPath = ''
+): string | undefined {
+  for (const [key, value] of Object.entries(errors)) {
+    const path = parentPath ? `${parentPath}.${key}` : key
+
+    if (isErrorLeaf(value)) {
+      return path
+    }
+
+    if (value && typeof value === 'object') {
+      const nested = getFirstErrorFieldName(
+        value as FieldErrors<FieldValues>,
+        path
+      )
+      if (nested) return nested
+    }
+  }
+
+  return undefined
+}
+
+function getElementByFieldName(name: string): HTMLElement | null {
+  const escapedName = name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return document.querySelector<HTMLElement>(`[name="${escapedName}"]`)
+}
+
+function Form<TFieldValues extends FieldValues>({
+  children,
+  ...props
+}: React.PropsWithChildren<UseFormReturn<TFieldValues>>) {
+  const {
+    formState: { errors, submitCount },
+    setFocus,
+  } = props
+
+  React.useEffect(() => {
+    if (submitCount === 0) return
+
+    const firstErrorName = getFirstErrorFieldName(
+      errors as FieldErrors<FieldValues>
+    )
+    if (!firstErrorName) return
+
+    window.requestAnimationFrame(() => {
+      setFocus(firstErrorName as FieldPath<TFieldValues>)
+
+      const element = getElementByFieldName(firstErrorName)
+      element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }, [errors, setFocus, submitCount])
+
+  return <FormProvider {...props}>{children}</FormProvider>
+}
 
 type FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,

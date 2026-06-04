@@ -16,11 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// Re-export all library functions
-export * from './channel-actions'
-export * from './channel-form'
-export * from './channel-form-errors'
-export * from './channel-type-config'
-export * from './channel-utils'
-export * from './multi-key-utils'
-export * from './model-mapping-validation'
+import type { ChangeEvent } from 'react'
+
+export type NumericInputValue = number | ''
+
+export function getNumericInputValue(value: unknown): NumericInputValue {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  return ''
+}
+
+export function getNumericInputChangeValue(
+  event: ChangeEvent<HTMLInputElement>
+): NumericInputValue {
+  if (event.target.value === '' || Number.isNaN(event.target.valueAsNumber)) {
+    return ''
+  }
+
+  return event.target.valueAsNumber
+}

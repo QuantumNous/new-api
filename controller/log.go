@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -10,19 +11,66 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetAllLogs(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+func parseOptionalStatusCode(c *gin.Context) *int {
+	raw := strings.TrimSpace(c.Query("status_code"))
+	if raw == "" {
+		return nil
+	}
+	statusCode, err := strconv.Atoi(raw)
+	if err != nil || statusCode < 100 || statusCode > 599 {
+		return nil
+	}
+	return &statusCode
+}
+
+func parseOptionalBoolQuery(c *gin.Context, key string) *bool {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return nil
+	}
+	return &value
+}
+
+func getLogSearchFilters(c *gin.Context, includeAdminFilters bool) model.LogSearchFilters {
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	username := c.Query("username")
-	tokenName := c.Query("token_name")
-	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
-	group := c.Query("group")
-	requestId := c.Query("request_id")
-	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	channel := 0
+	username := ""
+	if includeAdminFilters {
+		username = c.Query("username")
+		channel, _ = strconv.Atoi(c.Query("channel"))
+	}
+	return model.LogSearchFilters{
+		LogType:           logType,
+		StartTimestamp:    startTimestamp,
+		EndTimestamp:      endTimestamp,
+		Username:          username,
+		TokenName:         c.Query("token_name"),
+		ModelName:         c.Query("model_name"),
+		Channel:           channel,
+		Group:             c.Query("group"),
+		RequestId:         c.Query("request_id"),
+		UpstreamRequestId: c.Query("upstream_request_id"),
+		Content:           c.Query("content"),
+		Endpoint:          c.Query("endpoint"),
+		StatusCode:        parseOptionalStatusCode(c),
+		SessionId:         c.Query("session_id"),
+		UserAgent:         c.Query("user_agent"),
+		IsStream:          parseOptionalBoolQuery(c, "is_stream"),
+		ReasoningEffort:   c.Query("reasoning_effort"),
+		BillingSource:     c.Query("billing_source"),
+	}
+}
+
+func GetAllLogs(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	filters := getLogSearchFilters(c, true)
+	logs, total, err := model.GetAllLogs(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -36,15 +84,8 @@ func GetAllLogs(c *gin.Context) {
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	tokenName := c.Query("token_name")
-	modelName := c.Query("model_name")
-	group := c.Query("group")
-	requestId := c.Query("request_id")
-	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	filters := getLogSearchFilters(c, false)
+	logs, total, err := model.GetUserLogs(userId, filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -96,15 +137,8 @@ func GetLogByKey(c *gin.Context) {
 }
 
 func GetLogsStat(c *gin.Context) {
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	tokenName := c.Query("token_name")
-	username := c.Query("username")
-	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
-	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	filters := getLogSearchFilters(c, true)
+	stat, err := model.SumUsedQuota(filters)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -124,14 +158,9 @@ func GetLogsStat(c *gin.Context) {
 
 func GetLogsSelfStat(c *gin.Context) {
 	username := c.GetString("username")
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	tokenName := c.Query("token_name")
-	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
-	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	filters := getLogSearchFilters(c, false)
+	filters.Username = username
+	quotaNum, err := model.SumUsedQuota(filters)
 	if err != nil {
 		common.ApiError(c, err)
 		return

@@ -71,6 +71,12 @@ const BILLING_SECTIONS = [
           quota_setting: {
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
+            zero_output_quota_exemption_enabled:
+              settings['quota_setting.zero_output_quota_exemption_enabled'],
+            zero_output_quota_exemption_global:
+              settings['quota_setting.zero_output_quota_exemption_global'],
+            zero_output_quota_exemption_user_list:
+              settings['quota_setting.zero_output_quota_exemption_user_list'],
           },
         }}
         complianceConfirmed={

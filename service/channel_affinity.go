@@ -634,11 +634,43 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 			return b
 		}
 	}
-	meta, ok := getChannelAffinityMeta(c)
-	if !ok {
-		return false
+	return false
+}
+
+func InvalidateChannelAffinityForRequest(c *gin.Context, reason string, channelID int) {
+	if c == nil {
+		return
 	}
-	return meta.SkipRetry
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok {
+		return
+	}
+	cache := getChannelAffinityCache()
+	if _, err := cache.DeleteMany([]string{cacheKey}); err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache invalidate failed: key=%s, reason=%s, err=%v", cacheKey, reason, err))
+	}
+	c.Set(ginKeyChannelAffinitySkipRetry, false)
+
+	meta, metaOK := getChannelAffinityMeta(c)
+	if !metaOK {
+		return
+	}
+	info := map[string]interface{}{
+		"reason":            meta.RuleName,
+		"rule_name":         meta.RuleName,
+		"using_group":       meta.UsingGroup,
+		"model":             meta.ModelName,
+		"request_path":      meta.RequestPath,
+		"channel_id":        channelID,
+		"key_source":        meta.KeySourceType,
+		"key_key":           meta.KeySourceKey,
+		"key_path":          meta.KeySourcePath,
+		"key_hint":          meta.KeyHint,
+		"key_fp":            meta.KeyFingerprint,
+		"cache_invalidated": true,
+		"invalidate_reason": reason,
+	}
+	c.Set(ginKeyChannelAffinityLogInfo, info)
 }
 
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {

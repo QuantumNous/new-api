@@ -144,7 +144,7 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "fallback to matched rule meta",
+			name: "matched rule meta does not skip before affinity hit is used",
 			ctx: func() *gin.Context {
 				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 					RuleName:   "rule-skip-retry",
@@ -152,6 +152,20 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 					UsingGroup: "default",
 					ModelName:  "gpt-5",
 				})
+			},
+			want: false,
+		},
+		{
+			name: "mark affinity used enables skip retry from meta",
+			ctx: func() *gin.Context {
+				ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+					RuleName:   "rule-skip-retry-used",
+					SkipRetry:  true,
+					UsingGroup: "default",
+					ModelName:  "gpt-5",
+				})
+				MarkChannelAffinityUsed(ctx, "default", 9527)
+				return ctx
 			},
 			want: true,
 		},
@@ -174,6 +188,39 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			require.Equal(t, tt.want, ShouldSkipRetryAfterChannelAffinityFailure(tt.ctx()))
 		})
 	}
+}
+
+func TestInvalidateChannelAffinityForRequestDeletesCacheAndDisablesSkipRetry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cache := getChannelAffinityCache()
+	cacheKeySuffix := fmt.Sprintf("invalidate-test:%d", time.Now().UnixNano())
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 20, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:       cache.FullKey(cacheKeySuffix),
+		RuleName:       "invalidate-rule",
+		SkipRetry:      true,
+		UsingGroup:     "default",
+		ModelName:      "gpt-5",
+		RequestPath:    "/v1/responses",
+		KeySourceType:  "gjson",
+		KeySourcePath:  "prompt_cache_key",
+		KeyHint:        "tenant-123",
+		KeyFingerprint: "abc12345",
+	})
+	MarkChannelAffinityUsed(ctx, "default", 20)
+	require.True(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+
+	InvalidateChannelAffinityForRequest(ctx, "channel_disabled", 20)
+
+	_, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.False(t, found)
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 }
 
 func TestExtractChannelAffinityValue_RequestHeader(t *testing.T) {

@@ -197,6 +197,9 @@ export type BillingSettings = {
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
+  'quota_setting.zero_output_quota_exemption_enabled': boolean
+  'quota_setting.zero_output_quota_exemption_global': boolean
+  'quota_setting.zero_output_quota_exemption_user_list': string
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string

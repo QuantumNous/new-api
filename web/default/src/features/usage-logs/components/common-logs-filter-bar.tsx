@@ -52,11 +52,34 @@ import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
+const REQUEST_TYPE_ALL_VALUE = 'all'
+const requestTypeValues = ['stream', 'non_stream'] as const
+const REASONING_EFFORT_ALL_VALUE = 'all'
+const reasoningEffortValues = ['minimal', 'low', 'medium', 'high'] as const
+const BILLING_SOURCE_ALL_VALUE = 'all'
+const billingSourceValues = ['wallet', 'subscription'] as const
 
 type LogTypeValue = (typeof logTypeValues)[number]
+type RequestTypeValue = (typeof requestTypeValues)[number]
+type ReasoningEffortValue = (typeof reasoningEffortValues)[number]
+type BillingSourceValue = (typeof billingSourceValues)[number]
 
 function isLogTypeValue(value: string): value is LogTypeValue {
   return (logTypeValues as readonly string[]).includes(value)
+}
+
+function isRequestTypeValue(value: string): value is RequestTypeValue {
+  return (requestTypeValues as readonly string[]).includes(value)
+}
+
+function isReasoningEffortValue(
+  value: string
+): value is ReasoningEffortValue {
+  return (reasoningEffortValues as readonly string[]).includes(value)
+}
+
+function isBillingSourceValue(value: string): value is BillingSourceValue {
+  return (billingSourceValues as readonly string[]).includes(value)
 }
 
 interface CommonLogsFilterBarProps<TData> {
@@ -94,6 +117,25 @@ export function CommonLogsFilterBar<TData>(
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
+      content: searchParams.content || undefined,
+      endpoint: searchParams.endpoint || undefined,
+      statusCode: searchParams.statusCode || undefined,
+      sessionId: searchParams.sessionId || undefined,
+      userAgent: searchParams.userAgent || undefined,
+      requestType:
+        searchParams.requestType && isRequestTypeValue(searchParams.requestType)
+          ? searchParams.requestType
+          : undefined,
+      reasoningEffort:
+        searchParams.reasoningEffort &&
+        isReasoningEffortValue(searchParams.reasoningEffort)
+          ? searchParams.reasoningEffort
+          : undefined,
+      billingSource:
+        searchParams.billingSource &&
+        isBillingSourceValue(searchParams.billingSource)
+          ? searchParams.billingSource
+          : undefined,
     })
 
     const typeArr = searchParams.type
@@ -114,6 +156,14 @@ export function CommonLogsFilterBar<TData>(
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
+    searchParams.content,
+    searchParams.endpoint,
+    searchParams.statusCode,
+    searchParams.sessionId,
+    searchParams.userAgent,
+    searchParams.requestType,
+    searchParams.reasoningEffort,
+    searchParams.billingSource,
     searchParams.type,
   ])
 
@@ -171,7 +221,15 @@ export function CommonLogsFilterBar<TData>(
     !!filters.username ||
     !!filters.channel ||
     !!filters.requestId ||
-    !!filters.upstreamRequestId
+    !!filters.upstreamRequestId ||
+    !!filters.content ||
+    !!filters.endpoint ||
+    !!filters.statusCode ||
+    !!filters.sessionId ||
+    !!filters.userAgent ||
+    !!filters.requestType ||
+    !!filters.reasoningEffort ||
+    !!filters.billingSource
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   const hasAdditionalFilters =
@@ -183,6 +241,14 @@ export function CommonLogsFilterBar<TData>(
     isAdmin ? filters.channel : undefined,
     filters.requestId,
     filters.upstreamRequestId,
+    filters.content,
+    filters.endpoint,
+    filters.statusCode,
+    filters.sessionId,
+    filters.userAgent,
+    filters.requestType,
+    filters.reasoningEffort,
+    filters.billingSource,
   ].filter(Boolean).length
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
   const logTypeItems = useMemo(
@@ -193,8 +259,47 @@ export function CommonLogsFilterBar<TData>(
       })),
     [t]
   )
+  const requestTypeItems = useMemo(
+    () => [
+      { value: REQUEST_TYPE_ALL_VALUE, label: t('All Request Types') },
+      { value: 'stream', label: t('Stream') },
+      { value: 'non_stream', label: t('Non-stream') },
+    ],
+    [t]
+  )
+  const reasoningEffortItems = useMemo(
+    () => [
+      { value: REASONING_EFFORT_ALL_VALUE, label: t('All Reasoning Efforts') },
+      { value: 'minimal', label: t('Minimal') },
+      { value: 'low', label: t('Low') },
+      { value: 'medium', label: t('Medium') },
+      { value: 'high', label: t('High') },
+    ],
+    [t]
+  )
+  const billingSourceItems = useMemo(
+    () => [
+      { value: BILLING_SOURCE_ALL_VALUE, label: t('All Billing Sources') },
+      { value: 'wallet', label: t('Pay-as-you-go') },
+      { value: 'subscription', label: t('Subscription') },
+    ],
+    [t]
+  )
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
+  const requestTypeValue = filters.requestType ?? REQUEST_TYPE_ALL_VALUE
+  const requestTypeLabel =
+    requestTypeItems.find((type) => type.value === requestTypeValue)?.label ??
+    t('All Request Types')
+  const reasoningEffortValue =
+    filters.reasoningEffort ?? REASONING_EFFORT_ALL_VALUE
+  const reasoningEffortLabel =
+    reasoningEffortItems.find((type) => type.value === reasoningEffortValue)
+      ?.label ?? t('All Reasoning Efforts')
+  const billingSourceValue = filters.billingSource ?? BILLING_SOURCE_ALL_VALUE
+  const billingSourceLabel =
+    billingSourceItems.find((type) => type.value === billingSourceValue)
+      ?.label ?? t('All Billing Sources')
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
@@ -279,6 +384,87 @@ export function CommonLogsFilterBar<TData>(
       </Select>
     </LogsFilterField>
   )
+  const requestTypeFilter = (
+    <LogsFilterField>
+      <Select
+        items={requestTypeItems}
+        value={requestTypeValue}
+        onValueChange={(value) => {
+          handleChange(
+            'requestType',
+            value !== null && isRequestTypeValue(value) ? value : undefined
+          )
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue>{requestTypeLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {requestTypeItems.map((type) => (
+              <SelectItem key={type.value} value={type.value}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </LogsFilterField>
+  )
+  const reasoningEffortFilter = (
+    <LogsFilterField>
+      <Select
+        items={reasoningEffortItems}
+        value={reasoningEffortValue}
+        onValueChange={(value) => {
+          handleChange(
+            'reasoningEffort',
+            value !== null && isReasoningEffortValue(value) ? value : undefined
+          )
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue>{reasoningEffortLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {reasoningEffortItems.map((type) => (
+              <SelectItem key={type.value} value={type.value}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </LogsFilterField>
+  )
+  const billingSourceFilter = (
+    <LogsFilterField>
+      <Select
+        items={billingSourceItems}
+        value={billingSourceValue}
+        onValueChange={(value) => {
+          handleChange(
+            'billingSource',
+            value !== null && isBillingSourceValue(value) ? value : undefined
+          )
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue>{billingSourceLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {billingSourceItems.map((type) => (
+              <SelectItem key={type.value} value={type.value}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </LogsFilterField>
+  )
   const advancedFilters = (
     <>
       <LogsFilterField>
@@ -311,6 +497,52 @@ export function CommonLogsFilterBar<TData>(
           />
         </LogsFilterField>
       )}
+      {requestTypeFilter}
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Status Code')}
+          inputMode='numeric'
+          value={filters.statusCode || ''}
+          onChange={(e) => handleChange('statusCode', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Endpoint')}
+          value={filters.endpoint || ''}
+          onChange={(e) => handleChange('endpoint', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Session')}
+          type={sensitiveType}
+          value={filters.sessionId || ''}
+          onChange={(e) => handleChange('sessionId', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('User-Agent')}
+          type={sensitiveType}
+          value={filters.userAgent || ''}
+          onChange={(e) => handleChange('userAgent', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      {reasoningEffortFilter}
+      {billingSourceFilter}
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Details')}
+          value={filters.content || ''}
+          onChange={(e) => handleChange('content', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
       <LogsFilterField>
         <LogsFilterInput
           placeholder={t('Request ID')}

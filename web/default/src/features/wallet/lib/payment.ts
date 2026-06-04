@@ -28,14 +28,67 @@ import type { PresetAmount, TopupInfo } from '../types'
 // Payment Processing Functions
 // ============================================================================
 
+function getBrowserUserAgent(): string {
+  if (typeof navigator === 'undefined') {
+    return ''
+  }
+  return navigator.userAgent
+}
+
 /**
  * Check if browser is Safari
  */
 function isSafariBrowser(): boolean {
+  const userAgent = getBrowserUserAgent()
   return (
-    navigator.userAgent.indexOf('Safari') > -1 &&
-    navigator.userAgent.indexOf('Chrome') < 1
+    userAgent.indexOf('Safari') > -1 && userAgent.indexOf('Chrome') < 1
   )
+}
+
+function isWeChatBrowser(): boolean {
+  return /MicroMessenger/i.test(getBrowserUserAgent())
+}
+
+function isMobileBrowser(): boolean {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
+    getBrowserUserAgent()
+  )
+}
+
+function shouldSubmitPaymentInCurrentTab(): boolean {
+  return isSafariBrowser() || isWeChatBrowser() || isMobileBrowser()
+}
+
+export function isSafePaymentRedirectUrl(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  try {
+    const url = new URL(trimmed)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export function openPaymentUrl(url: string): boolean {
+  if (!isSafePaymentRedirectUrl(url)) {
+    return false
+  }
+
+  window.open(url.trim(), '_blank', 'noopener,noreferrer')
+  return true
+}
+
+export function redirectToPaymentUrl(url: string): boolean {
+  if (!isSafePaymentRedirectUrl(url)) {
+    return false
+  }
+
+  window.location.href = url.trim()
+  return true
 }
 
 /**
@@ -44,14 +97,20 @@ function isSafariBrowser(): boolean {
 export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
-): void {
-  const form = document.createElement('form')
-  form.action = url
-  form.method = 'POST'
+): boolean {
+  if (!isSafePaymentRedirectUrl(url)) {
+    return false
+  }
 
-  // Don't open in new tab for Safari
-  if (!isSafariBrowser()) {
+  const form = document.createElement('form')
+  form.action = url.trim()
+  form.method = 'POST'
+  form.acceptCharset = 'UTF-8'
+
+  // 移动端和微信 WebView 对异步创建的 _blank 表单兼容性较差，当前页提交更稳。
+  if (!shouldSubmitPaymentInCurrentTab()) {
     form.target = '_blank'
+    form.setAttribute('rel', 'noopener noreferrer')
   }
 
   // Add form parameters
@@ -65,7 +124,13 @@ export function submitPaymentForm(
 
   document.body.appendChild(form)
   form.submit()
-  document.body.removeChild(form)
+
+  // 部分移动端 WebView 会在 submit 后才序列化表单字段，立即移除可能导致网关收到空参数。
+  window.setTimeout(() => {
+    form.remove()
+  }, 10_000)
+
+  return true
 }
 
 /**

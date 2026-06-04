@@ -17,6 +17,9 @@ var (
 	maskURLPattern    = regexp.MustCompile(`(http|https)://[^\s/$.?#].[^\s]*`)
 	maskDomainPattern = regexp.MustCompile(`\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b`)
 	maskIPPattern     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
+	hideURLPattern    = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s]+`)
+	hideDomainPattern = regexp.MustCompile(`\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d{1,5})?\b`)
+	hideIPPattern     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b`)
 	// maskApiKeyPattern matches patterns like 'api_key:xxx' or "api_key:xxx" to mask the API key value
 	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
 )
@@ -261,5 +264,18 @@ func MaskSensitiveInfo(str string) string {
 	// Mask API keys (e.g., "api_key:AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70" -> "api_key:***")
 	str = maskApiKeyPattern.ReplaceAllString(str, "${1}api_key:***${3}")
 
+	return str
+}
+
+// HideExternalAddressInfo 用于写入用户可见日志前移除外部地址/链接。
+// 与 MaskSensitiveInfo 不同，这里不保留协议、域名后缀或路径，避免日志信息里出现可识别的上游地址。
+func HideExternalAddressInfo(str string) string {
+	if str == "" {
+		return ""
+	}
+	const placeholder = "[已隐藏外部地址]"
+	str = hideURLPattern.ReplaceAllString(str, placeholder)
+	str = hideDomainPattern.ReplaceAllString(str, placeholder)
+	str = hideIPPattern.ReplaceAllString(str, placeholder)
 	return str
 }

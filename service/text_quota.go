@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -371,6 +372,67 @@ func ensureClientGoneLocalUsage(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	return usage, appliedLocalEstimate
 }
 
+func isZeroOutputQuotaExemptionRelayMode(relayInfo *relaycommon.RelayInfo) bool {
+	if relayInfo == nil {
+		return false
+	}
+
+	switch relayInfo.RelayMode {
+	case relayconstant.RelayModeEmbeddings,
+		relayconstant.RelayModeRerank,
+		relayconstant.RelayModeModerations,
+		relayconstant.RelayModeImagesGenerations,
+		relayconstant.RelayModeImagesEdits,
+		relayconstant.RelayModeAudioSpeech,
+		relayconstant.RelayModeAudioTranscription,
+		relayconstant.RelayModeAudioTranslation,
+		relayconstant.RelayModeRealtime:
+		return false
+	case relayconstant.RelayModeChatCompletions,
+		relayconstant.RelayModeCompletions,
+		relayconstant.RelayModeResponses,
+		relayconstant.RelayModeResponsesCompact,
+		relayconstant.RelayModeGemini:
+		return true
+	}
+
+	switch relayInfo.GetFinalRequestRelayFormat() {
+	case types.RelayFormatClaude,
+		types.RelayFormatGemini,
+		types.RelayFormatOpenAIResponses,
+		types.RelayFormatOpenAIResponsesCompaction:
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveRelayUsername(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) string {
+	username := strings.TrimSpace(common.GetContextKeyString(ctx, constant.ContextKeyUserName))
+	if username != "" || relayInfo == nil || relayInfo.UserId <= 0 {
+		return username
+	}
+	username, err := model.GetUsernameById(relayInfo.UserId, false)
+	if err != nil {
+		return ""
+	}
+	return username
+}
+
+func shouldApplyZeroOutputQuotaExemption(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary textQuotaSummary) bool {
+	if relayInfo == nil {
+		return false
+	}
+	if summary.TotalTokens <= 0 || summary.CompletionTokens != 0 || summary.Quota <= 0 {
+		return false
+	}
+	if !isZeroOutputQuotaExemptionRelayMode(relayInfo) {
+		return false
+	}
+	username := resolveRelayUsername(ctx, relayInfo)
+	return operation_setting.IsZeroOutputQuotaExemptUser(relayInfo.UserId, username)
+}
+
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
 	upstreamUsageMissing := usage == nil
 	usage, localUsageApplied := ensureClientGoneLocalUsage(ctx, relayInfo, usage, &extraContent)
@@ -398,6 +460,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			tieredResult = tieredRes
 			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
 		}
+	}
+
+	zeroOutputQuotaExempted := false
+	zeroOutputOriginalQuota := summary.Quota
+	if shouldApplyZeroOutputQuotaExemption(ctx, relayInfo, summary) {
+		zeroOutputQuotaExempted = true
+		summary.Quota = 0
+		extraContent = append(extraContent, fmt.Sprintf("命中 0 输出额度豁免，原始额度 %s", logger.FormatQuota(zeroOutputOriginalQuota)))
 	}
 
 	if summary.WebSearchCallCount > 0 {
@@ -511,6 +581,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if zeroOutputQuotaExempted {
+		other["zero_output_quota_exempted"] = true
+		other["zero_output_original_quota"] = zeroOutputOriginalQuota
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

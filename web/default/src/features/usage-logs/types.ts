@@ -53,6 +53,14 @@ export interface CommonLogFilters extends CommonFilters {
   username?: string
   requestId?: string
   upstreamRequestId?: string
+  content?: string
+  endpoint?: string
+  statusCode?: string
+  sessionId?: string
+  userAgent?: string
+  requestType?: string
+  reasoningEffort?: string
+  billingSource?: string
 }
 
 /**
@@ -273,6 +281,14 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  content?: string
+  endpoint?: string
+  status_code?: string
+  session_id?: string
+  user_agent?: string
+  is_stream?: boolean
+  reasoning_effort?: string
+  billing_source?: string
 }
 
 export interface GetLogsResponse {
@@ -297,6 +313,14 @@ export interface GetLogStatsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  content?: string
+  endpoint?: string
+  status_code?: string
+  session_id?: string
+  user_agent?: string
+  is_stream?: boolean
+  reasoning_effort?: string
+  billing_source?: string
 }
 
 export interface GetLogStatsResponse {

@@ -62,6 +62,11 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 }
 
 func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
+	if !isStripeTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Stripe 支付未启用"})
+		return
+	}
+
 	if req.PaymentMethod != model.PaymentMethodStripe {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "不支持的支付渠道"})
 		return
@@ -326,18 +331,18 @@ func sessionExpired(ctx context.Context, event stripe.Event) {
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值订单已过期 trade_no=%s", referenceId))
 }
 
-// genStripeLink generates a Stripe Checkout session URL for payment.
-// It creates a new checkout session with the specified parameters and returns the payment URL.
+// genStripeLink 生成 Stripe Checkout 支付链接。
+// 它会根据传入参数创建新的 checkout session，并返回支付 URL。
 //
-// Parameters:
-//   - referenceId: unique reference identifier for the transaction
-//   - customerId: existing Stripe customer ID (empty string if new customer)
-//   - email: customer email address for new customer creation
-//   - amount: quantity of units to purchase
-//   - successURL: custom URL to redirect after successful payment (empty for default)
-//   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
+// 参数：
+//   - referenceId: 交易唯一引用号
+//   - customerId: 已存在的 Stripe customer ID，新客户传空
+//   - email: 新客户创建时使用的邮箱
+//   - amount: 购买数量
+//   - successURL: 支付成功后的自定义跳转 URL，空值使用默认地址
+//   - cancelURL: 支付取消后的自定义跳转 URL，空值使用默认地址
 //
-// Returns the checkout session URL or an error if the session creation fails.
+// 返回 checkout session URL；创建失败时返回错误。
 func genStripeLink(referenceId string, customerId string, email string, amount int64, successURL string, cancelURL string) (string, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return "", fmt.Errorf("无效的Stripe API密钥")
@@ -345,7 +350,7 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 
 	stripe.Key = setting.StripeApiSecret
 
-	// Use custom URLs if provided, otherwise use defaults
+	// 优先使用自定义跳转地址，未传入时使用默认地址。
 	if successURL == "" {
 		successURL = paymentReturnPath("/console/log")
 	}
@@ -399,12 +404,12 @@ func getStripePayMoney(amount float64, group string) float64 {
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		amount = amount / common.QuotaPerUnit
 	}
-	// Using float64 for monetary calculations is acceptable here due to the small amounts involved
+	// 这里金额较小，沿用 float64 计算可接受。
 	topupGroupRatio := common.GetTopupGroupRatio(group)
 	if topupGroupRatio == 0 {
 		topupGroupRatio = 1
 	}
-	// apply optional preset discount by the original request amount (if configured), default 1.0
+	// 如果配置了预设金额折扣，则按原始请求金额应用；默认折扣为 1.0。
 	discount := 1.0
 	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(originalAmount)]; ok {
 		if ds > 0 {

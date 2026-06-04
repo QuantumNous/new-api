@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -61,6 +62,9 @@ const quotaSchema = z.object({
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
+    zero_output_quota_exemption_enabled: z.boolean(),
+    zero_output_quota_exemption_global: z.boolean(),
+    zero_output_quota_exemption_user_list: z.string(),
   }),
 })
 
@@ -103,6 +107,12 @@ export function QuotaSettingsSection({
       },
     })
   const inviteTopupRebateEnabled = form.watch('InviteTopupRebateEnabled')
+  const zeroOutputQuotaExemptionEnabled = form.watch(
+    'quota_setting.zero_output_quota_exemption_enabled'
+  )
+  const zeroOutputQuotaExemptionGlobal = form.watch(
+    'quota_setting.zero_output_quota_exemption_global'
+  )
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -329,6 +339,92 @@ export function QuotaSettingsSection({
                       />
                     </FormControl>
                   </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.zero_output_quota_exemption_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('0 Output Quota Exemption')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Allow eligible text generation requests with input tokens and zero output tokens to settle as 0 quota. Use the user list or enable global exemption below.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.zero_output_quota_exemption_global'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Global 0 Output Quota Exemption')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, all users are exempted for eligible text generation requests. Use only for unstable upstream channels or controlled deployments.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={
+                          updateOption.isPending ||
+                          !zeroOutputQuotaExemptionEnabled
+                        }
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.zero_output_quota_exemption_user_list'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('0 Output Exempt Users')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder='MiaoWoo, 1001'
+                        disabled={
+                          !zeroOutputQuotaExemptionEnabled ||
+                          zeroOutputQuotaExemptionGlobal
+                        }
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Used when global exemption is off. Enter user IDs or usernames separated by commas, spaces, or new lines.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )}
               />
             </SettingsFormGridItem>

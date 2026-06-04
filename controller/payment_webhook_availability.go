@@ -25,7 +25,10 @@ func isStripeWebhookConfigured() bool {
 }
 
 func isStripeWebhookEnabled() bool {
-	return isStripeTopUpEnabled()
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return isStripeWebhookConfigured()
 }
 
 func isCreemTopUpEnabled() bool {
@@ -34,6 +37,7 @@ func isCreemTopUpEnabled() bool {
 	}
 	products := strings.TrimSpace(setting.CreemProducts)
 	return strings.TrimSpace(setting.CreemApiKey) != "" &&
+		isCreemWebhookConfigured() &&
 		products != "" &&
 		products != "[]"
 }
@@ -43,7 +47,10 @@ func isCreemWebhookConfigured() bool {
 }
 
 func isCreemWebhookEnabled() bool {
-	return isCreemTopUpEnabled() && isCreemWebhookConfigured()
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return isCreemWebhookConfigured()
 }
 
 func isWaffoTopUpEnabled() bool {
@@ -77,8 +84,7 @@ func isWaffoPancakeTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false
 	}
-	// Presence-of-credentials = enabled. Webhook public keys ship inside
-	// the SDK; mode (test/prod) is read from each event.
+	// 三个凭据同时存在即视为启用；Webhook 公钥内置在 SDK 中，测试/正式模式从事件读取。
 	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeProductID) != ""

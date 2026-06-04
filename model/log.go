@@ -31,6 +31,177 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 	return tx.Where(column+" = ?", value), nil
 }
 
+type LogSearchFilters struct {
+	LogType           int
+	StartTimestamp    int64
+	EndTimestamp      int64
+	ModelName         string
+	Username          string
+	TokenName         string
+	Channel           int
+	Group             string
+	RequestId         string
+	UpstreamRequestId string
+	Content           string
+	Endpoint          string
+	StatusCode        *int
+	SessionId         string
+	UserAgent         string
+	IsStream          *bool
+	ReasoningEffort   string
+	BillingSource     string
+}
+
+func escapeLikeLiteral(value string) string {
+	value = strings.ReplaceAll(value, "!", "!!")
+	value = strings.ReplaceAll(value, "%", "!%")
+	value = strings.ReplaceAll(value, "_", "!_")
+	return value
+}
+
+func containsLikePattern(value string) (string, error) {
+	if strings.Contains(value, "%") {
+		return sanitizeLikePattern(value)
+	}
+	return "%" + escapeLikeLiteral(value) + "%", nil
+}
+
+func applyLogOtherStringContainsFilter(tx *gorm.DB, key string, value string) (*gorm.DB, error) {
+	if value == "" {
+		return tx, nil
+	}
+	pattern, err := containsLikePattern(value)
+	if err != nil {
+		return nil, err
+	}
+	prefix := "%" + escapeLikeLiteral(fmt.Sprintf(`"%s":"`, key))
+	return tx.Where("logs.other LIKE ? ESCAPE '!'", prefix+pattern), nil
+}
+
+func logOtherStringExactPattern(key string, value string) (string, error) {
+	encoded, err := common.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	needle := fmt.Sprintf(`"%s":%s`, key, string(encoded))
+	return "%" + escapeLikeLiteral(needle) + "%", nil
+}
+
+func applyLogOtherStringExactFilter(tx *gorm.DB, key string, value string) (*gorm.DB, error) {
+	if value == "" {
+		return tx, nil
+	}
+	pattern, err := logOtherStringExactPattern(key, value)
+	if err != nil {
+		return nil, err
+	}
+	return tx.Where("logs.other LIKE ? ESCAPE '!'", pattern), nil
+}
+
+func logOtherStatusCodePatterns(statusCode int) []string {
+	status := fmt.Sprintf("%d", statusCode)
+	patterns := make([]string, 0, 4)
+	for _, suffix := range []string{",", "}"} {
+		patterns = append(patterns, "%"+escapeLikeLiteral(fmt.Sprintf(`"status_code":%s%s`, status, suffix))+"%")
+		patterns = append(patterns, "%"+escapeLikeLiteral(fmt.Sprintf(`"status_code":"%s"%s`, status, suffix))+"%")
+	}
+	return patterns
+}
+
+func applyLogStatusCodeFilter(tx *gorm.DB, statusCode *int) *gorm.DB {
+	if statusCode == nil {
+		return tx
+	}
+
+	clauses := make([]string, 0, 5)
+	args := make([]interface{}, 0, 5)
+	if *statusCode == 200 {
+		clauses = append(clauses, "logs.type = ?")
+		args = append(args, LogTypeConsume)
+	}
+	for _, pattern := range logOtherStatusCodePatterns(*statusCode) {
+		clauses = append(clauses, "logs.other LIKE ? ESCAPE '!'")
+		args = append(args, pattern)
+	}
+	return tx.Where("("+strings.Join(clauses, " OR ")+")", args...)
+}
+
+func applyBillingSourceFilter(tx *gorm.DB, billingSource string) (*gorm.DB, error) {
+	switch billingSource {
+	case "":
+		return tx, nil
+	case "subscription":
+		return applyLogOtherStringExactFilter(tx, "billing_source", billingSource)
+	case "wallet":
+		subscriptionPattern, err := logOtherStringExactPattern("billing_source", "subscription")
+		if err != nil {
+			return nil, err
+		}
+		return tx.Where("logs.other NOT LIKE ? ESCAPE '!'", subscriptionPattern), nil
+	default:
+		return applyLogOtherStringExactFilter(tx, "billing_source", billingSource)
+	}
+}
+
+func applyLogSearchFilters(tx *gorm.DB, filters LogSearchFilters, includeLogType bool) (*gorm.DB, error) {
+	var err error
+	if includeLogType && filters.LogType != LogTypeUnknown {
+		tx = tx.Where("logs.type = ?", filters.LogType)
+	}
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", filters.ModelName); err != nil {
+		return nil, err
+	}
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", filters.Username); err != nil {
+		return nil, err
+	}
+	if filters.TokenName != "" {
+		tx = tx.Where("logs.token_name = ?", filters.TokenName)
+	}
+	if filters.RequestId != "" {
+		tx = tx.Where("logs.request_id = ?", filters.RequestId)
+	}
+	if filters.UpstreamRequestId != "" {
+		tx = tx.Where("logs.upstream_request_id = ?", filters.UpstreamRequestId)
+	}
+	if filters.StartTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", filters.StartTimestamp)
+	}
+	if filters.EndTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", filters.EndTimestamp)
+	}
+	if filters.Channel != 0 {
+		tx = tx.Where("logs.channel_id = ?", filters.Channel)
+	}
+	if filters.Group != "" {
+		tx = tx.Where("logs."+logGroupCol+" = ?", filters.Group)
+	}
+	if filters.Content != "" {
+		if tx, err = applyExplicitLogTextFilter(tx, "logs.content", filters.Content); err != nil {
+			return nil, err
+		}
+	}
+	if tx, err = applyLogOtherStringContainsFilter(tx, "request_path", filters.Endpoint); err != nil {
+		return nil, err
+	}
+	tx = applyLogStatusCodeFilter(tx, filters.StatusCode)
+	if tx, err = applyLogOtherStringContainsFilter(tx, "session_id", filters.SessionId); err != nil {
+		return nil, err
+	}
+	if tx, err = applyLogOtherStringContainsFilter(tx, "user_agent", filters.UserAgent); err != nil {
+		return nil, err
+	}
+	if filters.IsStream != nil {
+		tx = tx.Where("logs.is_stream = ?", *filters.IsStream)
+	}
+	if tx, err = applyLogOtherStringExactFilter(tx, "reasoning_effort", filters.ReasoningEffort); err != nil {
+		return nil, err
+	}
+	if tx, err = applyBillingSourceFilter(tx, filters.BillingSource); err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
@@ -275,6 +446,7 @@ type RecordConsumeLogParams struct {
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
 	Other            map[string]interface{} `json:"other"`
+	SkipQuotaData    bool                   `json:"skip_quota_data"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -323,7 +495,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
-	if common.DataExportEnabled {
+	if common.DataExportEnabled && !params.SkipQuotaData {
 		gopool.Go(func() {
 			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
 		})
@@ -373,40 +545,11 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(filters LogSearchFilters, startIdx int, num int) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
-	}
-
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+	tx = LOG_DB
+	if tx, err = applyLogSearchFilters(tx, filters, true); err != nil {
 		return nil, 0, err
-	}
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
-		return nil, 0, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if upstreamRequestId != "" {
-		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if channel != 0 {
-		tx = tx.Where("logs.channel_id = ?", channel)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
@@ -462,34 +605,13 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, filters LogSearchFilters, startIdx int, num int) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
-	}
-
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+	tx = LOG_DB.Where("logs.user_id = ?", userId)
+	filters.Username = ""
+	filters.Channel = 0
+	if tx, err = applyLogSearchFilters(tx, filters, true); err != nil {
 		return nil, 0, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if upstreamRequestId != "" {
-		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
@@ -512,41 +634,17 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(filters LogSearchFilters) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+	if tx, err = applyLogSearchFilters(tx, filters, false); err != nil {
 		return stat, err
 	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+	if rpmTpmQuery, err = applyLogSearchFilters(rpmTpmQuery, filters, false); err != nil {
 		return stat, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("token_name = ?", tokenName)
-		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
-	}
-	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
-		return stat, err
-	}
-	if channel != 0 {
-		tx = tx.Where("channel_id = ?", channel)
-		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
-	}
-	if group != "" {
-		tx = tx.Where(logGroupCol+" = ?", group)
-		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)
