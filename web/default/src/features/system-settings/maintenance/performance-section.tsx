@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import * as z from 'zod'
-import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -66,31 +66,47 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useResetForm } from '../hooks/use-reset-form'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import {
+  getNumericInputChangeValue,
+  getNumericInputValue,
+} from '../utils/numeric-field'
 
 const perfSchema = z.object({
-  'performance_setting.disk_cache_enabled': z.boolean(),
-  'performance_setting.disk_cache_threshold_mb': z.coerce.number().min(1),
-  'performance_setting.disk_cache_max_size_mb': z.coerce.number().min(100),
-  'performance_setting.disk_cache_path': z.string().optional(),
-  'performance_setting.monitor_enabled': z.boolean(),
-  'performance_setting.monitor_cpu_threshold': z.coerce.number().min(0),
-  'performance_setting.monitor_memory_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'performance_setting.monitor_disk_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'perf_metrics_setting.enabled': z.boolean(),
-  'perf_metrics_setting.flush_interval': z.coerce.number().min(1),
-  'perf_metrics_setting.bucket_time': z.enum(['minute', '5min', 'hour']),
-  'perf_metrics_setting.retention_days': z.coerce.number().min(0),
+  performance_setting: z.object({
+    disk_cache_enabled: z.boolean(),
+    disk_cache_threshold_mb: z.coerce.number().min(1),
+    disk_cache_max_size_mb: z.coerce.number().min(100),
+    disk_cache_path: z.string().optional(),
+    monitor_enabled: z.boolean(),
+    monitor_cpu_threshold: z.coerce.number().min(0),
+    monitor_memory_threshold: z.coerce.number().min(0).max(100),
+    monitor_disk_threshold: z.coerce.number().min(0).max(100),
+  }),
+  perf_metrics_setting: z.object({
+    enabled: z.boolean(),
+    flush_interval: z.coerce.number().min(1),
+    bucket_time: z.enum(['minute', '5min', 'hour']),
+    retention_days: z.coerce.number().min(0),
+  }),
 })
 
 type PerfFormValues = z.infer<typeof perfSchema>
+type PerfDefaultValues = {
+  'performance_setting.disk_cache_enabled': boolean
+  'performance_setting.disk_cache_threshold_mb': number
+  'performance_setting.disk_cache_max_size_mb': number
+  'performance_setting.disk_cache_path'?: string
+  'performance_setting.monitor_enabled': boolean
+  'performance_setting.monitor_cpu_threshold': number
+  'performance_setting.monitor_memory_threshold': number
+  'performance_setting.monitor_disk_threshold': number
+  'perf_metrics_setting.enabled': boolean
+  'perf_metrics_setting.flush_interval': number
+  'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
+  'perf_metrics_setting.retention_days': number
+}
 
 function formatBytes(bytes: number, decimals = 2): string {
   if (!bytes || isNaN(bytes)) return '0 Bytes'
@@ -104,7 +120,7 @@ function formatBytes(bytes: number, decimals = 2): string {
 }
 
 interface Props {
-  defaultValues: PerfFormValues
+  defaultValues: PerfDefaultValues
 }
 
 type LogInfo = {
@@ -158,15 +174,6 @@ export function PerformanceSection(props: Props) {
   const [logCleanupValue, setLogCleanupValue] = useState(10)
   const [logCleanupLoading, setLogCleanupLoading] = useState(false)
 
-  const form = useForm<PerfFormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(perfSchema) as any,
-    defaultValues: props.defaultValues,
-  })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useResetForm(form as any, props.defaultValues)
-
   const fetchStats = useCallback(async () => {
     try {
       const res = await api.get('/api/performance/stats')
@@ -186,28 +193,45 @@ export function PerformanceSection(props: Props) {
   }, [])
 
   useEffect(() => {
-    fetchStats()
-    fetchLogInfo()
+    const timer = window.setTimeout(() => {
+      fetchStats()
+      fetchLogInfo()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [fetchStats, fetchLogInfo])
 
-  const onSubmit = async (data: PerfFormValues) => {
-    const entries = Object.entries(data) as [string, unknown][]
-    const updates = entries.filter(
-      ([key, value]) =>
-        value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
-    )
-    if (updates.length === 0) {
-      toast.info(t('No changes to save'))
-      return
+  const { form, handleSubmit, isDirty, isSubmitting } =
+    useSettingsForm<PerfFormValues>({
+      resolver: zodResolver(perfSchema) as Resolver<
+        PerfFormValues,
+        unknown,
+        PerfFormValues
+      >,
+      defaultValues: props.defaultValues as unknown as PerfFormValues,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: value as string | number | boolean,
+          })
+        }
+        toast.success(t('Saved successfully'))
+        fetchStats()
+      },
+    })
+
+  const handleNumberChange =
+    (onChange: (value: number | '') => void) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      onChange(getNumericInputChangeValue(event))
     }
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: value as string | number | boolean,
-      })
-    }
-    toast.success(t('Saved successfully'))
-    fetchStats()
+
+  const handleLogCleanupValueChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const nextValue = getNumericInputChangeValue(event)
+    setLogCleanupValue(nextValue === '' ? 0 : nextValue)
   }
 
   const clearDiskCache = async () => {
@@ -302,10 +326,11 @@ export function PerformanceSection(props: Props) {
   return (
     <SettingsSection title={t('Performance Settings')}>
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsForm onSubmit={handleSubmit}>
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            onSave={handleSubmit}
+            isSaving={updateOption.isPending || isSubmitting}
+            isSaveDisabled={!isDirty}
           />
           {/* Disk Cache Settings */}
           <div>
@@ -342,7 +367,15 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Disk Cache Threshold (MB)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!diskEnabled} />
+                    <Input
+                      type='number'
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      disabled={!diskEnabled}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t('Use disk cache when request body exceeds this size')}
@@ -357,7 +390,15 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Max Disk Cache Size (MB)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!diskEnabled} />
+                    <Input
+                      type='number'
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      disabled={!diskEnabled}
+                    />
                   </FormControl>
                   {stats?.disk_space_info &&
                     stats.disk_space_info.total > 0 && (
@@ -444,7 +485,11 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
@@ -460,7 +505,11 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
@@ -476,7 +525,11 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
@@ -526,7 +579,11 @@ export function PerformanceSection(props: Props) {
                     <Input
                       type='number'
                       min={1}
-                      {...field}
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!perfMetricsEnabled}
                     />
                   </FormControl>
@@ -575,7 +632,11 @@ export function PerformanceSection(props: Props) {
                     <Input
                       type='number'
                       min={0}
-                      {...field}
+                      value={getNumericInputValue(field.value)}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!perfMetricsEnabled}
                     />
                   </FormControl>
@@ -673,7 +734,7 @@ export function PerformanceSection(props: Props) {
                   min={1}
                   max={logCleanupMode === 'by_count' ? 1000 : 3650}
                   value={logCleanupValue}
-                  onChange={(e) => setLogCleanupValue(Number(e.target.value))}
+                  onChange={handleLogCleanupValueChange}
                   className='w-[120px]'
                 />
               </div>

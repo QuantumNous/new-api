@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { ChangeEvent } from 'react'
 import * as z from 'zod'
-import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import {
@@ -37,59 +38,71 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useResetForm } from '../hooks/use-reset-form'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import {
+  getNumericInputChangeValue,
+  getNumericInputValue,
+} from '../utils/numeric-field'
 
 const XAI_VIOLATION_FEE_DOC_URL =
   'https://docs.x.ai/docs/models#usage-guidelines-violation-fee'
 
 const grokSchema = z.object({
-  'grok.violation_deduction_enabled': z.boolean(),
-  'grok.violation_deduction_amount': z.coerce.number().min(0),
+  grok: z.object({
+    violation_deduction_enabled: z.boolean(),
+    violation_deduction_amount: z.coerce.number().min(0),
+  }),
 })
 
 type GrokFormValues = z.infer<typeof grokSchema>
+type GrokDefaultValues = {
+  'grok.violation_deduction_enabled': boolean
+  'grok.violation_deduction_amount': number
+}
 
 interface Props {
-  defaultValues: GrokFormValues
+  defaultValues: GrokDefaultValues
 }
 
 export function GrokSettingsCard(props: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
-  const form = useForm<GrokFormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(grokSchema) as any,
-    defaultValues: props.defaultValues,
-  })
+  const { form, handleSubmit, isDirty, isSubmitting } =
+    useSettingsForm<GrokFormValues>({
+      resolver: zodResolver(grokSchema) as Resolver<
+        GrokFormValues,
+        unknown,
+        GrokFormValues
+      >,
+      defaultValues: props.defaultValues as unknown as GrokFormValues,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: value as string | number | boolean,
+          })
+        }
+      },
+    })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useResetForm(form as any, props.defaultValues)
-
-  const onSubmit = async (data: GrokFormValues) => {
-    const entries = Object.entries(data) as [string, unknown][]
-    const updates = entries.filter(
-      ([key, value]) =>
-        value !== (props.defaultValues[key as keyof GrokFormValues] as unknown)
-    )
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: value as string | number | boolean,
-      })
+  const handleNumberChange =
+    (onChange: (value: number | '') => void) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      onChange(getNumericInputChangeValue(event))
     }
-  }
 
   const enabled = form.watch('grok.violation_deduction_enabled')
 
   return (
     <SettingsSection title={t('Grok Settings')}>
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsForm onSubmit={handleSubmit}>
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            onSave={handleSubmit}
+            isSaving={updateOption.isPending || isSubmitting}
+            isSaveDisabled={!isDirty}
           />
           <FormField
             control={form.control}
@@ -133,7 +146,11 @@ export function GrokSettingsCard(props: Props) {
                     type='number'
                     step={0.01}
                     min={0}
-                    {...field}
+                    value={getNumericInputValue(field.value)}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
                     disabled={!enabled}
                   />
                 </FormControl>
