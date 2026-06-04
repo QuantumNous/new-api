@@ -158,6 +158,14 @@ func TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess(t *testing.T) {
 	if !strings.Contains(saved.ResultSnapshot, `"settlement_count":1`) || !strings.Contains(saved.ResultSnapshot, `"settlement_ids"`) {
 		t.Fatalf("expected result snapshot to record settlement ids, got %q", saved.ResultSnapshot)
 	}
+	for _, key := range []string{
+		`"settlement_commission_event_id"`,
+		`"settlement_head_fee_event_id"`,
+	} {
+		if !strings.Contains(saved.ResultSnapshot, key) {
+			t.Fatalf("expected successful settlement generate snapshot to retain scan cursor %s, got %q", key, saved.ResultSnapshot)
+		}
+	}
 	if saved.LastCursorId <= 0 {
 		t.Fatalf("expected settlement generate job run to retain last scanned event cursor, got %+v", saved)
 	}

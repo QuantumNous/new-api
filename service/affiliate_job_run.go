@@ -298,7 +298,7 @@ func finishAffiliateJobRunSuccess(db *gorm.DB, jobRun model.AffiliateJobRun, res
 		"commission_event_count": result.CommissionEventCount,
 		"head_fee_event_count":   result.HeadFeeEventCount,
 		"settlement_count":       result.SettlementCount,
-		"result_snapshot":        affiliateSettlementRunResultSnapshot(result),
+		"result_snapshot":        affiliateSettlementRunResultSnapshot(db, jobRun.Id, result),
 		"error_message":          "",
 	})
 }
@@ -311,7 +311,7 @@ func finishAffiliateSettlementGenerateJobRunSuccess(db *gorm.DB, jobRun model.Af
 		"status":           model.AffiliateJobRunStatusSucceeded,
 		"finished_at":      finishedAt,
 		"settlement_count": len(settlements),
-		"result_snapshot":  affiliateSettlementGenerateResultSnapshot(settlements),
+		"result_snapshot":  affiliateSettlementGenerateResultSnapshot(db, jobRun.Id, settlements),
 		"error_message":    "",
 	})
 }
@@ -498,8 +498,8 @@ func affiliateSettlementGenerateInputSnapshot(input AffiliateSettlementBuildInpu
 	})
 }
 
-func affiliateSettlementRunResultSnapshot(result AffiliateSettlementRunResult) string {
-	return common.GetJsonString(map[string]interface{}{
+func affiliateSettlementRunResultSnapshot(db *gorm.DB, jobRunId int, result AffiliateSettlementRunResult) string {
+	return affiliateJobRunSuccessSnapshot(db, jobRunId, map[string]interface{}{
 		"kpi_snapshot_count":     result.KPISnapshotCount,
 		"commission_event_count": result.CommissionEventCount,
 		"head_fee_event_count":   result.HeadFeeEventCount,
@@ -508,11 +508,20 @@ func affiliateSettlementRunResultSnapshot(result AffiliateSettlementRunResult) s
 	})
 }
 
-func affiliateSettlementGenerateResultSnapshot(settlements []model.AffiliateSettlement) string {
-	return common.GetJsonString(map[string]interface{}{
+func affiliateSettlementGenerateResultSnapshot(db *gorm.DB, jobRunId int, settlements []model.AffiliateSettlement) string {
+	return affiliateJobRunSuccessSnapshot(db, jobRunId, map[string]interface{}{
 		"settlement_count": len(settlements),
 		"settlement_ids":   affiliateSettlementIds(settlements),
 	})
+}
+
+func affiliateJobRunSuccessSnapshot(db *gorm.DB, jobRunId int, finalFields map[string]interface{}) string {
+	snapshot := loadAffiliateJobRunResultSnapshot(db, jobRunId)
+	delete(snapshot, "status")
+	for key, value := range finalFields {
+		snapshot[key] = value
+	}
+	return common.GetJsonString(snapshot)
 }
 
 func affiliateSettlementIds(settlements []model.AffiliateSettlement) []int {

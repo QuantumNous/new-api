@@ -653,3 +653,12 @@
 - 验证命令：RED 阶段 `go test -count=1 ./service -run TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart` 失败于 partial settlement progress snapshot 丢失；实现后同命令通过。回归 `go test -count=1 ./service -run "AffiliateJobRun|ResumeFailed|GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
 - schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；Docker 仍只返回 client 信息，pending PostgreSQL schema diff 仍待 Docker 恢复后补。
 - 残留风险：完整阶段内部 cursor 断点续扫仍未完成，尤其 KPI/佣金/人头费阶段仍不能直接跳过 cursor 前日志；外部完整周期 dry-run/正式 run 双跑和真实运行态部署验证仍待做。
+
+## P1-38 成功态 job run 保留扫描进度复盘（2026-06-04 本线程）
+
+- RED：扩展 `TestRunAffiliateSettlementPipelineRecordsJobRunSuccess`，要求成功的 settlement pipeline `result_snapshot` 仍保留 `kpi_log_id`、`commission_log_id`、`head_fee_log_id`、`settlement_commission_event_id` 和 `settlement_head_fee_event_id`；旧实现成功收尾时用最终 counts/settlement ids 覆盖整个 snapshot，测试失败于缺少 `kpi_log_id`。同时扩展 `TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess`，要求单独 settlement generate 成功态保留 settlement event typed cursor。
+- 完成内容：成功收尾 snapshot 改为先读取当前 job run 已累积的 `result_snapshot`，删除临时 `status` 字段，再覆盖最终 `kpi_snapshot_count`、`commission_event_count`、`head_fee_event_count`、`settlement_count` 和 `settlement_ids`。这样 success 状态既保留最终结果，又保留扫描进度审计证据。
+- 安全边界：本轮只改变成功态 job run 审计 snapshot 的合并策略，不新增 schema，不保存 reason 原文，不改变结算金额、分佣/KPI/人头费口径，也不实现阶段内部 cursor 跳扫。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestRunAffiliateSettlementPipelineRecordsJobRunSuccess` 失败于成功态 snapshot 缺少 `kpi_log_id`；实现后 `go test -count=1 ./service -run "TestRunAffiliateSettlementPipelineRecordsJobRunSuccess|TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess"` 通过。回归 `go test -count=1 ./service -run "AffiliateJobRun|ResumeFailed|GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过。
+- schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；Docker server 仍不可用，既有 PostgreSQL schema diff 缺口仍待恢复后补。
+- 残留风险：成功态 snapshot 已保留 typed cursor，但完整阶段内部 cursor 断点续扫仍未完成；KPI、佣金和人头费阶段仍不能直接跳过 cursor 前日志。外部完整周期 dry-run/正式 run 双跑、Docker schema diff 和生产/staging 真实链路验证仍待做。

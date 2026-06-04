@@ -260,6 +260,17 @@ func TestRunAffiliateSettlementPipelineRecordsJobRunSuccess(t *testing.T) {
 	if jobRun.LastCursorCreatedAt != 1100 || jobRun.LastCursorId <= 0 {
 		t.Fatalf("expected job run to retain last scanned log cursor, got %+v", jobRun)
 	}
+	for _, key := range []string{
+		`"kpi_log_id"`,
+		`"commission_log_id"`,
+		`"head_fee_log_id"`,
+		`"settlement_commission_event_id"`,
+		`"settlement_head_fee_event_id"`,
+	} {
+		if !strings.Contains(jobRun.ResultSnapshot, key) {
+			t.Fatalf("expected successful job run result snapshot to retain scan cursor %s, got %q", key, jobRun.ResultSnapshot)
+		}
+	}
 }
 
 func TestRunAffiliateSettlementPipelineRecordsJobRunFailure(t *testing.T) {
