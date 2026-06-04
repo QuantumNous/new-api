@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -39,23 +40,13 @@ type googleOAuthResponse struct {
 }
 
 type googleUser struct {
-	Sub           string   `json:"sub"`
-	Email         string   `json:"email"`
-	EmailVerified flexBool `json:"email_verified"`
-	Name          string   `json:"name"`
-}
-
-// flexBool accepts either a JSON boolean (true) or a JSON string ("true").
-// Google's OIDC userinfo endpoint returns a boolean per spec, but legacy/ID-token
-// claims have historically returned the string form. Decoding leniently here
-// avoids fail-closed rejection of a legitimately verified user; any value that
-// is not an affirmative true/"true"/1 is treated as false.
-type flexBool bool
-
-func (b *flexBool) UnmarshalJSON(data []byte) error {
-	s := strings.Trim(strings.TrimSpace(string(data)), `"`)
-	*b = flexBool(s == "true" || s == "1")
-	return nil
+	Sub   string `json:"sub"`
+	Email string `json:"email"`
+	// EmailVerified uses dto.BoolValue so it decodes whether Google sends a JSON
+	// boolean (the OIDC userinfo endpoint's spec behavior) or the legacy string
+	// form ("true"); an absent/false value fails closed as not verified.
+	EmailVerified dto.BoolValue `json:"email_verified"`
+	Name          string        `json:"name"`
 }
 
 func (p *GoogleProvider) GetName() string { return "Google" }
@@ -98,6 +89,19 @@ func (p *GoogleProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	defer res.Body.Close()
 
 	logger.LogDebug(ctx, "[OAuth-Google] ExchangeToken response status: %d", res.StatusCode)
+
+	// Google returns a JSON error body (e.g. invalid_grant / redirect_uri_mismatch)
+	// with a 4xx status. Surface it instead of decoding into an empty token and
+	// reporting the generic "check settings" message.
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(res.Body)
+		bodyStr := string(body)
+		if len(bodyStr) > 500 {
+			bodyStr = bodyStr[:500] + "..."
+		}
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Google] ExchangeToken failed: status=%d, body=%s", res.StatusCode, bodyStr))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Google"}, fmt.Sprintf("status %d: %s", res.StatusCode, bodyStr))
+	}
 
 	var tokenResp googleOAuthResponse
 	if err := common.DecodeJson(res.Body, &tokenResp); err != nil {
