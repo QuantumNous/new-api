@@ -618,3 +618,11 @@
 - 根因判断：当前 no-store 缺口不是源码未实现，而是运行态 `3000` 后端尚未部署当前构建或仍为旧容器/旧镜像；本轮不改源码、不重复加 middleware。
 - Docker 取证：`timeout 60s docker version` 仍只输出 Docker client 信息并以非 0 退出，未返回 server 信息；因此本轮不能安全执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`，也不能补 PostgreSQL schema diff。
 - 残留风险：fresh curl 与 in-app Browser 不能直接读取用户既有 Windows Chrome disk cache；如果用户手动浏览器仍显示旧 404，仍需在该浏览器 DevTools 勾选 Disable cache、硬刷新或清站点缓存。Docker 恢复后必须重建 `new-api:dev`，复测 `/api/*` no-store header、`/api/affiliate/team` 登录态 200 和 pending schema diff。
+
+## P2-5 登录态分销页 smoke 复盘（2026-06-04 本线程）
+
+- 完成内容：使用本地 Playwright runtime 和 `.codex-local/affiliate-test-accounts.secret.json` 读取一级分销商测试账号做只读登录 smoke；脚本只输出角色标签、HTTP code、success、脱敏计数和页面布尔值，不输出密码、cookie、完整响应体、完整 request id 或截图。
+- default 结果：登录后停留在 `/affiliate`；`/api/affiliate/status` 返回 200 且 `available=true`；`/api/affiliate/team` 返回 200、`total=9`；`/api/affiliate/logs?p=0&page_size=5` 返回 200、rows=5；页面包含趋势面板文案，未出现旧“推广关系树接口返回 404”或 `Invalid URL` 文案。
+- classic 结果：登录后停留在 `/console/affiliate`；`/api/affiliate/status` 返回 200 且 `available=true`；`/api/affiliate/team` 返回 200、`total=9`；`/api/affiliate/logs?p=0&page_size=5` 返回 200、rows=5；页面包含趋势面板文案，未出现旧“推广关系树接口返回 404”或 `Invalid URL` 文案。
+- 运行态差异：两端 `/api/affiliate/summary?trend_start_timestamp=...&trend_end_timestamp=...` 均返回 200 且 `success=true`，但响应数据中没有 `daily_trends`。结合 P0-8 的 no-store header 缺失，判断为当前 `3000` 后端运行态仍是旧构建，尚未部署 `fb3e3447` 的趋势 API；不是前端页面没有加载当前 bundle。
+- 残留风险：本轮是本地只读浏览器 smoke，不替代 staging/生产外部验收；Docker 恢复后必须重建当前仓库 `new-api:dev`，再复测 summary `daily_trends`、no-store header 和登录态趋势数据。
