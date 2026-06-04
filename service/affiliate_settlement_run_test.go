@@ -362,6 +362,71 @@ func TestRunAffiliateSettlementPipelineRecordsJobRunFailure(t *testing.T) {
 	}
 }
 
+func TestRunAffiliateSettlementPipelineRecordsPartialKPIProgressOnFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateKPIRuleSetInput("settlement-run-partial-kpi-progress"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionProfileAndRelation(t, db, 101, 201, 1)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200})
+	seedAffiliateKPIInviteEvents(t, db, 101, []int{201})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 201, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+
+	createdKPISnapshots := 0
+	failSecondKPISnapshot := "fail_second_kpi_snapshot_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Create().Before("gorm:create").Register(failSecondKPISnapshot, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_kpi_snapshots" {
+			return
+		}
+		createdKPISnapshots++
+		if createdKPISnapshots == 2 {
+			tx.AddError(errors.New("forced second kpi snapshot failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register second kpi failure callback: %v", err)
+	}
+
+	result, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             3000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "record partial kpi progress",
+	})
+	_ = db.Callback().Create().Remove(failSecondKPISnapshot)
+	if err == nil {
+		t.Fatalf("expected forced kpi snapshot failure, got %+v", result)
+	}
+
+	var persistedKPICount int64
+	if err := db.Model(&model.AffiliateKPISnapshot{}).
+		Where("rule_set_id = ? AND period_start = ? AND period_end = ?", ruleSet.Id, 1000, 2000).
+		Count(&persistedKPICount).Error; err != nil {
+		t.Fatalf("count persisted kpi snapshots: %v", err)
+	}
+	if persistedKPICount != 1 {
+		t.Fatalf("expected first kpi snapshot to be durable before failure, got %d", persistedKPICount)
+	}
+
+	var jobRun model.AffiliateJobRun
+	if err := db.First(&jobRun, result.JobRunId).Error; err != nil {
+		t.Fatalf("load failed job run: %v", err)
+	}
+	if jobRun.Status != model.AffiliateJobRunStatusFailed || jobRun.CurrentStage != affiliateJobRunStageKPI {
+		t.Fatalf("expected failed job run at kpi stage, got %+v", jobRun)
+	}
+	if jobRun.KPISnapshotCount != 1 {
+		t.Fatalf("expected failed job run to retain partial kpi snapshot count, got %+v", jobRun)
+	}
+	if !strings.Contains(jobRun.ResultSnapshot, `"kpi_snapshot_count":1`) {
+		t.Fatalf("expected failed result snapshot to retain partial kpi snapshot count, got %q", jobRun.ResultSnapshot)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineRecordsPartialCommissionProgressOnFailure(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-run-partial-commission-progress")

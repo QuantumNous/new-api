@@ -350,6 +350,16 @@ func updateAffiliateJobRunSettlementProgress(db *gorm.DB, jobRunId int, settleme
 	})
 }
 
+func updateAffiliateJobRunKPIProgress(db *gorm.DB, jobRunId int, kpiSnapshotCount int) error {
+	if jobRunId <= 0 {
+		return nil
+	}
+	return updateAffiliateJobRunProgress(db, jobRunId, affiliateJobRunStageKPI, map[string]interface{}{
+		"kpi_snapshot_count": kpiSnapshotCount,
+		"result_snapshot":    affiliateJobRunCountProgressSnapshot(db, jobRunId, "kpi_snapshot_count", kpiSnapshotCount),
+	})
+}
+
 func updateAffiliateJobRunCommissionProgress(db *gorm.DB, jobRunId int, commissionEventCount int) error {
 	if jobRunId <= 0 {
 		return nil

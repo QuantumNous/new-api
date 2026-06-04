@@ -65,15 +65,16 @@ func BuildAffiliateKPISnapshots(db *gorm.DB, logDB *gorm.DB, input AffiliateKPIB
 	}
 
 	snapshots := make([]model.AffiliateKPISnapshot, 0, len(profiles))
-	err = db.Transaction(func(tx *gorm.DB) error {
-		for _, profile := range profiles {
+	for _, profile := range profiles {
+		var savedForProfile *model.AffiliateKPISnapshot
+		err = db.Transaction(func(tx *gorm.DB) error {
 			scope := ResolveAffiliateAccessScope(AffiliateScopeInput{
 				UserId:        profile.UserId,
 				ProfileStatus: profile.Status,
 				ProfileLevel:  profile.Level,
 			})
 			if scope.Kind != AffiliateScopeAffiliate {
-				continue
+				return nil
 			}
 
 			visible, err := ListAffiliateVisibleUserIds(tx, scope)
@@ -116,12 +117,19 @@ func BuildAffiliateKPISnapshots(db *gorm.DB, logDB *gorm.DB, input AffiliateKPIB
 			if err != nil {
 				return err
 			}
-			snapshots = append(snapshots, saved)
+			savedForProfile = &saved
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		if savedForProfile == nil {
+			continue
+		}
+		snapshots = append(snapshots, *savedForProfile)
+		if err := updateAffiliateJobRunKPIProgress(db, input.JobRunId, len(snapshots)); err != nil {
+			return nil, err
+		}
 	}
 	return snapshots, nil
 }
