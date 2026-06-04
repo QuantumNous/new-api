@@ -21,6 +21,7 @@ import type { SystemStatus, OAuthProvider } from '../types'
 export {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
+  buildGoogleOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '@/lib/oauth'
