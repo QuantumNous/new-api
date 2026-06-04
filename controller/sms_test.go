@@ -11,8 +11,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	appI18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -192,6 +195,214 @@ func TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse(t *testing.T) {
 	}
 	if logs[0].PhoneMasked != "138****8000" || logs[0].Scene != common.SMSSceneRegister {
 		t.Fatalf("unexpected sms send log: %+v", logs[0])
+	}
+}
+
+func TestSMSPhoneLoginUsesActiveBindingWithoutAutoRegistering(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.DeleteKey("1001", common.SMSVerificationPurpose(common.SMSSceneLogin))
+	})
+
+	db := newSMSPhoneLoginTestDB(t)
+	model.DB = db
+	common.SMSEnabled = true
+
+	hashedPassword, err := common.Password2Hash("password123")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	user := model.User{
+		Username:    "smsloginuser",
+		Password:    hashedPassword,
+		DisplayName: "SMS Login User",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed sms login user: %v", err)
+	}
+	if _, err := service.BindUserPhone(db, service.UserPhoneBindingInput{
+		UserID:   user.Id,
+		Phone:    "1001",
+		Provider: common.SMSProviderName,
+	}); err != nil {
+		t.Fatalf("bind phone: %v", err)
+	}
+	common.RegisterVerificationCodeWithKey("1001", "123456", common.SMSVerificationPurpose(common.SMSSceneLogin))
+
+	router := newSMSPhoneLoginTestRouter()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/login/phone", bytes.NewBufferString(`{
+		"phone":"1001",
+		"verification_code":"123456"
+	}`))
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool           `json:"success"`
+		Message string         `json:"message"`
+		Data    map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected successful phone login, got %q", response.Message)
+	}
+	if response.Data["id"] != float64(user.Id) || response.Data["username"] != "smsloginuser" {
+		t.Fatalf("unexpected login response data: %+v", response.Data)
+	}
+	body := recorder.Body.String()
+	for _, forbidden := range []string{"1001", "123456"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("phone login response leaked %q: %s", forbidden, body)
+		}
+	}
+	var userCount int64
+	if err := db.Model(&model.User{}).Count(&userCount).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if userCount != 1 {
+		t.Fatalf("phone login must not auto-register users, got user count %d", userCount)
+	}
+}
+
+func TestSMSPhoneLoginRejectsUnboundPhoneWithoutCreatingUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.DeleteKey("1002", common.SMSVerificationPurpose(common.SMSSceneLogin))
+	})
+
+	db := newSMSPhoneLoginTestDB(t)
+	model.DB = db
+	common.SMSEnabled = true
+	common.RegisterVerificationCodeWithKey("1002", "123456", common.SMSVerificationPurpose(common.SMSSceneLogin))
+
+	router := newSMSPhoneLoginTestRouter()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/login/phone", bytes.NewBufferString(`{
+		"phone":"1002",
+		"verification_code":"123456"
+	}`))
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Success {
+		t.Fatalf("expected unbound phone login to fail, body=%s", recorder.Body.String())
+	}
+	if !strings.Contains(response.Message, "phone is not bound") {
+		t.Fatalf("expected unbound phone message, got %q", response.Message)
+	}
+	body := recorder.Body.String()
+	for _, forbidden := range []string{"1002", "123456"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("phone login error response leaked %q: %s", forbidden, body)
+		}
+	}
+	var userCount int64
+	if err := db.Model(&model.User{}).Count(&userCount).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if userCount != 0 {
+		t.Fatalf("unbound phone login must not auto-register users, got user count %d", userCount)
+	}
+	var bindingCount int64
+	if err := db.Model(&model.UserPhoneBinding{}).Count(&bindingCount).Error; err != nil {
+		t.Fatalf("count phone bindings: %v", err)
+	}
+	if bindingCount != 0 {
+		t.Fatalf("unbound phone login must not create bindings, got %d", bindingCount)
+	}
+}
+
+func TestSMSPhoneLoginRespectsEnabledTwoFA(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.DeleteKey("1006", common.SMSVerificationPurpose(common.SMSSceneLogin))
+	})
+
+	db := newSMSPhoneLoginTestDB(t)
+	model.DB = db
+	common.SMSEnabled = true
+
+	user := model.User{
+		Username:    "smslogin2fa",
+		Password:    "hashed-password-not-used",
+		DisplayName: "SMS Login 2FA",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed 2fa user: %v", err)
+	}
+	if err := db.Create(&model.TwoFA{
+		UserId:    user.Id,
+		Secret:    "test-secret",
+		IsEnabled: true,
+	}).Error; err != nil {
+		t.Fatalf("seed 2fa: %v", err)
+	}
+	if _, err := service.BindUserPhone(db, service.UserPhoneBindingInput{
+		UserID: user.Id,
+		Phone:  "1006",
+	}); err != nil {
+		t.Fatalf("bind 2fa phone: %v", err)
+	}
+	common.RegisterVerificationCodeWithKey("1006", "123456", common.SMSVerificationPurpose(common.SMSSceneLogin))
+
+	router := newSMSPhoneLoginTestRouter()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/login/phone", bytes.NewBufferString(`{
+		"phone":"1006",
+		"verification_code":"123456"
+	}`))
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool           `json:"success"`
+		Data    map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success || response.Data["require_2fa"] != true {
+		t.Fatalf("expected phone login to require 2fa, got body=%s", recorder.Body.String())
+	}
+	if _, ok := response.Data["id"]; ok {
+		t.Fatalf("2fa pending login must not return logged-in user data: %+v", response.Data)
 	}
 }
 
@@ -619,6 +830,29 @@ func newSMSControllerTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("migrate sms sidecar models: %v", err)
 	}
 	return db
+}
+
+func newSMSPhoneLoginTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	models := append([]interface{}{&model.User{}, &model.TwoFA{}}, model.SMSSidecarModels()...)
+	if err := db.AutoMigrate(models...); err != nil {
+		t.Fatalf("migrate sms phone login models: %v", err)
+	}
+	return db
+}
+
+func newSMSPhoneLoginTestRouter() *gin.Engine {
+	if err := appI18n.Init(); err != nil {
+		panic(err)
+	}
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("sms-phone-login-test"))))
+	router.POST("/api/user/login/phone", SMSPhoneLogin)
+	return router
 }
 
 type fakeSMSProvider struct {

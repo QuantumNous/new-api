@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -16,7 +17,8 @@ func newSMSTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(model.SMSSidecarModels()...); err != nil {
+	models := append([]interface{}{&model.User{}}, model.SMSSidecarModels()...)
+	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate sms sidecar models: %v", err)
 	}
 	return db
@@ -131,5 +133,71 @@ func TestBindUserPhoneRejectsPhoneAlreadyActiveForAnotherUser(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "phone already bound") {
 		t.Fatalf("expected phone already bound error, got %v", err)
+	}
+}
+
+func TestFindUserByActivePhoneBindingReturnsEnabledUser(t *testing.T) {
+	db := newSMSTestDB(t)
+	user := model.User{
+		Id:          201,
+		Username:    "phone-login-user",
+		DisplayName: "Phone Login User",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	if _, err := BindUserPhone(db, UserPhoneBindingInput{
+		UserID:   user.Id,
+		Phone:    "1003",
+		Provider: "smsbao",
+	}); err != nil {
+		t.Fatalf("bind user phone: %v", err)
+	}
+
+	resolved, err := FindUserByActivePhoneBinding(db, " 1003 ")
+	if err != nil {
+		t.Fatalf("FindUserByActivePhoneBinding returned error: %v", err)
+	}
+	if resolved.Id != user.Id || resolved.Username != user.Username || resolved.Status != common.UserStatusEnabled {
+		t.Fatalf("unexpected resolved user: %+v", resolved)
+	}
+}
+
+func TestFindUserByActivePhoneBindingRejectsUnboundPhone(t *testing.T) {
+	db := newSMSTestDB(t)
+
+	_, err := FindUserByActivePhoneBinding(db, "1004")
+
+	if err == nil || !strings.Contains(err.Error(), "phone is not bound") {
+		t.Fatalf("expected unbound phone error, got %v", err)
+	}
+}
+
+func TestFindUserByActivePhoneBindingRejectsDisabledUser(t *testing.T) {
+	db := newSMSTestDB(t)
+	user := model.User{
+		Id:       202,
+		Username: "disabled-phone-login-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusDisabled,
+		Group:    "default",
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed disabled user: %v", err)
+	}
+	if _, err := BindUserPhone(db, UserPhoneBindingInput{
+		UserID: user.Id,
+		Phone:  "1005",
+	}); err != nil {
+		t.Fatalf("bind disabled user phone: %v", err)
+	}
+
+	_, err := FindUserByActivePhoneBinding(db, "1005")
+
+	if err == nil || !strings.Contains(err.Error(), "phone is not bound") {
+		t.Fatalf("expected disabled user to be rejected as unbound, got %v", err)
 	}
 }

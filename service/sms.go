@@ -127,6 +127,39 @@ func BindUserPhone(db *gorm.DB, input UserPhoneBindingInput) (*model.UserPhoneBi
 	return created, nil
 }
 
+func FindUserByActivePhoneBinding(db *gorm.DB, phone string) (*model.User, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	phoneHash := HashPhoneForBinding(phone)
+	if phoneHash == "" {
+		return nil, errors.New("invalid phone")
+	}
+
+	var binding model.UserPhoneBinding
+	err := db.
+		Where("phone_hash = ? AND status = ?", phoneHash, model.UserPhoneBindingStatusActive).
+		First(&binding).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.New("phone is not bound")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var user model.User
+	err = db.
+		Where("id = ? AND status = ?", binding.UserId, common.UserStatusEnabled).
+		First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.New("phone is not bound")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func HashPhoneForBinding(phone string) string {
 	normalized, err := common.NormalizePhone(phone)
 	if err != nil {

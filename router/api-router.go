@@ -107,6 +107,7 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/sms/register/code", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendSMSRegisterCode)
 			userRoute.POST("/sms/register", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SMSRegister)
 			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.Login)
+			userRoute.POST("/login/phone", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SMSPhoneLogin)
 			userRoute.POST("/login/2fa", middleware.CriticalRateLimit(), controller.Verify2FALogin)
 			userRoute.POST("/passkey/login/begin", middleware.CriticalRateLimit(), controller.PasskeyLoginBegin)
 			userRoute.POST("/passkey/login/finish", middleware.CriticalRateLimit(), controller.PasskeyLoginFinish)

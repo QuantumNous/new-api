@@ -65,6 +65,10 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	setupLoginWithOptionalTwoFA(&user, c)
+}
+
+func setupLoginWithOptionalTwoFA(user *model.User, c *gin.Context) {
 	// 检查是否启用2FA
 	if model.IsTwoFAEnabled(user.Id) {
 		// 设置pending session，等待2FA验证
@@ -87,7 +91,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	setupLogin(&user, c)
+	setupLogin(user, c)
 }
 
 // setup session & cookies and then return user info

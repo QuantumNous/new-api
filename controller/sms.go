@@ -31,6 +31,11 @@ type smsRegisterCodeRequest struct {
 	Phone string `json:"phone"`
 }
 
+type smsPhoneLoginRequest struct {
+	Phone            string `json:"phone"`
+	VerificationCode string `json:"verification_code"`
+}
+
 func SendSMSRegisterCode(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorMsg(c, "Register is disabled")
@@ -102,6 +107,38 @@ func SendSMSRegisterCode(c *gin.Context) {
 			"template_scene": common.SMSSceneRegister,
 		},
 	})
+}
+
+func SMSPhoneLogin(c *gin.Context) {
+	if !common.SMSEnabled {
+		common.ApiErrorMsg(c, "SMS is disabled")
+		return
+	}
+	var req smsPhoneLoginRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	phone, err := common.NormalizePhone(req.Phone)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	purpose := common.SMSVerificationPurpose(common.SMSSceneLogin)
+	if !common.VerifyCodeWithKey(phone, req.VerificationCode, purpose) {
+		common.ApiErrorMsg(c, "SMS verification code is invalid")
+		return
+	}
+	user, err := service.FindUserByActivePhoneBinding(model.DB, phone)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.DeleteKey(phone, purpose)
+	setupLoginWithOptionalTwoFA(user, c)
 }
 
 func SMSRegister(c *gin.Context) {
