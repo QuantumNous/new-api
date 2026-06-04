@@ -64,6 +64,7 @@ func BuildSeedanceTaskResponseFromNewAPI(body []byte) ([]byte, error) {
 			resp["task_id"] = id
 		}
 	}
+	replaceResponseIDWithTaskID(resp)
 	if status, ok := resp["status"].(string); ok {
 		resp["status"] = mapSeedanceStatus(status)
 	}
@@ -81,6 +82,17 @@ func BuildSeedanceTaskResponseFromNewAPI(body []byte) ([]byte, error) {
 		}
 	}
 	return json.Marshal(resp)
+}
+
+func replaceResponseIDWithTaskID(resp map[string]any) {
+	taskID, ok := resp["task_id"]
+	if !ok {
+		return
+	}
+	if existingID, ok := resp["id"]; ok && existingID != taskID {
+		resp["upstream_id"] = existingID
+	}
+	resp["id"] = taskID
 }
 
 func normalizeSeedanceTaskResponse(src map[string]any) map[string]any {
