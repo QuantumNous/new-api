@@ -230,6 +230,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// parallel_tool_calls 仅在指定 tools 时合法。当客户端显式传了该字段但 tools 为空时，
+	// 上游会报 "'parallel_tool_calls' is only allowed when 'tools' are specified"，此处剔除以保证兼容。
+	if len(request.Tools) == 0 {
+		request.ParallelTooCalls = nil
+	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
