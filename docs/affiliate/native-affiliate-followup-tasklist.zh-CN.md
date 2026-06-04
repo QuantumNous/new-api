@@ -128,7 +128,7 @@
 - [ ] classic 与 default 的分销商中心、分销管理、用户 inviter 管理、规则集、佣金和结算操作必须保持功能 parity。
 - [ ] 新增前端功能时先确认适用 skill：classic 同步 default 用 `classic-to-default-sync`，文案用 `i18n-translate`，default 组件优先遵守 shadcn/default 现有模式。
 - [ ] 所有新增前端 API 要统一处理登录态、错误提示、no-cache 策略和 RMB 单位，不要每个页面散写。
-- [ ] 浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角。
+- [ ] 浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角。（2026-06-04 本轮 classic `5174` 已覆盖超级管理员、一级、二级、一级移动端、普通未开通、禁用 profile 和模块关闭 7 个场景；default `5173` full smoke 先通过 super_admin 场景，随后第二次登录被 dev 运行态登录限流返回 429，需等待限流窗口恢复或 Docker/Redis 可用后补 default 多角色，见 P2-15。）
 - [x] 对当前 `5173` default 页面已有的 React checked/onChange console warning 做基线记录，确认是否与分销页面无关；后续可以作为前端质量债单独修。（2026-06-04 已复核：default 根页 `/` 可触发 1 条 React `checked`/`onChange` error；未登录 `/affiliate/` 跳转登录页和登录后的 `/affiliate/` 均为 0 error / 0 warning，分销页 API 均为 200，见 P2-14。）
 - [ ] 前端变更后使用 in-app Browser 或 Playwright 打开 `http://127.0.0.1:5173/` 与 `http://127.0.0.1:5174/`，必要时截图留证。
 
@@ -834,3 +834,12 @@
 - 登录态 smoke：WSL Playwright 从 `.codex-local/affiliate-test-accounts.secret.json` 读取一级分销测试账号但不输出凭据或 cookie，登录后重新打开 `http://127.0.0.1:5173/affiliate/`，console 为 0 error / 0 warning，`/api/affiliate/status`、`/api/affiliate/team`、`/api/affiliate/summary`、`/api/affiliate/logs` 均返回 200。
 - 结论：当前 React `checked`/`onChange` error 属于 default 根页或共享登录/首页基线，不是分销页本身触发；后续如要修复，应作为 default 前端通用质量债单独定位，不阻塞分销页 tasklist 收口。
 - 残留风险：本轮只覆盖 default `5173` 的根页、未登录分销跳转和一级分销商登录态分销页；不替代第 11 节要求的多角色浏览器 smoke、classic/default 全量 parity 审计或外部 staging/生产浏览器验收。
+
+## P2-15 classic 多角色浏览器 smoke 复核（2026-06-04 本线程）
+
+- 目标：推进第 11 节“浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角”，并区分 classic/default 当前证据强度。
+- classic 证据：`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.config.cjs` 通过 7/7，覆盖 `super_admin`、`level_1_affiliate`、`level_2_affiliate`、一级移动端、临时普通未开通用户、禁用 profile 和模块关闭。输出只包含角色标签、available/scope/logs success、脱敏计数和 unavailable reason，不输出密码、cookie、完整手机号、token 或完整响应体。
+- default 证据：`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.default.config.cjs` 先通过 `super_admin` 分销页场景，`/api/affiliate/status`、summary 和 logs 均成功；随后第二次登录返回 429，测试停止于登录 HTTP status 断言。该失败是 dev 运行态登录限流，不是分销页 API 或页面断言失败。
+- 根因边界：`middleware/auth.go` 复核显示 `New-Api-User` 只在已有 session 或有效 access token 后校验 user id 是否匹配，不能单独绕过登录；`router/api-router.go` 的 `/api/user/login` 挂载 `CriticalRateLimit()`。Docker server 本轮仍只返回 `client=29.5.2 server=`，不能清 dev Redis 限流键或重启容器复测。
+- 安全边界：本轮从 `.codex-local/affiliate-test-accounts.secret.json` 读取本地测试账号执行 smoke，但不输出密码、cookie、session、token、DSN、完整手机号或敏感截图；runtime screenshot、trace 和 test-results 仍由 Git 忽略，不进入提交。
+- 残留风险：第 11 节浏览器 smoke 总项不能勾选完成，因为 default 多角色 full smoke 仍缺少新鲜完整通过证据。下一步等待登录限流窗口自然恢复，或 Docker/Redis 恢复后按 dev runbook 清理本地 dev rateLimit 键，再重跑 default full smoke；同时可把 classic runtime smoke 的登录按钮选择器修复沉淀到可追踪 smoke 资产或后续 runbook。
