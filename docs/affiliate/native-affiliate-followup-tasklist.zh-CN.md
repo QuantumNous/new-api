@@ -626,3 +626,12 @@
 - classic 结果：登录后停留在 `/console/affiliate`；`/api/affiliate/status` 返回 200 且 `available=true`；`/api/affiliate/team` 返回 200、`total=9`；`/api/affiliate/logs?p=0&page_size=5` 返回 200、rows=5；页面包含趋势面板文案，未出现旧“推广关系树接口返回 404”或 `Invalid URL` 文案。
 - 运行态差异：两端 `/api/affiliate/summary?trend_start_timestamp=...&trend_end_timestamp=...` 均返回 200 且 `success=true`，但响应数据中没有 `daily_trends`。结合 P0-8 的 no-store header 缺失，判断为当前 `3000` 后端运行态仍是旧构建，尚未部署 `fb3e3447` 的趋势 API；不是前端页面没有加载当前 bundle。
 - 残留风险：本轮是本地只读浏览器 smoke，不替代 staging/生产外部验收；Docker 恢复后必须重建当前仓库 `new-api:dev`，再复测 summary `daily_trends`、no-store header 和登录态趋势数据。
+
+## P1-35 settlement 阶段 affiliate 级 durable side effect 复盘（2026-06-04 本线程）
+
+- RED：新增 `TestGenerateAffiliateSettlementsKeepsCompletedAffiliateDraftWhenLaterAffiliateFails`，构造两个 affiliate 的 pending commission events，并在第二个 affiliate draft 创建前强制失败。旧实现把所有 affiliate settlement upsert/link 包在同一个大事务里，第二个 affiliate 失败会回滚第一个 affiliate 已完成的 draft 和 ready event，测试失败于 first draft `record not found`。
+- 完成内容：`GenerateAffiliateSettlements` 改为按 affiliate user 分别开启小事务，单个 affiliate 内仍保持 draft upsert 与 event link 原子性；某个后续 affiliate 失败时，之前已经成功的 affiliate draft 和 ready event 会持久化。重试时现有 `mergeExistingAffiliateSettlementDraftEvents` 会把这些 ready events 重新合入 groups，避免重复生成 draft，也不需要按 cursor 跳过 pending event 扫描。
+- 安全边界：本轮不是 unsafe 的阶段内部 cursor 跳扫。KPI、佣金和人头费阶段仍有累计上下文，settlement grouping 仍在内存中聚合；本轮只是为 settlement 阶段增加 affiliate 级 durable side effect，使失败重试能复用已经完成的 affiliate draft/link，并继续重扫剩余 pending events。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestGenerateAffiliateSettlementsKeepsCompletedAffiliateDraftWhenLaterAffiliateFails` 失败于 first durable draft 不存在；实现后同命令通过。回归 `go test -count=1 ./service -run "GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
+- schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；既有 Docker PostgreSQL schema diff 缺口仍因 Docker server 不可用保留。
+- 残留风险：完整阶段内部 cursor 断点续扫仍未完成，尤其 KPI/佣金/人头费阶段不能直接用 cursor 跳过前序日志；Docker PostgreSQL schema diff、外部完整周期 dry-run/正式 run 双跑和生产/staging 真实链路验证仍待做。

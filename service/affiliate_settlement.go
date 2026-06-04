@@ -81,22 +81,24 @@ func GenerateAffiliateSettlements(db *gorm.DB, input AffiliateSettlementBuildInp
 	sort.Ints(userIds)
 
 	var settlements []model.AffiliateSettlement
-	err = db.Transaction(func(tx *gorm.DB) error {
-		for _, userId := range userIds {
-			group := groups[userId]
-			settlement, err := upsertAffiliateSettlementDraft(tx, ruleSet, input, group)
+	for _, userId := range userIds {
+		group := groups[userId]
+		var settlement model.AffiliateSettlement
+		err = db.Transaction(func(tx *gorm.DB) error {
+			var err error
+			settlement, err = upsertAffiliateSettlementDraft(tx, ruleSet, input, group)
 			if err != nil {
 				return err
 			}
 			if err := linkAffiliateSettlementEvents(tx, settlement.Id, group); err != nil {
 				return err
 			}
-			settlements = append(settlements, settlement)
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		settlements = append(settlements, settlement)
 	}
 	return settlements, nil
 }

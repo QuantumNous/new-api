@@ -556,6 +556,77 @@ func TestGenerateAffiliateSettlementsLinksEventsInBatches(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsKeepsCompletedAffiliateDraftWhenLaterAffiliateFails(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-affiliate-durable-side-effect")
+	firstEvent := seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	secondEvent := seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 200, 500, 1000, 2000)
+
+	failSecondAffiliate := "fail_second_affiliate_settlement_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Create().Before("gorm:create").Register(failSecondAffiliate, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_settlements" {
+			return
+		}
+		settlement, ok := tx.Statement.Dest.(*model.AffiliateSettlement)
+		if ok && settlement.AffiliateUserId == 200 {
+			tx.AddError(errors.New("forced second affiliate settlement failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register second affiliate failure callback: %v", err)
+	}
+
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	_ = db.Callback().Create().Remove(failSecondAffiliate)
+	if err == nil {
+		t.Fatalf("expected second affiliate settlement failure, got settlements=%+v", settlements)
+	}
+
+	var firstDraft model.AffiliateSettlement
+	if err := db.Where("affiliate_user_id = ? AND rule_set_id = ?", 100, ruleSet.Id).First(&firstDraft).Error; err != nil {
+		t.Fatalf("expected completed first affiliate draft to remain durable after later failure: %v", err)
+	}
+	if firstDraft.Status != model.AffiliateSettlementStatusDraft || firstDraft.PayableCents != 1000 {
+		t.Fatalf("unexpected first durable settlement: %+v", firstDraft)
+	}
+	var firstLinked model.AffiliateCommissionEvent
+	if err := db.First(&firstLinked, firstEvent.Id).Error; err != nil {
+		t.Fatalf("load first linked event: %v", err)
+	}
+	if firstLinked.SettlementId != firstDraft.Id || firstLinked.Status != model.AffiliateEventStatusReady {
+		t.Fatalf("expected first event to be linked to durable draft, got %+v settlement=%+v", firstLinked, firstDraft)
+	}
+
+	retried, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil {
+		t.Fatalf("retry GenerateAffiliateSettlements returned error: %v", err)
+	}
+	if len(retried) != 2 {
+		t.Fatalf("expected retry to return existing first draft and new second draft, got %+v", retried)
+	}
+	var settlementCount int64
+	if err := db.Model(&model.AffiliateSettlement{}).Where("rule_set_id = ?", ruleSet.Id).Count(&settlementCount).Error; err != nil {
+		t.Fatalf("count settlements after retry: %v", err)
+	}
+	if settlementCount != 2 {
+		t.Fatalf("expected no duplicate settlement drafts after retry, got %d", settlementCount)
+	}
+	var secondLinked model.AffiliateCommissionEvent
+	if err := db.First(&secondLinked, secondEvent.Id).Error; err != nil {
+		t.Fatalf("load second linked event: %v", err)
+	}
+	if secondLinked.SettlementId == 0 || secondLinked.Status != model.AffiliateEventStatusReady {
+		t.Fatalf("expected second event to be linked after retry, got %+v", secondLinked)
+	}
+}
+
 func TestAffiliateSettlementStatusTransitions(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-status-transitions")
