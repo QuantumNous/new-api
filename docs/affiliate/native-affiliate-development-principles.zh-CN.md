@@ -101,6 +101,8 @@
 - 每次执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`、重建 `new-api:dev` 镜像、重新创建 `new-api` 容器，或 Docker Desktop/WSL/电脑重启后，都必须在 WSL 内启动或确认前端 dev server：
   `./scripts/dev-web-tmux.sh`。
 - `scripts/dev-web-tmux.sh` 负责创建 `new-api-web` tmux session，并启动 default `5173` 与 classic `5174` 两个 Rsbuild dev server；这两个端口不是 Docker 容器提供的持久服务。
+- dev 前端必须默认使用同源 `/api` 代理访问后端，不要把 `VITE_REACT_APP_SERVER_URL=http://localhost:3000` 注入浏览器端；`127.0.0.1:5174` 跨源请求 `localhost:3000` 会被浏览器 CORS 拦截并表现为 axios `Network Error`。
+- `3000` 在 dev 镜像中只提供后端 API 和 `use frontend dev server` 占位页；看到该占位页不代表前端构建失败，真实 dev 页面固定使用 `5173` 和 `5174`。
 - 如果 `scripts/dev-web-tmux.sh` 提示 session 已存在，不要重复手写前端启动命令，改用 `tmux list-windows -t new-api-web`、`ss -ltnp | rg ':3000|:5173|:5174'`、`curl -I http://127.0.0.1:5173/`、`curl -I http://127.0.0.1:5174/` 验证运行态。
 - 重建后排查前端 404/旧缓存/代理问题时，固定先验证 `3000`、`5173`、`5174` 的 `/api/affiliate/team` 未登录返回 401；不要把 `5173/5174` 拒绝连接误判为后端路由丢失。
 

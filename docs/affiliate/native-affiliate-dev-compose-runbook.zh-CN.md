@@ -86,6 +86,10 @@ timeout 30s curl -sS -I http://127.0.0.1:3000/
 - classic 前端：`http://127.0.0.1:5174/`，工作目录 `web/classic`。
 - API proxy：`http://localhost:3000`，即本地 dev compose 的 `new-api` 后端。
 
+本地 dev 模式下，浏览器里的前端请求应使用同源 `/api`，由 Rsbuild proxy 转发到后端。不要把 `VITE_REACT_APP_SERVER_URL=http://localhost:3000` 注入浏览器端；如果页面从 `http://127.0.0.1:5174/` 发起跨源请求到 `http://localhost:3000`，浏览器会因 CORS 把 axios 报错显示为 `Network Error`。
+
+`http://127.0.0.1:3000/` 在 `Dockerfile.dev` 中只放置 `use frontend dev server` 占位页面，这是预期行为。dev 后端容器主要提供 API，真实前端页面使用 `5173` 和 `5174`。
+
 常用 tmux 操作：
 
 ```bash
