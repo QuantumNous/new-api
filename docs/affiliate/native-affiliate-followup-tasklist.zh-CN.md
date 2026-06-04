@@ -609,3 +609,12 @@
 - 回归验证：`cd web/default && bun run i18n:sync` 通过且 `_sync-report.json` 中 missing/extras/untranslated 均为 0；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
 - 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate` 未登录正常跳转到 classic login。classic 控制台错误为既有未登录/登录过期提示，不是趋势面板资源或渲染异常。
 - 残留风险：本轮未使用用户真实登录态做趋势面板截图或点击 smoke，不能替代 staging/生产验收；趋势窗口当前按前端默认最近 14 天请求，生产如果要周/月切换需另做 UI 与 API 参数设计；Docker server 仍不可用，PostgreSQL schema diff 和真实容器重建仍待恢复后补。
+
+## P0-8 运行态 no-store 与 Docker 阻塞复核（2026-06-04 本线程）
+
+- 完成内容：按 systematic-debugging 重新做接手基线，不重复实现 `/api/affiliate/team`。当前 `git status --short --branch` 显示 `feature/native-affiliate-minimal` 工作树干净，HEAD 为 `fb3e3447 feat: add affiliate dashboard trends`；`tmux ls` 显示 `new-api-web` session 存在，`ss -ltnp` 显示 `3000`、`5173`、`5174` 均监听。
+- 端口与 API 证据：WSL 内固定 URL 访问 `3000`、`5173`、`5174` 的 `/api/affiliate/team` 未登录均返回 401 JSON，不是旧 `Invalid URL` 404；Windows 侧 `curl.exe` 访问同三个 URL 也均返回 401。该证据证明当前 localhost 端口映射与 dev proxy 未复现旧 404。
+- 缓存头证据：源码中 `router/api-router.go` 已在 `/api` group 挂载 `middleware.DisableCache()`，`go test -count=1 ./router -run TestApiRouterDisablesHttpCaching` 通过；但运行态 `curl -D - -o /dev/null http://127.0.0.1:3000/api/status` 只看到 `HTTP/1.1 200 OK`，未看到 `Cache-Control`、`Pragma` 或 `Expires` no-store 头。
+- 根因判断：当前 no-store 缺口不是源码未实现，而是运行态 `3000` 后端尚未部署当前构建或仍为旧容器/旧镜像；本轮不改源码、不重复加 middleware。
+- Docker 取证：`timeout 60s docker version` 仍只输出 Docker client 信息并以非 0 退出，未返回 server 信息；因此本轮不能安全执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`，也不能补 PostgreSQL schema diff。
+- 残留风险：fresh curl 与 in-app Browser 不能直接读取用户既有 Windows Chrome disk cache；如果用户手动浏览器仍显示旧 404，仍需在该浏览器 DevTools 勾选 Disable cache、硬刷新或清站点缓存。Docker 恢复后必须重建 `new-api:dev`，复测 `/api/*` no-store header、`/api/affiliate/team` 登录态 200 和 pending schema diff。
