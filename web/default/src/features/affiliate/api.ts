@@ -66,6 +66,7 @@ export async function getAffiliateSummary(): Promise<
 > {
   const res = await api.get('/api/affiliate/summary', {
     params: buildAffiliateSummaryTrendParams(),
+    timeout: 15000,
     skipBusinessError: true,
   })
   return res.data
@@ -96,6 +97,18 @@ export async function getAffiliateTeamTree(): Promise<
     }
     throw error
   }
+}
+
+export async function getAffiliateAdminUser(
+  userId: number
+): Promise<
+  ApiResponse<{ id: number; username?: string; display_name?: string }>
+> {
+  const res = await api.get(`/api/user/${userId}`, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+  return res.data
 }
 
 export async function getAffiliateLogs(

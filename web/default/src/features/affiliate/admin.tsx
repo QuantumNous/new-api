@@ -74,6 +74,7 @@ import {
 } from './admin-lib'
 import {
   createAffiliateCommissionAdjustment,
+  getAffiliateAdminUser,
   getAffiliateProfiles,
   getAffiliateRuleSets,
   rollbackAffiliateRuleSetToDraft,
@@ -157,6 +158,52 @@ function Field(props: {
   )
 }
 
+function normalizeLookupUserId(value: unknown): number {
+  const id = Number(value)
+  return Number.isFinite(id) && id > 0 ? Math.trunc(id) : 0
+}
+
+function UserLookupHint(props: { userId?: string }) {
+  const { t } = useTranslation()
+  const userId = normalizeLookupUserId(props.userId)
+  const query = useQuery({
+    queryKey: ['affiliate-admin', 'user-lookup', userId],
+    queryFn: () => getAffiliateAdminUser(userId),
+    enabled: userId > 0,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  if (!userId) {
+    return (
+      <div className='text-muted-foreground text-xs'>
+        {t('Enter a user ID to show username')}
+      </div>
+    )
+  }
+  if (query.isFetching) {
+    return (
+      <div className='text-muted-foreground text-xs'>
+        {t('Looking up username')}
+      </div>
+    )
+  }
+  if (query.data?.success && query.data.data) {
+    const user = query.data.data
+    const displayName = user.display_name || user.username || '-'
+    return (
+      <div className='text-muted-foreground text-xs'>
+        {t('Username')}: {displayName}
+      </div>
+    )
+  }
+  return (
+    <div className='text-destructive text-xs'>
+      {t('User not found or inaccessible')}
+    </div>
+  )
+}
+
 function ProfileForm(props: {
   values: AffiliateProfileFormValues
   setValues: (values: AffiliateProfileFormValues) => void
@@ -187,6 +234,7 @@ function ProfileForm(props: {
               value={props.values.userId}
               onChange={(event) => update('userId', event.target.value)}
             />
+            <UserLookupHint userId={props.values.userId} />
           </Field>
           <Field label={t('Affiliate Level')} htmlFor='affiliate-profile-level'>
             <NativeSelect
@@ -204,7 +252,7 @@ function ProfileForm(props: {
             </NativeSelect>
           </Field>
           <Field
-            label={t('Level-one Parent User ID')}
+            label={t('Parent User ID')}
             htmlFor='affiliate-profile-parent-id'
           >
             <Input
@@ -214,6 +262,7 @@ function ProfileForm(props: {
               value={props.values.parentUserId}
               onChange={(event) => update('parentUserId', event.target.value)}
             />
+            <UserLookupHint userId={props.values.parentUserId} />
           </Field>
           <Field label={t('Invite Code')} htmlFor='affiliate-profile-code'>
             <Input
@@ -230,7 +279,7 @@ function ProfileForm(props: {
             onChange={(event) => update('reason', event.target.value)}
           />
         </Field>
-        <div className='flex flex-wrap gap-2'>
+        <div className='flex flex-wrap justify-end gap-2'>
           <Button disabled={props.isSaving} onClick={props.onSubmit}>
             {props.isSaving ? t('Saving') : t('Save Affiliate Profile')}
           </Button>
@@ -315,7 +364,7 @@ function FiltersForm(props: {
               </NativeSelectOption>
             </NativeSelect>
           </Field>
-          <div className='flex min-w-56 items-end gap-2'>
+          <div className='flex min-w-56 items-end gap-2 pt-6'>
             <Button
               className='flex-1'
               disabled={props.disabled}
@@ -372,7 +421,7 @@ function ProfilesTable(props: {
               <TableHead>{t('User ID')}</TableHead>
               <TableHead>{t('Affiliate Level')}</TableHead>
               <TableHead>{t('Status')}</TableHead>
-              <TableHead>{t('Level-one Parent User ID')}</TableHead>
+              <TableHead>{t('Parent User ID')}</TableHead>
               <TableHead>{t('Invite Code')}</TableHead>
               <TableHead>{t('Updated At')}</TableHead>
               <TableHead className='text-right'>{t('Actions')}</TableHead>
@@ -422,7 +471,18 @@ function ProfilesTable(props: {
                         copyable={false}
                       />
                     </TableCell>
-                    <TableCell>{profile.parent_user_id || '-'}</TableCell>
+                    <TableCell>
+                      {profile.parent_user_id ? (
+                        <div className='flex flex-col'>
+                          <span>{profile.parent_user_id}</span>
+                          <span className='text-muted-foreground text-xs'>
+                            {profile.parent_username || '-'}
+                          </span>
+                        </div>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
                     <TableCell>
                       {profile.invite_code || profile.aff_code || '-'}
                     </TableCell>
@@ -539,11 +599,16 @@ function RuleSetFiltersForm(props: {
               </NativeSelectOption>
             </NativeSelect>
           </Field>
-          <div className='flex items-end gap-2'>
-            <Button disabled={props.disabled} onClick={props.onApply}>
+          <div className='flex items-end gap-2 pt-6'>
+            <Button
+              className='min-w-24'
+              disabled={props.disabled}
+              onClick={props.onApply}
+            >
               {t('Apply')}
             </Button>
             <Button
+              className='min-w-24'
               variant='outline'
               disabled={props.disabled}
               onClick={props.onReset}
@@ -888,14 +953,28 @@ function RuleSetDraftForm(props: {
             />
           </Field>
           <Field label={t('Settlement Cycle')} htmlFor='affiliate-rule-cycle'>
-            <Input
+            <NativeSelect
               id='affiliate-rule-cycle'
+              className='w-full'
               disabled={props.readOnly}
               value={props.values.settlementCycle || ''}
               onChange={(event) =>
                 update('settlementCycle', event.target.value)
               }
-            />
+            >
+              <NativeSelectOption value='monthly'>
+                {t('Monthly (calendar month)')}
+              </NativeSelectOption>
+              <NativeSelectOption value='30d'>
+                {t('Every 30 days')}
+              </NativeSelectOption>
+              <NativeSelectOption value='14d'>
+                {t('Every 14 days')}
+              </NativeSelectOption>
+              <NativeSelectOption value='7d'>
+                {t('Every 7 days')}
+              </NativeSelectOption>
+            </NativeSelect>
           </Field>
           <Field label={t('Freeze Days')} htmlFor='affiliate-rule-freeze-days'>
             <Input

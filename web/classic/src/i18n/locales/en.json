@@ -3965,6 +3965,19 @@
     "Growth": "Growth",
     "Excellent": "Excellent",
     "短信模板": "SMS template",
-    "Base": "Base"
+    "Base": "Base",
+    "上级用户 ID": "Parent User ID",
+    "输入用户 ID 后自动显示用户名": "Enter a user ID to show username",
+    "正在查询用户名": "Looking up username",
+    "用户名": "Username",
+    "用户不存在或无权限查看": "User not found or inaccessible",
+    "二级分销商必须填写上级用户 ID": "Second-level affiliate requires a parent user ID",
+    "按自然月": "Monthly (calendar month)",
+    "每 30 天": "Every 30 days",
+    "每 14 天": "Every 14 days",
+    "每 7 天": "Every 7 days",
+    "Self-Brush Strategy": "Self-Brush Strategy",
+    "Bulk-Abuse Strategy": "Bulk-Abuse Strategy",
+    "Processing Action": "Processing Action"
   }
 }

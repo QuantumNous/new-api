@@ -644,14 +644,16 @@ func fillAffiliateProfileInviteCodes(db *gorm.DB, profiles []model.AffiliateProf
 	userIds := make([]int, 0, len(profiles))
 	seen := make(map[int]struct{}, len(profiles))
 	for _, profile := range profiles {
-		if profile.UserId <= 0 {
-			continue
+		for _, userId := range []int{profile.UserId, profile.ParentUserId} {
+			if userId <= 0 {
+				continue
+			}
+			if _, ok := seen[userId]; ok {
+				continue
+			}
+			seen[userId] = struct{}{}
+			userIds = append(userIds, userId)
 		}
-		if _, ok := seen[profile.UserId]; ok {
-			continue
-		}
-		seen[profile.UserId] = struct{}{}
-		userIds = append(userIds, profile.UserId)
 	}
 	if len(userIds) == 0 {
 		return
@@ -671,6 +673,7 @@ func fillAffiliateProfileInviteCodes(db *gorm.DB, profiles []model.AffiliateProf
 	}
 	for index := range profiles {
 		profiles[index].Username = usernames[profiles[index].UserId]
+		profiles[index].ParentUsername = usernames[profiles[index].ParentUserId]
 		if strings.TrimSpace(profiles[index].InviteCode) == "" {
 			profiles[index].InviteCode = codes[profiles[index].UserId]
 		}

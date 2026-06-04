@@ -224,6 +224,81 @@ func TestBuildAffiliateDashboardSummaryBuildsDailyTrendsFromPaidAndFinanceOnly(t
 	}
 }
 
+func TestBuildAffiliateDashboardSummaryGlobalUsesSnapshotsWithoutScanningLogs(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	dayOne := int64(1000)
+	dayTwo := dayOne + affiliateSecondsPerDay
+	trendEnd := dayTwo + affiliateSecondsPerDay - 1
+	if err := db.Create(&[]model.AffiliateRelation{
+		{AncestorUserId: 100, DescendantUserId: 200, Depth: 1, Status: model.AffiliateProfileStatusActive},
+		{AncestorUserId: 100, DescendantUserId: 300, Depth: 2, Status: model.AffiliateProfileStatusActive},
+		{AncestorUserId: 100, DescendantUserId: 400, Depth: 1, Status: model.AffiliateProfileStatusDisabled},
+	}).Error; err != nil {
+		t.Fatalf("seed relations: %v", err)
+	}
+	if err := db.Create(&[]model.AffiliateKPISnapshot{
+		{AffiliateUserId: 100, RuleSetId: 1, PeriodStart: dayOne, PeriodEnd: dayOne + 99, EffectiveNewUserCount: 2, PaidConsumptionRawQuota: 1000, TierCode: "growth", CoefficientBps: 15000},
+		{AffiliateUserId: 200, RuleSetId: 1, PeriodStart: dayTwo, PeriodEnd: dayTwo + 99, EffectiveNewUserCount: 1, PaidConsumptionRawQuota: 500, TierCode: "base", CoefficientBps: 12000},
+		{AffiliateUserId: 300, RuleSetId: 1, PeriodStart: trendEnd + 1, PeriodEnd: trendEnd + 99, EffectiveNewUserCount: 9, PaidConsumptionRawQuota: 9000, TierCode: "ignored", CoefficientBps: 10000},
+	}).Error; err != nil {
+		t.Fatalf("seed kpi snapshots: %v", err)
+	}
+	if err := db.Create(&[]model.AffiliateCommissionEvent{
+		{AffiliateUserId: 100, DownstreamUserId: 200, RuleSetId: 1, Status: model.AffiliateEventStatusPending, CommissionCents: 123, CreatedAt: dayOne + 40},
+		{AffiliateUserId: 200, DownstreamUserId: 300, RuleSetId: 1, Status: model.AffiliateEventStatusReady, CommissionCents: 456, CreatedAt: dayTwo + 40},
+		{AffiliateUserId: 100, DownstreamUserId: 300, RuleSetId: 1, Status: model.AffiliateEventStatusVoid, CommissionCents: 9999, CreatedAt: dayTwo + 60},
+	}).Error; err != nil {
+		t.Fatalf("seed commission events: %v", err)
+	}
+	if err := db.Create(&[]model.AffiliateHeadFeeEvent{
+		{AffiliateUserId: 100, DownstreamUserId: 200, RuleSetId: 1, Status: model.AffiliateEventStatusPending, AmountCents: 200, CreatedAt: dayOne + 45},
+		{AffiliateUserId: 200, DownstreamUserId: 300, RuleSetId: 1, Status: model.AffiliateEventStatusReady, AmountCents: 300, CreatedAt: dayTwo + 45},
+	}).Error; err != nil {
+		t.Fatalf("seed head fee events: %v", err)
+	}
+	if err := db.Create(&[]model.AffiliateSettlement{
+		{AffiliateUserId: 100, RuleSetId: 1, PeriodStart: dayOne, PeriodEnd: dayOne + 99, Status: model.AffiliateSettlementStatusDraft, PayableCents: 700, CreatedAt: dayOne + 70},
+		{AffiliateUserId: 200, RuleSetId: 1, PeriodStart: dayTwo, PeriodEnd: dayTwo + 99, Status: model.AffiliateSettlementStatusFrozen, PayableCents: 800, CreatedAt: dayTwo + 70},
+		{AffiliateUserId: 100, RuleSetId: 1, PeriodStart: dayTwo, PeriodEnd: dayTwo + 99, Status: model.AffiliateSettlementStatusPaid, PayableCents: 900, CreatedAt: dayTwo + 80},
+	}).Error; err != nil {
+		t.Fatalf("seed settlements: %v", err)
+	}
+	removeQueryGuard := rejectUnboundedAffiliateLogQueries(t, db)
+	defer removeQueryGuard()
+
+	summary, err := BuildAffiliateDashboardSummary(db, db, AffiliateDashboardSummaryInput{
+		Scope: AffiliateScope{
+			Kind:   AffiliateScopeGlobal,
+			UserId: 1,
+		},
+		StartTimestamp:      dayOne,
+		EndTimestamp:        trendEnd,
+		TrendStartTimestamp: dayOne,
+		TrendEndTimestamp:   trendEnd,
+		QuotaPerUnit:        1000,
+		USDExchangeRate:     7,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateDashboardSummary returned error: %v", err)
+	}
+
+	if summary.TeamUserCount != 2 || summary.EffectiveNewUserCount != 3 || summary.NetConsumptionQuota != 1500 {
+		t.Fatalf("unexpected global summary counts: %+v", summary)
+	}
+	if math.Abs(summary.NetConsumptionRMB-10.5) > 0.000001 || math.Abs(summary.EstimatedCommissionRMB-5.79) > 0.000001 || math.Abs(summary.HeadFeeRMB-5) > 0.000001 || math.Abs(summary.PendingSettlementRMB-15) > 0.000001 {
+		t.Fatalf("unexpected global summary money fields: %+v", summary)
+	}
+	if len(summary.DailyTrends) != 2 {
+		t.Fatalf("expected two global trend buckets, got %+v", summary.DailyTrends)
+	}
+	if summary.DailyTrends[0].EffectiveNewUserCount != 2 || summary.DailyTrends[0].NetConsumptionQuota != 1000 || math.Abs(summary.DailyTrends[0].PendingSettlementRMB-7) > 0.000001 {
+		t.Fatalf("unexpected first global trend bucket: %+v", summary.DailyTrends[0])
+	}
+	if summary.DailyTrends[1].EffectiveNewUserCount != 1 || summary.DailyTrends[1].NetConsumptionQuota != 500 || math.Abs(summary.DailyTrends[1].PendingSettlementRMB-8) > 0.000001 {
+		t.Fatalf("unexpected second global trend bucket: %+v", summary.DailyTrends[1])
+	}
+}
+
 func TestBuildAffiliateDashboardSummaryDoesNotTreatInvitesAsEffectiveWithoutRules(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	seedAffiliateCommissionRelation(t, db, 100, 200, 1)

@@ -68,20 +68,21 @@ func AffiliateSidecarTableNames() []string {
 }
 
 type AffiliateProfile struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id" gorm:"uniqueIndex;not null"`
-	Username     string         `json:"username" gorm:"-"`
-	Level        int            `json:"level" gorm:"type:int;not null;default:0;index"`
-	Status       string         `json:"status" gorm:"type:varchar(32);not null;default:'active';index"`
-	ParentUserId int            `json:"parent_user_id" gorm:"type:int;not null;default:0;index"`
-	InviteCode   string         `json:"invite_code" gorm:"type:varchar(32);default:'';index"`
-	DisplayName  string         `json:"display_name" gorm:"type:varchar(64);default:''"`
-	Remark       string         `json:"remark" gorm:"type:varchar(255);default:''"`
-	ActivatedAt  int64          `json:"activated_at" gorm:"bigint;not null;default:0"`
-	DisabledAt   int64          `json:"disabled_at" gorm:"bigint;not null;default:0"`
-	CreatedAt    int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	UpdatedAt    int64          `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+	Id             int            `json:"id"`
+	UserId         int            `json:"user_id" gorm:"uniqueIndex;not null"`
+	Username       string         `json:"username" gorm:"-"`
+	ParentUsername string         `json:"parent_username" gorm:"-"`
+	Level          int            `json:"level" gorm:"type:int;not null;default:0;index"`
+	Status         string         `json:"status" gorm:"type:varchar(32);not null;default:'active';index"`
+	ParentUserId   int            `json:"parent_user_id" gorm:"type:int;not null;default:0;index"`
+	InviteCode     string         `json:"invite_code" gorm:"type:varchar(32);default:'';index"`
+	DisplayName    string         `json:"display_name" gorm:"type:varchar(64);default:''"`
+	Remark         string         `json:"remark" gorm:"type:varchar(255);default:''"`
+	ActivatedAt    int64          `json:"activated_at" gorm:"bigint;not null;default:0"`
+	DisabledAt     int64          `json:"disabled_at" gorm:"bigint;not null;default:0"`
+	CreatedAt      int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	UpdatedAt      int64          `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
+	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 func (AffiliateProfile) TableName() string {

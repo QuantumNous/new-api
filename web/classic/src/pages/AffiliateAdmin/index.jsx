@@ -70,6 +70,93 @@ const { Text, Title } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 
+const normalizeLookupUserId = (value) => {
+  const id = Number(value);
+  return Number.isFinite(id) && id > 0 ? Math.trunc(id) : 0;
+};
+
+const UserLookupHint = ({ t, userId }) => {
+  const normalizedUserId = normalizeLookupUserId(userId);
+  const [state, setState] = useState({
+    loading: false,
+    username: '',
+    displayName: '',
+    error: false,
+  });
+
+  useEffect(() => {
+    if (!normalizedUserId) {
+      setState({ loading: false, username: '', displayName: '', error: false });
+      return;
+    }
+
+    let active = true;
+    setState({ loading: true, username: '', displayName: '', error: false });
+    API.get(`/api/user/${normalizedUserId}`, {
+      timeout: 5000,
+      skipErrorHandler: true,
+    })
+      .then((res) => {
+        if (!active) return;
+        if (res.data?.success && res.data?.data) {
+          setState({
+            loading: false,
+            username: res.data.data.username || '',
+            displayName: res.data.data.display_name || '',
+            error: false,
+          });
+          return;
+        }
+        setState({
+          loading: false,
+          username: '',
+          displayName: '',
+          error: true,
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setState({
+          loading: false,
+          username: '',
+          displayName: '',
+          error: true,
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [normalizedUserId]);
+
+  if (!normalizedUserId) {
+    return (
+      <Text type='tertiary' size='small'>
+        {t('输入用户 ID 后自动显示用户名')}
+      </Text>
+    );
+  }
+  if (state.loading) {
+    return (
+      <Text type='tertiary' size='small'>
+        {t('正在查询用户名')}
+      </Text>
+    );
+  }
+  if (!state.error) {
+    return (
+      <Text type='tertiary' size='small'>
+        {t('用户名')}：{state.displayName || state.username || '-'}
+      </Text>
+    );
+  }
+  return (
+    <Text type='danger' size='small'>
+      {t('用户不存在或无权限查看')}
+    </Text>
+  );
+};
+
 const AffiliateAdmin = () => {
   const { t } = useTranslation();
   const [profiles, setProfiles] = useState([]);
@@ -103,6 +190,10 @@ const AffiliateAdmin = () => {
   const [ruleSetTransferError, setRuleSetTransferError] = useState('');
   const [ruleSetDiffPreview, setRuleSetDiffPreview] = useState([]);
   const [ruleSetReadOnly, setRuleSetReadOnly] = useState(false);
+  const [profileLookupIds, setProfileLookupIds] = useState({
+    user_id: '',
+    parent_user_id: '',
+  });
 
   const loadProfiles = async (
     nextPage = page,
@@ -579,10 +670,20 @@ const AffiliateAdmin = () => {
         },
       },
       {
-        title: t('一级上级用户 ID'),
+        title: t('上级用户 ID'),
         dataIndex: 'parent_user_id',
-        width: 150,
-        render: (value) => value || '-',
+        width: 170,
+        render: (value, record) =>
+          value ? (
+            <div className='flex flex-col'>
+              <Text>{value}</Text>
+              <Text type='secondary' size='small'>
+                {record.parent_username || '-'}
+              </Text>
+            </div>
+          ) : (
+            '-'
+          ),
       },
       {
         title: t('邀请码'),
@@ -769,8 +870,21 @@ const AffiliateAdmin = () => {
           onSubmit={handleCreateOrUpdate}
           initValues={{ level: 1 }}
         >
-          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 items-end'>
-            <Form.InputNumber field='user_id' label={t('用户 ID')} min={1} />
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start'>
+            <div>
+              <Form.InputNumber
+                field='user_id'
+                label={t('用户 ID')}
+                min={1}
+                onChange={(value) =>
+                  setProfileLookupIds((current) => ({
+                    ...current,
+                    user_id: value,
+                  }))
+                }
+              />
+              <UserLookupHint t={t} userId={profileLookupIds.user_id} />
+            </div>
             <Form.Select
               field='level'
               label={t('分销等级')}
@@ -779,28 +893,37 @@ const AffiliateAdmin = () => {
                 { label: t('二级分销商'), value: 2 },
               ]}
             />
-            <Form.InputNumber
-              field='parent_user_id'
-              label={t('一级上级用户 ID')}
-              min={0}
-              placeholder={t('二级分销商必填')}
-            />
+            <div>
+              <Form.InputNumber
+                field='parent_user_id'
+                label={t('上级用户 ID')}
+                min={0}
+                placeholder={t('二级分销商必填')}
+                onChange={(value) =>
+                  setProfileLookupIds((current) => ({
+                    ...current,
+                    parent_user_id: value,
+                  }))
+                }
+              />
+              <UserLookupHint t={t} userId={profileLookupIds.parent_user_id} />
+            </div>
             <Form.Input
               field='invite_code'
               label={t('邀请码')}
               placeholder={t('留空使用用户邀请码')}
             />
             <Form.Input field='reason' label={t('操作原因')} />
-            <div className='flex items-end h-full'>
-              <Button
-                className='w-full'
-                htmlType='submit'
-                type='primary'
-                loading={submitLoading}
-              >
-                {t('保存分销商')}
-              </Button>
-            </div>
+          </div>
+          <div className='mt-3 flex justify-end'>
+            <Button
+              className='min-w-[140px]'
+              htmlType='submit'
+              type='primary'
+              loading={submitLoading}
+            >
+              {t('保存分销商')}
+            </Button>
           </div>
         </Form>
       </Card>
@@ -833,13 +956,15 @@ const AffiliateAdmin = () => {
                 { label: t('已归档'), value: 'archived' },
               ]}
             />
-            <Button
-              className='w-full md:w-auto'
-              htmlType='submit'
-              type='primary'
-            >
-              {t('筛选规则集')}
-            </Button>
+            <div className='flex items-end h-full pt-[30px]'>
+              <Button
+                className='w-full md:min-w-[120px]'
+                htmlType='submit'
+                type='primary'
+              >
+                {t('筛选规则集')}
+              </Button>
+            </div>
           </div>
         </Form>
 
@@ -917,9 +1042,15 @@ const AffiliateAdmin = () => {
                 min={0}
                 disabled={ruleSetReadOnly}
               />
-              <Form.Input
+              <Form.Select
                 field='settlement_cycle'
                 label={t('结算周期')}
+                optionList={[
+                  { label: t('按自然月'), value: 'monthly' },
+                  { label: t('每 30 天'), value: '30d' },
+                  { label: t('每 14 天'), value: '14d' },
+                  { label: t('每 7 天'), value: '7d' },
+                ]}
                 disabled={ruleSetReadOnly}
               />
               <Form.InputNumber
@@ -1362,11 +1493,17 @@ const AffiliateAdmin = () => {
                 { label: t('禁用'), value: 'disabled' },
               ]}
             />
-            <div className='flex items-end gap-2'>
-              <Button htmlType='submit' type='primary' loading={loading}>
+            <div className='flex items-end gap-2 pt-[30px]'>
+              <Button
+                className='min-w-[88px]'
+                htmlType='submit'
+                type='primary'
+                loading={loading}
+              >
                 {t('查询')}
               </Button>
               <Button
+                className='min-w-[88px]'
                 type='tertiary'
                 onClick={() => {
                   setFilters({});

@@ -122,6 +122,31 @@ describe('affiliate rule table editor helpers', () => {
     assert.deepEqual(__ruleArrayEditorTestUtils.getRuleFieldOptions('code'), [])
   })
 
+  test('builds KPI tier code options from the current KPI tier draft', () => {
+    assert.deepEqual(
+      __ruleArrayEditorTestUtils.getKPITierCodeOptions(
+        [
+          { affiliate_level: 1, code: 'starter', name: 'Starter' },
+          { affiliate_level: 1, code: 'scale', name: 'Scale' },
+          { affiliate_level: 2, code: 'starter', name: 'Second Starter' },
+        ],
+        1
+      ),
+      [
+        { value: 'starter', label: 'Starter (starter)' },
+        { value: 'scale', label: 'Scale (scale)' },
+      ]
+    )
+    assert.deepEqual(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('kpi_tier_code', 'custom', {
+          kpi_tier_code: [{ value: 'starter', label: 'Starter (starter)' }],
+        })
+        .map((option) => option.value),
+      ['starter', 'custom']
+    )
+  })
+
   test('keeps operator-facing yuan and percent units reversible', () => {
     assert.equal(
       __ruleArrayEditorTestUtils.getDisplayValue('base_rate_bps', 1333),

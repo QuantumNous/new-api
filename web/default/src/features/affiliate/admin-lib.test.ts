@@ -95,7 +95,7 @@ describe('default affiliate admin profiles helpers', () => {
         },
         t
       ),
-      'Second-level affiliate requires a level-one parent user ID'
+      'Second-level affiliate requires a parent user ID'
     )
 
     assert.equal(
@@ -246,6 +246,7 @@ describe('default affiliate admin rule set helpers', () => {
           max_net_paid_amount_cents: 20000,
           base_rate_bps: 2000,
           cap_rate_bps: 3000,
+          requires_manual_approval: false,
           sort_order: 1,
         },
       ],
@@ -350,6 +351,7 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(riskRules[0]?.bulk_abuse_strategy, 'manual_review')
     assert.equal(riskRules[0]?.action, 'manual_review')
     assert.equal(commissionTiers.length, 10)
+    assert.equal(commissionTiers[0]?.requires_manual_approval, false)
     assert.deepEqual(commissionTiers[4], {
       affiliate_level: 1,
       min_net_paid_amount_cents: 500000,
@@ -397,7 +399,10 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(exported.version, 'rules-2026-08')
     assert.equal(exported.settlement_config.min_settlement_amount_cents, 8888)
     assert.equal(exported.settlement_config.auto_settlement_enabled, false)
-    assert.equal(exported.settlement_config.review_note, 'monthly finance review')
+    assert.equal(
+      exported.settlement_config.review_note,
+      'monthly finance review'
+    )
     assert.deepEqual(exported.commission_rules, [{ affiliate_level: 1 }])
 
     const imported = parseAffiliateRuleSetImportJson(

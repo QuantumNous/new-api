@@ -55,19 +55,16 @@ func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		return AffiliateDashboardSummary{}, err
 	}
 
+	if visible.Global {
+		return buildGlobalAffiliateDashboardSummary(db, input)
+	}
+
 	summary := AffiliateDashboardSummary{
 		KPITierName: "待配置",
 		RuleStatus:  "pending_rules",
 	}
 
-	if visible.Global {
-		summary.TeamUserCount, err = countGlobalAffiliateTeamUsers(db)
-	} else {
-		summary.TeamUserCount = len(visible.UserIds)
-	}
-	if err != nil {
-		return AffiliateDashboardSummary{}, err
-	}
+	summary.TeamUserCount = len(visible.UserIds)
 
 	summary.EffectiveNewUserCount, err = countAffiliateEffectiveNewUsers(db, logDB, visible, input)
 	if err != nil {
@@ -85,6 +82,109 @@ func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input Affiliate
 	}
 
 	return summary, nil
+}
+
+func buildGlobalAffiliateDashboardSummary(db *gorm.DB, input AffiliateDashboardSummaryInput) (AffiliateDashboardSummary, error) {
+	summary := AffiliateDashboardSummary{
+		KPITierName: "全局汇总",
+		RuleStatus:  "published_rules",
+	}
+
+	var err error
+	summary.TeamUserCount, err = countGlobalAffiliateTeamUsers(db)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
+
+	aggregate, err := sumAffiliateKPISnapshotAggregate(db, input.Scope, input.StartTimestamp, input.EndTimestamp)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
+	summary.EffectiveNewUserCount = aggregate.EffectiveNewUserCount
+	summary.NetConsumptionQuota = aggregate.PaidConsumptionRawQuota
+	summary.NetConsumptionRMB = quotaToRMB(summary.NetConsumptionQuota, input.QuotaPerUnit, input.USDExchangeRate)
+
+	commissionCents, err := sumAffiliateTrendCommissionCents(db, input.Scope, input.StartTimestamp, input.EndTimestamp)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
+	headFeeCents, err := sumAffiliateTrendHeadFeeCents(db, input.Scope, input.StartTimestamp, input.EndTimestamp)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
+	pendingSettlementCents, err := sumAffiliateTrendPendingSettlementCents(db, input.Scope, input.StartTimestamp, input.EndTimestamp)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
+	summary.EstimatedCommissionRMB = centsToRMB(commissionCents)
+	summary.HeadFeeRMB = centsToRMB(headFeeCents)
+	summary.PendingSettlementRMB = centsToRMB(pendingSettlementCents)
+
+	summary.DailyTrends, err = buildGlobalAffiliateDashboardDailyTrends(db, input)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
+	return summary, nil
+}
+
+type affiliateKPISnapshotAggregate struct {
+	EffectiveNewUserCount   int
+	PaidConsumptionRawQuota int64
+}
+
+func sumAffiliateKPISnapshotAggregate(db *gorm.DB, scope AffiliateScope, periodStart int64, periodEnd int64) (affiliateKPISnapshotAggregate, error) {
+	tx := db.Model(&model.AffiliateKPISnapshot{})
+	tx = applyAffiliateSummarySnapshotPeriodRange(tx, periodStart, periodEnd)
+	tx = applyAffiliateSummaryFinanceScope(tx, scope)
+
+	aggregate := affiliateKPISnapshotAggregate{}
+	err := tx.Select(
+		"COALESCE(SUM(effective_new_user_count), 0) AS effective_new_user_count, COALESCE(SUM(paid_consumption_raw_quota), 0) AS paid_consumption_raw_quota",
+	).Scan(&aggregate).Error
+	return aggregate, err
+}
+
+func buildGlobalAffiliateDashboardDailyTrends(db *gorm.DB, input AffiliateDashboardSummaryInput) ([]AffiliateDashboardTrendPoint, error) {
+	if input.TrendStartTimestamp <= 0 || input.TrendEndTimestamp < input.TrendStartTimestamp {
+		return []AffiliateDashboardTrendPoint{}, nil
+	}
+
+	points := []AffiliateDashboardTrendPoint{}
+	for periodStart := input.TrendStartTimestamp; periodStart <= input.TrendEndTimestamp; periodStart += affiliateSecondsPerDay {
+		periodEnd := periodStart + affiliateSecondsPerDay - 1
+		if periodEnd > input.TrendEndTimestamp {
+			periodEnd = input.TrendEndTimestamp
+		}
+
+		aggregate, err := sumAffiliateKPISnapshotAggregate(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+		commissionCents, err := sumAffiliateTrendCommissionCents(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+		headFeeCents, err := sumAffiliateTrendHeadFeeCents(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+		pendingSettlementCents, err := sumAffiliateTrendPendingSettlementCents(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+
+		points = append(points, AffiliateDashboardTrendPoint{
+			PeriodStart:            periodStart,
+			PeriodEnd:              periodEnd,
+			EffectiveNewUserCount:  aggregate.EffectiveNewUserCount,
+			NetConsumptionQuota:    aggregate.PaidConsumptionRawQuota,
+			NetConsumptionRMB:      quotaToRMB(aggregate.PaidConsumptionRawQuota, input.QuotaPerUnit, input.USDExchangeRate),
+			EstimatedCommissionRMB: centsToRMB(commissionCents),
+			HeadFeeRMB:             centsToRMB(headFeeCents),
+			PendingSettlementRMB:   centsToRMB(pendingSettlementCents),
+		})
+	}
+	return points, nil
 }
 
 func countGlobalAffiliateTeamUsers(db *gorm.DB) (int, error) {
@@ -399,6 +499,16 @@ func applyAffiliateSummaryCreatedAtRange(tx *gorm.DB, periodStart int64, periodE
 	tx = tx.Where("created_at >= ?", periodStart)
 	if periodEnd > 0 {
 		tx = tx.Where("created_at <= ?", periodEnd)
+	}
+	return tx
+}
+
+func applyAffiliateSummarySnapshotPeriodRange(tx *gorm.DB, periodStart int64, periodEnd int64) *gorm.DB {
+	if periodStart > 0 {
+		tx = tx.Where("period_start >= ?", periodStart)
+	}
+	if periodEnd > 0 {
+		tx = tx.Where("period_start <= ?", periodEnd)
 	}
 	return tx
 }

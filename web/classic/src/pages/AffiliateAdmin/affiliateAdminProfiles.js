@@ -53,7 +53,7 @@ export function validateAffiliateProfilePayload(t, payload) {
     return translate(t, '请选择分销等级');
   }
   if (payload.level === 2 && !payload.parent_user_id) {
-    return translate(t, '二级分销商必须填写一级上级用户 ID');
+    return translate(t, '二级分销商必须填写上级用户 ID');
   }
   if (payload.level === 2 && payload.parent_user_id === payload.user_id) {
     return translate(t, '二级分销商上级不能是自己');

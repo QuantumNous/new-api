@@ -173,15 +173,26 @@ function coerceRuleFieldValue(
   return coerceByOriginalType(value, original)
 }
 
+function humanizeRuleFieldKey(key: string): string {
+  return String(key || '')
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
 function getRuleFieldLabel(key: string): string {
-  return RULE_FIELD_LABELS[key] ?? key
+  return RULE_FIELD_LABELS[key] ?? humanizeRuleFieldKey(key)
 }
 
 function getRuleFieldOptions(
   key: string,
-  currentValue?: RuleValue
+  currentValue?: RuleValue,
+  dynamicOptions: Record<string, RuleFieldOption[]> = {}
 ): RuleFieldOption[] {
-  const options = RULE_FIELD_OPTIONS[key]
+  const options = dynamicOptions[key]?.length
+    ? dynamicOptions[key]
+    : RULE_FIELD_OPTIONS[key]
   if (!options) return []
 
   const value = currentValue == null ? '' : String(currentValue)
@@ -190,6 +201,26 @@ function getRuleFieldOptions(
   }
 
   return [...options, { value, label: value }]
+}
+
+function getKPITierCodeOptions(
+  items: RuleRecord[],
+  level: number
+): RuleFieldOption[] {
+  const seen = new Set<string>()
+  const options: RuleFieldOption[] = []
+  for (const item of items) {
+    if (Number(item.affiliate_level || 0) !== level) continue
+    const value = String(item.code || '').trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    const name = String(item.name || '').trim()
+    options.push({
+      value,
+      label: name ? `${name} (${value})` : value,
+    })
+  }
+  return options
 }
 
 function getRuleTableColumns(
@@ -233,11 +264,16 @@ function getRuleCellValue(item: RuleRecord, key: string): RuleValue {
 function RuleFieldControl(props: {
   fieldKey: string
   value: RuleValue
+  fieldOptions?: Record<string, RuleFieldOption[]>
   readOnly?: boolean
   onChange: (value: string) => void
 }) {
   const { t } = useTranslation()
-  const options = getRuleFieldOptions(props.fieldKey, props.value)
+  const options = getRuleFieldOptions(
+    props.fieldKey,
+    props.value,
+    props.fieldOptions
+  )
   if (options.length > 0) {
     return (
       <NativeSelect
@@ -294,6 +330,7 @@ function RuleFieldControl(props: {
 function RuleTable(props: {
   rows: RuleTableRow[]
   hiddenKeys?: string[]
+  fieldOptions?: Record<string, RuleFieldOption[]>
   readOnly?: boolean
   onChange: (index: number, key: string, value: string) => void
   onRemove: (index: number) => void
@@ -340,6 +377,7 @@ function RuleTable(props: {
                     <RuleFieldControl
                       fieldKey={key}
                       value={value}
+                      fieldOptions={props.fieldOptions}
                       readOnly={props.readOnly}
                       onChange={(nextValue) =>
                         props.onChange(row.index, key, nextValue)
@@ -546,6 +584,10 @@ export function RuleLevelGroupedEditor(props: {
             <div className='space-y-3'>
               {props.sections.map((section) => {
                 const parsed = parseRuleArray(section.value)
+                const kpiTierOptions = getKPITierCodeOptions(
+                  parseSection('kpiTiersJson').items,
+                  level
+                )
                 const items = parsed.items
                   .map((item, index) => ({ item, index }))
                   .filter(
@@ -591,6 +633,7 @@ export function RuleLevelGroupedEditor(props: {
                       <RuleTable
                         rows={items}
                         hiddenKeys={['affiliate_level']}
+                        fieldOptions={{ kpi_tier_code: kpiTierOptions }}
                         readOnly={props.readOnly || section.readOnly}
                         onChange={(index, key, value) =>
                           updateItem(section.field, index, key, value)
@@ -612,6 +655,7 @@ export function RuleLevelGroupedEditor(props: {
 export const __ruleArrayEditorTestUtils = {
   coerceRuleFieldValue,
   getDisplayValue,
+  getKPITierCodeOptions,
   getRuleFieldLabel,
   getRuleFieldOptions,
   getRuleTableColumns,

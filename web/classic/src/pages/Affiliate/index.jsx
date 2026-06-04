@@ -128,7 +128,10 @@ const AffiliateDashboard = ({ t, loading, summary, error, onRetry }) => {
           ) : (
             <div className='flex flex-col gap-3'>
               {trendRows.map((row) => (
-                <div key={row.label} className='grid gap-2 md:grid-cols-[72px_1fr]'>
+                <div
+                  key={row.label}
+                  className='grid gap-2 md:grid-cols-[72px_1fr]'
+                >
                   <Text type='tertiary' size='small'>
                     {row.label}
                   </Text>
@@ -140,7 +143,9 @@ const AffiliateDashboard = ({ t, loading, summary, error, onRetry }) => {
                           style={{ width: `${row.paidWidth}%` }}
                         />
                       </div>
-                      <Text size='small'>{formatTrendMoney(row.netConsumptionRmb)}</Text>
+                      <Text size='small'>
+                        {formatTrendMoney(row.netConsumptionRmb)}
+                      </Text>
                     </div>
                     <div className='flex items-center gap-2'>
                       <div className='h-2 flex-1 overflow-hidden rounded-full bg-semi-color-fill-1'>
@@ -155,8 +160,8 @@ const AffiliateDashboard = ({ t, loading, summary, error, onRetry }) => {
                     </div>
                     <Text type='tertiary' size='small'>
                       {t('有效用户')}：{row.effectiveNewUsers} · {t('佣金')}：
-                      {formatTrendMoney(row.estimatedCommissionRmb)} · {t('人头费')}：
-                      {formatTrendMoney(row.headFeeRmb)}
+                      {formatTrendMoney(row.estimatedCommissionRmb)} ·{' '}
+                      {t('人头费')}：{formatTrendMoney(row.headFeeRmb)}
                     </Text>
                   </div>
                 </div>
@@ -321,6 +326,7 @@ const Affiliate = () => {
     try {
       const res = await API.get('/api/affiliate/summary', {
         params: buildAffiliateSummaryTrendParams(),
+        timeout: 15000,
       });
       const { success, data } = res.data;
       if (success) {

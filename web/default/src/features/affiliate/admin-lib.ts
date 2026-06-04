@@ -122,6 +122,22 @@ function normalizeCommissionRulesForForm(
   })
 }
 
+function normalizeCommissionTiersForForm(
+  value: unknown
+): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return { requires_manual_approval: false, value: rule }
+    }
+    const record = rule as Record<string, unknown>
+    return {
+      ...record,
+      requires_manual_approval: record.requires_manual_approval === true,
+    }
+  })
+}
+
 function normalizeHeadFeeRulesForForm(
   value: unknown
 ): Record<string, unknown>[] {
@@ -138,9 +154,7 @@ function normalizeHeadFeeRulesForForm(
   })
 }
 
-function normalizeRiskRulesForForm(
-  value: unknown
-): Record<string, unknown>[] {
+function normalizeRiskRulesForForm(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return []
   return value.map((rule) => {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
@@ -283,7 +297,7 @@ export function validateAffiliateProfilePayload(
     return t('Please select an affiliate level')
   }
   if (payload.level === 2 && !payload.parent_user_id) {
-    return t('Second-level affiliate requires a level-one parent user ID')
+    return t('Second-level affiliate requires a parent user ID')
   }
   if (payload.level === 2 && payload.parent_user_id === payload.user_id) {
     return t('Second-level affiliate parent cannot be itself')
@@ -464,7 +478,10 @@ export function buildAffiliateRuleSetDraftPayload(
     commission_tiers: parseJsonArray(
       'Commission tiers',
       values.commissionTiersJson
-    ),
+    ).map((rule) => ({
+      ...rule,
+      requires_manual_approval: rule.requires_manual_approval === true,
+    })),
     kpi_tiers: parseJsonArray('KPI tiers', values.kpiTiersJson),
     head_fee_rules: parseJsonArray('Head fee rules', values.headFeeRulesJson),
     risk_rules: parseJsonArray('Risk rules', values.riskRulesJson),
@@ -514,7 +531,9 @@ export function buildAffiliateRuleSetDraftFormValues(
     commissionRulesJson: stringifyPretty(
       normalizeCommissionRulesForForm(snapshot.commission_rules)
     ),
-    commissionTiersJson: stringifyPretty(snapshot.commission_tiers),
+    commissionTiersJson: stringifyPretty(
+      normalizeCommissionTiersForForm(snapshot.commission_tiers)
+    ),
     kpiTiersJson: stringifyPretty(snapshot.kpi_tiers),
     headFeeRulesJson: stringifyPretty(
       normalizeHeadFeeRulesForForm(snapshot.head_fee_rules)
@@ -581,7 +600,9 @@ export function parseAffiliateRuleSetImportJson(
     commissionRulesJson: stringifyPretty(
       normalizeCommissionRulesForForm(imported.commission_rules)
     ),
-    commissionTiersJson: stringifyPretty(imported.commission_tiers),
+    commissionTiersJson: stringifyPretty(
+      normalizeCommissionTiersForForm(imported.commission_tiers)
+    ),
     kpiTiersJson: stringifyPretty(imported.kpi_tiers),
     headFeeRulesJson: stringifyPretty(
       normalizeHeadFeeRulesForForm(imported.head_fee_rules)
@@ -720,6 +741,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 20000,
         base_rate_bps: 2000,
         cap_rate_bps: 3000,
+        requires_manual_approval: false,
         sort_order: 1,
       },
       {
@@ -728,6 +750,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 80000,
         base_rate_bps: 1333,
         cap_rate_bps: 2000,
+        requires_manual_approval: false,
         sort_order: 2,
       },
       {
@@ -736,6 +759,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 150000,
         base_rate_bps: 1000,
         cap_rate_bps: 1500,
+        requires_manual_approval: false,
         sort_order: 3,
       },
       {
@@ -744,6 +768,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 500000,
         base_rate_bps: 533,
         cap_rate_bps: 800,
+        requires_manual_approval: false,
         sort_order: 4,
       },
       {
@@ -761,6 +786,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 20000,
         base_rate_bps: 1000,
         cap_rate_bps: 2000,
+        requires_manual_approval: false,
         sort_order: 1,
       },
       {
@@ -769,6 +795,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 80000,
         base_rate_bps: 600,
         cap_rate_bps: 1200,
+        requires_manual_approval: false,
         sort_order: 2,
       },
       {
@@ -777,6 +804,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 150000,
         base_rate_bps: 450,
         cap_rate_bps: 900,
+        requires_manual_approval: false,
         sort_order: 3,
       },
       {
@@ -785,6 +813,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_net_paid_amount_cents: 500000,
         base_rate_bps: 250,
         cap_rate_bps: 500,
+        requires_manual_approval: false,
         sort_order: 4,
       },
       {

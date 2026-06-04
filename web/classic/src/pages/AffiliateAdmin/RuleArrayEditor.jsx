@@ -165,12 +165,23 @@ function coerceRuleFieldValue(key, value, original) {
   return coerceByOriginalType(value, original);
 }
 
-function getRuleFieldLabel(key) {
-  return RULE_FIELD_LABELS[key] || key;
+function humanizeRuleFieldKey(key) {
+  return String(key || '')
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
-function getRuleFieldOptions(key, currentValue) {
-  const options = RULE_FIELD_OPTIONS[key];
+function getRuleFieldLabel(key) {
+  return RULE_FIELD_LABELS[key] || humanizeRuleFieldKey(key);
+}
+
+function getRuleFieldOptions(key, currentValue, dynamicOptions = {}) {
+  const options =
+    dynamicOptions[key]?.length > 0
+      ? dynamicOptions[key]
+      : RULE_FIELD_OPTIONS[key];
   if (!options) {
     return [];
   }
@@ -181,6 +192,23 @@ function getRuleFieldOptions(key, currentValue) {
   }
 
   return [...options, { value, label: value }];
+}
+
+function getKPITierCodeOptions(items, level) {
+  const seen = new Set();
+  const options = [];
+  for (const item of items) {
+    if (Number(item?.affiliate_level || 0) !== level) continue;
+    const value = String(item?.code || '').trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    const name = String(item?.name || '').trim();
+    options.push({
+      value,
+      label: name ? `${name} (${value})` : value,
+    });
+  }
+  return options;
 }
 
 function getRuleTableColumns(items, hiddenKeys = []) {
@@ -228,10 +256,11 @@ const RuleFieldControl = ({
   t,
   fieldKey,
   fieldValue,
+  fieldOptions,
   readOnly = false,
   onChange,
 }) => {
-  const options = getRuleFieldOptions(fieldKey, fieldValue);
+  const options = getRuleFieldOptions(fieldKey, fieldValue, fieldOptions);
   if (options.length > 0) {
     return (
       <Select
@@ -287,6 +316,7 @@ const RuleTable = ({
   t,
   rows,
   hiddenKeys = [],
+  fieldOptions,
   readOnly = false,
   onChange,
   onRemove,
@@ -314,7 +344,7 @@ const RuleTable = ({
             ))}
             {!readOnly && (
               <th className='w-24 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
-                {t('Actions')}
+                {t('操作')}
               </th>
             )}
           </tr>
@@ -333,6 +363,7 @@ const RuleTable = ({
                       t={t}
                       fieldKey={key}
                       fieldValue={fieldValue}
+                      fieldOptions={fieldOptions}
                       readOnly={readOnly}
                       onChange={(nextValue) =>
                         onChange(row.index, key, nextValue)
@@ -541,6 +572,10 @@ export const RuleLevelGroupedEditor = ({
               <div className='flex flex-col gap-3'>
                 {sections.map((section) => {
                   const parsed = parseField(section.field);
+                  const kpiTierOptions = getKPITierCodeOptions(
+                    parseField('kpi_tiers_json').items,
+                    level,
+                  );
                   const items = parsed.items
                     .map((item, index) => ({ item, index }))
                     .filter(
@@ -589,6 +624,7 @@ export const RuleLevelGroupedEditor = ({
                           t={t}
                           rows={items}
                           hiddenKeys={['affiliate_level']}
+                          fieldOptions={{ kpi_tier_code: kpiTierOptions }}
                           readOnly={readOnly}
                           onChange={(index, key, nextValue) =>
                             updateItem(section.field, index, key, nextValue)
@@ -620,6 +656,7 @@ export const RuleLevelGroupedEditor = ({
 export const __ruleArrayEditorTestUtils = {
   coerceRuleFieldValue,
   getDisplayValue,
+  getKPITierCodeOptions,
   getRuleFieldLabel,
   getRuleFieldOptions,
   getRuleTableColumns,

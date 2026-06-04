@@ -140,6 +140,7 @@ describe('affiliate admin rule set helpers', () => {
           max_net_paid_amount_cents: 20000,
           base_rate_bps: 2000,
           cap_rate_bps: 3000,
+          requires_manual_approval: false,
           sort_order: 1,
         },
       ],
@@ -451,6 +452,7 @@ describe('affiliate admin rule set helpers', () => {
     expect(riskRules[0].bulk_abuse_strategy).toBe('manual_review');
     expect(riskRules[0].action).toBe('manual_review');
     expect(commissionTiers).toHaveLength(10);
+    expect(commissionTiers[0].requires_manual_approval).toBe(false);
     expect(commissionTiers[0]).toMatchObject({
       affiliate_level: 1,
       min_net_paid_amount_cents: 0,

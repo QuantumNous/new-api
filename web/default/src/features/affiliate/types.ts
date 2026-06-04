@@ -118,6 +118,7 @@ export interface AffiliateProfile {
   id: number
   user_id: number
   username?: string
+  parent_username?: string
   level: number
   status: AffiliateStatusValue
   parent_user_id: number

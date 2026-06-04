@@ -87,4 +87,27 @@ describe('classic affiliate rule table editor helpers', () => {
     ).toEqual(['active', 'disabled', 'archived']);
     expect(__ruleArrayEditorTestUtils.getRuleFieldOptions('code')).toEqual([]);
   });
+
+  test('builds KPI tier code options from the current KPI tier draft', () => {
+    expect(
+      __ruleArrayEditorTestUtils.getKPITierCodeOptions(
+        [
+          { affiliate_level: 1, code: 'starter', name: 'Starter' },
+          { affiliate_level: 1, code: 'scale', name: 'Scale' },
+          { affiliate_level: 2, code: 'starter', name: 'Second Starter' },
+        ],
+        1,
+      ),
+    ).toEqual([
+      { value: 'starter', label: 'Starter (starter)' },
+      { value: 'scale', label: 'Scale (scale)' },
+    ]);
+    expect(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('kpi_tier_code', 'custom', {
+          kpi_tier_code: [{ value: 'starter', label: 'Starter (starter)' }],
+        })
+        .map((option) => option.value),
+    ).toEqual(['starter', 'custom']);
+  });
 });

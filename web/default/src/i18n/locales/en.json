@@ -4732,6 +4732,20 @@
     "Observe": "Observe",
     "Qualified": "Qualified",
     "SMS template": "SMS template",
-    "Base": "Base"
+    "Base": "Base",
+    "Growth": "Growth",
+    "Excellent": "Excellent",
+    "Parent User ID": "Parent User ID",
+    "Enter a user ID to show username": "Enter a user ID to show username",
+    "Looking up username": "Looking up username",
+    "User not found or inaccessible": "User not found or inaccessible",
+    "Second-level affiliate requires a parent user ID": "Second-level affiliate requires a parent user ID",
+    "Monthly (calendar month)": "Monthly (calendar month)",
+    "Every 30 days": "Every 30 days",
+    "Every 14 days": "Every 14 days",
+    "Every 7 days": "Every 7 days",
+    "Self-Brush Strategy": "Self-Brush Strategy",
+    "Bulk-Abuse Strategy": "Bulk-Abuse Strategy",
+    "Processing Action": "Processing Action"
   }
 }

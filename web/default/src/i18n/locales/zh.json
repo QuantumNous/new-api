@@ -4732,6 +4732,20 @@
     "Observe": "观察",
     "Qualified": "合格",
     "SMS template": "短信模板",
-    "Base": "基础"
+    "Base": "基础",
+    "Growth": "增长",
+    "Excellent": "优秀",
+    "Parent User ID": "上级用户 ID",
+    "Enter a user ID to show username": "输入用户 ID 后自动显示用户名",
+    "Looking up username": "正在查询用户名",
+    "User not found or inaccessible": "用户不存在或无权限查看",
+    "Second-level affiliate requires a parent user ID": "二级分销商必须填写上级用户 ID",
+    "Monthly (calendar month)": "按自然月",
+    "Every 30 days": "每 30 天",
+    "Every 14 days": "每 14 天",
+    "Every 7 days": "每 7 天",
+    "Self-Brush Strategy": "自刷策略",
+    "Bulk-Abuse Strategy": "批量滥用策略",
+    "Processing Action": "处理动作"
   }
 }
