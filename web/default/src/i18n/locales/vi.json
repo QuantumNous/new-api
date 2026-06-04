@@ -4701,6 +4701,12 @@
     "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Tạo bản nháp khôi phục từ bộ quy tắc {{version}}? Cấu hình lịch sử sẽ được sao chép vào một bản nháp mới có thể chỉnh sửa.",
     "Affiliate rule set rollback draft created": "Đã tạo bản nháp khôi phục bộ quy tắc tiếp thị liên kết",
     "Failed to create affiliate rule set rollback draft": "Không thể tạo bản nháp khôi phục bộ quy tắc tiếp thị liên kết",
-    "Switch between editable rule tables and raw JSON for batch edits": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và JSON thô để chỉnh sửa hàng loạt"
+    "Switch between editable rule tables and raw JSON for batch edits": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và JSON thô để chỉnh sửa hàng loạt",
+    "14-Day Affiliate Trend": "Xu hướng affiliate 14 ngày",
+    "Paid usage, effective users, commission and pending settlement": "Mức dùng trả phí, người dùng hiệu quả, hoa hồng và khoản chờ thanh toán",
+    "No trend data yet": "Chưa có dữ liệu xu hướng",
+    "Trend updates after paid usage, effective users or settlements are recorded": "Xu hướng sẽ cập nhật sau khi có mức dùng trả phí, người dùng hiệu quả hoặc bản ghi thanh toán",
+    "Effective users": "Người dùng hiệu quả",
+    "Commission": "Hoa hồng"
   }
 }

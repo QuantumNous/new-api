@@ -4701,6 +4701,12 @@
     "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.",
     "Affiliate rule set rollback draft created": "Affiliate rule set rollback draft created",
     "Failed to create affiliate rule set rollback draft": "Failed to create affiliate rule set rollback draft",
-    "Switch between editable rule tables and raw JSON for batch edits": "Switch between editable rule tables and raw JSON for batch edits"
+    "Switch between editable rule tables and raw JSON for batch edits": "Switch between editable rule tables and raw JSON for batch edits",
+    "14-Day Affiliate Trend": "14-Day Affiliate Trend",
+    "Paid usage, effective users, commission and pending settlement": "Paid usage, effective users, commission and pending settlement",
+    "No trend data yet": "No trend data yet",
+    "Trend updates after paid usage, effective users or settlements are recorded": "Trend updates after paid usage, effective users or settlements are recorded",
+    "Effective users": "Effective users",
+    "Commission": "Commission"
   }
 }

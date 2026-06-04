@@ -1070,7 +1070,7 @@ func TestGetAffiliateSummaryReturnsScopedDashboard(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/summary", nil)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/summary?trend_start_timestamp=20&trend_end_timestamp=35", nil)
 	ctx.Set("affiliate_scope", service.AffiliateScope{
 		Kind:           service.AffiliateScopeAffiliate,
 		UserId:         100,
@@ -1095,6 +1095,9 @@ func TestGetAffiliateSummaryReturnsScopedDashboard(t *testing.T) {
 	}
 	if body.Data.NetConsumptionQuota != 2500 || body.Data.RuleStatus != "pending_rules" || body.Data.KPITierName != "待配置" {
 		t.Fatalf("unexpected summary metrics: %+v", body.Data)
+	}
+	if len(body.Data.DailyTrends) != 1 || body.Data.DailyTrends[0].PeriodStart != 20 || body.Data.DailyTrends[0].PeriodEnd != 35 || body.Data.DailyTrends[0].NetConsumptionQuota != 2500 {
+		t.Fatalf("unexpected trend metrics: %+v", body.Data.DailyTrends)
 	}
 }
 
@@ -1126,6 +1129,11 @@ type affiliateSummaryTestResponse struct {
 		NetConsumptionQuota   int64  `json:"net_consumption_quota"`
 		RuleStatus            string `json:"rule_status"`
 		KPITierName           string `json:"kpi_tier_name"`
+		DailyTrends           []struct {
+			PeriodStart         int64 `json:"period_start"`
+			PeriodEnd           int64 `json:"period_end"`
+			NetConsumptionQuota int64 `json:"net_consumption_quota"`
+		} `json:"daily_trends"`
 	} `json:"data"`
 }
 

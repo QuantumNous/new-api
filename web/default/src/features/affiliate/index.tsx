@@ -56,6 +56,7 @@ import {
   formatRawQuota,
   getAffiliateUnavailableMessage,
 } from './lib'
+import { buildAffiliateTrendRows } from './trend-lib'
 import type {
   AffiliateLog,
   AffiliateLogFilters,
@@ -213,6 +214,82 @@ function SummaryCards(props: {
         muted={rulePending}
       />
     </div>
+  )
+}
+
+function AffiliateTrendPanel(props: {
+  summary: AffiliateSummaryData | undefined
+  isLoading: boolean
+}) {
+  const { t } = useTranslation()
+  const rows = buildAffiliateTrendRows(props.summary)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('14-Day Affiliate Trend')}</CardTitle>
+        <CardDescription>
+          {t('Paid usage, effective users, commission and pending settlement')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {props.isLoading ? (
+          <div className='text-muted-foreground text-sm'>{t('Loading')}</div>
+        ) : rows.length === 0 ? (
+          <div className='rounded-lg border border-dashed p-4 text-sm'>
+            <div className='font-medium'>{t('No trend data yet')}</div>
+            <div className='text-muted-foreground mt-1'>
+              {t(
+                'Trend updates after paid usage, effective users or settlements are recorded'
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className='space-y-3'>
+            {rows.map((row) => (
+              <div key={row.label} className='grid gap-2 md:grid-cols-[72px_1fr]'>
+                <div className='text-muted-foreground text-xs'>{row.label}</div>
+                <div className='space-y-1'>
+                  <div className='flex items-center gap-2'>
+                    <div className='bg-muted h-2 flex-1 overflow-hidden rounded-full'>
+                      <div
+                        className='bg-primary h-full rounded-full'
+                        style={{ width: `${row.paidWidth}%` }}
+                      />
+                    </div>
+                    <span className='w-20 text-right text-xs font-medium'>
+                      {formatRmb(row.netConsumptionRmb, 2)}
+                    </span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <div className='bg-muted h-2 flex-1 overflow-hidden rounded-full'>
+                      <div
+                        className='h-full rounded-full bg-amber-500'
+                        style={{ width: `${row.pendingWidth}%` }}
+                      />
+                    </div>
+                    <span className='w-20 text-right text-xs font-medium'>
+                      {formatRmb(row.pendingSettlementRmb, 2)}
+                    </span>
+                  </div>
+                  <div className='text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs'>
+                    <span>
+                      {t('Effective users')}: {formatNumber(row.effectiveNewUsers)}
+                    </span>
+                    <span>
+                      {t('Commission')}: {formatRmb(row.estimatedCommissionRmb, 2)}
+                    </span>
+                    <span>
+                      {t('Head Fee')}: {formatRmb(row.headFeeRmb, 2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -646,6 +723,10 @@ export function Affiliate() {
           {available ? (
             <>
               <SummaryCards
+                summary={summary}
+                isLoading={summaryQuery.isLoading || summaryQuery.isFetching}
+              />
+              <AffiliateTrendPanel
                 summary={summary}
                 isLoading={summaryQuery.isLoading || summaryQuery.isFetching}
               />

@@ -4701,6 +4701,12 @@
     "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Создать черновик отката из набора правил {{version}}? Историческая конфигурация будет скопирована в новый редактируемый черновик.",
     "Affiliate rule set rollback draft created": "Черновик отката партнёрского набора правил создан",
     "Failed to create affiliate rule set rollback draft": "Не удалось создать черновик отката партнёрского набора правил",
-    "Switch between editable rule tables and raw JSON for batch edits": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок"
+    "Switch between editable rule tables and raw JSON for batch edits": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок",
+    "14-Day Affiliate Trend": "14-дневный тренд по партнёрской программе",
+    "Paid usage, effective users, commission and pending settlement": "Платное использование, эффективные пользователи, комиссия и ожидающие выплаты",
+    "No trend data yet": "Данных тренда пока нет",
+    "Trend updates after paid usage, effective users or settlements are recorded": "Тренд обновится после записи платного использования, эффективных пользователей или выплат",
+    "Effective users": "Эффективные пользователи",
+    "Commission": "Комиссия"
   }
 }

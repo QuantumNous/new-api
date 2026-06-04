@@ -111,7 +111,7 @@
 
 - [x] 复核 `service/affiliate_summary.go` 的有效新用户统计，避免只按 invite event 简单计数而没有套用飞书有效用户门槛。（2026-06-04 已修复 dashboard summary：无 published 规则时不把 invite 直接计为有效；有规则时按同层级人头费规则的首充、14 天 paid 净消耗、无退款/异常条件判定。）
 - [x] 复核 dashboard 的净消耗统计，确保只统计 paid 净付费消耗并正确扣除退款，不把赠金、试用、legacy_unknown 或异常流量算入业绩。（2026-06-04 已修复 `service/affiliate_summary.go`，dashboard 净消耗改为按 cursor 扫描日志并只累计 paid attribution，同时跳过 abnormal 流量。）
-- [x] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。（2026-06-04 已审计 classic/default 分销商页：当前为摘要卡片 + 推广关系树 + scoped logs 明细表组合，不把看板整体表格化；趋势图仍待后续数据接口与 UI 设计补齐。）
+- [x] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。（2026-06-04 已审计 classic/default 分销商页：当前为摘要卡片 + 推广关系树 + scoped logs 明细表组合，不把看板整体表格化；2026-06-04 已在 P2-4 补齐 14 天趋势数据接口与 default/classic UI。）
 - [x] 管理端指标配置和结算审核更适合表格化，分销商端看板更适合“摘要卡片 + 趋势 + 表格明细”。（2026-06-04 已确认前期规则配置已表格化，default rule-array-editor 与 admin finance helper 测试覆盖表格字段和人民币/百分比单位；结算审核完整表格 UI 继续按管理端 finance 后续任务推进。）
 - [x] default/classic 都要显示 RMB 主单位，必要时 raw quota 只作为调试或附加列，不作为主要展示。（2026-06-04 已审计：classic dashboard card 使用 `net_consumption_rmb` 为主值、raw quota 为描述；default scoped logs 使用 RMB 单元格、raw quota 仅在 title/CSV 附加列。）
 
@@ -161,7 +161,7 @@
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 已补 settlement pipeline service/API dry-run 预览能力；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；手机号注册归因、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
-- [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
+- [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。（2026-06-04 已补 dashboard 14 天趋势；登录态浏览器截图回归和外部验收归档仍待做。）
 
 ## 15. 文档维护规则
 
@@ -599,3 +599,13 @@
 - Docker 取证：`timeout 15s docker version` 与 `docker --context default version` 仍只返回 client 信息并以非 0 退出；`docker context ls` 显示 default 指向 `/var/run/docker.sock`，`desktop-linux` 指向 Docker Desktop pipe；WSL 内 `docker --context desktop-linux version` 触发 Docker CLI panic；`curl --unix-socket /var/run/docker.sock http://localhost/_ping` 在 15s 内没有返回 `OK`。
 - 结论：当前 Windows/WSL 端口和 dev server 已可用，`/api/affiliate/team` 运行态不是旧 404；若用户手动 Windows 浏览器仍显示旧 404，优先检查该浏览器的 disk/memory cache、Disable cache 硬刷新、旧标签页和实际 Request URL。当前 Docker server 仍不可用，不能安全执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`，也不能补 Docker PostgreSQL schema diff。
 - 残留风险：本轮未读取用户实际 Windows Chrome DevTools disk cache 状态；fresh in-app Browser 不能替代用户原浏览器 tab。由于 Docker server 不响应，运行态后端仍可能不是包含 `/api/*` no-store 提交的最新构建；待 Docker 恢复后必须重建 `new-api:dev` 并复测缓存头和 schema diff。
+
+## P2-4 dashboard 14 天趋势图复盘（2026-06-04 本线程）
+
+- RED：先补 `TestBuildAffiliateDashboardSummaryBuildsDailyTrendsFromPaidAndFinanceOnly`，要求 summary 返回按日趋势、paid 净消耗不包含 gift/trial/legacy_unknown/abnormal，并汇总有效新用户、预估佣金、人头费和待结算金额；旧实现因缺少 `TrendStartTimestamp`、`TrendEndTimestamp` 和 `DailyTrends` 编译失败。再补 `TestGetAffiliateSummaryReturnsScopedDashboard`，要求 controller 透传趋势窗口；旧实现返回空 `daily_trends`。default/classic 先补趋势 helper 测试，旧实现缺少对应模块。
+- 完成内容：`/api/affiliate/summary` 新增 `trend_start_timestamp` 与 `trend_end_timestamp` 查询参数；`AffiliateDashboardSummary` 新增 `daily_trends`。service 按天构建趋势点，paid 净消耗沿用已验证 attribution 口径，佣金/人头费/待结算金额按 finance sidecar 与 scope 汇总。default 与 classic 分销商端新增 14 天趋势面板，保持摘要卡片、趋势、关系树和 scoped logs 明细组合，不把 dashboard 改成纯表格。
+- 前端口径：default/classic 请求 summary 时默认带最近 14 天趋势窗口；趋势行以 RMB 为主单位，raw quota 仅作为后端数据来源，不作为主要展示。default 新增 6 个 locale 文案并通过 i18n sync；classic 使用本地中文文案，与既有 Semi Design 页面风格保持一致。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestBuildAffiliateDashboardSummaryBuildsDailyTrendsFromPaidAndFinanceOnly`、`go test -count=1 ./controller -run TestGetAffiliateSummaryReturnsScopedDashboard`、`cd web/default && bun test src/features/affiliate/trend-lib.test.ts`、`cd web/classic && bun test src/pages/Affiliate/affiliateDashboardTrends.test.mjs` 均先按预期失败。实现后 `go test -count=1 ./service ./controller -run "AffiliateDashboardSummary|GetAffiliateSummary|AffiliateSummary|Dashboard"` 通过；`cd web/default && bun test src/features/affiliate/trend-lib.test.ts src/features/affiliate/lib.test.ts` 通过，10 pass；`cd web/classic && bun test src/pages/Affiliate/affiliateDashboardTrends.test.mjs src/pages/Affiliate/affiliateDashboardCards.test.mjs src/pages/Affiliate/affiliateViewState.test.mjs` 通过，8 pass。
+- 回归验证：`cd web/default && bun run i18n:sync` 通过且 `_sync-report.json` 中 missing/extras/untranslated 均为 0；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
+- 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate` 未登录正常跳转到 classic login。classic 控制台错误为既有未登录/登录过期提示，不是趋势面板资源或渲染异常。
+- 残留风险：本轮未使用用户真实登录态做趋势面板截图或点击 smoke，不能替代 staging/生产验收；趋势窗口当前按前端默认最近 14 天请求，生产如果要周/月切换需另做 UI 与 API 参数设计；Docker server 仍不可用，PostgreSQL schema diff 和真实容器重建仍待恢复后补。

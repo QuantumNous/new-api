@@ -4701,6 +4701,12 @@
     "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "ルールセット {{version}} からロールバック下書きを作成しますか？履歴設定が新しい編集可能な下書きにコピーされます。",
     "Affiliate rule set rollback draft created": "アフィリエイトルールセットのロールバック下書きを作成しました",
     "Failed to create affiliate rule set rollback draft": "アフィリエイトルールセットのロールバック下書き作成に失敗しました",
-    "Switch between editable rule tables and raw JSON for batch edits": "一括編集用に、編集可能なルール表と生の JSON を切り替えます"
+    "Switch between editable rule tables and raw JSON for batch edits": "一括編集用に、編集可能なルール表と生の JSON を切り替えます",
+    "14-Day Affiliate Trend": "14日間のアフィリエイト推移",
+    "Paid usage, effective users, commission and pending settlement": "有料利用、有効ユーザー、コミッション、未決済金額",
+    "No trend data yet": "推移データはまだありません",
+    "Trend updates after paid usage, effective users or settlements are recorded": "有料利用、有効ユーザー、または決済記録が作成されると推移が更新されます",
+    "Effective users": "有効ユーザー",
+    "Commission": "コミッション"
   }
 }

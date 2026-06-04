@@ -25,6 +25,7 @@ import {
   buildAffiliateSettlementsQuery,
 } from './admin-lib'
 import { buildAffiliateLogsQuery } from './lib'
+import { buildAffiliateSummaryTrendParams } from './trend-lib'
 import type {
   AffiliateLog,
   AffiliateLogsParams,
@@ -64,6 +65,7 @@ export async function getAffiliateSummary(): Promise<
   ApiResponse<AffiliateSummary>
 > {
   const res = await api.get('/api/affiliate/summary', {
+    params: buildAffiliateSummaryTrendParams(),
     skipBusinessError: true,
   })
   return res.data

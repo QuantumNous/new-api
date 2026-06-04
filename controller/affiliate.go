@@ -263,12 +263,16 @@ func GetAffiliateSummary(c *gin.Context) {
 
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	trendStartTimestamp, _ := strconv.ParseInt(c.Query("trend_start_timestamp"), 10, 64)
+	trendEndTimestamp, _ := strconv.ParseInt(c.Query("trend_end_timestamp"), 10, 64)
 	summary, err := service.BuildAffiliateDashboardSummary(model.DB, model.LOG_DB, service.AffiliateDashboardSummaryInput{
-		Scope:           scope,
-		StartTimestamp:  startTimestamp,
-		EndTimestamp:    endTimestamp,
-		QuotaPerUnit:    common.QuotaPerUnit,
-		USDExchangeRate: operation_setting.USDExchangeRate,
+		Scope:               scope,
+		StartTimestamp:      startTimestamp,
+		EndTimestamp:        endTimestamp,
+		TrendStartTimestamp: trendStartTimestamp,
+		TrendEndTimestamp:   trendEndTimestamp,
+		QuotaPerUnit:        common.QuotaPerUnit,
+		USDExchangeRate:     operation_setting.USDExchangeRate,
 	})
 	if err != nil {
 		common.ApiError(c, err)

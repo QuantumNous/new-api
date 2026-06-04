@@ -56,6 +56,18 @@ export interface AffiliateSummary {
   pending_settlement_rmb: number
   kpi_tier_name: string
   rule_status: string
+  daily_trends?: AffiliateSummaryTrendPoint[]
+}
+
+export interface AffiliateSummaryTrendPoint {
+  period_start: number
+  period_end: number
+  effective_new_user_count: number
+  net_consumption_quota: number
+  net_consumption_rmb: number
+  estimated_commission_rmb: number
+  head_fee_rmb: number
+  pending_settlement_rmb: number
 }
 
 export interface AffiliateTeamTreeNode {

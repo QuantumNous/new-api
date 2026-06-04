@@ -28,11 +28,23 @@ import UsageLogsTable from '../../components/table/usage-logs';
 import { API } from '../../helpers';
 import { buildAffiliateDashboardCards } from './affiliateDashboardCards';
 import {
+  buildAffiliateSummaryTrendParams,
+  buildAffiliateTrendRows,
+} from './affiliateDashboardTrends';
+import {
   buildAffiliateSectionErrorState,
   buildAffiliateStatusLoadingState,
 } from './affiliateViewState';
 
 const { Text } = Typography;
+
+function formatTrendMoney(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) {
+    return '¥0.00';
+  }
+  return `¥${amount.toFixed(2)}`;
+}
 
 const AffiliateSectionFallback = ({ t, section, onRetry }) => {
   const state = buildAffiliateSectionErrorState(t, {
@@ -80,23 +92,80 @@ const AffiliateDashboard = ({ t, loading, summary, error, onRetry }) => {
   }
 
   const cards = buildAffiliateDashboardCards(t, summary);
+  const trendRows = buildAffiliateTrendRows(summary);
 
   return (
-    <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4'>
-      {cards.map((card) => (
-        <Card key={card.key} className='!rounded-2xl'>
-          <div className='flex flex-col gap-2'>
-            <Text type='secondary'>{card.title}</Text>
-            <div className='text-2xl font-semibold text-semi-color-text-0'>
-              {card.value}
+    <>
+      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4'>
+        {cards.map((card) => (
+          <Card key={card.key} className='!rounded-2xl'>
+            <div className='flex flex-col gap-2'>
+              <Text type='secondary'>{card.title}</Text>
+              <div className='text-2xl font-semibold text-semi-color-text-0'>
+                {card.value}
+              </div>
+              <Text type='tertiary' size='small'>
+                {card.description}
+              </Text>
             </div>
-            <Text type='tertiary' size='small'>
-              {card.description}
-            </Text>
+          </Card>
+        ))}
+      </div>
+      <Card className='!rounded-2xl mb-4'>
+        <div className='flex flex-col gap-3'>
+          <div>
+            <Text strong>{t('14 天分销趋势')}</Text>
+            <div>
+              <Text type='tertiary' size='small'>
+                {t('净付费消耗、有效新用户、预估佣金和待结算金额')}
+              </Text>
+            </div>
           </div>
-        </Card>
-      ))}
-    </div>
+          {trendRows.length === 0 ? (
+            <div className='rounded-xl border border-dashed p-4'>
+              <Text type='secondary'>{t('暂无趋势数据')}</Text>
+            </div>
+          ) : (
+            <div className='flex flex-col gap-3'>
+              {trendRows.map((row) => (
+                <div key={row.label} className='grid gap-2 md:grid-cols-[72px_1fr]'>
+                  <Text type='tertiary' size='small'>
+                    {row.label}
+                  </Text>
+                  <div className='flex flex-col gap-1'>
+                    <div className='flex items-center gap-2'>
+                      <div className='h-2 flex-1 overflow-hidden rounded-full bg-semi-color-fill-1'>
+                        <div
+                          className='h-full rounded-full bg-semi-color-primary'
+                          style={{ width: `${row.paidWidth}%` }}
+                        />
+                      </div>
+                      <Text size='small'>{formatTrendMoney(row.netConsumptionRmb)}</Text>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <div className='h-2 flex-1 overflow-hidden rounded-full bg-semi-color-fill-1'>
+                        <div
+                          className='h-full rounded-full bg-semi-color-warning'
+                          style={{ width: `${row.pendingWidth}%` }}
+                        />
+                      </div>
+                      <Text size='small'>
+                        {formatTrendMoney(row.pendingSettlementRmb)}
+                      </Text>
+                    </div>
+                    <Text type='tertiary' size='small'>
+                      {t('有效用户')}：{row.effectiveNewUsers} · {t('佣金')}：
+                      {formatTrendMoney(row.estimatedCommissionRmb)} · {t('人头费')}：
+                      {formatTrendMoney(row.headFeeRmb)}
+                    </Text>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+    </>
   );
 };
 
@@ -250,7 +319,9 @@ const Affiliate = () => {
     setSummaryLoading(true);
     setSummaryError(false);
     try {
-      const res = await API.get('/api/affiliate/summary');
+      const res = await API.get('/api/affiliate/summary', {
+        params: buildAffiliateSummaryTrendParams(),
+      });
       const { success, data } = res.data;
       if (success) {
         setSummary(data);

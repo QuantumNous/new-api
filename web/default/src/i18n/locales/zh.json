@@ -4701,6 +4701,12 @@
     "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "确认从规则集 {{version}} 创建回滚草稿？该操作会把历史配置复制为新的可编辑草稿。",
     "Affiliate rule set rollback draft created": "规则集回滚草稿已创建",
     "Failed to create affiliate rule set rollback draft": "规则集回滚草稿创建失败",
-    "Switch between editable rule tables and raw JSON for batch edits": "在可编辑规则表格和原始 JSON 之间切换，用于批量编辑"
+    "Switch between editable rule tables and raw JSON for batch edits": "在可编辑规则表格和原始 JSON 之间切换，用于批量编辑",
+    "14-Day Affiliate Trend": "14 天分销趋势",
+    "Paid usage, effective users, commission and pending settlement": "净付费消耗、有效用户、佣金和待结算金额",
+    "No trend data yet": "暂无趋势数据",
+    "Trend updates after paid usage, effective users or settlements are recorded": "产生付费消耗、有效用户或结算记录后将更新趋势",
+    "Effective users": "有效用户",
+    "Commission": "佣金"
   }
 }

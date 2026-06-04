@@ -27,6 +27,7 @@
 - [x] 分销管理端的规则、KPI、人头费、风控和结算配置适合表格或矩阵；分销商端 dashboard 不建议全表格化，应保留摘要卡片、趋势、关系树、明细表组合。
 - [x] 当前已具备 settlement pipeline service/API `dry_run` 预览能力；dry-run 不落库，正式 run 仍写 job run 和结算数据。
 - [x] 当前已具备 failed job run cursor payload 保留、整阶段 resume、resume 输出校验；阶段内部 cursor 断点续扫仍未完成。
+- [x] 当前分销商 dashboard 已具备最近 14 天趋势数据与 default/classic 趋势面板；登录态浏览器截图、周/月切换和外部验收仍未完成。
 - [x] Docker engine 当前在本线程多次 probe 中仍出现只返回 client 或无 server 输出的问题；Docker PostgreSQL schema diff 仍不能视为完成。
 
 ## 1. 接手前固定读取清单
@@ -410,9 +411,9 @@ Expected: SQLite AutoMigrate 覆盖新增对象；Docker 恢复后补 PostgreSQL
 - Modify: `web/default/src/features/affiliate/*`
 - Modify: `web/classic/src/pages/Affiliate/*`
 
-- [ ] RED: 后端提供按日或周的 paid 净消耗、有效新用户、预估佣金、待结算金额趋势，不把 gift/trial/refund/legacy_unknown 算入 paid。
-- [ ] GREEN: default/classic 展示趋势图，RMB 为主单位，raw quota 只作为附加信息。
-- [ ] GREEN: 分销商端保持摘要卡片、趋势图、关系树、scoped logs 表格，不整体改成纯表格。
+- [x] RED: 后端提供按日或周的 paid 净消耗、有效新用户、预估佣金、待结算金额趋势，不把 gift/trial/refund/legacy_unknown 算入 paid。（2026-06-04 已补 service/controller RED 测试，见 followup P2-4。）
+- [x] GREEN: default/classic 展示趋势图，RMB 为主单位，raw quota 只作为附加信息。（2026-06-04 已补最近 14 天趋势 helper、default locale 和 classic 页面。）
+- [x] GREEN: 分销商端保持摘要卡片、趋势图、关系树、scoped logs 表格，不整体改成纯表格。
 
 ### Task 10.2 浏览器 smoke 与截图回归
 
@@ -454,7 +455,7 @@ Expected: SQLite AutoMigrate 覆盖新增对象；Docker 恢复后补 PostgreSQL
 - [ ] 第五批：阶段内部 cursor resume 设计与安全切片；没有 durable output 前不要实现 unsafe 跳扫。
 - [ ] 第六批：最新飞书口径复核，必要时更新默认 seed 和测试。
 - [ ] 第七批：手机号注册归因、手机号登录/绑定/换绑、短信宝真实通道 smoke。
-- [ ] 第八批：管理端佣金/结算列表操作表格增强，分销商趋势图和浏览器回归。
+- [ ] 第八批：管理端佣金/结算列表操作表格增强，分销商登录态浏览器回归和截图归档；分销商 14 天趋势图已完成，后续只做真实数据 smoke 和必要的周/月切换。
 - [ ] 第九批：staging/生产发布、灰度、外接控制台归档。
 
 ## 13. 复盘模板

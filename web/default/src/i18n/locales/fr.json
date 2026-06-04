@@ -4701,6 +4701,12 @@
     "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Créer un brouillon de restauration depuis le jeu de règles {{version}} ? La configuration historique sera copiée dans un nouveau brouillon modifiable.",
     "Affiliate rule set rollback draft created": "Brouillon de restauration du jeu de règles d’affiliation créé",
     "Failed to create affiliate rule set rollback draft": "Échec de création du brouillon de restauration du jeu de règles d’affiliation",
-    "Switch between editable rule tables and raw JSON for batch edits": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots"
+    "Switch between editable rule tables and raw JSON for batch edits": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots",
+    "14-Day Affiliate Trend": "Tendance d’affiliation sur 14 jours",
+    "Paid usage, effective users, commission and pending settlement": "Usage payé, utilisateurs effectifs, commission et règlement en attente",
+    "No trend data yet": "Aucune donnée de tendance pour le moment",
+    "Trend updates after paid usage, effective users or settlements are recorded": "La tendance se met à jour après l’enregistrement d’usage payé, d’utilisateurs effectifs ou de règlements",
+    "Effective users": "Utilisateurs effectifs",
+    "Commission": "Commission"
   }
 }

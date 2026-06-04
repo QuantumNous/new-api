@@ -9,23 +9,37 @@ import (
 )
 
 type AffiliateDashboardSummaryInput struct {
-	Scope           AffiliateScope
-	StartTimestamp  int64
-	EndTimestamp    int64
-	QuotaPerUnit    float64
-	USDExchangeRate float64
+	Scope               AffiliateScope
+	StartTimestamp      int64
+	EndTimestamp        int64
+	TrendStartTimestamp int64
+	TrendEndTimestamp   int64
+	QuotaPerUnit        float64
+	USDExchangeRate     float64
 }
 
 type AffiliateDashboardSummary struct {
-	TeamUserCount          int     `json:"team_user_count"`
+	TeamUserCount          int                            `json:"team_user_count"`
+	EffectiveNewUserCount  int                            `json:"effective_new_user_count"`
+	NetConsumptionQuota    int64                          `json:"net_consumption_quota"`
+	NetConsumptionRMB      float64                        `json:"net_consumption_rmb"`
+	EstimatedCommissionRMB float64                        `json:"estimated_commission_rmb"`
+	HeadFeeRMB             float64                        `json:"head_fee_rmb"`
+	PendingSettlementRMB   float64                        `json:"pending_settlement_rmb"`
+	KPITierName            string                         `json:"kpi_tier_name"`
+	RuleStatus             string                         `json:"rule_status"`
+	DailyTrends            []AffiliateDashboardTrendPoint `json:"daily_trends"`
+}
+
+type AffiliateDashboardTrendPoint struct {
+	PeriodStart            int64   `json:"period_start"`
+	PeriodEnd              int64   `json:"period_end"`
 	EffectiveNewUserCount  int     `json:"effective_new_user_count"`
 	NetConsumptionQuota    int64   `json:"net_consumption_quota"`
 	NetConsumptionRMB      float64 `json:"net_consumption_rmb"`
 	EstimatedCommissionRMB float64 `json:"estimated_commission_rmb"`
 	HeadFeeRMB             float64 `json:"head_fee_rmb"`
 	PendingSettlementRMB   float64 `json:"pending_settlement_rmb"`
-	KPITierName            string  `json:"kpi_tier_name"`
-	RuleStatus             string  `json:"rule_status"`
 }
 
 func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input AffiliateDashboardSummaryInput) (AffiliateDashboardSummary, error) {
@@ -65,6 +79,10 @@ func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		return AffiliateDashboardSummary{}, err
 	}
 	summary.NetConsumptionRMB = quotaToRMB(summary.NetConsumptionQuota, input.QuotaPerUnit, input.USDExchangeRate)
+	summary.DailyTrends, err = buildAffiliateDashboardDailyTrends(db, logDB, visible, input)
+	if err != nil {
+		return AffiliateDashboardSummary{}, err
+	}
 
 	return summary, nil
 }
@@ -281,6 +299,110 @@ func sumAffiliateNetConsumptionQuota(db *gorm.DB, logDB *gorm.DB, visible Affili
 	return quota, nil
 }
 
+func buildAffiliateDashboardDailyTrends(db *gorm.DB, logDB *gorm.DB, visible AffiliateVisibleUserIds, input AffiliateDashboardSummaryInput) ([]AffiliateDashboardTrendPoint, error) {
+	if input.TrendStartTimestamp <= 0 || input.TrendEndTimestamp < input.TrendStartTimestamp {
+		return []AffiliateDashboardTrendPoint{}, nil
+	}
+
+	points := []AffiliateDashboardTrendPoint{}
+	for periodStart := input.TrendStartTimestamp; periodStart <= input.TrendEndTimestamp; periodStart += affiliateSecondsPerDay {
+		periodEnd := periodStart + affiliateSecondsPerDay - 1
+		if periodEnd > input.TrendEndTimestamp {
+			periodEnd = input.TrendEndTimestamp
+		}
+		bucketInput := input
+		bucketInput.StartTimestamp = periodStart
+		bucketInput.EndTimestamp = periodEnd
+
+		netQuota, err := sumAffiliateNetConsumptionQuota(db, logDB, visible, bucketInput)
+		if err != nil {
+			return nil, err
+		}
+		effectiveUsers, err := countAffiliateEffectiveNewUsers(db, logDB, visible, bucketInput)
+		if err != nil {
+			return nil, err
+		}
+		commissionCents, err := sumAffiliateTrendCommissionCents(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+		headFeeCents, err := sumAffiliateTrendHeadFeeCents(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+		pendingSettlementCents, err := sumAffiliateTrendPendingSettlementCents(db, input.Scope, periodStart, periodEnd)
+		if err != nil {
+			return nil, err
+		}
+
+		points = append(points, AffiliateDashboardTrendPoint{
+			PeriodStart:            periodStart,
+			PeriodEnd:              periodEnd,
+			EffectiveNewUserCount:  effectiveUsers,
+			NetConsumptionQuota:    netQuota,
+			NetConsumptionRMB:      quotaToRMB(netQuota, input.QuotaPerUnit, input.USDExchangeRate),
+			EstimatedCommissionRMB: centsToRMB(commissionCents),
+			HeadFeeRMB:             centsToRMB(headFeeCents),
+			PendingSettlementRMB:   centsToRMB(pendingSettlementCents),
+		})
+	}
+	return points, nil
+}
+
+func sumAffiliateTrendCommissionCents(db *gorm.DB, scope AffiliateScope, periodStart int64, periodEnd int64) (int64, error) {
+	tx := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("status IN ?", []string{model.AffiliateEventStatusPending, model.AffiliateEventStatusReady})
+	tx = applyAffiliateSummaryCreatedAtRange(tx, periodStart, periodEnd)
+	tx = applyAffiliateSummaryFinanceScope(tx, scope)
+	var cents int64
+	if err := tx.Select("COALESCE(SUM(commission_cents), 0)").Scan(&cents).Error; err != nil {
+		return 0, err
+	}
+	return cents, nil
+}
+
+func sumAffiliateTrendHeadFeeCents(db *gorm.DB, scope AffiliateScope, periodStart int64, periodEnd int64) (int64, error) {
+	tx := db.Model(&model.AffiliateHeadFeeEvent{}).
+		Where("status IN ?", []string{model.AffiliateEventStatusPending, model.AffiliateEventStatusReady})
+	tx = applyAffiliateSummaryCreatedAtRange(tx, periodStart, periodEnd)
+	tx = applyAffiliateSummaryFinanceScope(tx, scope)
+	var cents int64
+	if err := tx.Select("COALESCE(SUM(amount_cents), 0)").Scan(&cents).Error; err != nil {
+		return 0, err
+	}
+	return cents, nil
+}
+
+func sumAffiliateTrendPendingSettlementCents(db *gorm.DB, scope AffiliateScope, periodStart int64, periodEnd int64) (int64, error) {
+	tx := db.Model(&model.AffiliateSettlement{}).
+		Where("status IN ?", []string{model.AffiliateSettlementStatusDraft, model.AffiliateSettlementStatusFrozen})
+	tx = applyAffiliateSummaryCreatedAtRange(tx, periodStart, periodEnd)
+	tx = applyAffiliateSummaryFinanceScope(tx, scope)
+	var cents int64
+	if err := tx.Select("COALESCE(SUM(payable_cents), 0)").Scan(&cents).Error; err != nil {
+		return 0, err
+	}
+	return cents, nil
+}
+
+func applyAffiliateSummaryFinanceScope(tx *gorm.DB, scope AffiliateScope) *gorm.DB {
+	if scope.Kind == AffiliateScopeGlobal {
+		return tx
+	}
+	if scope.UserId > 0 {
+		return tx.Where("affiliate_user_id = ?", scope.UserId)
+	}
+	return tx.Where("affiliate_user_id = ?", -1)
+}
+
+func applyAffiliateSummaryCreatedAtRange(tx *gorm.DB, periodStart int64, periodEnd int64) *gorm.DB {
+	tx = tx.Where("created_at >= ?", periodStart)
+	if periodEnd > 0 {
+		tx = tx.Where("created_at <= ?", periodEnd)
+	}
+	return tx
+}
+
 func applyAffiliateSummaryTimeRange(tx *gorm.DB, input AffiliateDashboardSummaryInput) *gorm.DB {
 	if input.StartTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", input.StartTimestamp)
@@ -302,4 +424,11 @@ func quotaToRMB(quota int64, quotaPerUnit float64, usdExchangeRate float64) floa
 		usdExchangeRate = 1
 	}
 	return float64(quota) / quotaPerUnit * usdExchangeRate
+}
+
+func centsToRMB(cents int64) float64 {
+	if cents == 0 {
+		return 0
+	}
+	return float64(cents) / 100
 }
