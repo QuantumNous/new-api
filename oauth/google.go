@@ -2,7 +2,6 @@ package oauth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -39,11 +39,23 @@ type googleOAuthResponse struct {
 }
 
 type googleUser struct {
-	Sub           string `json:"sub"`
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
-	Name          string `json:"name"`
-	Picture       string `json:"picture"`
+	Sub           string   `json:"sub"`
+	Email         string   `json:"email"`
+	EmailVerified flexBool `json:"email_verified"`
+	Name          string   `json:"name"`
+}
+
+// flexBool accepts either a JSON boolean (true) or a JSON string ("true").
+// Google's OIDC userinfo endpoint returns a boolean per spec, but legacy/ID-token
+// claims have historically returned the string form. Decoding leniently here
+// avoids fail-closed rejection of a legitimately verified user; any value that
+// is not an affirmative true/"true"/1 is treated as false.
+type flexBool bool
+
+func (b *flexBool) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(strings.TrimSpace(string(data)), `"`)
+	*b = flexBool(s == "true" || s == "1")
+	return nil
 }
 
 func (p *GoogleProvider) GetName() string { return "Google" }
@@ -88,7 +100,7 @@ func (p *GoogleProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	logger.LogDebug(ctx, "[OAuth-Google] ExchangeToken response status: %d", res.StatusCode)
 
 	var tokenResp googleOAuthResponse
-	if err := json.NewDecoder(res.Body).Decode(&tokenResp); err != nil {
+	if err := common.DecodeJson(res.Body, &tokenResp); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Google] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
@@ -139,7 +151,16 @@ func (p *GoogleProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	if err != nil {
 		return nil, err
 	}
-	return parseGoogleUserInfo(body)
+
+	user, err := parseGoogleUserInfo(body)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Google] GetUserInfo parse error: %s", err.Error()))
+		return nil, err
+	}
+
+	logger.LogDebug(ctx, "[OAuth-Google] GetUserInfo success: sub=%s, name=%s, email=%s",
+		user.ProviderUserID, user.DisplayName, user.Email)
+	return user, nil
 }
 
 // parseGoogleUserInfo parses a Google userinfo response and enforces that the
@@ -147,14 +168,14 @@ func (p *GoogleProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 // without performing real HTTP requests.
 func parseGoogleUserInfo(body []byte) (*OAuthUser, error) {
 	var gu googleUser
-	if err := json.Unmarshal(body, &gu); err != nil {
+	if err := common.Unmarshal(body, &gu); err != nil {
 		return nil, err
 	}
 
 	if gu.Sub == "" || gu.Email == "" {
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Google"})
 	}
-	if !gu.EmailVerified {
+	if !bool(gu.EmailVerified) {
 		return nil, NewOAuthError(i18n.MsgOAuthEmailNotVerified, map[string]any{"Provider": "Google"})
 	}
 

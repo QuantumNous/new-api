@@ -43,6 +43,24 @@ func TestParseGoogleUserInfo_EmptyEmail(t *testing.T) {
 	require.Equal(t, i18n.MsgOAuthUserInfoEmpty, oErr.MsgKey)
 }
 
+func TestParseGoogleUserInfo_EmailVerifiedAsString(t *testing.T) {
+	// Google legacy/ID-token claims may return email_verified as the string "true".
+	body := []byte(`{"sub":"123","email":"a@b.com","email_verified":"true","name":"Alice"}`)
+	u, err := parseGoogleUserInfo(body)
+	require.NoError(t, err)
+	require.Equal(t, "123", u.ProviderUserID)
+}
+
+func TestParseGoogleUserInfo_EmailVerifiedAbsent(t *testing.T) {
+	// Missing email_verified must fail-closed (treated as not verified).
+	body := []byte(`{"sub":"123","email":"a@b.com","name":"Alice"}`)
+	_, err := parseGoogleUserInfo(body)
+	require.Error(t, err)
+	oErr, ok := err.(*OAuthError)
+	require.True(t, ok)
+	require.Equal(t, i18n.MsgOAuthEmailNotVerified, oErr.MsgKey)
+}
+
 func TestParseGoogleUserInfo_InvalidJSON(t *testing.T) {
 	_, err := parseGoogleUserInfo([]byte(`not json`))
 	require.Error(t, err)
