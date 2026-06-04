@@ -118,7 +118,7 @@
 ## 10. 手机号/SMS 后续
 
 - [x] 当前 SMS 限流为内存实现，生产多实例前必须评估 Redis/数据库分布式限流，否则不同实例之间会绕过限制。（2026-06-04 已新增 `sms_rate_limit_counters` sidecar 固定窗口 DB 计数，管理员测试发送优先走 DB-backed limiter；`model.DB=nil` 时保留内存 fallback。Docker PostgreSQL schema diff 因 Docker 不可用仍待补。）
-- [ ] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。（2026-06-04 已新增后端 `POST /api/user/sms/register`，复用统一 invite context、初始额度规则和 `user_phone_bindings` sidecar；前端验证码发送/注册表单、手机号登录和真实通道 smoke 仍待做。）
+- [ ] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。（2026-06-04 已新增后端 `POST /api/user/sms/register`，复用统一 invite context、初始额度规则和 `user_phone_bindings` sidecar；2026-06-04 已新增后端 `POST /api/user/sms/register/code` 发送注册验证码；前端注册表单、手机号登录和真实通道 smoke 仍待做。）
 - [x] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。（2026-06-04 审计：当前分支手机号绑定已使用 `user_phone_bindings` sidecar，`model/user.go` 未新增手机号字段；真实手机号登录/注册入口仍待按统一邀请归因规则接入。）
 - [ ] 短信宝真实通道 smoke 必须在签名审核通过、模板确认和脱敏日志策略明确后执行。
 - [ ] 测试发送、状态查询和失败错误码映射不得输出完整手机号、验证码、ApiKey、密码或签名内部资料。
@@ -160,7 +160,7 @@
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看、发布/归档二次确认、佣金/人头费启停状态、结算自动开关和备注。风控动作仍按第 6 节单项任务保留。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 已补 settlement pipeline service/API dry-run 预览能力；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
-- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；2026-06-04 已补后端 SMS 注册入口并接统一邀请归因；前端验证码发送/注册表单、手机号登录、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
+- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；2026-06-04 已补后端 SMS 注册入口、注册验证码发送入口并接统一邀请归因；前端注册表单、手机号登录、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。（2026-06-04 已补 dashboard 14 天趋势；登录态浏览器截图回归和外部验收归档仍待做。）
 
 ## 15. 文档维护规则
@@ -671,3 +671,13 @@
 - 验证命令：RED 阶段 `go test -count=1 ./controller -run TestSMSRegisterAppliesAffiliateAttributionAndBindsPhone` 编译失败于缺少 SMS verification purpose 和 `SMSRegister`；实现后同命令通过。回归 `go test -count=1 ./common ./service ./controller -run "SMS|Phone|AffiliateRegistration|PasswordRegister|InviteContext|RegisterApplies"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun|SMS|Phone|Register"` 通过。
 - schema impact：本轮不新增 GORM model、字段或索引；使用既有 `user_phone_bindings` sidecar。Docker server 仍不可用，既有 SMS/affiliate PostgreSQL schema diff 缺口仍待恢复后补。
 - 残留风险：本轮只补后端注册入口，不包含真实验证码发送用户入口、default/classic 前端注册表单、手机号登录、找回/换绑闭环或短信宝真实通道 smoke；真实通道仍需等签名、模板和脱敏策略确认后再做。
+
+## P2-7 SMS 注册验证码发送入口复盘（2026-06-04 本线程）
+
+- RED：新增 `TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse`，要求公开注册验证码发送入口生成验证码、调用 SMS provider、登记后续注册可校验的 code、写脱敏发送日志，并且响应和日志不包含完整手机号、验证码或完整短信内容。旧实现缺少 `SendSMSRegisterCode`，测试编译失败。
+- 完成内容：新增 `POST /api/user/sms/register/code`，只支持 `register` 场景；发送前执行 DB-backed SMS rate limit，使用已审核签名和注册模板渲染短信内容，发送成功后登记 `common.SMSVerificationPurpose(register)` 验证码，并复用 SMS 发送日志脱敏策略。
+- 完成内容：新增 `GenerateSMSVerificationCode`，使用 `crypto/rand` 生成数字验证码。RED 后首次 GREEN 失败暴露旧 `GenerateVerificationCode(6)` 会产生非纯数字字符，本轮改为 SMS 专用数字码，避免影响 email/密码重置等既有验证码逻辑。
+- 安全边界：客户端不能传入验证码，也不会收到验证码；response 只返回 masked phone、provider code 和 scene；发送日志只保存 masked phone、template version、provider code 和耗时，不保存完整手机号、验证码或短信正文。
+- 验证命令：RED 阶段 `go test -count=1 ./controller -run TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse` 编译失败于缺少 `SendSMSRegisterCode`；实现后同命令通过。回归 `go test -count=1 ./common ./service ./controller -run "SMS|Phone|AffiliateRegistration|PasswordRegister|InviteContext|RegisterApplies"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun|SMS|Phone|Register"` 通过。
+- schema impact：本轮不新增 GORM model、字段或索引；继续使用既有 SMS sidecar。Docker server 仍不可用，SMS/affiliate PostgreSQL schema diff 缺口仍待恢复后补。
+- 残留风险：本轮仍未实现 default/classic 前端注册表单、手机号登录、找回/换绑闭环或短信宝真实通道 smoke；真实通道必须等签名、模板和脱敏策略确认后再验收。

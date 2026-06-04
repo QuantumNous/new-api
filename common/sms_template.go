@@ -1,8 +1,10 @@
 package common
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -21,6 +23,21 @@ const (
 
 func SMSVerificationPurpose(scene string) string {
 	return "sms:" + strings.TrimSpace(scene)
+}
+
+func GenerateSMSVerificationCode(length int) (string, error) {
+	if length <= 0 {
+		length = 6
+	}
+	code := make([]byte, length)
+	for i := range code {
+		value, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", err
+		}
+		code[i] = byte('0' + value.Int64())
+	}
+	return string(code), nil
 }
 
 type SMSVerificationTemplateConfig struct {

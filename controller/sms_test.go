@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -84,6 +85,113 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 	}
 	if response.Data["provider"] != common.SMSProviderSMSBao || response.Data["provider_code"] != "0" {
 		t.Fatalf("unexpected provider metadata: %+v", response.Data)
+	}
+}
+
+func TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalRegisterEnabled := common.RegisterEnabled
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSRegisterTemplate
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.RegisterEnabled = originalRegisterEnabled
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalTemplate
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSProviderFactory = originalFactory
+		common.DeleteKey("13800138000", common.SMSVerificationPurpose(common.SMSSceneRegister))
+		service.ResetSMSRateLimiterForTest()
+	})
+
+	model.DB = newSMSControllerTestDB(t)
+	common.RegisterEnabled = true
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
+	common.SMSProductName = "分销系统"
+	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSRateLimitEnabled = false
+	service.ResetSMSRateLimiterForTest()
+
+	var sentPhone string
+	var sentContent string
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return captureSMSProvider{
+			phone:   &sentPhone,
+			content: &sentContent,
+		}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/sms/register/code", bytes.NewBufferString(`{
+		"phone":"13800138000"
+	}`))
+
+	SendSMSRegisterCode(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool           `json:"success"`
+		Message string         `json:"message"`
+		Data    map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected success response, got %q", response.Message)
+	}
+	if sentPhone != "13800138000" {
+		t.Fatalf("unexpected provider phone: %q", sentPhone)
+	}
+	match := regexp.MustCompile(`注册验证码 ([0-9]{6})`).FindStringSubmatch(sentContent)
+	if len(match) != 2 {
+		t.Fatalf("expected provider content to include six digit code, got %q", sentContent)
+	}
+	code := match[1]
+	if !common.VerifyCodeWithKey("13800138000", code, common.SMSVerificationPurpose(common.SMSSceneRegister)) {
+		t.Fatal("expected generated sms code to be registered for later sms registration")
+	}
+
+	body := recorder.Body.String()
+	for _, forbidden := range []string{"13800138000", code, sentContent} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("response leaked %q: %s", forbidden, body)
+		}
+	}
+	if response.Data["phone_masked"] != "138****8000" || response.Data["template_scene"] != common.SMSSceneRegister {
+		t.Fatalf("unexpected response metadata: %+v", response.Data)
+	}
+
+	var logs []model.SMSSendLog
+	if err := model.DB.Find(&logs).Error; err != nil {
+		t.Fatalf("read sms send logs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected one sms send log, got %d", len(logs))
+	}
+	logPayload, err := json.Marshal(logs[0])
+	if err != nil {
+		t.Fatalf("marshal sms send log: %v", err)
+	}
+	if strings.Contains(string(logPayload), "13800138000") || strings.Contains(string(logPayload), code) {
+		t.Fatalf("sms send log leaked phone or code: %s", string(logPayload))
+	}
+	if logs[0].PhoneMasked != "138****8000" || logs[0].Scene != common.SMSSceneRegister {
+		t.Fatalf("unexpected sms send log: %+v", logs[0])
 	}
 }
 
@@ -536,6 +644,25 @@ func (provider fakeSMSProvider) Send(ctx context.Context, input common.SMSProvid
 
 type fakeSMSStatusProvider struct {
 	result common.SMSProviderStatusResult
+}
+
+type captureSMSProvider struct {
+	phone   *string
+	content *string
+}
+
+func (provider captureSMSProvider) Send(ctx context.Context, input common.SMSProviderSendInput) (common.SMSProviderSendResult, error) {
+	if provider.phone != nil {
+		*provider.phone = input.Phone
+	}
+	if provider.content != nil {
+		*provider.content = input.Content
+	}
+	return common.SMSProviderSendResult{
+		Provider:     common.SMSProviderSMSBao,
+		ProviderCode: "0",
+		Success:      true,
+	}, nil
 }
 
 func (provider fakeSMSStatusProvider) Send(ctx context.Context, input common.SMSProviderSendInput) (common.SMSProviderSendResult, error) {
