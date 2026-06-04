@@ -129,7 +129,7 @@
 - [ ] 新增前端功能时先确认适用 skill：classic 同步 default 用 `classic-to-default-sync`，文案用 `i18n-translate`，default 组件优先遵守 shadcn/default 现有模式。
 - [ ] 所有新增前端 API 要统一处理登录态、错误提示、no-cache 策略和 RMB 单位，不要每个页面散写。
 - [ ] 浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角。
-- [ ] 对当前 `5173` default 页面已有的 React checked/onChange console warning 做基线记录，确认是否与分销页面无关；后续可以作为前端质量债单独修。
+- [x] 对当前 `5173` default 页面已有的 React checked/onChange console warning 做基线记录，确认是否与分销页面无关；后续可以作为前端质量债单独修。（2026-06-04 已复核：default 根页 `/` 可触发 1 条 React `checked`/`onChange` error；未登录 `/affiliate/` 跳转登录页和登录后的 `/affiliate/` 均为 0 error / 0 warning，分销页 API 均为 200，见 P2-14。）
 - [ ] 前端变更后使用 in-app Browser 或 Playwright 打开 `http://127.0.0.1:5173/` 与 `http://127.0.0.1:5174/`，必要时截图留证。
 
 ## 12. 外部验收与灰度
@@ -818,3 +818,19 @@
 - 验证命令：`go test -count=1 ./common ./model ./service ./controller -run "SMS|SMSBao|AdminTestSMS|AdminGetSMSStatus|RecordSMSSendLog|GetOptionsHidesSMSBaoCredential|RateLimit|Phone|LoginCode|RegisterCode"` 通过。
 - 安全边界：本轮是本地代码审计和回归证据收口，不调用真实短信宝通道，不读取或输出 `.codex-local` 内的真实账号、cookie、手机号、签名、ApiKey、密码或数据库连接信息。
 - 残留风险：真实短信宝测试发送、状态查询和失败错误码映射仍必须等签名审核、模板确认和脱敏日志策略明确后按 smoke runbook 执行；Docker PostgreSQL schema diff、live 容器重建、手机号绑定/换绑/解绑和找回闭环仍待做。
+
+## P0-11 Goal continuation 运行态基线复核（2026-06-04 本线程）
+
+- 接手读取：本轮继续按 Goal 要求复核 followup tasklist、master plan、development principles、new-thread tasklist、dev compose runbook、external acceptance runbook、schema impact report 和 SMS reference audit，并读取 Superpowers 的 systematic-debugging、test-driven-development、verification-before-completion 与 finishing-a-development-branch 流程。
+- Git 基线：`git status --short --branch` 显示 `## feature/native-affiliate-minimal` 且无未提交文件；`git log --oneline -8` 顶部为 `b4298420 docs: record sms redaction audit`、`1aeccbb0 fix: redact affiliate job run errors`、`e8a95084 fix: clear default frontend typecheck debt`。
+- 端口与 API：`tmux ls` 显示 `new-api-web: 2 windows`，default/classic 两个 window 存在；`ss -ltnp` 显示 `5173`、`5174` 由 WSL 内 node 监听，`3000` 处于监听状态。WSL 与 Windows `curl` 访问 `3000`、`5173`、`5174` 的 `/api/affiliate/team` 未登录均返回 HTTP 401 JSON，不是旧 `Invalid URL` 404。
+- Docker 状态：本轮只做一次短探测，`timeout 20s docker version --format "client={{.Client.Version}} server={{.Server.Version}}"` 返回 `client=29.5.2 server=` 且非 0 退出；当前仍不能推进 live 容器重建、Docker PostgreSQL schema diff 或 live no-store header 复测。
+- 结论：当前 WSL 端口、Windows curl 和本地 dev server 都不能复现旧 404；用户原 Windows 浏览器 DevTools 的 Request URL、from cache 和 Response Body 仍是唯一未被本地 fresh context 取代的证据口。Docker 恢复后优先补 schema diff 和 live 容器重建验证。
+
+## P2-14 default React checked/onChange console warning 基线复核（2026-06-04 本线程）
+
+- 目标：收口第 11 节中 default `5173` 既有 React `checked`/`onChange` console warning 的归属，确认它是否由分销页触发。
+- 取证：in-app Browser 打开 `http://127.0.0.1:5173/` 时出现 1 条 React `checked` prop 缺少 `onChange` handler 的 console error；打开未登录 `http://127.0.0.1:5173/affiliate/` 会跳转到登录页，新增 console 为 0 error / 0 warning。
+- 登录态 smoke：WSL Playwright 从 `.codex-local/affiliate-test-accounts.secret.json` 读取一级分销测试账号但不输出凭据或 cookie，登录后重新打开 `http://127.0.0.1:5173/affiliate/`，console 为 0 error / 0 warning，`/api/affiliate/status`、`/api/affiliate/team`、`/api/affiliate/summary`、`/api/affiliate/logs` 均返回 200。
+- 结论：当前 React `checked`/`onChange` error 属于 default 根页或共享登录/首页基线，不是分销页本身触发；后续如要修复，应作为 default 前端通用质量债单独定位，不阻塞分销页 tasklist 收口。
+- 残留风险：本轮只覆盖 default `5173` 的根页、未登录分销跳转和一级分销商登录态分销页；不替代第 11 节要求的多角色浏览器 smoke、classic/default 全量 parity 审计或外部 staging/生产浏览器验收。
