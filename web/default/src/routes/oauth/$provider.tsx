@@ -164,7 +164,14 @@ function OAuthCallback() {
 
       try {
         const config: OAuthRequestConfig = {
-          params: { code: search.code, state: search.state },
+          params: {
+            code: search.code,
+            state: search.state,
+            // Pass the exact redirect_uri used in the authorize step so the
+            // backend token exchange matches it even when the web frontend and
+            // backend (ServerAddress) are on different domains.
+            redirect_uri: `${window.location.origin}/oauth/${provider}`,
+          },
           skipBusinessError: true,
         }
         const res = await api.get(`/api/oauth/${provider}`, config)
