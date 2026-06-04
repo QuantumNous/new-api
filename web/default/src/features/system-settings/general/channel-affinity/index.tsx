@@ -100,6 +100,9 @@ export function ChannelAffinitySection(props: Props) {
   const [switchOnSuccess, setSwitchOnSuccess] = useState(
     props.defaultValues['channel_affinity_setting.switch_on_success']
   )
+  const [keepOnChannelDisabled, setKeepOnChannelDisabled] = useState(
+    props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
+  )
   const [maxEntries, setMaxEntries] = useState(
     props.defaultValues['channel_affinity_setting.max_entries']
   )
@@ -135,6 +138,9 @@ export function ChannelAffinitySection(props: Props) {
     setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
     setSwitchOnSuccess(
       props.defaultValues['channel_affinity_setting.switch_on_success']
+    )
+    setKeepOnChannelDisabled(
+      props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
     )
     setMaxEntries(props.defaultValues['channel_affinity_setting.max_entries'])
     setDefaultTtl(
@@ -230,6 +236,14 @@ export function ChannelAffinitySection(props: Props) {
         updates.push({
           key: 'channel_affinity_setting.switch_on_success',
           value: String(switchOnSuccess),
+        })
+      if (
+        keepOnChannelDisabled !==
+        props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
+      )
+        updates.push({
+          key: 'channel_affinity_setting.keep_on_channel_disabled',
+          value: String(keepOnChannelDisabled),
         })
       if (
         maxEntries !==
@@ -395,6 +409,14 @@ export function ChannelAffinitySection(props: Props) {
           label={t('Switch affinity on success')}
           description={t(
             'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
+          )}
+        />
+        <SettingsSwitchField
+          checked={keepOnChannelDisabled}
+          onCheckedChange={setKeepOnChannelDisabled}
+          label={t('Keep affinity when channel is disabled')}
+          description={t(
+            'When enabled, keep the affinity entry even if the affinity channel is disabled or no longer usable for the current group/model. Leave it off to delete the entry and select another channel.'
           )}
         />
 

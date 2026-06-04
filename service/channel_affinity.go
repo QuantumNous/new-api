@@ -665,6 +665,14 @@ func ClearCurrentChannelAffinityCache(c *gin.Context) bool {
 	return false
 }
 
+func ShouldKeepChannelAffinityOnChannelDisabled() bool {
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil {
+		return false
+	}
+	return setting.KeepOnChannelDisabled
+}
+
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {
 	if c == nil || channelID <= 0 {
 		return

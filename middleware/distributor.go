@@ -125,7 +125,7 @@ func Distribute() func(c *gin.Context) {
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
 					}
-					if !affinityUsable {
+					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 						service.ClearCurrentChannelAffinityCache(c)
 					}
 				}
