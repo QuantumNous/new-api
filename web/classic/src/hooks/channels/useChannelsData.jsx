@@ -66,6 +66,13 @@ export const useChannelsData = () => {
   const [batchSetTagValue, setBatchSetTagValue] = useState('');
   const [compactMode, setCompactMode] = useTableCompactMode('channels');
   const [showBatchImport, setShowBatchImport] = useState(false);
+  const [showBatchKeyQuery, setShowBatchKeyQuery] = useState(false);
+  const [batchKeyQuery, setBatchKeyQuery] = useState({
+    active: false,
+    keys: [],
+    totalInput: 0,
+    duplicateCount: 0,
+  });
 
   // Column visibility states
   const [visibleColumns, setVisibleColumns] = useState({});
@@ -317,6 +324,100 @@ export const useChannelsData = () => {
     };
   };
 
+  const updateTypeCounts = (typeCounts = {}) => {
+    const sumAll = Object.values(typeCounts).reduce((acc, v) => acc + v, 0);
+    setTypeCounts({ ...typeCounts, all: sumAll });
+  };
+
+  const hasBatchKeyQuery = (query = batchKeyQuery) =>
+    query?.active && Array.isArray(query.keys) && query.keys.length > 0;
+
+  const executeChannelsQuery = async ({
+    page = activePage,
+    pageSz = pageSize,
+    sortFlag = idSort,
+    tagMode = enableTagMode,
+    typeKey = activeTypeKey,
+    statusF = statusFilter,
+    batchQuery = batchKeyQuery,
+    showSearching = false,
+  } = {}) => {
+    const reqId = ++requestCounter.current;
+    const { searchKeyword, searchGroup, searchModel } = getFormValues();
+    const batchActive = hasBatchKeyQuery(batchQuery);
+
+    setLoading(true);
+    if (showSearching) setSearching(true);
+
+    try {
+      let res;
+      let formatTagMode = tagMode;
+
+      if (batchActive) {
+        formatTagMode = false;
+        res = await API.post('/api/channel/search/keys', {
+          keys: batchQuery.keys,
+          keyword: searchKeyword,
+          group: searchGroup,
+          model: searchModel,
+          status: statusF !== 'all' ? statusF : '',
+          type: typeKey !== 'all' ? typeKey : null,
+          id_sort: sortFlag,
+          p: page,
+          page_size: pageSz,
+          tag_mode: false,
+        });
+      } else if (
+        searchKeyword !== '' ||
+        searchGroup !== '' ||
+        searchModel !== ''
+      ) {
+        const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
+        const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
+        const params = new URLSearchParams({
+          keyword: searchKeyword,
+          group: searchGroup,
+          model: searchModel,
+          id_sort: sortFlag + '',
+          tag_mode: tagMode + '',
+          p: page + '',
+          page_size: pageSz + '',
+        });
+        res = await API.get(
+          `/api/channel/search?${params.toString()}${typeParam}${statusParam}`,
+        );
+      } else {
+        const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
+        const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
+        res = await API.get(
+          `/api/channel/?p=${page}&page_size=${pageSz}&id_sort=${sortFlag}&tag_mode=${tagMode}${typeParam}${statusParam}`,
+        );
+      }
+
+      if (res === undefined || reqId !== requestCounter.current) {
+        return false;
+      }
+
+      const { success, message, data } = res.data;
+      if (success) {
+        const { items = [], total = 0, type_counts = {} } = data;
+        updateTypeCounts(type_counts);
+        setChannelFormat(items, formatTagMode);
+        setChannelCount(total);
+        setActivePage(page);
+        return true;
+      } else {
+        showError(message);
+        return false;
+      }
+    } finally {
+      if (reqId === requestCounter.current) {
+        setLoading(false);
+        if (showSearching) setSearching(false);
+      }
+    }
+  };
+
   // Load channels
   const loadChannels = async (
     page,
@@ -326,51 +427,14 @@ export const useChannelsData = () => {
     typeKey = activeTypeKey,
     statusF,
   ) => {
-    if (statusF === undefined) statusF = statusFilter;
-
-    const { searchKeyword, searchGroup, searchModel } = getFormValues();
-    if (searchKeyword !== '' || searchGroup !== '' || searchModel !== '') {
-      setLoading(true);
-      await searchChannels(
-        enableTagMode,
-        typeKey,
-        statusF,
-        page,
-        pageSize,
-        idSort,
-      );
-      setLoading(false);
-      return;
-    }
-
-    const reqId = ++requestCounter.current;
-    setLoading(true);
-    const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-    const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-    const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
-    );
-
-    if (res === undefined || reqId !== requestCounter.current) {
-      return;
-    }
-
-    const { success, message, data } = res.data;
-    if (success) {
-      const { items, total, type_counts } = data;
-      if (type_counts) {
-        const sumAll = Object.values(type_counts).reduce(
-          (acc, v) => acc + v,
-          0,
-        );
-        setTypeCounts({ ...type_counts, all: sumAll });
-      }
-      setChannelFormat(items, enableTagMode);
-      setChannelCount(total);
-    } else {
-      showError(message);
-    }
-    setLoading(false);
+    await executeChannelsQuery({
+      page,
+      pageSz: pageSize,
+      sortFlag: idSort,
+      tagMode: enableTagMode,
+      typeKey,
+      statusF: statusF === undefined ? statusFilter : statusF,
+    });
   };
 
   // Search channels
@@ -382,60 +446,84 @@ export const useChannelsData = () => {
     pageSz = pageSize,
     sortFlag = idSort,
   ) => {
-    const { searchKeyword, searchGroup, searchModel } = getFormValues();
-    setSearching(true);
-    try {
-      if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-        await loadChannels(
-          page,
-          pageSz,
-          sortFlag,
-          enableTagMode,
-          typeKey,
-          statusF,
-        );
-        return;
-      }
+    await executeChannelsQuery({
+      page,
+      pageSz,
+      sortFlag,
+      tagMode: enableTagMode,
+      typeKey,
+      statusF,
+      showSearching: true,
+    });
+  };
 
-      const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-      const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-      const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
-      );
-      const { success, message, data } = res.data;
-      if (success) {
-        const { items = [], total = 0, type_counts = {} } = data;
-        const sumAll = Object.values(type_counts).reduce(
-          (acc, v) => acc + v,
-          0,
-        );
-        setTypeCounts({ ...type_counts, all: sumAll });
-        setChannelFormat(items, enableTagMode);
-        setChannelCount(total);
-        setActivePage(page);
-      } else {
-        showError(message);
-      }
-    } finally {
-      setSearching(false);
+  const applyBatchKeyQuery = async ({
+    keys,
+    totalInput = keys.length,
+    duplicateCount = 0,
+  }) => {
+    const nextBatchQuery = {
+      active: true,
+      keys,
+      totalInput,
+      duplicateCount,
+    };
+
+    if (enableTagMode) {
+      localStorage.setItem('enable-tag-mode', 'false');
+      setEnableTagMode(false);
+      showInfo(t('批量密钥查询暂不支持标签模式，已关闭标签聚合模式'));
     }
+
+    const success = await executeChannelsQuery({
+      page: 1,
+      pageSz: pageSize,
+      sortFlag: idSort,
+      tagMode: false,
+      typeKey: activeTypeKey,
+      statusF: statusFilter,
+      batchQuery: nextBatchQuery,
+      showSearching: true,
+    });
+    if (success) {
+      setBatchKeyQuery(nextBatchQuery);
+      setActivePage(1);
+      showSuccess(t('批量密钥查询已启用'));
+    }
+    return success;
+  };
+
+  const clearBatchKeyQuery = async () => {
+    const nextBatchQuery = {
+      active: false,
+      keys: [],
+      totalInput: 0,
+      duplicateCount: 0,
+    };
+    setBatchKeyQuery(nextBatchQuery);
+    setActivePage(1);
+    const success = await executeChannelsQuery({
+      page: 1,
+      pageSz: pageSize,
+      sortFlag: idSort,
+      tagMode: enableTagMode,
+      typeKey: activeTypeKey,
+      statusF: statusFilter,
+      batchQuery: nextBatchQuery,
+    });
+    if (success) showInfo(t('已清除批量密钥查询'));
   };
 
   // Refresh
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup, searchModel } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      await loadChannels(page, pageSize, idSort, enableTagMode);
-    } else {
-      await searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        page,
-        pageSize,
-        idSort,
-      );
-    }
+    await executeChannelsQuery({
+      page,
+      pageSz: pageSize,
+      sortFlag: idSort,
+      tagMode: enableTagMode,
+      typeKey: activeTypeKey,
+      statusF: statusFilter,
+    });
   };
 
   const upstreamUpdates = useChannelUpstreamUpdates({ t, refresh });
@@ -519,43 +607,29 @@ export const useChannelsData = () => {
 
   // Page handlers
   const handlePageChange = (page) => {
-    const { searchKeyword, searchGroup, searchModel } = getFormValues();
     setActivePage(page);
-    if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(page, pageSize, idSort, enableTagMode).then(() => {});
-    } else {
-      searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        page,
-        pageSize,
-        idSort,
-      );
-    }
+    executeChannelsQuery({
+      page,
+      pageSz: pageSize,
+      sortFlag: idSort,
+      tagMode: enableTagMode,
+      typeKey: activeTypeKey,
+      statusF: statusFilter,
+    }).then(() => {});
   };
 
   const handlePageSizeChange = async (size) => {
     localStorage.setItem('page-size', size + '');
     setPageSize(size);
     setActivePage(1);
-    const { searchKeyword, searchGroup, searchModel } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(1, size, idSort, enableTagMode)
-        .then()
-        .catch((reason) => {
-          showError(reason);
-        });
-    } else {
-      searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        1,
-        size,
-        idSort,
-      );
-    }
+    await executeChannelsQuery({
+      page: 1,
+      pageSz: size,
+      sortFlag: idSort,
+      tagMode: enableTagMode,
+      typeKey: activeTypeKey,
+      statusF: statusFilter,
+    });
   };
 
   // Fetch groups
@@ -1184,6 +1258,10 @@ export const useChannelsData = () => {
     setBatchSetTagValue,
     showBatchImport,
     setShowBatchImport,
+    showBatchKeyQuery,
+    setShowBatchKeyQuery,
+    batchKeyQuery,
+    hasActiveBatchKeyQuery: hasBatchKeyQuery(),
 
     // Column states
     visibleColumns,
@@ -1260,6 +1338,8 @@ export const useChannelsData = () => {
     batchTestModels,
     handleCloseModal,
     getFormValues,
+    applyBatchKeyQuery,
+    clearBatchKeyQuery,
 
     // Column functions
     handleColumnVisibilityChange,

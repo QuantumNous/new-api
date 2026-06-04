@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 
@@ -159,6 +160,16 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 		return query
 	}
 	return query.Where(channelGroupFilterCondition(), channelGroupFilterPattern(group))
+}
+
+func ApplyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
+	if statusFilter == common.ChannelStatusEnabled {
+		return query.Where("status = ?", common.ChannelStatusEnabled)
+	}
+	if statusFilter == 0 {
+		return query.Where("status != ?", common.ChannelStatusEnabled)
+	}
+	return query
 }
 
 // Value implements driver.Valuer interface
@@ -376,37 +387,120 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 	return channels, err
 }
 
-func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
-	var channels []*Channel
+func buildChannelSearchQuery(keyword string, group string, model string) *gorm.DB {
 	modelsCol := "`models`"
-
-	// 如果是 PostgreSQL，使用双引号
+	baseURLCol := "`base_url`"
 	if common.UsingPostgreSQL {
 		modelsCol = `"models"`
-	}
-
-	baseURLCol := "`base_url`"
-	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
 		baseURLCol = `"base_url"`
 	}
 
-	order := resolveChannelSortOptions(idSort, sortOptions)
-
-	// 构造基础查询
 	baseQuery := DB.Model(&Channel{}).Omit("key")
-
-	// 构造WHERE子句
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
 	args := []any{common.String2Int(keyword), "%" + keyword + "%", keyword, "%" + keyword + "%", "%" + model + "%"}
-	baseQuery = ApplyChannelGroupFilter(baseQuery.Where(whereClause, args...), group)
+	return ApplyChannelGroupFilter(baseQuery.Where(whereClause, args...), group)
+}
 
-	// 执行查询
-	err := order.Apply(baseQuery).Find(&channels).Error
+func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	var channels []*Channel
+	order := resolveChannelSortOptions(idSort, sortOptions)
+	err := order.Apply(buildChannelSearchQuery(keyword, group, model)).Find(&channels).Error
 	if err != nil {
 		return nil, err
 	}
 	return channels, nil
+}
+
+const channelExactKeySearchChunkSize = 200
+
+func SearchChannelsByExactKeys(keys []string, keyword string, group string, modelKeyword string, statusFilter int, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	if len(keys) == 0 {
+		return []*Channel{}, nil
+	}
+
+	order := resolveChannelSortOptions(idSort, sortOptions)
+	channelsByID := make(map[int]*Channel)
+	for start := 0; start < len(keys); start += channelExactKeySearchChunkSize {
+		end := start + channelExactKeySearchChunkSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+
+		var chunkChannels []*Channel
+		query := buildChannelSearchQuery(keyword, group, modelKeyword).Where(commonKeyCol+" IN ?", keys[start:end])
+		query = ApplyChannelStatusFilter(query, statusFilter)
+		if err := query.Find(&chunkChannels).Error; err != nil {
+			return nil, err
+		}
+		for _, channel := range chunkChannels {
+			channelsByID[channel.Id] = channel
+		}
+	}
+
+	channels := make([]*Channel, 0, len(channelsByID))
+	for _, channel := range channelsByID {
+		channels = append(channels, channel)
+	}
+	sortChannels(channels, order)
+	return channels, nil
+}
+
+func sortChannels(channels []*Channel, options ChannelSortOptions) {
+	less := func(a, b *Channel) bool {
+		sortBy := options.SortBy
+		if sortBy == "" {
+			sortBy = "priority"
+		}
+		desc := options.SortOrder != "asc"
+		switch sortBy {
+		case "id":
+			if a.Id != b.Id {
+				if desc {
+					return a.Id > b.Id
+				}
+				return a.Id < b.Id
+			}
+		case "name":
+			if a.Name != b.Name {
+				if desc {
+					return a.Name > b.Name
+				}
+				return a.Name < b.Name
+			}
+		case "balance":
+			if a.Balance != b.Balance {
+				if desc {
+					return a.Balance > b.Balance
+				}
+				return a.Balance < b.Balance
+			}
+		case "response_time":
+			if a.ResponseTime != b.ResponseTime {
+				if desc {
+					return a.ResponseTime > b.ResponseTime
+				}
+				return a.ResponseTime < b.ResponseTime
+			}
+		case "test_time":
+			if a.TestTime != b.TestTime {
+				if desc {
+					return a.TestTime > b.TestTime
+				}
+				return a.TestTime < b.TestTime
+			}
+		case "priority":
+			if a.GetPriority() != b.GetPriority() {
+				if desc {
+					return a.GetPriority() > b.GetPriority()
+				}
+				return a.GetPriority() < b.GetPriority()
+			}
+		}
+		return a.Id > b.Id
+	}
+	sort.SliceStable(channels, func(i, j int) bool {
+		return less(channels[i], channels[j])
+	})
 }
 
 func GetChannelById(id int, selectAll bool) (*Channel, error) {

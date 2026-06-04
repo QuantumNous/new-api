@@ -69,13 +69,7 @@ func clearChannelInfo(channel *model.Channel) {
 }
 
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
-	if statusFilter == common.ChannelStatusEnabled {
-		return query.Where("status = ?", common.ChannelStatusEnabled)
-	}
-	if statusFilter == 0 {
-		return query.Where("status != ?", common.ChannelStatusEnabled)
-	}
-	return query
+	return model.ApplyChannelStatusFilter(query, statusFilter)
 }
 
 func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm.DB {
@@ -254,6 +248,149 @@ func FixChannelsAbilities(c *gin.Context) {
 			"fails":   fails,
 		},
 	})
+}
+
+func normalizeBatchChannelKeys(keys []string) []string {
+	normalized := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, key)
+	}
+	return normalized
+}
+
+type BatchChannelKeySearchRequest struct {
+	Keys      []string         `json:"keys"`
+	Keyword   string           `json:"keyword"`
+	Group     string           `json:"group"`
+	Model     string           `json:"model"`
+	Status    string           `json:"status"`
+	Type      *json.RawMessage `json:"type"`
+	IDSort    bool             `json:"id_sort"`
+	SortBy    string           `json:"sort_by"`
+	SortOrder string           `json:"sort_order"`
+	Page      int              `json:"p"`
+	PageSize  int              `json:"page_size"`
+	TagMode   bool             `json:"tag_mode"`
+}
+
+func parseBatchChannelTypeFilter(raw *json.RawMessage) (int, bool) {
+	if raw == nil || len(*raw) == 0 || string(*raw) == "null" {
+		return -1, false
+	}
+	var numeric int
+	if err := common.Unmarshal(*raw, &numeric); err == nil {
+		return numeric, true
+	}
+	var text string
+	if err := common.Unmarshal(*raw, &text); err == nil {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return -1, false
+		}
+		if numeric, err := strconv.Atoi(text); err == nil {
+			return numeric, true
+		}
+	}
+	return -1, false
+}
+
+func SearchChannelsByKeys(c *gin.Context) {
+	request := BatchChannelKeySearchRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if request.TagMode {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "批量密钥查询暂不支持标签模式",
+		})
+		return
+	}
+
+	keys := normalizeBatchChannelKeys(request.Keys)
+	if len(keys) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "keys不能为空",
+		})
+		return
+	}
+
+	statusFilter := parseStatusFilter(request.Status)
+	sortOptions := model.NewChannelSortOptions(request.SortBy, request.SortOrder, request.IDSort)
+	channelData, err := model.SearchChannelsByExactKeys(keys, request.Keyword, request.Group, request.Model, statusFilter, request.IDSort, sortOptions)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	typeCounts := make(map[int64]int64)
+	for _, channel := range channelData {
+		typeCounts[int64(channel.Type)]++
+	}
+
+	typeFilter, hasTypeFilter := parseBatchChannelTypeFilter(request.Type)
+	if hasTypeFilter && typeFilter >= 0 {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if ch.Type == typeFilter {
+				filtered = append(filtered, ch)
+			}
+		}
+		channelData = filtered
+	}
+
+	page := request.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := request.PageSize
+	if pageSize <= 0 {
+		pageSize = common.ItemsPerPage
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	total := len(channelData)
+	startIdx := (page - 1) * pageSize
+	if startIdx > total {
+		startIdx = total
+	}
+	endIdx := startIdx + pageSize
+	if endIdx > total {
+		endIdx = total
+	}
+	pagedData := channelData[startIdx:endIdx]
+
+	for _, datum := range pagedData {
+		clearChannelInfo(datum)
+		datum.Key = ""
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"items":       pagedData,
+			"total":       total,
+			"type_counts": typeCounts,
+		},
+	})
+	return
 }
 
 func SearchChannels(c *gin.Context) {
