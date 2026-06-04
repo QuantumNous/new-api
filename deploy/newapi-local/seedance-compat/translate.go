@@ -58,7 +58,7 @@ func BuildSeedanceTaskResponseFromNewAPI(body []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	resp := cloneMap(src)
+	resp := normalizeSeedanceTaskResponse(src)
 	if _, ok := resp["task_id"]; !ok {
 		if id, ok := resp["id"]; ok {
 			resp["task_id"] = id
@@ -72,12 +72,37 @@ func BuildSeedanceTaskResponseFromNewAPI(body []byte) ([]byte, error) {
 			resp["updated_at"] = completedAt
 		}
 	}
-	if videoURL := extractResultVideoURL(src); videoURL != "" {
+	if videoURL := extractResultVideoURL(resp); videoURL == "" {
+		videoURL = extractResultVideoURL(src)
+	}
+	if videoURL, _ := respVideoURL(resp, src); videoURL != "" {
 		resp["content"] = map[string]any{
 			"video_url": videoURL,
 		}
 	}
 	return json.Marshal(resp)
+}
+
+func normalizeSeedanceTaskResponse(src map[string]any) map[string]any {
+	if src == nil {
+		return map[string]any{}
+	}
+
+	data, ok := src["data"].(map[string]any)
+	if !ok || len(src) == 1 {
+		return cloneMap(src)
+	}
+
+	// NewAPI may wrap the actual Ark task object under data.data while keeping
+	// compatibility fields such as task_id/status on the outer data object.
+	resp := cloneMap(data)
+	if inner, ok := data["data"].(map[string]any); ok {
+		mergeMap(resp, inner)
+		delete(resp, "data")
+	}
+	delete(resp, "code")
+	delete(resp, "message")
+	return resp
 }
 
 func extractPrompt(content []any) string {
@@ -143,6 +168,21 @@ func extractResultVideoURL(src map[string]any) string {
 		}
 	}
 	return ""
+}
+
+func respVideoURL(candidates ...map[string]any) (string, bool) {
+	for _, candidate := range candidates {
+		if url := extractResultVideoURL(candidate); url != "" {
+			return url, true
+		}
+	}
+	return "", false
+}
+
+func mergeMap(dst map[string]any, src map[string]any) {
+	for k, v := range src {
+		dst[k] = v
+	}
 }
 
 func cloneMap(src map[string]any) map[string]any {

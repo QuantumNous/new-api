@@ -152,3 +152,76 @@ func TestBuildSeedanceTaskResponseFromNewAPI(t *testing.T) {
 		t.Fatalf("unexpected content translation: %#v", decoded["content"])
 	}
 }
+
+func TestBuildSeedanceTaskResponseFromWrappedNewAPI(t *testing.T) {
+	body := []byte(`{
+		"code":"success",
+		"message":"",
+		"data":{
+			"id":57,
+			"created_at":1780389828,
+			"updated_at":1780390030,
+			"task_id":"task_qRfhNbI2cHkWv4flHf0EZitKIjHbI3Vo",
+			"status":"SUCCESS",
+			"data":{
+				"content":{"video_url":"https://example.com/video.mp4"},
+				"created_at":1780389828,
+				"duration":5,
+				"generate_audio":false,
+				"id":"cgt-20260602164348-wzmk9",
+				"model":"doubao-seedance-2-0-260128",
+				"ratio":"16:9",
+				"resolution":"720p",
+				"status":"succeeded",
+				"updated_at":1780390016,
+				"usage":{"completion_tokens":108900,"total_tokens":108900}
+			}
+		}
+	}`)
+
+	got, err := BuildSeedanceTaskResponseFromNewAPI(body)
+	if err != nil {
+		t.Fatalf("BuildSeedanceTaskResponseFromNewAPI returned error: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(got, &decoded); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	if _, exists := decoded["code"]; exists {
+		t.Fatalf("expected raw Ark task object, got wrapper: %#v", decoded)
+	}
+	if decoded["id"] != "cgt-20260602164348-wzmk9" {
+		t.Fatalf("unexpected id: %#v", decoded["id"])
+	}
+	if decoded["task_id"] != "task_qRfhNbI2cHkWv4flHf0EZitKIjHbI3Vo" {
+		t.Fatalf("unexpected task_id: %#v", decoded["task_id"])
+	}
+	if decoded["status"] != "succeeded" {
+		t.Fatalf("unexpected status: %#v", decoded["status"])
+	}
+	if decoded["model"] != "doubao-seedance-2-0-260128" {
+		t.Fatalf("unexpected model: %#v", decoded["model"])
+	}
+	if decoded["duration"] != float64(5) {
+		t.Fatalf("unexpected duration: %#v", decoded["duration"])
+	}
+	if decoded["ratio"] != "16:9" {
+		t.Fatalf("unexpected ratio: %#v", decoded["ratio"])
+	}
+	if decoded["resolution"] != "720p" {
+		t.Fatalf("unexpected resolution: %#v", decoded["resolution"])
+	}
+	if decoded["generate_audio"] != false {
+		t.Fatalf("unexpected generate_audio: %#v", decoded["generate_audio"])
+	}
+	content, ok := decoded["content"].(map[string]any)
+	if !ok || content["video_url"] != "https://example.com/video.mp4" {
+		t.Fatalf("unexpected content: %#v", decoded["content"])
+	}
+	usage, ok := decoded["usage"].(map[string]any)
+	if !ok || usage["total_tokens"] != float64(108900) {
+		t.Fatalf("unexpected usage: %#v", decoded["usage"])
+	}
+}
