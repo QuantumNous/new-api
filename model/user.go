@@ -552,6 +552,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		"wechat":   "wechat_id",
 		"telegram": "telegram_id",
 		"linuxdo":  "linux_do_id",
+		"google":   "google_id",
 	}
 
 	column, ok := bindingColumnMap[bindingType]
