@@ -370,6 +370,16 @@ func updateAffiliateJobRunCommissionProgress(db *gorm.DB, jobRunId int, commissi
 	})
 }
 
+func updateAffiliateJobRunHeadFeeProgress(db *gorm.DB, jobRunId int, headFeeEventCount int) error {
+	if jobRunId <= 0 {
+		return nil
+	}
+	return updateAffiliateJobRunProgress(db, jobRunId, affiliateJobRunStageHeadFee, map[string]interface{}{
+		"head_fee_event_count": headFeeEventCount,
+		"result_snapshot":      affiliateJobRunCountProgressSnapshot(db, jobRunId, "head_fee_event_count", headFeeEventCount),
+	})
+}
+
 func updateAffiliateJobRunCursor(db *gorm.DB, jobRunId int, stage string, lastCreatedAt int64, lastID int) error {
 	if jobRunId <= 0 || lastID <= 0 {
 		return nil

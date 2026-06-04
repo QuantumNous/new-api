@@ -489,6 +489,71 @@ func TestRunAffiliateSettlementPipelineRecordsPartialCommissionProgressOnFailure
 	}
 }
 
+func TestRunAffiliateSettlementPipelineRecordsPartialHeadFeeProgressOnFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-partial-head-fee-progress"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 1)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	createdHeadFeeEvents := 0
+	failSecondHeadFeeEvent := "fail_second_head_fee_event_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Create().Before("gorm:create").Register(failSecondHeadFeeEvent, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_head_fee_events" {
+			return
+		}
+		createdHeadFeeEvents++
+		if createdHeadFeeEvents == 2 {
+			tx.AddError(errors.New("forced second head fee event failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register second head fee failure callback: %v", err)
+	}
+
+	result, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "record partial head fee progress",
+	})
+	_ = db.Callback().Create().Remove(failSecondHeadFeeEvent)
+	if err == nil {
+		t.Fatalf("expected forced head fee event failure, got %+v", result)
+	}
+
+	var persistedHeadFeeCount int64
+	if err := db.Model(&model.AffiliateHeadFeeEvent{}).
+		Where("rule_set_id = ?", ruleSet.Id).
+		Count(&persistedHeadFeeCount).Error; err != nil {
+		t.Fatalf("count persisted head fee events: %v", err)
+	}
+	if persistedHeadFeeCount != 1 {
+		t.Fatalf("expected first head fee event to be durable before failure, got %d", persistedHeadFeeCount)
+	}
+
+	var jobRun model.AffiliateJobRun
+	if err := db.First(&jobRun, result.JobRunId).Error; err != nil {
+		t.Fatalf("load failed job run: %v", err)
+	}
+	if jobRun.Status != model.AffiliateJobRunStatusFailed || jobRun.CurrentStage != affiliateJobRunStageHeadFee {
+		t.Fatalf("expected failed job run at head fee stage, got %+v", jobRun)
+	}
+	if jobRun.HeadFeeEventCount != 1 {
+		t.Fatalf("expected failed job run to retain partial head fee event count, got %+v", jobRun)
+	}
+	if !strings.Contains(jobRun.ResultSnapshot, `"head_fee_event_count":1`) {
+		t.Fatalf("expected failed result snapshot to retain partial head fee event count, got %q", jobRun.ResultSnapshot)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineResumesFailedJobRunForSameIdempotencyKey(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	input := AffiliateSettlementRunInput{

@@ -54,47 +54,48 @@ func BuildAffiliatePendingHeadFeeEvents(db *gorm.DB, logDB *gorm.DB, input Affil
 	}
 
 	created := make([]model.AffiliateHeadFeeEvent, 0)
-	err = db.Transaction(func(tx *gorm.DB) error {
-		for _, profile := range profiles {
-			scope := ResolveAffiliateAccessScope(AffiliateScopeInput{
-				UserId:        profile.UserId,
-				ProfileStatus: profile.Status,
-				ProfileLevel:  profile.Level,
-			})
-			if scope.Kind != AffiliateScopeAffiliate {
-				continue
-			}
+	for _, profile := range profiles {
+		scope := ResolveAffiliateAccessScope(AffiliateScopeInput{
+			UserId:        profile.UserId,
+			ProfileStatus: profile.Status,
+			ProfileLevel:  profile.Level,
+		})
+		if scope.Kind != AffiliateScopeAffiliate {
+			continue
+		}
 
-			kpiSnapshot, err := getAffiliateHeadFeeKPISnapshot(tx, profile.UserId, ruleSet.Id, input)
-			if err != nil {
-				return err
-			}
-			if kpiSnapshot == nil || kpiSnapshot.TierCode == "" {
-				continue
-			}
+		kpiSnapshot, err := getAffiliateHeadFeeKPISnapshot(db, profile.UserId, ruleSet.Id, input)
+		if err != nil {
+			return nil, err
+		}
+		if kpiSnapshot == nil || kpiSnapshot.TierCode == "" {
+			continue
+		}
 
-			rule, err := getAffiliateHeadFeeRule(tx, ruleSet.Id, profile.Level, kpiSnapshot.TierCode)
-			if err != nil {
-				return err
-			}
-			if rule == nil || rule.AmountCents <= 0 {
-				continue
-			}
+		rule, err := getAffiliateHeadFeeRule(db, ruleSet.Id, profile.Level, kpiSnapshot.TierCode)
+		if err != nil {
+			return nil, err
+		}
+		if rule == nil || rule.AmountCents <= 0 {
+			continue
+		}
 
-			relations, err := listAffiliateHeadFeeRelations(tx, scope)
-			if err != nil {
-				return err
-			}
-			for _, relation := range relations {
+		relations, err := listAffiliateHeadFeeRelations(db, scope)
+		if err != nil {
+			return nil, err
+		}
+		for _, relation := range relations {
+			var savedForRelation *model.AffiliateHeadFeeEvent
+			err = db.Transaction(func(tx *gorm.DB) error {
 				inviteEvent, err := getAffiliateHeadFeeInviteEvent(tx, relation.DescendantUserId)
 				if err != nil {
 					return err
 				}
 				if inviteEvent == nil {
-					continue
+					return nil
 				}
 				if !affiliateHeadFeeDelaySatisfied(*inviteEvent, *rule, input.Now) {
-					continue
+					return nil
 				}
 
 				stats, err := buildAffiliateHeadFeePaidStats(tx, logDB, relation.DescendantUserId, inviteEvent.CreatedAt, input)
@@ -102,7 +103,7 @@ func BuildAffiliatePendingHeadFeeEvents(db *gorm.DB, logDB *gorm.DB, input Affil
 					return err
 				}
 				if stats.FirstRechargeCents < rule.FirstRechargeMinCents || stats.NetPaidCents < rule.PeriodNetPaidMinCents {
-					continue
+					return nil
 				}
 
 				event := model.AffiliateHeadFeeEvent{
@@ -128,13 +129,20 @@ func BuildAffiliatePendingHeadFeeEvents(db *gorm.DB, logDB *gorm.DB, input Affil
 				if err != nil {
 					return err
 				}
-				created = append(created, saved)
+				savedForRelation = &saved
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			if savedForRelation == nil {
+				continue
+			}
+			created = append(created, *savedForRelation)
+			if err := updateAffiliateJobRunHeadFeeProgress(db, input.JobRunId, len(created)); err != nil {
+				return nil, err
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	return created, nil
 }
