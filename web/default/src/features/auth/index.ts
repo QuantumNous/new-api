@@ -25,6 +25,10 @@ export {
   login2fa,
   logout,
   register,
+  smsRegister,
+  sendSmsRegisterCode,
+  buildSmsRegisterCodeRequest,
+  buildSmsRegisterRequest,
   sendPasswordResetEmail,
   sendEmailVerification,
   bindEmail,
@@ -43,6 +47,7 @@ export type {
   Login2FAResponse,
   TwoFAPayload,
   RegisterPayload,
+  SmsRegisterPayload,
   PasswordResetPayload,
   EmailVerificationPayload,
   BindEmailPayload,
@@ -68,6 +73,7 @@ export {
   BACKUP_CODE_REGEX,
   OTP_REGEX,
   EMAIL_VERIFICATION_COUNTDOWN,
+  SMS_REGISTER_COUNTDOWN,
   PASSWORD_RESET_COUNTDOWN,
 } from './constants'
 

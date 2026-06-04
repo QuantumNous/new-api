@@ -4707,6 +4707,17 @@
     "No trend data yet": "Данных тренда пока нет",
     "Trend updates after paid usage, effective users or settlements are recorded": "Тренд обновится после записи платного использования, эффективных пользователей или выплат",
     "Effective users": "Эффективные пользователи",
-    "Commission": "Комиссия"
+    "Commission": "Комиссия",
+    "Username registration": "Регистрация по имени пользователя",
+    "Phone registration": "Регистрация по телефону",
+    "Phone number": "Номер телефона",
+    "Enter your phone number": "Введите номер телефона",
+    "Please enter your phone number": "Укажите номер телефона",
+    "Please enter your phone number first": "Сначала укажите номер телефона",
+    "SMS verification code": "SMS-код подтверждения",
+    "Please enter the SMS verification code": "Введите SMS-код подтверждения",
+    "SMS verification code sent": "SMS-код подтверждения отправлен",
+    "Failed to send SMS verification code": "Не удалось отправить SMS-код подтверждения",
+    "Send SMS code": "Отправить SMS-код"
   }
 }

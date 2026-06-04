@@ -4707,6 +4707,17 @@
     "No trend data yet": "No trend data yet",
     "Trend updates after paid usage, effective users or settlements are recorded": "Trend updates after paid usage, effective users or settlements are recorded",
     "Effective users": "Effective users",
-    "Commission": "Commission"
+    "Commission": "Commission",
+    "Username registration": "Username registration",
+    "Phone registration": "Phone registration",
+    "Phone number": "Phone number",
+    "Enter your phone number": "Enter your phone number",
+    "Please enter your phone number": "Please enter your phone number",
+    "Please enter your phone number first": "Please enter your phone number first",
+    "SMS verification code": "SMS verification code",
+    "Please enter the SMS verification code": "Please enter the SMS verification code",
+    "SMS verification code sent": "SMS verification code sent",
+    "Failed to send SMS verification code": "Failed to send SMS verification code",
+    "Send SMS code": "Send SMS code"
   }
 }

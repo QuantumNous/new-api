@@ -4707,6 +4707,17 @@
     "No trend data yet": "Chưa có dữ liệu xu hướng",
     "Trend updates after paid usage, effective users or settlements are recorded": "Xu hướng sẽ cập nhật sau khi có mức dùng trả phí, người dùng hiệu quả hoặc bản ghi thanh toán",
     "Effective users": "Người dùng hiệu quả",
-    "Commission": "Hoa hồng"
+    "Commission": "Hoa hồng",
+    "Username registration": "Dang ky bang ten nguoi dung",
+    "Phone registration": "Dang ky bang so dien thoai",
+    "Phone number": "So dien thoai",
+    "Enter your phone number": "Nhap so dien thoai cua ban",
+    "Please enter your phone number": "Vui long nhap so dien thoai",
+    "Please enter your phone number first": "Vui long nhap so dien thoai truoc",
+    "SMS verification code": "Ma xac minh SMS",
+    "Please enter the SMS verification code": "Vui long nhap ma xac minh SMS",
+    "SMS verification code sent": "Da gui ma xac minh SMS",
+    "Failed to send SMS verification code": "Khong the gui ma xac minh SMS",
+    "Send SMS code": "Gui ma SMS"
   }
 }

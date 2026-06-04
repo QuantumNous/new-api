@@ -4707,6 +4707,17 @@
     "No trend data yet": "暂无趋势数据",
     "Trend updates after paid usage, effective users or settlements are recorded": "产生付费消耗、有效用户或结算记录后将更新趋势",
     "Effective users": "有效用户",
-    "Commission": "佣金"
+    "Commission": "佣金",
+    "Username registration": "用户名注册",
+    "Phone registration": "手机号注册",
+    "Phone number": "手机号",
+    "Enter your phone number": "输入手机号",
+    "Please enter your phone number": "请输入手机号",
+    "Please enter your phone number first": "请先输入手机号",
+    "SMS verification code": "短信验证码",
+    "Please enter the SMS verification code": "请输入短信验证码",
+    "SMS verification code sent": "短信验证码已发送",
+    "Failed to send SMS verification code": "短信验证码发送失败",
+    "Send SMS code": "发送短信验证码"
   }
 }

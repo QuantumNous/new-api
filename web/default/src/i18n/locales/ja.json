@@ -4707,6 +4707,17 @@
     "No trend data yet": "推移データはまだありません",
     "Trend updates after paid usage, effective users or settlements are recorded": "有料利用、有効ユーザー、または決済記録が作成されると推移が更新されます",
     "Effective users": "有効ユーザー",
-    "Commission": "コミッション"
+    "Commission": "コミッション",
+    "Username registration": "ユーザー名で登録",
+    "Phone registration": "電話番号で登録",
+    "Phone number": "電話番号",
+    "Enter your phone number": "電話番号を入力してください",
+    "Please enter your phone number": "電話番号を入力してください",
+    "Please enter your phone number first": "先に電話番号を入力してください",
+    "SMS verification code": "SMS認証コード",
+    "Please enter the SMS verification code": "SMS認証コードを入力してください",
+    "SMS verification code sent": "SMS認証コードを送信しました",
+    "Failed to send SMS verification code": "SMS認証コードの送信に失敗しました",
+    "Send SMS code": "SMSコードを送信"
   }
 }

@@ -3936,6 +3936,15 @@
     "Minimum Effective New Users": "Minimum Effective New Users",
     "Rules grouped by affiliate level": "Rules grouped by affiliate level",
     "This level has no rules for this rule type.": "This level has no rules for this rule type.",
-    "可在可编辑规则表格与原始 JSON 文本之间切换。": "Switch between editable rule tables and raw JSON for batch edits."
+    "可在可编辑规则表格与原始 JSON 文本之间切换。": "Switch between editable rule tables and raw JSON for batch edits.",
+    "使用 手机号 注册": "Register with phone number",
+    "手机号": "Phone number",
+    "输入手机号": "Enter phone number",
+    "短信验证码": "SMS verification code",
+    "输入短信验证码": "Enter SMS verification code",
+    "请输入手机号": "Please enter phone number",
+    "请输入短信验证码": "Please enter SMS verification code",
+    "验证码发送成功，请检查短信！": "Verification code sent. Please check your SMS.",
+    "发送验证码失败，请重试": "Failed to send verification code. Please try again."
   }
 }

@@ -118,7 +118,7 @@
 ## 10. 手机号/SMS 后续
 
 - [x] 当前 SMS 限流为内存实现，生产多实例前必须评估 Redis/数据库分布式限流，否则不同实例之间会绕过限制。（2026-06-04 已新增 `sms_rate_limit_counters` sidecar 固定窗口 DB 计数，管理员测试发送优先走 DB-backed limiter；`model.DB=nil` 时保留内存 fallback。Docker PostgreSQL schema diff 因 Docker 不可用仍待补。）
-- [ ] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。（2026-06-04 已新增后端 `POST /api/user/sms/register`，复用统一 invite context、初始额度规则和 `user_phone_bindings` sidecar；2026-06-04 已新增后端 `POST /api/user/sms/register/code` 发送注册验证码；前端注册表单、手机号登录和真实通道 smoke 仍待做。）
+- [x] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。（2026-06-04 已新增后端 `POST /api/user/sms/register`，复用统一 invite context、初始额度规则和 `user_phone_bindings` sidecar；2026-06-04 已新增后端 `POST /api/user/sms/register/code` 发送注册验证码；2026-06-04 已补 `/api/status.sms_enabled`、default/classic 注册表单入口、短信验证码发送和 SMS 注册提交；手机号登录、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [x] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。（2026-06-04 审计：当前分支手机号绑定已使用 `user_phone_bindings` sidecar，`model/user.go` 未新增手机号字段；真实手机号登录/注册入口仍待按统一邀请归因规则接入。）
 - [ ] 短信宝真实通道 smoke 必须在签名审核通过、模板确认和脱敏日志策略明确后执行。
 - [ ] 测试发送、状态查询和失败错误码映射不得输出完整手机号、验证码、ApiKey、密码或签名内部资料。
@@ -160,7 +160,7 @@
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看、发布/归档二次确认、佣金/人头费启停状态、结算自动开关和备注。风控动作仍按第 6 节单项任务保留。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 已补 settlement pipeline service/API dry-run 预览能力；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
-- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；2026-06-04 已补后端 SMS 注册入口、注册验证码发送入口并接统一邀请归因；前端注册表单、手机号登录、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
+- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；2026-06-04 已补后端 SMS 注册入口、注册验证码发送入口并接统一邀请归因；2026-06-04 已补 default/classic 前端注册表单入口和请求层；手机号登录、真实通道 smoke、Docker PostgreSQL schema diff 和 live 容器重建后 smoke 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。（2026-06-04 已补 dashboard 14 天趋势；登录态浏览器截图回归和外部验收归档仍待做。）
 
 ## 15. 文档维护规则
@@ -681,3 +681,14 @@
 - 验证命令：RED 阶段 `go test -count=1 ./controller -run TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse` 编译失败于缺少 `SendSMSRegisterCode`；实现后同命令通过。回归 `go test -count=1 ./common ./service ./controller -run "SMS|Phone|AffiliateRegistration|PasswordRegister|InviteContext|RegisterApplies"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun|SMS|Phone|Register"` 通过。
 - schema impact：本轮不新增 GORM model、字段或索引；继续使用既有 SMS sidecar。Docker server 仍不可用，SMS/affiliate PostgreSQL schema diff 缺口仍待恢复后补。
 - 残留风险：本轮仍未实现 default/classic 前端注册表单、手机号登录、找回/换绑闭环或短信宝真实通道 smoke；真实通道必须等签名、模板和脱敏策略确认后再验收。
+
+## P2-8 SMS 注册前端接入复盘（2026-06-04 本线程）
+
+- RED：先补 default `src/features/auth/api.test.ts` 和 classic `src/components/auth/smsRegisterRequest.test.mjs`，要求 SMS 注册验证码请求使用 `POST /api/user/sms/register/code`，SMS 注册提交使用 `POST /api/user/sms/register`，并保留 `aff_code` 与 `turnstile` 参数。旧实现缺少 default 导出和 classic helper，两个目标测试均失败。
+- 完成内容：`GET /api/status` 新增 `sms_enabled` 字段，前端按该开关显示手机号注册入口。default 注册页新增“用户名注册 / 手机号注册”模式切换，短信模式下收集用户名、密码、手机号和短信验证码，邮箱验证码只在普通注册模式下启用。classic 注册页新增“使用 手机号 注册”入口，并复用同样的短信验证码发送与注册提交端点。
+- 完成内容：default 新增 `SmsRegisterPayload`、`buildSmsRegisterCodeRequest`、`buildSmsRegisterRequest`、`sendSmsRegisterCode`、`smsRegister`；classic 新增 `smsRegisterRequest.js` 请求构造 helper。新增文案已补 default `en/zh/fr/ja/ru/vi` 和 classic `en/zh/zh-CN/zh-TW/fr/ja/ru/vi` locale，新增 classic 提示文案也改为 `t(...)`。
+- 验证命令：后端状态契约先 RED 于 `sms_enabled` 缺失，再实现后 `go test -count=1 ./controller -run TestGetStatusExposesSMSEnabledForRegistration` 通过。前端请求层 RED 后实现，`cd web/default && bun test src/features/auth/api.test.ts` 通过，`cd web/classic && bun test src/components/auth/smsRegisterRequest.test.mjs` 通过。
+- 回归验证：`cd web/default && bun run i18n:sync` 报告所有 locale `missingCount=0`、`untranslatedCount=0`；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`go test -count=1 ./common ./service ./controller -run "SMS|Phone|AffiliateRegistration|PasswordRegister|InviteContext|RegisterApplies|GetStatus"` 通过；`git diff --check` 通过。
+- 浏览器 smoke：确认 `5173` 和 `5174` 均为当前项目 WSL 内 rsbuild dev server；in-app Browser 打开 `http://127.0.0.1:5173/register` 自动跳转到 default `/sign-up` 并正常渲染注册页；打开 `http://127.0.0.1:5174/register` 正常渲染 classic 注册页，新增控制台错误/警告为 0。
+- 运行态差异：当前 `http://127.0.0.1:3000/api/status` 仍未返回 `sms_enabled`，说明 live 后端容器尚未包含本轮状态字段改动；因此本轮浏览器 smoke 只能验证页面加载，不能验证手机号入口在 live 配置下显示。Docker daemon 查询仍长时间无响应，不能安全执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`。
+- 残留风险：本轮只完成注册前端接入，不包含手机号登录、找回/换绑闭环、真实短信宝通道 smoke、登录态真实手机号注册闭环或 Docker PostgreSQL schema diff。Docker 恢复后必须先重建 `new-api:dev`，再复测 `/api/status.sms_enabled`、default/classic 手机号入口显示、短信验证码发送响应脱敏和 SMS 注册统一邀请归因。

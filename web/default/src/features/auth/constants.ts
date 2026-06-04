@@ -34,6 +34,7 @@ export const registerFormSchema = z
   .object({
     username: z.string().min(1, 'Please enter your username'),
     email: z.string().optional(),
+    phone: z.string().optional(),
     password: z
       .string()
       .min(1, 'Please enter your password')
@@ -72,6 +73,7 @@ export const OTP_REGEX = /^\d{6}$/
 // ============================================================================
 
 export const EMAIL_VERIFICATION_COUNTDOWN = 30 // seconds
+export const SMS_REGISTER_COUNTDOWN = 30 // seconds
 export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
 
 // ============================================================================

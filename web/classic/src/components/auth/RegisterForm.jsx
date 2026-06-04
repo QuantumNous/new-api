@@ -64,6 +64,10 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
+import {
+  buildSmsRegisterCodeRequest,
+  buildSmsRegisterRequest,
+} from './smsRegisterRequest.js';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -78,7 +82,9 @@ const RegisterForm = () => {
     password: '',
     password2: '',
     email: '',
+    phone: '',
     verification_code: '',
+    sms_verification_code: '',
     wechat_verification_code: '',
   });
   const { username, password, password2 } = inputs;
@@ -95,6 +101,7 @@ const RegisterForm = () => {
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [emailRegisterLoading, setEmailRegisterLoading] = useState(false);
+  const [smsRegisterLoading, setSmsRegisterLoading] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [verificationCodeLoading, setVerificationCodeLoading] = useState(false);
   const [otherRegisterOptionsLoading, setOtherRegisterOptionsLoading] =
@@ -108,6 +115,7 @@ const RegisterForm = () => {
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
+  const [showSmsRegister, setShowSmsRegister] = useState(false);
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
 
@@ -129,6 +137,9 @@ const RegisterForm = () => {
       return {};
     }
   }, [statusState?.status]);
+  const smsRegisterEnabled = Boolean(
+    status.sms_enabled ?? status.data?.sms_enabled,
+  );
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
@@ -138,6 +149,7 @@ const RegisterForm = () => {
       status.wechat_login ||
       status.linuxdo_oauth ||
       status.telegram_oauth ||
+      smsRegisterEnabled ||
       hasCustomOAuthProviders,
   );
 
@@ -224,6 +236,16 @@ const RegisterForm = () => {
       showInfo('两次输入的密码不一致');
       return;
     }
+    if (showSmsRegister) {
+      if (!inputs.phone) {
+        showInfo(t('请输入手机号'));
+        return;
+      }
+      if (!inputs.sms_verification_code) {
+        showInfo(t('请输入短信验证码'));
+        return;
+      }
+    }
     if (username && password) {
       if (turnstileEnabled && turnstileToken === '') {
         showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
@@ -234,11 +256,28 @@ const RegisterForm = () => {
         if (!affCode) {
           affCode = localStorage.getItem('aff');
         }
-        inputs.aff_code = affCode;
-        const res = await API.post(
-          `/api/user/register?turnstile=${turnstileToken}`,
-          inputs,
-        );
+        const request = showSmsRegister
+          ? buildSmsRegisterRequest({
+              username,
+              password,
+              phone: inputs.phone,
+              verificationCode: inputs.sms_verification_code,
+              affCode,
+              turnstileToken,
+            })
+          : {
+              url: '/api/user/register',
+              data: {
+                ...inputs,
+                aff_code: affCode,
+              },
+              config: {
+                params: {
+                  turnstile: turnstileToken,
+                },
+              },
+            };
+        const res = await API.post(request.url, request.data, request.config);
         const { success, message } = res.data;
         if (success) {
           navigate('/login');
@@ -253,6 +292,30 @@ const RegisterForm = () => {
       }
     }
   }
+
+  const sendSmsVerificationCode = async () => {
+    if (inputs.phone === '') return;
+    if (turnstileEnabled && turnstileToken === '') {
+      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
+      return;
+    }
+    setVerificationCodeLoading(true);
+    try {
+      const request = buildSmsRegisterCodeRequest(inputs.phone, turnstileToken);
+      const res = await API.post(request.url, request.data, request.config);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('验证码发送成功，请检查短信！'));
+        setDisableButton(true);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('发送验证码失败，请重试'));
+    } finally {
+      setVerificationCodeLoading(false);
+    }
+  };
 
   const sendVerificationCode = async () => {
     if (inputs.email === '') return;
@@ -347,12 +410,21 @@ const RegisterForm = () => {
   const handleEmailRegisterClick = () => {
     setEmailRegisterLoading(true);
     setShowEmailRegister(true);
+    setShowSmsRegister(false);
     setEmailRegisterLoading(false);
+  };
+
+  const handleSmsRegisterClick = () => {
+    setSmsRegisterLoading(true);
+    setShowEmailRegister(true);
+    setShowSmsRegister(true);
+    setSmsRegisterLoading(false);
   };
 
   const handleOtherRegisterOptionsClick = () => {
     setOtherRegisterOptionsLoading(true);
     setShowEmailRegister(false);
+    setShowSmsRegister(false);
     setOtherRegisterOptionsLoading(false);
   };
 
@@ -534,6 +606,19 @@ const RegisterForm = () => {
                 >
                   <span className='ml-3'>{t('使用 用户名 注册')}</span>
                 </Button>
+
+                {smsRegisterEnabled && (
+                  <Button
+                    theme='outline'
+                    type='tertiary'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    icon={<IconUser size='large' />}
+                    onClick={handleSmsRegisterClick}
+                    loading={smsRegisterLoading}
+                  >
+                    <span className='ml-3'>{t('使用 手机号 注册')}</span>
+                  </Button>
+                )}
               </div>
 
               <div className='mt-6 text-center text-sm'>
@@ -602,7 +687,39 @@ const RegisterForm = () => {
                   prefix={<IconLock />}
                 />
 
-                {showEmailVerification && (
+                {showSmsRegister ? (
+                  <>
+                    <Form.Input
+                      field='phone'
+                      label={t('手机号')}
+                      placeholder={t('输入手机号')}
+                      name='phone'
+                      onChange={(value) => handleChange('phone', value)}
+                      prefix={<IconUser />}
+                      suffix={
+                        <Button
+                          onClick={sendSmsVerificationCode}
+                          loading={verificationCodeLoading}
+                          disabled={disableButton || verificationCodeLoading}
+                        >
+                          {disableButton
+                            ? `${t('重新发送')} (${countdown})`
+                            : t('获取验证码')}
+                        </Button>
+                      }
+                    />
+                    <Form.Input
+                      field='sms_verification_code'
+                      label={t('短信验证码')}
+                      placeholder={t('输入短信验证码')}
+                      name='sms_verification_code'
+                      onChange={(value) =>
+                        handleChange('sms_verification_code', value)
+                      }
+                      prefix={<IconKey />}
+                    />
+                  </>
+                ) : showEmailVerification ? (
                   <>
                     <Form.Input
                       field='email'
@@ -635,7 +752,7 @@ const RegisterForm = () => {
                       prefix={<IconKey />}
                     />
                   </>
-                )}
+                ) : null}
 
                 {(hasUserAgreement || hasPrivacyPolicy) && (
                   <div className='pt-4'>
@@ -782,6 +899,7 @@ const RegisterForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailRegister ||
+        showSmsRegister ||
         !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}

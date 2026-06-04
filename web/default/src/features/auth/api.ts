@@ -23,6 +23,7 @@ import type {
   Login2FAResponse,
   TwoFAPayload,
   RegisterPayload,
+  SmsRegisterPayload,
   ApiResponse,
 } from './types'
 
@@ -108,6 +109,55 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   const res = await api.post(`/api/user/register`, payload, {
     params: { turnstile: payload.turnstile ?? '' },
   })
+  return res.data
+}
+
+export function buildSmsRegisterCodeRequest(phone: string, turnstile?: string) {
+  return {
+    url: '/api/user/sms/register/code',
+    data: {
+      phone,
+    },
+    config: {
+      params: {
+        turnstile: turnstile ?? '',
+      },
+    },
+  }
+}
+
+export function buildSmsRegisterRequest(payload: SmsRegisterPayload) {
+  return {
+    url: '/api/user/sms/register',
+    data: {
+      username: payload.username,
+      password: payload.password,
+      phone: payload.phone,
+      verification_code: payload.verification_code,
+      aff_code: payload.aff_code,
+    },
+    config: {
+      params: {
+        turnstile: payload.turnstile ?? '',
+      },
+    },
+  }
+}
+
+export async function sendSmsRegisterCode(
+  phone: string,
+  turnstile?: string
+): Promise<ApiResponse> {
+  const request = buildSmsRegisterCodeRequest(phone, turnstile)
+  const res = await api.post(request.url, request.data, request.config)
+  return res.data
+}
+
+export async function smsRegister(
+  payload: SmsRegisterPayload
+): Promise<ApiResponse> {
+  const request = buildSmsRegisterRequest(payload)
+  const res = await api.post(request.url, request.data, request.config)
   return res.data
 }
 

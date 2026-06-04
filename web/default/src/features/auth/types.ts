@@ -41,6 +41,15 @@ export interface RegisterPayload {
   turnstile?: string
 }
 
+export interface SmsRegisterPayload {
+  username: string
+  password: string
+  phone: string
+  verification_code: string
+  aff_code?: string
+  turnstile?: string
+}
+
 export interface PasswordResetPayload {
   email: string
   turnstile?: string
@@ -128,6 +137,7 @@ export interface SystemStatus {
     register_enabled?: boolean
     password_login_enabled?: boolean
     password_register_enabled?: boolean
+    sms_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }
@@ -171,6 +181,7 @@ export interface SystemStatus {
   register_enabled?: boolean
   password_login_enabled?: boolean
   password_register_enabled?: boolean
+  sms_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   [key: string]: unknown
 }

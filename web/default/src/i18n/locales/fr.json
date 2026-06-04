@@ -4707,6 +4707,17 @@
     "No trend data yet": "Aucune donnée de tendance pour le moment",
     "Trend updates after paid usage, effective users or settlements are recorded": "La tendance se met à jour après l’enregistrement d’usage payé, d’utilisateurs effectifs ou de règlements",
     "Effective users": "Utilisateurs effectifs",
-    "Commission": "Commission"
+    "Commission": "Commission",
+    "Username registration": "Inscription par nom d'utilisateur",
+    "Phone registration": "Inscription par telephone",
+    "Phone number": "Numero de telephone",
+    "Enter your phone number": "Saisissez votre numero de telephone",
+    "Please enter your phone number": "Veuillez saisir votre numero de telephone",
+    "Please enter your phone number first": "Veuillez d'abord saisir votre numero de telephone",
+    "SMS verification code": "Code de verification SMS",
+    "Please enter the SMS verification code": "Veuillez saisir le code de verification SMS",
+    "SMS verification code sent": "Code de verification SMS envoye",
+    "Failed to send SMS verification code": "Echec de l'envoi du code de verification SMS",
+    "Send SMS code": "Envoyer le code SMS"
   }
 }

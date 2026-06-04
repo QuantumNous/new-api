@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
+import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -46,10 +47,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { register, wechatLoginByCode } from '@/features/auth/api'
+import {
+  register,
+  sendSmsRegisterCode,
+  smsRegister,
+  wechatLoginByCode,
+} from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
-import { registerFormSchema } from '@/features/auth/constants'
+import {
+  registerFormSchema,
+  SMS_REGISTER_COUNTDOWN,
+} from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
@@ -64,7 +73,12 @@ export function SignUpForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [registerMode, setRegisterMode] = useState<'username' | 'sms'>(
+    'username'
+  )
   const [verificationCode, setVerificationCode] = useState('')
+  const [smsVerificationCode, setSmsVerificationCode] = useState('')
+  const [isSendingSmsCode, setIsSendingSmsCode] = useState(false)
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
@@ -81,6 +95,11 @@ export function SignUpForm({
   } = useTurnstile()
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
+    secondsLeft: smsSecondsLeft,
+    isActive: isSmsCountdownActive,
+    start: startSmsCountdown,
+  } = useCountdown({ initialSeconds: SMS_REGISTER_COUNTDOWN })
+  const {
     isSending: isSendingCode,
     secondsLeft,
     isActive,
@@ -95,13 +114,20 @@ export function SignUpForm({
     defaultValues: {
       username: '',
       email: '',
+      phone: '',
       password: '',
       confirmPassword: '',
     },
   })
 
   const emailValue = form.watch('email')
-  const emailVerificationRequired = !!status?.email_verification
+  const phoneValue = form.watch('phone')
+  const smsRegisterEnabled = Boolean(
+    status?.sms_enabled ?? status?.data?.sms_enabled
+  )
+  const isSmsRegisterMode = registerMode === 'sms'
+  const emailVerificationRequired =
+    !isSmsRegisterMode && !!status?.email_verification
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
@@ -135,6 +161,13 @@ export function SignUpForm({
   }, [requiresLegalConsent])
 
   useEffect(() => {
+    if (!smsRegisterEnabled && registerMode === 'sms') {
+      setRegisterMode('username')
+      setSmsVerificationCode('')
+    }
+  }, [registerMode, smsRegisterEnabled])
+
+  useEffect(() => {
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
     if (aff) {
       saveAffiliateCode(aff)
@@ -159,18 +192,38 @@ export function SignUpForm({
       }
     }
 
+    if (isSmsRegisterMode) {
+      if (!data.phone?.trim()) {
+        toast.error(t('Please enter your phone number'))
+        return
+      }
+      if (!smsVerificationCode.trim()) {
+        toast.error(t('Please enter the SMS verification code'))
+        return
+      }
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
     try {
-      const res = await register({
-        username: data.username,
-        password: data.password,
-        email: data.email || undefined,
-        verification_code: verificationCode || undefined,
-        aff_code: getAffiliateCode(),
-        turnstile: turnstileToken,
-      })
+      const res = isSmsRegisterMode
+        ? await smsRegister({
+            username: data.username,
+            password: data.password,
+            phone: data.phone.trim(),
+            verification_code: smsVerificationCode.trim(),
+            aff_code: getAffiliateCode(),
+            turnstile: turnstileToken,
+          })
+        : await register({
+            username: data.username,
+            password: data.password,
+            email: data.email || undefined,
+            verification_code: verificationCode || undefined,
+            aff_code: getAffiliateCode(),
+            turnstile: turnstileToken,
+          })
 
       if (res?.success) {
         toast.success(t('Account created! Please sign in'))
@@ -187,6 +240,39 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     await sendCode(emailValue || '')
+  }
+
+  async function handleSendSmsVerificationCode() {
+    const phone = phoneValue?.trim()
+    if (!phone) {
+      toast.error(t('Please enter your phone number first'))
+      return
+    }
+    if (!validateTurnstile()) return
+
+    setIsSendingSmsCode(true)
+    try {
+      const res = await sendSmsRegisterCode(phone, turnstileToken)
+      if (res?.success) {
+        startSmsCountdown()
+        toast.success(t('SMS verification code sent'))
+      } else {
+        toast.error(res?.message || t('Failed to send SMS verification code'))
+      }
+    } catch (_error) {
+      // Errors are handled by global interceptor
+    } finally {
+      setIsSendingSmsCode(false)
+    }
+  }
+
+  function handleRegisterModeChange(nextMode: 'username' | 'sms') {
+    setRegisterMode(nextMode)
+    if (nextMode === 'sms') {
+      setVerificationCode('')
+    } else {
+      setSmsVerificationCode('')
+    }
   }
 
   const handleOpenWeChatDialog = () => {
@@ -236,6 +322,27 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
+        {smsRegisterEnabled && (
+          <div className='grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1'>
+            <Button
+              type='button'
+              size='sm'
+              variant={isSmsRegisterMode ? 'ghost' : 'default'}
+              onClick={() => handleRegisterModeChange('username')}
+            >
+              {t('Username registration')}
+            </Button>
+            <Button
+              type='button'
+              size='sm'
+              variant={isSmsRegisterMode ? 'default' : 'ghost'}
+              onClick={() => handleRegisterModeChange('sms')}
+            >
+              {t('Phone registration')}
+            </Button>
+          </div>
+        )}
+
         {/* Username Field */}
         <FormField
           control={form.control}
@@ -283,6 +390,59 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        {isSmsRegisterMode && (
+          <>
+            <FormField
+              control={form.control}
+              name='phone'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Phone number')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('Enter your phone number')}
+                      autoComplete='tel'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className='flex items-end gap-2'>
+              <div className='flex-1'>
+                <Input
+                  placeholder={t('SMS verification code')}
+                  value={smsVerificationCode}
+                  onChange={(e) => setSmsVerificationCode(e.target.value)}
+                  autoComplete='one-time-code'
+                />
+              </div>
+              <Button
+                variant='outline'
+                type='button'
+                disabled={
+                  isLoading ||
+                  isSendingSmsCode ||
+                  isSmsCountdownActive ||
+                  !phoneValue ||
+                  !turnstileReady
+                }
+                onClick={handleSendSmsVerificationCode}
+              >
+                {isSmsCountdownActive ? (
+                  t('Resend ({{seconds}}s)', { seconds: smsSecondsLeft })
+                ) : isSendingSmsCode ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  t('Send SMS code')
+                )}
+              </Button>
+            </div>
+          </>
+        )}
 
         {/* Email Verification Section */}
         {emailVerificationRequired && (
