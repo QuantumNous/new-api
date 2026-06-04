@@ -192,11 +192,14 @@ func TestBuildSeedanceTaskResponseFromWrappedNewAPI(t *testing.T) {
 	if _, exists := decoded["code"]; exists {
 		t.Fatalf("expected raw Ark task object, got wrapper: %#v", decoded)
 	}
-	if decoded["id"] != "cgt-20260602164348-wzmk9" {
+	if decoded["id"] != "task_qRfhNbI2cHkWv4flHf0EZitKIjHbI3Vo" {
 		t.Fatalf("unexpected id: %#v", decoded["id"])
 	}
 	if decoded["task_id"] != "task_qRfhNbI2cHkWv4flHf0EZitKIjHbI3Vo" {
 		t.Fatalf("unexpected task_id: %#v", decoded["task_id"])
+	}
+	if decoded["upstream_id"] != "cgt-20260602164348-wzmk9" {
+		t.Fatalf("unexpected upstream_id: %#v", decoded["upstream_id"])
 	}
 	if decoded["status"] != "succeeded" {
 		t.Fatalf("unexpected status: %#v", decoded["status"])
