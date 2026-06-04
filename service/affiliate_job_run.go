@@ -28,6 +28,7 @@ const (
 )
 
 var affiliateJobRunSensitiveKVPattern = regexp.MustCompile(`(?i)\b(password|passwd|token|api[_-]?key|secret)=([^\s,;]+)`)
+var affiliateJobRunSensitiveStructuredPattern = regexp.MustCompile(`(?i)(["']?(?:password|passwd|token|api[_-]?key|secret)["']?\s*:\s*["']?)([^"',}\s]+)(["']?)`)
 
 type affiliateSettlementRunIdempotencyPayload struct {
 	JobType         string  `json:"job_type"`
@@ -573,7 +574,9 @@ func sanitizeAffiliateJobRunError(cause error) string {
 		return ""
 	}
 	message := strings.TrimSpace(cause.Error())
+	message = common.MaskSensitiveInfo(message)
 	message = affiliateJobRunSensitiveKVPattern.ReplaceAllString(message, "$1=[redacted]")
+	message = affiliateJobRunSensitiveStructuredPattern.ReplaceAllString(message, "$1[redacted]$3")
 	if len(message) > 1024 {
 		return message[:1024]
 	}

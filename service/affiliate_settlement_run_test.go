@@ -9,6 +9,28 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestSanitizeAffiliateJobRunErrorRedactsStructuredSecrets(t *testing.T) {
+	sanitized := sanitizeAffiliateJobRunError(errors.New(`provider failed password=plain-secret callback=https://api.example.test/v1/send?api_key=query-secret&phone=demo-phone-secret payload={"api_key":"json-api-secret","secret":"json-secret","token":"json-token","safe":"kept"}`))
+
+	for _, forbidden := range []string{
+		"plain-secret",
+		"api.example.test",
+		"v1/send",
+		"query-secret",
+		"demo-phone-secret",
+		"json-api-secret",
+		"json-secret",
+		"json-token",
+	} {
+		if strings.Contains(sanitized, forbidden) {
+			t.Fatalf("sanitized job run error leaked %q: %s", forbidden, sanitized)
+		}
+	}
+	if !strings.Contains(sanitized, `"safe":"kept"`) {
+		t.Fatalf("sanitized job run error should preserve non-sensitive context, got %s", sanitized)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineBuildsKPICommissionHeadFeeAndSettlement(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-full-pipeline"))

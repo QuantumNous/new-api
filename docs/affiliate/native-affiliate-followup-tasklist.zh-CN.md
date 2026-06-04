@@ -792,3 +792,21 @@
 - 验证命令：先运行 `go test -count=1 ./service -run TestRunAffiliateSettlementPipelineResumeRerunsWhenCompletedStageCountsAreMissing -v` 观察 RED；实现后同命令通过。补充运行 `go test -count=1 ./service -run 'AffiliateSettlementPipeline.*(Resume|Partial|JobRun|DoubleRun)|GenerateAffiliateSettlementsWithJobRun.*(Resume|Partial|Cursor)' -v`，相关 resume、partial progress、job run 和 double-run 回归通过。
 - 残留风险：本轮是“缺少阶段完成证据就保守重跑”的安全修复，不是完整阶段内部 cursor 断点跳扫；KPI、佣金和人头费阶段仍不能在未持久化完整聚合上下文时直接跳过 cursor 前日志。Docker PostgreSQL schema diff、live `new-api:dev` 重建、外部完整周期 dry-run/正式 run 双跑仍待完成。
 - 下一步：继续等待 Docker server 恢复后重建 `new-api:dev` 并补 pending schema diff；如继续本地任务，优先做 stage-internal cursor resume 的安全设计/测试切片或管理端 finance 表格增强。
+
+## P0-10 Goal continuation 运行态基线复核（2026-06-04 本线程）
+
+- 接手读取：本轮按 Goal 要求重读当前 followup tasklist、master plan、development principles、new-thread tasklist、dev compose runbook、external acceptance runbook、schema impact report 和 SMS reference audit，并读取 Superpowers 的 systematic-debugging、test-driven-development、verification-before-completion 和 finishing-a-development-branch 流程。
+- Git 基线：`git status --short --branch` 显示 `## feature/native-affiliate-minimal` 且无未提交文件；`git log --oneline -8` 顶部为 `e8a95084 fix: clear default frontend typecheck debt`、`e6f03d51 feat: add sms phone login frontend`、`80fb21ad feat: add sms login code endpoint`。
+- 端口与 dev server：`timeout 15s tmux ls` 显示 `new-api-web: 2 windows`，`tmux list-windows -t new-api-web` 显示 default/classic 两个 window；`ss -ltnp` 显示 `5173`、`5174` 由 WSL 内 node 监听，`3000` 处于监听状态。
+- API 404 证据：WSL 内 `curl -i` 访问 `3000`、`5173`、`5174` 的 `/api/affiliate/team` 未登录均返回 HTTP 401 JSON；Windows 侧 `curl.exe -i` 访问同三个 URL 也均返回 HTTP 401 JSON；in-app Browser Network 打开三端口 `/api/affiliate/team` 也均为 401 Unauthorized，不是旧 `Invalid URL (GET /api/affiliate/team)` 404。
+- 运行态缓存头差异：`curl -D - -o /dev/null http://127.0.0.1:3000/api/status` 返回 200，但仍未见 `Cache-Control` / `Pragma` / `Expires` no-store 头；结合源码和 router 测试已覆盖 `/api` no-store，继续判断为当前 3000 live 后端不是最新构建或仍旧容器。
+- Docker 状态：按 runbook 只做一次短探测，`timeout 20s docker version --format "client={{.Client.Version}} server={{.Server.Version}}"` 返回 `client=29.5.2 server=` 并以非 0 退出；当前不能安全重建 `new-api:dev`、不能复测 live no-store，也不能补 PostgreSQL schema diff。
+- 结论：当前 WSL、Windows curl 和 fresh in-app Browser 都不能复现旧 404；若用户原 Windows Chrome 页面仍显示 404，仍需在该原浏览器 DevTools Network 勾选 Disable cache 后硬刷新或清站点缓存，并检查 Request URL、from disk/memory cache、response body 和 `New-Api-User` header。Docker 恢复后优先重建 `new-api:dev` 并复测 no-store、`daily_trends` 和 schema diff。
+
+## P1-44 affiliate job run 失败错误结构化脱敏复盘（2026-06-04 本线程）
+
+- RED：新增 `TestSanitizeAffiliateJobRunErrorRedactsStructuredSecrets`，覆盖 job run 失败原因中同时出现 key=value、URL query 和 JSON/结构化 secret key 的场景。旧实现只处理 key=value，测试先失败于 URL host/path 与 JSON secret value 仍出现在 `error_message`。
+- 完成内容：`sanitizeAffiliateJobRunError` 先复用 `common.MaskSensitiveInfo` 遮 URL、query、IP 和域名，再保留既有 key=value secret redaction，并新增结构化 secret key 正则，覆盖 `password`、`passwd`、`token`、`api_key` / `api-key`、`secret` 的 JSON/colon 形态。
+- 安全边界：本轮只收紧 `affiliate_job_runs.error_message` 失败原因脱敏，不改变 settlement pipeline、resume、idempotency key、计数、cursor、规则集、分佣金额或结算状态流转；测试 fixture 使用非真实示例标识，不输出或提交真实密码、cookie、DSN、token、生产地址或完整手机号。
+- 验证命令：`go test -count=1 ./service -run TestSanitizeAffiliateJobRunErrorRedactsStructuredSecrets -v` 先 RED，修复后通过；`go test -count=1 ./service -run "SanitizeAffiliateJobRunError|AffiliateJobRun|RunAffiliateSettlementPipeline.*(Failure|Resume|Partial|JobRun|DoubleRun)|GenerateAffiliateSettlementsWithJobRun"` 通过；`git diff --check` 通过。
+- 残留风险：本轮不替代 Docker PostgreSQL schema diff、live 容器重建、外部完整结算周期双跑或真实运行态 job run 失败日志审计；后续若其他模块保存错误原因，也应复用通用脱敏策略或单独补测试。
