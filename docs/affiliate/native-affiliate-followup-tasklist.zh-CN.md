@@ -121,7 +121,7 @@
 - [x] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。（2026-06-04 已新增后端 `POST /api/user/sms/register`，复用统一 invite context、初始额度规则和 `user_phone_bindings` sidecar；2026-06-04 已新增后端 `POST /api/user/sms/register/code` 发送注册验证码；2026-06-04 已补 `/api/status.sms_enabled`、default/classic 注册表单入口、短信验证码发送和 SMS 注册提交；2026-06-04 已补后端 `POST /api/user/login/phone` 与 `POST /api/user/sms/login/code`，只允许已绑定手机号获取登录验证码并登录；2026-06-04 已补 default/classic 前端手机号登录入口、登录验证码发送和手机号登录提交；真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [x] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。（2026-06-04 审计：当前分支手机号绑定已使用 `user_phone_bindings` sidecar，`model/user.go` 未新增手机号字段；2026-06-04 已补后端手机号登录查询 active binding 并校验用户启用状态，未绑定手机号不会自动注册、创建绑定或触发短信发送；2026-06-04 已补 default/classic 手机号登录前端入口；手机号绑定、换绑、解绑和找回闭环仍待做。）
 - [ ] 短信宝真实通道 smoke 必须在签名审核通过、模板确认和脱敏日志策略明确后执行。
-- [ ] 测试发送、状态查询和失败错误码映射不得输出完整手机号、验证码、ApiKey、密码或签名内部资料。
+- [x] 测试发送、状态查询和失败错误码映射不得输出完整手机号、验证码、ApiKey、密码或签名内部资料。（2026-06-04 已完成本地脱敏审计，管理员测试发送、状态查询、发送日志、短信宝错误映射、验证码发送和手机号登录返回均已有回归证据；真实短信宝通道 smoke 仍由上一项单独跟进，见 P2-13。）
 
 ## 11. 前端质量与 parity
 
@@ -810,3 +810,11 @@
 - 安全边界：本轮只收紧 `affiliate_job_runs.error_message` 失败原因脱敏，不改变 settlement pipeline、resume、idempotency key、计数、cursor、规则集、分佣金额或结算状态流转；测试 fixture 使用非真实示例标识，不输出或提交真实密码、cookie、DSN、token、生产地址或完整手机号。
 - 验证命令：`go test -count=1 ./service -run TestSanitizeAffiliateJobRunErrorRedactsStructuredSecrets -v` 先 RED，修复后通过；`go test -count=1 ./service -run "SanitizeAffiliateJobRunError|AffiliateJobRun|RunAffiliateSettlementPipeline.*(Failure|Resume|Partial|JobRun|DoubleRun)|GenerateAffiliateSettlementsWithJobRun"` 通过；`git diff --check` 通过。
 - 残留风险：本轮不替代 Docker PostgreSQL schema diff、live 容器重建、外部完整结算周期双跑或真实运行态 job run 失败日志审计；后续若其他模块保存错误原因，也应复用通用脱敏策略或单独补测试。
+
+## P2-13 SMS 测试发送/状态查询脱敏审计复盘（2026-06-04 本线程）
+
+- 审计范围：管理员短信测试发送、管理员短信状态查询、短信宝 provider 错误码映射、短信发送日志、注册验证码发送、登录验证码发送、手机号登录返回、状态接口隐藏短信凭据和 DB-backed 限流原始标识保护。
+- 结论：当前本地代码已把前端可见响应控制为 `phone_masked`、provider、provider code、scene 和通用错误文案；发送日志只记录脱敏手机号、场景、provider、模板版本、状态、provider code 和耗时；短信宝 transport/provider 失败不会把请求 URL、ApiKey、密码、验证码或签名内部资料透出到响应。
+- 验证命令：`go test -count=1 ./common ./model ./service ./controller -run "SMS|SMSBao|AdminTestSMS|AdminGetSMSStatus|RecordSMSSendLog|GetOptionsHidesSMSBaoCredential|RateLimit|Phone|LoginCode|RegisterCode"` 通过。
+- 安全边界：本轮是本地代码审计和回归证据收口，不调用真实短信宝通道，不读取或输出 `.codex-local` 内的真实账号、cookie、手机号、签名、ApiKey、密码或数据库连接信息。
+- 残留风险：真实短信宝测试发送、状态查询和失败错误码映射仍必须等签名审核、模板确认和脱敏日志策略明确后按 smoke runbook 执行；Docker PostgreSQL schema diff、live 容器重建、手机号绑定/换绑/解绑和找回闭环仍待做。
