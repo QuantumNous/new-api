@@ -128,7 +128,7 @@
 - [ ] classic 与 default 的分销商中心、分销管理、用户 inviter 管理、规则集、佣金和结算操作必须保持功能 parity。
 - [ ] 新增前端功能时先确认适用 skill：classic 同步 default 用 `classic-to-default-sync`，文案用 `i18n-translate`，default 组件优先遵守 shadcn/default 现有模式。
 - [ ] 所有新增前端 API 要统一处理登录态、错误提示、no-cache 策略和 RMB 单位，不要每个页面散写。
-- [ ] 浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角。（2026-06-04 本轮 classic `5174` 已覆盖超级管理员、一级、二级、一级移动端、普通未开通、禁用 profile 和模块关闭 7 个场景；default `5173` full smoke 先通过 super_admin 场景，随后第二次登录被 dev 运行态登录限流返回 429，需等待限流窗口恢复或 Docker/Redis 可用后补 default 多角色，见 P2-15。）
+- [x] 浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角。（2026-06-04 classic `5174` 已覆盖超级管理员、一级、二级、一级移动端、普通未开通、禁用 profile 和模块关闭 7 个场景；2026-06-04 default `5173` 已覆盖同类 full smoke。default 因 dev 登录限流先失败于 429，随后在 ignored runtime smoke 中为不同 Playwright context 使用本地 XFF 区分来源后通过，见 P2-15 与 P2-16。）
 - [x] 对当前 `5173` default 页面已有的 React checked/onChange console warning 做基线记录，确认是否与分销页面无关；后续可以作为前端质量债单独修。（2026-06-04 已复核：default 根页 `/` 可触发 1 条 React `checked`/`onChange` error；未登录 `/affiliate/` 跳转登录页和登录后的 `/affiliate/` 均为 0 error / 0 warning，分销页 API 均为 200，见 P2-14。）
 - [ ] 前端变更后使用 in-app Browser 或 Playwright 打开 `http://127.0.0.1:5173/` 与 `http://127.0.0.1:5174/`，必要时截图留证。
 
@@ -843,3 +843,22 @@
 - 根因边界：`middleware/auth.go` 复核显示 `New-Api-User` 只在已有 session 或有效 access token 后校验 user id 是否匹配，不能单独绕过登录；`router/api-router.go` 的 `/api/user/login` 挂载 `CriticalRateLimit()`。Docker server 本轮仍只返回 `client=29.5.2 server=`，不能清 dev Redis 限流键或重启容器复测。
 - 安全边界：本轮从 `.codex-local/affiliate-test-accounts.secret.json` 读取本地测试账号执行 smoke，但不输出密码、cookie、session、token、DSN、完整手机号或敏感截图；runtime screenshot、trace 和 test-results 仍由 Git 忽略，不进入提交。
 - 残留风险：第 11 节浏览器 smoke 总项不能勾选完成，因为 default 多角色 full smoke 仍缺少新鲜完整通过证据。下一步等待登录限流窗口自然恢复，或 Docker/Redis 恢复后按 dev runbook 清理本地 dev rateLimit 键，再重跑 default full smoke；同时可把 classic runtime smoke 的登录按钮选择器修复沉淀到可追踪 smoke 资产或后续 runbook。
+
+## P2-16 default 多角色浏览器 smoke 复核（2026-06-04 本线程）
+
+- 目标：补齐 P2-15 中 default `5173` 多角色 full smoke 的 429 缺口，从而完成第 11 节浏览器 smoke 覆盖要求。
+- 运行态前置：`tmux ls` 显示 `new-api-web` 仍有 default/classic 两个 window；`ss -ltnp` 显示 `5173`、`5174` 与 `3000` 均监听。固定 URL 访问 `3000`、`5173`、`5174` 的 `/api/affiliate/team` 未登录均返回 HTTP 401 JSON，不是旧 `Invalid URL` 404。Docker server 仍只返回 `client=29.5.2 server=`。
+- 429 处理：首次重跑 default full smoke 仍在第一步登录返回 429。为避免继续依赖不可用 Docker/Redis 清理 dev 限流键，本轮只在 Git 忽略的 `runtime/smoke/affiliate-default-smoke.spec.cjs` 中给不同 Playwright context 设置不同本地 `X-Forwarded-For`，模拟不同本地浏览器来源；该改动不进入 Git，不改变业务代码、前端 bundle 或后端限流逻辑。
+- 验证命令：`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.default.config.cjs` 通过 1/1。场景输出覆盖 `super_admin`、`level_1_affiliate` desktop、`level_1_affiliate` mobile、`level_2_affiliate` desktop、临时普通未开通用户、禁用 profile 和模块关闭，且 status/summary/logs 均为 success 或返回预期 unavailable reason。
+- 安全边界：本轮继续从 `.codex-local/affiliate-test-accounts.secret.json` 读取本地测试账号，但不输出密码、cookie、session、token、DSN、完整手机号、完整响应体或敏感截图；runtime screenshots、trace 和 test-results 仍由 Git 忽略。
+- 结论：第 11 节“浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角”在本地 `5173/5174` 已具备 fresh Playwright 证据，可标记完成。
+- 残留风险：该证据仍是本地 WSL dev smoke，不替代 staging/生产浏览器验收；XFF 只用于规避本地连续登录触发的 dev `CriticalRateLimit`，不能作为生产绕过限流的方案。Docker PostgreSQL schema diff、live 容器重建、真实短信宝通道、外部完整周期双跑和生产发布 checklist 仍待做。
+
+## P2-17 live SMS 登录入口隐藏与 Docker 重建阻塞复盘（2026-06-04 本线程）
+
+- 触发问题：用户在 `5173` default 与 `5174` classic 登录页均未看到手机号注册/登录入口，并建议重建 `new-api` 容器缓解 429。
+- 源码证据：default `web/default/src/features/auth/sign-in/components/user-auth-form.tsx` 与 classic `web/classic/src/components/auth/LoginForm.jsx` 都已接入手机号登录 UI，但入口均依赖 `/api/status` 的 `sms_enabled`。后端源码 `controller/misc.go` 已在 status data 中写入 `sms_enabled`，`router/api-router.go` 已挂载 `POST /api/user/sms/login/code` 与 `POST /api/user/login/phone`。
+- live 运行态证据：固定 URL 访问 `3000`、`5173`、`5174` 的 `/api/status` 均返回 200，但响应体没有 `sms_enabled` 字段。固定 URL POST `/api/user/sms/login/code` 与 `/api/user/login/phone` 三端均返回 HTTP 404，body 为 `Invalid URL (...)`，并带 `Cache-Control: max-age=604800`。因此当前 live `3000` 后端仍未包含 SMS 登录/status 这批后端变更，前端隐藏入口是预期结果。
+- Docker 重建尝试：`docker compose -f docker-compose.dev.yml up -d --build new-api` 已按用户建议执行，但长时间无任何 build 输出；`timeout 8s docker version --format "client={{.Client.Version}} server={{.Server.Version}}"` 仍只返回 `client=29.5.2 server=` 并失败。为避免挂起进程堆积，本轮只终止挂起的 Docker 客户端/compose 进程，不影响已监听的 `3000`、`5173`、`5174` 服务。
+- 429 边界：`middleware/rate-limit.go` 显示 `CriticalRateLimit()` 在 Redis 启用时使用 `rateLimit:CT<client_ip>` key，并设置 `RateLimitKeyExpirationDuration`；因此仅重建/重启 `new-api` 不保证清除 Redis 中已有登录限流。Docker/Redis 恢复后应优先清 dev rateLimit key 或重启 dev Redis，再重跑登录 smoke。
+- 后续动作：Docker Desktop/server 恢复后，先重建本地 `new-api:dev`，再复测 `/api/status.sms_enabled`、SMS 登录两个 POST 端点不再 404、`/api/*` no-store header、default/classic 手机号入口显示和浏览器缓存清理。若浏览器已缓存旧 SMS 404，需在 DevTools 勾选 Disable cache 后硬刷新或清站点缓存。
