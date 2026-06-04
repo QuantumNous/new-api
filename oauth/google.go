@@ -185,9 +185,34 @@ func parseGoogleUserInfo(body []byte) (*OAuthUser, error) {
 
 	return &OAuthUser{
 		ProviderUserID: gu.Sub,
+		Username:       googleUsernameFromEmail(gu.Email),
 		DisplayName:    gu.Name,
 		Email:          gu.Email,
 	}, nil
+}
+
+// googleUsernameFromEmail builds a "google_<local-part>" username from the
+// Google email (e.g. jjcc1024byte@gmail.com -> google_jjcc1024byte), keeping
+// only safe characters (lowercase letters, digits, '.', '_', '-'). Returns ""
+// when the sanitized local part is empty, so the caller falls back to the
+// generated "google_<id>" username. The caller also enforces uniqueness and
+// length, falling back to the numbered form on collision or over-length.
+func googleUsernameFromEmail(email string) string {
+	local := email
+	if i := strings.IndexByte(email, '@'); i >= 0 {
+		local = email[:i]
+	}
+	var b strings.Builder
+	for _, r := range strings.ToLower(local) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	local = b.String()
+	if local == "" {
+		return ""
+	}
+	return "google_" + local
 }
 
 func (p *GoogleProvider) IsUserIDTaken(providerUserID string) bool {
