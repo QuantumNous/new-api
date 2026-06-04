@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { LOCALIZED_DEFAULT_LEGAL_DOCUMENTS } from './localized-default-documents'
+
 export const DEFAULT_TERMS_OF_SERVICE = `# Flatkey AI User Agreement
 
 Last Updated: June 4, 2026
@@ -415,29 +417,29 @@ export const DEFAULT_LEGAL_DOCUMENTS_BY_LOCALE: Record<
     refund: DEFAULT_REFUND_POLICY,
   },
   zh: {
-    terms: DEFAULT_TERMS_OF_SERVICE,
-    privacy: DEFAULT_PRIVACY_POLICY,
-    refund: DEFAULT_REFUND_POLICY,
+    terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.terms,
+    privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.privacy,
+    refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.refund,
   },
   fr: {
-    terms: DEFAULT_TERMS_OF_SERVICE,
-    privacy: DEFAULT_PRIVACY_POLICY,
-    refund: DEFAULT_REFUND_POLICY,
+    terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.terms,
+    privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.privacy,
+    refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.refund,
   },
   ja: {
-    terms: DEFAULT_TERMS_OF_SERVICE,
-    privacy: DEFAULT_PRIVACY_POLICY,
-    refund: DEFAULT_REFUND_POLICY,
+    terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.terms,
+    privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.privacy,
+    refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.refund,
   },
   ru: {
-    terms: DEFAULT_TERMS_OF_SERVICE,
-    privacy: DEFAULT_PRIVACY_POLICY,
-    refund: DEFAULT_REFUND_POLICY,
+    terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.terms,
+    privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.privacy,
+    refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.refund,
   },
   vi: {
-    terms: DEFAULT_TERMS_OF_SERVICE,
-    privacy: DEFAULT_PRIVACY_POLICY,
-    refund: DEFAULT_REFUND_POLICY,
+    terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.terms,
+    privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.privacy,
+    refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.refund,
   },
 }
 
