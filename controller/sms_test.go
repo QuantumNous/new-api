@@ -198,6 +198,202 @@ func TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse(t *testing.T) {
 	}
 }
 
+func TestSendSMSLoginCodeStoresVerificationForActiveBindingAndRedactsResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSLoginTemplate
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSLoginTemplate = originalTemplate
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSProviderFactory = originalFactory
+		common.DeleteKey("1007", common.SMSVerificationPurpose(common.SMSSceneLogin))
+		service.ResetSMSRateLimiterForTest()
+	})
+
+	db := newSMSPhoneLoginTestDB(t)
+	model.DB = db
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
+	common.SMSProductName = "Affiliate"
+	common.SMSLoginTemplate = "{product} login verification code {code}, valid for {minutes} minutes."
+	common.SMSRateLimitEnabled = false
+	service.ResetSMSRateLimiterForTest()
+
+	user := model.User{
+		Username:    "sms-code-login",
+		DisplayName: "SMS Code Login",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed sms login code user: %v", err)
+	}
+	if _, err := service.BindUserPhone(db, service.UserPhoneBindingInput{
+		UserID:   user.Id,
+		Phone:    "1007",
+		Provider: common.SMSProviderName,
+	}); err != nil {
+		t.Fatalf("bind phone: %v", err)
+	}
+
+	var sentPhone string
+	var sentContent string
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return captureSMSProvider{
+			phone:   &sentPhone,
+			content: &sentContent,
+		}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/sms/login/code", bytes.NewBufferString(`{
+		"phone":"1007"
+	}`))
+
+	SendSMSLoginCode(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool           `json:"success"`
+		Message string         `json:"message"`
+		Data    map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected success response, got %q", response.Message)
+	}
+	if sentPhone != "1007" {
+		t.Fatalf("unexpected provider phone: %q", sentPhone)
+	}
+	match := regexp.MustCompile(`login verification code ([0-9]{6})`).FindStringSubmatch(sentContent)
+	if len(match) != 2 {
+		t.Fatalf("expected provider content to include six digit login code, got %q", sentContent)
+	}
+	code := match[1]
+	if !common.VerifyCodeWithKey("1007", code, common.SMSVerificationPurpose(common.SMSSceneLogin)) {
+		t.Fatal("expected generated sms code to be registered for later phone login")
+	}
+
+	body := recorder.Body.String()
+	for _, forbidden := range []string{"1007", code, sentContent} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("login code response leaked %q: %s", forbidden, body)
+		}
+	}
+	if response.Data["phone_masked"] != "1****7" || response.Data["template_scene"] != common.SMSSceneLogin {
+		t.Fatalf("unexpected response metadata: %+v", response.Data)
+	}
+	var logs []model.SMSSendLog
+	if err := db.Find(&logs).Error; err != nil {
+		t.Fatalf("read sms send logs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected one sms send log, got %d", len(logs))
+	}
+	logPayload, err := json.Marshal(logs[0])
+	if err != nil {
+		t.Fatalf("marshal sms send log: %v", err)
+	}
+	if strings.Contains(string(logPayload), "1007") || strings.Contains(string(logPayload), code) {
+		t.Fatalf("sms login send log leaked phone or code: %s", string(logPayload))
+	}
+	if logs[0].PhoneMasked != "1****7" || logs[0].Scene != common.SMSSceneLogin {
+		t.Fatalf("unexpected sms login send log: %+v", logs[0])
+	}
+}
+
+func TestSendSMSLoginCodeRejectsUnboundPhoneBeforeProvider(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSLoginTemplate
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSLoginTemplate = originalTemplate
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSProviderFactory = originalFactory
+		common.DeleteKey("1008", common.SMSVerificationPurpose(common.SMSSceneLogin))
+		service.ResetSMSRateLimiterForTest()
+	})
+
+	model.DB = newSMSPhoneLoginTestDB(t)
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
+	common.SMSProductName = "Affiliate"
+	common.SMSLoginTemplate = "{product} login verification code {code}, valid for {minutes} minutes."
+	common.SMSRateLimitEnabled = false
+	service.ResetSMSRateLimiterForTest()
+
+	providerCalls := 0
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return countingSMSProvider{calls: &providerCalls}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/sms/login/code", bytes.NewBufferString(`{
+		"phone":"1008"
+	}`))
+
+	SendSMSLoginCode(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Success {
+		t.Fatalf("expected unbound phone login code request to fail, body=%s", recorder.Body.String())
+	}
+	if !strings.Contains(response.Message, "phone is not bound") {
+		t.Fatalf("expected unbound phone message, got %q", response.Message)
+	}
+	if providerCalls != 0 {
+		t.Fatalf("provider should not be called for unbound phone, got %d", providerCalls)
+	}
+	if common.VerifyCodeWithKey("1008", "123456", common.SMSVerificationPurpose(common.SMSSceneLogin)) {
+		t.Fatal("unbound phone request must not register a login code")
+	}
+	for _, forbidden := range []string{"1008", "123456"} {
+		if strings.Contains(recorder.Body.String(), forbidden) {
+			t.Fatalf("login code error response leaked %q: %s", forbidden, recorder.Body.String())
+		}
+	}
+}
+
 func TestSMSPhoneLoginUsesActiveBindingWithoutAutoRegistering(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	originalDB := model.DB

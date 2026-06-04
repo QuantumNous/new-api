@@ -109,6 +109,79 @@ func SendSMSRegisterCode(c *gin.Context) {
 	})
 }
 
+func SendSMSLoginCode(c *gin.Context) {
+	if !common.SMSEnabled {
+		common.ApiErrorMsg(c, "SMS is disabled")
+		return
+	}
+	var req smsRegisterCodeRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	phone, err := common.NormalizePhone(req.Phone)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.CheckSMSRateLimitWithDB(model.DB, service.SMSRateLimitInput{
+		Phone:     phone,
+		IP:        c.ClientIP(),
+		AccountID: smsRequestAccountID(c),
+		Scene:     common.SMSSceneLogin,
+	}, service.DefaultSMSRateLimitConfig()); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if _, err := service.FindUserByActivePhoneBinding(model.DB, phone); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	code, err := common.GenerateSMSVerificationCode(6)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	content, err := common.RenderSMSVerificationContent(common.SMSVerificationContentInput{
+		Scene: common.SMSSceneLogin,
+		Code:  code,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	provider, err := common.NewSMSProvider(common.SMSProviderName)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	startedAt := time.Now()
+	result, err := provider.Send(c.Request.Context(), common.SMSProviderSendInput{
+		Phone:   phone,
+		Content: content,
+	})
+	recordSMSTestSendLog(phone, common.SMSSceneLogin, result, time.Since(startedAt).Milliseconds())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.RegisterVerificationCodeWithKey(phone, code, common.SMSVerificationPurpose(common.SMSSceneLogin))
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"phone_masked":   common.MaskPhone(phone),
+			"provider":       result.Provider,
+			"provider_code":  result.ProviderCode,
+			"template_scene": common.SMSSceneLogin,
+		},
+	})
+}
+
 func SMSPhoneLogin(c *gin.Context) {
 	if !common.SMSEnabled {
 		common.ApiErrorMsg(c, "SMS is disabled")
