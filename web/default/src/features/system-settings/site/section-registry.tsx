@@ -48,6 +48,8 @@ const SITE_SECTIONS = [
           legal: {
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],
+            refund_policy: settings['legal.refund_policy'],
+            auth_notice_enabled: settings['legal.auth_notice_enabled'],
           },
         }}
       />

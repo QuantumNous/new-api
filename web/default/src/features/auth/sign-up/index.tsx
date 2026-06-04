@@ -48,11 +48,7 @@ export function SignUp() {
 
         <SignUpForm />
 
-        <TermsFooter
-          variant='sign-up'
-          status={status}
-          className='text-center'
-        />
+        <TermsFooter status={status} className='text-center' />
       </div>
     </AuthLayout>
   )
