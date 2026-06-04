@@ -142,16 +142,16 @@ const RegisterForm = () => {
   );
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
-  const hasOAuthRegisterOptions = Boolean(
-    status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      smsRegisterEnabled ||
-      hasCustomOAuthProviders,
-  );
+  const hasOAuthRegisterOptions = [
+    status.github_oauth,
+    status.discord_oauth,
+    status.oidc_enabled,
+    status.wechat_login,
+    status.linuxdo_oauth,
+    status.telegram_oauth,
+    smsRegisterEnabled,
+    hasCustomOAuthProviders,
+  ].some(Boolean);
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
 
@@ -611,7 +611,12 @@ const RegisterForm = () => {
                   <Button
                     theme='outline'
                     type='tertiary'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full !border !border-emerald-300 !bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100 transition-colors'
+                    style={{
+                      backgroundColor: '#ecfdf5',
+                      borderColor: '#6ee7b7',
+                      color: '#047857',
+                    }}
                     icon={<IconUser size='large' />}
                     onClick={handleSmsRegisterClick}
                     loading={smsRegisterLoading}
@@ -898,9 +903,7 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        showSmsRegister ||
-        !hasOAuthRegisterOptions
+        {showEmailRegister || showSmsRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

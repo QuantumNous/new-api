@@ -3957,6 +3957,8 @@
     "Enabled": "Enabled",
     "Disabled": "Disabled",
     "Active": "Active",
+    "Status": "Status",
+    "Actions": "Actions",
     "Hold Settlement": "Hold Settlement",
     "Exclude": "Exclude",
     "Manual Review": "Manual Review",

@@ -788,7 +788,12 @@ const LoginForm = () => {
                   <Button
                     theme='outline'
                     type='tertiary'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full !border !border-emerald-300 !bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100 transition-colors'
+                    style={{
+                      backgroundColor: '#ecfdf5',
+                      borderColor: '#6ee7b7',
+                      color: '#047857',
+                    }}
                     icon={<IconUser size='large' />}
                     onClick={handleSmsLoginClick}
                     loading={smsLoginLoading}

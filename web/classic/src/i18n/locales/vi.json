@@ -4345,6 +4345,8 @@
     "Enabled": "Đã bật",
     "Disabled": "Đã tắt",
     "Active": "Đang hoạt động",
+    "Status": "Trạng thái",
+    "Actions": "Hành động",
     "Hold Settlement": "Tạm giữ quyết toán",
     "Exclude": "Loại trừ",
     "Manual Review": "Rà soát thủ công",
@@ -4353,6 +4355,9 @@
     "Growth": "Tăng trưởng",
     "Excellent": "Xuất sắc",
     "短信模板": "Mẫu SMS",
-    "Base": "Cơ bản"
+    "Base": "Cơ bản",
+    "Self-Brush Strategy": "Chiến lược chống tự giao dịch",
+    "Bulk-Abuse Strategy": "Chiến lược chống lạm dụng hàng loạt",
+    "Processing Action": "Hành động xử lý"
   }
 }

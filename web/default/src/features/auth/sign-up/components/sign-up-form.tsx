@@ -337,6 +337,12 @@ export function SignUpForm({
               type='button'
               size='sm'
               variant={isSmsRegisterMode ? 'default' : 'ghost'}
+              className={cn(
+                'border transition-colors',
+                isSmsRegisterMode
+                  ? 'border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              )}
               onClick={() => handleRegisterModeChange('sms')}
             >
               {t('Phone registration')}

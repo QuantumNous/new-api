@@ -4732,6 +4732,9 @@
     "Observe": "Theo dõi",
     "Qualified": "Đạt điều kiện",
     "SMS template": "Mẫu SMS",
-    "Base": "Cơ bản"
+    "Base": "Cơ bản",
+    "Self-Brush Strategy": "Chiến lược chống tự giao dịch",
+    "Bulk-Abuse Strategy": "Chiến lược chống lạm dụng hàng loạt",
+    "Processing Action": "Hành động xử lý"
   }
 }

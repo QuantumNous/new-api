@@ -3811,6 +3811,8 @@
     "Enabled": "Activé",
     "Disabled": "Désactivé",
     "Active": "Actif",
+    "Status": "Statut",
+    "Actions": "Actions",
     "Hold Settlement": "Suspendre le règlement",
     "Exclude": "Exclure",
     "Manual Review": "Révision manuelle",
@@ -3819,6 +3821,9 @@
     "Growth": "Croissance",
     "Excellent": "Excellent",
     "短信模板": "Modèle SMS",
-    "Base": "Base"
+    "Base": "Base",
+    "Self-Brush Strategy": "Stratégie anti-auto-usage",
+    "Bulk-Abuse Strategy": "Stratégie anti-abus massif",
+    "Processing Action": "Action de traitement"
   }
 }

@@ -958,11 +958,11 @@ const AffiliateAdmin = () => {
             />
             <div className='flex items-end h-full pt-[30px]'>
               <Button
-                className='w-full md:min-w-[120px]'
+                className='w-full md:min-w-[84px]'
                 htmlType='submit'
                 type='primary'
               >
-                {t('筛选规则集')}
+                {t('筛选')}
               </Button>
             </div>
           </div>

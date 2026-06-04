@@ -4732,6 +4732,9 @@
     "Observe": "Observer",
     "Qualified": "Qualifié",
     "SMS template": "Modèle SMS",
-    "Base": "Base"
+    "Base": "Base",
+    "Self-Brush Strategy": "Stratégie anti-auto-usage",
+    "Bulk-Abuse Strategy": "Stratégie anti-abus massif",
+    "Processing Action": "Action de traitement"
   }
 }

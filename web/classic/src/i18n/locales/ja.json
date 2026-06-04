@@ -3780,6 +3780,8 @@
     "Enabled": "有効",
     "Disabled": "無効",
     "Active": "アクティブ",
+    "Status": "ステータス",
+    "Actions": "操作",
     "Hold Settlement": "精算保留",
     "Exclude": "除外",
     "Manual Review": "手動レビュー",
@@ -3788,6 +3790,9 @@
     "Growth": "成長",
     "Excellent": "優秀",
     "短信模板": "SMSテンプレート",
-    "Base": "基本"
+    "Base": "基本",
+    "Self-Brush Strategy": "自己利用対策",
+    "Bulk-Abuse Strategy": "大量不正対策",
+    "Processing Action": "処理アクション"
   }
 }

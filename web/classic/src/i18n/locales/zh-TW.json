@@ -3804,6 +3804,8 @@
     "Enabled": "已啟用",
     "Disabled": "已停用",
     "Active": "生效",
+    "Status": "狀態",
+    "Actions": "操作",
     "Hold Settlement": "暫緩結算",
     "Exclude": "剔除",
     "Manual Review": "人工覆核",
@@ -3812,6 +3814,9 @@
     "Growth": "成長",
     "Excellent": "優秀",
     "短信模板": "簡訊模板",
-    "Base": "基礎"
+    "Base": "基礎",
+    "Self-Brush Strategy": "自刷策略",
+    "Bulk-Abuse Strategy": "批量濫用策略",
+    "Processing Action": "處理動作"
   }
 }

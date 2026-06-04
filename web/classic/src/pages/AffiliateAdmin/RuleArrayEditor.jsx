@@ -331,19 +331,19 @@ const RuleTable = ({
       <table className='min-w-full border-collapse text-sm'>
         <thead className='bg-semi-color-fill-0'>
           <tr>
-            <th className='w-14 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
+            <th className='w-14 whitespace-nowrap border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
               #
             </th>
             {columns.map((key) => (
               <th
                 key={key}
-                className='min-w-[144px] border-b px-3 py-2 text-left font-medium text-semi-color-text-2'
+                className='min-w-[144px] whitespace-nowrap border-b px-3 py-2 text-left font-medium text-semi-color-text-2'
               >
                 {t(getRuleFieldLabel(key))}
               </th>
             ))}
             {!readOnly && (
-              <th className='w-24 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
+              <th className='w-24 whitespace-nowrap border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
                 {t('操作')}
               </th>
             )}

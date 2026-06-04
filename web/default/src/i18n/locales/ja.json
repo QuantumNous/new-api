@@ -4732,6 +4732,9 @@
     "Observe": "観察",
     "Qualified": "適格",
     "SMS template": "SMSテンプレート",
-    "Base": "基本"
+    "Base": "基本",
+    "Self-Brush Strategy": "自己利用対策",
+    "Bulk-Abuse Strategy": "大量不正対策",
+    "Processing Action": "処理アクション"
   }
 }

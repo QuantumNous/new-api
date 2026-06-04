@@ -4732,6 +4732,9 @@
     "Observe": "Наблюдение",
     "Qualified": "Квалифицированный",
     "SMS template": "SMS-шаблон",
-    "Base": "Базовый"
+    "Base": "Базовый",
+    "Self-Brush Strategy": "Стратегия против самонакрутки",
+    "Bulk-Abuse Strategy": "Стратегия против массовых злоупотреблений",
+    "Processing Action": "Действие обработки"
   }
 }

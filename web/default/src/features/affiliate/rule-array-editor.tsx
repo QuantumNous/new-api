@@ -346,19 +346,19 @@ function RuleTable(props: {
       <table className='min-w-full border-collapse text-sm'>
         <thead className='bg-muted/60'>
           <tr>
-            <th className='text-muted-foreground w-14 border-b px-3 py-2 text-left font-medium'>
+            <th className='text-muted-foreground w-14 border-b px-3 py-2 text-left font-medium whitespace-nowrap'>
               #
             </th>
             {columns.map((key) => (
               <th
                 key={key}
-                className='text-muted-foreground min-w-36 border-b px-3 py-2 text-left font-medium'
+                className='text-muted-foreground min-w-36 border-b px-3 py-2 text-left font-medium whitespace-nowrap'
               >
                 {t(getRuleFieldLabel(key))}
               </th>
             ))}
             {!props.readOnly && (
-              <th className='text-muted-foreground w-24 border-b px-3 py-2 text-left font-medium'>
+              <th className='text-muted-foreground w-24 border-b px-3 py-2 text-left font-medium whitespace-nowrap'>
                 {t('Actions')}
               </th>
             )}

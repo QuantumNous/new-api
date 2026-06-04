@@ -463,7 +463,12 @@ export function UserAuthForm({
             <Button
               type='button'
               variant={authMode === 'sms' ? 'secondary' : 'ghost'}
-              className='h-9 gap-2'
+              className={cn(
+                'h-9 gap-2 border transition-colors',
+                authMode === 'sms'
+                  ? 'border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              )}
               onClick={() => setAuthMode('sms')}
             >
               <Smartphone className='h-4 w-4' />

@@ -2757,6 +2757,8 @@
     "Enabled": "已启用",
     "Disabled": "已禁用",
     "Active": "生效",
+    "Status": "状态",
+    "Actions": "操作",
     "Hold Settlement": "暂缓结算",
     "Exclude": "剔除",
     "Manual Review": "人工复核",
