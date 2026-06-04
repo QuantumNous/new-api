@@ -65,6 +65,7 @@ func BuildSeedanceTaskResponseFromNewAPI(body []byte) ([]byte, error) {
 		}
 	}
 	replaceResponseIDWithTaskID(resp)
+	removeInternalResponseFields(resp)
 	if status, ok := resp["status"].(string); ok {
 		resp["status"] = mapSeedanceStatus(status)
 	}
@@ -93,6 +94,15 @@ func replaceResponseIDWithTaskID(resp map[string]any) {
 		resp["upstream_id"] = existingID
 	}
 	resp["id"] = taskID
+}
+
+func removeInternalResponseFields(resp map[string]any) {
+	delete(resp, "user_id")
+	delete(resp, "channel_id")
+	delete(resp, "properties")
+	delete(resp, "platform")
+	delete(resp, "group")
+	delete(resp, "quota")
 }
 
 func normalizeSeedanceTaskResponse(src map[string]any) map[string]any {

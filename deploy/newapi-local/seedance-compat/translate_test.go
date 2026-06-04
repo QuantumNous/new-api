@@ -219,6 +219,24 @@ func TestBuildSeedanceTaskResponseFromWrappedNewAPI(t *testing.T) {
 	if decoded["generate_audio"] != false {
 		t.Fatalf("unexpected generate_audio: %#v", decoded["generate_audio"])
 	}
+	if _, exists := decoded["user_id"]; exists {
+		t.Fatalf("unexpected user_id: %#v", decoded["user_id"])
+	}
+	if _, exists := decoded["channel_id"]; exists {
+		t.Fatalf("unexpected channel_id: %#v", decoded["channel_id"])
+	}
+	if _, exists := decoded["properties"]; exists {
+		t.Fatalf("unexpected properties: %#v", decoded["properties"])
+	}
+	if _, exists := decoded["platform"]; exists {
+		t.Fatalf("unexpected platform: %#v", decoded["platform"])
+	}
+	if _, exists := decoded["group"]; exists {
+		t.Fatalf("unexpected group: %#v", decoded["group"])
+	}
+	if _, exists := decoded["quota"]; exists {
+		t.Fatalf("unexpected quota: %#v", decoded["quota"])
+	}
 	content, ok := decoded["content"].(map[string]any)
 	if !ok || content["video_url"] != "https://example.com/video.mp4" {
 		t.Fatalf("unexpected content: %#v", decoded["content"])
