@@ -294,6 +294,8 @@ export const STATIC_I18N_KEYS = [
   // Paddle review website footer links
   'footer.newapi.projectAttributionSuffix',
   'Support: support@flatkey.ai',
+  'TRUSTED & VERIFIED BY',
+  'Email: support@flatkey.ai',
 
   // Upstream model updates
   'Upstream Model Updates',

@@ -23,15 +23,19 @@ import { LegalDocument } from './legal-document'
 
 export function RefundPolicy() {
   const { i18n, t } = useTranslation()
+  const language = i18n.resolvedLanguage
+  const locale = language?.toLowerCase().split('-')[0]
+
   return (
     <LegalDocument
       title={t('Refund Policy')}
-      queryKey='refund-policy'
+      queryKey={`refund-policy-${locale ?? 'en'}`}
       fetchDocument={getRefundPolicy}
       emptyMessage={t(
         'The administrator has not configured a refund policy yet.'
       )}
-      defaultContent={getDefaultLegalDocument('refund', i18n.resolvedLanguage)}
+      defaultContent={getDefaultLegalDocument('refund', language)}
+      preferDefaultContent={locale !== undefined && locale !== 'en'}
     />
   )
 }

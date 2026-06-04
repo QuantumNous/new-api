@@ -23,15 +23,19 @@ import { LegalDocument } from './legal-document'
 
 export function UserAgreement() {
   const { i18n, t } = useTranslation()
+  const language = i18n.resolvedLanguage
+  const locale = language?.toLowerCase().split('-')[0]
+
   return (
     <LegalDocument
       title={t('Terms of Service')}
-      queryKey='user-agreement'
+      queryKey={`user-agreement-${locale ?? 'en'}`}
       fetchDocument={getUserAgreement}
       emptyMessage={t(
         'The administrator has not configured a user agreement yet.'
       )}
-      defaultContent={getDefaultLegalDocument('terms', i18n.resolvedLanguage)}
+      defaultContent={getDefaultLegalDocument('terms', language)}
+      preferDefaultContent={locale !== undefined && locale !== 'en'}
     />
   )
 }

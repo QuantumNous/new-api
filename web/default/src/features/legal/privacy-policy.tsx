@@ -23,15 +23,19 @@ import { LegalDocument } from './legal-document'
 
 export function PrivacyPolicy() {
   const { i18n, t } = useTranslation()
+  const language = i18n.resolvedLanguage
+  const locale = language?.toLowerCase().split('-')[0]
+
   return (
     <LegalDocument
       title={t('Privacy Policy')}
-      queryKey='privacy-policy'
+      queryKey={`privacy-policy-${locale ?? 'en'}`}
       fetchDocument={getPrivacyPolicy}
       emptyMessage={t(
         'The administrator has not configured a privacy policy yet.'
       )}
-      defaultContent={getDefaultLegalDocument('privacy', i18n.resolvedLanguage)}
+      defaultContent={getDefaultLegalDocument('privacy', language)}
+      preferDefaultContent={locale !== undefined && locale !== 'en'}
     />
   )
 }
