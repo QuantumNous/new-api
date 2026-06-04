@@ -19,6 +19,10 @@ const (
 	SMSSignatureStatusRejected = "rejected"
 )
 
+func SMSVerificationPurpose(scene string) string {
+	return "sms:" + strings.TrimSpace(scene)
+}
+
 type SMSVerificationTemplateConfig struct {
 	Signature             string
 	SignatureReviewStatus string

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,12 +10,147 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type adminTestSMSRequest struct {
 	Phone string `json:"phone"`
 	Scene string `json:"scene"`
 	Code  string `json:"code"`
+}
+
+type smsRegisterRequest struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Phone            string `json:"phone"`
+	VerificationCode string `json:"verification_code"`
+	AffCode          string `json:"aff_code"`
+}
+
+func SMSRegister(c *gin.Context) {
+	if !common.RegisterEnabled {
+		common.ApiErrorMsg(c, "Register is disabled")
+		return
+	}
+	if !common.SMSEnabled {
+		common.ApiErrorMsg(c, "SMS is disabled")
+		return
+	}
+	var req smsRegisterRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	phone, err := common.NormalizePhone(req.Phone)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !common.VerifyCodeWithKey(phone, req.VerificationCode, common.SMSVerificationPurpose(common.SMSSceneRegister)) {
+		common.ApiErrorMsg(c, "SMS verification code is invalid")
+		return
+	}
+
+	user := model.User{
+		Username: req.Username,
+		Password: req.Password,
+	}
+	if err := common.Validate.Struct(&user); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	exist, err := model.CheckUserExistOrDeleted(user.Username, "")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if exist {
+		common.ApiErrorMsg(c, "user exists")
+		return
+	}
+	if err := rejectExistingActiveSMSPhoneBinding(model.DB, phone); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	inviteCtx, err := resolveAffiliateInviteContextForRegistration(model.DB, affiliateRegistrationAttributionInput{
+		InviteCode:     req.AffCode,
+		RegisterMethod: service.AffiliateRegisterMethodSMS,
+		Provider:       common.SMSProviderName,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	inviterId := 0
+	if inviteCtx != nil {
+		inviterId = inviteCtx.InviterUserId
+	}
+	cleanUser := model.User{
+		Username:    user.Username,
+		Password:    user.Password,
+		DisplayName: user.Username,
+		InviterId:   inviterId,
+		Role:        common.RoleCommonUser,
+	}
+	inviteeQuota := affiliateInviteeQuotaForContext(inviteCtx)
+	inviterQuota := affiliateInviterQuotaForContext(inviteCtx)
+	if err := cleanUser.InsertWithInviteQuotas(inviterId, inviteeQuota, inviterQuota); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var insertedUser model.User
+	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if _, err := service.BindUserPhone(model.DB, service.UserPhoneBindingInput{
+		UserID:   insertedUser.Id,
+		Phone:    phone,
+		Provider: common.SMSProviderName,
+	}); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if _, err := recordAffiliateInviteAttributionForRegistration(model.DB, inviteCtx, affiliateRegistrationAttributionInput{
+		InviteeUserId:  insertedUser.Id,
+		RegisterMethod: service.AffiliateRegisterMethodSMS,
+		Provider:       common.SMSProviderName,
+		InitialQuota:   affiliateInviteInitialQuotaForContext(inviteCtx),
+	}); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.DeleteKey(phone, common.SMSVerificationPurpose(common.SMSSceneRegister))
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func rejectExistingActiveSMSPhoneBinding(db *gorm.DB, phone string) error {
+	if db == nil {
+		return errors.New("nil db")
+	}
+	phoneHash := service.HashPhoneForBinding(phone)
+	if phoneHash == "" {
+		return errors.New("invalid phone")
+	}
+	var existing model.UserPhoneBinding
+	err := db.
+		Where("phone_hash = ? AND status = ?", phoneHash, model.UserPhoneBindingStatusActive).
+		First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return errors.New("phone already bound")
 }
 
 func AdminTestSMS(c *gin.Context) {

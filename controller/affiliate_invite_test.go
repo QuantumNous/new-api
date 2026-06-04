@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -329,6 +330,92 @@ func TestPasswordRegisterKeepsNormalInviteeQuotaForNonAffiliateCode(t *testing.T
 	}
 }
 
+func TestSMSRegisterAppliesAffiliateAttributionAndBindsPhone(t *testing.T) {
+	db := newAffiliateRegistrationAttributionTestDB(t)
+	common.RegisterEnabled = true
+	common.SMSEnabled = true
+	common.AffiliateEnabled = true
+	common.QuotaForNewUser = 100
+	common.QuotaForInvitee = 111
+	common.AffiliateQuotaForInvitee = 333
+	common.AffiliateLevelOneQuotaForInvitee = 444
+	paymentSetting := operation_setting.GetPaymentSetting()
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	seedAffiliateInviter(t, db, 109, "AFF109")
+
+	phone := "13800138000"
+	common.RegisterVerificationCodeWithKey(phone, "123456", common.SMSVerificationPurpose(common.SMSSceneRegister))
+	t.Cleanup(func() {
+		common.DeleteKey(phone, common.SMSVerificationPurpose(common.SMSSceneRegister))
+	})
+	body := bytes.NewBufferString(`{
+		"username":"smsinvitee109",
+		"password":"password109",
+		"phone":"13800138000",
+		"verification_code":"123456",
+		"aff_code":"AFF109"
+	}`)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/sms/register", body)
+
+	SMSRegister(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected successful sms register, got %q", response.Message)
+	}
+
+	var invitee model.User
+	if err := db.Where("username = ?", "smsinvitee109").First(&invitee).Error; err != nil {
+		t.Fatalf("load sms invitee: %v", err)
+	}
+	if invitee.Quota != 544 || invitee.InviterId != 109 {
+		t.Fatalf("expected new user quota plus level-one affiliate invitee quota, got %+v", invitee)
+	}
+
+	var binding model.UserPhoneBinding
+	if err := db.Where("user_id = ? AND status = ?", invitee.Id, model.UserPhoneBindingStatusActive).First(&binding).Error; err != nil {
+		t.Fatalf("expected active phone binding: %v", err)
+	}
+	if binding.PhoneMasked != "138****8000" || binding.PhoneHash == "" || binding.Provider != common.SMSProviderName {
+		t.Fatalf("unexpected phone binding: %+v", binding)
+	}
+	bindingPayload, err := json.Marshal(binding)
+	if err != nil {
+		t.Fatalf("marshal binding: %v", err)
+	}
+	if strings.Contains(string(bindingPayload), phone) {
+		t.Fatalf("phone binding leaked raw phone: %s", string(bindingPayload))
+	}
+
+	var event model.AffiliateInviteEvent
+	if err := db.Where("invitee_user_id = ?", invitee.Id).First(&event).Error; err != nil {
+		t.Fatalf("expected sms invite event: %v", err)
+	}
+	if event.InviterUserId != 109 || event.InviteSource != service.AffiliateInviteSourceAffiliate || event.RegisterMethod != service.AffiliateRegisterMethodSMS || event.Provider != common.SMSProviderName {
+		t.Fatalf("unexpected sms event attribution: %+v", event)
+	}
+	if event.InitialQuota != 444 || event.InitialQuotaRule != "affiliate_invite_level_1" {
+		t.Fatalf("unexpected sms quota event: %+v", event)
+	}
+
+	var relation model.AffiliateRelation
+	if err := db.Where("ancestor_user_id = ? AND descendant_user_id = ? AND depth = ?", 109, invitee.Id, 1).First(&relation).Error; err != nil {
+		t.Fatalf("expected sms affiliate relation: %v", err)
+	}
+}
+
 func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	originalDB := model.DB
@@ -337,6 +424,7 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 	originalRegisterEnabled := common.RegisterEnabled
 	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
 	originalEmailVerificationEnabled := common.EmailVerificationEnabled
+	originalSMSEnabled := common.SMSEnabled
 	originalQuotaForNewUser := common.QuotaForNewUser
 	originalQuotaForInviter := common.QuotaForInviter
 	originalQuotaForInvitee := common.QuotaForInvitee
@@ -352,6 +440,7 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	models := append([]interface{}{&model.User{}, &model.Log{}}, model.AffiliateSidecarModels()...)
+	models = append(models, model.SMSSidecarModels()...)
 	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate test models: %v", err)
 	}
@@ -365,6 +454,7 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 		common.RegisterEnabled = originalRegisterEnabled
 		common.PasswordRegisterEnabled = originalPasswordRegisterEnabled
 		common.EmailVerificationEnabled = originalEmailVerificationEnabled
+		common.SMSEnabled = originalSMSEnabled
 		common.QuotaForNewUser = originalQuotaForNewUser
 		common.QuotaForInviter = originalQuotaForInviter
 		common.QuotaForInvitee = originalQuotaForInvitee
