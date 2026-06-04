@@ -17,12 +17,46 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
-import { CHANNEL_STATUS, MODEL_FETCHABLE_TYPES } from '../constants'
+import {
+  CHANNEL_STATUS,
+  ERROR_MESSAGES,
+  MODEL_FETCHABLE_TYPES,
+} from '../constants'
 import type { Channel } from '../types'
 
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
+
+function parseOptionalJsonObject(value: string | undefined) {
+  const trimmed = value?.trim()
+  if (!trimmed) return { valid: true as const }
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { valid: false as const, message: 'JSON must be an object' }
+    }
+    return { valid: true as const }
+  } catch {
+    return { valid: false as const, message: ERROR_MESSAGES.INVALID_JSON }
+  }
+}
+
+function optionalJsonObjectString() {
+  return z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      const result = parseOptionalJsonObject(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message,
+        })
+      }
+    })
+}
 
 export const channelFormSchema = z.object({
   name: z.string().min(1, 'Channel name is required'),
@@ -32,21 +66,21 @@ export const channelFormSchema = z.object({
   openai_organization: z.string().optional(),
   models: z.string().min(1, 'At least one model is required'),
   group: z.array(z.string()).min(1, 'At least one group is required'),
-  model_mapping: z.string().optional(),
+  model_mapping: optionalJsonObjectString(),
   priority: z.number().optional(),
   weight: z.number().optional(),
   test_model: z.string().optional(),
   auto_ban: z.number().optional(),
   status: z.number(),
-  status_code_mapping: z.string().optional(),
+  status_code_mapping: optionalJsonObjectString(),
   tag: z.string().optional(),
   remark: z
     .string()
     .max(255, 'Remark must be less than 255 characters')
     .optional(),
   setting: z.string().optional(),
-  param_override: z.string().optional(),
-  header_override: z.string().optional(),
+  param_override: optionalJsonObjectString(),
+  header_override: optionalJsonObjectString(),
   settings: z.string().optional(),
   other: z.string().optional(),
   // Multi-key options (not sent to backend directly)

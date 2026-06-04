@@ -24,7 +24,7 @@ import {
   useCallback,
   useRef,
 } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -151,6 +151,7 @@ import {
   extractMappingSourceModels,
   hasModelConfigChanged,
   findMissingModelsInMapping,
+  hasAdvancedSettingsErrors,
   validateModelMappingJson,
 } from '../../lib'
 import {
@@ -1092,6 +1093,16 @@ export function ChannelMutateDrawer({
     }
   }, [])
 
+  const onInvalidSubmit = useCallback(
+    (errors: FieldErrors<ChannelFormValues>) => {
+      if (hasAdvancedSettingsErrors(errors)) {
+        handleAdvancedSettingsOpenChange(true)
+        toast.error(t(ERROR_MESSAGES.INVALID_JSON))
+      }
+    },
+    [handleAdvancedSettingsOpenChange, t]
+  )
+
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -1122,7 +1133,7 @@ export function ChannelMutateDrawer({
           <Form {...form}>
             <form
               id='channel-form'
-              onSubmit={form.handleSubmit(onSubmit)}
+              onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)}
               className={sideDrawerFormClassName('gap-5')}
             >
               {/* ── Basic Information ── */}
