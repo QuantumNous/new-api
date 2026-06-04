@@ -57,6 +57,7 @@ const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const CostReport = lazy(() => import('./pages/CostReport'));
+const QueryKey = lazy(() => import('./pages/QueryKey'));
 
 function DynamicOAuth2Callback() {
   const { provider } = useParams();
@@ -157,6 +158,16 @@ function App() {
                 <CostReport />
               </Suspense>
             </RootRoute>
+          }
+        />
+        <Route
+          path='/console/query-key'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <QueryKey />
+              </Suspense>
+            </AdminRoute>
           }
         />
         <Route

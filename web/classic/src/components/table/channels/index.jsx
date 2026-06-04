@@ -35,7 +35,6 @@ import EditTagModal from './modals/EditTagModal';
 import MultiKeyManageModal from './modals/MultiKeyManageModal';
 import ChannelUpstreamUpdateModal from './modals/ChannelUpstreamUpdateModal';
 import BatchImportModal from './modals/BatchImportModal';
-import BatchKeyQueryModal from './modals/BatchKeyQueryModal';
 import { createCardProPagination } from '../../../helpers/utils';
 
 const ChannelsPage = () => {
@@ -79,12 +78,6 @@ const ChannelsPage = () => {
         visible={channelsData.showBatchImport}
         onCancel={() => channelsData.setShowBatchImport(false)}
         onSuccess={channelsData.refresh}
-      />
-      <BatchKeyQueryModal
-        visible={channelsData.showBatchKeyQuery}
-        onCancel={() => channelsData.setShowBatchKeyQuery(false)}
-        onApply={channelsData.applyBatchKeyQuery}
-        loading={channelsData.loading || channelsData.searching}
       />
 
       {/* Main Content */}

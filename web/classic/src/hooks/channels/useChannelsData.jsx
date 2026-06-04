@@ -66,13 +66,6 @@ export const useChannelsData = () => {
   const [batchSetTagValue, setBatchSetTagValue] = useState('');
   const [compactMode, setCompactMode] = useTableCompactMode('channels');
   const [showBatchImport, setShowBatchImport] = useState(false);
-  const [showBatchKeyQuery, setShowBatchKeyQuery] = useState(false);
-  const [batchKeyQuery, setBatchKeyQuery] = useState({
-    active: false,
-    keys: [],
-    totalInput: 0,
-    duplicateCount: 0,
-  });
 
   // Column visibility states
   const [visibleColumns, setVisibleColumns] = useState({});
@@ -329,9 +322,6 @@ export const useChannelsData = () => {
     setTypeCounts({ ...typeCounts, all: sumAll });
   };
 
-  const hasBatchKeyQuery = (query = batchKeyQuery) =>
-    query?.active && Array.isArray(query.keys) && query.keys.length > 0;
-
   const executeChannelsQuery = async ({
     page = activePage,
     pageSz = pageSize,
@@ -339,39 +329,18 @@ export const useChannelsData = () => {
     tagMode = enableTagMode,
     typeKey = activeTypeKey,
     statusF = statusFilter,
-    batchQuery = batchKeyQuery,
     showSearching = false,
   } = {}) => {
     const reqId = ++requestCounter.current;
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
-    const batchActive = hasBatchKeyQuery(batchQuery);
 
     setLoading(true);
     if (showSearching) setSearching(true);
 
     try {
       let res;
-      let formatTagMode = tagMode;
 
-      if (batchActive) {
-        formatTagMode = false;
-        res = await API.post('/api/channel/search/keys', {
-          keys: batchQuery.keys,
-          keyword: searchKeyword,
-          group: searchGroup,
-          model: searchModel,
-          status: statusF !== 'all' ? statusF : '',
-          type: typeKey !== 'all' ? typeKey : null,
-          id_sort: sortFlag,
-          p: page,
-          page_size: pageSz,
-          tag_mode: false,
-        });
-      } else if (
-        searchKeyword !== '' ||
-        searchGroup !== '' ||
-        searchModel !== ''
-      ) {
+      if (searchKeyword !== '' || searchGroup !== '' || searchModel !== '') {
         const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
         const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
         const params = new URLSearchParams({
@@ -402,7 +371,7 @@ export const useChannelsData = () => {
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
         updateTypeCounts(type_counts);
-        setChannelFormat(items, formatTagMode);
+        setChannelFormat(items, tagMode);
         setChannelCount(total);
         setActivePage(page);
         return true;
@@ -455,63 +424,6 @@ export const useChannelsData = () => {
       statusF,
       showSearching: true,
     });
-  };
-
-  const applyBatchKeyQuery = async ({
-    keys,
-    totalInput = keys.length,
-    duplicateCount = 0,
-  }) => {
-    const nextBatchQuery = {
-      active: true,
-      keys,
-      totalInput,
-      duplicateCount,
-    };
-
-    if (enableTagMode) {
-      localStorage.setItem('enable-tag-mode', 'false');
-      setEnableTagMode(false);
-      showInfo(t('批量密钥查询暂不支持标签模式，已关闭标签聚合模式'));
-    }
-
-    const success = await executeChannelsQuery({
-      page: 1,
-      pageSz: pageSize,
-      sortFlag: idSort,
-      tagMode: false,
-      typeKey: activeTypeKey,
-      statusF: statusFilter,
-      batchQuery: nextBatchQuery,
-      showSearching: true,
-    });
-    if (success) {
-      setBatchKeyQuery(nextBatchQuery);
-      setActivePage(1);
-      showSuccess(t('批量密钥查询已启用'));
-    }
-    return success;
-  };
-
-  const clearBatchKeyQuery = async () => {
-    const nextBatchQuery = {
-      active: false,
-      keys: [],
-      totalInput: 0,
-      duplicateCount: 0,
-    };
-    setBatchKeyQuery(nextBatchQuery);
-    setActivePage(1);
-    const success = await executeChannelsQuery({
-      page: 1,
-      pageSz: pageSize,
-      sortFlag: idSort,
-      tagMode: enableTagMode,
-      typeKey: activeTypeKey,
-      statusF: statusFilter,
-      batchQuery: nextBatchQuery,
-    });
-    if (success) showInfo(t('已清除批量密钥查询'));
   };
 
   // Refresh
@@ -1258,10 +1170,6 @@ export const useChannelsData = () => {
     setBatchSetTagValue,
     showBatchImport,
     setShowBatchImport,
-    showBatchKeyQuery,
-    setShowBatchKeyQuery,
-    batchKeyQuery,
-    hasActiveBatchKeyQuery: hasBatchKeyQuery(),
 
     // Column states
     visibleColumns,
@@ -1338,8 +1246,6 @@ export const useChannelsData = () => {
     batchTestModels,
     handleCloseModal,
     getFormValues,
-    applyBatchKeyQuery,
-    clearBatchKeyQuery,
 
     // Column functions
     handleColumnVisibilityChange,

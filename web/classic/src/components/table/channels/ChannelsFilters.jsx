@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form, Tag } from '@douyinfe/semi-ui';
+import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch, IconUpload } from '@douyinfe/semi-icons';
 
 const ChannelsFilters = ({
@@ -35,10 +35,6 @@ const ChannelsFilters = ({
   loading,
   searching,
   setShowBatchImport,
-  setShowBatchKeyQuery,
-  batchKeyQuery,
-  hasActiveBatchKeyQuery,
-  clearBatchKeyQuery,
   t,
 }) => {
   return (
@@ -75,18 +71,6 @@ const ChannelsFilters = ({
           size='small'
           type='tertiary'
           className='w-full md:w-auto'
-          icon={<IconSearch />}
-          onClick={() => {
-            if (setShowBatchKeyQuery) setShowBatchKeyQuery(true);
-          }}
-        >
-          {t('批量查密钥')}
-        </Button>
-
-        <Button
-          size='small'
-          type='tertiary'
-          className='w-full md:w-auto'
           onClick={refresh}
         >
           {t('刷新')}
@@ -103,25 +87,6 @@ const ChannelsFilters = ({
       </div>
 
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto order-1 md:order-2'>
-        {hasActiveBatchKeyQuery ? (
-          <div className='flex items-center gap-2 w-full md:w-auto'>
-            <Tag color='blue' className='w-full md:w-auto text-center'>
-              {t('批量密钥查询中：{{count}} 个密钥').replace(
-                '{{count}}',
-                batchKeyQuery?.keys?.length || 0,
-              )}
-            </Tag>
-            <Button
-              size='small'
-              type='tertiary'
-              loading={loading || searching}
-              onClick={clearBatchKeyQuery}
-              className='w-full md:w-auto'
-            >
-              {t('清除批量查询')}
-            </Button>
-          </div>
-        ) : null}
         <Form
           initValues={formInitValues}
           getFormApi={(api) => setFormApi(api)}

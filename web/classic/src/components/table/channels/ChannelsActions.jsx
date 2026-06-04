@@ -47,7 +47,6 @@ const ChannelsActions = ({
   setEnableBatchDelete,
   enableTagMode,
   setEnableTagMode,
-  hasActiveBatchKeyQuery,
   statusFilter,
   setStatusFilter,
   getFormValues,
@@ -286,7 +285,6 @@ const ChannelsActions = ({
             <Switch
               size='small'
               checked={enableTagMode}
-              disabled={hasActiveBatchKeyQuery}
               onChange={(v) => {
                 localStorage.setItem('enable-tag-mode', v + '');
                 setEnableTagMode(v);
