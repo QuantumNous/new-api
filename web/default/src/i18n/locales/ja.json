@@ -4718,6 +4718,12 @@
     "Please enter the SMS verification code": "SMS認証コードを入力してください",
     "SMS verification code sent": "SMS認証コードを送信しました",
     "Failed to send SMS verification code": "SMS認証コードの送信に失敗しました",
-    "Send SMS code": "SMSコードを送信"
+    "Send SMS code": "SMSコードを送信",
+    "Password login": "パスワードログイン",
+    "Phone login": "電話番号ログイン",
+    "Enter SMS verification code": "SMS認証コードを入力",
+    "Please enter SMS verification code": "SMS認証コードを入力してください",
+    "Resend in {{seconds}}s": "{{seconds}}秒後に再送信",
+    "Sign in with phone": "電話番号でログイン"
   }
 }

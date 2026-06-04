@@ -4718,6 +4718,12 @@
     "Please enter the SMS verification code": "Please enter the SMS verification code",
     "SMS verification code sent": "SMS verification code sent",
     "Failed to send SMS verification code": "Failed to send SMS verification code",
-    "Send SMS code": "Send SMS code"
+    "Send SMS code": "Send SMS code",
+    "Password login": "Password login",
+    "Phone login": "Phone login",
+    "Enter SMS verification code": "Enter SMS verification code",
+    "Please enter SMS verification code": "Please enter SMS verification code",
+    "Resend in {{seconds}}s": "Resend in {{seconds}}s",
+    "Sign in with phone": "Sign in with phone"
   }
 }

@@ -50,6 +50,12 @@ export interface SmsRegisterPayload {
   turnstile?: string
 }
 
+export interface SmsPhoneLoginPayload {
+  phone: string
+  verification_code: string
+  turnstile?: string
+}
+
 export interface PasswordResetPayload {
   email: string
   turnstile?: string

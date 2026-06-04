@@ -3792,6 +3792,8 @@
     "This level has no rules for this rule type.": "Ce niveau ne comporte aucune règle pour ce type.",
     "可在可编辑规则表格与原始 JSON 文本之间切换。": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots.",
     "使用 手机号 注册": "S'inscrire avec un numero de telephone",
+    "使用 手机号 登录": "Se connecter avec un numero de telephone",
+    "手机号登录": "Connexion par numero de telephone",
     "手机号": "Numero de telephone",
     "输入手机号": "Saisissez le numero de telephone",
     "短信验证码": "Code de verification SMS",
@@ -3799,6 +3801,9 @@
     "请输入手机号": "Veuillez saisir le numero de telephone",
     "请输入短信验证码": "Veuillez saisir le code de verification SMS",
     "验证码发送成功，请检查短信！": "Code de verification envoye. Veuillez verifier vos SMS.",
-    "发送验证码失败，请重试": "Echec de l'envoi du code de verification. Veuillez reessayer."
+    "发送验证码": "Envoyer le code de verification",
+    "{{seconds}} 秒后重试": "Reessayer dans {{seconds}} s",
+    "发送验证码失败，请重试": "Echec de l'envoi du code de verification. Veuillez reessayer.",
+    "手机号登录失败，请重试": "Echec de la connexion par telephone. Veuillez reessayer."
   }
 }

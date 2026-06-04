@@ -24,6 +24,7 @@ import type {
   TwoFAPayload,
   RegisterPayload,
   SmsRegisterPayload,
+  SmsPhoneLoginPayload,
   ApiResponse,
 } from './types'
 
@@ -158,6 +159,56 @@ export async function smsRegister(
 ): Promise<ApiResponse> {
   const request = buildSmsRegisterRequest(payload)
   const res = await api.post(request.url, request.data, request.config)
+  return res.data
+}
+
+export function buildSmsLoginCodeRequest(phone: string, turnstile?: string) {
+  return {
+    url: '/api/user/sms/login/code',
+    data: {
+      phone,
+    },
+    config: {
+      params: {
+        turnstile: turnstile ?? '',
+      },
+    },
+  }
+}
+
+export function buildSmsPhoneLoginRequest(payload: SmsPhoneLoginPayload) {
+  return {
+    url: '/api/user/login/phone',
+    data: {
+      phone: payload.phone,
+      verification_code: payload.verification_code,
+    },
+    config: {
+      params: {
+        turnstile: payload.turnstile ?? '',
+      },
+    },
+  }
+}
+
+export async function sendSmsLoginCode(
+  phone: string,
+  turnstile?: string
+): Promise<ApiResponse> {
+  const request = buildSmsLoginCodeRequest(phone, turnstile)
+  const res = await api.post(request.url, request.data, request.config)
+  return res.data
+}
+
+export async function smsPhoneLogin(
+  payload: SmsPhoneLoginPayload
+): Promise<LoginResponse> {
+  const request = buildSmsPhoneLoginRequest(payload)
+  const res = await api.post<LoginResponse>(
+    request.url,
+    request.data,
+    request.config
+  )
   return res.data
 }
 

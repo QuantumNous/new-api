@@ -4718,6 +4718,12 @@
     "Please enter the SMS verification code": "Veuillez saisir le code de verification SMS",
     "SMS verification code sent": "Code de verification SMS envoye",
     "Failed to send SMS verification code": "Echec de l'envoi du code de verification SMS",
-    "Send SMS code": "Envoyer le code SMS"
+    "Send SMS code": "Envoyer le code SMS",
+    "Password login": "Connexion par mot de passe",
+    "Phone login": "Connexion par telephone",
+    "Enter SMS verification code": "Saisissez le code de verification SMS",
+    "Please enter SMS verification code": "Veuillez saisir le code de verification SMS",
+    "Resend in {{seconds}}s": "Renvoyer dans {{seconds}} s",
+    "Sign in with phone": "Se connecter par telephone"
   }
 }

@@ -4718,6 +4718,12 @@
     "Please enter the SMS verification code": "Введите SMS-код подтверждения",
     "SMS verification code sent": "SMS-код подтверждения отправлен",
     "Failed to send SMS verification code": "Не удалось отправить SMS-код подтверждения",
-    "Send SMS code": "Отправить SMS-код"
+    "Send SMS code": "Отправить SMS-код",
+    "Password login": "Вход по паролю",
+    "Phone login": "Вход по телефону",
+    "Enter SMS verification code": "Введите SMS-код подтверждения",
+    "Please enter SMS verification code": "Введите SMS-код подтверждения",
+    "Resend in {{seconds}}s": "Повторно через {{seconds}} с",
+    "Sign in with phone": "Войти по телефону"
   }
 }

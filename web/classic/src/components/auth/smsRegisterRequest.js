@@ -36,3 +36,36 @@ export function buildSmsRegisterRequest({
     },
   };
 }
+
+export function buildSmsLoginCodeRequest(phone, turnstileToken = '') {
+  return {
+    url: '/api/user/sms/login/code',
+    data: {
+      phone,
+    },
+    config: {
+      params: {
+        turnstile: turnstileToken || '',
+      },
+    },
+  };
+}
+
+export function buildSmsPhoneLoginRequest({
+  phone,
+  verificationCode,
+  turnstileToken = '',
+}) {
+  return {
+    url: '/api/user/login/phone',
+    data: {
+      phone,
+      verification_code: verificationCode,
+    },
+    config: {
+      params: {
+        turnstile: turnstileToken || '',
+      },
+    },
+  };
+}

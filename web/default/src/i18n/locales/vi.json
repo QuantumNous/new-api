@@ -4718,6 +4718,12 @@
     "Please enter the SMS verification code": "Vui long nhap ma xac minh SMS",
     "SMS verification code sent": "Da gui ma xac minh SMS",
     "Failed to send SMS verification code": "Khong the gui ma xac minh SMS",
-    "Send SMS code": "Gui ma SMS"
+    "Send SMS code": "Gui ma SMS",
+    "Password login": "Dang nhap bang mat khau",
+    "Phone login": "Dang nhap bang so dien thoai",
+    "Enter SMS verification code": "Nhap ma xac minh SMS",
+    "Please enter SMS verification code": "Vui long nhap ma xac minh SMS",
+    "Resend in {{seconds}}s": "Gui lai sau {{seconds}} giay",
+    "Sign in with phone": "Dang nhap bang so dien thoai"
   }
 }

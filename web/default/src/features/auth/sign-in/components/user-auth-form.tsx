@@ -21,7 +21,7 @@ import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
-import { Loader2, LogIn, KeyRound } from 'lucide-react'
+import { Loader2, LogIn, KeyRound, Smartphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -30,6 +30,7 @@ import {
   isPasskeySupported as detectPasskeySupport,
 } from '@/lib/passkey'
 import { cn } from '@/lib/utils'
+import { useCountdown } from '@/hooks/use-countdown'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
@@ -52,10 +53,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { login, wechatLoginByCode } from '@/features/auth/api'
+import {
+  login,
+  sendSmsLoginCode,
+  smsPhoneLogin,
+  wechatLoginByCode,
+} from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
-import { loginFormSchema } from '@/features/auth/constants'
+import { loginFormSchema, SMS_LOGIN_COUNTDOWN } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
@@ -74,6 +80,11 @@ export function UserAuthForm({
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [authMode, setAuthMode] = useState<'password' | 'sms'>('password')
+  const [smsPhone, setSmsPhone] = useState('')
+  const [smsVerificationCode, setSmsVerificationCode] = useState('')
+  const [isSendingSmsLoginCode, setIsSendingSmsLoginCode] = useState(false)
+  const [isSmsLoginLoading, setIsSmsLoginLoading] = useState(false)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
   const loginFailedMessage = t('Login failed')
 
@@ -85,6 +96,10 @@ export function UserAuthForm({
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
       true) !== false
+  const smsLoginEnabled = Boolean(
+    status?.sms_enabled ?? status?.data?.sms_enabled
+  )
+  const hasCredentialLogin = passwordLoginEnabled || smsLoginEnabled
   const {
     isTurnstileEnabled,
     turnstileSiteKey,
@@ -93,6 +108,9 @@ export function UserAuthForm({
     validateTurnstile,
   } = useTurnstile()
   const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
+  const smsLoginCountdown = useCountdown({
+    initialSeconds: SMS_LOGIN_COUNTDOWN,
+  })
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
@@ -126,6 +144,17 @@ export function UserAuthForm({
       .then(setPasskeySupported)
       .catch(() => setPasskeySupported(false))
   }, [])
+
+  useEffect(() => {
+    if (!passwordLoginEnabled && smsLoginEnabled) {
+      setAuthMode('sms')
+      return
+    }
+
+    if (!smsLoginEnabled && authMode === 'sms') {
+      setAuthMode('password')
+    }
+  }, [authMode, passwordLoginEnabled, smsLoginEnabled])
 
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
@@ -178,6 +207,81 @@ export function UserAuthForm({
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function handleSendSmsLoginCode() {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error(legalConsentErrorMessage)
+      return
+    }
+
+    const phone = smsPhone.trim()
+    if (!phone) {
+      toast.error(t('Please enter your phone number first'))
+      return
+    }
+
+    if (!validateTurnstile()) return
+
+    setIsSendingSmsLoginCode(true)
+    try {
+      const res = await sendSmsLoginCode(phone, turnstileToken)
+      if (res.success) {
+        smsLoginCountdown.start()
+        toast.success(t('SMS verification code sent'))
+      } else {
+        toast.error(res.message || t('Failed to send SMS verification code'))
+      }
+    } catch (_error) {
+      toast.error(t('Failed to send SMS verification code'))
+    } finally {
+      setIsSendingSmsLoginCode(false)
+    }
+  }
+
+  async function handleSmsPhoneLogin() {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error(legalConsentErrorMessage)
+      return
+    }
+
+    const phone = smsPhone.trim()
+    const verificationCode = smsVerificationCode.trim()
+    if (!phone) {
+      toast.error(t('Please enter your phone number first'))
+      return
+    }
+    if (!verificationCode) {
+      toast.error(t('Please enter SMS verification code'))
+      return
+    }
+
+    if (!validateTurnstile()) return
+
+    setIsSmsLoginLoading(true)
+    try {
+      const res = await smsPhoneLogin({
+        phone,
+        verification_code: verificationCode,
+        turnstile: turnstileToken,
+      })
+
+      if (res.success) {
+        if (res.data?.require_2fa) {
+          redirectTo2FA()
+          return
+        }
+
+        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
+        toast.success(t('Welcome back!'))
+      } else {
+        toast.error(res.message || loginFailedMessage)
+      }
+    } catch (_error) {
+      toast.error(loginFailedMessage)
+    } finally {
+      setIsSmsLoginLoading(false)
     }
   }
 
@@ -318,7 +422,11 @@ export function UserAuthForm({
       {/* OAuth Providers */}
       <OAuthProviders
         status={status}
-        disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        disabled={
+          isLoading ||
+          isSmsLoginLoading ||
+          (requiresLegalConsent && !agreedToLegal)
+        }
         onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
         isWeChatLoading={isWeChatSubmitting}
       />
@@ -328,13 +436,43 @@ export function UserAuthForm({
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(event) => {
+          if (authMode === 'sms') {
+            event.preventDefault()
+            void handleSmsPhoneLogin()
+            return
+          }
+
+          void form.handleSubmit(onSubmit)(event)
+        }}
         className={cn('grid gap-4', className)}
         {...props}
       >
         {hasAlternativeLogin && alternativeLoginMethods}
 
-        {passwordLoginEnabled && (
+        {passwordLoginEnabled && smsLoginEnabled && (
+          <div className='bg-muted grid grid-cols-2 gap-1 rounded-lg p-1'>
+            <Button
+              type='button'
+              variant={authMode === 'password' ? 'secondary' : 'ghost'}
+              className='h-9'
+              onClick={() => setAuthMode('password')}
+            >
+              {t('Password login')}
+            </Button>
+            <Button
+              type='button'
+              variant={authMode === 'sms' ? 'secondary' : 'ghost'}
+              className='h-9 gap-2'
+              onClick={() => setAuthMode('sms')}
+            >
+              <Smartphone className='h-4 w-4' />
+              {t('Phone login')}
+            </Button>
+          </div>
+        )}
+
+        {passwordLoginEnabled && authMode === 'password' && (
           <>
             {/* Username Field */}
             <FormField
@@ -387,17 +525,84 @@ export function UserAuthForm({
               {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
               {t('Sign in')}
             </Button>
-
-            {/* Turnstile */}
-            {isTurnstileEnabled && (
-              <div className='mt-2'>
-                <Turnstile
-                  siteKey={turnstileSiteKey}
-                  onVerify={setTurnstileToken}
-                />
-              </div>
-            )}
           </>
+        )}
+
+        {smsLoginEnabled && authMode === 'sms' && (
+          <div className='grid gap-3'>
+            <div className='grid gap-2'>
+              <Label htmlFor='sms-login-phone'>{t('Phone number')}</Label>
+              <Input
+                id='sms-login-phone'
+                value={smsPhone}
+                placeholder={t('Enter your phone number')}
+                autoComplete='tel'
+                onChange={(event) => setSmsPhone(event.target.value)}
+              />
+            </div>
+
+            <div className='grid gap-2'>
+              <Label htmlFor='sms-login-code'>
+                {t('SMS verification code')}
+              </Label>
+              <div className='flex gap-2'>
+                <Input
+                  id='sms-login-code'
+                  value={smsVerificationCode}
+                  placeholder={t('Enter SMS verification code')}
+                  autoComplete='one-time-code'
+                  onChange={(event) =>
+                    setSmsVerificationCode(event.target.value)
+                  }
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='min-w-32 gap-2'
+                  disabled={
+                    isSendingSmsLoginCode ||
+                    smsLoginCountdown.isActive ||
+                    (requiresLegalConsent && !agreedToLegal)
+                  }
+                  onClick={handleSendSmsLoginCode}
+                >
+                  {isSendingSmsLoginCode ? (
+                    <Loader2 className='h-4 w-4 animate-spin' />
+                  ) : null}
+                  {smsLoginCountdown.isActive
+                    ? t('Resend in {{seconds}}s', {
+                        seconds: smsLoginCountdown.secondsLeft,
+                      })
+                    : t('Send SMS code')}
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              type='button'
+              className='mt-2 w-full justify-center gap-2'
+              disabled={
+                isSmsLoginLoading || (requiresLegalConsent && !agreedToLegal)
+              }
+              onClick={handleSmsPhoneLogin}
+            >
+              {isSmsLoginLoading ? (
+                <Loader2 className='animate-spin' />
+              ) : (
+                <Smartphone />
+              )}
+              {t('Sign in with phone')}
+            </Button>
+          </div>
+        )}
+
+        {hasCredentialLogin && isTurnstileEnabled && (
+          <div className='mt-2'>
+            <Turnstile
+              siteKey={turnstileSiteKey}
+              onVerify={setTurnstileToken}
+            />
+          </div>
         )}
 
         <LegalConsent

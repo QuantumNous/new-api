@@ -4326,6 +4326,8 @@
     "This level has no rules for this rule type.": "Cấp này chưa có quy tắc cho loại này.",
     "可在可编辑规则表格与原始 JSON 文本之间切换。": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và văn bản JSON thô để chỉnh sửa hàng loạt.",
     "使用 手机号 注册": "Dang ky bang so dien thoai",
+    "使用 手机号 登录": "Dang nhap bang so dien thoai",
+    "手机号登录": "Dang nhap so dien thoai",
     "手机号": "So dien thoai",
     "输入手机号": "Nhap so dien thoai",
     "短信验证码": "Ma xac minh SMS",
@@ -4333,6 +4335,9 @@
     "请输入手机号": "Vui long nhap so dien thoai",
     "请输入短信验证码": "Vui long nhap ma xac minh SMS",
     "验证码发送成功，请检查短信！": "Da gui ma xac minh. Vui long kiem tra SMS.",
-    "发送验证码失败，请重试": "Khong the gui ma xac minh. Vui long thu lai."
+    "发送验证码": "Gui ma xac minh",
+    "{{seconds}} 秒后重试": "Thu lai sau {{seconds}} giay",
+    "发送验证码失败，请重试": "Khong the gui ma xac minh. Vui long thu lai.",
+    "手机号登录失败，请重试": "Dang nhap bang so dien thoai that bai. Vui long thu lai."
   }
 }

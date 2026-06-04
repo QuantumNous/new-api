@@ -4718,6 +4718,12 @@
     "Please enter the SMS verification code": "请输入短信验证码",
     "SMS verification code sent": "短信验证码已发送",
     "Failed to send SMS verification code": "短信验证码发送失败",
-    "Send SMS code": "发送短信验证码"
+    "Send SMS code": "发送短信验证码",
+    "Password login": "密码登录",
+    "Phone login": "手机号登录",
+    "Enter SMS verification code": "输入短信验证码",
+    "Please enter SMS verification code": "请输入短信验证码",
+    "Resend in {{seconds}}s": "{{seconds}} 秒后重发",
+    "Sign in with phone": "手机号登录"
   }
 }
