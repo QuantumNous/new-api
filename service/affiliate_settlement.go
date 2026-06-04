@@ -36,6 +36,15 @@ type AffiliateSettlementPaidInput struct {
 	Reason           string
 }
 
+type AffiliateSettlementEventTotals struct {
+	SettlementId    int
+	CommissionCents int64
+	HeadFeeCents    int64
+	GrossCents      int64
+	DeductionCents  int64
+	PayableCents    int64
+}
+
 type affiliateSettlementEventGroup struct {
 	AffiliateUserId    int
 	CommissionCents    int64
@@ -104,6 +113,45 @@ func GenerateAffiliateSettlements(db *gorm.DB, input AffiliateSettlementBuildInp
 		}
 	}
 	return settlements, nil
+}
+
+func AuditAffiliateSettlementEventTotals(db *gorm.DB, settlementId int) (AffiliateSettlementEventTotals, error) {
+	if db == nil {
+		return AffiliateSettlementEventTotals{}, errors.New("nil db")
+	}
+	if settlementId <= 0 {
+		return AffiliateSettlementEventTotals{}, errors.New("invalid settlement id")
+	}
+
+	var settlement model.AffiliateSettlement
+	if err := db.Where("id = ?", settlementId).First(&settlement).Error; err != nil {
+		return AffiliateSettlementEventTotals{}, err
+	}
+
+	var commissionCents int64
+	if err := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("settlement_id = ?", settlement.Id).
+		Select("COALESCE(SUM(commission_cents), 0)").
+		Scan(&commissionCents).Error; err != nil {
+		return AffiliateSettlementEventTotals{}, err
+	}
+	var headFeeCents int64
+	if err := db.Model(&model.AffiliateHeadFeeEvent{}).
+		Where("settlement_id = ?", settlement.Id).
+		Select("COALESCE(SUM(amount_cents), 0)").
+		Scan(&headFeeCents).Error; err != nil {
+		return AffiliateSettlementEventTotals{}, err
+	}
+
+	deductionCents, payableCents := calculateAffiliateSettlementPayable(commissionCents, headFeeCents)
+	return AffiliateSettlementEventTotals{
+		SettlementId:    settlement.Id,
+		CommissionCents: commissionCents,
+		HeadFeeCents:    headFeeCents,
+		GrossCents:      commissionCents + headFeeCents,
+		DeductionCents:  deductionCents,
+		PayableCents:    payableCents,
+	}, nil
 }
 
 func FreezeAffiliateSettlement(db *gorm.DB, settlementId int, input AffiliateSettlementStatusInput) (*model.AffiliateSettlement, error) {

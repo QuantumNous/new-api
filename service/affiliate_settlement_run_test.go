@@ -213,6 +213,62 @@ func TestRunAffiliateSettlementPipelineDryRunBuildsPreviewWithoutPersisting(t *t
 	assertAffiliatePipelineRows(t, db, 1, 1, 3, 2, 1)
 }
 
+func TestRunAffiliateSettlementPipelineDoubleRunMatchesLinkedEventTotals(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-double-run-audit"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 2)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "double-run settlement audit",
+		DryRun:          true,
+	}
+	dryRun, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("dry-run RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	assertAffiliatePipelineRows(t, db, 0, 0, 0, 0, 0)
+
+	input.DryRun = false
+	formal, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("formal RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	repeated, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("repeat RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	if len(dryRun.Settlements) != 1 || len(formal.Settlements) != 1 || len(repeated.Settlements) != 1 {
+		t.Fatalf("expected one settlement in every run, dry=%+v formal=%+v repeated=%+v", dryRun, formal, repeated)
+	}
+	if formal.Settlements[0].Id != repeated.Settlements[0].Id {
+		t.Fatalf("expected repeat run to reuse the same draft settlement, formal=%+v repeated=%+v", formal.Settlements[0], repeated.Settlements[0])
+	}
+	if formal.Settlements[0].PayableCents != dryRun.Settlements[0].PayableCents || repeated.Settlements[0].PayableCents != formal.Settlements[0].PayableCents {
+		t.Fatalf("expected dry-run, formal run, and repeat run payable amounts to match, dry=%+v formal=%+v repeated=%+v", dryRun.Settlements[0], formal.Settlements[0], repeated.Settlements[0])
+	}
+
+	totals, err := AuditAffiliateSettlementEventTotals(db, formal.Settlements[0].Id)
+	if err != nil {
+		t.Fatalf("AuditAffiliateSettlementEventTotals returned error: %v", err)
+	}
+	assertAffiliateSettlementMatchesEventTotals(t, formal.Settlements[0], totals)
+	assertAffiliateSettlementMatchesEventTotals(t, repeated.Settlements[0], totals)
+	assertAffiliatePipelineRows(t, db, 2, 1, 3, 2, 1)
+}
+
 func TestRunAffiliateSettlementPipelineRecordsJobRunSuccess(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-job-success"))
@@ -654,5 +710,18 @@ func assertAffiliatePipelineRows(t *testing.T, db *gorm.DB, jobRuns int64, kpiSn
 			actualHeadFeeEvents, headFeeEvents,
 			actualSettlements, settlements,
 		)
+	}
+}
+
+func assertAffiliateSettlementMatchesEventTotals(t *testing.T, settlement model.AffiliateSettlement, totals AffiliateSettlementEventTotals) {
+	t.Helper()
+	if totals.SettlementId != settlement.Id {
+		t.Fatalf("expected audit totals for settlement %d, got %+v", settlement.Id, totals)
+	}
+	if totals.CommissionCents != settlement.CommissionCents || totals.HeadFeeCents != settlement.HeadFeeCents || totals.DeductionCents != settlement.DeductionCents || totals.PayableCents != settlement.PayableCents {
+		t.Fatalf("settlement amounts do not match linked event totals, settlement=%+v totals=%+v", settlement, totals)
+	}
+	if totals.GrossCents != totals.CommissionCents+totals.HeadFeeCents {
+		t.Fatalf("audit gross total is inconsistent: %+v", totals)
 	}
 }

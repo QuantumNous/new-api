@@ -105,7 +105,7 @@
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
-- [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。（2026-06-04 已补本地 service/API `dry_run` 预览能力，dry-run 不落库，随后正式 run 可生成相同金额；外部真实周期双跑验收仍待做。）
+- [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。（2026-06-04 已补本地 service/API `dry_run` 预览能力，dry-run 不落库，随后正式 run 可生成相同金额；2026-06-04 已补本地 service 级 dry-run、正式 run、重复正式 run 与已链接事件合计一致审计；外部真实周期双跑验收仍待做。）
 
 ## 9. Dashboard 与统计口径
 
@@ -158,7 +158,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看、发布/归档二次确认、佣金/人头费启停状态、结算自动开关和备注。风控动作仍按第 6 节单项任务保留。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 已补 settlement pipeline service/API dry-run 预览能力；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 已补 settlement pipeline service/API dry-run 预览能力；2026-06-04 已补 settlement linked event totals 审计 helper 与 dry-run/formal/repeat formal 本地双跑测试；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；2026-06-04 已补后端 SMS 注册入口、注册验证码发送入口并接统一邀请归因；2026-06-04 已补 default/classic 前端注册表单入口和请求层；手机号登录、真实通道 smoke、Docker PostgreSQL schema diff 和 live 容器重建后 smoke 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。（2026-06-04 已补 dashboard 14 天趋势；登录态浏览器截图回归和外部验收归档仍待做。）
@@ -692,3 +692,12 @@
 - 浏览器 smoke：确认 `5173` 和 `5174` 均为当前项目 WSL 内 rsbuild dev server；in-app Browser 打开 `http://127.0.0.1:5173/register` 自动跳转到 default `/sign-up` 并正常渲染注册页；打开 `http://127.0.0.1:5174/register` 正常渲染 classic 注册页，新增控制台错误/警告为 0。
 - 运行态差异：当前 `http://127.0.0.1:3000/api/status` 仍未返回 `sms_enabled`，说明 live 后端容器尚未包含本轮状态字段改动；因此本轮浏览器 smoke 只能验证页面加载，不能验证手机号入口在 live 配置下显示。Docker daemon 查询仍长时间无响应，不能安全执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`。
 - 残留风险：本轮只完成注册前端接入，不包含手机号登录、找回/换绑闭环、真实短信宝通道 smoke、登录态真实手机号注册闭环或 Docker PostgreSQL schema diff。Docker 恢复后必须先重建 `new-api:dev`，再复测 `/api/status.sms_enabled`、default/classic 手机号入口显示、短信验证码发送响应脱敏和 SMS 注册统一邀请归因。
+
+## P1-39 settlement 双跑事件合计审计复盘（2026-06-04 本线程）
+
+- RED：新增 `TestRunAffiliateSettlementPipelineDoubleRunMatchesLinkedEventTotals`，要求同一周期先 dry-run 不落库，再正式 run，再重复正式 run；正式结算单必须复用同一个 draft，金额必须与 dry-run 一致，并且结算单金额必须等于已链接 commission/head fee 事件合计。旧实现缺少 `AuditAffiliateSettlementEventTotals` 和测试断言 helper，测试按预期编译失败。
+- 完成内容：新增只读 `AffiliateSettlementEventTotals` 和 `AuditAffiliateSettlementEventTotals`，按 `settlement_id` 汇总已链接 commission event 的 `commission_cents` 与 head fee event 的 `amount_cents`，并复用既有 `calculateAffiliateSettlementPayable` 计算 deduction/payable。新增 `TestAuditAffiliateSettlementEventTotalsValidatesInputAndSumsLinkedEvents`，覆盖 nil db、非法 id、缺失结算单和负毛利 deduction/payable 场景。
+- 安全边界：本轮不改变结算生成、link、冻结、付款或作废逻辑，不新增 GORM model、字段或索引，不保存敏感输入，也不把本地 service 双跑冒充外部真实周期验收。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestRunAffiliateSettlementPipelineDoubleRunMatchesLinkedEventTotals` 失败于缺少审计函数和断言 helper；实现后同命令通过。回归 `go test -count=1 ./service -run "AuditAffiliateSettlementEventTotals|DoubleRunMatchesLinkedEventTotals|AffiliateSettlementPipeline|GenerateAffiliateSettlements|AffiliateSettlement"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun|SMS|Phone|Register"` 通过。
+- schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；Docker server 仍不可用，既有 PostgreSQL schema diff 缺口仍待恢复后补。
+- 残留风险：本轮只完成本地 service 级 dry-run/formal/repeat formal 和 linked event totals 审计，不替代 staging/生产真实充值、真实 relay 消耗、退款、人头费和周期结算双跑。阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期验收仍待做。

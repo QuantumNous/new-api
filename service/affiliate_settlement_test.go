@@ -69,6 +69,46 @@ func TestGenerateAffiliateSettlementsCreatesDraftAndLinksEvents(t *testing.T) {
 	}
 }
 
+func TestAuditAffiliateSettlementEventTotalsValidatesInputAndSumsLinkedEvents(t *testing.T) {
+	if _, err := AuditAffiliateSettlementEventTotals(nil, 1); err == nil {
+		t.Fatal("expected nil db to be rejected")
+	}
+
+	db := newAffiliateCommissionTestDB(t)
+	if _, err := AuditAffiliateSettlementEventTotals(db, 0); err == nil {
+		t.Fatal("expected invalid settlement id to be rejected")
+	}
+	if _, err := AuditAffiliateSettlementEventTotals(db, 999); err == nil {
+		t.Fatal("expected missing settlement to return an error")
+	}
+
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-audit-linked-event-totals")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, -1200, 1000, 2000)
+	seedAffiliateSettlementHeadFeeEvent(t, db, ruleSet.Id, 100, 100, 1000, 2000)
+
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+	})
+	if err != nil {
+		t.Fatalf("GenerateAffiliateSettlements returned error: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("expected one settlement, got %+v", settlements)
+	}
+
+	totals, err := AuditAffiliateSettlementEventTotals(db, settlements[0].Id)
+	if err != nil {
+		t.Fatalf("AuditAffiliateSettlementEventTotals returned error: %v", err)
+	}
+	assertAffiliateSettlementMatchesEventTotals(t, settlements[0], totals)
+	if totals.GrossCents != -1100 || totals.DeductionCents != 1100 || totals.PayableCents != 0 {
+		t.Fatalf("expected audit totals to preserve deduction calculation, got %+v", totals)
+	}
+}
+
 func TestGenerateAffiliateSettlementsRespectsDisabledAutoSettlement(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	input := newAffiliateRuleSetDraftInput("settlement-auto-disabled")
