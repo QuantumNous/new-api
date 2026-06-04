@@ -1,6 +1,6 @@
 # Analytics API 使用说明
 
-本文档说明 `/api/analytics/v1/*` 分析接口的认证方式、分页方式、请求参数和返回字段。这批接口用于合作方读取用户画像、用量、订阅、支付、渠道和模型可用性数据。
+本文档说明 `/api/analytics/v1/*` 分析接口的认证方式、分页方式、请求参数和返回字段。这批接口用于协作开发中的用户画像、用量、订阅、支付、渠道和模型可用性数据分析。
 
 ## 认证
 
@@ -13,10 +13,10 @@ Authorization: Bearer sk-xxxx
 认证规则：
 
 - 使用与普通模型调用一致的 `TokenAuth` 校验逻辑。
-- API Key 必须存在、启用、未过期、未耗尽。
-- 如果该 API Key 配置了 IP 白名单，请求来源 IP 必须命中白名单。
-- API Key 归属用户必须是管理员或超级管理员。
-- 普通用户 API Key 无权访问这批接口。
+- API Key 需要处于可用状态：存在、启用、未过期、未耗尽。
+- 如果该 API Key 配置了 IP 限制，请求来源 IP 需要匹配该配置。
+- API Key 归属用户需要是管理员或超级管理员。
+- 这批接口面向全站分析数据，因此仅开放给管理员 API Key。
 
 ## 通用响应格式
 
@@ -102,7 +102,7 @@ curl -H "Authorization: Bearer sk-xxxx" \
 | `display_name` | string | 展示名 |
 | `role` | number | 用户角色 |
 | `status` | number | 用户状态 |
-| `email_domain` | string | 邮箱域名，不返回完整邮箱 |
+| `email_domain` | string | 邮箱域名 |
 | `quota` | number | 剩余额度 |
 | `used_quota` | number | 已用额度 |
 | `request_count` | number | 请求次数 |
@@ -113,13 +113,10 @@ curl -H "Authorization: Bearer sk-xxxx" \
 | `created_at` | number | 注册时间，Unix 秒 |
 | `last_login_at` | number | 最近登录时间，Unix 秒 |
 
-不会返回：
+字段范围补充：
 
-- 完整邮箱
-- 密码哈希
-- 系统 access token
-- OAuth 平台 ID
-- 用户个人设置原文
+- 邮箱维度使用 `email_domain` 表达。
+- 密码哈希、系统 access token、OAuth 平台 ID、用户个人设置原文属于账户内部字段，不在该接口字段范围内。
 
 ### 获取请求日志
 
@@ -159,9 +156,9 @@ curl -H "Authorization: Bearer sk-xxxx" \
 | `group` | string | 使用分组 |
 | `ip` | string | 请求 IP |
 | `request_id` | string | 请求 ID |
-| `other` | object | 白名单分析字段 |
+| `other` | object | 从日志扩展信息中提取的分析字段 |
 
-`other` 只返回以下白名单字段：
+`other` 当前包含以下分析字段：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -182,13 +179,10 @@ curl -H "Authorization: Bearer sk-xxxx" \
 | `completion_ratio` | 输出倍率 |
 | `cache_ratio` | 缓存倍率 |
 
-不会返回：
+字段范围补充：
 
-- `content`
-- `upstream_request_id`
-- 原始 `other`
-- `admin_info`
-- 上游密钥或渠道配置
+- `content`、`upstream_request_id`、原始 `other`、`admin_info` 属于日志内部明细字段，不在该接口字段范围内。
+- 上游密钥和渠道配置明细保留在渠道管理相关接口中。
 
 ### 获取用量聚合数据
 
@@ -275,7 +269,7 @@ GET /api/analytics/v1/subscription-plans
 | `created_at` | number | 创建时间 |
 | `updated_at` | number | 更新时间 |
 
-不会返回支付平台商品 ID。
+支付平台商品 ID 保留在支付渠道配置中，本接口返回套餐分析字段。
 
 ### 获取订阅订单
 
@@ -299,10 +293,9 @@ GET /api/analytics/v1/subscription-orders
 | `create_time` | number | 创建时间 |
 | `complete_time` | number | 完成时间 |
 
-不会返回：
+字段范围补充：
 
-- `trade_no`
-- `provider_payload`
+- `trade_no` 和 `provider_payload` 属于支付内部对账字段，本接口返回订单分析字段。
 
 ### 获取充值记录
 
@@ -326,7 +319,7 @@ GET /api/analytics/v1/topups
 | `complete_time` | number | 完成时间 |
 | `status` | string | 充值状态 |
 
-不会返回 `trade_no`。
+`trade_no` 属于支付内部对账字段，本接口返回充值分析字段。
 
 ### 获取渠道分析数据
 
@@ -358,16 +351,10 @@ GET /api/analytics/v1/channels
 | `tag` | string | 渠道标签 |
 | `remark` | string | 备注 |
 
-不会返回：
+字段范围补充：
 
-- `key`
-- `base_url`
-- `openai_organization`
-- `other`
-- `setting`
-- `param_override`
-- `header_override`
-- `status_code_mapping`
+- 渠道连接配置和请求改写配置保留在渠道管理接口中。
+- 本接口返回渠道画像、容量、质量和分组相关字段。
 
 ### 获取模型能力映射
 
@@ -389,11 +376,11 @@ GET /api/analytics/v1/abilities
 | `weight` | number | 权重 |
 | `tag` | string | 标签 |
 
-## 安全与性能说明
+## 字段与性能说明
 
-- 这批接口只读，不会扣费，也不会修改业务数据。
-- 只允许管理员 API Key 访问。
+- 这批接口为只读查询接口，不产生扣费或业务数据修改。
+- 接口面向全站分析数据，使用管理员 API Key 访问。
 - 所有列表接口都使用 cursor 分页，避免大 OFFSET 查询。
 - `logs` 按 `created_at DESC, id DESC` 做 keyset 翻页。
-- 字段按白名单返回，不返回 API Key、渠道密钥、支付原始 payload、完整邮箱和日志内容。
-- 合作方应按 `has_more` 和 `next_cursor` 拉取下一页，不应构造 `page` 或 `offset` 参数。
+- 响应字段采用显式字段清单，面向用户画像、用量统计、支付分析和渠道质量分析。
+- 客户端按 `has_more` 和 `next_cursor` 拉取下一页；接口不使用 `page` 或 `offset` 分页。
