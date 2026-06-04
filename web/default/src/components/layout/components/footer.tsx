@@ -19,6 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { Fragment, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import iso27001Badge from '@/assets/trust/iso-27001.png'
+import soc2Badge from '@/assets/trust/soc2.png'
+import vantaTrustBadge from '@/assets/trust/vanta-trust.png'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
@@ -73,6 +76,24 @@ function normalizeHref(href: string): string {
 const LEGAL_FOOTER_HREFS = new Set(
   LEGAL_FOOTER_LINKS.map((link) => normalizeHref(link.href))
 )
+
+const TRUST_BADGES = [
+  {
+    src: vantaTrustBadge,
+    alt: 'GDPR powered by Vanta',
+    href: 'https://www.vanta.com/integrations?built-by=Partner',
+  },
+  {
+    src: soc2Badge,
+    alt: 'CAI SOC 2 certification',
+    href: 'https://www.cert-assure.com/serchresult.php?type=Management+System+Certification&certificate=USA-SOC2-220513',
+  },
+  {
+    src: iso27001Badge,
+    alt: 'CAI ISO 27001:2022 certification',
+    href: 'https://www.cert-assure.com/serchresult.php?type=Management+System+Certification&certificate=USA-I-270513',
+  },
+] as const
 
 function withoutDuplicateLegalLinks(columns: FooterColumnProps[]) {
   return columns
@@ -145,6 +166,50 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
         </Fragment>
       ))}
     </>
+  )
+}
+
+function TrustedVerification(props: { className?: string }) {
+  const { t } = useTranslation()
+
+  return (
+    <div
+      className={cn(
+        'border-border/30 mt-10 flex justify-center border-t pt-8',
+        props.className
+      )}
+    >
+      <div className='flex w-fit flex-col items-center gap-4 text-center'>
+        <p className='text-foreground text-xs font-bold'>
+          {t('TRUSTED & VERIFIED BY')}
+        </p>
+        <div className='flex w-full flex-wrap items-center justify-center gap-4'>
+          {TRUST_BADGES.map((badge) => (
+            <a
+              key={badge.href}
+              href={badge.href}
+              target='_blank'
+              rel='noopener noreferrer nofollow'
+              className='inline-flex transition-opacity duration-200 hover:opacity-75'
+            >
+              <img
+                src={badge.src}
+                alt={badge.alt}
+                loading='lazy'
+                decoding='async'
+                className='h-14 w-auto object-contain'
+              />
+            </a>
+          ))}
+        </div>
+        <a
+          href='mailto:support@flatkey.ai'
+          className='text-muted-foreground/65 hover:text-foreground text-xs transition-colors duration-200'
+        >
+          {t('Email: support@flatkey.ai')}
+        </a>
+      </div>
+    </div>
   )
 }
 
@@ -269,6 +334,7 @@ export function Footer(props: FooterProps) {
               <ProjectAttribution currentYear={currentYear} inline />
             </div>
           </div>
+          <TrustedVerification />
         </div>
       </footer>
     )
@@ -279,7 +345,7 @@ export function Footer(props: FooterProps) {
       className={cn('border-border/40 relative z-10 border-t', props.className)}
     >
       <div className='mx-auto max-w-6xl px-6 py-12 md:py-16'>
-        <div className='flex flex-col justify-between gap-10 md:flex-row md:gap-16'>
+        <div className='grid gap-10 md:grid-cols-[minmax(200px,280px)_1fr] md:items-center md:gap-16'>
           {/* Brand column */}
           <div className='shrink-0'>
             <Link to='/' className='group flex items-center gap-2.5'>
@@ -297,6 +363,8 @@ export function Footer(props: FooterProps) {
               {t('Powerful API Management Platform')}
             </p>
           </div>
+
+          <TrustedVerification className='mt-0 border-t-0 pt-0 md:justify-end' />
 
           {/* Links columns */}
           {isDemoSiteMode && (
