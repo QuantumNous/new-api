@@ -145,6 +145,60 @@ func TestBuildAffiliateDashboardSummaryCountsPaidNetConsumptionOnly(t *testing.T
 	}
 }
 
+func TestBuildAffiliateDashboardSummaryShowsPublishedRuleAndLiveKPITier(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, BuildDefaultAffiliateRuleSetDraftInput("summary-live-kpi-tier", 1, "test"))
+	seedAffiliateCommissionRelation(t, db, 100, 200, 1)
+
+	summary, err := BuildAffiliateDashboardSummary(db, db, AffiliateDashboardSummaryInput{
+		Scope: AffiliateScope{
+			Kind:           AffiliateScopeAffiliate,
+			UserId:         100,
+			AffiliateLevel: 1,
+			MaxDepth:       1,
+		},
+		StartTimestamp:  1000,
+		EndTimestamp:    2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateDashboardSummary returned error: %v", err)
+	}
+
+	if summary.RuleStatus != "published_rules" || summary.KPITierName != "Observe" {
+		t.Fatalf("expected published rules with live KPI tier, got %+v", summary)
+	}
+}
+
+func TestBuildAffiliateDashboardSummaryShowsUnqualifiedWhenPublishedRulesDoNotMatch(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleInput := newAffiliateRuleSetDraftInput("summary-live-kpi-unqualified")
+	ruleInput.KPITiers[0].MinEffectiveNewUsers = 99
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, ruleInput)
+	seedAffiliateCommissionRelation(t, db, 100, 200, 1)
+
+	summary, err := BuildAffiliateDashboardSummary(db, db, AffiliateDashboardSummaryInput{
+		Scope: AffiliateScope{
+			Kind:           AffiliateScopeAffiliate,
+			UserId:         100,
+			AffiliateLevel: 1,
+			MaxDepth:       1,
+		},
+		StartTimestamp:  1000,
+		EndTimestamp:    2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateDashboardSummary returned error: %v", err)
+	}
+
+	if summary.RuleStatus != "published_rules" || summary.KPITierName != "未达标" {
+		t.Fatalf("expected published rules with unqualified KPI tier, got %+v", summary)
+	}
+}
+
 func TestBuildAffiliateDashboardSummaryBuildsDailyTrendsFromPaidAndFinanceOnly(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleInput := newAffiliateHeadFeeRuleSetInput("summary-daily-trends")

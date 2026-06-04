@@ -66,14 +66,45 @@ func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input Affiliate
 
 	summary.TeamUserCount = len(visible.UserIds)
 
-	summary.EffectiveNewUserCount, err = countAffiliateEffectiveNewUsers(db, logDB, visible, input)
+	ruleSet, hasPublishedRules, err := findAffiliateSummaryRuleSet(db, input)
 	if err != nil {
 		return AffiliateDashboardSummary{}, err
 	}
+	if hasPublishedRules {
+		metrics, err := buildAffiliateKPIMetrics(db, logDB, visible.UserIds, ruleSet.Id, input.Scope.AffiliateLevel, AffiliateKPIBuildInput{
+			RuleSetId:       ruleSet.Id,
+			PeriodStart:     input.StartTimestamp,
+			PeriodEnd:       input.EndTimestamp,
+			QuotaPerUnit:    input.QuotaPerUnit,
+			USDExchangeRate: input.USDExchangeRate,
+		})
+		if err != nil {
+			return AffiliateDashboardSummary{}, err
+		}
+		tier, err := selectAffiliateKPITier(db, ruleSet.Id, input.Scope.AffiliateLevel, metrics)
+		if err != nil {
+			return AffiliateDashboardSummary{}, err
+		}
+		summary.EffectiveNewUserCount = metrics.EffectiveNewUserCount
+		summary.NetConsumptionQuota = metrics.PaidConsumptionRawQuota
+		summary.RuleStatus = "published_rules"
+		if tier.Name != "" {
+			summary.KPITierName = tier.Name
+		} else if tier.Code != "" {
+			summary.KPITierName = tier.Code
+		} else {
+			summary.KPITierName = "未达标"
+		}
+	} else {
+		summary.EffectiveNewUserCount, err = countAffiliateEffectiveNewUsers(db, logDB, visible, input)
+		if err != nil {
+			return AffiliateDashboardSummary{}, err
+		}
 
-	summary.NetConsumptionQuota, err = sumAffiliateNetConsumptionQuota(db, logDB, visible, input)
-	if err != nil {
-		return AffiliateDashboardSummary{}, err
+		summary.NetConsumptionQuota, err = sumAffiliateNetConsumptionQuota(db, logDB, visible, input)
+		if err != nil {
+			return AffiliateDashboardSummary{}, err
+		}
 	}
 	summary.NetConsumptionRMB = quotaToRMB(summary.NetConsumptionQuota, input.QuotaPerUnit, input.USDExchangeRate)
 	summary.DailyTrends, err = buildAffiliateDashboardDailyTrends(db, logDB, visible, input)
@@ -244,6 +275,22 @@ func countAffiliateEffectiveNewUsers(db *gorm.DB, logDB *gorm.DB, visible Affili
 	return count, nil
 }
 
+func findAffiliateSummaryRuleSet(db *gorm.DB, input AffiliateDashboardSummaryInput) (model.AffiliateRuleSet, bool, error) {
+	var ruleSet model.AffiliateRuleSet
+	tx := db.Where("status = ?", model.AffiliateRuleSetStatusPublished)
+	if input.EndTimestamp > 0 {
+		tx = tx.Where("(effective_start = 0 OR effective_start <= ?) AND (effective_end = 0 OR effective_end >= ?)", input.EndTimestamp, input.StartTimestamp)
+	}
+	err := tx.Order("effective_start desc, published_at desc, id desc").First(&ruleSet).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.AffiliateRuleSet{}, false, nil
+	}
+	if err != nil {
+		return model.AffiliateRuleSet{}, false, err
+	}
+	return ruleSet, true, nil
+}
+
 type affiliateEffectiveUserCriteria struct {
 	FirstRechargeMinCents int64
 	PeriodNetPaidMinCents int64
@@ -258,16 +305,8 @@ type affiliateEffectiveUserWindow struct {
 }
 
 func loadAffiliateSummaryEffectiveUserCriteria(db *gorm.DB, input AffiliateDashboardSummaryInput) (affiliateEffectiveUserCriteria, bool, error) {
-	var ruleSet model.AffiliateRuleSet
-	tx := db.Where("status = ?", model.AffiliateRuleSetStatusPublished)
-	if input.EndTimestamp > 0 {
-		tx = tx.Where("(effective_start = 0 OR effective_start <= ?) AND (effective_end = 0 OR effective_end >= ?)", input.EndTimestamp, input.StartTimestamp)
-	}
-	err := tx.Order("effective_start desc, published_at desc, id desc").First(&ruleSet).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return affiliateEffectiveUserCriteria{}, false, nil
-	}
-	if err != nil {
+	ruleSet, ok, err := findAffiliateSummaryRuleSet(db, input)
+	if err != nil || !ok {
 		return affiliateEffectiveUserCriteria{}, false, err
 	}
 

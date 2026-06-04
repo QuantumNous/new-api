@@ -194,6 +194,10 @@ function getRuleFieldOptions(key, currentValue, dynamicOptions = {}) {
   return [...options, { value, label: value }];
 }
 
+function isOpenEndedMaxNetPaid(fieldKey, value) {
+  return fieldKey === 'max_net_paid_amount_cents' && Number(value || 0) === 0;
+}
+
 function getKPITierCodeOptions(items, level) {
   const seen = new Set();
   const options = [];
@@ -293,22 +297,29 @@ const RuleFieldControl = ({
   }
 
   return (
-    <Input
-      className='min-w-[128px]'
-      type={
-        typeof fieldValue === 'number' ||
-        isPercentField(fieldKey) ||
-        isYuanField(fieldKey)
-          ? 'number'
-          : 'text'
-      }
-      step={
-        isPercentField(fieldKey) || isYuanField(fieldKey) ? 0.01 : undefined
-      }
-      value={getDisplayValue(fieldKey, fieldValue)}
-      disabled={readOnly}
-      onChange={(nextValue) => onChange(nextValue)}
-    />
+    <div className='flex min-w-[128px] flex-col gap-1'>
+      <Input
+        className='min-w-[128px]'
+        type={
+          typeof fieldValue === 'number' ||
+          isPercentField(fieldKey) ||
+          isYuanField(fieldKey)
+            ? 'number'
+            : 'text'
+        }
+        step={
+          isPercentField(fieldKey) || isYuanField(fieldKey) ? 0.01 : undefined
+        }
+        value={getDisplayValue(fieldKey, fieldValue)}
+        disabled={readOnly}
+        onChange={(nextValue) => onChange(nextValue)}
+      />
+      {isOpenEndedMaxNetPaid(fieldKey, fieldValue) && (
+        <Text type='tertiary' size='small'>
+          {t('0 表示不限')}
+        </Text>
+      )}
+    </div>
   );
 };
 

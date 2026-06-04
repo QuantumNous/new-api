@@ -261,6 +261,10 @@ function getRuleCellValue(item: RuleRecord, key: string): RuleValue {
   return Object.prototype.hasOwnProperty.call(item, key) ? item[key] : ''
 }
 
+function isOpenEndedMaxNetPaid(fieldKey: string, value: RuleValue): boolean {
+  return fieldKey === 'max_net_paid_amount_cents' && Number(value || 0) === 0
+}
+
 function RuleFieldControl(props: {
   fieldKey: string
   value: RuleValue
@@ -306,24 +310,31 @@ function RuleFieldControl(props: {
   }
 
   return (
-    <Input
-      className='min-w-32'
-      type={
-        typeof props.value === 'number' ||
-        isPercentField(props.fieldKey) ||
-        isYuanField(props.fieldKey)
-          ? 'number'
-          : 'text'
-      }
-      step={
-        isPercentField(props.fieldKey) || isYuanField(props.fieldKey)
-          ? 0.01
-          : undefined
-      }
-      value={getDisplayValue(props.fieldKey, props.value)}
-      disabled={props.readOnly}
-      onChange={(event) => props.onChange(event.target.value)}
-    />
+    <div className='flex min-w-32 flex-col gap-1'>
+      <Input
+        className='min-w-32'
+        type={
+          typeof props.value === 'number' ||
+          isPercentField(props.fieldKey) ||
+          isYuanField(props.fieldKey)
+            ? 'number'
+            : 'text'
+        }
+        step={
+          isPercentField(props.fieldKey) || isYuanField(props.fieldKey)
+            ? 0.01
+            : undefined
+        }
+        value={getDisplayValue(props.fieldKey, props.value)}
+        disabled={props.readOnly}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+      {isOpenEndedMaxNetPaid(props.fieldKey, props.value) ? (
+        <span className='text-muted-foreground text-xs'>
+          {t('0 means unlimited')}
+        </span>
+      ) : null}
+    </div>
   )
 }
 
