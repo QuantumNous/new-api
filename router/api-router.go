@@ -297,6 +297,20 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		analyticsRoute := apiRouter.Group("/analytics/v1")
+		analyticsRoute.Use(middleware.TokenAuth(), middleware.TokenAdminAuth())
+		{
+			analyticsRoute.GET("/users", controller.GetAnalyticsUsers)
+			analyticsRoute.GET("/logs", controller.GetAnalyticsLogs)
+			analyticsRoute.GET("/quota-data", controller.GetAnalyticsQuotaData)
+			analyticsRoute.GET("/subscriptions", controller.GetAnalyticsSubscriptions)
+			analyticsRoute.GET("/subscription-plans", controller.GetAnalyticsSubscriptionPlans)
+			analyticsRoute.GET("/subscription-orders", controller.GetAnalyticsSubscriptionOrders)
+			analyticsRoute.GET("/topups", controller.GetAnalyticsTopUps)
+			analyticsRoute.GET("/channels", controller.GetAnalyticsChannels)
+			analyticsRoute.GET("/abilities", controller.GetAnalyticsAbilities)
+		}
+
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{

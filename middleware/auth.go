@@ -273,6 +273,22 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	}
 }
 
+// TokenAdminAuth 要求当前请求已经通过 TokenAuth，并且令牌归属用户具有管理员权限。
+func TokenAdminAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		userId := c.GetInt("id")
+		if userId == 0 || !model.IsAdmin(userId) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "需要管理员 API 令牌",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
