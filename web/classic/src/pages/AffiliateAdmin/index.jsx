@@ -944,7 +944,7 @@ const AffiliateAdmin = () => {
         </div>
 
         <Form layout='vertical' onSubmit={handleRuleSetFilterSubmit}>
-          <div className='grid grid-cols-1 md:grid-cols-[minmax(260px,360px)_auto] gap-3 items-end'>
+          <div className='grid grid-cols-1 md:grid-cols-[minmax(260px,360px)_max-content] gap-3 items-end'>
             <Form.Select
               className='w-full'
               field='status'
@@ -956,13 +956,13 @@ const AffiliateAdmin = () => {
                 { label: t('已归档'), value: 'archived' },
               ]}
             />
-            <div className='flex items-end h-full pt-[30px]'>
+            <div className='flex items-end self-end'>
               <Button
-                className='w-full md:min-w-[84px]'
+                className='min-w-[112px] whitespace-nowrap'
                 htmlType='submit'
                 type='primary'
               >
-                {t('筛选')}
+                {t('筛选规则集')}
               </Button>
             </div>
           </div>
@@ -1466,7 +1466,7 @@ const AffiliateAdmin = () => {
 
       <Card className='!rounded-2xl'>
         <Form layout='vertical' onSubmit={handleFilterSubmit}>
-          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,260px)_minmax(240px,280px)_minmax(220px,260px)_auto] gap-3 items-end'>
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,260px)_minmax(240px,280px)_minmax(220px,260px)_max-content] gap-3 items-end'>
             <Form.InputNumber
               field='user_id'
               label={t('用户 ID')}
@@ -1493,7 +1493,7 @@ const AffiliateAdmin = () => {
                 { label: t('禁用'), value: 'disabled' },
               ]}
             />
-            <div className='flex items-end gap-2 pt-[30px]'>
+            <div className='flex items-end gap-2 self-end'>
               <Button
                 className='min-w-[88px]'
                 htmlType='submit'

@@ -479,7 +479,9 @@ const RuleArrayEditor = ({
           />
         )}
 
-        <Form.TextArea field={field} noLabel style={{ display: 'none' }} />
+        <div style={{ display: 'none' }}>
+          <Form.TextArea field={field} noLabel />
+        </div>
       </div>
     </Card>
   );
@@ -640,14 +642,11 @@ export const RuleLevelGroupedEditor = ({
           ))}
         </div>
 
-        {sections.map((section) => (
-          <Form.TextArea
-            key={section.field}
-            field={section.field}
-            noLabel
-            style={{ display: 'none' }}
-          />
-        ))}
+        <div style={{ display: 'none' }}>
+          {sections.map((section) => (
+            <Form.TextArea key={section.field} field={section.field} noLabel />
+          ))}
+        </div>
       </div>
     </Card>
   );
