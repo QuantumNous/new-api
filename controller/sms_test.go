@@ -28,7 +28,7 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	originalCredential := common.SMSBaoCredential
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
@@ -37,7 +37,7 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSBaoCredential = originalCredential
 		common.SMSProviderFactory = originalFactory
 	})
@@ -47,7 +47,7 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
 	common.SMSBaoCredential = "leak-me-token"
 	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
 		return fakeSMSProvider{t: t, wantPhone: "13800138000", wantCode: "123456"}, nil
@@ -99,7 +99,7 @@ func TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	originalRateLimitEnabled := common.SMSRateLimitEnabled
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
@@ -109,7 +109,7 @@ func TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSRateLimitEnabled = originalRateLimitEnabled
 		common.SMSProviderFactory = originalFactory
 		common.DeleteKey("13800138000", common.SMSVerificationPurpose(common.SMSSceneRegister))
@@ -122,7 +122,7 @@ func TestSendSMSRegisterCodeStoresVerificationAndRedactsResponse(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
 	common.SMSRateLimitEnabled = false
 	service.ResetSMSRateLimiterForTest()
 
@@ -205,7 +205,7 @@ func TestSendSMSLoginCodeStoresVerificationForActiveBindingAndRedactsResponse(t 
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSLoginTemplate
+	originalTemplate := common.SMSTemplate
 	originalRateLimitEnabled := common.SMSRateLimitEnabled
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
@@ -214,7 +214,7 @@ func TestSendSMSLoginCodeStoresVerificationForActiveBindingAndRedactsResponse(t 
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSLoginTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSRateLimitEnabled = originalRateLimitEnabled
 		common.SMSProviderFactory = originalFactory
 		common.DeleteKey("1007", common.SMSVerificationPurpose(common.SMSSceneLogin))
@@ -227,7 +227,7 @@ func TestSendSMSLoginCodeStoresVerificationForActiveBindingAndRedactsResponse(t 
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "Affiliate"
-	common.SMSLoginTemplate = "{product} login verification code {code}, valid for {minutes} minutes."
+	common.SMSTemplate = "{product} login verification code {code}, valid for {minutes} minutes."
 	common.SMSRateLimitEnabled = false
 	service.ResetSMSRateLimiterForTest()
 
@@ -327,7 +327,7 @@ func TestSendSMSLoginCodeRejectsUnboundPhoneBeforeProvider(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSLoginTemplate
+	originalTemplate := common.SMSTemplate
 	originalRateLimitEnabled := common.SMSRateLimitEnabled
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
@@ -336,7 +336,7 @@ func TestSendSMSLoginCodeRejectsUnboundPhoneBeforeProvider(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSLoginTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSRateLimitEnabled = originalRateLimitEnabled
 		common.SMSProviderFactory = originalFactory
 		common.DeleteKey("1008", common.SMSVerificationPurpose(common.SMSSceneLogin))
@@ -348,7 +348,7 @@ func TestSendSMSLoginCodeRejectsUnboundPhoneBeforeProvider(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "Affiliate"
-	common.SMSLoginTemplate = "{product} login verification code {code}, valid for {minutes} minutes."
+	common.SMSTemplate = "{product} login verification code {code}, valid for {minutes} minutes."
 	common.SMSRateLimitEnabled = false
 	service.ResetSMSRateLimiterForTest()
 
@@ -609,7 +609,7 @@ func TestAdminTestSMSRecordsRedactedSendLog(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	originalCredential := common.SMSBaoCredential
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
@@ -618,7 +618,7 @@ func TestAdminTestSMSRecordsRedactedSendLog(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSBaoCredential = originalCredential
 		common.SMSProviderFactory = originalFactory
 	})
@@ -629,7 +629,7 @@ func TestAdminTestSMSRecordsRedactedSendLog(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
 	common.SMSBaoCredential = "leak-me-token"
 	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
 		return fakeSMSProvider{t: t, wantPhone: "13800138000", wantCode: "123456"}, nil
@@ -680,7 +680,7 @@ func TestAdminTestSMSAppliesRateLimitBeforeProvider(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	originalRateLimitEnabled := common.SMSRateLimitEnabled
 	originalRateLimitWindow := common.SMSRateLimitWindowSeconds
 	originalRateLimitPhone := common.SMSRateLimitPhoneCount
@@ -694,7 +694,7 @@ func TestAdminTestSMSAppliesRateLimitBeforeProvider(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSRateLimitEnabled = originalRateLimitEnabled
 		common.SMSRateLimitWindowSeconds = originalRateLimitWindow
 		common.SMSRateLimitPhoneCount = originalRateLimitPhone
@@ -710,7 +710,7 @@ func TestAdminTestSMSAppliesRateLimitBeforeProvider(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
 	common.SMSRateLimitEnabled = true
 	common.SMSRateLimitWindowSeconds = 60
 	common.SMSRateLimitPhoneCount = 1
@@ -763,7 +763,7 @@ func TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	originalRateLimitEnabled := common.SMSRateLimitEnabled
 	originalRateLimitWindow := common.SMSRateLimitWindowSeconds
 	originalRateLimitPhone := common.SMSRateLimitPhoneCount
@@ -777,7 +777,7 @@ func TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSRateLimitEnabled = originalRateLimitEnabled
 		common.SMSRateLimitWindowSeconds = originalRateLimitWindow
 		common.SMSRateLimitPhoneCount = originalRateLimitPhone
@@ -793,7 +793,7 @@ func TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
 	common.SMSRateLimitEnabled = true
 	common.SMSRateLimitWindowSeconds = 60
 	common.SMSRateLimitPhoneCount = 1
@@ -847,7 +847,7 @@ func TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	originalRateLimitEnabled := common.SMSRateLimitEnabled
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
@@ -856,7 +856,7 @@ func TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider(t *testing.T) {
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalTemplate
+		common.SMSTemplate = originalTemplate
 		common.SMSRateLimitEnabled = originalRateLimitEnabled
 		common.SMSProviderFactory = originalFactory
 		service.ResetSMSRateLimiterForTest()
@@ -868,7 +868,7 @@ func TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider(t *testing.T) {
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusPending
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
 	common.SMSRateLimitEnabled = false
 	service.ResetSMSRateLimiterForTest()
 

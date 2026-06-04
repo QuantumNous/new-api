@@ -43,7 +43,7 @@ func GenerateSMSVerificationCode(length int) (string, error) {
 type SMSVerificationTemplateConfig struct {
 	Signature             string
 	SignatureReviewStatus string
-	Templates             map[string]string
+	Template              string
 }
 
 type SMSVerificationContentInput struct {
@@ -59,13 +59,7 @@ func DefaultSMSVerificationTemplateConfig() SMSVerificationTemplateConfig {
 	return SMSVerificationTemplateConfig{
 		Signature:             SMSSignature,
 		SignatureReviewStatus: SMSSignatureReviewStatus,
-		Templates: map[string]string{
-			SMSSceneRegister:      SMSRegisterTemplate,
-			SMSSceneLogin:         SMSLoginTemplate,
-			SMSSceneBindPhone:     SMSBindTemplate,
-			SMSSceneChangePhone:   SMSChangeTemplate,
-			SMSSceneResetPassword: SMSResetPasswordTemplate,
-		},
+		Template:              SMSTemplate,
 	}
 }
 
@@ -74,11 +68,11 @@ func SMSVerificationTemplateVersion(scene string) string {
 }
 
 func SMSVerificationTemplateVersionFromConfig(scene string, config SMSVerificationTemplateConfig) string {
-	if config.Templates == nil {
+	if config.Template == "" {
 		config = DefaultSMSVerificationTemplateConfig()
 	}
 	normalizedScene := strings.TrimSpace(scene)
-	template := strings.TrimSpace(config.Templates[normalizedScene])
+	template := strings.TrimSpace(config.Template)
 	if normalizedScene == "" || template == "" {
 		return ""
 	}
@@ -89,7 +83,7 @@ func SMSVerificationTemplateVersionFromConfig(scene string, config SMSVerificati
 
 func RenderSMSVerificationContent(input SMSVerificationContentInput) (string, error) {
 	config := input.Config
-	if config.Templates == nil {
+	if config.Template == "" {
 		config = DefaultSMSVerificationTemplateConfig()
 	}
 	if strings.TrimSpace(config.SignatureReviewStatus) != SMSSignatureStatusApproved {
@@ -99,8 +93,7 @@ func RenderSMSVerificationContent(input SMSVerificationContentInput) (string, er
 	if signature == "" {
 		return "", fmt.Errorf("sms signature is not configured")
 	}
-	scene := strings.TrimSpace(input.Scene)
-	template := strings.TrimSpace(config.Templates[scene])
+	template := strings.TrimSpace(config.Template)
 	if template == "" {
 		return "", fmt.Errorf("sms template is not configured")
 	}

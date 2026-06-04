@@ -177,20 +177,20 @@ func TestSMSOptionMapInitializesTemplateSettings(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalRegisterTemplate := common.SMSRegisterTemplate
+	originalTemplate := common.SMSTemplate
 	t.Cleanup(func() {
 		common.OptionMap = originalMap
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalRegisterTemplate
+		common.SMSTemplate = originalTemplate
 	})
 
 	common.OptionMap = map[string]string{}
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusPending
 	common.SMSProductName = "分销系统"
-	common.SMSRegisterTemplate = "{product} 注册验证码 {code}"
+	common.SMSTemplate = "{product} 验证码 {code}"
 
 	InitOptionMap()
 
@@ -203,8 +203,8 @@ func TestSMSOptionMapInitializesTemplateSettings(t *testing.T) {
 	if common.OptionMap["SMSProductName"] != "分销系统" {
 		t.Fatalf("expected SMSProductName option, got %q", common.OptionMap["SMSProductName"])
 	}
-	if common.OptionMap["SMSRegisterTemplate"] != "{product} 注册验证码 {code}" {
-		t.Fatalf("expected SMSRegisterTemplate option, got %q", common.OptionMap["SMSRegisterTemplate"])
+	if common.OptionMap["SMSTemplate"] != "{product} 验证码 {code}" {
+		t.Fatalf("expected SMSTemplate option, got %q", common.OptionMap["SMSTemplate"])
 	}
 }
 
@@ -213,21 +213,13 @@ func TestUpdateOptionMapUpdatesSMSTemplateSettings(t *testing.T) {
 	originalSignature := common.SMSSignature
 	originalStatus := common.SMSSignatureReviewStatus
 	originalProductName := common.SMSProductName
-	originalRegisterTemplate := common.SMSRegisterTemplate
-	originalLoginTemplate := common.SMSLoginTemplate
-	originalBindTemplate := common.SMSBindTemplate
-	originalChangeTemplate := common.SMSChangeTemplate
-	originalResetTemplate := common.SMSResetPasswordTemplate
+	originalTemplate := common.SMSTemplate
 	t.Cleanup(func() {
 		common.OptionMap = originalMap
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalStatus
 		common.SMSProductName = originalProductName
-		common.SMSRegisterTemplate = originalRegisterTemplate
-		common.SMSLoginTemplate = originalLoginTemplate
-		common.SMSBindTemplate = originalBindTemplate
-		common.SMSChangeTemplate = originalChangeTemplate
-		common.SMSResetPasswordTemplate = originalResetTemplate
+		common.SMSTemplate = originalTemplate
 	})
 
 	common.OptionMap = map[string]string{}
@@ -235,11 +227,7 @@ func TestUpdateOptionMapUpdatesSMSTemplateSettings(t *testing.T) {
 		"SMSSignature":             "NewAPI",
 		"SMSSignatureReviewStatus": common.SMSSignatureStatusApproved,
 		"SMSProductName":           "分销系统",
-		"SMSRegisterTemplate":      "注册 {code}",
-		"SMSLoginTemplate":         "登录 {code}",
-		"SMSBindTemplate":          "绑定 {code}",
-		"SMSChangeTemplate":        "换绑 {code}",
-		"SMSResetPasswordTemplate": "重置 {code}",
+		"SMSTemplate":              "验证码 {code}",
 	}
 	for key, value := range settings {
 		if err := updateOptionMap(key, value); err != nil {
@@ -250,7 +238,7 @@ func TestUpdateOptionMapUpdatesSMSTemplateSettings(t *testing.T) {
 	if common.SMSSignature != "NewAPI" || common.SMSSignatureReviewStatus != common.SMSSignatureStatusApproved || common.SMSProductName != "分销系统" {
 		t.Fatalf("unexpected SMS signature settings: signature=%q status=%q product=%q", common.SMSSignature, common.SMSSignatureReviewStatus, common.SMSProductName)
 	}
-	if common.SMSRegisterTemplate != "注册 {code}" || common.SMSLoginTemplate != "登录 {code}" || common.SMSBindTemplate != "绑定 {code}" || common.SMSChangeTemplate != "换绑 {code}" || common.SMSResetPasswordTemplate != "重置 {code}" {
-		t.Fatalf("unexpected SMS templates: register=%q login=%q bind=%q change=%q reset=%q", common.SMSRegisterTemplate, common.SMSLoginTemplate, common.SMSBindTemplate, common.SMSChangeTemplate, common.SMSResetPasswordTemplate)
+	if common.SMSTemplate != "验证码 {code}" {
+		t.Fatalf("unexpected SMS template: %q", common.SMSTemplate)
 	}
 }

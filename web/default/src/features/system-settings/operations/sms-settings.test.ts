@@ -55,4 +55,19 @@ describe('buildSmsSettingsUpdates', () => {
       { key: 'SMSBaoCredential', value: 'new-redacted-value' },
     ])
   })
+
+  test('updates the unified SMS template field', () => {
+    const updates = buildSmsSettingsUpdates(
+      {
+        SMSTemplate: ' {product} 验证码 {code} ',
+      },
+      {
+        SMSTemplate: '{product} 登录验证码 {code}',
+      }
+    )
+
+    assert.deepEqual(updates, [
+      { key: 'SMSTemplate', value: '{product} 验证码 {code}' },
+    ])
+  })
 })

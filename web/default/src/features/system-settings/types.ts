@@ -335,11 +335,7 @@ export type OperationsSettings = {
   SMSSignature: string
   SMSSignatureReviewStatus: 'pending' | 'approved' | 'rejected'
   SMSProductName: string
-  SMSRegisterTemplate: string
-  SMSLoginTemplate: string
-  SMSBindTemplate: string
-  SMSChangeTemplate: string
-  SMSResetPasswordTemplate: string
+  SMSTemplate: string
   SMSRateLimitEnabled: boolean
   SMSRateLimitWindowSeconds: number
   SMSRateLimitPhoneCount: number

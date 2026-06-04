@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import * as z from 'zod'
-import { type Control, type FieldPath, type FieldValues, useForm } from 'react-hook-form'
+import {
+  type Control,
+  type FieldPath,
+  type FieldValues,
+  useForm,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -77,11 +82,7 @@ const smsSettingsSchema = z.object({
   SMSSignature: z.string(),
   SMSSignatureReviewStatus: z.enum(['pending', 'approved', 'rejected']),
   SMSProductName: z.string(),
-  SMSRegisterTemplate: z.string(),
-  SMSLoginTemplate: z.string(),
-  SMSBindTemplate: z.string(),
-  SMSChangeTemplate: z.string(),
-  SMSResetPasswordTemplate: z.string(),
+  SMSTemplate: z.string(),
   SMSRateLimitEnabled: z.boolean(),
   SMSRateLimitWindowSeconds: z.number().int().min(1),
   SMSRateLimitPhoneCount: z.number().int().min(0),
@@ -468,33 +469,9 @@ export function SmsSettingsSection({ defaultValues }: SmsSettingsSectionProps) {
 
           <TextareaField
             control={form.control}
-            name='SMSRegisterTemplate'
-            label={t('Register template')}
-            placeholder='{product} register verification code {code}, valid for {minutes} minutes.'
-          />
-          <TextareaField
-            control={form.control}
-            name='SMSLoginTemplate'
-            label={t('Login template')}
-            placeholder='{product} login verification code {code}, valid for {minutes} minutes.'
-          />
-          <TextareaField
-            control={form.control}
-            name='SMSBindTemplate'
-            label={t('Bind phone template')}
-            placeholder='{product} phone binding code {code}, valid for {minutes} minutes.'
-          />
-          <TextareaField
-            control={form.control}
-            name='SMSChangeTemplate'
-            label={t('Change phone template')}
-            placeholder='{product} phone change code {code}, valid for {minutes} minutes.'
-          />
-          <TextareaField
-            control={form.control}
-            name='SMSResetPasswordTemplate'
-            label={t('Reset password template')}
-            placeholder='{product} password reset code {code}, valid for {minutes} minutes.'
+            name='SMSTemplate'
+            label={t('SMS template')}
+            placeholder='{product} verification code {code}, valid for {minutes} minutes.'
           />
 
           <FormField

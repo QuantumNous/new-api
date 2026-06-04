@@ -15,9 +15,7 @@ func TestRenderSMSVerificationContentUsesApprovedSignatureAndTemplateVariables(t
 		Config: SMSVerificationTemplateConfig{
 			Signature:             "NewAPI",
 			SignatureReviewStatus: SMSSignatureStatusApproved,
-			Templates: map[string]string{
-				SMSSceneRegister: "{site} {product} 验证码 {code}，{minutes} 分钟内有效。",
-			},
+			Template:              "{site} {product} 验证码 {code}，{minutes} 分钟内有效。",
 		},
 	})
 	if err != nil {
@@ -36,9 +34,7 @@ func TestRenderSMSVerificationContentRejectsUnapprovedSignature(t *testing.T) {
 		Config: SMSVerificationTemplateConfig{
 			Signature:             "NewAPI",
 			SignatureReviewStatus: SMSSignatureStatusPending,
-			Templates: map[string]string{
-				SMSSceneLogin: "验证码 {code}",
-			},
+			Template:              "验证码 {code}",
 		},
 	})
 	if err == nil || err.Error() != "sms signature is not approved" {
@@ -53,7 +49,7 @@ func TestRenderSMSVerificationContentRejectsMissingTemplate(t *testing.T) {
 		Config: SMSVerificationTemplateConfig{
 			Signature:             "NewAPI",
 			SignatureReviewStatus: SMSSignatureStatusApproved,
-			Templates:             map[string]string{},
+			Template:              " ",
 		},
 	})
 	if err == nil || err.Error() != "sms template is not configured" {
@@ -65,18 +61,18 @@ func TestDefaultSMSVerificationTemplateConfigUsesGlobals(t *testing.T) {
 	originalSignature := SMSSignature
 	originalStatus := SMSSignatureReviewStatus
 	originalProductName := SMSProductName
-	originalRegisterTemplate := SMSRegisterTemplate
+	originalTemplate := SMSTemplate
 	t.Cleanup(func() {
 		SMSSignature = originalSignature
 		SMSSignatureReviewStatus = originalStatus
 		SMSProductName = originalProductName
-		SMSRegisterTemplate = originalRegisterTemplate
+		SMSTemplate = originalTemplate
 	})
 
 	SMSSignature = "NewAPI"
 	SMSSignatureReviewStatus = SMSSignatureStatusApproved
 	SMSProductName = "分销系统"
-	SMSRegisterTemplate = "{product} 注册验证码 {code}"
+	SMSTemplate = "{product} 验证码 {code}"
 
 	content, err := RenderSMSVerificationContent(SMSVerificationContentInput{
 		Scene: SMSSceneRegister,
@@ -85,23 +81,24 @@ func TestDefaultSMSVerificationTemplateConfigUsesGlobals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderSMSVerificationContent returned error: %v", err)
 	}
-	if content != "【NewAPI】分销系统 注册验证码 654321" {
+	if content != "【NewAPI】分销系统 验证码 654321" {
 		t.Fatalf("unexpected content: %q", content)
 	}
 }
 
-func TestSMSVerificationTemplateVersionDoesNotIncludeCodeOrTemplateBody(t *testing.T) {
+func TestSMSVerificationTemplateVersionKeepsSceneButDoesNotIncludeCodeOrTemplateBody(t *testing.T) {
 	version := SMSVerificationTemplateVersionFromConfig(SMSSceneRegister, SMSVerificationTemplateConfig{
 		Signature:             "NewAPI",
 		SignatureReviewStatus: SMSSignatureStatusApproved,
-		Templates: map[string]string{
-			SMSSceneRegister: "注册验证码 {code}，{minutes} 分钟内有效。",
-		},
+		Template:              "验证码 {code}，{minutes} 分钟内有效。",
 	})
 	if version == "" {
 		t.Fatal("expected template version")
 	}
-	for _, forbidden := range []string{"123456", "{code}", "注册验证码"} {
+	if !strings.HasPrefix(version, SMSSceneRegister+":") {
+		t.Fatalf("expected scene-scoped template version, got %s", version)
+	}
+	for _, forbidden := range []string{"123456", "{code}", "验证码"} {
 		if strings.Contains(version, forbidden) {
 			t.Fatalf("template version leaked %q: %s", forbidden, version)
 		}

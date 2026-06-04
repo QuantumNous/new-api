@@ -53,11 +53,7 @@ const defaultInputs = {
   SMSSignature: '',
   SMSSignatureReviewStatus: 'pending',
   SMSProductName: '',
-  SMSRegisterTemplate: '',
-  SMSLoginTemplate: '',
-  SMSBindTemplate: '',
-  SMSChangeTemplate: '',
-  SMSResetPasswordTemplate: '',
+  SMSTemplate: '',
   SMSRateLimitEnabled: false,
   SMSRateLimitWindowSeconds: '60',
   SMSRateLimitPhoneCount: '1',
@@ -91,7 +87,10 @@ export default function SettingsSMS(props) {
 
   function handleNumberChange(fieldName) {
     return (value) => {
-      setInputs((current) => ({ ...current, [fieldName]: String(value ?? '') }));
+      setInputs((current) => ({
+        ...current,
+        [fieldName]: String(value ?? ''),
+      }));
     };
   }
 
@@ -341,51 +340,13 @@ export default function SettingsSMS(props) {
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+            <Col xs={24}>
               <Form.TextArea
-                field='SMSRegisterTemplate'
-                label={t('注册模板')}
+                field='SMSTemplate'
+                label={t('短信模板')}
                 autosize
-                placeholder='{product} 注册验证码 {code}，{minutes} 分钟内有效。'
-                onChange={handleFieldChange('SMSRegisterTemplate')}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.TextArea
-                field='SMSLoginTemplate'
-                label={t('登录模板')}
-                autosize
-                placeholder='{product} 登录验证码 {code}，{minutes} 分钟内有效。'
-                onChange={handleFieldChange('SMSLoginTemplate')}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.TextArea
-                field='SMSBindTemplate'
-                label={t('绑定手机号模板')}
-                autosize
-                placeholder='{product} 绑定手机号验证码 {code}，{minutes} 分钟内有效。'
-                onChange={handleFieldChange('SMSBindTemplate')}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.TextArea
-                field='SMSChangeTemplate'
-                label={t('换绑手机号模板')}
-                autosize
-                placeholder='{product} 换绑手机号验证码 {code}，{minutes} 分钟内有效。'
-                onChange={handleFieldChange('SMSChangeTemplate')}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.TextArea
-                field='SMSResetPasswordTemplate'
-                label={t('重置密码模板')}
-                autosize
-                placeholder='{product} 重置密码验证码 {code}，{minutes} 分钟内有效。'
-                onChange={handleFieldChange('SMSResetPasswordTemplate')}
+                placeholder='{product} 验证码 {code}，{minutes} 分钟内有效。'
+                onChange={handleFieldChange('SMSTemplate')}
               />
             </Col>
           </Row>
@@ -513,11 +474,14 @@ export default function SettingsSMS(props) {
               </Button>
               {statusInfo && (
                 <Text type='secondary'>
-                  {t('已发送 {{sent}} 条，剩余 {{remaining}} 条，返回码 {{code}}', {
-                    sent: statusInfo.sent_count ?? '-',
-                    remaining: statusInfo.remaining_count ?? '-',
-                    code: statusInfo.provider_code ?? '-',
-                  })}
+                  {t(
+                    '已发送 {{sent}} 条，剩余 {{remaining}} 条，返回码 {{code}}',
+                    {
+                      sent: statusInfo.sent_count ?? '-',
+                      remaining: statusInfo.remaining_count ?? '-',
+                      code: statusInfo.provider_code ?? '-',
+                    },
+                  )}
                 </Text>
               )}
             </Space>
