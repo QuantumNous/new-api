@@ -27,7 +27,11 @@ import {
   verifyJSON,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
+import {
+  CHANNEL_ENDPOINT_OPTIONS,
+  CHANNEL_OPTIONS,
+  MODEL_FETCHABLE_CHANNEL_TYPES,
+} from '../../../../constants';
 import {
   SideSheet,
   Space,
@@ -134,6 +138,30 @@ const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
 ]);
 
+const parseSupportedEndpoints = (value) => {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value.map((item) => String(item || '').trim()).filter(Boolean),
+      ),
+    );
+  }
+  if (typeof value !== 'string') {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
+const stringifySupportedEndpoints = (value) =>
+  parseSupportedEndpoints(value).join(',');
+
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
   switch (type) {
@@ -187,6 +215,7 @@ const EditChannelModal = (props) => {
     priority: 0,
     weight: 0,
     tag: '',
+    supported_endpoints: [],
     multi_key_mode: 'random',
     // 渠道额外设置的默认值
     force_format: false,
@@ -870,6 +899,9 @@ const EditChannelModal = (props) => {
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
+          data.supported_endpoints = parseSupportedEndpoints(
+            parsedSettings.supported_endpoints,
+          );
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -878,6 +910,7 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
+          data.supported_endpoints = [];
         }
       } else {
         data.force_format = false;
@@ -886,6 +919,7 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
+        data.supported_endpoints = [];
       }
 
       if (data.settings) {
@@ -1858,6 +1892,24 @@ const EditChannelModal = (props) => {
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
+    const supportedEndpointsText = stringifySupportedEndpoints(
+      localInputs.supported_endpoints,
+    );
+    let setting = {};
+    if (localInputs.setting) {
+      try {
+        setting = JSON.parse(localInputs.setting);
+      } catch (error) {
+        setting = {};
+      }
+    }
+    if (supportedEndpointsText) {
+      setting.supported_endpoints = supportedEndpointsText;
+    } else {
+      delete setting.supported_endpoints;
+    }
+    localInputs.setting = JSON.stringify(setting);
+    delete localInputs.supported_endpoints;
 
     let mode = 'single';
     if (batch) {
@@ -2084,6 +2136,15 @@ const EditChannelModal = (props) => {
         label: opt.label,
       })),
     [],
+  );
+
+  const endpointOptionList = useMemo(
+    () =>
+      CHANNEL_ENDPOINT_OPTIONS.map((opt) => ({
+        ...opt,
+        label: t(opt.label),
+      })),
+    [t],
   );
 
   const renderChannelOption = (renderProps) => {
@@ -2626,6 +2687,19 @@ const EditChannelModal = (props) => {
                       renderOptionItem={renderChannelOption}
                       onChange={(value) => handleInputChange('type', value)}
                       disabled={isIonetLocked}
+                    />
+
+                    <Form.Select
+                      field='supported_endpoints'
+                      label={t('支持端点')}
+                      placeholder={t('不选择表示不限制')}
+                      optionList={endpointOptionList}
+                      multiple
+                      showClear
+                      style={{ width: '100%' }}
+                      extraText={t(
+                        '用于限制该渠道可处理的请求端点；留空时所有端点均可使用。',
+                      )}
                     />
 
                     {inputs.type === 57 && (

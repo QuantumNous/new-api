@@ -179,10 +179,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:        c,
-		TokenGroup: relayInfo.TokenGroup,
-		ModelName:  relayInfo.OriginModelName,
-		Retry:      common.GetPointer(0),
+		Ctx:          c,
+		TokenGroup:   relayInfo.TokenGroup,
+		ModelName:    relayInfo.OriginModelName,
+		EndpointType: service.EndpointTypeFromPath(c.Request.URL.Path),
+		Retry:        common.GetPointer(0),
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil

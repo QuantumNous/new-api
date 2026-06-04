@@ -116,6 +116,7 @@ import {
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
+  CHANNEL_ENDPOINT_OPTIONS,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
@@ -462,6 +463,15 @@ export function ChannelMutateDrawer({
     }
     return options
   }, [currentType, t])
+
+  const endpointTypeOptions = useMemo(
+    () =>
+      CHANNEL_ENDPOINT_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(option.label),
+      })),
+    [t]
+  )
 
   // Extract redirect models from model_mapping (target values)
   const redirectModelList = useMemo(
@@ -1127,6 +1137,30 @@ export function ChannelMutateDrawer({
                         )}
                       />
                     </div>
+
+                    <FormField
+                      control={form.control}
+                      name='supported_endpoints'
+                      render={({ field }) => (
+                        <FormItem className='space-y-3'>
+                          <div className='space-y-1'>
+                            <FormLabel>{t('Supported Endpoints')}</FormLabel>
+                            <FormDescription>
+                              {t('Leave empty to allow all endpoints.')}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <MultiSelect
+                              options={endpointTypeOptions}
+                              selected={field.value ?? []}
+                              onChange={field.onChange}
+                              placeholder={t('Select endpoint types')}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <FormField
                       control={form.control}

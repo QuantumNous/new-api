@@ -1773,7 +1773,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Buộc phản hồi JSON hợp lệ về cú pháp",
@@ -4520,6 +4520,18 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Supported Endpoints": "Endpoint được hỗ trợ",
+    "Leave empty to allow all endpoints.": "Để trống để cho phép tất cả endpoint.",
+    "Select endpoint types": "Chọn loại endpoint",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Tin nhắn Anthropic",
+    "OpenAI (/v1/chat/completions)": "OpenAI (/v1/chat/completions)",
+    "OpenAI Responses (/v1/responses)": "OpenAI Responses (/v1/responses)",
+    "OpenAI Response Compaction (/v1/responses/compact)": "Nén OpenAI Responses (/v1/responses/compact)",
+    "Anthropic (/v1/messages)": "Anthropic (/v1/messages)",
+    "Gemini (/v1beta/models/{model}:generateContent)": "Gemini (/v1beta/models/{model}:generateContent)",
+    "Jina Rerank (/v1/rerank)": "Jina Rerank (/v1/rerank)"
   }
 }

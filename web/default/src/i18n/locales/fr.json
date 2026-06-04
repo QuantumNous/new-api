@@ -1773,7 +1773,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Imposer une réponse JSON syntaxiquement valide",
@@ -4520,6 +4520,18 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Supported Endpoints": "Points de terminaison pris en charge",
+    "Leave empty to allow all endpoints.": "Laissez vide pour autoriser tous les points de terminaison.",
+    "Select endpoint types": "Selectionner les types de points de terminaison",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Messages Anthropic",
+    "OpenAI (/v1/chat/completions)": "OpenAI (/v1/chat/completions)",
+    "OpenAI Responses (/v1/responses)": "OpenAI Responses (/v1/responses)",
+    "OpenAI Response Compaction (/v1/responses/compact)": "Compactage OpenAI Responses (/v1/responses/compact)",
+    "Anthropic (/v1/messages)": "Anthropic (/v1/messages)",
+    "Gemini (/v1beta/models/{model}:generateContent)": "Gemini (/v1beta/models/{model}:generateContent)",
+    "Jina Rerank (/v1/rerank)": "Jina Rerank (/v1/rerank)"
   }
 }

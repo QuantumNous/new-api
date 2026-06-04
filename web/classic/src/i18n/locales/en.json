@@ -3825,6 +3825,17 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "OpenAI": "OpenAI",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Anthropic Messages",
+    "Gemini": "Gemini",
+    "Rerank": "Rerank",
+    "支持端点": "Supported endpoints",
+    "不选择表示不限制": "Leave empty for no restriction",
+    "用于限制该渠道可处理的请求端点；留空时所有端点均可使用。": "Restricts which request endpoints this channel can handle. Leave empty to allow all endpoints.",
+    "仅支持这些端点": "Only these endpoints are supported",
+    "端点受限": "Endpoint restricted"
   }
 }
