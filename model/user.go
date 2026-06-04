@@ -711,7 +711,9 @@ func IsOidcIdAlreadyTaken(oidcId string) bool {
 }
 
 func IsGoogleIdAlreadyTaken(googleId string) bool {
-	return DB.Where("google_id = ?", googleId).Find(&User{}).RowsAffected == 1
+	// Use Unscoped so a soft-deleted/banned user's google_id stays reserved and
+	// cannot be re-registered (matches GitHub/Discord/Telegram behavior).
+	return DB.Unscoped().Where("google_id = ?", googleId).Find(&User{}).RowsAffected == 1
 }
 
 func IsTelegramIdAlreadyTaken(telegramId string) bool {

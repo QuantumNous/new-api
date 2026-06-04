@@ -23,6 +23,24 @@ func TestFillUserByGoogleId_EmptyId(t *testing.T) {
 	require.Error(t, u.FillUserByGoogleId())
 }
 
+func TestFillUserByGoogleId_NotFound(t *testing.T) {
+	truncateTables(t)
+	// Mirrors OIDC behavior: a non-empty id with no matching row returns no error
+	// and leaves the user as zero-value. Callers must gate with IsGoogleIdAlreadyTaken.
+	u := &User{GoogleId: "does-not-exist"}
+	require.NoError(t, u.FillUserByGoogleId())
+	require.Zero(t, u.Id)
+}
+
+func TestIsGoogleIdAlreadyTaken_SoftDeletedStillTaken(t *testing.T) {
+	truncateTables(t)
+	user := &User{Username: "g_soft", GoogleId: "google-sub-soft"}
+	require.NoError(t, DB.Create(user).Error)
+	// Soft-delete the user; the google_id must remain reserved (Unscoped).
+	require.NoError(t, DB.Delete(user).Error)
+	require.True(t, IsGoogleIdAlreadyTaken("google-sub-soft"))
+}
+
 func TestIsGoogleIdAlreadyTaken(t *testing.T) {
 	truncateTables(t)
 	require.False(t, IsGoogleIdAlreadyTaken("google-sub-456"))
