@@ -350,6 +350,16 @@ func updateAffiliateJobRunSettlementProgress(db *gorm.DB, jobRunId int, settleme
 	})
 }
 
+func updateAffiliateJobRunCommissionProgress(db *gorm.DB, jobRunId int, commissionEventCount int) error {
+	if jobRunId <= 0 {
+		return nil
+	}
+	return updateAffiliateJobRunProgress(db, jobRunId, affiliateJobRunStageCommission, map[string]interface{}{
+		"commission_event_count": commissionEventCount,
+		"result_snapshot":        affiliateJobRunCountProgressSnapshot(db, jobRunId, "commission_event_count", commissionEventCount),
+	})
+}
+
 func updateAffiliateJobRunCursor(db *gorm.DB, jobRunId int, stage string, lastCreatedAt int64, lastID int) error {
 	if jobRunId <= 0 || lastID <= 0 {
 		return nil
@@ -382,6 +392,12 @@ func affiliateJobRunSettlementProgressSnapshot(db *gorm.DB, jobRunId int, settle
 	snapshot := loadAffiliateJobRunResultSnapshot(db, jobRunId)
 	snapshot["settlement_count"] = len(settlements)
 	snapshot["settlement_ids"] = affiliateSettlementIds(settlements)
+	return common.GetJsonString(snapshot)
+}
+
+func affiliateJobRunCountProgressSnapshot(db *gorm.DB, jobRunId int, countKey string, count int) string {
+	snapshot := loadAffiliateJobRunResultSnapshot(db, jobRunId)
+	snapshot[countKey] = count
 	return common.GetJsonString(snapshot)
 }
 

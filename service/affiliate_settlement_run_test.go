@@ -362,6 +362,68 @@ func TestRunAffiliateSettlementPipelineRecordsJobRunFailure(t *testing.T) {
 	}
 }
 
+func TestRunAffiliateSettlementPipelineRecordsPartialCommissionProgressOnFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-run-partial-commission-progress")
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+
+	createdCommissionEvents := 0
+	failSecondCommissionEvent := "fail_second_commission_event_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Create().Before("gorm:create").Register(failSecondCommissionEvent, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_commission_events" {
+			return
+		}
+		createdCommissionEvents++
+		if createdCommissionEvents == 2 {
+			tx.AddError(errors.New("forced second commission event failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register second commission failure callback: %v", err)
+	}
+
+	result, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             3000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "record partial commission progress",
+	})
+	_ = db.Callback().Create().Remove(failSecondCommissionEvent)
+	if err == nil {
+		t.Fatalf("expected forced commission event failure, got %+v", result)
+	}
+
+	var persistedCommissionCount int64
+	if err := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("rule_set_id = ? AND period_start = ? AND period_end = ?", ruleSet.Id, 1000, 2000).
+		Count(&persistedCommissionCount).Error; err != nil {
+		t.Fatalf("count persisted commission events: %v", err)
+	}
+	if persistedCommissionCount != 1 {
+		t.Fatalf("expected first commission event to be durable before failure, got %d", persistedCommissionCount)
+	}
+
+	var jobRun model.AffiliateJobRun
+	if err := db.First(&jobRun, result.JobRunId).Error; err != nil {
+		t.Fatalf("load failed job run: %v", err)
+	}
+	if jobRun.Status != model.AffiliateJobRunStatusFailed || jobRun.CurrentStage != affiliateJobRunStageCommission {
+		t.Fatalf("expected failed job run at commission stage, got %+v", jobRun)
+	}
+	if jobRun.CommissionEventCount != 1 {
+		t.Fatalf("expected failed job run to retain partial commission event count, got %+v", jobRun)
+	}
+	if !strings.Contains(jobRun.ResultSnapshot, `"commission_event_count":1`) {
+		t.Fatalf("expected failed result snapshot to retain partial commission event count, got %q", jobRun.ResultSnapshot)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineResumesFailedJobRunForSameIdempotencyKey(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	input := AffiliateSettlementRunInput{

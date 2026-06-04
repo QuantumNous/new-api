@@ -62,19 +62,20 @@ func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input Af
 	}
 
 	created := make([]model.AffiliateCommissionEvent, 0)
-	err = db.Transaction(func(tx *gorm.DB) error {
-		for _, sourceLog := range sourceLogs {
+	for _, sourceLog := range sourceLogs {
+		var savedForLog []model.AffiliateCommissionEvent
+		err = db.Transaction(func(tx *gorm.DB) error {
 			attribution, err := resolveAffiliateLogQuotaAttribution(tx, sourceLog)
 			if err != nil {
 				return err
 			}
 			if attribution.PaidRawQuota == 0 {
-				continue
+				return nil
 			}
 
 			netPaidCents := affiliateRawQuotaToCents(attribution.PaidRawQuota, input)
 			if netPaidCents == 0 {
-				continue
+				return nil
 			}
 			rawQuota := attribution.PaidRawQuota
 			beforeCents := cumulative[sourceLog.UserId]
@@ -147,13 +148,20 @@ func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input Af
 				if err != nil {
 					return err
 				}
-				created = append(created, saved)
+				savedForLog = append(savedForLog, saved)
 			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		if len(savedForLog) == 0 {
+			continue
+		}
+		created = append(created, savedForLog...)
+		if err := updateAffiliateJobRunCommissionProgress(db, input.JobRunId, len(created)); err != nil {
+			return nil, err
+		}
 	}
 	return created, nil
 }
