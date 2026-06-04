@@ -1,0 +1,49 @@
+package oauth
+
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/stretchr/testify/require"
+)
+
+func TestParseGoogleUserInfo_OK(t *testing.T) {
+	body := []byte(`{"sub":"123","email":"a@b.com","email_verified":true,"name":"Alice","picture":"http://x/y.png"}`)
+	u, err := parseGoogleUserInfo(body)
+	require.NoError(t, err)
+	require.Equal(t, "123", u.ProviderUserID)
+	require.Equal(t, "a@b.com", u.Email)
+	require.Equal(t, "Alice", u.DisplayName)
+}
+
+func TestParseGoogleUserInfo_EmailNotVerified(t *testing.T) {
+	body := []byte(`{"sub":"123","email":"a@b.com","email_verified":false,"name":"Alice"}`)
+	_, err := parseGoogleUserInfo(body)
+	require.Error(t, err)
+	oErr, ok := err.(*OAuthError)
+	require.True(t, ok)
+	require.Equal(t, i18n.MsgOAuthEmailNotVerified, oErr.MsgKey)
+}
+
+func TestParseGoogleUserInfo_EmptySub(t *testing.T) {
+	body := []byte(`{"sub":"","email":"a@b.com","email_verified":true}`)
+	_, err := parseGoogleUserInfo(body)
+	require.Error(t, err)
+	oErr, ok := err.(*OAuthError)
+	require.True(t, ok)
+	require.Equal(t, i18n.MsgOAuthUserInfoEmpty, oErr.MsgKey)
+}
+
+func TestParseGoogleUserInfo_EmptyEmail(t *testing.T) {
+	body := []byte(`{"sub":"123","email":"","email_verified":true}`)
+	_, err := parseGoogleUserInfo(body)
+	require.Error(t, err)
+	oErr, ok := err.(*OAuthError)
+	require.True(t, ok)
+	require.Equal(t, i18n.MsgOAuthUserInfoEmpty, oErr.MsgKey)
+}
+
+func TestParseGoogleUserInfo_InvalidJSON(t *testing.T) {
+	_, err := parseGoogleUserInfo([]byte(`not json`))
+	require.Error(t, err)
+}
