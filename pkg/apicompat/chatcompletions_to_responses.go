@@ -75,10 +75,11 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		out.Tools = convertChatToolsToResponses(req.Tools, req.Functions)
 	}
 
-	// tool_choice: already compatible format — pass through directly.
+	// tool_choice: normalize the forced-function object form to the Responses
+	// shape; string forms ("auto"/"none"/"required") pass through unchanged.
 	// Legacy function_call needs mapping.
 	if len(req.ToolChoice) > 0 {
-		out.ToolChoice = req.ToolChoice
+		out.ToolChoice = normalizeChatToolChoiceToResponses(req.ToolChoice)
 	} else if len(req.FunctionCall) > 0 {
 		tc, err := convertChatFunctionCallToToolChoice(req.FunctionCall)
 		if err != nil {
@@ -438,6 +439,48 @@ func convertChatToolsToResponses(tools []ChatTool, functions []ChatFunction) []R
 	}
 
 	return out
+}
+
+// normalizeChatToolChoiceToResponses converts a Chat Completions tool_choice
+// value into the Responses API shape. The forced-function object form differs
+// between the two APIs and must be flattened, otherwise the Responses API
+// rejects the request with "Missing required parameter: 'tool_choice.name'".
+//
+//	"auto"/"none"/"required"                     → unchanged
+//	{"type":"function","function":{"name":"X"}}  → {"type":"function","name":"X"}
+//	{"type":"function","name":"X"}               → unchanged (already Responses shape)
+//
+// Anything it does not recognize is passed through untouched.
+func normalizeChatToolChoiceToResponses(raw json.RawMessage) json.RawMessage {
+	// String forms ("auto"/"none"/"required") are identical in both APIs.
+	var s string
+	if err := common.Unmarshal(raw, &s); err == nil {
+		return raw
+	}
+
+	var m map[string]any
+	if err := common.Unmarshal(raw, &m); err != nil || m == nil {
+		return raw
+	}
+	if t, _ := m["type"].(string); t != "function" {
+		return raw
+	}
+	// Already in Responses shape: {"type":"function","name":"X"}.
+	if name, ok := m["name"].(string); ok && name != "" {
+		return raw
+	}
+	// Chat shape: {"type":"function","function":{"name":"X"}} → flatten.
+	if fn, ok := m["function"].(map[string]any); ok {
+		if name, ok := fn["name"].(string); ok && name != "" {
+			if out, err := common.Marshal(map[string]any{
+				"type": "function",
+				"name": name,
+			}); err == nil {
+				return out
+			}
+		}
+	}
+	return raw
 }
 
 // convertChatFunctionCallToToolChoice maps the legacy function_call field to a
