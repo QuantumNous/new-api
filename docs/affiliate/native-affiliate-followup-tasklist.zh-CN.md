@@ -644,3 +644,12 @@
 - 验证命令：RED 阶段 `go test -count=1 ./service -run TestGenerateAffiliateSettlementsWithJobRunRecordsPartialSettlementProgressOnFailure` 失败于 failed job run `settlement_count=0`；实现后同命令通过。回归 `go test -count=1 ./service -run "GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement|AffiliateJobRun|ResumeFailed"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
 - schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；Docker 仍只返回 client 信息，pending PostgreSQL schema diff 仍待 Docker 恢复后补。
 - 残留风险：完整阶段内部 cursor 断点续扫仍未完成，尤其 KPI/佣金/人头费阶段仍不能直接跳过 cursor 前日志；外部完整周期 dry-run/正式 run 双跑和真实运行态部署验证仍待做。
+
+## P1-37 failed resume 保留部分结算进度复盘（2026-06-04 本线程）
+
+- RED：扩展 `TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart`，构造 failed `settlement_generate` job run，`result_snapshot` 同时包含 typed cursor、`settlement_count=1` 和 `settlement_ids`。旧 resume snapshot 白名单只保留 cursor 字段，重置为 running 后 `settlement_ids` 丢失，测试失败。
+- 完成内容：`affiliateJobRunResumeCursorSnapshotKeys` 新增 `settlement_count` 与 `settlement_ids`，failed job run 原地恢复时继续保留 P1-36 已写入的部分结算进度，同时仍保留 typed cursor。`settlement_count` 字段本身已由既有 reset 逻辑保留，本轮补齐 result snapshot 审计证据。
+- 安全边界：本轮只扩大 failed resume 的 result snapshot 保留字段，不新增 schema，不改变 idempotency key，不保存 reason 原文，也不按 cursor 跳过未完成扫描。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart` 失败于 partial settlement progress snapshot 丢失；实现后同命令通过。回归 `go test -count=1 ./service -run "AffiliateJobRun|ResumeFailed|GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
+- schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；Docker 仍只返回 client 信息，pending PostgreSQL schema diff 仍待 Docker 恢复后补。
+- 残留风险：完整阶段内部 cursor 断点续扫仍未完成，尤其 KPI/佣金/人头费阶段仍不能直接跳过 cursor 前日志；外部完整周期 dry-run/正式 run 双跑和真实运行态部署验证仍待做。

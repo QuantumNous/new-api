@@ -293,16 +293,17 @@ func TestGenerateAffiliateSettlementsWithJobRunRecordsPartialSettlementProgressO
 func TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	jobRun := model.AffiliateJobRun{
-		JobType:        model.AffiliateJobRunTypeSettlementGenerate,
-		Status:         model.AffiliateJobRunStatusFailed,
-		IdempotencyKey: "resume-preserves-cursor",
-		CurrentStage:   affiliateJobRunStageSettlementCommissionEvents,
-		LastCursorId:   2345,
-		ResultSnapshot: `{"status":"failed","settlement_commission_event_id":2345}`,
-		ErrorMessage:   "forced failure after commission event scan",
-		StartedAt:      1000,
-		CreatedAt:      1000,
-		UpdatedAt:      1000,
+		JobType:         model.AffiliateJobRunTypeSettlementGenerate,
+		Status:          model.AffiliateJobRunStatusFailed,
+		IdempotencyKey:  "resume-preserves-cursor",
+		CurrentStage:    affiliateJobRunStageSettlementCommissionEvents,
+		LastCursorId:    2345,
+		SettlementCount: 1,
+		ResultSnapshot:  `{"status":"failed","settlement_commission_event_id":2345,"settlement_count":1,"settlement_ids":[987]}`,
+		ErrorMessage:    "forced failure after commission event scan",
+		StartedAt:       1000,
+		CreatedAt:       1000,
+		UpdatedAt:       1000,
 	}
 	if err := db.Create(&jobRun).Error; err != nil {
 		t.Fatalf("seed failed job run: %v", err)
@@ -323,6 +324,9 @@ func TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart(t *testing
 	}
 	if !strings.Contains(resumedRun.ResultSnapshot, `"settlement_commission_event_id":2345`) {
 		t.Fatalf("expected retry to preserve typed cursor snapshot, got %q", resumedRun.ResultSnapshot)
+	}
+	if !strings.Contains(resumedRun.ResultSnapshot, `"settlement_count":1`) || !strings.Contains(resumedRun.ResultSnapshot, `"settlement_ids":[987]`) {
+		t.Fatalf("expected retry to preserve partial settlement progress snapshot, got %q", resumedRun.ResultSnapshot)
 	}
 }
 

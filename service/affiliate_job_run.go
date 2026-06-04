@@ -269,6 +269,8 @@ func affiliateJobRunResumeCursorSnapshotKeys() []string {
 		"head_fee_log_created_at",
 		"settlement_commission_event_id",
 		"settlement_head_fee_event_id",
+		"settlement_count",
+		"settlement_ids",
 		"last_cursor_id",
 		"last_cursor_created_at",
 	}
