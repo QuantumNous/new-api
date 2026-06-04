@@ -241,6 +241,55 @@ func TestGenerateAffiliateSettlementsWithJobRunPreservesStageCursorOnFailure(t *
 	}
 }
 
+func TestGenerateAffiliateSettlementsWithJobRunRecordsPartialSettlementProgressOnFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-generate-partial-progress")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 200, 500, 1000, 2000)
+
+	failSecondAffiliate := "fail_second_affiliate_job_run_progress_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Create().Before("gorm:create").Register(failSecondAffiliate, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_settlements" {
+			return
+		}
+		settlement, ok := tx.Statement.Dest.(*model.AffiliateSettlement)
+		if ok && settlement.AffiliateUserId == 200 {
+			tx.AddError(errors.New("forced second affiliate settlement failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register second affiliate failure callback: %v", err)
+	}
+
+	settlements, jobRun, err := GenerateAffiliateSettlementsWithJobRun(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+		ActorUserId: 9,
+		Reason:      "record partial progress without leaking reason",
+		GeneratedAt: 3000,
+	})
+	_ = db.Callback().Create().Remove(failSecondAffiliate)
+	if err == nil {
+		t.Fatalf("expected second affiliate settlement failure, settlements=%+v jobRun=%+v", settlements, jobRun)
+	}
+
+	var firstDraft model.AffiliateSettlement
+	if err := db.Where("affiliate_user_id = ? AND rule_set_id = ?", 100, ruleSet.Id).First(&firstDraft).Error; err != nil {
+		t.Fatalf("expected first draft to be durable before failure: %v", err)
+	}
+	var saved model.AffiliateJobRun
+	if err := db.First(&saved, jobRun.Id).Error; err != nil {
+		t.Fatalf("load partial progress job run: %v", err)
+	}
+	if saved.Status != model.AffiliateJobRunStatusFailed || saved.SettlementCount != 1 {
+		t.Fatalf("expected failed job run to retain one completed settlement, got %+v", saved)
+	}
+	if !strings.Contains(saved.ResultSnapshot, `"settlement_count":1`) || !strings.Contains(saved.ResultSnapshot, `"settlement_ids":[`+fmt.Sprint(firstDraft.Id)) {
+		t.Fatalf("expected failed result snapshot to preserve durable settlement ids, got %q", saved.ResultSnapshot)
+	}
+}
+
 func TestResumeFailedAffiliateJobRunPreservesCursorSnapshotForRestart(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	jobRun := model.AffiliateJobRun{

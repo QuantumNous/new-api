@@ -99,6 +99,9 @@ func GenerateAffiliateSettlements(db *gorm.DB, input AffiliateSettlementBuildInp
 			return nil, err
 		}
 		settlements = append(settlements, settlement)
+		if err := updateAffiliateJobRunSettlementProgress(db, input.JobRunId, settlements); err != nil {
+			return nil, err
+		}
 	}
 	return settlements, nil
 }

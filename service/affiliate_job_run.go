@@ -338,6 +338,16 @@ func updateAffiliateJobRunIDCursor(db *gorm.DB, jobRunId int, stage string, last
 	return updateAffiliateJobRunCursor(db, jobRunId, stage, 0, lastID)
 }
 
+func updateAffiliateJobRunSettlementProgress(db *gorm.DB, jobRunId int, settlements []model.AffiliateSettlement) error {
+	if jobRunId <= 0 {
+		return nil
+	}
+	return updateAffiliateJobRunProgress(db, jobRunId, affiliateJobRunStageSettlement, map[string]interface{}{
+		"settlement_count": len(settlements),
+		"result_snapshot":  affiliateJobRunSettlementProgressSnapshot(db, jobRunId, settlements),
+	})
+}
+
 func updateAffiliateJobRunCursor(db *gorm.DB, jobRunId int, stage string, lastCreatedAt int64, lastID int) error {
 	if jobRunId <= 0 || lastID <= 0 {
 		return nil
@@ -363,6 +373,13 @@ func affiliateJobRunCursorSnapshot(db *gorm.DB, jobRunId int, stage string, last
 	for key, value := range affiliateJobRunCursorSnapshotFields(stage, lastCreatedAt, lastID) {
 		snapshot[key] = value
 	}
+	return common.GetJsonString(snapshot)
+}
+
+func affiliateJobRunSettlementProgressSnapshot(db *gorm.DB, jobRunId int, settlements []model.AffiliateSettlement) string {
+	snapshot := loadAffiliateJobRunResultSnapshot(db, jobRunId)
+	snapshot["settlement_count"] = len(settlements)
+	snapshot["settlement_ids"] = affiliateSettlementIds(settlements)
 	return common.GetJsonString(snapshot)
 }
 
@@ -480,28 +497,28 @@ func affiliateSettlementGenerateInputSnapshot(input AffiliateSettlementBuildInpu
 }
 
 func affiliateSettlementRunResultSnapshot(result AffiliateSettlementRunResult) string {
-	settlementIds := make([]int, 0, len(result.Settlements))
-	for _, settlement := range result.Settlements {
-		settlementIds = append(settlementIds, settlement.Id)
-	}
 	return common.GetJsonString(map[string]interface{}{
 		"kpi_snapshot_count":     result.KPISnapshotCount,
 		"commission_event_count": result.CommissionEventCount,
 		"head_fee_event_count":   result.HeadFeeEventCount,
 		"settlement_count":       result.SettlementCount,
-		"settlement_ids":         settlementIds,
+		"settlement_ids":         affiliateSettlementIds(result.Settlements),
 	})
 }
 
 func affiliateSettlementGenerateResultSnapshot(settlements []model.AffiliateSettlement) string {
+	return common.GetJsonString(map[string]interface{}{
+		"settlement_count": len(settlements),
+		"settlement_ids":   affiliateSettlementIds(settlements),
+	})
+}
+
+func affiliateSettlementIds(settlements []model.AffiliateSettlement) []int {
 	settlementIds := make([]int, 0, len(settlements))
 	for _, settlement := range settlements {
 		settlementIds = append(settlementIds, settlement.Id)
 	}
-	return common.GetJsonString(map[string]interface{}{
-		"settlement_count": len(settlements),
-		"settlement_ids":   settlementIds,
-	})
+	return settlementIds
 }
 
 func sanitizeAffiliateJobRunError(cause error) string {

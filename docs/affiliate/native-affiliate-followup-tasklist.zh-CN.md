@@ -635,3 +635,12 @@
 - 验证命令：RED 阶段 `go test -count=1 ./service -run TestGenerateAffiliateSettlementsKeepsCompletedAffiliateDraftWhenLaterAffiliateFails` 失败于 first durable draft 不存在；实现后同命令通过。回归 `go test -count=1 ./service -run "GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
 - schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；既有 Docker PostgreSQL schema diff 缺口仍因 Docker server 不可用保留。
 - 残留风险：完整阶段内部 cursor 断点续扫仍未完成，尤其 KPI/佣金/人头费阶段不能直接用 cursor 跳过前序日志；Docker PostgreSQL schema diff、外部完整周期 dry-run/正式 run 双跑和生产/staging 真实链路验证仍待做。
+
+## P1-36 settlement job run 部分结算进度复盘（2026-06-04 本线程）
+
+- RED：新增 `TestGenerateAffiliateSettlementsWithJobRunRecordsPartialSettlementProgressOnFailure`，在第二个 affiliate draft 创建前强制失败。P1-35 已让第一个 affiliate draft/link 成为 durable side effect，但旧 job run 只保留 `settlement_commission_event_id` cursor，`settlement_count=0`，`result_snapshot` 没有 `settlement_ids`，测试失败。
+- 完成内容：`GenerateAffiliateSettlements` 每完成一个 affiliate 小事务后，会把当前已完成 settlements 写入 `affiliate_job_runs.settlement_count` 和 `result_snapshot.settlement_ids`；失败路径继续由 `finishAffiliateJobRunFailure` 合并已有 result snapshot，所以 failed job run 能保留已经落地的 settlement partial progress。
+- 安全边界：本轮只写已完成 settlement id 和计数，不保存 reason 原文，不新增 schema，也不按 cursor 跳过未完成扫描。该记录用于审计和后续 resume 设计，重试仍依赖 pending event 扫描与 existing draft merge 的幂等语义。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestGenerateAffiliateSettlementsWithJobRunRecordsPartialSettlementProgressOnFailure` 失败于 failed job run `settlement_count=0`；实现后同命令通过。回归 `go test -count=1 ./service -run "GenerateAffiliateSettlements|SettlementPipeline|RunAffiliateSettlementPipeline|AffiliateSettlement|AffiliateJobRun|ResumeFailed"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Dashboard|Summary|JobRun|DryRun"` 通过；`git diff --check` 通过。
+- schema impact：本轮不新增 GORM model、字段或索引，不需要新的 schema diff；Docker 仍只返回 client 信息，pending PostgreSQL schema diff 仍待 Docker 恢复后补。
+- 残留风险：完整阶段内部 cursor 断点续扫仍未完成，尤其 KPI/佣金/人头费阶段仍不能直接跳过 cursor 前日志；外部完整周期 dry-run/正式 run 双跑和真实运行态部署验证仍待做。
