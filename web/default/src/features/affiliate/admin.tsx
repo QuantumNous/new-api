@@ -1937,9 +1937,10 @@ export function AffiliateAdmin() {
       toast.error(validationError)
       return
     }
-    if (payload.id > 0) {
+    const ruleSetId = payload.id ?? 0
+    if (ruleSetId > 0) {
       const message = buildAffiliateRuleSetSaveConfirmation(
-        { id: payload.id, version: payload.version },
+        { id: ruleSetId, version: payload.version },
         t
       )
       if (typeof window !== 'undefined' && !window.confirm(message)) return

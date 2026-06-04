@@ -24,8 +24,8 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
 import { useCountdown } from '@/hooks/use-countdown'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -192,8 +192,9 @@ export function SignUpForm({
       }
     }
 
+    const phone = data.phone?.trim() ?? ''
     if (isSmsRegisterMode) {
-      if (!data.phone?.trim()) {
+      if (!phone) {
         toast.error(t('Please enter your phone number'))
         return
       }
@@ -211,7 +212,7 @@ export function SignUpForm({
         ? await smsRegister({
             username: data.username,
             password: data.password,
-            phone: data.phone.trim(),
+            phone,
             verification_code: smsVerificationCode.trim(),
             aff_code: getAffiliateCode(),
             turnstile: turnstileToken,
@@ -323,7 +324,7 @@ export function SignUpForm({
         {...props}
       >
         {smsRegisterEnabled && (
-          <div className='grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1'>
+          <div className='bg-muted/40 grid grid-cols-2 gap-2 rounded-lg border p-1'>
             <Button
               type='button'
               size='sm'

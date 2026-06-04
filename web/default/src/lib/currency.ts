@@ -123,7 +123,7 @@ type DisplayMeta =
       quotaPerUnit: number
     }
 
-const DEFAULT_FORMAT_OPTIONS: Required<CurrencyFormatOptions> = {
+const DEFAULT_FORMAT_OPTIONS: NumericCurrencyFormatOptions = {
   digitsLarge: 2,
   digitsSmall: 4,
   abbreviate: true,
@@ -280,7 +280,7 @@ function adjustForMinimum(
 
 function formatCurrencyValue(
   value: number,
-  options: Required<CurrencyFormatOptions>,
+  options: NumericCurrencyFormatOptions,
   meta: DisplayMeta
 ): string {
   if (meta.kind === 'tokens') {

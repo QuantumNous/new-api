@@ -724,8 +724,17 @@
 - i18n：新增 default `en/zh/fr/ja/ru/vi` 的登录模式、短信登录、重发倒计时等 key；新增 classic `en/zh/zh-CN/zh-TW/fr/ja/ru/vi` 的“使用 手机号 登录”“手机号登录”“发送验证码”“手机号登录失败”等 key。一次性 Node 检查确认新增 key 在所有目标 locale 中存在且 JSON 可解析。
 - 验证命令：RED 后实现，`cd web/default && bun test src/features/auth/api.test.ts` 通过 4 项；`bun test web/classic/src/components/auth/smsRegisterRequest.test.mjs` 通过 4 项；`cd web/default && bun run i18n:sync` 通过；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；两端登录页 Prettier check 通过；`git diff --check` 通过。
 - 浏览器 smoke：`curl -I --max-time 5 http://127.0.0.1:5173/sign-in` 与 `http://127.0.0.1:5174/login` 均返回 200；Playwright 打开 default `/sign-in` 能看到完整登录表单且 error 级 console 为 0，打开 classic `/login` 能看到“登 录”且 error 级 console 为 0。当前 default 运行态未显示短信入口，判断仍受 `/api/status.sms_enabled` 配置或 live 后端版本影响，不能替代 Docker 重建后的真实短信入口 smoke。
-- TypeScript 现状：`cd web/default && bun run typecheck` 当前仍失败，但失败点不是本轮登录页文件，而是仓库既有全仓 TS 债：`hast` 类型缺失、affiliate admin `payload.id` 可能为 undefined、sign-up `data.phone` 可能为 undefined、usage logs 泛型字段、currency options 缺 `currencyOverride`。后续应单独开 typecheck 收口任务，不在本轮短信登录 UI 中扩大修改面。
+- TypeScript 现状：本轮登录页提交后遗留的 default 全仓 TS 债已在 2026-06-04 P2-12 单独收口；P2-11 不再把 typecheck 失败作为残留项，但 Docker live smoke、真实短信通道和手机号绑定/换绑/找回闭环仍未覆盖。
 - 残留风险：本轮未做真实短信宝通道 smoke、已绑定手机号真实登录闭环、live 容器重建后 smoke、Docker PostgreSQL schema diff，也未做手机号绑定、换绑、解绑、找回密码闭环。Docker 恢复后必须重建 `new-api:dev`，再验证 `/api/status.sms_enabled`、default/classic 手机号登录入口显示、已绑定手机号发送登录验证码、未绑定手机号拒绝发送、2FA 用户登录分支和响应脱敏。
+
+## P2-12 default 前端 typecheck 收口复盘（2026-06-04 本线程）
+
+- 基线：接续 P2-11 后执行 `cd web/default && bun run typecheck`，失败点集中在 5 类既有 TS 债：`hast` 类型包缺失、affiliate admin rule set `payload.id` 可能为 undefined、SMS sign-up `data.phone` 可选字段被直接 trim、usage logs 泛型 mobile card 直接访问基础日志字段、currency format options 使用 `Required<CurrencyFormatOptions>` 导致 `currencyOverride` 缺失。
+- 完成内容：`code-block.tsx` 移除对未安装 `hast` 类型包的直接 import，改由 `ShikiTransformer` 上下文推断 line transformer 参数类型；不新增依赖，避免把单个类型引用扩大成包管理变更。
+- 完成内容：affiliate admin 保存 rule set 时先把 `payload.id ?? 0` 收窄为 `ruleSetId`，只有正数 id 才构造更新 payload；SMS sign-up 先归一化 `const phone = data.phone?.trim() ?? ''`，后续校验和提交复用同一个已收窄值。
+- 完成内容：usage logs mobile card 在读取 `row.original` 的通用字段前进行局部结构收窄，只把 `created_at` 与 `type` 当作可选 unknown 传给既有展示组件；currency formatter 拆出 `NumericCurrencyFormatOptions` 默认项和内部格式化参数，不再要求默认格式化参数携带 `currencyOverride`。
+- 验证命令：`cd web/default && bun run typecheck` 通过；`cd web/default && bun test src/lib/currency.test.ts src/features/auth/api.test.ts src/features/affiliate/admin-lib.test.ts` 通过 26 项；`cd web/default && bun run build` 通过；`cd web/default && bunx prettier --check src/components/ai-elements/code-block.tsx src/features/affiliate/admin.tsx src/features/auth/sign-up/components/sign-up-form.tsx src/features/usage-logs/components/usage-logs-mobile-card.tsx src/lib/currency.ts` 通过；`git diff --check` 通过。
+- 残留风险：本轮只收口 default TypeScript 严格性，不替代 classic 端类型/构建健康检查、Docker schema diff、live 容器重建、真实短信宝通道 smoke、Windows 浏览器旧 404 缓存排查或手机号绑定/换绑/找回闭环。
 
 ## P1-39 settlement 双跑事件合计审计复盘（2026-06-04 本线程）
 
