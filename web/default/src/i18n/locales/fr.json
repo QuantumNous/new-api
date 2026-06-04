@@ -3518,7 +3518,7 @@
     "Rewards will be added directly to your balance": "Les récompenses seront ajoutées directement à votre solde",
     "Rewrite callback URLs to the local server": "Réécrire les URLs de callback vers le serveur local",
     "Right to Left": "De droite à gauche",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json correspond aux seuils qualité/risque pour les ratios cadeau seul, anormal, remboursement et second paiement.",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "Définir les seuils qualité/risque pour les ratios cadeau seul, anormal, remboursement et second paiement.",
     "Role": "Rôle",
     "Roleplay": "Roleplay",
     "Root": "Racine",
@@ -4724,6 +4724,13 @@
     "Enter SMS verification code": "Saisissez le code de verification SMS",
     "Please enter SMS verification code": "Veuillez saisir le code de verification SMS",
     "Resend in {{seconds}}s": "Renvoyer dans {{seconds}} s",
-    "Sign in with phone": "Se connecter par telephone"
+    "Sign in with phone": "Se connecter par telephone",
+    "Save Quota Settings": "Enregistrer les paramètres de quota",
+    "Hold Settlement": "Suspendre le règlement",
+    "Exclude": "Exclure",
+    "Manual Review": "Révision manuelle",
+    "Observe": "Observer",
+    "Qualified": "Qualifié",
+    "Base": "Base"
   }
 }

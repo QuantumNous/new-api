@@ -3518,7 +3518,7 @@
     "Rewards will be added directly to your balance": "Phần thưởng sẽ được thêm trực tiếp vào số dư của bạn",
     "Rewrite callback URLs to the local server": "Viết lại URL callback đến máy chủ cục bộ",
     "Right to Left": "Phải sang trái",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json ánh xạ đến ngưỡng chất lượng/rủi ro cho tỷ lệ chỉ dùng quà, bất thường, hoàn tiền và thanh toán lần hai.",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "Thiết lập ngưỡng chất lượng/rủi ro cho tỷ lệ chỉ dùng quà, bất thường, hoàn tiền và thanh toán lần hai.",
     "Role": "Vai trò",
     "Roleplay": "Nhập vai",
     "Root": "Gốc",
@@ -4724,6 +4724,13 @@
     "Enter SMS verification code": "Nhap ma xac minh SMS",
     "Please enter SMS verification code": "Vui long nhap ma xac minh SMS",
     "Resend in {{seconds}}s": "Gui lai sau {{seconds}} giay",
-    "Sign in with phone": "Dang nhap bang so dien thoai"
+    "Sign in with phone": "Dang nhap bang so dien thoai",
+    "Save Quota Settings": "Lưu cài đặt hạn ngạch",
+    "Hold Settlement": "Tạm giữ quyết toán",
+    "Exclude": "Loại trừ",
+    "Manual Review": "Rà soát thủ công",
+    "Observe": "Theo dõi",
+    "Qualified": "Đạt điều kiện",
+    "Base": "Cơ bản"
   }
 }

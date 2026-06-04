@@ -3518,7 +3518,7 @@
     "Rewards will be added directly to your balance": "報酬は直接残高に追加されます",
     "Rewrite callback URLs to the local server": "コールバック URL をローカルサーバーに書き換え",
     "Right to Left": "右から左",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json は、ギフトのみ比率、異常比率、返金比率、二回目支払い比率の品質/リスクしきい値に対応します。",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "ギフトのみ比率、異常比率、返金比率、二回目支払い比率の品質/リスクしきい値を設定します。",
     "Role": "ロール",
     "Roleplay": "ロールプレイ",
     "Root": "ルート",
@@ -4724,6 +4724,13 @@
     "Enter SMS verification code": "SMS認証コードを入力",
     "Please enter SMS verification code": "SMS認証コードを入力してください",
     "Resend in {{seconds}}s": "{{seconds}}秒後に再送信",
-    "Sign in with phone": "電話番号でログイン"
+    "Sign in with phone": "電話番号でログイン",
+    "Save Quota Settings": "クォータ設定を保存",
+    "Hold Settlement": "精算保留",
+    "Exclude": "除外",
+    "Manual Review": "手動レビュー",
+    "Observe": "観察",
+    "Qualified": "適格",
+    "Base": "基本"
   }
 }

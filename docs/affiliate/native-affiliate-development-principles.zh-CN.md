@@ -1,6 +1,6 @@
 # 原生分销开发原则与踩坑治理
 
-更新日期：2026-06-02
+更新日期：2026-06-04
 
 ## 1. 最高原则
 
@@ -98,6 +98,11 @@
 - Docker daemon 阻塞时先修复 Docker Desktop/WSL 集成或本机 Docker Engine，不在业务代码中绕过。
 - 恢复生产快照后必须采集核心表行数，并用真实角色账号做 smoke。
 - dev compose 可以暴露 `127.0.0.1:3000` 和本地 PostgreSQL 调试端口，但不要监听公网地址。
+- 每次执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`、重建 `new-api:dev` 镜像、重新创建 `new-api` 容器，或 Docker Desktop/WSL/电脑重启后，都必须在 WSL 内启动或确认前端 dev server：
+  `./scripts/dev-web-tmux.sh`。
+- `scripts/dev-web-tmux.sh` 负责创建 `new-api-web` tmux session，并启动 default `5173` 与 classic `5174` 两个 Rsbuild dev server；这两个端口不是 Docker 容器提供的持久服务。
+- 如果 `scripts/dev-web-tmux.sh` 提示 session 已存在，不要重复手写前端启动命令，改用 `tmux list-windows -t new-api-web`、`ss -ltnp | rg ':3000|:5173|:5174'`、`curl -I http://127.0.0.1:5173/`、`curl -I http://127.0.0.1:5174/` 验证运行态。
+- 重建后排查前端 404/旧缓存/代理问题时，固定先验证 `3000`、`5173`、`5174` 的 `/api/affiliate/team` 未登录返回 401；不要把 `5173/5174` 拒绝连接误判为后端路由丢失。
 
 ## 4. 后端治理
 

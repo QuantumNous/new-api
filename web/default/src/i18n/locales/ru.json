@@ -3518,7 +3518,7 @@
     "Rewards will be added directly to your balance": "Награды будут добавлены напрямую в ваш баланс",
     "Rewrite callback URLs to the local server": "Перезаписывать URL обратных вызовов на локальный сервер",
     "Right to Left": "Справа налево",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json соответствует порогам качества/риска для доли только подарков, аномалий, возвратов и второго платежа.",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "Задайте пороги качества/риска для доли только подарков, аномалий, возвратов и второго платежа.",
     "Role": "Роль",
     "Roleplay": "Ролевые игры",
     "Root": "Корень",
@@ -4724,6 +4724,13 @@
     "Enter SMS verification code": "Введите SMS-код подтверждения",
     "Please enter SMS verification code": "Введите SMS-код подтверждения",
     "Resend in {{seconds}}s": "Повторно через {{seconds}} с",
-    "Sign in with phone": "Войти по телефону"
+    "Sign in with phone": "Войти по телефону",
+    "Save Quota Settings": "Сохранить настройки квоты",
+    "Hold Settlement": "Приостановить расчет",
+    "Exclude": "Исключить",
+    "Manual Review": "Ручная проверка",
+    "Observe": "Наблюдение",
+    "Qualified": "Квалифицированный",
+    "Base": "Базовый"
   }
 }

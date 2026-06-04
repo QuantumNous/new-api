@@ -314,7 +314,7 @@
     "Reward Amount (cents)": "Сумма вознаграждения (центы)",
     "Reward Amount (yuan)": "Сумма награды (юани)",
     "Reward quota granted to affiliates when they invite new users. Use -1 to inherit the normal inviter reward.": "Квота вознаграждения для партнёров за приглашение новых пользователей. Используйте -1, чтобы наследовать обычное вознаграждение пригласившего.",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json соответствует порогам качества/риска для доли только подарков, аномалий, возвратов и второго платежа.",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "Задайте пороги качества/риска для доли только подарков, аномалий, возвратов и второго платежа.",
     "RSA 私钥 (沙盒)": "",
     "RSA 私钥 (生产)": "",
     "safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私": "Поле safety_identifier помогает OpenAI идентифицировать пользователей приложений, которые могут нарушать политику использования. По умолчанию отключено для защиты конфиденциальности пользователей",
@@ -3824,6 +3824,20 @@
     "发送验证码": "Отправить код подтверждения",
     "{{seconds}} 秒后重试": "Повторить через {{seconds}} с",
     "发送验证码失败，请重试": "Не удалось отправить код подтверждения. Повторите попытку.",
-    "手机号登录失败，请重试": "Не удалось войти по номеру телефона. Повторите попытку."
+    "手机号登录失败，请重试": "Не удалось войти по номеру телефона. Повторите попытку.",
+    "Quota Settings": "Настройки квоты",
+    "Pre-Consume for Free Models": "Предварительное потребление для бесплатных моделей",
+    "Save Quota Settings": "Сохранить настройки квоты",
+    "Enabled": "Включено",
+    "Disabled": "Отключено",
+    "Active": "Активно",
+    "Hold Settlement": "Приостановить расчет",
+    "Exclude": "Исключить",
+    "Manual Review": "Ручная проверка",
+    "Observe": "Наблюдение",
+    "Qualified": "Квалифицированный",
+    "Growth": "Рост",
+    "Excellent": "Отлично",
+    "Base": "Базовый"
   }
 }

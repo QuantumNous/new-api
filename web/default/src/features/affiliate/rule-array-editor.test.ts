@@ -92,6 +92,34 @@ describe('affiliate rule table editor helpers', () => {
       __ruleArrayEditorTestUtils.getRuleFieldLabel('action'),
       'Processing Action'
     )
+    assert.deepEqual(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('action')
+        .map((option) => option.value),
+      ['exclude', 'manual_review', 'hold_settlement']
+    )
+  })
+
+  test('exposes safe select options for known enum fields', () => {
+    assert.deepEqual(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('status')
+        .map((option) => option.value),
+      ['active', 'disabled']
+    )
+    assert.deepEqual(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('kpi_tier_code')
+        .map((option) => option.value),
+      ['observe', 'base', 'qualified', 'growth', 'excellent']
+    )
+    assert.deepEqual(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('status', 'archived')
+        .map((option) => option.value),
+      ['active', 'disabled', 'archived']
+    )
+    assert.deepEqual(__ruleArrayEditorTestUtils.getRuleFieldOptions('code'), [])
   })
 
   test('keeps operator-facing yuan and percent units reversible', () => {

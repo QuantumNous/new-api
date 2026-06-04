@@ -62,5 +62,29 @@ describe('classic affiliate rule table editor helpers', () => {
     expect(__ruleArrayEditorTestUtils.getRuleFieldLabel('action')).toBe(
       'Processing Action',
     );
+    expect(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('action')
+        .map((option) => option.value),
+    ).toEqual(['exclude', 'manual_review', 'hold_settlement']);
+  });
+
+  test('exposes safe select options for known enum fields', () => {
+    expect(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('status')
+        .map((option) => option.value),
+    ).toEqual(['active', 'disabled']);
+    expect(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('kpi_tier_code')
+        .map((option) => option.value),
+    ).toEqual(['observe', 'base', 'qualified', 'growth', 'excellent']);
+    expect(
+      __ruleArrayEditorTestUtils
+        .getRuleFieldOptions('status', 'archived')
+        .map((option) => option.value),
+    ).toEqual(['active', 'disabled', 'archived']);
+    expect(__ruleArrayEditorTestUtils.getRuleFieldOptions('code')).toEqual([]);
   });
 });

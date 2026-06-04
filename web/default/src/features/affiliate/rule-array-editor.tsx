@@ -27,6 +27,10 @@ type RuleTableRow = {
   item: RuleRecord
   index: number
 }
+type RuleFieldOption = {
+  value: string
+  label: string
+}
 
 const RULE_FIELD_LABELS: Record<string, string> = {
   affiliate_level: 'Affiliate Level',
@@ -62,6 +66,28 @@ const RULE_FIELD_LABELS: Record<string, string> = {
 }
 
 const RULE_FIELD_ORDER = Object.keys(RULE_FIELD_LABELS)
+const REVIEW_ACTION_OPTIONS: RuleFieldOption[] = [
+  { value: 'exclude', label: 'Exclude' },
+  { value: 'manual_review', label: 'Manual Review' },
+  { value: 'hold_settlement', label: 'Hold Settlement' },
+]
+const KPI_TIER_OPTIONS: RuleFieldOption[] = [
+  { value: 'observe', label: 'Observe' },
+  { value: 'base', label: 'Base' },
+  { value: 'qualified', label: 'Qualified' },
+  { value: 'growth', label: 'Growth' },
+  { value: 'excellent', label: 'Excellent' },
+]
+const RULE_FIELD_OPTIONS: Record<string, RuleFieldOption[]> = {
+  status: [
+    { value: 'active', label: 'Active' },
+    { value: 'disabled', label: 'Disabled' },
+  ],
+  self_brush_strategy: REVIEW_ACTION_OPTIONS,
+  bulk_abuse_strategy: REVIEW_ACTION_OPTIONS,
+  action: REVIEW_ACTION_OPTIONS,
+  kpi_tier_code: KPI_TIER_OPTIONS,
+}
 
 function parseRuleArray(value: string | undefined): {
   items: RuleRecord[]
@@ -151,6 +177,21 @@ function getRuleFieldLabel(key: string): string {
   return RULE_FIELD_LABELS[key] ?? key
 }
 
+function getRuleFieldOptions(
+  key: string,
+  currentValue?: RuleValue
+): RuleFieldOption[] {
+  const options = RULE_FIELD_OPTIONS[key]
+  if (!options) return []
+
+  const value = currentValue == null ? '' : String(currentValue)
+  if (!value || options.some((option) => option.value === value)) {
+    return options
+  }
+
+  return [...options, { value, label: value }]
+}
+
 function getRuleTableColumns(
   items: RuleRecord[],
   hiddenKeys: string[] = []
@@ -195,6 +236,25 @@ function RuleFieldControl(props: {
   readOnly?: boolean
   onChange: (value: string) => void
 }) {
+  const { t } = useTranslation()
+  const options = getRuleFieldOptions(props.fieldKey, props.value)
+  if (options.length > 0) {
+    return (
+      <NativeSelect
+        className='min-w-36'
+        disabled={props.readOnly}
+        value={props.value == null ? '' : String(props.value)}
+        onChange={(event) => props.onChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <NativeSelectOption key={option.value} value={option.value}>
+            {t(option.label)}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    )
+  }
+
   if (typeof props.value === 'boolean') {
     return (
       <NativeSelect
@@ -203,8 +263,8 @@ function RuleFieldControl(props: {
         value={String(props.value)}
         onChange={(event) => props.onChange(event.target.value)}
       >
-        <NativeSelectOption value='true'>true</NativeSelectOption>
-        <NativeSelectOption value='false'>false</NativeSelectOption>
+        <NativeSelectOption value='true'>{t('Enabled')}</NativeSelectOption>
+        <NativeSelectOption value='false'>{t('Disabled')}</NativeSelectOption>
       </NativeSelect>
     )
   }
@@ -553,5 +613,6 @@ export const __ruleArrayEditorTestUtils = {
   coerceRuleFieldValue,
   getDisplayValue,
   getRuleFieldLabel,
+  getRuleFieldOptions,
   getRuleTableColumns,
 }

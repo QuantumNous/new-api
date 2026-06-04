@@ -123,6 +123,7 @@ export function QuotaSettingsSection({
         <SettingsForm onSubmit={handleSubmit}>
           <SettingsPageFormActions
             onSave={handleSubmit}
+            saveLabel='Save Quota Settings'
             isSaving={updateOption.isPending || isSubmitting}
           />
           <FormDirtyIndicator isDirty={isDirty} />

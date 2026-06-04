@@ -64,6 +64,28 @@ const RULE_FIELD_LABELS = {
 };
 
 const RULE_FIELD_ORDER = Object.keys(RULE_FIELD_LABELS);
+const REVIEW_ACTION_OPTIONS = [
+  { value: 'exclude', label: 'Exclude' },
+  { value: 'manual_review', label: 'Manual Review' },
+  { value: 'hold_settlement', label: 'Hold Settlement' },
+];
+const KPI_TIER_OPTIONS = [
+  { value: 'observe', label: 'Observe' },
+  { value: 'base', label: 'Base' },
+  { value: 'qualified', label: 'Qualified' },
+  { value: 'growth', label: 'Growth' },
+  { value: 'excellent', label: 'Excellent' },
+];
+const RULE_FIELD_OPTIONS = {
+  status: [
+    { value: 'active', label: 'Active' },
+    { value: 'disabled', label: 'Disabled' },
+  ],
+  self_brush_strategy: REVIEW_ACTION_OPTIONS,
+  bulk_abuse_strategy: REVIEW_ACTION_OPTIONS,
+  action: REVIEW_ACTION_OPTIONS,
+  kpi_tier_code: KPI_TIER_OPTIONS,
+};
 
 function parseRuleArray(value) {
   const text = String(value || '').trim();
@@ -147,6 +169,20 @@ function getRuleFieldLabel(key) {
   return RULE_FIELD_LABELS[key] || key;
 }
 
+function getRuleFieldOptions(key, currentValue) {
+  const options = RULE_FIELD_OPTIONS[key];
+  if (!options) {
+    return [];
+  }
+
+  const value = currentValue == null ? '' : String(currentValue);
+  if (!value || options.some((option) => option.value === value)) {
+    return options;
+  }
+
+  return [...options, { value, label: value }];
+}
+
 function getRuleTableColumns(items, hiddenKeys = []) {
   const hidden = new Set(hiddenKeys);
   const fieldOrder = new Map(
@@ -189,11 +225,30 @@ function getRuleCellValue(item, key) {
 }
 
 const RuleFieldControl = ({
+  t,
   fieldKey,
   fieldValue,
   readOnly = false,
   onChange,
 }) => {
+  const options = getRuleFieldOptions(fieldKey, fieldValue);
+  if (options.length > 0) {
+    return (
+      <Select
+        className='min-w-[144px]'
+        disabled={readOnly}
+        value={fieldValue == null ? '' : String(fieldValue)}
+        onChange={(nextValue) => onChange(String(nextValue))}
+      >
+        {options.map((option) => (
+          <Select.Option key={option.value} value={option.value}>
+            {t(option.label)}
+          </Select.Option>
+        ))}
+      </Select>
+    );
+  }
+
   if (typeof fieldValue === 'boolean') {
     return (
       <Select
@@ -202,8 +257,8 @@ const RuleFieldControl = ({
         value={String(fieldValue)}
         onChange={(nextValue) => onChange(nextValue)}
       >
-        <Select.Option value='true'>true</Select.Option>
-        <Select.Option value='false'>false</Select.Option>
+        <Select.Option value='true'>{t('Enabled')}</Select.Option>
+        <Select.Option value='false'>{t('Disabled')}</Select.Option>
       </Select>
     );
   }
@@ -275,6 +330,7 @@ const RuleTable = ({
                 return (
                   <td key={key} className='px-3 py-2 align-middle'>
                     <RuleFieldControl
+                      t={t}
                       fieldKey={key}
                       fieldValue={fieldValue}
                       readOnly={readOnly}
@@ -392,7 +448,7 @@ const RuleArrayEditor = ({
           />
         )}
 
-        <Form.TextArea field={field} style={{ display: 'none' }} />
+        <Form.TextArea field={field} noLabel style={{ display: 'none' }} />
       </div>
     </Card>
   );
@@ -552,6 +608,7 @@ export const RuleLevelGroupedEditor = ({
           <Form.TextArea
             key={section.field}
             field={section.field}
+            noLabel
             style={{ display: 'none' }}
           />
         ))}
@@ -564,6 +621,7 @@ export const __ruleArrayEditorTestUtils = {
   coerceRuleFieldValue,
   getDisplayValue,
   getRuleFieldLabel,
+  getRuleFieldOptions,
   getRuleTableColumns,
 };
 

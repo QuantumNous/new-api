@@ -302,7 +302,7 @@
     "Reward Amount (cents)": "奖励金额（分）",
     "Reward Amount (yuan)": "奖励金额（元）",
     "Reward quota granted to affiliates when they invite new users. Use -1 to inherit the normal inviter reward.": "分销商邀请新用户时，邀请人获得的奖励额度；-1 表示继承普通邀请人奖励。",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json 对应质量/风控门槛，用于限制赠送额度占比、异常占比、退款占比和二次付费占比。",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "设置赠送额度占比、异常占比、退款占比和二次付费占比等质量/风险门槛。",
     "RSA 私钥 (沙盒)": "RSA 私钥 (沙盒)",
     "RSA 私钥 (生产)": "RSA 私钥 (生产)",
     "safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私": "safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私",
@@ -3933,6 +3933,20 @@
     "发送验证码": "发送验证码",
     "{{seconds}} 秒后重试": "{{seconds}} 秒后重试",
     "发送验证码失败，请重试": "发送验证码失败，请重试",
-    "手机号登录失败，请重试": "手机号登录失败，请重试"
+    "手机号登录失败，请重试": "手机号登录失败，请重试",
+    "Quota Settings": "额度设置",
+    "Pre-Consume for Free Models": "免费模型预消耗",
+    "Save Quota Settings": "保存额度设置",
+    "Enabled": "已启用",
+    "Disabled": "已禁用",
+    "Active": "生效",
+    "Hold Settlement": "暂缓结算",
+    "Exclude": "剔除",
+    "Manual Review": "人工复核",
+    "Observe": "观察",
+    "Qualified": "合格",
+    "Growth": "增长",
+    "Excellent": "优秀",
+    "Base": "基础"
   }
 }

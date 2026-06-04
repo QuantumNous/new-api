@@ -310,7 +310,7 @@
     "Reward Amount (cents)": "Montant de récompense (centimes)",
     "Reward Amount (yuan)": "Montant de récompense (yuan)",
     "Reward quota granted to affiliates when they invite new users. Use -1 to inherit the normal inviter reward.": "Quota accordé aux affiliés lorsqu’ils invitent de nouveaux utilisateurs. Utilisez -1 pour hériter de la récompense normale du parrain.",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json correspond aux seuils qualité/risque pour les ratios cadeau seul, anormal, remboursement et second paiement.",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "Définir les seuils qualité/risque pour les ratios cadeau seul, anormal, remboursement et second paiement.",
     "RSA 私钥 (沙盒)": "",
     "RSA 私钥 (生产)": "",
     "safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私": "Le champ safety_identifier aide OpenAI à identifier les utilisateurs d'applications susceptibles de violer les politiques d'utilisation. Désactivé par défaut pour protéger la confidentialité des utilisateurs",
@@ -3804,6 +3804,20 @@
     "发送验证码": "Envoyer le code de verification",
     "{{seconds}} 秒后重试": "Reessayer dans {{seconds}} s",
     "发送验证码失败，请重试": "Echec de l'envoi du code de verification. Veuillez reessayer.",
-    "手机号登录失败，请重试": "Echec de la connexion par telephone. Veuillez reessayer."
+    "手机号登录失败，请重试": "Echec de la connexion par telephone. Veuillez reessayer.",
+    "Quota Settings": "Paramètres de quota",
+    "Pre-Consume for Free Models": "Pré-consommation pour les modèles gratuits",
+    "Save Quota Settings": "Enregistrer les paramètres de quota",
+    "Enabled": "Activé",
+    "Disabled": "Désactivé",
+    "Active": "Actif",
+    "Hold Settlement": "Suspendre le règlement",
+    "Exclude": "Exclure",
+    "Manual Review": "Révision manuelle",
+    "Observe": "Observer",
+    "Qualified": "Qualifié",
+    "Growth": "Croissance",
+    "Excellent": "Excellent",
+    "Base": "Base"
   }
 }

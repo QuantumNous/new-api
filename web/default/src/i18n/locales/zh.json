@@ -3518,7 +3518,7 @@
     "Rewards will be added directly to your balance": "奖励将直接添加到您的余额",
     "Rewrite callback URLs to the local server": "将回调 URL 重写到本地服务器",
     "Right to Left": "从右到左",
-    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "risk_rules_json 对应质量/风控门槛，用于限制赠送额度占比、异常占比、退款占比和二次付费占比。",
+    "risk_rules_json maps to quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.": "设置赠送额度占比、异常占比、退款占比和二次付费占比等质量/风险门槛。",
     "Role": "角色",
     "Roleplay": "角色扮演",
     "Root": "根",
@@ -4724,6 +4724,13 @@
     "Enter SMS verification code": "输入短信验证码",
     "Please enter SMS verification code": "请输入短信验证码",
     "Resend in {{seconds}}s": "{{seconds}} 秒后重发",
-    "Sign in with phone": "手机号登录"
+    "Sign in with phone": "手机号登录",
+    "Save Quota Settings": "保存额度设置",
+    "Hold Settlement": "暂缓结算",
+    "Exclude": "剔除",
+    "Manual Review": "人工复核",
+    "Observe": "观察",
+    "Qualified": "合格",
+    "Base": "基础"
   }
 }
