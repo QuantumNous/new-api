@@ -202,7 +202,7 @@ export function QuotaSettingsSection({
             name='AffRatio'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('返佣比例 (%)')}</FormLabel>
+                <FormLabel>{t('Commission Ratio (%)')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -214,7 +214,7 @@ export function QuotaSettingsSection({
                   />
                 </FormControl>
                 <FormDescription>
-                  {t('好友充值后邀请者获得充值额的对应比例（0 = 关闭，最大 100）')}
+                  {t('Percentage of friend top-up the inviter receives (0 = disabled, max 100)')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

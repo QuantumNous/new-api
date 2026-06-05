@@ -74,12 +74,12 @@ export function ReferralCard({ user, onSuccess }: ReferralCardProps) {
               <h3 className='text-base font-semibold'>{t('Referral Program')}</h3>
             </div>
             <Link to='/affiliate' className='text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground'>
-              {t('查看详情')} <ExternalLink className='size-3' />
+              {t('View Details')} <ExternalLink className='size-3' />
             </Link>
           </div>
           {affRatio > 0 && (
             <p className='text-xs text-muted-foreground'>
-              {t('好友充值后，您可获得充值额的')} <span className='text-green-500 font-medium'>{affRatio}%</span>
+              {t('After friend tops up, you earn')} <span className='text-green-500 font-medium'>{affRatio}%</span>
             </p>
           )}
         </CardHeader>

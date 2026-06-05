@@ -4469,6 +4469,25 @@
     "Order No.": "Sipariş No.",
     "Amount Paid": "Ödenen Tutar",
     "Online Usage": "Çevrimiçi Kullanım",
-    "Affiliate": "Ortaklık Programı"
+    "Affiliate": "Ortaklık Programı",
+    "Invite friends, referrer earns commission": "Arkadaşlarını davet et, referans veren komisyon kazanır",
+    "When your friend tops up, you earn {{ratio}}% of their amount": "Arkadaşın bakiye yüklediğinde, yüklediği miktarın {{ratio}}%'ini kazanırsın",
+    "Invite friends to register and earn rewards when they top up": "Arkadaşlarını kayıt olmaya davet et ve bakiye yüklediklerinde ödül kazan",
+    "My Referral Code": "Referans Kodum",
+    "Referral Link": "Referans Bağlantısı",
+    "Total Commission Earned": "Toplam Kazanılan Komisyon",
+    "Invite Records": "Davet Kayıtları",
+    "Commission Records": "Komisyon Kayıtları",
+    "No invite records yet": "Henüz davet kaydı yok",
+    "No commission records yet": "Henüz komisyon kaydı yok",
+    "Registration Time": "Kayıt Zamanı",
+    "Commission Amount": "Komisyon Tutarı",
+    "View Details": "Detayları Görüntüle",
+    "After friend tops up, you earn": "Arkadaşın bakiye yüklediğinde kazanırsın",
+    "Commission Ratio (%)": "Komisyon Oranı (%)",
+    "Percentage of friend top-up the inviter receives (0 = disabled, max 100)": "Davet edenin arkadaşın yüklemesinden aldığı yüzde (0 = devre dışı, maks 100)",
+    "Fetch Groups": "Grupları Getir",
+    "Recharge Rate": "Yükleme Oranı",
+    "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Upstream'de /api/pricing yoksa, romaapi genel model fiyatı × bu oran yedek olarak kullanılır; devre dışı bırakmak için boş bırakın veya 0 girin"
   }
 }

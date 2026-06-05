@@ -4469,6 +4469,25 @@
     "Order No.": "訂單號",
     "Amount Paid": "支付金額",
     "Online Usage": "線上使用",
-    "Affiliate": "推廣有禮"
+    "Affiliate": "推廣有禮",
+    "Invite friends, referrer earns commission": "邀請好友，推薦人賺取佣金",
+    "When your friend tops up, you earn {{ratio}}% of their amount": "當您的好友儲值時，您可獲得其金額的 {{ratio}}%",
+    "Invite friends to register and earn rewards when they top up": "邀請好友註冊，好友儲值時即可獲得獎勵",
+    "My Referral Code": "我的推薦碼",
+    "Referral Link": "推薦連結",
+    "Total Commission Earned": "累計獲得佣金",
+    "Invite Records": "邀請記錄",
+    "Commission Records": "佣金記錄",
+    "No invite records yet": "暫無邀請記錄",
+    "No commission records yet": "暫無佣金記錄",
+    "Registration Time": "註冊時間",
+    "Commission Amount": "佣金金額",
+    "View Details": "查看詳情",
+    "After friend tops up, you earn": "好友儲值後，您可獲得",
+    "Commission Ratio (%)": "佣金比例（%）",
+    "Percentage of friend top-up the inviter receives (0 = disabled, max 100)": "邀請人可獲得好友儲值金額的百分比（0 為停用，最大值為 100）",
+    "Fetch Groups": "獲取群組",
+    "Recharge Rate": "充值費率",
+    "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "當上游無 /api/pricing 時，以 romaapi 公開模型價格乘以此比例作為備用；留空或填 0 則停用"
   }
 }

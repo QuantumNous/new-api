@@ -4469,6 +4469,25 @@
     "Order No.": "Bestellnr.",
     "Amount Paid": "Gezahlter Betrag",
     "Online Usage": "Online-Nutzung",
-    "Affiliate": "Partnerprogramm"
+    "Affiliate": "Partnerprogramm",
+    "Invite friends, referrer earns commission": "Freunde einladen, Empfehlender erhält Provision",
+    "When your friend tops up, you earn {{ratio}}% of their amount": "Wenn dein Freund auflädt, erhältst du {{ratio}}% seines Betrags",
+    "Invite friends to register and earn rewards when they top up": "Freunde zur Registrierung einladen und Belohnungen beim Aufladen verdienen",
+    "My Referral Code": "Mein Empfehlungscode",
+    "Referral Link": "Empfehlungslink",
+    "Total Commission Earned": "Gesamte verdiente Provision",
+    "Invite Records": "Einladungsaufzeichnungen",
+    "Commission Records": "Provisionsaufzeichnungen",
+    "No invite records yet": "Noch keine Einladungsaufzeichnungen vorhanden",
+    "No commission records yet": "Noch keine Provisionsaufzeichnungen vorhanden",
+    "Registration Time": "Registrierungszeitpunkt",
+    "Commission Amount": "Provisionsbetrag",
+    "View Details": "Details anzeigen",
+    "After friend tops up, you earn": "Nach dem Aufladen des Freundes erhältst du",
+    "Commission Ratio (%)": "Provisionsrate (%)",
+    "Percentage of friend top-up the inviter receives (0 = disabled, max 100)": "Prozentsatz des Freund-Aufladens, den der Einladende erhält (0 = deaktiviert, max. 100)",
+    "Fetch Groups": "Gruppen abrufen",
+    "Recharge Rate": "Aufladerate",
+    "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Wenn der Upstream kein /api/pricing hat, wird der öffentliche romaapi-Modellpreis × dieses Verhältnis als Fallback verwendet; leer lassen oder 0 zum Deaktivieren"
   }
 }

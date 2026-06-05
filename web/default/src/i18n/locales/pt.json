@@ -4469,6 +4469,25 @@
     "Order No.": "Nº do pedido",
     "Amount Paid": "Valor pago",
     "Online Usage": "Uso online",
-    "Affiliate": "Afiliados"
+    "Affiliate": "Afiliados",
+    "Invite friends, referrer earns commission": "Convide amigos, o indicador ganha comissão",
+    "When your friend tops up, you earn {{ratio}}% of their amount": "Quando seu amigo fizer recarga, você ganha {{ratio}}% do valor dele",
+    "Invite friends to register and earn rewards when they top up": "Convide amigos para se cadastrar e ganhe recompensas quando eles fizerem recarga",
+    "My Referral Code": "Meu Código de Indicação",
+    "Referral Link": "Link de Indicação",
+    "Total Commission Earned": "Total de Comissão Ganho",
+    "Invite Records": "Registros de Convites",
+    "Commission Records": "Registros de Comissão",
+    "No invite records yet": "Nenhum registro de convite ainda",
+    "No commission records yet": "Nenhum registro de comissão ainda",
+    "Registration Time": "Data de Cadastro",
+    "Commission Amount": "Valor da Comissão",
+    "View Details": "Ver Detalhes",
+    "After friend tops up, you earn": "Após a recarga do amigo, você ganha",
+    "Commission Ratio (%)": "Taxa de Comissão (%)",
+    "Percentage of friend top-up the inviter receives (0 = disabled, max 100)": "Percentual da recarga do amigo que o indicador recebe (0 = desativado, máximo 100)",
+    "Fetch Groups": "Buscar Grupos",
+    "Recharge Rate": "Taxa de Recarga",
+    "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Quando o upstream não possui /api/pricing, usa o preço do modelo público do romaapi × esta taxa como fallback; deixe em branco ou 0 para desativar"
   }
 }

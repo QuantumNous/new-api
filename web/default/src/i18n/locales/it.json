@@ -4469,6 +4469,25 @@
     "Order No.": "N. ordine",
     "Amount Paid": "Importo pagato",
     "Online Usage": "Utilizzo online",
-    "Affiliate": "Affiliazione"
+    "Affiliate": "Affiliazione",
+    "Invite friends, referrer earns commission": "Invita amici, il referente guadagna commissioni",
+    "When your friend tops up, you earn {{ratio}}% of their amount": "Quando il tuo amico effettua una ricarica, guadagni il {{ratio}}% del suo importo",
+    "Invite friends to register and earn rewards when they top up": "Invita amici a registrarsi e guadagna premi quando effettuano una ricarica",
+    "My Referral Code": "Il Mio Codice Referral",
+    "Referral Link": "Link di Referral",
+    "Total Commission Earned": "Totale Commissioni Guadagnate",
+    "Invite Records": "Registro Inviti",
+    "Commission Records": "Registro Commissioni",
+    "No invite records yet": "Nessun record di invito ancora",
+    "No commission records yet": "Nessun record di commissione ancora",
+    "Registration Time": "Data di Registrazione",
+    "Commission Amount": "Importo Commissione",
+    "View Details": "Visualizza Dettagli",
+    "After friend tops up, you earn": "Dopo la ricarica dell'amico, guadagni",
+    "Commission Ratio (%)": "Percentuale Commissione (%)",
+    "Percentage of friend top-up the inviter receives (0 = disabled, max 100)": "Percentuale della ricarica dell'amico ricevuta dall'invitante (0 = disabilitato, max 100)",
+    "Fetch Groups": "Recupera Gruppi",
+    "Recharge Rate": "Tasso di Ricarica",
+    "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Quando l'upstream non dispone di /api/pricing, utilizza il prezzo del modello pubblico romaapi × questo rapporto come fallback; lascia vuoto o 0 per disabilitare"
   }
 }

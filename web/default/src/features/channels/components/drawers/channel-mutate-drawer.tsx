@@ -372,7 +372,7 @@ function KeyGroupField({
               ) : (
                 <RefreshCw className='h-4 w-4' />
               )}
-              <span className='ml-1'>{t('获取分组')}</span>
+              <span className='ml-1'>{t('Fetch Groups')}</span>
             </Button>
           </div>
           {fetchError && (
@@ -475,14 +475,14 @@ function RechargeRateField({
 
   return (
     <FormItem>
-      <FormLabel>{t('充值汇率')}</FormLabel>
+      <FormLabel>{t('Recharge Rate')}</FormLabel>
       <div className='flex gap-2'>
         <Select value={preset} onValueChange={applyPreset}>
           <SelectTrigger className='w-52 shrink-0'>
             <span className='truncate'>
               {preset === RECHARGE_PRESET_USD && '1 USDT = 1 USDT'}
               {preset === RECHARGE_PRESET_RMB && `1 RMB = 1 USDT (≈${(1 / cnyRate).toFixed(4)})`}
-              {preset === RECHARGE_PRESET_CUSTOM && t('自定义')}
+              {preset === RECHARGE_PRESET_CUSTOM && t('Custom')}
             </span>
           </SelectTrigger>
           <SelectContent>
@@ -491,7 +491,7 @@ function RechargeRateField({
               <SelectItem value={RECHARGE_PRESET_RMB}>
                 1 RMB = 1 USDT <span className='text-muted-foreground ml-1 text-xs'>(≈{(1 / cnyRate).toFixed(4)})</span>
               </SelectItem>
-              <SelectItem value={RECHARGE_PRESET_CUSTOM}>{t('自定义')}</SelectItem>
+              <SelectItem value={RECHARGE_PRESET_CUSTOM}>{t('Custom')}</SelectItem>
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -533,7 +533,7 @@ function ModelPriceRatioField({ control }: { control: Control<ChannelFormValues>
         />
       </FormControl>
       <FormDescription>
-        {t('当上游无 /api/pricing 时，用 romaapi 公开模型价格 × 此倍率作为回退定价；留空或 0 表示不启用')}
+        {t('When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable')}
       </FormDescription>
       {fieldState.error && <p className='text-destructive text-xs'>{fieldState.error.message}</p>}
     </FormItem>
