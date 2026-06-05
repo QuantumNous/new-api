@@ -34,7 +34,7 @@ export const DEFAULT_DASHBOARD_CHART_PREFERENCES: DashboardChartPreferences = {
 export const TIME_RANGE_BY_GRANULARITY = {
   hour: 1,
   day: 7,
-  week: 30,
+  week: 14,
 } as const
 
 export const TIME_GRANULARITY_OPTIONS = [
@@ -44,10 +44,10 @@ export const TIME_GRANULARITY_OPTIONS = [
 ] as const
 
 export const TIME_RANGE_PRESETS = [
-  { label: '1 Day', days: 1 },
-  { label: '7 Days', days: 7 },
-  { label: '14 Days', days: 14 },
-  { label: '29 Days', days: 29 },
+  { label: 'Today', days: 1 },
+  { label: 'Last 3 Days', days: 3 },
+  { label: 'Last 7 Days', days: 7 },
+  { label: 'Last 14 Days', days: 14 },
 ] as const
 
 export const CONSUMPTION_DISTRIBUTION_CHART_OPTIONS = [

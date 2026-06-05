@@ -98,6 +98,22 @@ export function getRollingDateRange(
 }
 
 /**
+ * 按自然日计算到当前时刻的日期范围。
+ * 例如 1 天表示今天 00:00 到现在，3 天表示前天 00:00 到现在。
+ */
+export function getCalendarDateRangeUntilNow(
+  days: number,
+  fromDate: Date = new Date()
+): { start: Date; end: Date } {
+  const safeDays = Math.max(1, Math.floor(days))
+  const end = new Date(fromDate)
+  const start = getStartOfDay(fromDate)
+  start.setDate(start.getDate() - (safeDays - 1))
+
+  return { start, end }
+}
+
+/**
  * Compute time range as Unix timestamps (seconds)
  * @param days Default number of days if no dates provided
  * @param startDate Optional start date

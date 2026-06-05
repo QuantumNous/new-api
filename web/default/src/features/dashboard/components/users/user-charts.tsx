@@ -21,7 +21,10 @@ import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
+import {
+  getCalendarDateRangeUntilNow,
+  type TimeGranularity,
+} from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
@@ -81,7 +84,7 @@ export function UserCharts() {
   const [topUserLimit, setTopUserLimit] = useState(10)
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
-    const { start, end } = getRollingDateRange(days)
+    const { start, end } = getCalendarDateRangeUntilNow(days)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -90,7 +93,7 @@ export function UserCharts() {
 
   const handleRangeChange = useCallback((days: number) => {
     setSelectedRange(days)
-    const { start, end } = getRollingDateRange(days)
+    const { start, end } = getCalendarDateRangeUntilNow(days)
     setTimeRange({
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
