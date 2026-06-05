@@ -178,6 +178,32 @@ func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 	return &modelRequest, nil
 }
 
+func fillModelRequestFromTask(c *gin.Context, modelRequest *ModelRequest) error {
+	if modelRequest == nil || modelRequest.Model != "" {
+		return nil
+	}
+
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		taskID = c.GetString("task_id")
+	}
+	if taskID == "" {
+		return nil
+	}
+
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	task, exist, err := model.GetByTaskId(userID, taskID)
+	if err != nil {
+		return err
+	}
+	if !exist || task == nil {
+		return nil
+	}
+
+	modelRequest.Model = common.GetStringIfEmpty(task.Properties.OriginModelName, task.Properties.UpstreamModelName)
+	return nil
+}
+
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
@@ -371,6 +397,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+	}
+	if relayMode, ok := c.Get("relay_mode"); ok && relayMode == relayconstant.RelayModeVideoFetchByID {
+		if err := fillModelRequestFromTask(c, &modelRequest); err != nil {
+			return nil, false, err
+		}
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }
