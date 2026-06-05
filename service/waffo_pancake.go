@@ -24,6 +24,7 @@ type WaffoPancakeCreateSessionParams struct {
 	BuyerIdentity           string
 	PriceSnapshot           *WaffoPancakePriceSnapshot
 	BuyerEmail              string
+	SuccessURL              string
 	ExpiresInSeconds        *int
 	OrderMerchantExternalID string
 }
@@ -116,6 +117,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 			ProductID:               params.ProductID,
 			Currency:                "USD",
 			BuyerEmail:              optionalString(params.BuyerEmail),
+			SuccessURL:              optionalString(params.SuccessURL),
 			ExpiresInSeconds:        params.ExpiresInSeconds,
 			OrderMerchantExternalID: optionalString(params.OrderMerchantExternalID),
 		},

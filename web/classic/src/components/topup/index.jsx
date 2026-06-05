@@ -28,6 +28,14 @@ import {
   renderQuotaWithAmount,
   copy,
   getQuotaPerUnit,
+  PAYMENT_RETURN_STORAGE_KEY,
+  clearPaymentReturnMarker,
+  completePaymentReturnMarker,
+  hasRecentPaymentMarker,
+  isPaymentReturnScope,
+  isPaymentReturnStatus,
+  markPaymentFlowStart,
+  readPaymentReturnMarker,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -107,6 +115,8 @@ const TopUp = () => {
   const [payMethods, setPayMethods] = useState([]);
 
   const affFetchedRef = useRef(false);
+  const syncInFlightRef = useRef(false);
+  const paymentReturnHandledRef = useRef(false);
 
   // 邀请相关状态
   const [affLink, setAffLink] = useState('');
@@ -316,6 +326,7 @@ const TopUp = () => {
         if (message === 'success') {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
+            markPaymentFlowStart('topup', 'new_tab');
             window.open(data.pay_link, '_blank');
           } else {
             // 普通支付表单提交
@@ -330,6 +341,7 @@ const TopUp = () => {
             if (!isSafari) {
               form.target = '_blank';
             }
+            markPaymentFlowStart('topup', isSafari ? 'same_tab' : 'new_tab');
             for (let key in params) {
               let input = document.createElement('input');
               input.type = 'hidden';
@@ -385,6 +397,7 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
+          markPaymentFlowStart('topup', 'new_tab');
           processCreemCallback(data);
         } else {
           const errorMsg =
@@ -419,6 +432,7 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success' && data?.payment_url) {
+          markPaymentFlowStart('topup', 'new_tab');
           window.open(data.payment_url, '_blank');
         } else {
           showError(data || t('支付请求失败'));
@@ -479,6 +493,7 @@ const TopUp = () => {
           if (checkoutUrl && isSafeHttpCheckoutUrl(checkoutUrl)) {
             // In-tab redirect (not window.open) — popup blocker fires after
             // the await loses user-gesture context.
+            markPaymentFlowStart('topup', 'same_tab');
             window.location.href = checkoutUrl;
           } else if (checkoutUrl) {
             showError(t('支付跳转地址不安全'));
@@ -530,6 +545,27 @@ const TopUp = () => {
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
     window.open(data.checkout_url, '_blank');
+  };
+
+  const syncPaymentReturnState = async ({ openHistoryOnly = false } = {}) => {
+    if (syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
+    try {
+      if (openHistoryOnly) {
+        setOpenHistory(true);
+      }
+      for (let i = 0; i < 4; i++) {
+        await Promise.all([getUserQuota(), getSubscriptionSelf()]);
+        if (i < 3) {
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, i === 0 ? 600 : 1200),
+          );
+        }
+      }
+      clearPaymentReturnMarker();
+    } finally {
+      syncInFlightRef.current = false;
+    }
   };
 
   const getUserQuota = async () => {
@@ -769,11 +805,69 @@ const TopUp = () => {
 
   // URL 参数自动打开账单弹窗（支付回跳时触发）
   useEffect(() => {
-    if (searchParams.get('show_history') === 'true') {
-      setOpenHistory(true);
-      searchParams.delete('show_history');
-      setSearchParams(searchParams, { replace: true });
+    if (paymentReturnHandledRef.current) return;
+
+    const pay = searchParams.get('pay');
+    const scope = searchParams.get('scope');
+    const showHistory = searchParams.get('show_history') === 'true';
+    if (!showHistory && !isPaymentReturnStatus(pay) && !isPaymentReturnScope(scope)) {
+      return;
     }
+
+    paymentReturnHandledRef.current = true;
+    completePaymentReturnMarker(
+      isPaymentReturnScope(scope) ? scope : 'topup',
+      isPaymentReturnStatus(pay) ? pay : undefined,
+    );
+
+    if (pay === 'success') {
+      showSuccess(
+        scope === 'subscription'
+          ? t('订阅支付已完成，正在刷新账户信息...')
+          : t('支付已完成，正在刷新余额信息...'),
+      );
+    } else if (pay === 'pending') {
+      showInfo(t('支付结果确认中，正在刷新账户信息...'));
+    } else if (pay === 'fail') {
+      showError(t('支付失败，请检查充值记录'));
+    }
+
+    syncPaymentReturnState({ openHistoryOnly: showHistory }).then();
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete('show_history');
+    nextSearchParams.delete('pay');
+    nextSearchParams.delete('scope');
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [searchParams, setSearchParams, t]);
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key !== PAYMENT_RETURN_STORAGE_KEY || !event.newValue) return;
+      const marker = readPaymentReturnMarker();
+      if (!hasRecentPaymentMarker(marker)) return;
+      syncPaymentReturnState({ openHistoryOnly: true }).then();
+    };
+
+    const handleFocus = () => {
+      const marker = readPaymentReturnMarker();
+      if (!hasRecentPaymentMarker(marker)) return;
+      syncPaymentReturnState({ openHistoryOnly: true }).then();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      handleFocus();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   useEffect(() => {

@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -45,6 +46,12 @@ import {
   getDefaultCustomTopupAmount,
   getMinTopupAmount,
   isWaffoPancakePayment,
+  clearPaymentReturnMarker,
+  completePaymentReturnMarker,
+  hasQuotaChanged,
+  hasRecentPaymentMarker,
+  PAYMENT_RETURN_STORAGE_KEY,
+  readPaymentReturnMarker,
 } from './lib'
 import type {
   UserWalletData,
@@ -52,9 +59,17 @@ import type {
   PresetAmount,
   CreemProduct,
 } from './types'
+import type {
+  PaymentReturnScope,
+  PaymentReturnState,
+} from './lib/payment-return'
 
 interface WalletProps {
   initialShowHistory?: boolean
+  paymentReturn?: {
+    pay?: 'success' | 'pending' | 'fail'
+    scope?: PaymentReturnScope
+  }
 }
 
 export function Wallet(props: WalletProps) {
@@ -74,6 +89,12 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [subscriptionRefreshSignal, setSubscriptionRefreshSignal] = useState(0)
+  const paymentReturnHandledRef = useRef(false)
+  const refreshAfterReturnRef = useRef(false)
+  const subscriptionSyncRef = useRef(false)
+  const syncInFlightRef = useRef(false)
+  const userRef = useRef<UserWalletData | null>(null)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -110,7 +131,19 @@ export function Wallet(props: WalletProps) {
       setUserLoading(true)
       const response = await getSelf()
       if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
+        const nextUser = response.data as UserWalletData
+        if (
+          refreshAfterReturnRef.current &&
+          hasQuotaChanged(userRef.current, nextUser)
+        ) {
+          clearPaymentReturnMarker()
+          refreshAfterReturnRef.current = false
+        }
+        if (subscriptionSyncRef.current) {
+          setSubscriptionRefreshSignal((value) => value + 1)
+        }
+        userRef.current = nextUser
+        setUser(nextUser)
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -127,9 +160,112 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     if (props.initialShowHistory) {
       setBillingDialogOpen(true)
-      window.history.replaceState({}, '', window.location.pathname)
     }
   }, [props.initialShowHistory])
+
+  const syncPaymentReturnState = useCallback(
+    async (source: 'return' | 'storage' | 'focus', state?: PaymentReturnState | null) => {
+      if (syncInFlightRef.current) return
+
+      const marker = readPaymentReturnMarker()
+      if (source !== 'return' && !hasRecentPaymentMarker(marker)) {
+        return
+      }
+
+      syncInFlightRef.current = true
+      refreshAfterReturnRef.current = true
+      subscriptionSyncRef.current = true
+
+      if (state?.showHistory || marker) {
+        setBillingDialogOpen(true)
+      }
+
+      try {
+        const attempts = source === 'return' ? 4 : 2
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          await fetchUser()
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, attempt === 0 ? 600 : 1200)
+          )
+        }
+      } finally {
+        subscriptionSyncRef.current = false
+        syncInFlightRef.current = false
+      }
+    },
+    [fetchUser]
+  )
+
+  useEffect(() => {
+    if (paymentReturnHandledRef.current) return
+
+    const hasReturnSignal =
+      props.initialShowHistory || props.paymentReturn?.pay || props.paymentReturn?.scope
+    if (!hasReturnSignal) return
+
+    paymentReturnHandledRef.current = true
+    const state: PaymentReturnState = {
+      showHistory: !!props.initialShowHistory,
+      pay: props.paymentReturn?.pay,
+      scope: props.paymentReturn?.scope,
+    }
+
+    completePaymentReturnMarker(state.scope || 'topup', state.pay)
+
+    if (state.pay === 'success') {
+      toast.success(
+        state.scope === 'subscription'
+          ? t('Subscription payment completed. Refreshing your account...')
+          : t('Payment completed. Refreshing your wallet...')
+      )
+    } else if (state.pay === 'pending') {
+      toast.info(t('Payment is being confirmed. Refreshing your account...'))
+    } else if (state.pay === 'fail') {
+      toast.error(t('Payment failed. Please check your billing history.'))
+    }
+
+    void syncPaymentReturnState('return', state)
+
+    const nextUrl = new URL(window.location.href)
+    nextUrl.searchParams.delete('show_history')
+    nextUrl.searchParams.delete('pay')
+    nextUrl.searchParams.delete('scope')
+    window.history.replaceState({}, '', nextUrl.pathname + nextUrl.search)
+  }, [
+    props.initialShowHistory,
+    props.paymentReturn?.pay,
+    props.paymentReturn?.scope,
+    syncPaymentReturnState,
+    t,
+  ])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== PAYMENT_RETURN_STORAGE_KEY || !event.newValue) return
+      void syncPaymentReturnState('storage')
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void syncPaymentReturnState('focus')
+      }
+    }
+
+    const handleFocus = () => {
+      void syncPaymentReturnState('focus')
+    }
+
+    window.addEventListener('storage', handleStorage)
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [syncPaymentReturnState])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
@@ -312,6 +448,7 @@ export function Wallet(props: WalletProps) {
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
                 userQuota={user?.quota}
                 onPurchaseSuccess={fetchUser}
+                refreshSignal={subscriptionRefreshSignal}
               />
             </div>
 

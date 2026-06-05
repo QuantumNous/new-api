@@ -236,7 +236,7 @@ func RequestWaffoPay(c *gin.Context) {
 	if setting.WaffoNotifyUrl != "" {
 		notifyUrl = setting.WaffoNotifyUrl
 	}
-	returnUrl := paymentReturnPath("/console/topup?show_history=true")
+	returnUrl := paymentResultPath(paymentScopeTopUp, paymentStatusPending)
 	if setting.WaffoReturnUrl != "" {
 		returnUrl = setting.WaffoReturnUrl
 	}

@@ -45,13 +45,14 @@ function isSafariBrowser(): boolean {
 export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
-): void {
+): 'new_tab' | 'same_tab' {
   const form = document.createElement('form')
   form.action = url
   form.method = 'POST'
+  const isSafari = isSafariBrowser()
 
   // Don't open in new tab for Safari
-  if (!isSafariBrowser()) {
+  if (!isSafari) {
     form.target = '_blank'
   }
 
@@ -67,6 +68,8 @@ export function submitPaymentForm(
   document.body.appendChild(form)
   form.submit()
   document.body.removeChild(form)
+
+  return isSafari ? 'same_tab' : 'new_tab'
 }
 
 /**

@@ -19,9 +19,25 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { Wallet } from '@/features/wallet'
+import {
+  isPaymentReturnScope,
+  isPaymentReturnStatus,
+  toBooleanSearchValue,
+} from '@/features/wallet/lib'
 
 const walletSearchSchema = z.object({
-  show_history: z.boolean().optional(),
+  show_history: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => toBooleanSearchValue(value)),
+  pay: z
+    .string()
+    .optional()
+    .transform((value) => (isPaymentReturnStatus(value) ? value : undefined)),
+  scope: z
+    .string()
+    .optional()
+    .transform((value) => (isPaymentReturnScope(value) ? value : undefined)),
 })
 
 export const Route = createFileRoute('/_authenticated/wallet/')({
@@ -30,6 +46,6 @@ export const Route = createFileRoute('/_authenticated/wallet/')({
 })
 
 function RouteComponent() {
-  const { show_history } = Route.useSearch()
-  return <Wallet initialShowHistory={show_history} />
+  const { show_history, pay, scope } = Route.useSearch()
+  return <Wallet initialShowHistory={show_history} paymentReturn={{ pay, scope }} />
 }

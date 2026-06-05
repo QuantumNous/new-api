@@ -104,6 +104,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 			TaxCategory: "saas",
 		},
 		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
+		SuccessURL:              paymentResultPath(paymentScopeSubscription, paymentStatusPending),
 		ExpiresInSeconds:        &expiresInSeconds,
 		OrderMerchantExternalID: tradeNo,
 	})

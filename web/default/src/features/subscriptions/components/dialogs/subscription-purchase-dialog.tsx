@@ -50,6 +50,7 @@ import {
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
+import { markPaymentFlowStart } from '@/features/wallet/lib'
 
 interface PaymentMethod {
   type: string
@@ -122,6 +123,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
+        markPaymentFlowStart('subscription', 'new_tab')
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
@@ -144,6 +146,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
+        markPaymentFlowStart('subscription', 'new_tab')
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
@@ -168,6 +171,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
+        markPaymentFlowStart('subscription', 'same_tab')
         toast.success(t('Redirecting to payment page...'))
         window.location.href = res.data.checkout_url
       } else {
@@ -200,6 +204,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
         payment_method: selectedEpayMethod,
       })
       if (res.message === 'success' && res.url) {
+        markPaymentFlowStart(
+          'subscription',
+          isSafari ? 'same_tab' : 'new_tab'
+        )
         const form = document.createElement('form')
         form.action = res.url
         form.method = 'POST'

@@ -64,6 +64,7 @@ interface SubscriptionPlansCardProps {
   onAvailabilityChange?: (available: boolean) => void
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
+  refreshSignal?: number
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -95,6 +96,7 @@ export function SubscriptionPlansCard({
   onAvailabilityChange,
   userQuota,
   onPurchaseSuccess,
+  refreshSignal = 0,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
 
@@ -156,6 +158,11 @@ export function SubscriptionPlansCard({
     }
     init()
   }, [fetchPlans, fetchSelfSubscription])
+
+  useEffect(() => {
+    if (refreshSignal <= 0) return
+    void fetchSelfSubscription()
+  }, [fetchSelfSubscription, refreshSignal])
 
   const handleRefresh = async () => {
     setRefreshing(true)

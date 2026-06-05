@@ -1,4 +1,4 @@
-{
+﻿{
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -645,7 +645,6 @@
     "Channel Affinity": "渠道亲和性",
     "Channel affinity reuses the last successful channel based on keys extracted from the request context or JSON body.": "渠道亲和性会基于从请求上下文或 JSON Body 提取的 Key，优先复用上一次成功的渠道。",
     "Channel Affinity: Upstream Cache Hit": "渠道亲和性：上游缓存命中",
-    "Keep affinity when channel is disabled": "渠道禁用后保留亲和",
     "Channel copied successfully": "渠道复制成功",
     "Channel created successfully": "渠道创建成功",
     "Channel deleted successfully": "渠道删除成功",
@@ -1995,7 +1994,6 @@
     "If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing": "如果连接上游 One API 或 New API 中继项目，除非您知道自己在做什么，否则请使用 OpenAI 类型",
     "If default auto group is enabled, newly created tokens start with auto instead of an empty group.": "如果启用默认 auto 分组，新建令牌会默认使用 auto，而不是空分组。",
     "If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.": "如果亲和到的渠道失败，重试到其他渠道成功后，将亲和更新到成功的渠道。",
-    "When enabled, keep the affinity entry even if the affinity channel is disabled or no longer usable for the current group/model. Leave it off to delete the entry and select another channel.": "开启后，亲和到的渠道被禁用，或不再适用于当前分组/模型时，仍保留这条亲和；关闭时会删除并重新选择渠道。",
     "If this keeps happening, please report it on GitHub Issues.": "如果问题持续出现，请到 GitHub Issues 反馈。",
     "If you provide generative AI services to the public in mainland China, you will fulfill legal obligations including filing, security assessment, content safety, complaint handling, generated content labeling, log retention, and personal information protection.": "如果你在中国大陆向公众提供生成式人工智能服务，你将履行备案、安全评估、内容安全、投诉处理、生成内容标识、日志留存和个人信息保护等法律义务。",
     "Ignored upstream models": "已忽略上游模型",
@@ -2108,6 +2106,7 @@
     "Just now": "刚刚",
     "JustSong": "JustSong",
     "K": "K",
+    "Keep affinity when channel is disabled": "渠道禁用后保留亲和",
     "Keep enabled if you need to proxy requests for different upstream accounts.": "如果需要为不同上游账户代理请求，请保持启用。",
     "Keep enough balance before production traffic": "生产流量前保持充足余额",
     "Keep original value": "保留原值",
@@ -2862,8 +2861,11 @@
     "Payment": "支付",
     "Payment aggregator mode — onboard with your own registered company (offshore entity). Built for Enterprise.": "支付聚合模式：使用你自己的注册公司（离岸实体）入驻。面向企业场景构建。",
     "Payment Channel": "支付渠道",
+    "Payment completed. Refreshing your wallet...": "支付已完成，正在刷新余额信息...",
+    "Payment failed. Please check your billing history.": "支付失败，请检查充值记录。",
     "Payment Gateway": "支付网关",
     "Payment initiated": "已发起支付",
+    "Payment is being confirmed. Refreshing your account...": "支付结果确认中，正在刷新账户信息...",
     "Payment Method": "付款方式",
     "Payment method name": "支付方式名称",
     "Payment method name is required": "支付方式名称不能为空",
@@ -3771,6 +3773,7 @@
     "Subscription First": "优先订阅",
     "Subscription Management": "订阅管理",
     "Subscription Only": "仅用订阅",
+    "Subscription payment completed. Refreshing your account...": "订阅支付已完成，正在刷新账户信息...",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "管理员在支付网关设置中确认合规条款之前，订阅套餐的创建和修改会被锁定。",
     "Subscription Plans": "订阅套餐",
     "Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the \"+ Create\" button there).": "订阅套餐不会使用已绑定的产品。每个套餐都有独立的 Pancake 产品，可在订阅管理中设置，或通过其中的“+ 创建”按钮自动生成。",
@@ -4453,6 +4456,7 @@
     "When a token uses the auto group, the system tries groups from top to bottom until it finds an available group.": "当令牌使用 auto 分组时，系统会按从上到下的顺序尝试，直到找到可用分组。",
     "When conditions match, the final price is multiplied by X. Multiple matches multiply together; values < 1 act as discounts.": "条件满足时，最终价格乘以 X；多条命中的倍率会相乘；小于 1 的值为折扣。",
     "When enabled, if channels in the current group fail, it will try channels in the next group in order.": "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道。",
+    "When enabled, keep the affinity entry even if the affinity channel is disabled or no longer usable for the current group/model. Leave it off to delete the entry and select another channel.": "开启后，亲和到的渠道被禁用，或不再适用于当前分组/模型时，仍保留这条亲和；关闭时会删除并重新选择渠道。",
     "When enabled, large request bodies are temporarily stored on disk instead of memory, significantly reducing memory usage. SSD recommended.": "启用磁盘缓存后，大请求体将临时存储到磁盘而非内存，可显著降低内存占用。建议在 SSD 环境下使用。",
     "When enabled, Midjourney callbacks are accepted (reveals server IP).": "启用时，接受 Midjourney 回调 (会泄露服务器 IP)。",
     "When enabled, newly created tokens start in the first auto group.": "启用后，新创建的令牌将从第一个自动分组开始。",
@@ -4525,3 +4529,4 @@
     "Zoom": "缩放"
   }
 }
+

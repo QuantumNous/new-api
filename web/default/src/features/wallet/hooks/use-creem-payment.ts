@@ -20,6 +20,7 @@ import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { requestCreemPayment, isApiSuccess } from '../api'
+import { markPaymentFlowStart } from '../lib'
 
 /**
  * Hook for handling Creem payment processing
@@ -36,6 +37,7 @@ export function useCreemPayment() {
       })
 
       if (isApiSuccess(response) && response.data?.checkout_url) {
+        markPaymentFlowStart('topup', 'new_tab')
         window.open(response.data.checkout_url, '_blank')
         toast.success(i18next.t('Redirecting to Creem checkout...'))
         return true

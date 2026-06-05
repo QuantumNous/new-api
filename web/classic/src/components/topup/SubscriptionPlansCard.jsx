@@ -30,7 +30,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, renderQuota } from '../../helpers';
+import { API, showError, showSuccess, renderQuota, markPaymentFlowStart } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
@@ -67,6 +67,7 @@ function submitEpayForm({ url, params }) {
   document.body.appendChild(form);
   form.submit();
   document.body.removeChild(form);
+  return isSafari;
 }
 
 const SubscriptionPlansCard = ({
@@ -124,6 +125,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
       });
       if (res.data?.message === 'success') {
+        markPaymentFlowStart('subscription', 'new_tab');
         window.open(res.data.data?.pay_link, '_blank');
         showSuccess(t('已打开支付页面'));
         closeBuy();
@@ -152,6 +154,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
       });
       if (res.data?.message === 'success') {
+        markPaymentFlowStart('subscription', 'new_tab');
         window.open(res.data.data?.checkout_url, '_blank');
         showSuccess(t('已打开支付页面'));
         closeBuy();
@@ -181,7 +184,8 @@ const SubscriptionPlansCard = ({
         payment_method: selectedEpayMethod,
       });
       if (res.data?.message === 'success') {
-        submitEpayForm({ url: res.data.url, params: res.data.data });
+        const isSafari = submitEpayForm({ url: res.data.url, params: res.data.data });
+        markPaymentFlowStart('subscription', isSafari ? 'same_tab' : 'new_tab');
         showSuccess(t('已发起支付'));
         closeBuy();
       } else {

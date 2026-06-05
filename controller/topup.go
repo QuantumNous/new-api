@@ -216,7 +216,7 @@ func RequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(paymentReturnPath("/console/log"))
+	returnUrl, _ := url.Parse(service.GetCallbackAddress() + "/api/user/epay/return")
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
@@ -263,6 +263,66 @@ func RequestEpay(c *gin.Context) {
 	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值订单创建成功 user_id=%d trade_no=%s payment_method=%s amount=%d money=%.2f uri=%q params=%q", id, tradeNo, req.PaymentMethod, req.Amount, payMoney, uri, common.GetJsonString(params)))
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
+}
+
+// EpayReturn handles browser return after payment.
+// It verifies the callback payload, completes the topup if needed, then
+// redirects the browser back to the wallet with a normalized payment status.
+func EpayReturn(c *gin.Context) {
+	var params map[string]string
+
+	if c.Request.Method == "POST" {
+		if err := c.Request.ParseForm(); err != nil {
+			c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusFail))
+			return
+		}
+		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.PostForm.Get(t)
+			return r
+		}, map[string]string{})
+	} else {
+		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.URL.Query().Get(t)
+			return r
+		}, map[string]string{})
+	}
+
+	if len(params) == 0 {
+		c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusFail))
+		return
+	}
+
+	client := GetEpayClient()
+	if client == nil {
+		c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusFail))
+		return
+	}
+
+	verifyInfo, err := client.Verify(params)
+	if err != nil || !verifyInfo.VerifyStatus {
+		c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusFail))
+		return
+	}
+
+	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
+		c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusPending))
+		return
+	}
+
+	LockOrder(verifyInfo.ServiceTradeNo)
+	defer UnlockOrder(verifyInfo.ServiceTradeNo)
+
+	if err := model.ManualCompleteTopUp(verifyInfo.ServiceTradeNo, c.ClientIP()); err != nil {
+		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
+		if topUp != nil && topUp.Status == common.TopUpStatusSuccess {
+			c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusSuccess))
+			return
+		}
+		c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusFail))
+		return
+	}
+
+	c.Redirect(http.StatusFound, paymentResultPath(paymentScopeTopUp, paymentStatusSuccess))
 }
 
 // tradeNo lock
