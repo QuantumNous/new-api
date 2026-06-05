@@ -283,6 +283,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	AppendCompactReplacementAdminInfo(ctx, adminInfo)
 
 	other["admin_info"] = adminInfo
 	appendClientRequestInfo(ctx, relayInfo, other)

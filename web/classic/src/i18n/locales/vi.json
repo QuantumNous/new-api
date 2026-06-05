@@ -4214,6 +4214,12 @@
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
     "、": ", ",
+    "Compact 替代渠道 ID": "ID kênh thay thế Compact",
+    "当该渠道处理 compact 请求时，改用填写的渠道 ID；填 0 表示不替代": "Khi kênh này xử lý yêu cầu compact, dùng ID kênh đã nhập. Nhập 0 để tắt thay thế.",
+    "Compact 替代范围": "Phạm vi thay thế Compact",
+    "仅非流式 compact 请求": "Yêu cầu compact không phát trực tuyến",
+    "全部 compact 请求": "Tất cả yêu cầu compact",
+    "仅非流式时，流式 compact 请求仍保留在本渠道": "Chỉ không phát trực tuyến: yêu cầu compact phát trực tuyến vẫn dùng kênh này",
     "请输入邀请码": "Nhập mã mời của bạn",
     "仅限邀请码注册": "Đăng ký chỉ bằng mã mời"
   }

@@ -155,6 +155,7 @@ func buildFailedRelayLogOther(ctx *gin.Context, relayInfo *relaycommon.RelayInfo
 		adminInfo["multi_key_index"] = common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex)
 	}
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	AppendCompactReplacementAdminInfo(ctx, adminInfo)
 	other["admin_info"] = adminInfo
 
 	return sanitizeFailedRelayLogMap(other)

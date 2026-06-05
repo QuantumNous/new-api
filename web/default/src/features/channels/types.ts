@@ -86,6 +86,8 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  compact_replacement_channel_id?: number
+  compact_replacement_scope?: 'non_stream' | 'all'
 }
 
 export interface ChannelOtherSettings {

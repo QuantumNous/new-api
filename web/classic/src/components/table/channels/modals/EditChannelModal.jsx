@@ -193,6 +193,8 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    compact_replacement_channel_id: 0,
+    compact_replacement_scope: 'non_stream',
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -516,6 +518,8 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    compact_replacement_channel_id: 0,
+    compact_replacement_scope: 'non_stream',
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -867,6 +871,12 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.compact_replacement_channel_id =
+            Number(parsedSettings.compact_replacement_channel_id) || 0;
+          data.compact_replacement_scope =
+            parsedSettings.compact_replacement_scope === 'all'
+              ? 'all'
+              : 'non_stream';
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -876,6 +886,8 @@ const EditChannelModal = (props) => {
           data.thinking_to_content = false;
           data.proxy = '';
           data.pass_through_body_enabled = false;
+          data.compact_replacement_channel_id = 0;
+          data.compact_replacement_scope = 'non_stream';
           data.system_prompt = '';
           data.system_prompt_override = false;
         }
@@ -884,6 +896,8 @@ const EditChannelModal = (props) => {
         data.thinking_to_content = false;
         data.proxy = '';
         data.pass_through_body_enabled = false;
+        data.compact_replacement_channel_id = 0;
+        data.compact_replacement_scope = 'non_stream';
         data.system_prompt = '';
         data.system_prompt_override = false;
       }
@@ -993,6 +1007,10 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        compact_replacement_channel_id:
+          Number(data.compact_replacement_channel_id) || 0,
+        compact_replacement_scope:
+          data.compact_replacement_scope === 'all' ? 'all' : 'non_stream',
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1033,6 +1051,8 @@ const EditChannelModal = (props) => {
         (data.weight && data.weight !== 0) ||
         (data.proxy && data.proxy.trim()) ||
         (data.system_prompt && data.system_prompt.trim()) ||
+        Number(data.compact_replacement_channel_id) > 0 ||
+        data.compact_replacement_scope === 'all' ||
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
         data.force_format ||
@@ -1382,6 +1402,8 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      compact_replacement_channel_id: 0,
+      compact_replacement_scope: 'non_stream',
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1752,6 +1774,12 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      compact_replacement_channel_id:
+        Number(localInputs.compact_replacement_channel_id) || 0,
+      compact_replacement_scope:
+        localInputs.compact_replacement_scope === 'all'
+          ? 'all'
+          : 'non_stream',
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
@@ -1833,6 +1861,8 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.compact_replacement_channel_id;
+    delete localInputs.compact_replacement_scope;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.is_enterprise_account;
@@ -2525,6 +2555,8 @@ const EditChannelModal = (props) => {
 
                   <Form.Switch field='thinking_to_content' label={t('思考内容转换')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('thinking_to_content', value)} extraText={t('将 reasoning_content 转换为 <think> 标签拼接到内容中')} />
                   <Form.Switch field='pass_through_body_enabled' label={t('透传请求体')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('pass_through_body_enabled', value)} extraText={t('启用请求体透传功能')} />
+                  <Form.InputNumber field='compact_replacement_channel_id' label={t('Compact 替代渠道 ID')} placeholder='0' min={0} onNumberChange={(value) => handleChannelSettingsChange('compact_replacement_channel_id', Number(value) || 0)} style={{ width: '100%' }} extraText={t('当该渠道处理 compact 请求时，改用填写的渠道 ID；填 0 表示不替代')} />
+                  <Form.Select field='compact_replacement_scope' label={t('Compact 替代范围')} optionList={[{ label: t('仅非流式 compact 请求'), value: 'non_stream' }, { label: t('全部 compact 请求'), value: 'all' }]} onChange={(value) => handleChannelSettingsChange('compact_replacement_scope', value || 'non_stream')} style={{ width: '100%' }} extraText={t('仅非流式时，流式 compact 请求仍保留在本渠道')} />
 
                   <Form.Input field='proxy' label={t('代理地址')} placeholder={t('例如: socks5://user:pass@host:port')} onChange={(value) => handleChannelSettingsChange('proxy', value)} showClear extraText={t('用于配置网络代理，支持 socks5 协议')} />
 

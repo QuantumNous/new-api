@@ -3826,6 +3826,12 @@
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
     "、": ", ",
+    "Compact 替代渠道 ID": "Compact replacement channel ID",
+    "当该渠道处理 compact 请求时，改用填写的渠道 ID；填 0 表示不替代": "When this channel handles compact requests, use the specified channel ID instead. Enter 0 to disable replacement.",
+    "Compact 替代范围": "Compact replacement scope",
+    "仅非流式 compact 请求": "Non-stream compact requests",
+    "全部 compact 请求": "All compact requests",
+    "仅非流式时，流式 compact 请求仍保留在本渠道": "Non-stream only keeps streaming compact requests on this channel",
     "请输入邀请码": "Please enter an invitation code",
     "仅限邀请码注册": "Invite-only registration"
   }

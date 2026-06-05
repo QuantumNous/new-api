@@ -30,7 +30,10 @@ func (r *OpenAIResponsesCompactionRequest) GetTokenCountMeta() *types.TokenCount
 }
 
 func (r *OpenAIResponsesCompactionRequest) IsStream(c *gin.Context) bool {
-	return false
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(c.Request.Header.Get("Accept")), "text/event-stream")
 }
 
 func (r *OpenAIResponsesCompactionRequest) SetModelName(modelName string) {

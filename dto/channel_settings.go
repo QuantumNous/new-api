@@ -1,13 +1,20 @@
 package dto
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat                 bool   `json:"force_format,omitempty"`
+	ThinkingToContent           bool   `json:"thinking_to_content,omitempty"`
+	Proxy                       string `json:"proxy"`
+	PassThroughBodyEnabled      bool   `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt                string `json:"system_prompt,omitempty"`
+	SystemPromptOverride        bool   `json:"system_prompt_override,omitempty"`
+	CompactReplacementChannelID int    `json:"compact_replacement_channel_id,omitempty"`
+	CompactReplacementScope     string `json:"compact_replacement_scope,omitempty"`
 }
+
+const (
+	CompactReplacementScopeNonStream = "non_stream"
+	CompactReplacementScopeAll       = "all"
+)
 
 type VertexKeyType string
 

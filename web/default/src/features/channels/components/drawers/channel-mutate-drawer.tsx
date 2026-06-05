@@ -242,6 +242,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.remark?.trim() ||
     values.priority ||
     values.weight ||
+    values.compact_replacement_channel_id ||
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
@@ -2546,6 +2547,77 @@ export function ChannelMutateDrawer({
                             </FormControl>
                             <FormDescription>
                               {t(FIELD_DESCRIPTIONS.TEST_MODEL)}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='compact_replacement_channel_id'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Compact Replacement Channel')}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type='number'
+                                min={0}
+                                placeholder='0'
+                                {...field}
+                                value={field.value ?? 0}
+                                onChange={(e) =>
+                                  field.onChange(Number(e.target.value) || 0)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Channel ID used instead when this channel is selected for matching compact requests'
+                              )}
+                            </FormDescription>
+                            <FormDescription>
+                              {t('0 disables compact replacement')}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='compact_replacement_scope'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Compact Replacement Scope')}
+                            </FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value || 'non_stream'}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  <SelectItem value='non_stream'>
+                                    {t('Non-stream compact requests')}
+                                  </SelectItem>
+                                  <SelectItem value='all'>
+                                    {t('All compact requests')}
+                                  </SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              {t(
+                                'Non-stream only keeps streaming compact requests on this channel'
+                              )}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>

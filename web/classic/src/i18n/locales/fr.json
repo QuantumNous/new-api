@@ -3680,6 +3680,12 @@
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
     "、": ", ",
+    "Compact 替代渠道 ID": "ID du canal de remplacement Compact",
+    "当该渠道处理 compact 请求时，改用填写的渠道 ID；填 0 表示不替代": "Lorsque ce canal traite des requêtes compact, utilisez l'ID de canal indiqué. Saisissez 0 pour désactiver le remplacement.",
+    "Compact 替代范围": "Portée du remplacement Compact",
+    "仅非流式 compact 请求": "Requêtes compact non-streaming",
+    "全部 compact 请求": "Toutes les requêtes compact",
+    "仅非流式时，流式 compact 请求仍保留在本渠道": "Non-streaming uniquement conserve les requêtes compact streaming sur ce canal",
     "请输入邀请码": "Saisissez votre code d'invitation",
     "仅限邀请码注册": "Inscription sur invitation uniquement"
   }
