@@ -122,6 +122,12 @@ resource "google_cloud_run_v2_service" "main" {
         name  = "STREAMING_TIMEOUT"
         value = "300"
       }
+      // Record upstream error responses to the error_log table (controller/relay.go).
+      // Defaults to false in code, so it must be set explicitly here.
+      env {
+        name  = "ERROR_LOG_ENABLED"
+        value = "true"
+      }
       env {
         name  = "FRONTEND_BASE_URL"
         value = var.frontend_base_url
