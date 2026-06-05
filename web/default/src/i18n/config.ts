@@ -19,26 +19,38 @@ For commercial licensing, please contact support@quantumnous.com
 import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
+import de from './locales/de.json'
 import en from './locales/en.json'
 import es from './locales/es.json'
 import fr from './locales/fr.json'
 import id from './locales/id.json'
+import it from './locales/it.json'
 import ja from './locales/ja.json'
 import ko from './locales/ko.json'
+import pl from './locales/pl.json'
+import pt from './locales/pt.json'
 import ru from './locales/ru.json'
+import tr from './locales/tr.json'
 import vi from './locales/vi.json'
 import zh from './locales/zh.json'
+import zhTW from './locales/zh-TW.json'
 
 export const resources = {
   en,
   zh,
-  id,
-  ko,
-  es,
+  'zh-TW': zhTW,
+  de,
   fr,
-  ru,
+  id,
+  it,
   ja,
+  ko,
+  pl,
+  pt,
+  ru,
+  tr,
   vi,
+  es,
 } as const
 
 const APIMASTER_STORAGE_KEY = 'apimaster-locale'
@@ -46,12 +58,20 @@ const APIMASTER_STORAGE_KEY = 'apimaster-locale'
 // APIMaster locale -> i18next supported lang
 const APIMASTER_LOCALE_MAP: Record<string, string> = {
   zh: 'zh',
+  'zh-TW': 'zh-TW',
   en: 'en',
-  id: 'id',
+  ja: 'ja',
   ko: 'ko',
   es: 'es',
+  fr: 'fr',
+  de: 'de',
   ru: 'ru',
+  id: 'id',
   vi: 'vi',
+  pt: 'pt',
+  it: 'it',
+  pl: 'pl',
+  tr: 'tr',
 }
 
 function resolveInitialLng(): string | undefined {
@@ -98,7 +118,7 @@ i18n
     // If APIMaster has a locale stored, use it directly (avoids flash on load)
     ...(apimasterLng ? { lng: apimasterLng } : {}),
     fallbackLng: 'en',
-    supportedLngs: ['zh', 'en', 'id', 'ko', 'es', 'ru', 'vi', 'fr', 'ja'],
+    supportedLngs: ['zh', 'zh-TW', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'ru', 'id', 'vi', 'pt', 'it', 'pl', 'tr'],
     load: 'languageOnly', // Convert zh-CN -> zh
     nsSeparator: false, // Allow literal colons in keys (e.g., URLs, labels)
     debug: import.meta.env.DEV,
