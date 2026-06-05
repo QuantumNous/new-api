@@ -57,6 +57,11 @@ function isSafeHttpCheckoutUrl(value) {
   }
 }
 
+function getDefaultTopUpCount(minAmount) {
+  const normalizedMinAmount = Number(minAmount) || 1;
+  return Math.max(100, normalizedMinAmount);
+}
+
 const TopUp = () => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,7 +72,7 @@ const TopUp = () => {
   const [amount, setAmount] = useState(0.0);
   const [minTopUp, setMinTopUp] = useState(statusState?.status?.min_topup || 1);
   const [topUpCount, setTopUpCount] = useState(
-    statusState?.status?.min_topup || 1,
+    getDefaultTopUpCount(statusState?.status?.min_topup || 1),
   );
   const [topUpLink, setTopUpLink] = useState('');
   const [enableOnlineTopUp, setEnableOnlineTopUp] = useState(
@@ -678,7 +683,8 @@ const TopUp = () => {
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
           setMinTopUp(minTopUpValue);
-          setTopUpCount(minTopUpValue);
+          const defaultTopUpCount = getDefaultTopUpCount(minTopUpValue);
+          setTopUpCount(defaultTopUpCount);
           setTopUpLink(data.topup_link || '');
           setTopupInfo((prev) => ({
             ...prev,
@@ -703,7 +709,7 @@ const TopUp = () => {
           }
 
           // 初始化显示实付金额
-          getAmount(minTopUpValue);
+          getAmount(defaultTopUpCount);
         } catch (e) {
           setPayMethods([]);
         }

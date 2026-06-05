@@ -69,3 +69,9 @@ export const DEFAULT_DISCOUNT_RATE = 1.0
  * Default minimum topup amount
  */
 export const DEFAULT_MIN_TOPUP = 1
+
+/**
+ * Default custom topup amount shown on initial load.
+ * This should stay independent from the minimum allowed topup amount.
+ */
+export const DEFAULT_CUSTOM_TOPUP_AMOUNT = 100
