@@ -94,9 +94,9 @@ type createRequest struct {
 
 // envelope is the {code,message,data} wrapper around every upstream response.
 type envelope struct {
-	Code    int             `json:"code"`
-	Message string          `json:"message"`
-	Data    map[string]any  `json:"data"`
+	Code    int            `json:"code"`
+	Message string         `json:"message"`
+	Data    map[string]any `json:"data"`
 }
 
 // statusResponseData is the shape we observe inside envelope.Data for /status.
@@ -483,21 +483,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	ov.CreatedAt = originTask.CreatedAt
 	ov.CompletedAt = originTask.UpdatedAt
 	ov.Model = originTask.Properties.OriginModelName
-
-	// Surface upstream token usage. The {code,message,data} envelope persisted
-	// in task.Data by the poller carries usage.{completion,total}_tokens on
-	// success; decode the inner data and expose it on the response.
-	if rawData, err := common.Marshal(env.Data); err == nil {
-		var data statusResponseData
-		if err := common.Unmarshal(rawData, &data); err == nil {
-			if data.Usage.CompletionTokens > 0 || data.Usage.TotalTokens > 0 {
-				ov.Usage = &dto.OpenAIVideoUsage{
-					CompletionTokens: data.Usage.CompletionTokens,
-					TotalTokens:      data.Usage.TotalTokens,
-				}
-			}
-		}
-	}
+	// Token usage is injected generically from task.PrivateData by the relay
+	// OpenAI-video fetch path (see relay.injectUsageFromPrivateData), so it is
+	// not duplicated here.
 
 	if originTask.Status == model.TaskStatusFailure {
 		ov.Error = &dto.OpenAIVideoError{

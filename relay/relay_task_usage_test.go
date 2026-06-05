@@ -3,8 +3,50 @@ package relay
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 )
+
+func TestInjectUsageFromPrivateData(t *testing.T) {
+	mk := func() []byte {
+		b, _ := common.Marshal(&dto.OpenAIVideo{ID: "task_x", Object: "video", Status: dto.VideoStatusCompleted})
+		return b
+	}
+
+	t.Run("injects when tokens present and usage absent", func(t *testing.T) {
+		task := &model.Task{PrivateData: model.TaskPrivateData{CompletionTokens: 120, TotalTokens: 120}}
+		out := injectUsageFromPrivateData(mk(), task)
+		var ov dto.OpenAIVideo
+		if err := common.Unmarshal(out, &ov); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if ov.Usage == nil || ov.Usage.CompletionTokens != 120 || ov.Usage.TotalTokens != 120 {
+			t.Errorf("usage = %+v, want 120/120", ov.Usage)
+		}
+	})
+
+	t.Run("no-op when no tokens", func(t *testing.T) {
+		in := mk()
+		out := injectUsageFromPrivateData(in, &model.Task{})
+		var ov dto.OpenAIVideo
+		_ = common.Unmarshal(out, &ov)
+		if ov.Usage != nil {
+			t.Errorf("usage should stay nil, got %+v", ov.Usage)
+		}
+	})
+
+	t.Run("does not override existing usage", func(t *testing.T) {
+		b, _ := common.Marshal(&dto.OpenAIVideo{ID: "task_x", Usage: &dto.OpenAIVideoUsage{CompletionTokens: 5, TotalTokens: 5}})
+		task := &model.Task{PrivateData: model.TaskPrivateData{CompletionTokens: 120, TotalTokens: 120}}
+		out := injectUsageFromPrivateData(b, task)
+		var ov dto.OpenAIVideo
+		_ = common.Unmarshal(out, &ov)
+		if ov.Usage == nil || ov.Usage.TotalTokens != 5 {
+			t.Errorf("existing usage must be preserved, got %+v", ov.Usage)
+		}
+	})
+}
 
 // TaskModel2Dto / TaskModel2DtoAdmin should surface the upstream token usage
 // persisted in PrivateData so the generic (/v1/video/generations/:id) query

@@ -397,7 +397,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			// Surface token usage generically from the persisted PrivateData so
+			// every channel's OpenAI-format response carries it, not just those
+			// whose ConvertToOpenAIVideo happens to set it.
+			respBody = injectUsageFromPrivateData(openAIVideoData, originTask)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -464,10 +467,6 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
 	}
-	if ti.CompletionTokens > 0 || ti.TotalTokens > 0 {
-		task.PrivateData.CompletionTokens = ti.CompletionTokens
-		task.PrivateData.TotalTokens = ti.TotalTokens
-	}
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
 	} else if ti.Url != "" {
@@ -495,12 +494,6 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		"status":   mapTaskStatusToSimple(task.Status),
 		"task_id":  task.TaskID,
 		"url":      task.GetResultURL(),
-	}
-	if task.PrivateData.CompletionTokens > 0 || task.PrivateData.TotalTokens > 0 {
-		out["usage"] = dto.OpenAIVideoUsage{
-			CompletionTokens: task.PrivateData.CompletionTokens,
-			TotalTokens:      task.PrivateData.TotalTokens,
-		}
 	}
 	respBody, _ := common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
@@ -574,6 +567,32 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 // upstream provider's response.
 func TaskModel2DtoAdmin(task *model.Task) *dto.TaskDto {
 	return taskModel2DtoFull(task)
+}
+
+// injectUsageFromPrivateData adds token usage (persisted in PrivateData by the
+// poller) to a marshaled OpenAIVideo response when the adaptor didn't already
+// set it. Keeps usage consistent across all seedance channels and both query
+// formats without each adaptor re-implementing extraction.
+func injectUsageFromPrivateData(data []byte, task *model.Task) []byte {
+	if task.PrivateData.CompletionTokens == 0 && task.PrivateData.TotalTokens == 0 {
+		return data
+	}
+	var ov dto.OpenAIVideo
+	if err := common.Unmarshal(data, &ov); err != nil {
+		return data
+	}
+	if ov.Usage != nil {
+		return data
+	}
+	ov.Usage = &dto.OpenAIVideoUsage{
+		CompletionTokens: task.PrivateData.CompletionTokens,
+		TotalTokens:      task.PrivateData.TotalTokens,
+	}
+	out, err := common.Marshal(&ov)
+	if err != nil {
+		return data
+	}
+	return out
 }
 
 func taskModel2DtoFull(task *model.Task) *dto.TaskDto {

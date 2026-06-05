@@ -321,32 +321,6 @@ func TestBuildKuaiziCreateRequest_Extensions(t *testing.T) {
 	}
 }
 
-func TestConvertToOpenAIVideo_SurfacesUsage(t *testing.T) {
-	a := &TaskAdaptor{}
-	task := &model.Task{
-		TaskID:      "task_abc",
-		Status:      model.TaskStatusSuccess,
-		Progress:    "100%",
-		Properties:  model.Properties{OriginModelName: "kuaizi-lizhen-pro"},
-		PrivateData: model.TaskPrivateData{ResultURL: "https://my-host/v1/videos/task_abc/content"},
-		Data:        []byte(`{"code":0,"data":{"task_id":"kz-cgt-1","status":"succeeded","video_url":"https://x/foo.mp4","usage":{"completion_tokens":120,"total_tokens":120}}}`),
-	}
-	raw, err := a.ConvertToOpenAIVideo(task)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	var ov dto.OpenAIVideo
-	if err := common.Unmarshal(raw, &ov); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if ov.Usage == nil {
-		t.Fatalf("usage should be present on success")
-	}
-	if ov.Usage.CompletionTokens != 120 || ov.Usage.TotalTokens != 120 {
-		t.Errorf("usage = %+v, want completion=120 total=120", ov.Usage)
-	}
-}
-
 func TestConvertToOpenAIVideo_NoUsageWhenAbsent(t *testing.T) {
 	a := &TaskAdaptor{}
 	task := &model.Task{
