@@ -88,10 +88,12 @@ export function PublicHeader(props: PublicHeaderProps) {
   const isAuthenticated = !!user
   const registerEnabled =
     status?.register_enabled ?? status?.data?.register_enabled ?? true
-  const displaySiteName = customSiteName || systemName
+  const displaySiteName = customSiteName || systemName || 'DeepRouter'
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-  const displayLogoSrc =
-    !customLogo && systemLogo === '/logo.png' ? '/logo-full.png' : systemLogo
+  // Brand mark renders as [icon] + [name text]. The name is real text — never a
+  // baked-in wordmark image — so it survives any admin-configured logo and is
+  // themeable / translatable. Falls back to the bundled icon when unset.
+  const brandLogoSrc = systemLogo || '/logo.png'
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -124,28 +126,36 @@ export function PublicHeader(props: PublicHeaderProps) {
                 : 'h-16 px-2'
             )}
           >
-            {/* Logo */}
+            {/* Brand: icon + wordmark as independent elements so the name
+                always renders, regardless of the configured logo. */}
             <Link
               to={homeUrl}
-              className='group flex shrink-0 items-center gap-2.5'
+              aria-label={displaySiteName}
+              className='group flex h-11 shrink-0 items-center gap-2.5'
             >
-              <div className='flex h-11 w-[210px] shrink-0 items-center justify-start transition-all duration-300 group-hover:scale-[1.02] sm:w-[260px]'>
-                {loading ? (
-                  <Skeleton className='h-10 w-48 rounded-md' />
-                ) : customLogo ? (
-                  customLogo
-                ) : (
-                  <HeaderLogo
-                    src={displayLogoSrc}
-                    loading={loading}
-                    logoLoaded={logoLoaded}
-                    className='h-11 w-full rounded-none object-contain object-left'
-                  />
-                )}
-              </div>
-              <span className='sr-only'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
-              </span>
+              {loading ? (
+                <>
+                  <Skeleton className='h-9 w-9 rounded-lg' />
+                  <Skeleton className='h-5 w-28 rounded-md' />
+                </>
+              ) : customLogo ? (
+                customLogo
+              ) : (
+                <>
+                  <div className='flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg transition-transform duration-300 group-hover:scale-[1.05]'>
+                    <HeaderLogo
+                      src={brandLogoSrc}
+                      loading={loading}
+                      logoLoaded={logoLoaded}
+                      alt={displaySiteName}
+                      className='h-full w-full rounded-lg object-contain'
+                    />
+                  </div>
+                  <span className='text-foreground max-w-[12rem] truncate text-lg font-semibold tracking-tight'>
+                    {displaySiteName}
+                  </span>
+                </>
+              )}
             </Link>
 
             {/* Desktop nav */}
