@@ -21,6 +21,7 @@ import {
   DEFAULT_PRESET_MULTIPLIERS,
   DEFAULT_PAYMENT_TYPE,
   DEFAULT_MIN_TOPUP,
+  DEFAULT_CUSTOM_TOPUP_AMOUNT,
 } from '../constants'
 import type { PresetAmount, TopupInfo } from '../types'
 
@@ -139,6 +140,17 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   }
 
   return DEFAULT_MIN_TOPUP
+}
+
+/**
+ * Get the default custom topup amount shown in the input field.
+ * Prefer 100 by default, but never go below the active minimum topup.
+ */
+export function getDefaultCustomTopupAmount(
+  topupInfo: TopupInfo | null
+): number {
+  const minTopup = getMinTopupAmount(topupInfo)
+  return Math.max(DEFAULT_CUSTOM_TOPUP_AMOUNT, minTopup)
 }
 
 /**
