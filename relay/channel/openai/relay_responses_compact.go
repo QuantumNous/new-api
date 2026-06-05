@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -76,37 +75,7 @@ func sendResponsesCompactionCompletedEvent(c *gin.Context, compactResp dto.OpenA
 	}
 
 	relayhelper.SetEventStreamHeaders(c)
-	if err := sendResponsesCompactionOutputItemDoneEvents(c, compactResp.Output); err != nil {
-		return err
-	}
 	c.Render(-1, common.CustomEvent{Data: "event: response.completed\n"})
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", string(jsonData))})
 	return relayhelper.FlushWriter(c)
-}
-
-func sendResponsesCompactionOutputItemDoneEvents(c *gin.Context, output json.RawMessage) error {
-	if len(output) == 0 {
-		return nil
-	}
-
-	var items []json.RawMessage
-	if err := common.Unmarshal(output, &items); err != nil {
-		return err
-	}
-
-	for index, item := range items {
-		payload := map[string]any{
-			"type":         dto.ResponsesOutputTypeItemDone,
-			"output_index": index,
-			"item":         json.RawMessage(item),
-		}
-		jsonData, err := common.Marshal(payload)
-		if err != nil {
-			return err
-		}
-		c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", dto.ResponsesOutputTypeItemDone)})
-		c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", string(jsonData))})
-	}
-
-	return nil
 }
