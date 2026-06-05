@@ -2,15 +2,22 @@ name: Publish Docker image (Multi-arch)
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*'
       - '!nightly*'
+      - '!*-alpha*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag name to build (e.g., v0.10.8-alpha.3)'
-        required: true
+      ref:
+        description: 'Git ref to build (e.g., main or v0.10.8)'
+        required: false
+        default: 'main'
         type: string
+
+env:
+  DOCKERHUB_IMAGE: calciumion/new-api
 
 jobs:
   build_single_arch:
@@ -27,7 +34,9 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
+      image_version: ${{ steps.version.outputs.image_version }}
+      publish_latest: ${{ steps.version.outputs.publish_latest }}
+      dockerhub_enabled: ${{ steps.registry_flags.outputs.dockerhub_enabled }}
 
     permissions:
       packages: write
@@ -36,53 +45,128 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Resolve tag & write VERSION
+      - name: Resolve image version & write VERSION
         id: version
+        shell: bash
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-            if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
-              echo "::error::Tag '$TAG' does not exist"
-              exit 1
+          if [ -n "${INPUT_REF}" ]; then
+            NORMALIZED_REF="${INPUT_REF#refs/heads/}"
+            NORMALIZED_REF="${NORMALIZED_REF#refs/tags/}"
+            if git rev-parse "refs/tags/$NORMALIZED_REF" >/dev/null 2>&1; then
+              IMAGE_VERSION="$NORMALIZED_REF"
+              VERSION_KIND="tag"
+              PUBLISH_LATEST="false"
+            else
+              SHORT_SHA="$(git rev-parse --short HEAD)"
+              SAFE_REF="${NORMALIZED_REF//\//-}"
+              IMAGE_VERSION="${SAFE_REF}-${SHORT_SHA}"
+              VERSION_KIND="ref"
+              if [ "$NORMALIZED_REF" = "main" ]; then
+                PUBLISH_LATEST="true"
+              else
+                PUBLISH_LATEST="false"
+              fi
             fi
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            IMAGE_VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION_KIND="tag"
+            PUBLISH_LATEST="false"
           else
-            TAG=${GITHUB_REF#refs/tags/}
+            SHORT_SHA="$(git rev-parse --short HEAD)"
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+            SAFE_BRANCH="${BRANCH_NAME//\//-}"
+            IMAGE_VERSION="${SAFE_BRANCH}-${SHORT_SHA}"
+            VERSION_KIND="branch"
+            if [ "$BRANCH_NAME" = "main" ]; then
+              PUBLISH_LATEST="true"
+            else
+              PUBLISH_LATEST="false"
+            fi
           fi
-          echo "TAG=${TAG}" >> $GITHUB_ENV
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "${TAG}" > VERSION
-          echo "Building tag: ${TAG} for ${{ matrix.arch }}"
+          echo "IMAGE_VERSION=${IMAGE_VERSION}" >> $GITHUB_ENV
+          echo "VERSION_KIND=${VERSION_KIND}" >> $GITHUB_ENV
+          echo "PUBLISH_LATEST=${PUBLISH_LATEST}" >> $GITHUB_ENV
+          echo "image_version=${IMAGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "publish_latest=${PUBLISH_LATEST}" >> $GITHUB_OUTPUT
+          echo "${IMAGE_VERSION}" > VERSION
+          echo "Building image version: ${IMAGE_VERSION} (${VERSION_KIND}) for ${{ matrix.arch }}; publish latest: ${PUBLISH_LATEST}"
+
+      - name: Detect optional Docker Hub publish
+        id: registry_flags
+        run: echo "dockerhub_enabled=${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        if: ${{ steps.registry_flags.outputs.dockerhub_enabled == 'true' }}
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Prepare registry image names
+        id: registry_names
+        shell: bash
+        run: |
+          OWNER_LC="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          GHCR_IMAGE="ghcr.io/${OWNER_LC}/new-api"
+          echo "GHCR_IMAGE=${GHCR_IMAGE}" >> "$GITHUB_ENV"
+          echo "ghcr_image=${GHCR_IMAGE}" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (labels)
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: calciumion/new-api
+          images: ${{ steps.registry_names.outputs.ghcr_image }}
+
+      - name: Prepare image tags
+        id: tags
+        shell: bash
+        env:
+          DOCKERHUB_ENABLED: ${{ steps.registry_flags.outputs.dockerhub_enabled }}
+        run: |
+          TAGS=()
+          TAGS+=("${GHCR_IMAGE}:${IMAGE_VERSION}-${{ matrix.arch }}")
+          if [ "${PUBLISH_LATEST}" = "true" ]; then
+            TAGS+=("${GHCR_IMAGE}:latest-${{ matrix.arch }}")
+          fi
+
+          if [ "${DOCKERHUB_ENABLED}" = "true" ]; then
+            TAGS+=("${DOCKERHUB_IMAGE}:${IMAGE_VERSION}-${{ matrix.arch }}")
+            if [ "${PUBLISH_LATEST}" = "true" ]; then
+              TAGS+=("${DOCKERHUB_IMAGE}:latest-${{ matrix.arch }}")
+            fi
+          fi
+
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "${TAGS[@]}"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build & push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: |
-            calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
-            calciumion/new-api:latest-${{ matrix.arch }}
+          tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -90,16 +174,34 @@ jobs:
           sbom: true
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
-      - name: Sign image with cosign
-        run: cosign sign --yes calciumion/new-api@${{ steps.build.outputs.digest }}
+      - name: Sign GHCR image with cosign
+        run: cosign sign --yes "${GHCR_IMAGE}@${{ steps.build.outputs.digest }}"
+
+      - name: Sign Docker Hub image with cosign
+        if: ${{ steps.registry_flags.outputs.dockerhub_enabled == 'true' }}
+        run: cosign sign --yes "${DOCKERHUB_IMAGE}@${{ steps.build.outputs.digest }}"
 
       - name: Image summary
+        shell: bash
+        env:
+          DOCKERHUB_ENABLED: ${{ steps.registry_flags.outputs.dockerhub_enabled }}
         run: |
-          echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "calciumion/new-api:${TAG}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "${GHCR_IMAGE}:${IMAGE_VERSION}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${PUBLISH_LATEST}" = "true" ]; then
+            echo "${GHCR_IMAGE}:latest-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${DOCKERHUB_ENABLED}" = "true" ]; then
+            echo "${DOCKERHUB_IMAGE}:${IMAGE_VERSION}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+            if [ "${PUBLISH_LATEST}" = "true" ]; then
+              echo "${DOCKERHUB_IMAGE}:latest-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "Docker Hub publish skipped: DOCKERHUB_USERNAME / DOCKERHUB_TOKEN not configured." >> $GITHUB_STEP_SUMMARY
+          fi
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -107,35 +209,84 @@ jobs:
     name: Create multi-arch manifests
     needs: [build_single_arch]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    permissions:
+      packages: write
+      contents: read
 
     steps:
-      - name: Set version
-        run: echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> $GITHUB_ENV
+      - name: Set image version
+        shell: bash
+        run: |
+          OWNER_LC="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "GHCR_IMAGE=ghcr.io/${OWNER_LC}/new-api" >> $GITHUB_ENV
+          echo "IMAGE_VERSION=${{ needs.build_single_arch.outputs.image_version }}" >> $GITHUB_ENV
+          echo "PUBLISH_LATEST=${{ needs.build_single_arch.outputs.publish_latest }}" >> $GITHUB_ENV
+          echo "DOCKERHUB_ENABLED=${{ needs.build_single_arch.outputs.dockerhub_enabled }}" >> $GITHUB_ENV
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        if: ${{ needs.build_single_arch.outputs.dockerhub_enabled == 'true' }}
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create & push manifest (version)
+      - name: Create & push GHCR manifest (version)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:${TAG} \
-            calciumion/new-api:${TAG}-amd64 \
-            calciumion/new-api:${TAG}-arm64
+            -t ${GHCR_IMAGE}:${IMAGE_VERSION} \
+            ${GHCR_IMAGE}:${IMAGE_VERSION}-amd64 \
+            ${GHCR_IMAGE}:${IMAGE_VERSION}-arm64
 
-      - name: Create & push manifest (latest)
+      - name: Create & push GHCR manifest (latest)
+        if: ${{ needs.build_single_arch.outputs.publish_latest == 'true' }}
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:latest \
-            calciumion/new-api:latest-amd64 \
-            calciumion/new-api:latest-arm64
+            -t ${GHCR_IMAGE}:latest \
+            ${GHCR_IMAGE}:latest-amd64 \
+            ${GHCR_IMAGE}:latest-arm64
+
+      - name: Create & push Docker Hub manifest (version)
+        if: ${{ needs.build_single_arch.outputs.dockerhub_enabled == 'true' }}
+        run: |
+          docker buildx imagetools create \
+            -t ${DOCKERHUB_IMAGE}:${IMAGE_VERSION} \
+            ${DOCKERHUB_IMAGE}:${IMAGE_VERSION}-amd64 \
+            ${DOCKERHUB_IMAGE}:${IMAGE_VERSION}-arm64
+
+      - name: Create & push Docker Hub manifest (latest)
+        if: ${{ needs.build_single_arch.outputs.dockerhub_enabled == 'true' && needs.build_single_arch.outputs.publish_latest == 'true' }}
+        run: |
+          docker buildx imagetools create \
+            -t ${DOCKERHUB_IMAGE}:latest \
+            ${DOCKERHUB_IMAGE}:latest-amd64 \
+            ${DOCKERHUB_IMAGE}:latest-arm64
 
       - name: Manifest summary
+        shell: bash
         run: |
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect calciumion/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect ${GHCR_IMAGE}:${IMAGE_VERSION} >> $GITHUB_STEP_SUMMARY
+          if [ "${PUBLISH_LATEST}" = "true" ]; then
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            docker buildx imagetools inspect ${GHCR_IMAGE}:latest >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${DOCKERHUB_ENABLED}" = "true" ]; then
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            docker buildx imagetools inspect ${DOCKERHUB_IMAGE}:${IMAGE_VERSION} >> $GITHUB_STEP_SUMMARY
+            if [ "${PUBLISH_LATEST}" = "true" ]; then
+              echo "---" >> $GITHUB_STEP_SUMMARY
+              docker buildx imagetools inspect ${DOCKERHUB_IMAGE}:latest >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "Docker Hub manifest skipped: DOCKERHUB_USERNAME / DOCKERHUB_TOKEN not configured." >> $GITHUB_STEP_SUMMARY
+          fi
           echo '```' >> $GITHUB_STEP_SUMMARY
