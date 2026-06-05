@@ -37,6 +37,7 @@ interface ComboboxInputProps {
   className?: string
   id?: string
   allowCustomValue?: boolean
+  disabled?: boolean
 }
 
 export function ComboboxInput({
@@ -48,6 +49,7 @@ export function ComboboxInput({
   className,
   id,
   allowCustomValue = false,
+  disabled = false,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -151,6 +153,7 @@ export function ComboboxInput({
   }, [highlightedIndex])
 
   const showDropdown =
+    !disabled &&
     open &&
     (filteredOptions.length > 0 || (allowCustomValue && searchValue.trim()))
 
@@ -165,6 +168,7 @@ export function ComboboxInput({
         aria-haspopup='listbox'
         aria-autocomplete='list'
         autoComplete='off'
+        disabled={disabled}
         placeholder={placeholder}
         value={displayValue}
         onChange={(e) => {
@@ -182,7 +186,12 @@ export function ComboboxInput({
         onKeyDown={handleKeyDown}
         className={cn('pr-9', className)}
       />
-      <ChevronsUpDown className='pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50' />
+      <ChevronsUpDown
+        className={cn(
+          'pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50',
+          disabled && 'opacity-30'
+        )}
+      />
 
       {showDropdown && (
         <div className='bg-popover text-popover-foreground absolute top-full z-100 mt-1 w-full rounded-md border shadow-md'>

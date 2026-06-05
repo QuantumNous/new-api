@@ -23,6 +23,8 @@ import type {
   GetLogsResponse,
   GetLogStatsParams,
   GetLogStatsResponse,
+  GetLogStatisticsParams,
+  GetLogStatisticsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   UserInfo,
@@ -109,3 +111,111 @@ export const getAllTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
   fetchLogs('/api/task', params, false)
+
+// ============================================================================
+// Log Statistics API (admin)
+// ============================================================================
+
+export async function getLogStatistics(
+  params: GetLogStatisticsParams
+): Promise<GetLogStatisticsResponse> {
+  const queryParams = buildQueryParams(
+    params as unknown as Record<string, unknown>
+  )
+  const res = await api.get(`/api/log/statistics?${queryParams}`)
+  return res.data
+}
+
+export async function exportLogStatistics(
+  params: GetLogStatisticsParams
+): Promise<void> {
+  const queryParams = buildQueryParams(
+    params as unknown as Record<string, unknown>
+  )
+  const res = await api.get(`/api/log/statistics/export?${queryParams}`, {
+    responseType: 'blob',
+  })
+  const blob = new Blob([res.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const contentDisposition = res.headers['content-disposition']
+  let filename = `usage_statistics_${params.username}.xlsx`
+  if (contentDisposition) {
+    const utf8Match = contentDisposition.match(
+      /filename\*=UTF-8''(.+?)(?:;|$)/
+    )
+    if (utf8Match) {
+      filename = decodeURIComponent(utf8Match[1])
+    } else {
+      const match = contentDisposition.match(/filename="?([^";]+)"?/)
+      if (match) filename = decodeURIComponent(match[1])
+    }
+  }
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+}
+
+// ============================================================================
+// Statistics Options API (for combobox dropdowns)
+// ============================================================================
+
+export async function getStatisticsUserOptions(
+  keyword?: string
+): Promise<string[]> {
+  const queryParams = buildQueryParams({
+    keyword: keyword || '',
+    page_size: 50,
+  })
+  const res = await api.get(
+    `/api/log/statistics/options/users?${queryParams}`
+  )
+  return res.data?.data ?? []
+}
+
+export interface TokenOption {
+  id: number
+  name: string
+}
+
+export interface TokenOptionsResponse {
+  data: TokenOption[]
+  has_more: boolean
+  next_cursor: number
+}
+
+export async function getStatisticsTokenOptions(
+  username?: string,
+  keyword?: string,
+  cursor?: number
+): Promise<TokenOptionsResponse> {
+  const queryParams = buildQueryParams({
+    username: username || '',
+    keyword: keyword || '',
+    cursor: cursor ?? 0,
+  })
+  const res = await api.get(
+    `/api/log/statistics/options/tokens?${queryParams}`
+  )
+  return {
+    data: res.data?.data ?? [],
+    has_more: res.data?.has_more ?? false,
+    next_cursor: res.data?.next_cursor ?? 0,
+  }
+}
+
+export async function getStatisticsModelOptions(
+  username?: string,
+  tokenName?: string
+): Promise<string[]> {
+  const queryParams = buildQueryParams({
+    username: username || '',
+    token_name: tokenName || '',
+  })
+  const res = await api.get(
+    `/api/log/statistics/options/models?${queryParams}`
+  )
+  return res.data?.data ?? []
+}

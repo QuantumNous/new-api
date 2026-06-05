@@ -42,9 +42,11 @@ import {
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
+import { useLogStatistics } from './useLogStatistics';
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+  const logStatistics = useLogStatistics();
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -107,6 +109,7 @@ export const useLogsData = () => {
     ],
     logType: '0',
   };
+  const [dateRangeValue, setDateRangeValue] = useState(formInitValues.dateRange);
 
   // Get default column visibility based on user role
   const getDefaultColumnVisibility = () => {
@@ -232,6 +235,24 @@ export const useLogsData = () => {
     localStorage.setItem(BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode);
   }, [BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode]);
 
+  const normalizeDateRange = (...candidates) => {
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate) && candidate.length === 2) {
+        return candidate;
+      }
+    }
+    return null;
+  };
+
+  const handleDateRangeChange = (date, dateStr) => {
+    const nextRange = normalizeDateRange(dateStr, date);
+    setDateRangeValue(nextRange || []);
+  };
+
+  const resetDateRange = () => {
+    setDateRangeValue(formInitValues.dateRange);
+  };
+
   // 获取表单值的辅助函数，确保所有值都是字符串
   const getFormValues = () => {
     const formValues = formApi ? formApi.getValues() : {};
@@ -239,13 +260,10 @@ export const useLogsData = () => {
     let start_timestamp = timestamp2string(getTodayStartTimestamp());
     let end_timestamp = timestamp2string(now.getTime() / 1000 + 3600);
 
-    if (
-      formValues.dateRange &&
-      Array.isArray(formValues.dateRange) &&
-      formValues.dateRange.length === 2
-    ) {
-      start_timestamp = formValues.dateRange[0];
-      end_timestamp = formValues.dateRange[1];
+    const currentDateRange = normalizeDateRange(dateRangeValue);
+    if (currentDateRange) {
+      start_timestamp = currentDateRange[0];
+      end_timestamp = currentDateRange[1];
     }
 
     return {
@@ -261,6 +279,30 @@ export const useLogsData = () => {
     };
   };
 
+  const toUnixTimestamp = (value) => {
+    if (!value) {
+      return 0;
+    }
+    if (value instanceof Date) {
+      return Math.floor(value.getTime() / 1000);
+    }
+    if (typeof value === 'number') {
+      return Math.floor(value > 1e12 ? value / 1000 : value);
+    }
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+  };
+
+  const buildQueryString = (params) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        query.append(key, String(value));
+      }
+    });
+    return query.toString();
+  };
+
   // Statistics functions
   const getLogSelfStat = async () => {
     const {
@@ -272,10 +314,16 @@ export const useLogsData = () => {
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
-    url = encodeURI(url);
+    const localStartTimestamp = toUnixTimestamp(start_timestamp);
+    const localEndTimestamp = toUnixTimestamp(end_timestamp);
+    const url = `/api/log/self/stat?${buildQueryString({
+      type: currentLogType,
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      group,
+    })}`;
     let res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -297,10 +345,18 @@ export const useLogsData = () => {
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
-    url = encodeURI(url);
+    const localStartTimestamp = toUnixTimestamp(start_timestamp);
+    const localEndTimestamp = toUnixTimestamp(end_timestamp);
+    const url = `/api/log/stat?${buildQueryString({
+      type: currentLogType,
+      username,
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      channel,
+      group,
+    })}`;
     let res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -749,14 +805,35 @@ export const useLogsData = () => {
           ? formLogType
           : logType;
 
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    const localStartTimestamp = toUnixTimestamp(start_timestamp);
+    const localEndTimestamp = toUnixTimestamp(end_timestamp);
     if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?${buildQueryString({
+        p: startIdx,
+        page_size: pageSize,
+        type: currentLogType,
+        username,
+        token_name,
+        model_name,
+        start_timestamp: localStartTimestamp,
+        end_timestamp: localEndTimestamp,
+        channel,
+        group,
+        request_id,
+      })}`;
     } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/self?${buildQueryString({
+        p: startIdx,
+        page_size: pageSize,
+        type: currentLogType,
+        token_name,
+        model_name,
+        start_timestamp: localStartTimestamp,
+        end_timestamp: localEndTimestamp,
+        group,
+        request_id,
+      })}`;
     }
-    url = encodeURI(url);
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -850,6 +927,9 @@ export const useLogsData = () => {
     formApi,
     setFormApi,
     formInitValues,
+    dateRangeValue,
+    handleDateRangeChange,
+    resetDateRange,
     getFormValues,
 
     // Column visibility
@@ -896,5 +976,9 @@ export const useLogsData = () => {
 
     // Translation
     t,
+
+    // Statistics drawer
+    ...logStatistics,
+    setShowStatisticsDrawer: logStatistics.setVisible,
   };
 };

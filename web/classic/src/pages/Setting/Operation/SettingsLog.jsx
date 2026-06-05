@@ -223,6 +223,7 @@ export default function SettingsLog(props) {
                     field={'historyTimestamp'}
                     type='dateTime'
                     inputReadOnly={true}
+                    disabledDate={(date) => date && date.getTime() > Date.now()}
                     onChange={(value) => {
                       setInputs({
                         ...inputs,

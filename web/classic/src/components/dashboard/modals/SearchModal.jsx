@@ -62,6 +62,7 @@ const SearchModal = ({
           value: start_timestamp,
           type: 'dateTime',
           name: 'start_timestamp',
+          disabledDate: (date) => date && date.getTime() > Date.now(),
           onChange: (value) => handleInputChange(value, 'start_timestamp'),
         })}
 
@@ -72,6 +73,7 @@ const SearchModal = ({
           value: end_timestamp,
           type: 'dateTime',
           name: 'end_timestamp',
+          disabledDate: (date) => date && date.getTime() > Date.now(),
           onChange: (value) => handleInputChange(value, 'end_timestamp'),
         })}
 

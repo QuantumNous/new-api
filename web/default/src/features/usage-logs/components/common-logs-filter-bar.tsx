@@ -20,7 +20,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { BarChart3, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,7 @@ function isLogTypeValue(value: string): value is LogTypeValue {
 
 interface CommonLogsFilterBarProps<TData> {
   table: Table<TData>
+  onStatisticsClick?: () => void
 }
 
 export function CommonLogsFilterBar<TData>(
@@ -199,6 +200,16 @@ export function CommonLogsFilterBar<TData>(
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      {props.onStatisticsClick && (
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={props.onStatisticsClick}
+        >
+          <BarChart3 className='mr-1.5 size-4' />
+          {t('Statistics')}
+        </Button>
+      )}
       <Tooltip>
         <TooltipTrigger
           render={
