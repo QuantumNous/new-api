@@ -19,13 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import axios, { type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
 import { toast } from 'sonner'
+import { requestSecureVerification } from '@/features/auth/secure-verification/secure-verification-request'
 import { useAuthStore } from '@/stores/auth-store'
+import { isVerificationRequiredError } from './secure-verification'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
     skipBusinessError?: boolean
     skipErrorHandler?: boolean
     disableDuplicate?: boolean
+    skipSecureVerification?: boolean
+    secureVerificationRetried?: boolean
   }
 }
 
@@ -99,6 +103,26 @@ api.interceptors.response.use(
   (error) => {
     const skip = error?.config?.skipErrorHandler
     const status = error?.response?.status
+    const originalConfig = error?.config as ApiRequestConfig | undefined
+
+    if (
+      originalConfig &&
+      isVerificationRequiredError(error) &&
+      !originalConfig?.skipSecureVerification &&
+      !originalConfig?.secureVerificationRetried
+    ) {
+      originalConfig!.secureVerificationRetried = true
+      return requestSecureVerification(
+        () => api.request(originalConfig!),
+        {
+          preferredMethod: 'passkey',
+          title: t('Additional verification required'),
+          description: t(
+            'Confirm your identity before accessing this sensitive action.'
+          ),
+        }
+      )
+    }
 
     if (status === 401) {
       try {

@@ -37,6 +37,7 @@ export interface UseSecureVerificationOptions {
   onError?: (error: unknown) => void
   successMessage?: string
   autoReset?: boolean
+  autoFetchMethods?: boolean
 }
 
 export interface StartVerificationOptions {

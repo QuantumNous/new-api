@@ -42,6 +42,17 @@ func isPositiveOptionValue(value string) bool {
 	return err == nil && floatValue > 0
 }
 
+func userHasSecureVerificationMethod(userId int) bool {
+	if model.IsTwoFAEnabled(userId) {
+		return true
+	}
+	if !system_setting.GetPasskeySettings().Enabled {
+		return false
+	}
+	_, err := model.GetPasskeyByUserID(userId)
+	return err == nil
+}
+
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
 	if strings.TrimSpace(raw) == "" {
 		return
@@ -150,6 +161,14 @@ func UpdateOption(c *gin.Context) {
 		}
 	}
 	switch option.Key {
+	case "secure_verification.sensitive_operations_required":
+		if option.Value == "true" && !userHasSecureVerificationMethod(c.GetInt("id")) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用敏感操作二次验证，请先为当前管理员启用 2FA 或 Passkey。",
+			})
+			return
+		}
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
@@ -74,6 +75,21 @@ func SecureVerificationRequired() gin.HandlerFunc {
 		}
 
 		c.Next()
+	}
+}
+
+// SensitiveOperationVerificationRequired applies secure verification only when
+// the site-level sensitive-operation policy is enabled.
+func SensitiveOperationVerificationRequired() gin.HandlerFunc {
+	required := SecureVerificationRequired()
+
+	return func(c *gin.Context) {
+		if !system_setting.GetSecureVerificationSettings().SensitiveOperationsRequired {
+			c.Next()
+			return
+		}
+
+		required(c)
 	}
 }
 

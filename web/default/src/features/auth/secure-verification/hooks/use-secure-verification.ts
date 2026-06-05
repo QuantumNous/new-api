@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
@@ -38,6 +38,11 @@ interface InternalState extends SecureVerificationState {
   apiCall: ApiCall
 }
 
+type PendingVerification = {
+  resolve: (result: unknown) => void
+  reject: (error: unknown) => void
+}
+
 const defaultMethods: VerificationMethods = {
   has2FA: false,
   hasPasskey: false,
@@ -56,11 +61,18 @@ const initialState: InternalState = {
 export function useSecureVerification(
   options: UseSecureVerificationOptions = {}
 ) {
-  const { onSuccess, onError, successMessage, autoReset = true } = options
+  const {
+    onSuccess,
+    onError,
+    successMessage,
+    autoReset = true,
+    autoFetchMethods = true,
+  } = options
 
   const [methods, setMethods] = useState<VerificationMethods>(defaultMethods)
   const [state, setState] = useState<InternalState>(initialState)
   const [open, setOpen] = useState(false)
+  const pendingVerificationRef = useRef<PendingVerification | null>(null)
 
   const fetchVerificationMethods = useCallback(async () => {
     const result = await checkVerificationMethods()
@@ -69,12 +81,24 @@ export function useSecureVerification(
   }, [])
 
   useEffect(() => {
-    fetchVerificationMethods()
-  }, [fetchVerificationMethods])
+    if (autoFetchMethods) {
+      fetchVerificationMethods()
+    }
+  }, [autoFetchMethods, fetchVerificationMethods])
 
   const reset = useCallback(() => {
     setState(initialState)
     setOpen(false)
+  }, [])
+
+  const resolvePendingVerification = useCallback((result: unknown) => {
+    pendingVerificationRef.current?.resolve(result)
+    pendingVerificationRef.current = null
+  }, [])
+
+  const rejectPendingVerification = useCallback((error: unknown) => {
+    pendingVerificationRef.current?.reject(error)
+    pendingVerificationRef.current = null
   }, [])
 
   const startVerification = useCallback(
@@ -121,6 +145,38 @@ export function useSecureVerification(
     [fetchVerificationMethods, onError]
   )
 
+  const verifyThenRun = useCallback(
+    async <T,>(
+      apiCall: () => Promise<T>,
+      config: StartVerificationOptions = {}
+    ): Promise<T> => {
+      pendingVerificationRef.current?.reject(
+        new Error('Another verification request has started')
+      )
+
+      return new Promise<T>((resolve, reject) => {
+        pendingVerificationRef.current = {
+          resolve: (result) => resolve(result as T),
+          reject,
+        }
+
+        void startVerification(apiCall, config)
+          .then((started) => {
+            if (!started) {
+              const error = new Error(
+                'No verification methods available. Enable 2FA or Passkey to continue.'
+              )
+              rejectPendingVerification(error)
+            }
+          })
+          .catch((error) => {
+            rejectPendingVerification(error)
+          })
+      })
+    },
+    [rejectPendingVerification, startVerification]
+  )
+
   const executeVerification = useCallback(
     async (method?: VerificationMethod, code?: string) => {
       if (!state.apiCall) {
@@ -138,13 +194,24 @@ export function useSecureVerification(
 
       try {
         await verify(actualMethod, code ?? state.code)
-        const result = await state.apiCall()
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : i18next.t('Verification failed')
+        toast.error(message)
+        onError?.(error)
+        throw error
+      }
 
+      try {
+        const result = await state.apiCall()
         if (successMessage) {
           toast.success(successMessage)
         }
 
         onSuccess?.(result, actualMethod)
+        resolvePendingVerification(result)
 
         if (autoReset) {
           reset()
@@ -152,6 +219,7 @@ export function useSecureVerification(
 
         return result
       } catch (error) {
+        rejectPendingVerification(error)
         const message =
           error instanceof Error
             ? error.message
@@ -163,7 +231,16 @@ export function useSecureVerification(
         setState((prev) => ({ ...prev, loading: false }))
       }
     },
-    [state, successMessage, onSuccess, onError, autoReset, reset]
+    [
+      state,
+      successMessage,
+      onSuccess,
+      resolvePendingVerification,
+      autoReset,
+      reset,
+      rejectPendingVerification,
+      onError,
+    ]
   )
 
   const setCode = useCallback((code: string) => {
@@ -175,27 +252,27 @@ export function useSecureVerification(
   }, [])
 
   const cancel = useCallback(() => {
+    rejectPendingVerification(new Error('Verification cancelled'))
     reset()
-  }, [reset])
+  }, [rejectPendingVerification, reset])
 
   const withVerification = useCallback(
-    async (
-      apiCall: () => Promise<unknown>,
+    async <T,>(
+      apiCall: () => Promise<T>,
       config: StartVerificationOptions = {}
-    ) => {
+    ): Promise<T> => {
       try {
         return await apiCall()
       } catch (error) {
         if (isVerificationRequiredError(error)) {
           const info = extractVerificationInfo(error)
           toast.info(info.message)
-          await startVerification(apiCall, config)
-          return null
+          return await verifyThenRun(apiCall, config)
         }
         throw error
       }
     },
-    [startVerification]
+    [verifyThenRun]
   )
 
   const canUseMethod = useCallback(
@@ -227,6 +304,7 @@ export function useSecureVerification(
     setCode,
     switchMethod,
     withVerification,
+    verifyThenRun,
     fetchVerificationMethods,
     canUseMethod,
     recommendedMethod,

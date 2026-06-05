@@ -113,6 +113,7 @@ export type AuthSettings = {
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
   'passkey.attachment_preference': '' | 'platform' | 'cross-platform'
+  'secure_verification.sensitive_operations_required': boolean
 }
 
 export type ContentSettings = {
