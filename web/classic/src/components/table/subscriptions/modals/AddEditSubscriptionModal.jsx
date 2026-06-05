@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Avatar,
   Button,
@@ -36,10 +36,17 @@ import {
   IconCalendarClock,
   IconClose,
   IconCreditCard,
+  IconLink,
   IconSave,
 } from '@douyinfe/semi-icons';
-import { Clock, RefreshCw } from 'lucide-react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { AlertCircle, Clock, RefreshCw } from 'lucide-react';
+import {
+  API,
+  showError,
+  showSuccess,
+  getModelCategories,
+  selectFilter,
+} from '../../../../helpers';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
@@ -75,6 +82,9 @@ const AddEditSubscriptionModal = ({
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
+  const [models, setModels] = useState([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsLoadError, setModelsLoadError] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
@@ -97,12 +107,20 @@ const AddEditSubscriptionModal = ({
     upgrade_group: '',
     stripe_price_id: '',
     creem_product_id: '',
+    model_limits: [],
   });
 
   const buildFormValues = () => {
     const base = getInitValues();
     if (editingPlan?.plan?.id === undefined) return base;
     const p = editingPlan.plan || {};
+    let modelLimits = [];
+    if (p.model_limits_enabled && p.model_limits && p.model_limits !== '') {
+      modelLimits = p.model_limits
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean);
+    }
     return {
       ...base,
       title: p.title || '',
@@ -123,8 +141,47 @@ const AddEditSubscriptionModal = ({
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
+      model_limits: modelLimits,
     };
   };
+
+  const loadModels = useCallback(async () => {
+    setModelsLoading(true);
+    setModelsLoadError(false);
+    try {
+      const res = await API.get('/api/channel/models_enabled');
+      const { success, data } = res.data;
+      if (success && Array.isArray(data)) {
+        const categories = getModelCategories(t);
+        const localModelOptions = data.map((model) => {
+          let icon = null;
+          for (const [key, category] of Object.entries(categories)) {
+            if (key !== 'all' && category.filter({ model_name: model })) {
+              icon = category.icon;
+              break;
+            }
+          }
+          return {
+            label: (
+              <span className='flex items-center gap-1'>
+                {icon}
+                {model}
+              </span>
+            ),
+            value: model,
+          };
+        });
+        setModels(localModelOptions);
+      } else {
+        setModelsLoadError(true);
+      }
+    } catch (error) {
+      console.error('Failed to load models:', error);
+      setModelsLoadError(true);
+    } finally {
+      setModelsLoading(false);
+    }
+  }, [t]);
 
   useEffect(() => {
     if (!visible) return;
@@ -139,15 +196,21 @@ const AddEditSubscriptionModal = ({
       })
       .catch(() => setGroupOptions([]))
       .finally(() => setGroupLoading(false));
-  }, [visible]);
+    loadModels();
+  }, [visible, loadModels, t]);
 
   const submit = async (values) => {
+    if (modelsLoadError) {
+      showError(t('模型列表加载失败，无法提交，请重试'));
+      return;
+    }
     if (!values.title || values.title.trim() === '') {
       showError(t('套餐标题不能为空'));
       return;
     }
     setLoading(true);
     try {
+      const modelLimitsStr = (values.model_limits || []).join(',');
       const payload = {
         plan: {
           ...values,
@@ -164,6 +227,8 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          model_limits_enabled: modelLimitsStr.length > 0,
+          model_limits: modelLimitsStr,
         },
       };
       if (editingPlan?.plan?.id) {
@@ -226,6 +291,7 @@ const AddEditSubscriptionModal = ({
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
                 loading={loading}
+                disabled={modelsLoading || modelsLoadError}
               >
                 {t('提交')}
               </Button>
@@ -497,6 +563,70 @@ const AddEditSubscriptionModal = ({
                           disabled
                         />
                       )}
+                    </Col>
+                  </Row>
+                </Card>
+
+                {/* 模型限制 */}
+                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='cyan'
+                      className='mr-2 shadow-md'
+                    >
+                      <IconLink size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('模型限制')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('限制该订阅套餐可使用的模型范围')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Row gutter={12}>
+                    <Col span={24}>
+                      {modelsLoadError && (
+                        <div className='mb-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between'>
+                          <div className='flex items-center gap-2'>
+                            <AlertCircle size={16} className='text-red-500' />
+                            <Text type='danger' size='small'>
+                              {t('模型列表加载失败，请重试')}
+                            </Text>
+                          </div>
+                          <Button
+                            size='small'
+                            theme='light'
+                            onClick={loadModels}
+                            icon={<RefreshCw size={14} />}
+                            loading={modelsLoading}
+                          >
+                            {t('重试')}
+                          </Button>
+                        </div>
+                      )}
+                      <Form.Select
+                        field='model_limits'
+                        label={t('模型限制列表')}
+                        placeholder={t(
+                          '请选择该套餐支持的模型，留空支持所有模型',
+                        )}
+                        multiple
+                        optionList={models}
+                        loading={modelsLoading}
+                        disabled={modelsLoading || modelsLoadError}
+                        extraText={t(
+                          '选择后，通过该订阅套餐计费的请求只能使用选中的模型；留空则不限制',
+                        )}
+                        filter={selectFilter}
+                        autoClearSearchValue={false}
+                        searchPosition='dropdown'
+                        showClear
+                        style={{ width: '100%' }}
+                      />
                     </Col>
                   </Row>
                 </Card>

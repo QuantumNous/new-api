@@ -101,6 +101,17 @@ const renderPlanTitle = (text, record, t) => {
         <Text>{formatDuration(plan, t)}</Text>
         <Text type='tertiary'>{t('重置')}</Text>
         <Text>{formatResetPeriod(plan, t)}</Text>
+        <Text type='tertiary'>{t('模型限制')}</Text>
+        <Text>
+          {plan?.model_limits_enabled && plan?.model_limits
+            ? `${new Set(
+                plan.model_limits
+                  .split(',')
+                  .map((item) => item.trim())
+                  .filter(Boolean),
+              ).size} ${t('个模型')}`
+            : t('不限')}
+        </Text>
       </div>
     </div>
   );
