@@ -146,6 +146,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Pay-per-call in USDC on Base via x402. Fund the wallet address first; per-call charges are capped at $1 by the gateway.',
     },
   },
+  102: {
+    id: 102,
+    name: CHANNEL_TYPES[102],
+    icon: 'openai',
+    defaultBaseUrl: 'https://blockrun.ai/api',
+    hints: {
+      baseUrl: 'Default: https://blockrun.ai/api',
+      key: 'EVM wallet private key (0x-prefixed hex)',
+      other:
+        'Seedance video, pay-per-call USDC on Base via x402. Fund the wallet first.',
+    },
+  },
 }
 
 /**
