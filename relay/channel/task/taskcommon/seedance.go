@@ -43,8 +43,15 @@ func BindSeedanceRequest(c *gin.Context, info *relaycommon.RelayInfo, action str
 	}
 
 	taskReq := relaycommon.TaskSubmitReq{
-		Model:  req.Model,
-		Prompt: req.PromptText(),
+		Model:      req.Model,
+		Prompt:     req.PromptText(),
+		Resolution: req.Resolution,
+		Ratio:      req.Ratio,
+	}
+	// Carry an explicit positive duration so duration-based billing/logging
+	// downstream sees the requested length (-1 = model-chosen, leave unset).
+	if req.Duration != nil && *req.Duration > 0 {
+		taskReq.Duration = *req.Duration
 	}
 	for _, m := range req.Images() {
 		taskReq.Images = append(taskReq.Images, m.URL)

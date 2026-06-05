@@ -33,7 +33,8 @@ func TestBindSeedanceRequest_ValidSynthesizesTaskRequest(t *testing.T) {
 		"content":[
 			{"type":"text","text":"一只猫"},
 			{"type":"image_url","image_url":{"url":"https://a/i.jpg"},"role":"first_frame"}
-		]
+		],
+		"resolution":"720p","ratio":"16:9","duration":5
 	}`)
 	info := newRelayInfo()
 
@@ -57,6 +58,12 @@ func TestBindSeedanceRequest_ValidSynthesizesTaskRequest(t *testing.T) {
 	}
 	if len(stored.Images) != 1 || stored.Images[0] != "https://a/i.jpg" {
 		t.Errorf("synthesized images = %+v", stored.Images)
+	}
+	if stored.Resolution != "720p" || stored.Ratio != "16:9" {
+		t.Errorf("synthesized resolution/ratio = %q/%q", stored.Resolution, stored.Ratio)
+	}
+	if stored.Duration != 5 {
+		t.Errorf("synthesized duration = %d, want 5", stored.Duration)
 	}
 }
 
