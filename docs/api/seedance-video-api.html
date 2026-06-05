@@ -45,6 +45,7 @@
     border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
   }
   h3 { font-size: 16px; margin: 28px 0 10px; color: #cdd4e0; }
+  h4 { font-size: 14px; margin: 18px 0 8px; color: #b6bdca; }
   p { margin: 10px 0; }
   code {
     font-family: var(--mono); font-size: 0.88em;
@@ -98,7 +99,7 @@
   <div class="wrap">
     <span class="tag">异步视频生成 API</span>
     <h1>Seedance 视频生成 API</h1>
-    <p class="sub">调用视频生成接口生成视频(文生 / 图生)。采用「提交任务 → 轮询状态 → 取回视频」的异步模型;视频经本服务代理返回,可直接嵌入页面。</p>
+    <p class="sub">调用视频生成接口生成视频（文生 / 图生 / 多模态参考）。请求体与主流视频生成 API 一致，采用「提交任务 → 轮询状态 → 取回视频」的异步模型；视频经本服务代理返回，可直接嵌入页面。</p>
   </div>
 </header>
 
@@ -122,68 +123,124 @@
   <h2 id="overview">1. 概览</h2>
   <table>
     <tr><th>项</th><th>值</th></tr>
-    <tr><td>可用模型</td><td><code>seedance-2.0</code>、<code>seedance-2.0-fast</code>(以你的服务实际开放的模型名为准)</td></tr>
-    <tr><td>调用模式</td><td>异步:创建任务 → 轮询 → 取视频</td></tr>
-    <tr><td>能力</td><td>文生视频、图生视频(传入参考图)</td></tr>
-    <tr><td>结果交付</td><td>视频经本服务代理地址返回,可直接下载或嵌入</td></tr>
+    <tr><td>可用模型</td><td><code>seedance-2.0</code>、<code>seedance-2.0-fast</code>（以你的服务实际开放的模型名为准）</td></tr>
+    <tr><td>调用模式</td><td>异步：创建任务 → 轮询 → 取视频</td></tr>
+    <tr><td>能力</td><td>文生视频、图生视频（首帧 / 尾帧 / 参考图）、多模态参考（图片 + 视频 + 音频组合）、可选画质超分</td></tr>
+    <tr><td>请求格式</td><td>多模态 <code>content[]</code> 数组（与主流视频生成 API 一致，便于无缝迁移）</td></tr>
+    <tr><td>结果交付</td><td>视频经本服务代理地址返回，可直接下载或嵌入；附带 token 用量 <code>usage</code></td></tr>
   </table>
-  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址,例如 <code>https://your-api-host</code>。</p>
+  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://your-api-host</code>。</p>
 
   <h2 id="auth">2. 认证</h2>
-  <p>除「获取视频」接口外,所有请求需在请求头携带访问令牌:</p>
+  <p>除「获取视频」接口外，所有请求需在请求头携带访问令牌：</p>
   <pre><code>Authorization: Bearer sk-xxxxxxxxxxxxxxxx</code></pre>
   <div class="callout info">
-    <p><strong>例外:</strong>「获取视频」接口 <code>GET {BASE}/v1/videos/{task_id}/content</code> 为<strong>匿名</strong>接口,无需令牌 —— 不可猜的 <code>task_id</code> 本身即访问凭证,可直接用于 <code>&lt;video src&gt;</code> 嵌入。</p>
+    <p><strong>例外：</strong>「获取视频」接口 <code>GET {BASE}/v1/videos/{task_id}/content</code> 为<strong>匿名</strong>接口，无需令牌 —— 不可猜的 <code>task_id</code> 本身即访问凭证，可直接用于 <code>&lt;video src&gt;</code> 嵌入。</p>
   </div>
 
   <h2 id="endpoints">3. 接口一览</h2>
   <table>
     <tr><th>方法 &amp; 路径</th><th>说明</th><th>鉴权</th></tr>
-    <tr><td><span class="method post">POST</span><span class="path">/v1/video/generations</span></td><td>创建视频生成任务</td><td>Bearer</td></tr>
-    <tr><td><span class="method get">GET</span><span class="path">/v1/video/generations/{task_id}</span></td><td>查询任务状态/结果</td><td>Bearer</td></tr>
-    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}/content</span></td><td>取回视频二进制(代理下载)</td><td>匿名</td></tr>
+    <tr><td><span class="method post">POST</span><span class="path">/v1/videos</span></td><td>创建视频生成任务</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}</span></td><td>查询任务状态 / 结果（含 <code>usage</code>）</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}/content</span></td><td>取回视频二进制（代理下载）</td><td>匿名</td></tr>
   </table>
-
-  <h2 id="create">4. 创建视频任务</h2>
-  <p><span class="method post">POST</span><span class="path">{BASE}/v1/video/generations</span></p>
-
-  <h3>请求参数(JSON Body)</h3>
-  <table>
-    <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
-    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>模型名,如 <code>seedance-2.0</code>(以你的服务开放的名称为准)</td></tr>
-    <tr><td><code>prompt</code></td><td>string</td><td class="req">必填</td><td>视频提示词</td></tr>
-    <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td>时长(秒),整数,如 <code>5</code></td></tr>
-    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td>分辨率,如 <code>"1080p"</code></td></tr>
-    <tr><td><code>ratio</code></td><td>string</td><td class="opt">可选</td><td>画面比例,如 <code>"16:9"</code></td></tr>
-    <tr><td><code>images</code></td><td>string[]</td><td class="opt">可选</td><td>图生视频的参考图(取第一张),URL 或 base64</td></tr>
-  </table>
-  <div class="callout warn">
-    <p><strong>注意:</strong>仅识别上述参数。<code>watermark</code>、<code>seed</code>、<code>generateAudio</code>、<code>returnLastFrame</code> 等参数<strong>不会生效</strong>(即使传入也会被忽略)。</p>
+  <div class="callout info">
+    <p>另有一组等价接口 <code>POST /v1/video/generations</code> 与 <code>GET /v1/video/generations/{task_id}</code>，<strong>创建行为完全相同</strong>，仅查询响应为服务私有格式。<strong>推荐使用上方 <code>/v1/videos</code> 这套</strong>（标准结构、原生携带 <code>usage</code>）。</p>
   </div>
 
-  <h3>请求示例(文生视频)</h3>
-  <pre><code>curl {BASE}/v1/video/generations \
+  <h2 id="create">4. 创建视频任务</h2>
+  <p><span class="method post">POST</span><span class="path">{BASE}/v1/videos</span></p>
+
+  <h3>请求参数（JSON Body）</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>模型名，如 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>（以你的服务开放的名称为准）</td></tr>
+    <tr><td><code>content</code></td><td>array</td><td class="req">必填</td><td>多模态输入数组，见下方「content 元素」。至少包含一个文本项，或一张图片 / 一段视频</td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td>输出分辨率：<code>480p</code> / <code>720p</code> / <code>1080p</code></td></tr>
+    <tr><td><code>ratio</code></td><td>string</td><td class="opt">可选</td><td>画面比例：<code>16:9</code> / <code>4:3</code> / <code>1:1</code> / <code>3:4</code> / <code>9:16</code> / <code>21:9</code> / <code>adaptive</code></td></tr>
+    <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td>时长（秒），范围 <code>4–15</code>；传 <code>-1</code> 由模型智能决定</td></tr>
+    <tr><td><code>seed</code></td><td>int</td><td class="opt">可选</td><td>随机种子；不传则随机</td></tr>
+    <tr><td><code>watermark</code></td><td>bool</td><td class="opt">可选</td><td>是否添加水印（默认 <code>false</code>）</td></tr>
+    <tr><td><code>generate_audio</code></td><td>bool</td><td class="opt">可选</td><td>是否生成同步音频</td></tr>
+  </table>
+
+  <h4>content 元素</h4>
+  <table>
+    <tr><th>type</th><th>附带字段</th><th>role 可选值</th><th>说明</th></tr>
+    <tr><td><code>text</code></td><td><code>text</code>（string）</td><td class="opt">—</td><td>文本提示词（可有多条，按顺序拼接）</td></tr>
+    <tr><td><code>image_url</code></td><td><code>image_url.url</code></td><td><code>first_frame</code> / <code>last_frame</code> / <code>reference_image</code></td><td>输入图片，最多 9 张</td></tr>
+    <tr><td><code>video_url</code></td><td><code>video_url.url</code></td><td><code>reference_video</code></td><td>参考视频，最多 3 段</td></tr>
+    <tr><td><code>audio_url</code></td><td><code>audio_url.url</code></td><td><code>reference_audio</code></td><td>参考音频，最多 3 段</td></tr>
+  </table>
+  <p class="muted">输入模式由图片 role 自动推断：含 <code>first_frame</code> / <code>last_frame</code> 时为「首尾帧」模式，否则为「参考图」模式。</p>
+
+  <h4>进阶参数（可选）</h4>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>input_type</code></td><td>string</td><td>显式指定输入模式：<code>reference</code> / <code>first_last_frame</code>（默认自动推断）</td></tr>
+    <tr><td><code>web_search</code></td><td>bool</td><td>启用联网搜索增强</td></tr>
+    <tr><td><code>super_resolution_config</code></td><td>object</td><td>画质超分配置，非空即启用。任务成功后自动进行画质增强，对外仍只暴露一个任务 ID</td></tr>
+  </table>
+  <h4><code>super_resolution_config</code> 字段</h4>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td>目标分辨率：<code>720p</code> / <code>1080p</code> / <code>2k</code> / <code>4k</code>（须高于原始分辨率）。与 <code>resolution_limit</code> 二选一</td></tr>
+    <tr><td><code>resolution_limit</code></td><td>int</td><td>自定义短边像素 <code>[64, 2160]</code>。与 <code>resolution</code> 二选一</td></tr>
+    <tr><td><code>scene</code></td><td>string</td><td>场景：<code>aigc</code> / <code>short_series</code> / <code>ugc</code> / <code>old_film</code></td></tr>
+    <tr><td><code>tool_version</code></td><td>string</td><td>版本：<code>standard</code>（默认）/ <code>professional</code></td></tr>
+    <tr><td><code>fps</code></td><td>int</td><td>输出帧率 <code>[1, 120]</code>；高于源帧率时触发智能插帧</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <p><strong>注意：</strong><code>camera_fixed</code>、<code>frames</code>、<code>callback_url</code>、<code>return_last_frame</code> 等参数为兼容而接受，但<strong>当前不会生效</strong>（传入会被忽略）。</p>
+  </div>
+
+  <h3>请求示例（文生视频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
   -H "Authorization: Bearer sk-xxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "seedance-2.0",
-    "prompt": "宇航员在月球漫步，电影感，镜头缓慢推近",
-    "duration": 5,
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感，镜头缓慢推近" }
+    ],
     "resolution": "1080p",
-    "ratio": "16:9"
+    "ratio": "16:9",
+    "duration": 5
   }'</code></pre>
 
-  <h3>请求示例(图生视频)</h3>
-  <pre><code>curl {BASE}/v1/video/generations \
+  <h3>请求示例（首尾帧图生视频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
   -H "Authorization: Bearer sk-xxxx" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "seedance-2.0",
-    "prompt": "让画面里的人物缓缓转头微笑",
-    "duration": 5,
-    "images": ["https://example.com/ref.jpg"],
+    "content": [
+      { "type": "text", "text": "镜头缓缓推进" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/first.jpg" }, "role": "first_frame" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/last.jpg" },  "role": "last_frame" }
+    ],
+    "resolution": "720p",
+    "ratio": "16:9",
+    "duration": 5
+  }'</code></pre>
+
+  <h3>请求示例（多模态参考 + 画质超分）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "content": [
+      { "type": "text", "text": "女孩对着镜头微笑，背景是海边日落" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/ref.jpg" }, "role": "reference_image" }
+    ],
     "resolution": "1080p",
-    "ratio": "16:9"
+    "ratio": "16:9",
+    "duration": 5,
+    "watermark": false,
+    "super_resolution_config": { "resolution": "4k", "scene": "aigc", "tool_version": "professional", "fps": 60 }
   }'</code></pre>
 
   <h3>响应</h3>
@@ -197,12 +254,12 @@
   "created_at": 1780306574
 }</code></pre>
   <div class="callout info">
-    <p><code>id</code> / <code>task_id</code> 是公开任务 ID(<code>task_</code> 前缀 + 32 位随机串),后续轮询和取视频都用它。</p>
+    <p><code>id</code> / <code>task_id</code> 是公开任务 ID（<code>task_</code> 前缀 + 32 位随机串），后续轮询和取视频都用它。</p>
   </div>
 
   <h2 id="poll">5. 查询任务状态</h2>
-  <p><span class="method get">GET</span><span class="path">{BASE}/v1/video/generations/{task_id}</span></p>
-  <pre><code>curl {BASE}/v1/video/generations/task_3f9a...e2 \
+  <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}</span></p>
+  <pre><code>curl {BASE}/v1/videos/task_3f9a...e2 \
   -H "Authorization: Bearer sk-xxxx"</code></pre>
 
   <h3>排队 / 进行中</h3>
@@ -222,6 +279,10 @@
   "status": "completed",
   "progress": 100,
   "model": "seedance-2.0",
+  "usage": {
+    "completion_tokens": 120,
+    "total_tokens": 120
+  },
   "metadata": {
     "url": "{BASE}/v1/videos/task_3f9a...e2/content"
   },
@@ -229,7 +290,7 @@
   "completed_at": 1780306750
 }</code></pre>
   <div class="callout ok">
-    <p>完成后,视频地址在 <code>metadata.url</code> —— 它是<strong>本服务的代理地址</strong>。直接 GET 该地址即可拿到视频(见第 6 节)。</p>
+    <p>完成后，视频地址在 <code>metadata.url</code> —— 它是<strong>本服务的代理地址</strong>，直接 GET 即可拿到视频（见第 6 节）。<code>usage</code> 为本次生成消耗的 token 用量。</p>
   </div>
 
   <h3>失败</h3>
@@ -237,61 +298,64 @@
   "id": "task_3f9a...e2",
   "object": "video",
   "status": "failed",
-  "error": { "message": "..." }
+  "error": { "message": "...", "code": "..." }
 }</code></pre>
-  <div class="callout info"><p>任务失败不计费。</p></div>
+  <div class="callout info"><p>任务失败不计费（已预扣的额度自动退还）。</p></div>
 
   <h2 id="download">6. 获取视频</h2>
   <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}/content</span> · <span class="pill">匿名</span></p>
-  <p>任务成功后,直接 GET 该地址即可流式返回 <code>video/mp4</code> 二进制。无需鉴权,可直接嵌入页面:</p>
+  <p>任务成功后，直接 GET 该地址即可流式返回 <code>video/mp4</code> 二进制。无需鉴权，可直接嵌入页面：</p>
   <pre><code># 下载到本地
 curl -L "{BASE}/v1/videos/task_3f9a...e2/content" -o output.mp4
 
 # 或在 HTML 中直接嵌入
 &lt;video src="{BASE}/v1/videos/task_3f9a...e2/content" controls&gt;&lt;/video&gt;</code></pre>
-  <div class="callout warn"><p>仅当任务状态为 <code>completed</code> 时可取;未完成会返回错误。该接口按客户端 IP 限流。</p></div>
+  <div class="callout warn"><p>仅当任务状态为 <code>completed</code> 时可取；未完成会返回错误。该接口按客户端 IP 限流。</p></div>
 
   <h2 id="status">7. 状态值</h2>
   <table>
     <tr><th>status</th><th>含义</th></tr>
     <tr><td><span class="pill s-queued">queued</span></td><td>排队中</td></tr>
-    <tr><td><span class="pill s-prog">in_progress</span></td><td>生成中(<code>progress</code> 0–100)</td></tr>
-    <tr><td><span class="pill s-done">completed</span></td><td>已完成,视频在 <code>metadata.url</code></td></tr>
-    <tr><td><span class="pill s-fail">failed</span></td><td>失败,详情在 <code>error.message</code>;已退款</td></tr>
+    <tr><td><span class="pill s-prog">in_progress</span></td><td>生成中（<code>progress</code> 0–100）</td></tr>
+    <tr><td><span class="pill s-done">completed</span></td><td>已完成，视频在 <code>metadata.url</code>，token 用量在 <code>usage</code></td></tr>
+    <tr><td><span class="pill s-fail">failed</span></td><td>失败，详情在 <code>error.message</code>；已退款</td></tr>
   </table>
 
   <h2 id="errors">8. 错误</h2>
-  <p>任务级失败体现在查询响应的 <code>error</code> 字段(见第 5 节)。请求/提交阶段的错误走标准错误体:</p>
+  <p>任务级失败体现在查询响应的 <code>error</code> 字段（见第 5 节）。请求 / 提交阶段的错误走标准错误体：</p>
   <pre><code>{ "error": { "message": "...", "type": "...", "code": "..." } }</code></pre>
   <table>
     <tr><th>典型场景</th><th>说明</th></tr>
-    <tr><td>缺少 <code>prompt</code></td><td>提交被拒,<code>prompt</code> 必填</td></tr>
+    <tr><td><code>content</code> 为空</td><td>提交被拒：需至少包含一条文本，或一张图片 / 一段视频</td></tr>
+    <tr><td>模型不可用</td><td>传入了服务未开放的 <code>model</code></td></tr>
     <tr><td>额度不足</td><td>任务不会创建</td></tr>
-    <tr><td>上游暂时不可用</td><td><code>code: bad_response_status_code</code> 等,通常可稍后重试</td></tr>
+    <tr><td>服务暂时不可用</td><td>通常可稍后重试</td></tr>
   </table>
 
-  <h2 id="example">9. 完整示例(创建 → 轮询 → 下载)</h2>
+  <h2 id="example">9. 完整示例（创建 → 轮询 → 下载）</h2>
   <pre><code>#!/usr/bin/env bash
 BASE="https://your-api-host"
 TOKEN="sk-xxxxxxxxxxxxxxxx"
 
 # 1) 创建任务
-RESP=$(curl -sS "$BASE/v1/video/generations" \
+RESP=$(curl -sS "$BASE/v1/videos" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "seedance-2.0",
-    "prompt": "宇航员在月球漫步，电影感",
-    "duration": 5,
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感" }
+    ],
     "resolution": "1080p",
-    "ratio": "16:9"
+    "ratio": "16:9",
+    "duration": 5
   }')
 TASK_ID=$(echo "$RESP" | jq -r '.id')
 echo "task: $TASK_ID"
 
 # 2) 轮询直到完成或失败
 while true; do
-  Q=$(curl -sS "$BASE/v1/video/generations/$TASK_ID" \
+  Q=$(curl -sS "$BASE/v1/videos/$TASK_ID" \
         -H "Authorization: Bearer $TOKEN")
   STATUS=$(echo "$Q" | jq -r '.status')
   echo "status: $STATUS"
@@ -302,8 +366,10 @@ while true; do
   sleep 5
 done
 
-# 3) 取回视频(匿名,直接用 metadata.url)
+# 3) 取回视频（匿名，直接用 metadata.url）
 URL=$(echo "$Q" | jq -r '.metadata.url')
+TOKENS=$(echo "$Q" | jq -r '.usage.total_tokens')
+echo "tokens: $TOKENS"
 curl -L "$URL" -o output.mp4
 echo "saved -> output.mp4"</code></pre>
 
