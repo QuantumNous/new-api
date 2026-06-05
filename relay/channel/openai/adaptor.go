@@ -310,14 +310,8 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 
 	}
-	upstreamModelName := info.UpstreamModelName
-	openAIProvider := true
-	if idx := strings.Index(upstreamModelName, "/"); idx >= 0 {
-		openAIProvider = strings.HasPrefix(upstreamModelName[:idx], "openai")
-		upstreamModelName = upstreamModelName[idx+1:]
-	}
-	isOModel := openAIProvider && len(upstreamModelName) > 1 && upstreamModelName[0] == 'o' && upstreamModelName[1] >= '0' && upstreamModelName[1] <= '9'
-	isGPT5Model := openAIProvider && strings.HasPrefix(upstreamModelName, "gpt-5")
+	isOModel := dto.IsOpenAIReasoningOModel(info.UpstreamModelName)
+	isGPT5Model := dto.IsOpenAIGPT5Model(info.UpstreamModelName)
 	if isOModel || isGPT5Model {
 		if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
@@ -346,7 +340,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		info.ReasoningEffort = request.ReasoningEffort
 
 		// o系列模型developer适配（o1-mini除外）
-		if isGPT5Model || (!strings.HasPrefix(upstreamModelName, "o1-mini") && !strings.HasPrefix(upstreamModelName, "o1-preview")) {
+		if !strings.HasPrefix(info.UpstreamModelName, "o1-mini") && !strings.HasPrefix(info.UpstreamModelName, "o1-preview") {
 			//修改第一个Message的内容，将system改为developer
 			if len(request.Messages) > 0 && request.Messages[0].Role == "system" {
 				request.Messages[0].Role = "developer"
