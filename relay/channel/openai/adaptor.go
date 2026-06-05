@@ -487,11 +487,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					return nil, fmt.Errorf("failed to open image file %d: %w", i, err)
 				}
 
-				// If multiple images, use image[] as the field name
+				// Use "image" as the field name for all image parts.
+				// Azure DALL-E /images/edits API only accepts "image" (singular),
+				// not "image[]" (PHP array notation). Using "image[]" causes
+				// "Invalid image file or mode" errors from Azure.
 				fieldName := "image"
-				if len(imageFiles) > 1 {
-					fieldName = "image[]"
-				}
 
 				// Determine MIME type based on file extension
 				mimeType := detectImageMimeType(fileHeader.Filename)
