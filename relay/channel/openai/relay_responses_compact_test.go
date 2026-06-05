@@ -25,7 +25,16 @@ func TestOaiResponsesCompactionHandlerWrapsEventStreamClient(t *testing.T) {
 			"id": "resp_compact_test",
 			"object": "response.compaction",
 			"created_at": 123,
-			"output": [],
+			"output": [{
+				"id": "msg_compact_test",
+				"type": "message",
+				"status": "completed",
+				"role": "assistant",
+				"content": [{
+					"type": "output_text",
+					"text": "compact summary"
+				}]
+			}],
 			"usage": {
 				"input_tokens": 2,
 				"output_tokens": 3,
@@ -49,8 +58,12 @@ func TestOaiResponsesCompactionHandlerWrapsEventStreamClient(t *testing.T) {
 	require.Empty(t, recorder.Header().Get("Content-Length"))
 
 	body := recorder.Body.String()
+	require.Contains(t, body, "event: response.output_item.done")
 	require.Contains(t, body, "event: response.completed")
+	require.Contains(t, body, `"type":"response.output_item.done"`)
 	require.Contains(t, body, `"type":"response.completed"`)
+	require.Contains(t, body, `"text":"compact summary"`)
 	require.Contains(t, body, `"object":"response.compaction"`)
 	require.Contains(t, body, `"id":"resp_compact_test"`)
+	require.Less(t, strings.Index(body, "response.output_item.done"), strings.Index(body, "response.completed"))
 }
