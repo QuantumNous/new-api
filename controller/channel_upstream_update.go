@@ -311,6 +311,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeAGIone:
+		url = fmt.Sprintf("%s/models", strings.TrimSuffix(baseURL, "/v1"))
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}

@@ -123,6 +123,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Use model IDs from OpenRouter',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'openai',
+    defaultBaseUrl: 'https://agione.pro/hyperone/xapi/api/v1',
+    hints: {
+      key: 'AGIone Auth Token',
+      models:
+        'openai/GPT-5.5/c6fbe,anthropic/Claude-opus-4.7/a4d5d,deepseek/deepseek-v3.2/0000n',
+      baseUrl: 'Default: https://agione.pro/hyperone/xapi/api/v1',
+    },
+  },
   56: {
     id: 56,
     name: CHANNEL_TYPES[56],
