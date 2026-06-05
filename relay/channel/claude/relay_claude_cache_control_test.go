@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func cacheControlType(raw json.RawMessage) (string, bool) {
 		return "", false
 	}
 	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
+	if err := common.Unmarshal(raw, &m); err != nil {
 		return "", false
 	}
 	t, ok := m["type"].(string)
