@@ -1,11 +1,14 @@
 package openai
 
 import (
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -28,8 +31,6 @@ func OaiResponsesCompactionHandler(c *gin.Context, resp *http.Response) (*dto.Us
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-
 	usage := dto.Usage{}
 	if compactResp.Usage != nil {
 		usage.PromptTokens = compactResp.Usage.InputTokens
@@ -40,5 +41,41 @@ func OaiResponsesCompactionHandler(c *gin.Context, resp *http.Response) (*dto.Us
 		}
 	}
 
+	if shouldReturnResponsesCompactionEventStream(c) {
+		if err := sendResponsesCompactionCompletedEvent(c, compactResp); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+		return &usage, nil
+	}
+
+	service.IOCopyBytesGracefully(c, resp, responseBody)
+
 	return &usage, nil
+}
+
+func shouldReturnResponsesCompactionEventStream(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(c.Request.Header.Get("Accept")), "text/event-stream")
+}
+
+func sendResponsesCompactionCompletedEvent(c *gin.Context, compactResp dto.OpenAIResponsesCompactionResponse) error {
+	if c == nil || c.Writer == nil {
+		return nil
+	}
+
+	payload := map[string]any{
+		"type":     "response.completed",
+		"response": compactResp,
+	}
+	jsonData, err := common.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	relayhelper.SetEventStreamHeaders(c)
+	c.Render(-1, common.CustomEvent{Data: "event: response.completed\n"})
+	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", string(jsonData))})
+	return relayhelper.FlushWriter(c)
 }
