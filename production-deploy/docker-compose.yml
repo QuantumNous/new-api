@@ -18,9 +18,11 @@ services:
     volumes:
       - ${NEW_API_DATA_DIR:-./new-api-data}:/data
       - ${NEW_API_LOGS_DIR:-./new-api-logs}:/app/logs
+      - ${NEW_API_CACHE_DIR:-./new-api-cache}:/data/cache
     environment:
       - PORT=3000
       - TZ=${TZ:-Asia/Shanghai}
+      - TMPDIR=/data/cache
       - DEBUG=false
       - ENABLE_PPROF=false
       - ERROR_LOG_ENABLED=true
