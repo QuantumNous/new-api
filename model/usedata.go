@@ -166,7 +166,8 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 
 	baseTx := DB.Table("users AS u").
 		Select("u.id as user_id, u.username as username, "+selectGroup+", COALESCE(q.count, 0) as count, COALESCE(q.token_used, 0) as token_used, COALESCE(q.quota, 0) as quota").
-		Joins("LEFT JOIN (?) AS q ON q.user_id = u.id", aggTx)
+		Joins("LEFT JOIN (?) AS q ON q.user_id = u.id", aggTx).
+		Where("u.deleted_at IS NULL")
 	if len(usernames) > 0 {
 		baseTx = baseTx.Where("u.username IN ?", usernames)
 	}
@@ -191,8 +192,9 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 
 	tx := DB.Table("quota_data q").
 		Select("q.model_name as model_name, sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
-		Joins("LEFT JOIN users u ON u.id = q.user_id").
-		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime)
+		Joins("JOIN users u ON u.id = q.user_id").
+		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime).
+		Where("u.deleted_at IS NULL")
 
 	if len(usernames) > 0 {
 		tx = tx.Where("q.username IN ?", usernames)
@@ -223,8 +225,9 @@ func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []strin
 
 	tx := DB.Table("quota_data q").
 		Select("q.user_id as user_id, u.username as username, "+selectGroup+", q.model_name as model_name, sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
-		Joins("LEFT JOIN users u ON u.id = q.user_id").
-		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime)
+		Joins("JOIN users u ON u.id = q.user_id").
+		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime).
+		Where("u.deleted_at IS NULL")
 
 	if len(usernames) > 0 {
 		tx = tx.Where("q.username IN ?", usernames)
