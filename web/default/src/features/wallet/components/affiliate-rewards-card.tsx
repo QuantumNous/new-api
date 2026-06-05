@@ -25,6 +25,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { CopyButton } from '@/components/copy-button'
+import { generateAffiliateLink } from '../lib'
 import type { UserWalletData } from '../types'
 
 interface AffiliateRewardsCardProps {
@@ -62,6 +63,8 @@ export function AffiliateRewardsCard({
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
   const inviteCodesText = createdInviteCodes.join('\n')
+  const affCode = user?.aff_code?.trim() ?? ''
+  const affiliateLink = affCode ? generateAffiliateLink(affCode) : ''
 
   return (
     <Card className='bg-muted/20 py-0'>
@@ -72,7 +75,7 @@ export function AffiliateRewardsCard({
           </div>
           <div className='min-w-0'>
             <h3 className='truncate text-sm font-semibold'>
-              {t('Invitation Code')}
+              {t('Your Referral Link')}
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
               {t(
@@ -141,6 +144,48 @@ export function AffiliateRewardsCard({
             </>
           ) : null}
         </div>
+        {affiliateLink ? (
+          <div className='grid gap-2 lg:col-span-3'>
+            <div className='flex items-center justify-between gap-2'>
+              <label className='text-sm font-medium'>
+                {t('Your Referral Link')}
+              </label>
+              <CopyButton
+                value={affiliateLink}
+                variant='outline'
+                size='sm'
+                tooltip={t('Copy referral link')}
+                aria-label={t('Copy referral link')}
+              />
+            </div>
+            <div className='grid gap-2 sm:grid-cols-[minmax(150px,0.45fr)_minmax(0,1fr)]'>
+              <div className='border-muted bg-background/70 flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border px-3'>
+                <span className='text-muted-foreground shrink-0 text-xs'>
+                  {t('Code')}
+                </span>
+                <div className='flex min-w-0 items-center gap-1.5'>
+                  <code className='truncate font-mono text-xs font-medium'>
+                    {affCode}
+                  </code>
+                  <CopyButton
+                    value={affCode}
+                    variant='ghost'
+                    className='size-7'
+                    iconClassName='size-3.5'
+                    tooltip={t('Copy code')}
+                    aria-label={t('Copy code')}
+                  />
+                </div>
+              </div>
+              <Input
+                readOnly
+                value={affiliateLink}
+                aria-label={t('Your Referral Link')}
+                className='border-muted bg-background/70 font-mono text-xs'
+              />
+            </div>
+          </div>
+        ) : null}
         {createdInviteCodes.length > 0 ? (
           <div className='grid gap-2 lg:col-span-3'>
             <div className='flex items-center justify-between gap-2'>

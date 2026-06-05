@@ -297,6 +297,8 @@ export interface UserWalletData {
   id: number
   /** Username */
   username: string
+  /** Permanent affiliate/referral code */
+  aff_code?: string
   /** Current quota balance */
   quota: number
   /** Total used quota */

@@ -32,6 +32,7 @@ import { RechargeFormCard } from './components/recharge-form-card'
 import { InviteCodesHistoryCard } from './components/invite-codes-history-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
+import { getAffiliateCode as ensureAffiliateCode } from './api'
 import { DEFAULT_DISCOUNT_RATE } from './constants'
 import {
   useTopupInfo,
@@ -126,7 +127,17 @@ export function Wallet(props: WalletProps) {
       setUserLoading(true)
       const response = await getSelf()
       if (response.success && response.data) {
-        const userData = response.data as UserWalletData
+        const userData = { ...(response.data as UserWalletData) }
+        if (!userData.aff_code) {
+          try {
+            const affResponse = await ensureAffiliateCode()
+            if (affResponse.success && affResponse.data) {
+              userData.aff_code = affResponse.data
+            }
+          } catch {
+            /* empty */
+          }
+        }
         setUser(userData)
         setAuthUser(userData as AuthUser)
       }
