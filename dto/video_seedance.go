@@ -46,14 +46,19 @@ const (
 )
 
 // SeedanceURLObject is the {url} wrapper used by image_url/video_url/audio_url.
+// `url` is omitempty so this type is marshal-equivalent to the channel structs
+// aliased to it (e.g. doubao MediaURL), which omit an empty url upstream.
 type SeedanceURLObject struct {
-	URL string `json:"url"`
+	URL string `json:"url,omitempty"`
 }
 
 // SeedanceContentItem is one element of the multimodal content[] array. Exactly
 // one of Text/ImageURL/VideoURL/AudioURL is populated depending on Type.
+// `type` is omitempty so this type stays marshal-equivalent to channel structs
+// aliased to it (e.g. doubao ContentItem); omitempty is a no-op for inbound
+// parsing, which is this type's primary use.
 type SeedanceContentItem struct {
-	Type     string             `json:"type"`
+	Type     string             `json:"type,omitempty"`
 	Text     string             `json:"text,omitempty"`
 	ImageURL *SeedanceURLObject `json:"image_url,omitempty"`
 	VideoURL *SeedanceURLObject `json:"video_url,omitempty"`

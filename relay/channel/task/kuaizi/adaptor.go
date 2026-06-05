@@ -105,16 +105,13 @@ type envelope struct {
 //   - failure text lives in `error`, not `fail_reason`
 //   - token counts are nested under `usage`, not flat
 type statusResponseData struct {
-	TaskID   string `json:"task_id"`
-	Status   string `json:"status"`
-	Error    string `json:"error"`
-	Duration int    `json:"duration"`
-	VideoURL string `json:"video_url"`
-	TosKey   string `json:"tos_key"`
-	Usage    struct {
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
+	TaskID   string               `json:"task_id"`
+	Status   string               `json:"status"`
+	Error    string               `json:"error"`
+	Duration int                  `json:"duration"`
+	VideoURL string               `json:"video_url"`
+	TosKey   string               `json:"tos_key"`
+	Usage    dto.OpenAIVideoUsage `json:"usage"`
 }
 
 // ============================

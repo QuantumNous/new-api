@@ -138,6 +138,19 @@ func (t *Task) GetResultURL() string {
 	return t.FailReason
 }
 
+// UsageDTO returns the persisted upstream token usage as a response DTO, or nil
+// when no tokens were recorded. Single source for the OpenAI-video and generic
+// task-dto responses so they surface usage identically.
+func (p TaskPrivateData) UsageDTO() *dto.OpenAIVideoUsage {
+	if p.CompletionTokens == 0 && p.TotalTokens == 0 {
+		return nil
+	}
+	return &dto.OpenAIVideoUsage{
+		CompletionTokens: p.CompletionTokens,
+		TotalTokens:      p.TotalTokens,
+	}
+}
+
 // GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID
 func GenerateTaskID() string {
 	key, _ := common.GenerateRandomCharsKey(32)

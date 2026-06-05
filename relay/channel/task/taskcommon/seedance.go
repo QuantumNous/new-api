@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// taskRequestKey mirrors the gin context key read by relaycommon.GetTaskRequest.
-// Kept in sync manually because relaycommon's setter is unexported.
-const taskRequestKey = "task_request"
-
 // BindSeedanceRequest is the shared entry point every seedance-based channel
 // calls from its ValidateRequestAndSetAction. It:
 //
@@ -57,7 +53,6 @@ func BindSeedanceRequest(c *gin.Context, info *relaycommon.RelayInfo, action str
 		taskReq.Images = append(taskReq.Images, m.URL)
 	}
 
-	info.Action = action
-	c.Set(taskRequestKey, taskReq)
+	relaycommon.StoreTaskRequest(c, info, action, taskReq)
 	return &req, nil
 }
