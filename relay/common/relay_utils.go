@@ -59,6 +59,14 @@ func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj
 	info.Action = action
 	c.Set("task_request", requestObj)
 }
+
+// StoreTaskRequest is the exported counterpart of storeTaskRequest for channel
+// adaptors that synthesize the task request outside this package (e.g. the
+// seedance content[] channels via taskcommon.BindSeedanceRequest). Keeps the
+// context key and Action assignment in one place so GetTaskRequest stays in sync.
+func StoreTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj TaskSubmitReq) {
+	storeTaskRequest(c, info, action, requestObj)
+}
 func GetTaskRequest(c *gin.Context) (TaskSubmitReq, error) {
 	v, exists := c.Get("task_request")
 	if !exists {

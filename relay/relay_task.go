@@ -574,7 +574,8 @@ func TaskModel2DtoAdmin(task *model.Task) *dto.TaskDto {
 // set it. Keeps usage consistent across all seedance channels and both query
 // formats without each adaptor re-implementing extraction.
 func injectUsageFromPrivateData(data []byte, task *model.Task) []byte {
-	if task.PrivateData.CompletionTokens == 0 && task.PrivateData.TotalTokens == 0 {
+	usage := task.PrivateData.UsageDTO()
+	if usage == nil {
 		return data
 	}
 	var ov dto.OpenAIVideo
@@ -584,10 +585,7 @@ func injectUsageFromPrivateData(data []byte, task *model.Task) []byte {
 	if ov.Usage != nil {
 		return data
 	}
-	ov.Usage = &dto.OpenAIVideoUsage{
-		CompletionTokens: task.PrivateData.CompletionTokens,
-		TotalTokens:      task.PrivateData.TotalTokens,
-	}
+	ov.Usage = usage
 	out, err := common.Marshal(&ov)
 	if err != nil {
 		return data
@@ -596,13 +594,7 @@ func injectUsageFromPrivateData(data []byte, task *model.Task) []byte {
 }
 
 func taskModel2DtoFull(task *model.Task) *dto.TaskDto {
-	var usage *dto.OpenAIVideoUsage
-	if task.PrivateData.CompletionTokens > 0 || task.PrivateData.TotalTokens > 0 {
-		usage = &dto.OpenAIVideoUsage{
-			CompletionTokens: task.PrivateData.CompletionTokens,
-			TotalTokens:      task.PrivateData.TotalTokens,
-		}
-	}
+	usage := task.PrivateData.UsageDTO()
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
