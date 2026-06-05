@@ -132,7 +132,6 @@ export function useDrawingLogsColumns(
           icon={getDrawingTypeIcon(action)}
           size='sm'
           copyable={false}
-          showDot={false}
         />
       )
     },
@@ -157,7 +156,6 @@ export function useDrawingLogsColumns(
             label={mjId}
             autoColor={mjId}
             size='sm'
-            showDot={false}
             className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
           />
         </div>
@@ -189,7 +187,6 @@ export function useDrawingLogsColumns(
             variant={mjSubmitResultMapper.getVariant(String(code))}
             size='sm'
             copyable={false}
-            showDot
           />
         )
       },
@@ -234,7 +231,7 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Image'), mobileHidden: true },
+      meta: { label: t('Image') },
     },
     {
       accessorKey: 'prompt',
@@ -271,7 +268,7 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Prompt'), mobileHidden: true },
+      meta: { label: t('Prompt') },
       size: 200,
       maxSize: 220,
     },

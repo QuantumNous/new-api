@@ -56,6 +56,7 @@ export function ChannelsPrimaryButtons() {
   const { t } = useTranslation()
   const {
     setOpen,
+    setCurrentRow,
     enableTagMode,
     setEnableTagMode,
     idSort,
@@ -104,7 +105,13 @@ export function ChannelsPrimaryButtons() {
         </div>
 
         {/* Create Channel */}
-        <Button onClick={() => setOpen('create-channel')} size='sm'>
+        <Button
+          onClick={() => {
+            setCurrentRow(null)
+            setOpen('create-channel')
+          }}
+          size='sm'
+        >
           <Plus className='h-4 w-4' />
           <span className='max-sm:hidden'>{t('Create Channel')}</span>
           <span className='sm:hidden'>{t('Create')}</span>

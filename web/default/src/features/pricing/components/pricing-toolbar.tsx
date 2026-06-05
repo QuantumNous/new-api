@@ -41,6 +41,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import {
   VIEW_MODES,
   getSortLabels,
   type SortOption,
@@ -269,15 +274,15 @@ export function PricingToolbar(props: PricingToolbarProps) {
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <SheetContent
           side='right'
-          className='flex h-dvh w-full flex-col overflow-hidden p-0 sm:max-w-md'
+          className={sideDrawerContentClassName('sm:max-w-md')}
         >
-          <SheetHeader className='border-b px-4 py-3 sm:px-6 sm:py-4'>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>{t('Filter')}</SheetTitle>
             <SheetDescription>
               {t('Filter models by provider, group, type, endpoint, and tags.')}
             </SheetDescription>
           </SheetHeader>
-          <div className='flex-1 overflow-y-auto p-3 sm:p-4'>
+          <div className={sideDrawerFormClassName('gap-0')}>
             <PricingSidebar
               quotaTypeFilter={props.quotaTypeFilter}
               endpointTypeFilter={props.endpointTypeFilter}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
 )
 
 type ThinkingContentInfo struct {
@@ -152,6 +153,13 @@ type RelayInfo struct {
 	RuntimeHeadersOverride                map[string]interface{}
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
+
+	// UpstreamRequestBodySize is the byte size of the marshaled upstream request
+	// body. It is set when the body is wrapped in a BodyStorage (see
+	// relay/common/outbound_body.go), so that DoApiRequest can populate
+	// http.Request.ContentLength manually (net/http only auto-detects it for
+	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
+	UpstreamRequestBodySize int64
 
 	PriceData types.PriceData
 
@@ -785,6 +793,9 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled {
 		return jsonData, nil
 	}
+	if !hasRemovableDisabledField(jsonData, channelOtherSettings) {
+		return jsonData, nil
+	}
 
 	var data map[string]interface{}
 	if err := common.Unmarshal(jsonData, &data); err != nil {
@@ -849,6 +860,25 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings) bool {
+	values := gjson.GetManyBytes(
+		jsonData,
+		"service_tier",
+		"inference_geo",
+		"speed",
+		"store",
+		"safety_identifier",
+		"stream_options.include_obfuscation",
+	)
+
+	return (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
+		(!channelOtherSettings.AllowInferenceGeo && values[1].Exists()) ||
+		(!channelOtherSettings.AllowSpeed && values[2].Exists()) ||
+		(channelOtherSettings.DisableStore && values[3].Exists()) ||
+		(!channelOtherSettings.AllowSafetyIdentifier && values[4].Exists()) ||
+		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists())
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

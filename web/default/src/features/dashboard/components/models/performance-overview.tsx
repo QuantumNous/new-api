@@ -18,19 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
   formatLatency,
@@ -40,7 +31,7 @@ import {
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
 
 const PERFORMANCE_WINDOW_HOURS = 24
-const TOP_MODEL_LIMIT = 8
+const TOP_MODEL_LIMIT = 5
 
 type WeightedMetric = 'avg_latency_ms' | 'avg_tps' | 'success_rate'
 
@@ -51,121 +42,55 @@ type PerformanceSummary = {
   successRate: number
 }
 
-function weightedAverage(
+function simpleAverage(
   rows: PerfModelSummary[],
   metric: WeightedMetric,
   isValid: (value: number) => boolean
 ): number {
   let total = 0
-  let weight = 0
+  let count = 0
 
   for (const row of rows) {
     const value = Number(row[metric])
-    const requestCount = Number(row.request_count) || 0
-    if (requestCount <= 0 || !isValid(value)) continue
-
-    total += value * requestCount
-    weight += requestCount
+    if (!isValid(value)) continue
+    total += value
+    count++
   }
 
-  return weight > 0 ? total / weight : 0
+  return count > 0 ? total / count : NaN
 }
 
 function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
-  const totalRequests = rows.reduce(
-    (sum, row) => sum + (Number(row.request_count) || 0),
-    0
-  )
-
   return {
-    totalRequests,
+    totalRequests: rows.length,
     avgLatencyMs: Math.round(
-      weightedAverage(
+      simpleAverage(
         rows,
         'avg_latency_ms',
         (value) => Number.isFinite(value) && value > 0
       )
     ),
-    avgTps: weightedAverage(
+    avgTps: simpleAverage(
       rows,
       'avg_tps',
       (value) => Number.isFinite(value) && value > 0
     ),
-    successRate: weightedAverage(rows, 'success_rate', Number.isFinite),
+    successRate: simpleAverage(rows, 'success_rate', Number.isFinite),
   }
 }
 
 function successRateClassName(successRate: number): string {
-  if (successRate >= 99.9) return 'text-emerald-600 dark:text-emerald-400'
-  if (successRate >= 99) return 'text-amber-600 dark:text-amber-400'
-  return 'text-rose-600 dark:text-rose-400'
+  if (!Number.isFinite(successRate)) return 'text-muted-foreground'
+  if (successRate >= 99.9) return 'text-success'
+  if (successRate >= 99) return 'text-warning'
+  return 'text-destructive'
 }
 
 function successDotClassName(successRate: number): string {
-  if (successRate >= 99.9) return 'bg-emerald-500'
-  if (successRate >= 99) return 'bg-amber-500'
-  return 'bg-rose-500'
-}
-
-function PerformanceMetricItem(props: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  hint: string
-  loading?: boolean
-  valueClassName?: string
-}) {
-  const Icon = props.icon
-
-  return (
-    <div className='px-3 py-2.5 sm:px-5 sm:py-4'>
-      <div className='flex items-center gap-2'>
-        <Icon
-          className='text-muted-foreground/60 size-3.5 shrink-0'
-          aria-hidden='true'
-        />
-        <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
-          {props.label}
-        </div>
-      </div>
-      {props.loading ? (
-        <div className='mt-2 space-y-1.5'>
-          <Skeleton className='h-7 w-20' />
-          <Skeleton className='h-3.5 w-28' />
-        </div>
-      ) : (
-        <>
-          <div
-            className={cn(
-              'text-foreground mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl',
-              props.valueClassName
-            )}
-          >
-            {props.value}
-          </div>
-          <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
-            {props.hint}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function PerformanceTableHeader(props: { description: string }) {
-  const { t } = useTranslation()
-
-  return (
-    <div className='flex flex-col gap-1.5 border-b px-3 py-2 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
-      <div className='flex items-center gap-2'>
-        <Activity className='text-muted-foreground/60 size-4' />
-        <div className='text-sm font-semibold'>
-          {t('Model performance metrics')}
-        </div>
-      </div>
-      <span className='text-muted-foreground text-xs'>{props.description}</span>
-    </div>
-  )
+  if (!Number.isFinite(successRate)) return 'bg-muted-foreground'
+  if (successRate >= 99.9) return 'bg-success'
+  if (successRate >= 99) return 'bg-warning'
+  return 'bg-destructive'
 }
 
 export function PerformanceOverview() {
@@ -178,139 +103,136 @@ export function PerformanceOverview() {
   })
 
   const models = useMemo(
-    () =>
-      [...(metricsQuery.data?.data.models ?? [])]
-        .filter((model) => Number(model.request_count) > 0)
-        .sort((a, b) => b.request_count - a.request_count),
+    () => metricsQuery.data?.data.models ?? [],
     [metricsQuery.data]
   )
   const summary = useMemo(() => buildPerformanceSummary(models), [models])
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
-  const description = t('Performance metrics for the last 24 hours')
+
+  if (!loading && !hasData) {
+    return (
+      <div className='text-muted-foreground overflow-hidden rounded-lg border px-4 py-3 text-center text-xs'>
+        {t('No performance data available')}
+      </div>
+    )
+  }
 
   return (
-    <section className='space-y-3 sm:space-y-4'>
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-4'>
-          <PerformanceMetricItem
-            icon={Activity}
-            label={t('Requests (24h)')}
-            value={formatNumber(summary.totalRequests)}
-            hint={t('Monitored relay requests')}
-            loading={loading}
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='flex flex-wrap items-center gap-x-5 gap-y-2.5 px-4 py-2.5 sm:px-5 sm:py-3'>
+        {/* Title */}
+        <div className='flex items-center gap-1.5'>
+          <HeartPulse
+            className='text-muted-foreground/60 size-3.5 shrink-0'
+            aria-hidden='true'
           />
-          <PerformanceMetricItem
-            icon={Timer}
-            label={t('Average latency')}
-            value={formatLatency(summary.avgLatencyMs)}
-            hint={t('Weighted by request count')}
-            loading={loading}
-          />
-          <PerformanceMetricItem
-            icon={Gauge}
-            label={t('Throughput')}
-            value={formatThroughput(summary.avgTps)}
-            hint='TPS'
-            loading={loading}
-          />
-          <PerformanceMetricItem
-            icon={HeartPulse}
-            label={t('Success rate')}
-            value={formatUptimePct(summary.successRate)}
-            hint={t('Weighted by request count')}
-            loading={loading}
-            valueClassName={successRateClassName(summary.successRate)}
-          />
+          <span className='text-xs font-semibold whitespace-nowrap'>
+            {t('Performance health')}
+          </span>
         </div>
-      </div>
 
-      <div className='overflow-hidden rounded-lg border'>
-        <PerformanceTableHeader description={description} />
-        {!loading && !hasData ? (
-          <div className='text-muted-foreground p-6 text-center text-sm'>
-            {t('No performance data available')}
+        {/* Separator */}
+        <div className='bg-border hidden h-4 w-px sm:block' />
+
+        {/* 3 KPI inline metrics */}
+        {loading ? (
+          <div className='flex flex-wrap items-center gap-x-5 gap-y-2'>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className='flex items-center gap-1.5'>
+                <Skeleton className='h-3 w-14' />
+                <Skeleton className='h-4 w-16' />
+              </div>
+            ))}
           </div>
         ) : (
-          <div className='overflow-x-auto'>
-            <Table className='text-sm'>
-              <TableHeader>
-                <TableRow className='hover:bg-transparent'>
-                  <TableHead>{t('Model')}</TableHead>
-                  <TableHead className='text-right'>
-                    {t('Requests (24h)')}
-                  </TableHead>
-                  <TableHead className='text-right'>
-                    {t('Average latency')}
-                  </TableHead>
-                  <TableHead className='text-right'>
-                    {t('Throughput')}
-                  </TableHead>
-                  <TableHead className='text-right'>
-                    {t('Success rate')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading
-                  ? Array.from({ length: 4 }).map((_, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Skeleton className='h-4 w-40' />
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <Skeleton className='ml-auto h-4 w-16' />
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <Skeleton className='ml-auto h-4 w-16' />
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <Skeleton className='ml-auto h-4 w-16' />
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <Skeleton className='ml-auto h-4 w-20' />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  : topModels.map((model) => (
-                      <TableRow key={model.model_name}>
-                        <TableCell className='max-w-[220px] truncate font-mono'>
-                          {model.model_name}
-                        </TableCell>
-                        <TableCell className='text-right font-mono tabular-nums'>
-                          {formatNumber(model.request_count)}
-                        </TableCell>
-                        <TableCell className='text-right font-mono tabular-nums'>
-                          {formatLatency(model.avg_latency_ms)}
-                        </TableCell>
-                        <TableCell className='text-right font-mono tabular-nums'>
-                          {formatThroughput(model.avg_tps)}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            'text-right font-mono font-semibold tabular-nums',
-                            successRateClassName(model.success_rate)
-                          )}
-                        >
-                          <span className='inline-flex items-center justify-end gap-1.5'>
-                            <span
-                              className={cn(
-                                'size-2 rounded-full',
-                                successDotClassName(model.success_rate)
-                              )}
-                              aria-hidden='true'
-                            />
-                            {formatUptimePct(model.success_rate)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-              </TableBody>
-            </Table>
+          <div className='flex flex-wrap items-center gap-x-5 gap-y-2'>
+            <InlineMetric
+              icon={HeartPulse}
+              label={t('Success rate')}
+              value={formatUptimePct(summary.successRate)}
+              valueClassName={successRateClassName(summary.successRate)}
+            />
+            <InlineMetric
+              icon={Timer}
+              label={t('Average latency')}
+              value={formatLatency(summary.avgLatencyMs)}
+            />
+            <InlineMetric
+              icon={Gauge}
+              label={t('Throughput')}
+              value={formatThroughput(summary.avgTps)}
+            />
+          </div>
+        )}
+
+        {/* Separator */}
+        <div className='bg-border hidden h-4 w-px lg:block' />
+
+        {/* Top models inline badges */}
+        {!loading && hasData && (
+          <div className='flex flex-wrap items-center gap-1.5'>
+            {topModels.map((model) => (
+              <ModelBadge key={model.model_name} model={model} />
+            ))}
           </div>
         )}
       </div>
-    </section>
+    </div>
+  )
+}
+
+function InlineMetric(props: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  value: string
+  valueClassName?: string
+}) {
+  const Icon = props.icon
+
+  return (
+    <div className='flex items-center gap-1.5'>
+      <Icon
+        className='text-muted-foreground/50 size-3 shrink-0'
+        aria-hidden='true'
+      />
+      <span className='text-muted-foreground text-[11px]'>{props.label}</span>
+      <span
+        className={cn(
+          'font-mono text-xs font-semibold tabular-nums',
+          props.valueClassName
+        )}
+      >
+        {props.value}
+      </span>
+    </div>
+  )
+}
+
+function ModelBadge(props: { model: PerfModelSummary }) {
+  const model = props.model
+
+  return (
+    <span className='bg-muted/50 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1'>
+      <span className='max-w-[10rem] truncate font-mono text-[11px]'>
+        {model.model_name}
+      </span>
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          successDotClassName(model.success_rate)
+        )}
+        aria-hidden='true'
+      />
+      <span
+        className={cn(
+          'font-mono text-[11px] font-semibold tabular-nums',
+          successRateClassName(model.success_rate)
+        )}
+      >
+        {formatUptimePct(model.success_rate)}
+      </span>
+    </span>
   )
 }

@@ -76,10 +76,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				}
 			}
 
-			if common.DebugEnabled {
-				logger.LogDebug(c, fmt.Sprintf("image request body: %s", string(jsonData)))
+			logger.LogDebug(c, "image request body: %s", jsonData)
+			body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
-			requestBody = bytes.NewBuffer(jsonData)
+			defer closer.Close()
+			jsonData = nil
+			info.UpstreamRequestBodySize = size
+			requestBody = body
 		}
 	}
 
@@ -135,9 +140,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		usage.(*dto.Usage).PromptTokens = 1
 	}
 
-	quality := "standard"
-	if request.Quality == "hd" {
-		quality = "hd"
+	quality := request.Quality
+	if quality == "" {
+		quality = "standard"
 	}
 
 	var logContent []string

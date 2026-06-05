@@ -22,15 +22,23 @@ import { useTranslation } from 'react-i18next'
 import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Markdown } from '@/components/ui/markdown'
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -42,15 +50,16 @@ interface AnnouncementItem {
   publishDate?: string | Date
 }
 
-interface NotificationDialogProps {
+interface NotificationPopoverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  unreadCount: number
   activeTab: 'notice' | 'announcements'
   onTabChange: (tab: 'notice' | 'announcements') => void
   notice: string
   announcements: AnnouncementItem[]
   loading: boolean
-  onCloseToday: () => void
+  className?: string
 }
 
 /**
@@ -113,7 +122,7 @@ function AnnouncementDot({ type }: { type?: string }) {
   return (
     <span
       className={cn(
-        'mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full',
+        'mt-1.5 inline-block size-2 shrink-0 rounded-full',
         getAnnouncementColorClass(type)
       )}
     />
@@ -123,11 +132,25 @@ function AnnouncementDot({ type }: { type?: string }) {
 /**
  * Empty state component
  */
-function EmptyState({ message }: { message: string }) {
+function EmptyState({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode
+  title: string
+  description?: string
+}) {
   return (
-    <div className='flex flex-col items-center justify-center py-12 text-center'>
-      <p className='text-muted-foreground text-sm'>{message}</p>
-    </div>
+    <Empty className='min-h-48 border-0 p-4'>
+      <EmptyHeader>
+        <EmptyMedia variant='icon'>{icon}</EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        {description ? (
+          <EmptyDescription>{description}</EmptyDescription>
+        ) : null}
+      </EmptyHeader>
+    </Empty>
   )
 }
 
@@ -144,15 +167,23 @@ function NoticeContent({
   t: TFunction
 }) {
   if (loading) {
-    return <EmptyState message={t('Loading...')} />
+    return (
+      <EmptyState
+        icon={<Bell />}
+        title={t('Loading...')}
+        description={t('Latest platform updates and notices')}
+      />
+    )
   }
 
   if (!notice) {
-    return <EmptyState message={t('No announcements at this time')} />
+    return (
+      <EmptyState icon={<Bell />} title={t('No announcements at this time')} />
+    )
   }
 
   return (
-    <ScrollArea className='h-[50vh] pr-4'>
+    <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
       <Markdown>{notice}</Markdown>
     </ScrollArea>
   )
@@ -171,16 +202,24 @@ function AnnouncementsContent({
   t: TFunction
 }) {
   if (loading) {
-    return <EmptyState message={t('Loading...')} />
+    return (
+      <EmptyState
+        icon={<Megaphone />}
+        title={t('Loading...')}
+        description={t('Latest platform updates and notices')}
+      />
+    )
   }
 
   if (announcements.length === 0) {
-    return <EmptyState message={t('No system announcements')} />
+    return (
+      <EmptyState icon={<Megaphone />} title={t('No system announcements')} />
+    )
   }
 
   return (
-    <ScrollArea className='h-[50vh] pr-4'>
-      <div className='space-y-0'>
+    <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
+      <div className='flex flex-col'>
         {announcements.map((item, idx) => {
           const publishDate = item.publishDate
             ? new Date(item.publishDate)
@@ -197,30 +236,27 @@ function AnnouncementsContent({
               <div className='py-3'>
                 <div className='flex items-start gap-3'>
                   <AnnouncementDot type={item.type} />
-                  <div className='min-w-0 flex-1 space-y-2'>
-                    {/* Content */}
+                  <div className='flex min-w-0 flex-1 flex-col gap-2'>
                     <div className='text-sm'>
                       <Markdown>{item.content || ''}</Markdown>
                     </div>
 
-                    {/* Extra info */}
-                    {item.extra && (
+                    {item.extra ? (
                       <div className='text-muted-foreground text-xs'>
                         <Markdown>{item.extra}</Markdown>
                       </div>
-                    )}
+                    ) : null}
 
-                    {/* Time */}
-                    {absoluteTime && (
+                    {absoluteTime ? (
                       <div className='text-muted-foreground text-xs'>
-                        {relativeTime && `${relativeTime} • `}
+                        {relativeTime ? `${relativeTime} • ` : null}
                         {absoluteTime}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
-              {idx < announcements.length - 1 && <Separator />}
+              {idx < announcements.length - 1 ? <Separator /> : null}
             </div>
           )
         })}
@@ -230,25 +266,54 @@ function AnnouncementsContent({
 }
 
 /**
- * Notification dialog with Notice and Announcements tabs
+ * Notification popover with Notice and Announcements tabs
  */
-export function NotificationDialog({
+export function NotificationPopover({
   open,
   onOpenChange,
+  unreadCount,
   activeTab,
   onTabChange,
   notice,
   announcements,
   loading,
-  onCloseToday,
-}: NotificationDialogProps) {
+  className,
+}: NotificationPopoverProps) {
   const { t } = useTranslation()
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] sm:max-w-2xl'>
-        <DialogHeader>
-          <DialogTitle>{t('System Announcements')}</DialogTitle>
-        </DialogHeader>
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant='ghost'
+            size='icon'
+            className={cn('relative size-9', className)}
+            aria-label={t('Notifications')}
+          />
+        }
+      >
+        <Bell className='size-[1.2rem]' />
+        {unreadCount > 0 ? (
+          <Badge
+            variant='destructive'
+            className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold tabular-nums'
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </Badge>
+        ) : null}
+      </PopoverTrigger>
+
+      <PopoverContent
+        align='end'
+        sideOffset={8}
+        className='w-[min(26rem,calc(100vw-1rem))] gap-3 p-3'
+      >
+        <PopoverHeader className='gap-1 px-1'>
+          <PopoverTitle>{t('System Announcements')}</PopoverTitle>
+          <p className='text-muted-foreground text-xs'>
+            {t('Latest platform updates and notices')}
+          </p>
+        </PopoverHeader>
 
         <Tabs
           value={activeTab}
@@ -256,20 +321,20 @@ export function NotificationDialog({
         >
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='notice' className='gap-1.5'>
-              <Bell className='h-3.5 w-3.5' />
+              <Bell className='size-3.5' />
               {t('Notice')}
             </TabsTrigger>
             <TabsTrigger value='announcements' className='gap-1.5'>
-              <Megaphone className='h-3.5 w-3.5' />
+              <Megaphone className='size-3.5' />
               {t('Timeline')}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value='notice' className='mt-4'>
+          <TabsContent value='notice' className='mt-2'>
             <NoticeContent notice={notice} loading={loading} t={t} />
           </TabsContent>
 
-          <TabsContent value='announcements' className='mt-4'>
+          <TabsContent value='announcements' className='mt-2'>
             <AnnouncementsContent
               announcements={announcements}
               loading={loading}
@@ -278,13 +343,12 @@ export function NotificationDialog({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className='gap-2'>
-          <Button variant='outline' onClick={onCloseToday}>
-            {t('Close Today')}
+        <div className='flex justify-end'>
+          <Button size='sm' onClick={() => onOpenChange(false)}>
+            {t('Close')}
           </Button>
-          <Button onClick={() => onOpenChange(false)}>{t('Close')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

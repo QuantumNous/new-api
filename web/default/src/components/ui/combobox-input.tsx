@@ -176,7 +176,7 @@ export function ComboboxInput({
           if (!open) setOpen(true)
         }}
         onFocus={() => {
-          setSearchValue(allowCustomValue ? value : '')
+          setSearchValue(allowCustomValue && !selectedOption ? value : '')
           setOpen(true)
         }}
         onKeyDown={handleKeyDown}

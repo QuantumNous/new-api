@@ -201,7 +201,7 @@ export function CreemProductsVisualEditor({
                       {product.name}
                     </TableCell>
                     <TableCell>
-                      <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
+                      <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
                         {product.productId}
                       </code>
                     </TableCell>

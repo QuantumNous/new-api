@@ -29,8 +29,10 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
+import { installBuildMetadata } from '@/lib/build-metadata'
 import '@/lib/dayjs'
 import { applyFaviconToDom } from '@/lib/dom-utils'
+import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -43,6 +45,8 @@ import './styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
+initializeFrontendCache()
+installBuildMetadata()
 
 const queryClient = new QueryClient({
   defaultOptions: {

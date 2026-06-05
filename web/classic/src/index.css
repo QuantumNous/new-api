@@ -31,16 +31,38 @@ body {
   background-color: var(--semi-color-bg-0);
 }
 
-/* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
-@media (min-width: 768px) {
-  body {
-    overflow-y: hidden;
-  }
+.app-layout {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-.app-layout {
+.app-layout-fixed {
   height: 100vh;
   height: 100dvh;
+}
+
+.public-page-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.classic-page-fill {
+  flex: 1 0 auto;
+  min-height: 100%;
+}
+
+.classic-home-page,
+.classic-home-default {
+  display: flex;
+  flex-direction: column;
+}
+
+.classic-home-default {
+  flex: 1 0 auto;
+}
+
+.classic-home-hero {
+  flex: 1 0 auto;
 }
 
 .app-sider {

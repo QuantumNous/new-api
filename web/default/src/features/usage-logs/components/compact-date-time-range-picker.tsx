@@ -123,7 +123,7 @@ export function CompactDateTimeRangePicker({
             type='button'
             variant='outline'
             className={cn(
-              'w-full justify-start gap-2 px-2.5 font-mono text-xs font-normal',
+              'w-full justify-start gap-2 px-2.5 text-sm leading-5 font-normal tabular-nums',
               !start && !end && 'text-muted-foreground',
               className
             )}
@@ -147,7 +147,7 @@ export function CompactDateTimeRangePicker({
                 type='datetime-local'
                 value={draftStart}
                 onChange={(e) => setDraftStart(e.target.value)}
-                className='h-8 font-mono text-xs'
+                className='h-8 text-sm leading-5 tabular-nums'
               />
             </div>
             <span className='text-muted-foreground hidden pb-2 text-xs sm:block'>
@@ -161,7 +161,7 @@ export function CompactDateTimeRangePicker({
                 type='datetime-local'
                 value={draftEnd}
                 onChange={(e) => setDraftEnd(e.target.value)}
-                className='h-8 font-mono text-xs'
+                className='h-8 text-sm leading-5 tabular-nums'
               />
             </div>
           </div>

@@ -92,6 +92,8 @@ export interface GetUsersResponse {
 export interface SearchUsersParams {
   keyword?: string
   group?: string
+  role?: string
+  status?: string
   p?: number
   page_size?: number
 }

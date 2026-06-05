@@ -30,6 +30,9 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	usage.PromptTokens = info.GetEstimatePromptTokens()
 	usage.TotalTokens = info.GetEstimatePromptTokens()
 	for k, v := range resp.Header {
+		if !service.ShouldCopyUpstreamHeader(c, k, v) {
+			continue
+		}
 		c.Writer.Header().Set(k, v[0])
 	}
 	c.Writer.WriteHeader(resp.StatusCode)

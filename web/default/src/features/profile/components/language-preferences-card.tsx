@@ -17,6 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
+import {
+  INTERFACE_LANGUAGE_OPTIONS,
+  normalizeInterfaceLanguage,
+} from '@/i18n/languages'
 import { Languages, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -34,24 +38,6 @@ import { updateUserLanguage } from '../api'
 import { parseUserSettings } from '../lib'
 import type { UserProfile } from '../types'
 
-const LANGUAGE_OPTIONS = [
-  { value: 'zh', label: '简体中文' },
-  { value: 'en', label: 'English' },
-  { value: 'fr', label: 'Français' },
-  { value: 'ru', label: 'Русский' },
-  { value: 'ja', label: '日本語' },
-  { value: 'vi', label: 'Tiếng Việt' },
-] as const
-
-function normalizeLanguage(value?: string | null): string {
-  if (!value) return 'en'
-  const normalized = value.trim().replace(/_/g, '-').toLowerCase()
-  if (normalized.startsWith('zh')) return 'zh'
-  return LANGUAGE_OPTIONS.some((lang) => lang.value === normalized)
-    ? normalized
-    : 'en'
-}
-
 type LanguagePreferencesCardProps = {
   profile: UserProfile | null
   onProfileUpdate: () => void
@@ -64,7 +50,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
 
   const savedLanguage = useMemo(() => {
     const settings = parseUserSettings(props.profile?.setting)
-    return normalizeLanguage(settings.language || i18n.language)
+    return normalizeInterfaceLanguage(settings.language || i18n.language)
   }, [props.profile?.setting, i18n.language])
 
   const [currentLanguage, setCurrentLanguage] = useState(savedLanguage)
@@ -75,7 +61,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
 
   const handleLanguageChange = async (language: string | null) => {
     if (!language) return
-    const nextLanguage = normalizeLanguage(language)
+    const nextLanguage = normalizeInterfaceLanguage(language)
     if (nextLanguage === currentLanguage) return
 
     const previousLanguage = currentLanguage
@@ -132,8 +118,8 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
         <div className='flex items-center gap-2 sm:min-w-48'>
           <Select
             items={[
-              ...LANGUAGE_OPTIONS.map((language) => ({
-                value: language.value,
+              ...INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
+                value: language.code,
                 label: language.label,
               })),
             ]}
@@ -146,8 +132,8 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectGroup>
-                {LANGUAGE_OPTIONS.map((language) => (
-                  <SelectItem key={language.value} value={language.value}>
+                {INTERFACE_LANGUAGE_OPTIONS.map((language) => (
+                  <SelectItem key={language.code} value={language.code}>
                     {language.label}
                   </SelectItem>
                 ))}

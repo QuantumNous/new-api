@@ -16,18 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
-import { Code, Table, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Code, Plus, Table, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 type ModelMappingEditorProps = {
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  sourceModelOptions?: string[]
+  targetModelOptions?: string[]
 }
 
 type MappingRow = {
@@ -36,42 +40,98 @@ type MappingRow = {
   to: string
 }
 
-export function ModelMappingEditor({
-  value,
-  onChange,
-  disabled = false,
-}: ModelMappingEditorProps) {
+const DUPLICATE_MAPPING_SENTINEL = '{ "duplicate_source_models": '
+
+function getDuplicateSources(rows: MappingRow[]): string[] {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+
+  for (const row of rows) {
+    const source = row.from.trim()
+    if (!source) continue
+    if (seen.has(source)) {
+      duplicates.add(source)
+    } else {
+      seen.add(source)
+    }
+  }
+
+  return Array.from(duplicates)
+}
+
+export function ModelMappingEditor(props: ModelMappingEditorProps) {
   const { t } = useTranslation()
+  const sourceListId = useId()
+  const targetListId = useId()
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<MappingRow[]>([])
-  const [jsonValue, setJsonValue] = useState(value)
+  const [jsonValue, setJsonValue] = useState(props.value)
+  const [jsonError, setJsonError] = useState<string | null>(null)
+  const nextRowIdRef = useRef(0)
+  const duplicateSources = useMemo(() => getDuplicateSources(rows), [rows])
 
-  const parseJsonToRows = (json: string) => {
+  const createRowId = () => {
+    nextRowIdRef.current += 1
+    return `mapping-${nextRowIdRef.current}`
+  }
+
+  const parseJsonToRows = (json: string): boolean => {
     try {
       if (!json.trim()) {
         setRows([])
-        return
+        setJsonError(null)
+        return true
       }
       const parsed = JSON.parse(json)
-      const newRows: MappingRow[] = Object.entries(parsed).map(
-        ([from, to], index) => ({
-          id: `${Date.now()}-${index}`,
-          from,
-          to: String(to),
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setJsonError(t('Model mapping must be a valid JSON object'))
+        return false
+      }
+      const entries = Object.entries(parsed)
+      const invalidValue = entries.find(([, to]) => typeof to !== 'string')
+      if (invalidValue) {
+        setJsonError(t('Model mapping values must be strings'))
+        return false
+      }
+      setRows((previousRows) => {
+        const remainingRows = [...previousRows]
+        return entries.map(([from, to], index) => {
+          const toString = String(to)
+          const existingIndex = remainingRows.findIndex(
+            (row) =>
+              row.from === from ||
+              (row.from === from && row.to === toString) ||
+              previousRows[index]?.id === row.id
+          )
+          if (existingIndex >= 0) {
+            const [existing] = remainingRows.splice(existingIndex, 1)
+            return {
+              id: existing.id,
+              from,
+              to: toString,
+            }
+          }
+          return {
+            id: createRowId(),
+            from,
+            to: toString,
+          }
         })
-      )
-      setRows(newRows)
+      })
+      setJsonError(null)
+      return true
     } catch (_error) {
-      // Invalid JSON, keep current rows
+      setJsonError(t('Model mapping must be valid JSON format'))
+      return false
     }
   }
 
   // Parse JSON to rows when value changes externally
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setJsonValue(value)
-    parseJsonToRows(value)
-  }, [value])
+    setJsonValue(props.value)
+    parseJsonToRows(props.value)
+  }, [props.value])
 
   const convertRowsToJson = (updatedRows: MappingRow[]): string => {
     if (updatedRows.length === 0) {
@@ -86,22 +146,33 @@ export function ModelMappingEditor({
     return JSON.stringify(obj, null, 2)
   }
 
+  const syncRows = (updatedRows: MappingRow[]) => {
+    setRows(updatedRows)
+    const duplicates = getDuplicateSources(updatedRows)
+    if (duplicates.length > 0) {
+      setJsonError(t('Duplicate source model mappings are not allowed'))
+      setJsonValue(DUPLICATE_MAPPING_SENTINEL)
+      props.onChange(DUPLICATE_MAPPING_SENTINEL)
+      return
+    }
+
+    const json = convertRowsToJson(updatedRows)
+    setJsonError(null)
+    setJsonValue(json)
+    props.onChange(json)
+  }
+
   const handleAddRow = () => {
     const newRow: MappingRow = {
-      id: `${Date.now()}`,
+      id: createRowId(),
       from: '',
       to: '',
     }
-    const updatedRows = [...rows, newRow]
-    setRows(updatedRows)
+    syncRows([...rows, newRow])
   }
 
   const handleDeleteRow = (id: string) => {
-    const updatedRows = rows.filter((row) => row.id !== id)
-    setRows(updatedRows)
-    const json = convertRowsToJson(updatedRows)
-    setJsonValue(json)
-    onChange(json)
+    syncRows(rows.filter((row) => row.id !== id))
   }
 
   const handleRowChange = (
@@ -112,15 +183,12 @@ export function ModelMappingEditor({
     const updatedRows = rows.map((row) =>
       row.id === id ? { ...row, [field]: newValue } : row
     )
-    setRows(updatedRows)
-    const json = convertRowsToJson(updatedRows)
-    setJsonValue(json)
-    onChange(json)
+    syncRows(updatedRows)
   }
 
   const handleJsonChange = (newJson: string) => {
     setJsonValue(newJson)
-    onChange(newJson)
+    props.onChange(newJson)
     parseJsonToRows(newJson)
   }
 
@@ -131,62 +199,69 @@ export function ModelMappingEditor({
       2
     )
     setJsonValue(template)
-    onChange(template)
+    props.onChange(template)
     parseJsonToRows(template)
   }
 
-  const toggleMode = () => {
-    if (mode === 'visual') {
-      // Switching to JSON mode: sync rows to JSON
-      const json = convertRowsToJson(rows)
-      setJsonValue(json)
-      onChange(json)
+  const handleModeChange = (nextMode: string) => {
+    if (nextMode !== 'visual' && nextMode !== 'json') return
+    if (nextMode === 'json') {
+      const duplicates = getDuplicateSources(rows)
+      if (duplicates.length === 0) {
+        const json = convertRowsToJson(rows)
+        setJsonValue(json)
+        props.onChange(json)
+      }
       setMode('json')
-    } else {
-      // Switching to visual mode: sync JSON to rows
-      parseJsonToRows(jsonValue)
-      setMode('visual')
+      return
     }
+    parseJsonToRows(jsonValue)
+    setMode('visual')
   }
 
   return (
     <div className='space-y-2'>
-      <div className='flex items-center justify-between'>
-        <div className='flex gap-2'>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={toggleMode}
-            disabled={disabled}
-          >
-            {mode === 'visual' ? (
-              <>
-                <Code className='mr-2 h-4 w-4' />
-                {t('JSON Mode')}
-              </>
-            ) : (
-              <>
-                <Table className='mr-2 h-4 w-4' />
-                {t('Visual Mode')}
-              </>
-            )}
-          </Button>
+      <Tabs value={mode} onValueChange={handleModeChange} className='space-y-2'>
+        <div className='flex items-center justify-between gap-3'>
+          <TabsList>
+            <TabsTrigger value='visual'>
+              <Table className='h-4 w-4' aria-hidden='true' />
+              {t('Visual')}
+            </TabsTrigger>
+            <TabsTrigger value='json'>
+              <Code className='h-4 w-4' aria-hidden='true' />
+              {t('JSON')}
+            </TabsTrigger>
+          </TabsList>
           <Button
             type='button'
             variant='link'
             size='sm'
             className='h-auto p-0'
             onClick={handleFillTemplate}
-            disabled={disabled}
+            disabled={props.disabled}
           >
             {t('Fill Template')}
           </Button>
         </div>
-      </div>
 
-      {mode === 'visual' ? (
-        <div className='space-y-2'>
+        {jsonError && (
+          <Alert variant='destructive'>
+            <AlertDescription>{jsonError}</AlertDescription>
+          </Alert>
+        )}
+
+        {duplicateSources.length > 0 && (
+          <Alert>
+            <AlertDescription>
+              {t('Duplicate source model(s): {{models}}', {
+                models: duplicateSources.join(', '),
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <TabsContent value='visual' className='space-y-2'>
           {rows.length > 0 ? (
             <div className='space-y-2'>
               <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
@@ -205,7 +280,8 @@ export function ModelMappingEditor({
                       handleRowChange(row.id, 'from', e.target.value)
                     }
                     placeholder='gpt-3.5-turbo'
-                    disabled={disabled}
+                    disabled={props.disabled}
+                    list={sourceListId}
                   />
                   <Input
                     value={row.to}
@@ -213,17 +289,19 @@ export function ModelMappingEditor({
                       handleRowChange(row.id, 'to', e.target.value)
                     }
                     placeholder='gpt-3.5-turbo-0125'
-                    disabled={disabled}
+                    disabled={props.disabled}
+                    list={targetListId}
                   />
                   <Button
                     type='button'
                     variant='ghost'
                     size='icon'
                     onClick={() => handleDeleteRow(row.id)}
-                    disabled={disabled}
+                    disabled={props.disabled}
                     className='h-10 w-10'
+                    aria-label={t('Delete mapping')}
                   >
-                    <Trash2 className='h-4 w-4' />
+                    <Trash2 className='h-4 w-4' aria-hidden='true' />
                   </Button>
                 </div>
               ))}
@@ -240,22 +318,42 @@ export function ModelMappingEditor({
             variant='outline'
             size='sm'
             onClick={handleAddRow}
-            disabled={disabled}
+            disabled={props.disabled}
             className='w-full'
           >
             <Plus className='mr-2 h-4 w-4' />
             {t('Add Mapping')}
           </Button>
-        </div>
-      ) : (
-        <Textarea
-          value={jsonValue}
-          onChange={(e) => handleJsonChange(e.target.value)}
-          placeholder={t('{"original-model": "replacement-model"}')}
-          disabled={disabled}
-          rows={8}
-          className={cn('font-mono text-sm')}
-        />
+        </TabsContent>
+        <TabsContent value='json'>
+          <Textarea
+            value={jsonValue}
+            onChange={(e) => handleJsonChange(e.target.value)}
+            placeholder={t('{"original-model": "replacement-model"}')}
+            disabled={props.disabled}
+            rows={8}
+            className={cn(
+              'font-mono text-sm',
+              jsonError && 'border-destructive'
+            )}
+            aria-invalid={Boolean(jsonError)}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {props.sourceModelOptions && props.sourceModelOptions.length > 0 && (
+        <datalist id={sourceListId}>
+          {props.sourceModelOptions.map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
+      )}
+      {props.targetModelOptions && props.targetModelOptions.length > 0 && (
+        <datalist id={targetListId}>
+          {props.targetModelOptions.map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
       )}
     </div>
   )

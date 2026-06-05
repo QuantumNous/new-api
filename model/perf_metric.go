@@ -37,13 +37,13 @@ func UpsertPerfMetric(metric *PerfMetric) error {
 			{Name: "bucket_ts"},
 		},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"request_count":    gorm.Expr("request_count + ?", metric.RequestCount),
-			"success_count":    gorm.Expr("success_count + ?", metric.SuccessCount),
-			"total_latency_ms": gorm.Expr("total_latency_ms + ?", metric.TotalLatencyMs),
-			"ttft_sum_ms":      gorm.Expr("ttft_sum_ms + ?", metric.TtftSumMs),
-			"ttft_count":       gorm.Expr("ttft_count + ?", metric.TtftCount),
-			"output_tokens":    gorm.Expr("output_tokens + ?", metric.OutputTokens),
-			"generation_ms":    gorm.Expr("generation_ms + ?", metric.GenerationMs),
+			"request_count":    gorm.Expr("perf_metrics.request_count + ?", metric.RequestCount),
+			"success_count":    gorm.Expr("perf_metrics.success_count + ?", metric.SuccessCount),
+			"total_latency_ms": gorm.Expr("perf_metrics.total_latency_ms + ?", metric.TotalLatencyMs),
+			"ttft_sum_ms":      gorm.Expr("perf_metrics.ttft_sum_ms + ?", metric.TtftSumMs),
+			"ttft_count":       gorm.Expr("perf_metrics.ttft_count + ?", metric.TtftCount),
+			"output_tokens":    gorm.Expr("perf_metrics.output_tokens + ?", metric.OutputTokens),
+			"generation_ms":    gorm.Expr("perf_metrics.generation_ms + ?", metric.GenerationMs),
 		}),
 	}).Create(metric).Error
 }
@@ -68,11 +68,18 @@ type PerfMetricSummary struct {
 	GenerationMs   int64  `json:"generation_ms"`
 }
 
-func GetPerfMetricsSummaryAll(startTs int64, endTs int64) ([]PerfMetricSummary, error) {
+func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]PerfMetricSummary, error) {
 	var summaries []PerfMetricSummary
-	err := DB.Model(&PerfMetric{}).
+	query := DB.Model(&PerfMetric{}).
 		Select("model_name, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
-		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs).
+		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
+	if groups != nil {
+		if len(groups) == 0 {
+			return summaries, nil
+		}
+		query = query.Where(commonGroupCol+" IN ?", groups)
+	}
+	err := query.
 		Group("model_name").
 		Having("SUM(request_count) > 0").
 		Find(&summaries).Error

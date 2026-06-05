@@ -173,6 +173,7 @@ export function RedemptionsTable() {
             columnId: 'status',
             title: t('Status'),
             options: redemptionStatusOptions,
+            singleSelect: true,
           },
         ],
       }}

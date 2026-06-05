@@ -33,7 +33,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { getNavGroupsForPath } from './layout/lib/workspace-registry'
+import { getNavGroupsForPath } from './layout/lib/sidebar-view-registry'
 import { ScrollArea } from './ui/scroll-area'
 
 export function CommandMenu() {
@@ -44,8 +44,9 @@ export function CommandMenu() {
   const { pathname } = useLocation()
   const sidebarData = useSidebarData()
 
-  // 根据当前路径从工作区注册表获取对应的侧边栏配置
-  const navGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  // Use the active nested sidebar view's nav groups when one matches
+  // the current URL; otherwise fall back to the root navigation.
+  const navGroups = getNavGroupsForPath(pathname, t) ?? sidebarData.navGroups
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {

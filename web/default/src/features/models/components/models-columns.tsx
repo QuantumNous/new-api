@@ -29,7 +29,8 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { GroupBadge } from '@/components/group-badge'
-import { StatusBadge } from '@/components/status-badge'
+import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import {
   getModelStatusConfig,
   getNameRuleConfig,
@@ -47,25 +48,12 @@ function renderLimitedItems(
   items: React.ReactNode[],
   maxDisplay: number = 2
 ): React.ReactNode {
-  if (items.length === 0)
-    return <span className='text-muted-foreground text-xs'>-</span>
-
-  const displayed = items.slice(0, maxDisplay)
-  const remaining = items.length - maxDisplay
-
   return (
-    <div className='flex max-w-full items-center gap-1 overflow-x-auto'>
-      {displayed}
-      {remaining > 0 && (
-        <StatusBadge
-          label={`+${remaining}`}
-          variant='neutral'
-          size='sm'
-          copyable={false}
-          className='flex-shrink-0'
-        />
-      )}
-    </div>
+    <StatusBadgeList
+      items={items}
+      max={maxDisplay}
+      renderItem={(item) => item}
+    />
   )
 }
 
@@ -118,15 +106,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       ),
       cell: ({ row }) => {
         const id = row.getValue('id') as number
-        return (
-          <StatusBadge
-            label={String(id)}
-            variant='neutral'
-            copyText={String(id)}
-            size='sm'
-            className='font-mono'
-          />
-        )
+        return <TableId value={id} />
       },
       size: 80,
     },
@@ -250,7 +230,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           <StatusBadge
             label={config.label}
             variant={config.variant}
-            showDot={config.showDot}
             size='sm'
             copyable={false}
           />

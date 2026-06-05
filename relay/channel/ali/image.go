@@ -229,7 +229,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 	time.Sleep(time.Duration(5) * time.Second)
 
 	for {
-		logger.LogDebug(c, fmt.Sprintf("asyncTaskWait step %d/%d, wait %d seconds", step, maxStep, waitSeconds))
+		logger.LogDebug(c, "asyncTaskWait step %d/%d, wait %d seconds", step, maxStep, waitSeconds)
 		step++
 		rsp, err, body := updateTask(info, taskID)
 		responseBody = body
@@ -320,11 +320,10 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 		}
 	}
 
-	//logger.LogDebug(c, "ali_async_task_result: "+string(originRespBody))
 	if a.IsSyncImageModel {
-		logger.LogDebug(c, "ali_sync_image_result: "+string(originRespBody))
+		logger.LogDebug(c, "ali_sync_image_result: %s", originRespBody)
 	} else {
-		logger.LogDebug(c, "ali_async_image_result: "+string(originRespBody))
+		logger.LogDebug(c, "ali_async_image_result: %s", originRespBody)
 	}
 
 	imageResponses := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)

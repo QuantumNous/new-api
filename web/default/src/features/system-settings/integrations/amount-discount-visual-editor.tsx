@@ -166,7 +166,7 @@ export function AmountDiscountVisualEditor({
                       </span>
                     </TableCell>
                     <TableCell>
-                      <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
+                      <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
                         {discount.discountRate.toFixed(2)}
                       </code>
                     </TableCell>

@@ -74,9 +74,9 @@ export const textColorMap = {
 export type StatusVariant = keyof typeof dotColorMap
 
 const sizeMap = {
-  sm: 'text-xs gap-1.5',
-  md: 'text-xs gap-1.5',
-  lg: 'text-sm gap-2',
+  sm: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  md: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
 } as const
 
 export interface StatusBadgeProps extends Omit<
@@ -87,7 +87,7 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** When false, hides the leading dot */
+  /** Kept for compatibility. Badges no longer render leading dots. */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
@@ -131,12 +131,12 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex w-fit shrink-0 items-center font-medium whitespace-nowrap',
+        'inline-flex w-fit max-w-full shrink-0 items-center rounded-4xl font-medium tracking-normal whitespace-nowrap transition-colors',
         sizeMap[size ?? 'sm'],
         textColorMap[computedVariant],
         pulse && 'animate-pulse',
         copyable &&
-          'cursor-pointer transition-opacity hover:opacity-70 active:scale-95',
+          'cursor-copy hover:brightness-95 active:scale-95 dark:hover:brightness-110',
         className
       )}
       onClick={handleClick}
@@ -152,9 +152,66 @@ export function StatusBadge({
           aria-hidden='true'
         />
       )}
-      {Icon && <Icon className='size-3 shrink-0' />}
+      {Icon && <Icon className='size-3.5 shrink-0' />}
       {content}
     </span>
+  )
+}
+
+export interface StatusBadgeListProps<T> extends Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  'children'
+> {
+  empty?: React.ReactNode
+  getKey?: (item: T, index: number) => React.Key
+  items: T[]
+  max?: number
+  moreLabel?: (remaining: number) => string
+  renderItem: (item: T, index: number) => React.ReactNode
+}
+
+export function StatusBadgeList<T>(props: StatusBadgeListProps<T>) {
+  const {
+    className,
+    empty = <span className='text-muted-foreground text-xs'>-</span>,
+    getKey,
+    items,
+    max = 2,
+    moreLabel,
+    renderItem,
+    ...domProps
+  } = props
+
+  if (items.length === 0) {
+    return empty
+  }
+
+  const displayed = items.slice(0, max)
+  const remaining = items.length - max
+
+  return (
+    <div
+      className={cn(
+        'flex max-w-full items-center gap-1 overflow-hidden',
+        className
+      )}
+      {...domProps}
+    >
+      {displayed.map((item, index) => (
+        <React.Fragment key={getKey?.(item, index) ?? index}>
+          {renderItem(item, index)}
+        </React.Fragment>
+      ))}
+      {remaining > 0 && (
+        <StatusBadge
+          label={moreLabel?.(remaining) ?? `+${remaining}`}
+          variant='neutral'
+          size='sm'
+          copyable={false}
+          className='shrink-0'
+        />
+      )}
+    </div>
   )
 }
 
@@ -162,27 +219,22 @@ export const statusPresets = {
   active: {
     variant: 'success' as const,
     label: 'Active',
-    showDot: true,
   },
   inactive: {
     variant: 'neutral' as const,
     label: 'Inactive',
-    showDot: true,
   },
   invited: {
     variant: 'info' as const,
     label: 'Invited',
-    showDot: true,
   },
   suspended: {
     variant: 'danger' as const,
     label: 'Suspended',
-    showDot: true,
   },
   pending: {
     variant: 'warning' as const,
     label: 'Pending',
-    showDot: true,
     pulse: true,
   },
 } as const

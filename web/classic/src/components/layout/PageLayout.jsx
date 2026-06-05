@@ -71,6 +71,7 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+  const isFixedLayout = isConsoleRoute || location.pathname === '/pricing';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -146,11 +147,11 @@ const PageLayout = () => {
 
   return (
     <Layout
-      className='app-layout'
+      className={`app-layout${isFixedLayout ? ' app-layout-fixed' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
-        overflow: isMobile ? 'visible' : 'hidden',
+        overflow: isFixedLayout && !isMobile ? 'hidden' : 'visible',
       }}
     >
       <Header
@@ -171,9 +172,10 @@ const PageLayout = () => {
       </Header>
       <Layout
         style={{
-          overflow: isMobile ? 'visible' : 'auto',
+          overflow: isFixedLayout && !isMobile ? 'auto' : 'visible',
           display: 'flex',
           flexDirection: 'column',
+          flex: '1 1 auto',
         }}
       >
         {showSider && (
@@ -206,15 +208,18 @@ const PageLayout = () => {
             flex: '1 1 auto',
             display: 'flex',
             flexDirection: 'column',
+            minHeight: 0,
           }}
         >
           <Content
+            className={isFixedLayout ? undefined : 'public-page-content'}
             style={{
-              flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              flex: isFixedLayout ? '1 0 auto' : '1 1 auto',
+              overflowY: isFixedLayout && !isMobile ? 'hidden' : 'visible',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
+              minHeight: 0,
             }}
           >
             <ErrorBoundary>

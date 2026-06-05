@@ -268,6 +268,9 @@ function inferContextAndOutputs(
   if (lower.includes('1m') || lower.includes('-long')) {
     return { context: 1_000_000, maxOutput: 65_536 }
   }
+  if (/claude.*(?:4|opus|sonnet)/.test(lower)) {
+    return { context: 1_000_000, maxOutput: 65_536 }
+  }
   if (
     lower.includes('200k') ||
     lower.includes('claude-3') ||

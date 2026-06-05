@@ -26,24 +26,13 @@ import {
   showSuccess,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, TriangleAlert } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
 const defaultInputs = {
-  WaffoPancakeEnabled: false,
-  WaffoPancakeSandbox: false,
   WaffoPancakeMerchantID: '',
   WaffoPancakePrivateKey: '',
-  WaffoPancakeWebhookPublicKey: '',
-  WaffoPancakeWebhookTestKey: '',
-  WaffoPancakeStoreID: '',
-  WaffoPancakeProductID: '',
   WaffoPancakeReturnURL: '',
-  WaffoPancakeCurrency: 'USD',
-  WaffoPancakeUnitPrice: 1.0,
-  WaffoPancakeMinTopUp: 1,
 };
-
-const toBoolean = (value) => value === true || value === 'true';
 
 export default function SettingsPaymentGatewayWaffoPancake(props) {
   const { t } = useTranslation();
@@ -58,26 +47,9 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
     if (!props.options || !formApiRef.current) return;
 
     const currentInputs = {
-      WaffoPancakeEnabled: toBoolean(props.options.WaffoPancakeEnabled),
-      WaffoPancakeSandbox: toBoolean(props.options.WaffoPancakeSandbox),
       WaffoPancakeMerchantID: props.options.WaffoPancakeMerchantID || '',
       WaffoPancakePrivateKey: props.options.WaffoPancakePrivateKey || '',
-      WaffoPancakeWebhookPublicKey:
-        props.options.WaffoPancakeWebhookPublicKey || '',
-      WaffoPancakeWebhookTestKey:
-        props.options.WaffoPancakeWebhookTestKey || '',
-      WaffoPancakeStoreID: props.options.WaffoPancakeStoreID || '',
-      WaffoPancakeProductID: props.options.WaffoPancakeProductID || '',
       WaffoPancakeReturnURL: props.options.WaffoPancakeReturnURL || '',
-      WaffoPancakeCurrency: props.options.WaffoPancakeCurrency || 'USD',
-      WaffoPancakeUnitPrice:
-        props.options.WaffoPancakeUnitPrice !== undefined
-          ? parseFloat(props.options.WaffoPancakeUnitPrice)
-          : 1.0,
-      WaffoPancakeMinTopUp:
-        props.options.WaffoPancakeMinTopUp !== undefined
-          ? parseFloat(props.options.WaffoPancakeMinTopUp)
-          : 1,
     };
 
     setInputs(currentInputs);
@@ -93,89 +65,22 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       ...inputs,
       ...(formApiRef.current?.getValues?.() || {}),
     };
-    values.WaffoPancakeEnabled = toBoolean(values.WaffoPancakeEnabled);
-    values.WaffoPancakeSandbox = toBoolean(values.WaffoPancakeSandbox);
-    const currentWebhookField = values.WaffoPancakeSandbox
-      ? 'WaffoPancakeWebhookTestKey'
-      : 'WaffoPancakeWebhookPublicKey';
-    const currentWebhookLabel = values.WaffoPancakeSandbox
-      ? t('Webhook 公钥（测试环境）')
-      : t('Webhook 公钥（生产环境）');
-
-      if (values.WaffoPancakeEnabled && !values.WaffoPancakeMerchantID.trim()) {
-      showError(t('请输入商户 ID'));
-      return;
-    }
-
-    if (values.WaffoPancakeEnabled && !values.WaffoPancakeStoreID.trim()) {
-      showError(t('请输入 Store ID'));
-      return;
-    }
-
-    if (values.WaffoPancakeEnabled && !values.WaffoPancakeProductID.trim()) {
-      showError(t('请输入 Product ID'));
-      return;
-    }
-
-    if (
-      values.WaffoPancakeEnabled &&
-      !String(values[currentWebhookField] || '').trim()
-    ) {
-      showError(currentWebhookLabel);
-      return;
-    }
-
-    if (
-      values.WaffoPancakeEnabled &&
-      Number(values.WaffoPancakeUnitPrice) <= 0
-    ) {
-      showError(t('充值价格必须大于 0'));
-      return;
-    }
-
-    if (values.WaffoPancakeEnabled && Number(values.WaffoPancakeMinTopUp) < 1) {
-      showError(t('最低充值美元数量必须大于 0'));
-      return;
-    }
 
     setLoading(true);
     try {
+      // Classic admin only persists the three operator-typed fields.
+      // Store/Product binding is handled exclusively by the default
+      // frontend's catalog flow (see waffo-pancake-settings-section.tsx)
+      // because picking entities from a live catalog needs the Select +
+      // dependent-dropdown UX that the classic Semi-UI page doesn't have.
       const options = [
-        {
-          key: 'WaffoPancakeEnabled',
-          value: values.WaffoPancakeEnabled ? 'true' : 'false',
-        },
-        {
-          key: 'WaffoPancakeSandbox',
-          value: values.WaffoPancakeSandbox ? 'true' : 'false',
-        },
         {
           key: 'WaffoPancakeMerchantID',
           value: values.WaffoPancakeMerchantID || '',
         },
         {
-          key: 'WaffoPancakeStoreID',
-          value: values.WaffoPancakeStoreID || '',
-        },
-        {
-          key: 'WaffoPancakeProductID',
-          value: values.WaffoPancakeProductID || '',
-        },
-        {
           key: 'WaffoPancakeReturnURL',
           value: removeTrailingSlash(values.WaffoPancakeReturnURL || ''),
-        },
-        {
-          key: 'WaffoPancakeCurrency',
-          value: values.WaffoPancakeCurrency || 'USD',
-        },
-        {
-          key: 'WaffoPancakeUnitPrice',
-          value: String(values.WaffoPancakeUnitPrice),
-        },
-        {
-          key: 'WaffoPancakeMinTopUp',
-          value: String(values.WaffoPancakeMinTopUp),
         },
       ];
 
@@ -183,20 +88,6 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
         options.push({
           key: 'WaffoPancakePrivateKey',
           value: values.WaffoPancakePrivateKey,
-        });
-      }
-
-      if ((values.WaffoPancakeWebhookPublicKey || '').trim()) {
-        options.push({
-          key: 'WaffoPancakeWebhookPublicKey',
-          value: values.WaffoPancakeWebhookPublicKey,
-        });
-      }
-
-      if ((values.WaffoPancakeWebhookTestKey || '').trim()) {
-        options.push({
-          key: 'WaffoPancakeWebhookTestKey',
-          value: values.WaffoPancakeWebhookTestKey,
         });
       }
 
@@ -237,103 +128,43 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
             icon={<BookOpen size={16} />}
             description={
               <>
-                Waffo Pancake 的商户、商品和签名密钥请
+                Waffo Pancake 商户 ID 与私钥请在
                 <a
-                  href='https://docs.waffo.ai'
+                  href='https://pancake.waffo.ai/merchant/dashboard'
                   target='_blank'
                   rel='noreferrer'
                 >
-                  点击此处
+                  Waffo Pancake 控制台
                 </a>
-                获取，建议先在测试环境完成联调。
+                获取，保存后系统会自动在该商户名下创建 Store + Product，无需手动配置；
+                环境（test / 生产）由你粘贴的 API 私钥本身决定。
+                请在 Pancake 控制台把下面两个回调地址分别注册到 Test Mode 和 Production Mode
+                两个 webhook 位置，分开走避免测试流量污染生产数据：
                 <br />
-                {t('回调地址')}：
+                {t('Test 回调地址')}：
                 {props.options.ServerAddress
                   ? removeTrailingSlash(props.options.ServerAddress)
                   : t('网站地址')}
-                /api/waffo-pancake/webhook
+                /api/waffo-pancake/webhook/test
+                <br />
+                {t('Production 回调地址')}：
+                {props.options.ServerAddress
+                  ? removeTrailingSlash(props.options.ServerAddress)
+                  : t('网站地址')}
+                /api/waffo-pancake/webhook/prod
               </>
             }
             style={{ marginBottom: 12 }}
           />
-          <Banner
-            type='warning'
-            icon={<TriangleAlert size={16} />}
-            description={t(
-              '请确认 Merchant、Store、Product 和所选环境密钥一致。',
-            )}
-            style={{ marginBottom: 16 }}
-          />
-          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.Switch
-                field='WaffoPancakeEnabled'
-                label={t('启用 Waffo Pancake')}
-                checkedText='｜'
-                uncheckedText='〇'
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.Switch
-                field='WaffoPancakeSandbox'
-                label={t('沙盒模式')}
-                checkedText='｜'
-                uncheckedText='〇'
-                extraText={t('用于切换当前下单和回调校验所使用的环境')}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='WaffoPancakeCurrency'
-                label={t('货币')}
-                placeholder='USD'
-                extraText={t('默认使用 USD 结算')}
-              />
-            </Col>
-          </Row>
-
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='WaffoPancakeMerchantID'
-                label={t('商户 ID')}
-                placeholder={t('例如：MER_xxx')}
-                extraText={t('请填写当前环境对应的商户 ID')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='WaffoPancakeStoreID'
-                label={t('Store ID')}
-                placeholder={t('例如：STO_xxx')}
-                extraText={t('请填写当前环境对应的 Store ID')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='WaffoPancakeProductID'
-                label={t('Product ID')}
-                placeholder={t('例如：PROD_xxx')}
-                extraText={t('请填写当前环境对应的 Product ID')}
-              />
-            </Col>
-          </Row>
-
           <Row
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}
           >
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.TextArea
-                field='WaffoPancakePrivateKey'
-                label={t('API 私钥')}
-                placeholder={t('填写后覆盖当前私钥，留空表示保持当前不变')}
-                extraText={t('保存后不会回显，请填写当前环境对应的 API 私钥')}
-                type='password'
-                autosize={{ minRows: 4, maxRows: 8 }}
+              <Form.Input
+                field='WaffoPancakeMerchantID'
+                label={t('商户 ID')}
+                placeholder={t('例如：MER_xxx')}
               />
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -341,7 +172,6 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
                 field='WaffoPancakeReturnURL'
                 label={t('支付返回地址')}
                 placeholder={t('例如：https://example.com/console/topup')}
-                extraText={t('留空则自动使用当前站点的默认充值页地址')}
               />
             </Col>
           </Row>
@@ -350,53 +180,14 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}
           >
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+            <Col xs={24}>
               <Form.TextArea
-                field='WaffoPancakeWebhookPublicKey'
-                label={t('Webhook 公钥（生产环境）')}
-                placeholder={t(
-                  '填写后覆盖当前生产环境 Webhook 公钥，留空表示保持当前不变',
-                )}
-                extraText={t('用于校验生产环境的 Waffo Pancake Webhook 签名')}
+                field='WaffoPancakePrivateKey'
+                label={t('API 私钥')}
+                placeholder={t('填写后覆盖当前私钥，留空表示保持当前不变')}
+                extraText={t('⚠ 测试 / 生产环境由你粘进来的 API 私钥本身决定——集成阶段用 Test Key，正式上线时再换成 Production Key')}
                 type='password'
                 autosize={{ minRows: 4, maxRows: 8 }}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.TextArea
-                field='WaffoPancakeWebhookTestKey'
-                label={t('Webhook 公钥（测试环境）')}
-                placeholder={t(
-                  '填写后覆盖当前测试环境 Webhook 公钥，留空表示保持当前不变',
-                )}
-                extraText={t('用于校验测试环境的 Waffo Pancake Webhook 签名')}
-                type='password'
-                autosize={{ minRows: 4, maxRows: 8 }}
-              />
-            </Col>
-          </Row>
-
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.InputNumber
-                field='WaffoPancakeUnitPrice'
-                precision={2}
-                label={t('充值价格（x元/美金）')}
-                placeholder={t('例如：7，就是7元/美金')}
-                extraText={t('按 1 美元对应的站内价格填写')}
-                min={0}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.InputNumber
-                field='WaffoPancakeMinTopUp'
-                label={t('最低充值美元数量')}
-                placeholder={t('例如：2，就是最低充值2$')}
-                extraText={t('用户单次最少可充值的美元数量')}
-                min={1}
               />
             </Col>
           </Row>

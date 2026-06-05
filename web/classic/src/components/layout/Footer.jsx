@@ -143,12 +143,12 @@ const FooterBar = () => {
                     Midjourney-Proxy
                   </a>
                   <a
-                    href='https://github.com/Calcium-Ion/neko-api-key-tool'
+                    href='https://github.com/Calcium-Ion/new-api-key-tool'
                     target='_blank'
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    neko-api-key-tool
+                    new-api-key-tool
                   </a>
                 </div>
               </div>

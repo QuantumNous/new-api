@@ -1,7 +1,6 @@
 package cohere
 
 import (
-	"bufio"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -86,7 +85,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	createdTime := common.GetTimestamp()
 	usage := &dto.Usage{}
 	responseText := ""
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
@@ -105,6 +104,9 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		for scanner.Scan() {
 			data := scanner.Text()
 			dataChan <- data
+		}
+		if err := scanner.Err(); err != nil {
+			common.SysLog("error reading stream: " + err.Error())
 		}
 		stopChan <- true
 	}()

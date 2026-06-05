@@ -91,12 +91,12 @@ export function ConflictConfirmDialog({
                     {conflict.model}
                   </TableCell>
                   <TableCell>
-                    <pre className='text-xs whitespace-pre-wrap'>
+                    <pre className='text-sm whitespace-pre-wrap'>
                       {conflict.current}
                     </pre>
                   </TableCell>
                   <TableCell>
-                    <pre className='text-xs whitespace-pre-wrap'>
+                    <pre className='text-sm whitespace-pre-wrap'>
                       {conflict.newVal}
                     </pre>
                   </TableCell>

@@ -302,6 +302,11 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 			return ""
 		}
 		return strings.TrimSpace(c.GetString(src.Key))
+	case "request_header":
+		if c == nil || c.Request == nil || src.Key == "" {
+			return ""
+		}
+		return strings.TrimSpace(c.Request.Header.Get(src.Key))
 	case "gjson":
 		if src.Path == "" {
 			return ""
@@ -634,6 +639,38 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 		return false
 	}
 	return meta.SkipRetry
+}
+
+func ClearCurrentChannelAffinityCache(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok || cacheKey == "" {
+		return false
+	}
+
+	cache := getChannelAffinityCache()
+	deleted, err := cache.DeleteMany([]string{cacheKey})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete current failed: err=%v", err))
+		return false
+	}
+	c.Set(ginKeyChannelAffinitySkipRetry, false)
+	for _, ok := range deleted {
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func ShouldKeepChannelAffinityOnChannelDisabled() bool {
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil {
+		return false
+	}
+	return setting.KeepOnChannelDisabled
 }
 
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {

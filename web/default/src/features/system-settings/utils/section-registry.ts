@@ -25,7 +25,6 @@ import type { TFunction } from 'i18next'
 export type SectionDefinition<TSettings, TExtraArgs extends unknown[] = []> = {
   id: string
   titleKey: string
-  descriptionKey: string
   build: (settings: TSettings, ...extraArgs: TExtraArgs) => ReactNode
 }
 
@@ -82,9 +81,13 @@ export function createSectionRegistry<
     settings: TSettings,
     ...extraArgs: TExtraArgs
   ) {
+    return getSectionMeta(sectionId).build(settings, ...extraArgs)
+  }
+
+  function getSectionMeta(sectionId: SectionId) {
     const section =
       sections.find((item) => item.id === sectionId) ?? sections[0]
-    return section.build(settings, ...extraArgs)
+    return section
   }
 
   return {
@@ -92,5 +95,6 @@ export function createSectionRegistry<
     defaultSection,
     getSectionNavItems,
     getSectionContent,
+    getSectionMeta,
   }
 }

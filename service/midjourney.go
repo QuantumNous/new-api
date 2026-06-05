@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting"
 
@@ -235,9 +235,8 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_response_body_failed", statusCode), nullBytes, err
 	}
 	CloseResponseBodyGracefully(resp)
-	respStr := string(responseBody)
-	log.Printf("respStr: %s", respStr)
-	if respStr == "" {
+	logger.LogDebug(c, "midjourney response body: %s", responseBody)
+	if len(responseBody) == 0 {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "empty_response_body", statusCode), responseBody, nil
 	} else {
 		err = json.Unmarshal(responseBody, &midjResponse)
@@ -248,7 +247,6 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 			}
 		}
 	}
-	//log.Printf("midjResponse: %v", midjResponse)
 	//for k, v := range resp.Header {
 	//	c.Writer.Header().Set(k, v[0])
 	//}

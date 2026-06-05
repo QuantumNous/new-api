@@ -21,17 +21,23 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
   FormDescription,
   FormField,
-  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import {
+  SettingsControlChildren,
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsControlGroup,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
@@ -201,12 +207,16 @@ export function HeaderNavigationSection({
   ]
 
   return (
-    <SettingsSection
-      title={t('Header navigation')}
-      description={t('Enable or disable top navigation modules globally.')}
-    >
+    <SettingsSection title={t('Header navigation')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            onReset={resetToDefault}
+            isSaving={updateOption.isPending}
+            resetLabel='Reset to default'
+            saveLabel='Save navigation'
+          />
           <div className='grid gap-4 md:grid-cols-2'>
             {simpleModules.map((module) => (
               <FormField
@@ -214,13 +224,11 @@ export function HeaderNavigationSection({
                 control={form.control}
                 name={module.key}
                 render={({ field }) => (
-                  <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5 pe-4'>
-                      <FormLabel className='text-base'>
-                        {module.title}
-                      </FormLabel>
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{module.title}</FormLabel>
                       <FormDescription>{module.description}</FormDescription>
-                    </div>
+                    </SettingsSwitchContent>
                     <FormControl>
                       <Switch
                         checked={field.value}
@@ -228,7 +236,7 @@ export function HeaderNavigationSection({
                       />
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
+                  </SettingsSwitchItem>
                 )}
               />
             ))}
@@ -236,18 +244,16 @@ export function HeaderNavigationSection({
 
           <div className='grid gap-4 lg:grid-cols-2'>
             {accessModules.map((module) => (
-              <div key={module.enabledKey} className='rounded-lg border p-4'>
+              <SettingsControlGroup key={module.enabledKey}>
                 <FormField
                   control={form.control}
                   name={module.enabledKey}
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5 pe-4'>
-                        <FormLabel className='text-base'>
-                          {module.title}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{module.title}</FormLabel>
                         <FormDescription>{module.description}</FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
@@ -255,7 +261,7 @@ export function HeaderNavigationSection({
                         />
                       </FormControl>
                       <FormMessage />
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -263,39 +269,30 @@ export function HeaderNavigationSection({
                   control={form.control}
                   name={module.requireAuthKey}
                   render={({ field }) => (
-                    <FormItem className='mt-4 flex flex-row items-start justify-between rounded-lg border border-dashed p-4'>
-                      <div className='space-y-0.5 pe-4'>
-                        <FormLabel className='text-base'>
-                          {module.requireAuthTitle}
-                        </FormLabel>
-                        <FormDescription>
-                          {module.requireAuthDescription}
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          disabled={!form.watch(module.requireAuthDependsOn)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <SettingsControlChildren>
+                      <SettingsSwitchItem className='border-b-0 py-2'>
+                        <SettingsSwitchContent>
+                          <FormLabel>{module.requireAuthTitle}</FormLabel>
+                          <FormDescription>
+                            {module.requireAuthDescription}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!form.watch(module.requireAuthDependsOn)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </SettingsSwitchItem>
+                    </SettingsControlChildren>
                   )}
                 />
-              </div>
+              </SettingsControlGroup>
             ))}
           </div>
-
-          <div className='flex flex-wrap gap-3'>
-            <Button type='button' variant='outline' onClick={resetToDefault}>
-              {t('Reset to default')}
-            </Button>
-            <Button type='submit' disabled={updateOption.isPending}>
-              {updateOption.isPending ? t('Saving...') : t('Save navigation')}
-            </Button>
-          </div>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
@@ -23,6 +22,10 @@ type SubscriptionEpayPayRequest struct {
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
@@ -173,7 +176,7 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
-			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+			c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 			return
 		}
 		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
@@ -189,29 +192,29 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 		return
 	}
 
 	client := GetEpayClient()
 	if client == nil {
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 		return
 	}
 	verifyInfo, err := client.Verify(params)
 	if err != nil || !verifyInfo.VerifyStatus {
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 		return
 	}
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
 		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
-			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+			c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 			return
 		}
-		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=success")
+		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=success"))
 		return
 	}
-	c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=pending")
+	c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=pending"))
 }

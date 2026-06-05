@@ -25,13 +25,11 @@ const MODELS_SECTIONS = [
   {
     id: 'metadata',
     titleKey: 'Metadata',
-    descriptionKey: 'Manage model metadata and configuration',
     build: () => null, // Content is rendered directly in the page component
   },
   {
     id: 'deployments',
     titleKey: 'Deployments',
-    descriptionKey: 'Manage model deployments',
     build: () => null, // Content is rendered directly in the page component
   },
 ] as const

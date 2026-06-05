@@ -52,7 +52,7 @@ type ModelSummary struct {
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgTps       float64 `json:"avg_tps"`
-	RequestCount int64   `json:"request_count"`
+	RequestCount int64   `json:"-"`
 }
 
 type SummaryAllResult struct {

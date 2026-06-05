@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import { Check, Copy, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -62,12 +63,17 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   )
 
   const handleCopy = useCallback(async () => {
-    const realKey = resolvedFullKey || (await resolveRealKey(apiKey.id))
+    const realKey = resolvedFullKey
+    if (!realKey) {
+      void resolveRealKey(apiKey.id)
+      toast.info(t('API key is loading, please try again in a moment'))
+      return
+    }
     if (realKey) {
       const ok = await copyToClipboard(realKey)
       if (ok) markKeyCopied(apiKey.id)
     }
-  }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied])
+  }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied, t])
 
   return (
     <div className='flex items-center'>
@@ -116,6 +122,12 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
               size='icon'
               className='size-7 shrink-0'
               onClick={handleCopy}
+              onFocus={() => {
+                if (!resolvedFullKey) void resolveRealKey(apiKey.id)
+              }}
+              onPointerEnter={() => {
+                if (!resolvedFullKey) void resolveRealKey(apiKey.id)
+              }}
               disabled={isLoading}
             />
           }

@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { cn } from '@/lib/utils'
+import { useSuppressSettingsSectionHeader } from './settings-page-context'
+
 type SettingsSectionProps = {
   title: string
   titleProps?: React.HTMLAttributes<HTMLHeadingElement>
-  description?: string
   children: React.ReactNode
   className?: string
 }
@@ -27,32 +29,23 @@ type SettingsSectionProps = {
 export function SettingsSection({
   title,
   titleProps,
-  description,
   children,
   className,
 }: SettingsSectionProps) {
-  const baseClassName = 'space-y-4'
-  const sectionClassName = className
-    ? `${baseClassName} ${className}`
-    : baseClassName
+  const suppressHeader = useSuppressSettingsSectionHeader()
 
   return (
-    <section className={sectionClassName}>
-      <div className='space-y-1'>
-        <h3
-          {...titleProps}
-          className={
-            titleProps?.className
-              ? `text-base font-semibold ${titleProps.className}`
-              : 'text-base font-semibold'
-          }
-        >
-          {title}
-        </h3>
-        {description && (
-          <p className='text-muted-foreground text-sm'>{description}</p>
-        )}
-      </div>
+    <section className={cn('flex flex-col gap-4', className)}>
+      {!suppressHeader && (
+        <div className='flex flex-col gap-1'>
+          <h3
+            {...titleProps}
+            className={cn('text-base font-semibold', titleProps?.className)}
+          >
+            {title}
+          </h3>
+        </div>
+      )}
       {children}
     </section>
   )

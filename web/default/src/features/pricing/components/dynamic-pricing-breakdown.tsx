@@ -311,13 +311,13 @@ export function DynamicPricingBreakdown({
             <Table className='text-sm'>
               <TableHeader>
                 <TableRow className='hover:bg-transparent'>
-                  <TableHead className='text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'>
+                  <TableHead className='text-muted-foreground py-2 font-medium'>
                     {t('Tier')}
                   </TableHead>
                   {visiblePriceFields.map((v) => (
                     <TableHead
                       key={v.field}
-                      className='text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase'
+                      className='text-muted-foreground py-2 text-right font-medium'
                     >
                       {t(v.shortLabel)}
                     </TableHead>

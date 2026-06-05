@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,6 +60,11 @@ func GetRedemption(c *gin.Context) {
 }
 
 func AddRedemption(c *gin.Context) {
+	if !operation_setting.IsPaymentComplianceConfirmed() {
+		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+		return
+	}
+
 	redemption := model.Redemption{}
 	err := c.ShouldBindJSON(&redemption)
 	if err != nil {
