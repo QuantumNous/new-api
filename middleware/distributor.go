@@ -200,7 +200,7 @@ func fillModelRequestFromTask(c *gin.Context, modelRequest *ModelRequest) error 
 		return nil
 	}
 
-	modelRequest.Model = common.GetStringIfEmpty(task.Properties.OriginModelName, task.Properties.UpstreamModelName)
+	modelRequest.Model = task.Properties.OriginModelName
 	return nil
 }
 
