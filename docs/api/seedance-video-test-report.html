@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Seedance 视频生成 API · 生产环境测试报告</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--panel-2:#1e222b;--border:#2a2f3a;--text:#e6e9ef;--muted:#9aa3b2;--accent:#6ea8fe;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--code-bg:#0c0e13;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;font-size:15px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px 96px;}
+  header.hero{border-bottom:1px solid var(--border);background:linear-gradient(180deg,#141822,#0f1115);padding:44px 0 32px;}
+  header.hero .wrap{padding-bottom:0;}
+  .tag{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--green);border:1px solid #1f5234;background:#0f2417;padding:3px 10px;border-radius:999px;margin-bottom:14px;}
+  h1{font-size:28px;margin:0 0 8px;letter-spacing:-.02em;}
+  .sub{color:var(--muted);margin:0;max-width:74ch;}
+  h2{font-size:20px;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  h3{font-size:16px;margin:26px 0 10px;color:#cdd4e0;}
+  h4{font-size:13px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  p{margin:10px 0;}
+  code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--border);padding:1px 6px;border-radius:5px;color:#d9e0ec;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:10px 0;}
+  pre code{background:none;border:none;padding:0;color:#cfe3ff;}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;}
+  th,td{text-align:left;padding:9px 12px;border:1px solid var(--border);vertical-align:top;}
+  th{background:var(--panel-2);color:#cdd4e0;font-weight:600;}
+  td code{white-space:nowrap;}
+  .pass{color:var(--green);font-weight:700;}
+  .fail{color:var(--red);font-weight:700;}
+  .muted{color:var(--muted);}
+  .card{border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:18px 0;background:var(--panel);}
+  .card h3{margin-top:0;}
+  .pill{font-family:var(--mono);font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--border);}
+  .pill.ok{color:var(--green);border-color:#1f5234;background:#0f2417;}
+  .method{font-family:var(--mono);font-weight:700;font-size:12px;padding:2px 8px;border-radius:5px;margin-right:6px;}
+  .post{background:#14321f;color:var(--green);border:1px solid #1f5234;}
+  .get{background:#102a3f;color:var(--accent);border:1px solid #1d4368;}
+  .path{font-family:var(--mono);font-size:13px;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+  .callout{border:1px solid var(--border);border-left-width:3px;border-radius:8px;padding:12px 16px;margin:14px 0;background:var(--panel);}
+  .callout.ok{border-left-color:var(--green);} .callout.info{border-left-color:var(--accent);} .callout.warn{border-left-color:var(--amber);}
+  .callout p:first-child{margin-top:0;} .callout p:last-child{margin-bottom:0;}
+  footer{border-top:1px solid var(--border);margin-top:60px;padding-top:18px;color:var(--muted);font-size:13px;}
+  .kpi{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0;}
+  .kpi div{flex:1;min-width:150px;border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--panel);}
+  .kpi .n{font-size:22px;font-weight:700;} .kpi .l{color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <span class="tag">✓ 全部通过 · 生产环境验证</span>
+  <h1>Seedance 视频生成 API — 测试报告</h1>
+  <p class="sub">对 Kuaizi 丽帧（Seedance 2.0）视频生成渠道在生产环境的端到端验证：官方 <code>content[]</code> 入参、token 用量回传、白标代理、免令牌下载、入参 fail-fast 校验。所有令牌 / API Key 已从本报告中移除。</p>
+</div></header>
+
+<div class="wrap">
+
+  <h2>1. 概要</h2>
+  <div class="kpi">
+    <div><div class="n pass">8 / 8</div><div class="l">用例通过</div></div>
+    <div><div class="n">3</div><div class="l">真实视频生成（均 5s）</div></div>
+    <div><div class="n">2</div><div class="l">入参反例（fail-fast）</div></div>
+    <div><div class="n pass">0</div><div class="l">缺陷</div></div>
+  </div>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>环境</td><td>生产 · <code>https://router.flatkey.ai</code></td></tr>
+    <tr><td>渠道</td><td>Kuaizi 丽帧（Seedance 2.0），ChannelType 58</td></tr>
+    <tr><td>模型</td><td><code>Seedance2.0-fast</code> / <code>Seedance2.0-pro</code>（映射至上游 <code>kuaizi-lizhen-fast/pro</code>）</td></tr>
+    <tr><td>服务版本</td><td>revision <code>newapi-20260605-085346-5a997a2cb1a6</code>（含 seedance 全部变更）</td></tr>
+    <tr><td>测试日期</td><td>2026-06-05</td></tr>
+    <tr><td>结论</td><td><span class="pass">通过</span> — 入参对齐、usage 两套查询一致、白标无泄露、免令牌下载、fail-fast 校验全部符合预期</td></tr>
+  </table>
+  <p class="muted">认证：所有受保护接口请求头携带 <code>Authorization: Bearer &lt;API Key&gt;</code>（本报告已隐去）。下载接口 <code>/v1/videos/{task_id}/content</code> 为匿名（task_id 即凭证）。</p>
+
+  <h2>2. 入参反例（fail-fast 校验）</h2>
+
+  <div class="card">
+    <h3>反例 1 — 不支持的分辨率 <span class="pill ok">PASS</span></h3>
+    <p><span class="method post">POST</span><span class="path">/v1/videos</span></p>
+    <div class="grid2">
+      <div><h4>请求</h4><pre><code>{
+  "model": "Seedance2.0-fast",
+  "content": [{"type":"text","text":"测试"}],
+  "resolution": "2K"
+}</code></pre></div>
+      <div><h4>响应 · HTTP 400</h4><pre><code>{
+  "code": "invalid_request",
+  "message": "unsupported resolution \"2K\"; supported: 480p / 720p / 1080p (higher resolutions require super_resolution_config)",
+  "data": null
+}</code></pre></div>
+    </div>
+    <p class="muted">✅ 提交阶段即拒绝，未发往上游。高于 1080p 需走 <code>super_resolution_config</code>。</p>
+  </div>
+
+  <div class="card">
+    <h3>反例 2 — 空 content <span class="pill ok">PASS</span></h3>
+    <p><span class="method post">POST</span><span class="path">/v1/videos</span></p>
+    <div class="grid2">
+      <div><h4>请求</h4><pre><code>{
+  "model": "Seedance2.0-fast",
+  "content": []
+}</code></pre></div>
+      <div><h4>响应 · HTTP 400</h4><pre><code>{
+  "code": "invalid_request",
+  "message": "seedance request requires a text prompt or at least one image/video",
+  "data": null
+}</code></pre></div>
+    </div>
+    <p class="muted">✅ 至少需要一段文本，或一张图片 / 一段视频。</p>
+  </div>
+
+  <h2>3. 功能测试（端到端：创建 → 轮询 → 下载）</h2>
+
+  <!-- A -->
+  <div class="card">
+    <h3>用例 A — 文生视频（Seedance2.0-fast） <span class="pill ok">PASS</span></h3>
+    <h4>① 创建请求 · POST /v1/videos</h4>
+    <pre><code>{
+  "model": "Seedance2.0-fast",
+  "content": [
+    {"type":"text","text":"一只橘猫在阳光草地上奔跑，电影感慢动作"}
+  ],
+  "resolution": "720p",
+  "ratio": "16:9",
+  "duration": 5
+}</code></pre>
+    <h4>② 创建响应</h4>
+    <pre><code>{
+  "id": "task_ZSPLBq2pfyigKdTQHLVp8cpArd3E4ZIv",
+  "object": "video",
+  "model": "Seedance2.0-fast",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1780652001
+}</code></pre>
+    <h4>③ 最终响应 · GET /v1/videos/{id}（OpenAI 格式）</h4>
+    <pre><code>{
+  "id": "task_ZSPLBq2pfyigKdTQHLVp8cpArd3E4ZIv",
+  "object": "video",
+  "model": "Seedance2.0-fast",
+  "status": "completed",
+  "progress": 100,
+  "created_at": 1780652001,
+  "completed_at": 1780652162,
+  "usage": { "completion_tokens": 108900, "total_tokens": 108900 },
+  "metadata": {
+    "url": "https://router.flatkey.ai/v1/videos/task_ZSPLBq2pfyigKdTQHLVp8cpArd3E4ZIv/content"
+  }
+}</code></pre>
+    <h4>④ 通用格式 · GET /v1/video/generations/{id}（节选）</h4>
+    <pre><code>{
+  "status": "SUCCESS", "progress": "100%",
+  "result_url": "https://router.flatkey.ai/v1/videos/task_ZSPLBq2pfyigKdTQHLVp8cpArd3E4ZIv/content",
+  "usage": { "completion_tokens": 108900, "total_tokens": 108900 },
+  "data": null
+}</code></pre>
+    <table>
+      <tr><th>检查点</th><th>结果</th></tr>
+      <tr><td>状态流转</td><td><span class="pass">completed</span>（耗时 ~161s）</td></tr>
+      <tr><td>usage 两套查询一致</td><td class="pass">✓ 108900 / 108900</td></tr>
+      <tr><td>白标（metadata.url）</td><td class="pass">✓ 代理地址，无上游 host</td></tr>
+      <tr><td>免令牌下载</td><td class="pass">✓ HTTP 200 · video/mp4 · 2,679,365 B</td></tr>
+    </table>
+    <p>🎬 视频链接（匿名可访问）：<a href="https://router.flatkey.ai/v1/videos/task_ZSPLBq2pfyigKdTQHLVp8cpArd3E4ZIv/content">task_ZSPL…4ZIv/content</a></p>
+  </div>
+
+  <!-- B -->
+  <div class="card">
+    <h3>用例 B — 首尾帧图生视频（Seedance2.0-fast） <span class="pill ok">PASS</span></h3>
+    <h4>① 创建请求 · POST /v1/videos</h4>
+    <pre><code>{
+  "model": "Seedance2.0-fast",
+  "content": [
+    {"type":"text","text":"镜头从首帧缓缓过渡到尾帧"},
+    {"type":"image_url","image_url":{"url":"https://picsum.photos/seed/kzf/1280/720.jpg"},"role":"first_frame"},
+    {"type":"image_url","image_url":{"url":"https://picsum.photos/seed/kzl/1280/720.jpg"},"role":"last_frame"}
+  ],
+  "resolution": "720p",
+  "ratio": "16:9",
+  "duration": 5
+}</code></pre>
+    <h4>② 最终响应 · GET /v1/videos/{id}</h4>
+    <pre><code>{
+  "id": "task_he0JzNIc8wyAg9lWloAnLKEudHL26trJ",
+  "object": "video",
+  "model": "Seedance2.0-fast",
+  "status": "completed",
+  "progress": 100,
+  "created_at": 1780652001,
+  "completed_at": 1780652147,
+  "usage": { "completion_tokens": 108900, "total_tokens": 108900 },
+  "metadata": {
+    "url": "https://router.flatkey.ai/v1/videos/task_he0JzNIc8wyAg9lWloAnLKEudHL26trJ/content"
+  }
+}</code></pre>
+    <table>
+      <tr><th>检查点</th><th>结果</th></tr>
+      <tr><td>状态流转</td><td><span class="pass">completed</span>（耗时 ~146s）</td></tr>
+      <tr><td>input_type 推导</td><td class="pass">✓ 含 first/last_frame → first_last_frame 模式</td></tr>
+      <tr><td>usage 两套查询一致</td><td class="pass">✓ 108900 / 108900</td></tr>
+      <tr><td>白标</td><td class="pass">✓ 代理地址</td></tr>
+      <tr><td>免令牌下载</td><td class="pass">✓ HTTP 200 · video/mp4 · 4,049,749 B</td></tr>
+    </table>
+    <p>🎬 视频链接：<a href="https://router.flatkey.ai/v1/videos/task_he0JzNIc8wyAg9lWloAnLKEudHL26trJ/content">task_he0J…6trJ/content</a></p>
+  </div>
+
+  <!-- C -->
+  <div class="card">
+    <h3>用例 C — pro + 画质超分（Seedance2.0-pro） <span class="pill ok">PASS</span></h3>
+    <h4>① 创建请求 · POST /v1/videos</h4>
+    <pre><code>{
+  "model": "Seedance2.0-pro",
+  "content": [
+    {"type":"text","text":"城市夜景延时摄影，霓虹流光"}
+  ],
+  "resolution": "720p",
+  "ratio": "16:9",
+  "duration": 5,
+  "super_resolution_config": { "resolution": "1080p", "scene": "aigc" }
+}</code></pre>
+    <h4>② 最终响应 · GET /v1/videos/{id}</h4>
+    <pre><code>{
+  "id": "task_HfjGobxAaA82A8NVAM8lk9esrg0freSu",
+  "object": "video",
+  "model": "Seedance2.0-pro",
+  "status": "completed",
+  "progress": 100,
+  "created_at": 1780652002,
+  "completed_at": 1780652389,
+  "usage": { "completion_tokens": 108900, "total_tokens": 108900 },
+  "metadata": {
+    "url": "https://router.flatkey.ai/v1/videos/task_HfjGobxAaA82A8NVAM8lk9esrg0freSu/content"
+  }
+}</code></pre>
+    <table>
+      <tr><th>检查点</th><th>结果</th></tr>
+      <tr><td>状态流转</td><td><span class="pass">completed</span>（耗时 ~387s，超分会拉长，符合预期）</td></tr>
+      <tr><td>super_resolution_config 透传</td><td class="pass">✓ 启用超分（720p→1080p）正常出片</td></tr>
+      <tr><td>usage 两套查询一致</td><td class="pass">✓ 108900 / 108900</td></tr>
+      <tr><td>白标</td><td class="pass">✓ 代理地址</td></tr>
+      <tr><td>免令牌下载</td><td class="pass">✓ HTTP 200 · video/mp4 · 2,774,237 B</td></tr>
+    </table>
+    <p>🎬 视频链接：<a href="https://router.flatkey.ai/v1/videos/task_HfjGobxAaA82A8NVAM8lk9esrg0freSu/content">task_HfjG…reSu/content</a></p>
+  </div>
+
+  <h2>4. 逐项核对清单</h2>
+  <table>
+    <tr><th>能力</th><th>结果</th><th>证据</th></tr>
+    <tr><td>官方 content[] 入参（文 / 首尾帧 / 多模态+超分）</td><td class="pass">PASS</td><td>A/B/C 均被正确翻译并由上游出片</td></tr>
+    <tr><td>token usage 回传 · OpenAI 格式（/v1/videos/{id}）</td><td class="pass">PASS</td><td>三条均含 usage</td></tr>
+    <tr><td>token usage 回传 · 通用格式（/v1/video/generations/{id}）</td><td class="pass">PASS</td><td>与 OpenAI 格式数值一致</td></tr>
+    <tr><td>白标：不泄露上游 host / 品牌词</td><td class="pass">PASS</td><td>metadata.url 均为本服务代理地址</td></tr>
+    <tr><td>免令牌下载 /content</td><td class="pass">PASS</td><td>无 Authorization 头返回 200 + video/mp4</td></tr>
+    <tr><td>入参 fail-fast（不支持分辨率）</td><td class="pass">PASS</td><td>2K → 400，未发上游</td></tr>
+    <tr><td>入参校验（空 content）</td><td class="pass">PASS</td><td>→ 400</td></tr>
+    <tr><td>状态机 unknown → in_progress → completed</td><td class="pass">PASS</td><td>轮询日志可见</td></tr>
+  </table>
+
+  <h2>5. 观察与备注</h2>
+  <div class="callout info"><p><strong>usage 数值：</strong>三条 <code>completion_tokens = total_tokens = 108900</code>（均 5s / 720p）。上游按"分辨率×时长"给固定 token 计量，新-api 仅原样透传。用例 C 的超分（→1080p）未体现在 usage 上，属上游计量口径，非网关代码问题。</p></div>
+  <div class="callout ok"><p><strong>计费：</strong>通用格式 <code>quota</code> 字段为 337500（单任务扣费额度），说明定价配置生效、预扣 / 结算正常。</p></div>
+  <div class="callout warn"><p><strong>安全提示：</strong>视频链接 <code>/v1/videos/{task_id}/content</code> 为匿名访问（task_id 即访问凭证），可直接嵌入 <code>&lt;video&gt;</code>；分享即等于授予下载权限。本报告未包含任何 API Key / 令牌。</p></div>
+
+  <footer>Seedance 视频生成 API · 生产环境测试报告 · 生成于 2026-06-05 · 敏感凭证已脱敏</footer>
+</div>
+</body>
+</html>
