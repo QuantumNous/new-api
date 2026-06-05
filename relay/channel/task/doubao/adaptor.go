@@ -27,18 +27,12 @@ import (
 // Request / Response structures
 // ============================
 
-type ContentItem struct {
-	Type     string    `json:"type,omitempty"`
-	Text     string    `json:"text,omitempty"`
-	ImageURL *MediaURL `json:"image_url,omitempty"`
-	VideoURL *MediaURL `json:"video_url,omitempty"`
-	AudioURL *MediaURL `json:"audio_url,omitempty"`
-	Role     string    `json:"role,omitempty"`
-}
-
-type MediaURL struct {
-	URL string `json:"url,omitempty"`
-}
+// ContentItem and MediaURL are the Volcengine seedance content[] item shapes.
+// Aliased to the shared inbound dto so the identical structs are defined once.
+// (Type/url are always set on the outbound body, so the dto's lack of omitempty
+// on those fields produces equivalent JSON.)
+type ContentItem = dto.SeedanceContentItem
+type MediaURL = dto.SeedanceURLObject
 
 type requestPayload struct {
 	Model                 string         `json:"model"`

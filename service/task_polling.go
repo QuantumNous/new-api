@@ -419,6 +419,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 	}
 
+	// Persist upstream token usage so both query formats can surface it.
+	if taskResult.CompletionTokens > 0 || taskResult.TotalTokens > 0 {
+		task.PrivateData.CompletionTokens = taskResult.CompletionTokens
+		task.PrivateData.TotalTokens = taskResult.TotalTokens
+	}
+
 	shouldRefund := false
 	shouldSettle := false
 	quota := task.Quota

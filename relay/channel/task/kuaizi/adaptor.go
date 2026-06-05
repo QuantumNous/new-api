@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -56,6 +57,18 @@ type audioInput struct {
 	Role string `json:"role,omitempty"` // reference_audio
 }
 
+// superResolutionConfig is the chained-upscaling block. A non-empty object
+// enables upscaling: the upstream dispatches a quality-enhancement subtask
+// after the SD2 task succeeds. `resolution` and `resolution_limit` are mutually
+// exclusive — exactly one must be set (enforced upstream, not here).
+type superResolutionConfig struct {
+	Resolution      string `json:"resolution,omitempty"`       // 720p / 1080p / 2k / 4k
+	ResolutionLimit *int   `json:"resolution_limit,omitempty"` // short-edge px [64,2160]
+	Scene           string `json:"scene,omitempty"`            // aigc / short_series / ugc / old_film
+	ToolVersion     string `json:"tool_version,omitempty"`     // standard / professional
+	FPS             *int   `json:"fps,omitempty"`              // output fps [1,120]
+}
+
 // createRequest is the body of POST /create.
 // Every field except prompt+generation_type is optional; only set ones from
 // metadata or top-level TaskSubmitReq are forwarded so we don't override
@@ -72,31 +85,18 @@ type createRequest struct {
 	Ratio          string       `json:"ratio,omitempty"`
 	Duration       *int         `json:"duration,omitempty"`
 	GenerateAudio  *bool        `json:"generate_audio,omitempty"`
+	Watermark      *bool        `json:"watermark,omitempty"`
 	Seed           *int         `json:"seed,omitempty"`
 	WebSearch      *bool        `json:"web_search,omitempty"`
-}
 
-// metadataOverrides mirrors createRequest minus the fields that are always
-// taken from top-level TaskSubmitReq (prompt, generation_type, mode). Anything
-// extra a caller passes via `metadata` lands here.
-type metadataOverrides struct {
-	InputType     string       `json:"input_type,omitempty"`
-	Images        []imageInput `json:"images,omitempty"`
-	Videos        []videoInput `json:"videos,omitempty"`
-	Audios        []audioInput `json:"audios,omitempty"`
-	Resolution    string       `json:"resolution,omitempty"`
-	Ratio         string       `json:"ratio,omitempty"`
-	Duration      *int         `json:"duration,omitempty"`
-	GenerateAudio *bool        `json:"generate_audio,omitempty"`
-	Seed          *int         `json:"seed,omitempty"`
-	WebSearch     *bool        `json:"web_search,omitempty"`
+	SuperResolutionConfig *superResolutionConfig `json:"super_resolution_config,omitempty"`
 }
 
 // envelope is the {code,message,data} wrapper around every upstream response.
 type envelope struct {
-	Code    int             `json:"code"`
-	Message string          `json:"message"`
-	Data    map[string]any  `json:"data"`
+	Code    int            `json:"code"`
+	Message string         `json:"message"`
+	Data    map[string]any `json:"data"`
 }
 
 // statusResponseData is the shape we observe inside envelope.Data for /status.
@@ -105,16 +105,13 @@ type envelope struct {
 //   - failure text lives in `error`, not `fail_reason`
 //   - token counts are nested under `usage`, not flat
 type statusResponseData struct {
-	TaskID   string `json:"task_id"`
-	Status   string `json:"status"`
-	Error    string `json:"error"`
-	Duration int    `json:"duration"`
-	VideoURL string `json:"video_url"`
-	TosKey   string `json:"tos_key"`
-	Usage    struct {
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
+	TaskID   string               `json:"task_id"`
+	Status   string               `json:"status"`
+	Error    string               `json:"error"`
+	Duration int                  `json:"duration"`
+	VideoURL string               `json:"video_url"`
+	TosKey   string               `json:"tos_key"`
+	Usage    dto.OpenAIVideoUsage `json:"usage"`
 }
 
 // ============================
@@ -134,8 +131,21 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
+// ValidateRequestAndSetAction parses the inbound body as the shared seedance
+// content[] request (via taskcommon.BindSeedanceRequest), then runs the
+// channel-specific value checks. BuildRequestBody re-reads the (reusable) body
+// to perform the upstream translation.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	seedReq, err := taskcommon.BindSeedanceRequest(c, info, constant.TaskActionGenerate)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	// Channel-specific value check: the upstream only accepts a narrow set of
+	// top-level resolutions (higher needs super_resolution_config).
+	if err := validateResolution(seedReq.Resolution); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
@@ -149,15 +159,30 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
+// kuaiziExtensions are optional fields beyond the seedance-official schema that
+// clients may set to drive Kuaizi-specific upstream features. Pure seedance
+// callers simply omit them.
+type kuaiziExtensions struct {
+	InputType             string                 `json:"input_type"`
+	WebSearch             *bool                  `json:"web_search"`
+	SuperResolutionConfig *superResolutionConfig `json:"super_resolution_config"`
+}
+
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
+	// The official seedance fields and the Kuaizi-only extension keys are
+	// siblings in the same JSON body; decode both in a single pass.
+	var inbound struct {
+		dto.SeedanceVideoRequest
+		kuaiziExtensions
+	}
+	if err := common.UnmarshalBodyReusable(c, &inbound); err != nil {
 		return nil, err
 	}
+	seedReq := inbound.SeedanceVideoRequest
 
 	modelName := info.UpstreamModelName
 	if modelName == "" {
-		modelName = req.Model
+		modelName = seedReq.Model
 	}
 	mode, ok := ModelToMode(modelName)
 	if !ok {
@@ -165,65 +190,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			modelName, ModelLizhenFast, ModelLizhenPro)
 	}
 
-	body := createRequest{
-		Prompt:         req.Prompt,
-		GenerationType: "video",
-		Mode:           mode,
-	}
+	body := buildKuaiziCreateRequest(&seedReq, inbound.kuaiziExtensions, mode)
 
-	if req.HasImage() {
-		for _, u := range req.Images {
-			body.Images = append(body.Images, imageInput{URL: u})
-		}
-	}
-
-	// Caller-supplied overrides take precedence over the defaults above.
-	if len(req.Metadata) > 0 {
-		var over metadataOverrides
-		if err := req.UnmarshalMetadata(&over); err != nil {
-			return nil, errors.Wrap(err, "unmarshal metadata failed")
-		}
-		if over.InputType != "" {
-			body.InputType = over.InputType
-		}
-		if len(over.Images) > 0 {
-			body.Images = over.Images
-		}
-		if len(over.Videos) > 0 {
-			body.Videos = over.Videos
-		}
-		if len(over.Audios) > 0 {
-			body.Audios = over.Audios
-		}
-		if over.Resolution != "" {
-			body.Resolution = over.Resolution
-		}
-		if over.Ratio != "" {
-			body.Ratio = over.Ratio
-		}
-		if over.Duration != nil {
-			body.Duration = over.Duration
-		}
-		if over.GenerateAudio != nil {
-			body.GenerateAudio = over.GenerateAudio
-		}
-		if over.Seed != nil {
-			body.Seed = over.Seed
-		}
-		if over.WebSearch != nil {
-			body.WebSearch = over.WebSearch
-		}
-	}
-
-	// Top-level shortcut: seconds/duration on TaskSubmitReq wins over metadata
-	// only when metadata didn't already set duration.
-	if body.Duration == nil {
-		if sec, parseErr := strconv.Atoi(req.Seconds); parseErr == nil && sec > 0 {
-			d := sec
-			body.Duration = &d
-		} else if req.Duration > 0 {
-			d := req.Duration
-			body.Duration = &d
+	if common.DebugEnabled {
+		if dropped := droppedSeedanceFields(&seedReq); len(dropped) > 0 {
+			common.SysLog(fmt.Sprintf("[kuaizi] ignoring unsupported seedance fields: %s", strings.Join(dropped, ", ")))
 		}
 	}
 
@@ -239,6 +210,84 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		common.SysLog(fmt.Sprintf("[kuaizi] POST %s/create body=%s", a.baseURL, string(data)))
 	}
 	return bytes.NewReader(data), nil
+}
+
+// supportedResolutions is the set of top-level resolutions the upstream /create
+// accepts. Higher targets (2k/4k) are only reachable via super_resolution_config.
+var supportedResolutions = map[string]bool{"480p": true, "720p": true, "1080p": true}
+
+// validateResolution rejects a top-level resolution the upstream can't honor,
+// failing fast at submit time instead of surfacing an upstream error later.
+func validateResolution(r string) error {
+	if r == "" || supportedResolutions[r] {
+		return nil
+	}
+	return fmt.Errorf("unsupported resolution %q; supported: 480p / 720p / 1080p (higher resolutions require super_resolution_config)", r)
+}
+
+// droppedSeedanceFields lists seedance-official fields a caller set that the
+// upstream does not support and that are therefore silently dropped. Used only
+// for a DEBUG log so operators can see why a parameter had no effect.
+func droppedSeedanceFields(r *dto.SeedanceVideoRequest) []string {
+	var dropped []string
+	if r.CameraFixed != nil {
+		dropped = append(dropped, "camera_fixed")
+	}
+	if r.Frames != nil {
+		dropped = append(dropped, "frames")
+	}
+	if r.ReturnLastFrame != nil {
+		dropped = append(dropped, "return_last_frame")
+	}
+	if r.CallbackURL != "" {
+		dropped = append(dropped, "callback_url")
+	}
+	return dropped
+}
+
+// buildKuaiziCreateRequest translates the shared seedance content[] request
+// (plus Kuaizi-only extensions) into the flat upstream /create body. Pure
+// function — no gin/IO — so the mapping is unit-testable in isolation.
+//
+// Fields accepted for seedance-official compatibility but unsupported by the
+// Kuaizi upstream (camera_fixed, frames, callback_url, return_last_frame) are
+// intentionally dropped.
+func buildKuaiziCreateRequest(seedReq *dto.SeedanceVideoRequest, ext kuaiziExtensions, mode string) createRequest {
+	body := createRequest{
+		Prompt:                seedReq.PromptText(),
+		GenerationType:        "video",
+		Mode:                  mode,
+		Resolution:            seedReq.Resolution,
+		Ratio:                 seedReq.Ratio,
+		Duration:              seedReq.Duration,
+		GenerateAudio:         seedReq.GenerateAudio,
+		Watermark:             seedReq.Watermark,
+		Seed:                  seedReq.Seed,
+		WebSearch:             ext.WebSearch,
+		SuperResolutionConfig: ext.SuperResolutionConfig,
+	}
+
+	for _, m := range seedReq.Images() {
+		body.Images = append(body.Images, imageInput{URL: m.URL, Role: m.Role})
+	}
+	for _, m := range seedReq.Videos() {
+		body.Videos = append(body.Videos, videoInput{URL: m.URL, Role: m.Role})
+	}
+	for _, m := range seedReq.Audios() {
+		body.Audios = append(body.Audios, audioInput{URL: m.URL, Role: m.Role})
+	}
+
+	// input_type: an explicit extension wins; otherwise derive from image roles.
+	switch {
+	case ext.InputType != "":
+		body.InputType = ext.InputType
+	case seedReq.HasFirstLastFrame():
+		body.InputType = "first_last_frame"
+	case len(body.Images) > 0:
+		body.InputType = "reference"
+	}
+
+	return body
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {
@@ -343,6 +392,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 
 	info := &relaycommon.TaskInfo{Code: 0}
 	switch data.Status {
+	case "pending":
+		info.Status = model.TaskStatusQueued
+		info.Progress = "20%"
+	case "submitted":
+		info.Status = model.TaskStatusSubmitted
+		info.Progress = "10%"
 	case "running":
 		info.Status = model.TaskStatusInProgress
 		info.Progress = "50%"
@@ -425,6 +480,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	ov.CreatedAt = originTask.CreatedAt
 	ov.CompletedAt = originTask.UpdatedAt
 	ov.Model = originTask.Properties.OriginModelName
+	// Token usage is injected generically from task.PrivateData by the relay
+	// OpenAI-video fetch path (see relay.injectUsageFromPrivateData), so it is
+	// not duplicated here.
 
 	if originTask.Status == model.TaskStatusFailure {
 		ov.Error = &dto.OpenAIVideoError{

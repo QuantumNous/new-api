@@ -27,7 +27,16 @@ type OpenAIVideo struct {
 	Size               string            `json:"size,omitempty"`
 	RemixedFromVideoID string            `json:"remixed_from_video_id,omitempty"`
 	Error              *OpenAIVideoError `json:"error,omitempty"`
+	Usage              *OpenAIVideoUsage `json:"usage,omitempty"`
 	Metadata           map[string]any    `json:"metadata,omitempty"`
+}
+
+// OpenAIVideoUsage carries the token usage reported by upstream video
+// providers. Kept minimal (only the fields providers actually return for video
+// tasks) so the response stays clean — unlike the heavyweight chat dto.Usage.
+type OpenAIVideoUsage struct {
+	CompletionTokens int `json:"completion_tokens,omitempty"`
+	TotalTokens      int `json:"total_tokens,omitempty"`
 }
 
 func (m *OpenAIVideo) SetProgressStr(progress string) {

@@ -98,3 +98,116 @@ task 目录是所有**异步任务类 provider** 适配器的容器。与同步 
 - `github.com/golang-jwt/jwt/v5` — Kling JWT 鉴权
 
 <!-- MANUAL: 手动补充内容写在此分隔线下方，重新生成时保留 -->
+
+## SOP：新增 seedance 系渠道适配器（供后续同事 / AI / 会话遵循）
+
+> 适用场景：要对接一个**新的 seedance 模型渠道商**（上游同样是 seedance 2.0 系视频生成）。
+> 目标形态：**new-api 对客户端统一暴露「官方 seedance `content[]` 格式」，每个渠道适配器在内部把它映射成自己上游所需的参数。** 客户端无需关心背后是哪家供应商。
+> 参考实现：`relay/channel/task/kuaizi/`（第一个样板）。
+
+### 第 0 步：先判断「要不要新增渠道类型」（别一上来就建类型）
+
+格式分发是**按渠道类型（ChannelType → adaptor）**走的，不是按模型名。先分清两个概念：
+
+- **渠道实例**（channel）：DB 里一条配置（base URL / key / 服务哪些 model）。管理员后台建，**无需代码**。
+- **渠道类型**（`ChannelType` 常量 + 对应 adaptor）：决定上游协议与入参映射，**代码层**。
+
+| 情况 | 判断 | 怎么做 |
+|---|---|---|
+| **A：新供应商有自己的上游 API**（endpoint/鉴权/上游 body 与现有不同）——绝大多数 | 需要新协议 | **新增渠道类型 + 写 adaptor**（走下面步骤）|
+| **B：新供应商上游 API 与某个已有渠道类型完全一致**（少见） | 协议相同 | **不写代码**，后台新建一个该类型的渠道实例（换 base URL/key/模型名）即可 |
+
+模型名相关（与命中格式无关，见正文末「与模型名的关系」）：
+- 命中官方 `content[]` 格式靠的是 **adaptor 复用 `BindSeedanceRequest`**，各渠道模型名可随意。
+- 若要一个模型名在多个渠道间**负载均衡/容灾**，把它配成**同名 model 挂多个渠道**——但参与的渠道必须**同属 seedance 系（adaptor 都吃 content[]）**；切勿把同名 model 同时挂到非 seedance 渠道（如 sora/kling），否则同一份 content[] 请求换渠道会解析失败。
+
+下文均针对**情况 A**。
+
+### 架构接缝（务必沿用，不要每个渠道各发明一套入参）
+
+```
+客户端（官方 content[] 格式，POST /v1/videos）
+        │
+        ▼
+dto.SeedanceVideoRequest         ← 共享、provider-neutral 入参契约（dto/video_seedance.go）
+  + taskcommon.BindSeedanceRequest ← 共享：解析 + 校验 + 合成 task_request + 设 Action
+        │
+        ▼
+build<Channel>CreateRequest()    ← 【渠道私有】纯函数：seedance → 本渠道上游 body
+        ▼
+该渠道上游 wire 格式
+```
+
+### 职责划分
+
+| 共享层（已写好，直接复用，**勿重复造**） | 每个新渠道私有（接入时只写这部分） |
+|---|---|
+| `dto.SeedanceVideoRequest` + `PromptText()/Images()/Videos()/Audios()/HasFirstLastFrame()/Validate()` | model → 上游档位/变体 的映射 |
+| `taskcommon.BindSeedanceRequest(c, info, action)`：解析+校验+合成 `task_request`+设 `Action` | `build<Channel>CreateRequest()`：字段映射纯函数 |
+| 出参 `usage`（轮询落 `task.PrivateData` → 两套查询自动带，见 `service/task_polling.go` + `relay/relay_task.go`） | 上游不支持字段的丢弃 + 取值域校验（如 `validateResolution`） |
+| 白标（`taskcommon.whitelabelChannels` 注册 → 结果走代理 URL、错误 `ScrubBrandedText`） | 本渠道扩展字段（非官方，如 `web_search` / 超分），用独立 struct 从同一 reusable body 解析 |
+| 任务 ID 隔离、计费三段式（`BaseBilling`） | `ConvertToOpenAIVideo`（成功用 `GetResultURL()` 代理地址，失败脱敏） |
+
+### 步骤
+
+1. **建目录** `relay/channel/task/<name>/`，`adaptor.go` 实现 `channel.TaskAdaptor`，嵌入 `taskcommon.BaseBilling`。
+2. **ValidateRequestAndSetAction**：调用共享帮手，再做渠道私有取值校验。
+   ```go
+   func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+       seedReq, err := taskcommon.BindSeedanceRequest(c, info, constant.TaskActionGenerate)
+       if err != nil {
+           return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+       }
+       if err := validateResolution(seedReq.Resolution); err != nil { // 渠道私有
+           return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+       }
+       return nil
+   }
+   ```
+3. **BuildRequestBody**：从（reusable）body 解析「官方字段 + 本渠道扩展」，调私有映射函数。
+   ```go
+   var inbound struct {
+       dto.SeedanceVideoRequest
+       <channel>Extensions // 仅本渠道支持的非官方字段；纯官方客户端不传
+   }
+   common.UnmarshalBodyReusable(c, &inbound)
+   mode, ok := ModelToMode(info.UpstreamModelName) // 或本渠道的 model 映射
+   body := build<Channel>CreateRequest(&inbound.SeedanceVideoRequest, inbound.<channel>Extensions, mode)
+   data, _ := common.MarshalNoHTMLEscape(body) // 保留 URL 里的 '&'，勿用会 HTML 转义的 Marshal
+   ```
+4. **映射纯函数** `build<Channel>CreateRequest(*dto.SeedanceVideoRequest, ext, mode) <channelBody>`：
+   - text → 上游 prompt 字段；`Images()/Videos()/Audios()` 的 URL+role → 上游对应数组；
+   - `input_type` 之类按 `HasFirstLastFrame()` 推断；
+   - **上游不支持的官方字段直接不映射**（如 `camera_fixed/frames/callback_url/return_last_frame`），并在 `common.DebugEnabled` 下用 `droppedSeedanceFields`-式日志提示；
+   - 抽成纯函数（无 gin/IO）方便单测。
+5. **ParseTaskResult**：上游状态/usage → 统一 `relaycommon.TaskInfo`（状态归一为 `SUBMITTED/QUEUED/IN_PROGRESS/SUCCESS/FAILURE`；`CompletionTokens/TotalTokens` 填上即可，框架自动落库 + 两套查询回传）。
+6. **ConvertToOpenAIVideo**：成功 `ov.SetMetadata("url", originTask.GetResultURL())`（白标代理地址，**绝不暴露上游真实地址**）；失败 `taskcommon.ScrubBrandedText`。
+7. **注册**：`relay/relay_adaptor.go` 的 `GetTaskAdaptor`；`setting/ratio_setting` 加模型价格/倍率；白标渠道在 `taskcommon.whitelabelChannels`（和品牌词）注册；`constant/` 加 `ChannelType<Name>`。
+
+### Rule / 注意
+
+- **Rule 1**：JSON 全用 `common.*`（出站保留 `&` 用 `common.MarshalNoHTMLEscape`）。
+- **Rule 5**：可选标量字段用指针 + `omitempty`（显式 `false/0` 也要发上游，不传则省略）。
+- **白标**：结果 URL 只给 `/v1/videos/{task_id}/content` 代理；错误脱敏；不要在任何返回/文档里出现上游供应商名、上游 host、内部模型名。
+- **fail fast**：上游不支持的取值（如某渠道 resolution 上限）在 `ValidateRequestAndSetAction` 阶段就报错，别等发到上游才失败。
+- **两套查询**：`GET /v1/videos/{id}`（OpenAI 格式，原生带 `usage`，推荐）与 `GET /v1/video/generations/{id}`（私有格式，也已带 `usage`）。
+
+### 验收 Checklist
+
+- [ ] 客户端按官方 `content[]` 发 → 创建/轮询/下载三步打通
+- [ ] `usage` 在两套查询都出现（成功任务）
+- [ ] 上游不支持字段被丢弃且有 DEBUG 提示；不支持取值提前报错
+- [ ] 白标：响应/日志无上游品牌、host、内部模型名
+- [ ] 单测：映射纯函数 + Validate/取值校验 + ConvertToOpenAIVideo usage
+- [ ] `go build ./...`、`go test ./relay/channel/task/... ./dto/...`、`go vet` 全绿
+
+### 关键文件
+
+| 文件 | 作用 |
+|---|---|
+| `dto/video_seedance.go` | 共享入参契约 `SeedanceVideoRequest` + 方法 |
+| `dto/openai_video.go` | `OpenAIVideo` + `OpenAIVideoUsage`（出参 usage） |
+| `relay/channel/task/taskcommon/seedance.go` | `BindSeedanceRequest` 共享入口 |
+| `relay/channel/task/kuaizi/adaptor.go` | **参考实现**（映射、取值校验、丢弃日志、usage） |
+| `service/task_polling.go` / `relay/relay_task.go` | usage 落库（`PrivateData`）+ 两套查询回传 |
+| `docs/api/seedance-video-api.html` | 对客户（白标）API 文档模板 |

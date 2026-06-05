@@ -128,6 +128,15 @@ When working on tiered/dynamic billing (expression-based pricing), you MUST read
 
 Before running any `terraform`, `gcloud`, or other command that touches GCP infrastructure (project `vocai-gemini-prod`), you MUST read `deploy/gcp/docs/OPERATIONS.md` first. It documents Terraform state location, the two separate auth systems (ADC vs user CLI), Cloud Run fields owned by CI/CD that must stay in `lifecycle.ignore_changes`, the env-var-update / revision-conflict workaround, the HTTPS downtime window during managed SSL cert rotation (always warn the user before applying `lb_domains` changes), Cloudflare DNS-only constraint for depth-3 hostnames, and the whitelabel channel registry. Companion docs: `INFRASTRUCTURE.md` (resource inventory), `DEPLOYMENT.md` (deploy/rollback procedures).
 
+### Rule 8: New Seedance Video Channel — Follow the SOP in `relay/channel/task/AGENTS.md`
+
+When onboarding a **new seedance-based video channel supplier** (any upstream serving seedance 2.0–style video generation), you MUST read the「新增 seedance 系渠道适配器 SOP」section in `relay/channel/task/AGENTS.md` first and follow its architecture seam:
+
+- new-api exposes ONE universal client-facing format — the official seedance `content[]` request (`dto.SeedanceVideoRequest`); do NOT invent a new per-channel inbound format.
+- Reuse `taskcommon.BindSeedanceRequest` (parse + validate + synthesize `task_request` + set Action). Each channel only writes its own `build<Channel>CreateRequest` mapping function (seedance → that channel's upstream wire format), its value-domain checks (fail fast on unsupported values), and registration.
+- Whitelabel is mandatory: never leak the upstream supplier name, host, or internal model name in responses/logs/docs; results go through the `/v1/videos/{task_id}/content` proxy. Token `usage` is surfaced automatically via `task.PrivateData`.
+- Reference implementation: `relay/channel/task/kuaizi/`.
+
 ---
 
 ## Code Map — 按需加载的模块级文档（重要）
@@ -164,7 +173,7 @@ Before running any `terraform`, `gcloud`, or other command that touches GCP infr
 #### Relay 中继子系统
 - `relay/AGENTS.md` — 总入口、handler 分发与计费生命周期
 - `relay/channel/AGENTS.md` — 40+ provider 适配器模式（**新增 channel 必读**，含 Rule 4）
-- `relay/channel/task/AGENTS.md` — 异步任务类 provider（kling/sora/suno/jimeng/kuaizi …）
+- `relay/channel/task/AGENTS.md` — 异步任务类 provider（kling/sora/suno/jimeng/kuaizi …）；**含「新增 seedance 系渠道适配器 SOP」（→ Rule 8）**
 - `relay/common/AGENTS.md` — RelayInfo / BillingSettler / StreamStatus / streamSupportedChannels
 - `relay/common_handler/AGENTS.md` — 跨 provider 复用的响应处理器
 - `relay/constant/AGENTS.md` — RelayMode / Path2RelayMode
@@ -173,14 +182,14 @@ Before running any `terraform`, `gcloud`, or other command that touches GCP infr
 
 #### 内部包 pkg/
 - `pkg/AGENTS.md` — 子包总览
-- `pkg/billingexpr/AGENTS.md` — 计费表达式（→ Rule 7 / `expr.md`）
+- `pkg/billingexpr/AGENTS.md` — 计费表达式（→ Rule 6 / `expr.md`）
 - `pkg/cachex/AGENTS.md` — 双层缓存（Redis + 内存）
 - `pkg/ionet/AGENTS.md` — HTTP 客户端抽象
 - `pkg/perf_metrics/AGENTS.md` — 性能指标采集
 
 #### 配置 setting/
 - `setting/AGENTS.md` — 配置注册体系总览
-- `setting/billing_setting/AGENTS.md` — 计费相关配置（→ Rule 7）
+- `setting/billing_setting/AGENTS.md` — 计费相关配置（→ Rule 6）
 - `setting/config/AGENTS.md` — ConfigManager 与 DB 序列化
 - `setting/console_setting/AGENTS.md` — 控制台 UI 配置
 - `setting/model_setting/AGENTS.md` — 模型相关配置
@@ -197,7 +206,7 @@ Before running any `terraform`, `gcloud`, or other command that touches GCP infr
 
 #### 部署与文档
 - `deploy/AGENTS.md` — 部署目录总览
-- `deploy/gcp/AGENTS.md` — GCP 部署入口（→ Rule 8 / `OPERATIONS.md`）
+- `deploy/gcp/AGENTS.md` — GCP 部署入口（→ Rule 7 / `OPERATIONS.md`）
 - `docs/AGENTS.md` — 面向人类的项目文档导航
 - `logger/AGENTS.md` — 日志输出层
 - `electron/AGENTS.md` — 桌面端打包
