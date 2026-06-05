@@ -124,8 +124,20 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(data), nil
 }
 
+// normalizeAcceptedStatus rewrites a 202 Accepted to 200 OK in place. The generic
+// task orchestrator (relay/relay_task.go) rejects any non-200 from DoRequest
+// BEFORE DoResponse runs, so a 202 on the signed submit/poll would never reach
+// DoResponse (which stores poll_url). We normalize here so DoResponse always sees
+// 200 and keys its sync-vs-async decision on poll_url presence, not status code.
+func normalizeAcceptedStatus(resp *http.Response) {
+	if resp != nil && resp.StatusCode == http.StatusAccepted {
+		resp.StatusCode = http.StatusOK
+	}
+}
+
 // DoRequest performs the x402 two-trip submit: first POST (unpaid) expecting 402,
-// then sign with the wallet key and resend. The signed retry returns 202.
+// then sign with the wallet key and resend. The signed retry returns 202, which
+// we normalize to 200 so the generic orchestrator forwards it to DoResponse.
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	bodyBytes, err := io.ReadAll(requestBody)
 	if err != nil {
@@ -136,6 +148,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 		return nil, err
 	}
 	if first.StatusCode != http.StatusPaymentRequired {
+		normalizeAcceptedStatus(first)
 		return first, nil
 	}
 	defer func() { _, _ = io.Copy(io.Discard, first.Body); _ = first.Body.Close() }()
@@ -145,7 +158,20 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	if err != nil {
 		return nil, err
 	}
-	return a.signedRequest(http.MethodPost, fullURL, bodyBytes, sig, info.ChannelSetting.Proxy)
+	signed, err := a.signedRequest(http.MethodPost, fullURL, bodyBytes, sig, info.ChannelSetting.Proxy)
+	if err != nil {
+		return nil, err
+	}
+	if signed.StatusCode == http.StatusPaymentRequired {
+		// Signature was rejected even after signing. Do NOT return the 402 response:
+		// the orchestrator would later reclassify a non-error 402 as in_progress and
+		// re-sign (re-pay) on every poll. Surface a Go error so we stop, paying once.
+		body, _ := io.ReadAll(signed.Body)
+		_ = signed.Body.Close()
+		return nil, fmt.Errorf("blockrun-seedance: payment signature rejected by upstream (402 after signing): %s", taskcommon.ScrubBrandedText(string(body)))
+	}
+	normalizeAcceptedStatus(signed)
+	return signed, nil
 }
 
 // signedRequest issues an x402-signed request (PAYMENT-SIGNATURE + X-PAYMENT).
@@ -180,6 +206,12 @@ type submitResponse struct {
 
 // DoResponse parses the submit result, stores poll_url as the upstream task id,
 // and returns the client-facing OpenAI video envelope (public task id only).
+//
+// By the time we get here the status is always 200 (DoRequest normalized the 202
+// submit, and the orchestrator already rejected real upstream errors). The
+// sync-vs-async decision therefore keys on poll_url PRESENCE: poll_url present is
+// the only success path; its absence is a malformed submit and we fail the whole
+// task (refund quota, no stuck task) rather than store a fragile sentinel id.
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -188,29 +220,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
-	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
-		taskErr = service.TaskErrorWrapper(
-			fmt.Errorf("blockrun-seedance submit status=%d body=%s", resp.StatusCode, responseBody),
-			"upstream_error", http.StatusBadGateway)
-		return
-	}
-
 	var sub submitResponse
 	if err := common.Unmarshal(responseBody, &sub); err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
 	if sub.PollURL == "" {
-		// Rare synchronous 200-at-submit: no poll_url; persist the body and let
-		// ParseTaskResult treat the presence of data[0].url as success.
-		if resp.StatusCode == http.StatusOK {
-			taskID = a.baseURL + videoGenerationsPath // sentinel, unused for sync result
-			taskData = responseBody
-			a.writeClientEnvelope(c, info)
-			return
-		}
 		taskErr = service.TaskErrorWrapper(
-			fmt.Errorf("blockrun-seedance 202 without poll_url body=%s", responseBody),
+			fmt.Errorf("blockrun-seedance: submit returned no poll_url"),
 			"invalid_response", http.StatusBadGateway)
 		return
 	}
@@ -235,16 +252,24 @@ func (a *TaskAdaptor) writeClientEnvelope(c *gin.Context, info *relaycommon.Rela
 	c.JSON(http.StatusOK, ov)
 }
 
-// absoluteURL resolves a possibly-relative poll_url against the gateway origin.
+// absoluteURL resolves a possibly-relative poll_url against the channel base URL.
+// net/url.ResolveReference correctly handles every form the gateway may return:
+// absolute ("https://h/p" stays as-is), root-relative ("/v1/x" → base origin),
+// path-relative ("poll/x" → under the base path), and scheme-relative ("//cdn/x"
+// → inherits the base scheme).
 func (a *TaskAdaptor) absoluteURL(pollURL string) (string, error) {
-	if len(pollURL) >= 7 && (pollURL[:7] == "http://" || (len(pollURL) >= 8 && pollURL[:8] == "https://")) {
-		return pollURL, nil
+	ref, err := url.Parse(pollURL)
+	if err != nil {
+		return "", fmt.Errorf("parse poll url: %w", err)
+	}
+	if ref.IsAbs() {
+		return ref.String(), nil
 	}
 	base, err := url.Parse(a.baseURL)
 	if err != nil {
 		return "", fmt.Errorf("parse base url: %w", err)
 	}
-	return fmt.Sprintf("%s://%s%s", base.Scheme, base.Host, pollURL), nil
+	return base.ResolveReference(ref).String(), nil
 }
 
 // statusResponse is the poll body. While running the gateway returns 202 with a
@@ -279,6 +304,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusPaymentRequired {
+		normalizeAcceptedStatus(resp)
 		return resp, nil
 	}
 	// 402 on poll: sign and retry once.
@@ -287,7 +313,21 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if err != nil {
 		return nil, err
 	}
-	return a.signedRequest(http.MethodGet, pollURL, nil, sig, proxy)
+	signed, err := a.signedRequest(http.MethodGet, pollURL, nil, sig, proxy)
+	if err != nil {
+		return nil, err
+	}
+	if signed.StatusCode == http.StatusPaymentRequired {
+		// Still 402 after signing the poll. Do NOT return this response: the poller
+		// hands the body straight to ParseTaskResult, which would classify the
+		// payment-required JSON as in_progress and re-sign (re-pay) on every poll.
+		// Returning a Go error makes the poller skip this tick without re-paying.
+		respBody, _ := io.ReadAll(signed.Body)
+		_ = signed.Body.Close()
+		return nil, fmt.Errorf("blockrun-seedance: payment signature rejected by upstream (402 after signing): %s", taskcommon.ScrubBrandedText(string(respBody)))
+	}
+	normalizeAcceptedStatus(signed)
+	return signed, nil
 }
 
 // ParseTaskResult maps the poll response to a unified TaskInfo. The success URL

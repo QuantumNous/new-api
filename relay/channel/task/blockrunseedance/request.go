@@ -12,7 +12,10 @@ import (
 // pointers + omitempty so an explicit false/0 still reaches the gateway and an
 // unset field is omitted (CLAUDE.md Rule 5).
 type createRequest struct {
-	Prompt          string `json:"prompt,omitempty"`
+	// Prompt is always sent (no omitempty) to match the upstream client, which
+	// always includes a "prompt" key — even for an image-only request where the
+	// prompt is empty (FIX #9).
+	Prompt          string `json:"prompt"`
 	Model           string `json:"model"`
 	ImageURL        string `json:"image_url,omitempty"`
 	RealFaceAssetID string `json:"real_face_asset_id,omitempty"`
@@ -46,9 +49,46 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 	return body
 }
 
+// supportedResolutions is the set of top-level resolutions this channel accepts
+// (case-insensitive; "" = model default). Anything else fails fast at submit.
+var supportedResolutions = map[string]bool{
+	"360p":  true,
+	"480p":  true,
+	"720p":  true,
+	"1080p": true,
+	"4k":    true,
+}
+
+// validateResolution rejects a resolution the channel can't honor, failing fast
+// at submit time instead of surfacing an upstream error later. "" (model
+// default) is allowed; matching is case-insensitive.
+func validateResolution(r string) error {
+	if r == "" || supportedResolutions[strings.ToLower(r)] {
+		return nil
+	}
+	return fmt.Errorf("unsupported resolution %q; supported: 360p / 480p / 720p / 1080p / 4k", r)
+}
+
 // validateSeedanceValues fails fast on value-domain violations so an upstream
 // 4xx never burns a pre-charge. pseudoModel is the client-facing model name.
 func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensions, pseudoModel string) error {
+	// BlockRun Seedance only supports text-to-video and single-image-to-video.
+	// Reject any input mode this channel cannot serve before the asset block.
+	if len(seed.Videos()) > 0 {
+		return fmt.Errorf("video input is not supported by this channel")
+	}
+	if len(seed.Audios()) > 0 {
+		return fmt.Errorf("audio input is not supported by this channel")
+	}
+	if len(seed.Images()) > 1 {
+		return fmt.Errorf("only a single seed image is supported")
+	}
+	if seed.HasFirstLastFrame() {
+		return fmt.Errorf("first_frame/last_frame image roles are not supported")
+	}
+	if err := validateResolution(seed.Resolution); err != nil {
+		return err
+	}
 	if ext.RealFaceAssetID != "" {
 		if !strings.HasPrefix(ext.RealFaceAssetID, "ta_") {
 			return fmt.Errorf("real_face_asset_id must start with 'ta_'")

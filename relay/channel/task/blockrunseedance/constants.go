@@ -18,10 +18,18 @@ var ModelList = []string{
 // modelToUpstream maps the whitelabel pseudo model name to the real upstream
 // model id sent in the gateway request body. Unknown models are rejected at
 // BuildRequestBody (fail fast) so an upstream 4xx never burns a pre-charge.
+//
+// The wire names (bytedance/seedance-*) map to themselves (identity) so an
+// operator-configured model mapping that targets the upstream id directly still
+// resolves instead of failing the lookup and burning the request.
 var modelToUpstream = map[string]string{
 	"seedance-2.0":      "bytedance/seedance-2.0",
 	"seedance-2.0-fast": "bytedance/seedance-2.0-fast",
 	"seedance-1.5-pro":  "bytedance/seedance-1.5-pro",
+	// Identity entries for operator mappings targeting the wire name.
+	"bytedance/seedance-2.0":      "bytedance/seedance-2.0",
+	"bytedance/seedance-2.0-fast": "bytedance/seedance-2.0-fast",
+	"bytedance/seedance-1.5-pro":  "bytedance/seedance-1.5-pro",
 }
 
 // upstreamModel resolves the whitelabel pseudo name to the upstream model id.
@@ -31,7 +39,15 @@ func upstreamModel(name string) (string, bool) {
 }
 
 // supportsRealFaceAsset reports whether the upstream model accepts a
-// real_face_asset_id (Seedance 2.0 / 2.0-fast only, per BlockRun docs).
-func supportsRealFaceAsset(pseudoModel string) bool {
-	return pseudoModel == "seedance-2.0" || pseudoModel == "seedance-2.0-fast"
+// real_face_asset_id (Seedance 2.0 / 2.0-fast only, per BlockRun docs). Accepts
+// both the whitelabel pseudo names and the wire names so an operator mapping
+// that targets the upstream id keeps the asset capability.
+func supportsRealFaceAsset(model string) bool {
+	switch model {
+	case "seedance-2.0", "seedance-2.0-fast",
+		"bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
+		return true
+	default:
+		return false
+	}
 }
