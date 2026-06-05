@@ -1,9 +1,26 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -17,13 +34,21 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const dataDashboardSchema = z.object({
   DataExportEnabled: z.boolean(),
@@ -70,29 +95,28 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
   const isEnabled = form.watch('DataExportEnabled')
 
   return (
-    <SettingsSection
-      title={t('Data Dashboard')}
-      description={t('Configure experimental data export for the dashboard')}
-    >
+    <SettingsSection title={t('Data Dashboard')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+          />
           <FormField
             control={form.control}
             name='DataExportEnabled'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
-                    {t('Enable Data Dashboard')}
-                  </FormLabel>
-                </div>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable Data Dashboard')}</FormLabel>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -109,9 +133,8 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                       min={1}
                       max={1440}
                       step={1}
+                      {...safeNumberFieldProps(field)}
                       disabled={!isEnabled}
-                      value={field.value}
-                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
                     />
                   </FormControl>
                   <FormDescription>
@@ -129,6 +152,12 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                 <FormItem>
                   <FormLabel>{t('Default time granularity')}</FormLabel>
                   <Select
+                    items={[
+                      ...granularityOptions.map((option) => ({
+                        value: option.value,
+                        label: t(option.label),
+                      })),
+                    ]}
                     onValueChange={field.onChange}
                     value={field.value}
                     disabled={!isEnabled}
@@ -138,12 +167,14 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                         <SelectValue placeholder={t('Select granularity')} />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      {granularityOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {granularityOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {t(option.label)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>
@@ -156,11 +187,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
               )}
             />
           </div>
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

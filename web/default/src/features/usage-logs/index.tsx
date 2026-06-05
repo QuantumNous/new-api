@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -21,21 +39,15 @@ import {
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
 
-const SECTION_META: Record<
-  UsageLogsSectionId,
-  { titleKey: string; descriptionKey: string }
-> = {
+const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
   common: {
     titleKey: 'Common Logs',
-    descriptionKey: 'View and manage your API usage logs',
   },
   drawing: {
     titleKey: 'Drawing Logs',
-    descriptionKey: 'View and manage your drawing logs',
   },
   task: {
     titleKey: 'Task Logs',
-    descriptionKey: 'View and manage your task logs',
   },
 }
 
@@ -75,9 +87,8 @@ function UsageLogsContent() {
           if (!('url' in item) || typeof item.url !== 'string') return null
           return item.url.split('/').pop() ?? null
         })
-        .filter(
-          (section): section is UsageLogsSectionId =>
-            Boolean(section && isUsageLogsSectionId(section))
+        .filter((section): section is UsageLogsSectionId =>
+          Boolean(section && isUsageLogsSectionId(section))
         ),
     [filteredTabGroups]
   )
@@ -100,15 +111,14 @@ function UsageLogsContent() {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t(pageMeta.titleKey)}</SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {t(pageMeta.descriptionKey)}
-        </SectionPageLayout.Description>
+        <SectionPageLayout.Title>
+          {t(pageMeta.titleKey)}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
-                <TabsList className='h-auto max-w-full flex-wrap justify-start'>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                   {visibleSections.map((section) => (
                     <TabsTrigger key={section} value={section}>
                       {t(SECTION_META[section].titleKey)}

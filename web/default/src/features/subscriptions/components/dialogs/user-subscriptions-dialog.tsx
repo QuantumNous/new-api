@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -26,7 +45,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import {
   getAdminPlans,
   getUserSubscriptions,
@@ -172,27 +197,43 @@ export function UserSubscriptionsDialog(props: Props) {
   return (
     <>
       <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-        <SheetContent className='overflow-y-auto sm:max-w-2xl'>
-          <SheetHeader>
+        <SheetContent className={sideDrawerContentClassName('sm:max-w-2xl')}>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>{t('User Subscription Management')}</SheetTitle>
             <SheetDescription>
               {props.user?.username || '-'} (ID: {props.user?.id || '-'})
             </SheetDescription>
           </SheetHeader>
 
-          <div className='mt-4 space-y-4'>
+          <div className={sideDrawerFormClassName()}>
             <div className='flex gap-2'>
-              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+              <Select
+                items={[
+                  ...plans.map((p) => ({
+                    value: String(p.plan.id),
+                    label: (
+                      <>
+                        {p.plan.title}($
+                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                      </>
+                    ),
+                  })),
+                ]}
+                value={selectedPlanId}
+                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+              >
                 <SelectTrigger className='flex-1'>
                   <SelectValue placeholder={t('Select subscription plan')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {plans.map((p) => (
-                    <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                      {p.plan.title} ($
-                      {Number(p.plan.price_amount || 0).toFixed(2)})
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {plans.map((p) => (
+                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
+                        {p.plan.title} ($
+                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <Button
@@ -244,14 +285,16 @@ export function UserSubscriptionsDialog(props: Props) {
 
                       return (
                         <TableRow key={sub.id}>
-                          <TableCell>#{sub.id}</TableCell>
+                          <TableCell>
+                            <TableId value={sub.id} />
+                          </TableCell>
                           <TableCell>
                             <div>
                               <div className='font-medium'>
                                 {planTitleMap.get(sub.plan_id) ||
                                   `#${sub.plan_id}`}
                               </div>
-                              <div className='text-muted-foreground text-xs'>
+                              <div className='text-muted-foreground text-sm'>
                                 {t('Source')}: {sub.source || '-'}
                               </div>
                             </div>
@@ -260,7 +303,7 @@ export function UserSubscriptionsDialog(props: Props) {
                             <SubscriptionStatusBadge sub={sub} t={t} />
                           </TableCell>
                           <TableCell>
-                            <div className='text-xs'>
+                            <div className='text-sm'>
                               <div>
                                 {t('Start')}: {formatTimestamp(sub.start_time)}
                               </div>

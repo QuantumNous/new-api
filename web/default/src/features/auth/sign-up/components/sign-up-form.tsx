@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
@@ -35,7 +53,10 @@ import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
-import { getAffiliateCode } from '@/features/auth/lib/storage'
+import {
+  getAffiliateCode,
+  saveAffiliateCode,
+} from '@/features/auth/lib/storage'
 
 export function SignUpForm({
   className,
@@ -89,6 +110,7 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
+  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -112,6 +134,13 @@ export function SignUpForm({
     }
   }, [requiresLegalConsent])
 
+  useEffect(() => {
+    const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
+    if (aff) {
+      saveAffiliateCode(aff)
+    }
+  }, [])
+
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
@@ -130,6 +159,8 @@ export function SignUpForm({
       }
     }
 
+    if (!validateTurnstile()) return
+
     setIsLoading(true)
     try {
       const res = await register({
@@ -137,13 +168,15 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
-        aff: getAffiliateCode(),
+        aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
       })
 
       if (res?.success) {
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
+      } else {
+        toast.error(res?.message || t('Failed to create account'))
       }
     } catch (_error) {
       // Errors are handled by global interceptor
@@ -287,7 +320,13 @@ export function SignUpForm({
               <Button
                 variant='outline'
                 type='button'
-                disabled={isLoading || isSendingCode || isActive || !emailValue}
+                disabled={
+                  isLoading ||
+                  isSendingCode ||
+                  isActive ||
+                  !emailValue ||
+                  !turnstileReady
+                }
                 onClick={handleSendVerificationCode}
               >
                 {isActive ? (
@@ -299,17 +338,17 @@ export function SignUpForm({
                 )}
               </Button>
             </div>
-
-            {/* Turnstile */}
-            {isTurnstileEnabled && (
-              <div className='mt-2'>
-                <Turnstile
-                  siteKey={turnstileSiteKey}
-                  onVerify={setTurnstileToken}
-                />
-              </div>
-            )}
           </>
+        )}
+
+        {/* Turnstile */}
+        {isTurnstileEnabled && (
+          <div className='mt-2'>
+            <Turnstile
+              siteKey={turnstileSiteKey}
+              onVerify={setTurnstileToken}
+            />
+          </div>
         )}
 
         <LegalConsent
@@ -321,8 +360,13 @@ export function SignUpForm({
 
         {/* Submit Button */}
         <Button
+          type='submit'
           className='mt-2 w-full justify-center gap-2'
-          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+          disabled={
+            isLoading ||
+            (requiresLegalConsent && !agreedToLegal) ||
+            !turnstileReady
+          }
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           {t('Create account')}

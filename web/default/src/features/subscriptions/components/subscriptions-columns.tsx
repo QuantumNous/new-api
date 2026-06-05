@@ -1,9 +1,29 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { formatQuota } from '@/lib/format'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { formatDuration, formatResetPeriod } from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -20,9 +40,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title='ID' />
         ),
-        cell: ({ row }) => (
-          <span className='text-muted-foreground'>#{row.original.plan.id}</span>
-        ),
+        cell: ({ row }) => <TableId value={row.original.plan.id} />,
         size: 60,
       },
       {
@@ -144,6 +162,13 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
               {plan.creem_product_id && (
                 <StatusBadge label='Creem' variant='neutral' copyable={false} />
               )}
+              {plan.waffo_pancake_product_id && (
+                <StatusBadge
+                  label='Waffo Pancake'
+                  variant='neutral'
+                  copyable={false}
+                />
+              )}
             </div>
           )
         },
@@ -151,15 +176,15 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'total_amount',
-        meta: { label: t('Total Quota'), mobileHidden: true },
+        meta: { label: t('Received amount'), mobileHidden: true },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Total Quota')} />
+          <DataTableColumnHeader column={column} title={t('Received amount')} />
         ),
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
           return (
             <span className='text-muted-foreground'>
-              {total > 0 ? total : t('Unlimited')}
+              {total > 0 ? formatQuota(total) : t('Unlimited')}
             </span>
           )
         },
@@ -174,7 +199,9 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         cell: ({ row }) => {
           const group = row.original.plan.upgrade_group
           if (!group) {
-            return <span className='text-muted-foreground'>{t('No Upgrade')}</span>
+            return (
+              <span className='text-muted-foreground'>{t('No Upgrade')}</span>
+            )
           }
           return <GroupBadge group={group} />
         },

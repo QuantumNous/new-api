@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNotificationStore } from '@/stores/notification-store'
@@ -44,7 +62,7 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
  * Provides unread counts and read status management
  */
 export function useNotifications() {
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'notice' | 'announcements'>(
     'notice'
   )
@@ -74,8 +92,6 @@ export function useNotifications() {
     markNoticeRead,
     markAnnouncementsRead,
     isAnnouncementRead,
-    isNoticeClosed,
-    setClosedUntilDate,
   } = useNotificationStore()
 
   // Extract notice content
@@ -102,22 +118,8 @@ export function useNotifications() {
     }
   }, [noticeContent, lastReadNotice, announcements, isAnnouncementRead])
 
-  // Handle dialog open
-  const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
-    // Mark Notice as read when opening dialog
-    if (noticeContent) {
-      markNoticeRead(noticeContent)
-    }
-
-    setActiveTab(tab || 'notice')
-    setDialogOpen(true)
-  }
-
-  // Handle tab change - mark announcements as read when switching to that tab
-  const handleTabChange = (tab: 'notice' | 'announcements') => {
-    setActiveTab(tab)
-
-    if (tab === 'announcements' && announcements.length > 0) {
+  const markAnnouncementsAsRead = () => {
+    if (announcements.length > 0) {
       const allKeys = announcements.map((item: Record<string, unknown>) =>
         getAnnouncementKey(item)
       )
@@ -125,11 +127,38 @@ export function useNotifications() {
     }
   }
 
-  // Handle "Close Today" action
-  const handleCloseToday = () => {
-    const today = new Date().toDateString()
-    setClosedUntilDate(today)
-    setDialogOpen(false)
+  // Handle popover open
+  const handleOpenPopover = (tab?: 'notice' | 'announcements') => {
+    const nextTab = tab || activeTab
+
+    // Mark currently visible content as read when opening the notification center
+    if (noticeContent) {
+      markNoticeRead(noticeContent)
+    }
+    if (nextTab === 'announcements') {
+      markAnnouncementsAsRead()
+    }
+
+    setActiveTab(nextTab)
+    setPopoverOpen(true)
+  }
+
+  const handlePopoverOpenChange = (open: boolean) => {
+    if (open) {
+      handleOpenPopover(activeTab)
+      return
+    }
+
+    setPopoverOpen(false)
+  }
+
+  // Handle tab change - mark announcements as read when switching to that tab
+  const handleTabChange = (tab: 'notice' | 'announcements') => {
+    setActiveTab(tab)
+
+    if (tab === 'announcements') {
+      markAnnouncementsAsRead()
+    }
   }
 
   return {
@@ -143,19 +172,15 @@ export function useNotifications() {
     unreadNoticeCount: unreadCounts.notice,
     unreadAnnouncementsCount: unreadCounts.announcements,
 
-    // Dialog state
-    dialogOpen,
-    setDialogOpen,
+    // Popover state
+    popoverOpen,
+    setPopoverOpen: handlePopoverOpenChange,
     activeTab,
     setActiveTab: handleTabChange,
 
     // Actions
-    openDialog: handleOpenDialog,
-    closeDialog: () => setDialogOpen(false),
-    closeToday: handleCloseToday,
+    openPopover: handleOpenPopover,
+    closePopover: () => setPopoverOpen(false),
     refetchNotice,
-
-    // Status
-    isNoticeClosed: isNoticeClosed(),
   }
 }

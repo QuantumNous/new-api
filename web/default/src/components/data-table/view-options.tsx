@@ -1,5 +1,21 @@
-import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu'
-import { MixerHorizontalIcon } from '@radix-ui/react-icons'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type Table } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -7,8 +23,9 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
 type DataTableViewOptionsProps<TData> = {
@@ -21,37 +38,39 @@ export function DataTableViewOptions<TData>({
   const { t } = useTranslation()
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant='outline'
-          size='sm'
-          className='ms-auto h-9 w-9 px-0 sm:h-8 sm:w-auto sm:px-3 lg:flex'
-        >
-          <MixerHorizontalIcon className='size-4' />
-          <span className='hidden sm:inline'>{t('View')}</span>
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant='outline'
+            className='shrink-0'
+            aria-label={t('View')}
+          />
+        }
+      >
+        {t('View')}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-[150px]'>
-        <DropdownMenuLabel>{t('Toggle columns')}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {table
-          .getAllColumns()
-          .filter(
-            (column) =>
-              typeof column.accessorFn !== 'undefined' && column.getCanHide()
-          )
-          .map((column) => {
-            return (
-              <DropdownMenuCheckboxItem
-                key={column.id}
-                className='capitalize'
-                checked={column.getIsVisible()}
-                onCheckedChange={(value) => column.toggleVisibility(!!value)}
-              >
-                {column.columnDef.meta?.label ?? column.id}
-              </DropdownMenuCheckboxItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t('Toggle columns')}</DropdownMenuLabel>
+          {table
+            .getAllColumns()
+            .filter(
+              (column) =>
+                typeof column.accessorFn !== 'undefined' && column.getCanHide()
             )
-          })}
+            .map((column) => {
+              return (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  className='capitalize'
+                  checked={column.getIsVisible()}
+                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                >
+                  {column.columnDef.meta?.label ?? column.id}
+                </DropdownMenuCheckboxItem>
+              )
+            })}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type TFunction } from 'i18next'
 import type { NameRule, ModelStatus, SyncSource } from './types'
 
@@ -61,12 +79,9 @@ export function getModelStatusOptions(t: TFunction) {
 
 export function getModelStatusConfig(
   t: TFunction
-): Record<
-  ModelStatus,
-  { label: string; variant: 'success' | 'neutral'; showDot?: boolean }
-> {
+): Record<ModelStatus, { label: string; variant: 'success' | 'neutral' }> {
   return {
-    1: { label: t('Enabled'), variant: 'success', showDot: true },
+    1: { label: t('Enabled'), variant: 'success' },
     0: { label: t('Disabled'), variant: 'neutral' },
   }
 }
@@ -104,11 +119,10 @@ export function getDeploymentStatusConfig(t: TFunction): Record<
   {
     label: string
     variant: 'success' | 'neutral' | 'warning' | 'danger'
-    showDot?: boolean
   }
 > {
   return {
-    running: { label: t('Running'), variant: 'success', showDot: true },
+    running: { label: t('Running'), variant: 'success' },
     completed: { label: t('Completed'), variant: 'success' },
     failed: { label: t('Failed'), variant: 'danger' },
     error: { label: t('Failed'), variant: 'danger' },
@@ -116,12 +130,10 @@ export function getDeploymentStatusConfig(t: TFunction): Record<
     'deployment requested': {
       label: t('Deployment requested'),
       variant: 'warning',
-      showDot: true,
     },
     'termination requested': {
       label: t('Termination requested'),
       variant: 'warning',
-      showDot: true,
     },
   }
 }

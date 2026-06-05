@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import {
   Copy,
   Check,
@@ -69,7 +87,7 @@ function DetailRow(props: {
       </span>
       <span
         className={cn(
-          'min-w-0 max-w-full text-xs break-all sm:break-words',
+          'max-w-full min-w-0 text-xs break-all sm:break-words',
           props.mono && 'font-mono',
           props.muted && 'text-muted-foreground'
         )}
@@ -491,13 +509,20 @@ export function DetailsDialog(props: DetailsDialogProps) {
         </DialogHeader>
 
         <ScrollArea className='max-h-[70vh] min-w-0 overflow-hidden pr-2 max-sm:max-h-[calc(100dvh-7rem)] sm:pr-4'>
-          <div className='w-full min-w-0 max-w-full space-y-2.5 overflow-hidden py-1 sm:space-y-3'>
+          <div className='w-full max-w-full min-w-0 space-y-2.5 overflow-hidden py-1 sm:space-y-3'>
             {/* Overview section - key identifiers */}
             <div className='min-w-0 space-y-1'>
               {props.log.request_id && (
                 <DetailRow
                   label={t('Request ID')}
                   value={props.log.request_id}
+                  mono
+                />
+              )}
+              {props.log.upstream_request_id && (
+                <DetailRow
+                  label={t('Upstream Request ID')}
+                  value={props.log.upstream_request_id}
                   mono
                 />
               )}
@@ -960,37 +985,34 @@ export function DetailsDialog(props: DetailsDialogProps) {
               </DetailSection>
             )}
 
-            {/* Param override (admin only) */}
-            {props.isAdmin &&
-              other?.po &&
-              Array.isArray(other.po) &&
-              other.po.length > 0 && (
-                <DetailSection
-                  icon={<Settings2 className='size-3.5' aria-hidden='true' />}
-                  label={`${t('Param Override')} (${other.po.length})`}
-                >
-                  {other.po.filter(Boolean).map((line, idx) => {
-                    const parsed = parseAuditLine(line)
-                    if (!parsed) return null
-                    return (
-                      <div
-                        key={idx}
-                        className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
-                      >
-                        <StatusBadge
-                          variant='neutral'
-                          label={getParamOverrideActionLabel(parsed.action, t)}
-                          className='shrink-0 font-medium'
-                          copyable={false}
-                        />
-                        <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
-                          {parsed.content}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </DetailSection>
-              )}
+            {/* Param override */}
+            {other?.po && Array.isArray(other.po) && other.po.length > 0 && (
+              <DetailSection
+                icon={<Settings2 className='size-3.5' aria-hidden='true' />}
+                label={`${t('Param Override')} (${other.po.length})`}
+              >
+                {other.po.filter(Boolean).map((line, idx) => {
+                  const parsed = parseAuditLine(line)
+                  if (!parsed) return null
+                  return (
+                    <div
+                      key={idx}
+                      className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
+                    >
+                      <StatusBadge
+                        variant='neutral'
+                        label={getParamOverrideActionLabel(parsed.action, t)}
+                        className='shrink-0 font-medium'
+                        copyable={false}
+                      />
+                      <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
+                        {parsed.content}
+                      </span>
+                    </div>
+                  )
+                })}
+              </DetailSection>
+            )}
 
             {/* Content */}
             {details && (

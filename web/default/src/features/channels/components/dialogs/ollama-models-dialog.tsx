@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, Trash2, Download, Search } from 'lucide-react'
@@ -193,14 +211,22 @@ export function OllamaModelsDialog({
         ? Array.from(new Set(selected))
         : Array.from(new Set([...existingModels, ...selected]))
 
-    const res = await updateChannel(currentRow.id, { models: next.join(',') })
-    if (res.success) {
-      toast.success(
-        mode === 'replace'
-          ? t('Models updated successfully')
-          : t('Models appended successfully')
+    try {
+      const res = await updateChannel(currentRow.id, { models: next.join(',') })
+      if (res.success) {
+        toast.success(
+          mode === 'replace'
+            ? t('Models updated successfully')
+            : t('Models appended successfully')
+        )
+        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      } else {
+        toast.error(res.message || t('Failed to update models'))
+      }
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : t('Failed to update models')
       )
-      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
     }
   }
 

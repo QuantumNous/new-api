@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -27,11 +45,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetClose,
@@ -43,6 +61,14 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { TagInput } from '@/components/tag-input'
 import {
@@ -168,6 +194,13 @@ export function ModelMutateDrawer({
       'group_ratio_setting.group_special_usable_group': '{}',
       'grok.violation_deduction_enabled': false,
       'grok.violation_deduction_amount': 0,
+      'channel_affinity_setting.enabled': false,
+      'channel_affinity_setting.switch_on_success': true,
+      'channel_affinity_setting.max_entries': 100000,
+      'channel_affinity_setting.default_ttl_seconds': 3600,
+      'channel_affinity_setting.rules': '[]',
+      'model_deployment.ionet.api_key': '',
+      'model_deployment.ionet.enabled': false,
     }
     return getOptionValue(systemOptionsData.data, defaultModelSettings)
   }, [systemOptionsData])
@@ -601,8 +634,8 @@ export function ModelMutateDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
-        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
+      <SheetContent className={sideDrawerContentClassName('sm:max-w-2xl')}>
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>
             {isEditing ? t('Edit Model') : t('Create Model')}
           </SheetTitle>
@@ -621,10 +654,10 @@ export function ModelMutateDrawer({
             onSubmit={form.handleSubmit(
               onSubmit as Parameters<typeof form.handleSubmit>[0]
             )}
-            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
+            className={sideDrawerFormClassName()}
           >
             {/* Basic Information */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='text-sm font-semibold'>
                 {t('Basic Information')}
               </h3>
@@ -694,6 +727,12 @@ export function ModelMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Vendor')}</FormLabel>
                     <Select
+                      items={[
+                        ...vendors.map((vendor) => ({
+                          value: String(vendor.id),
+                          label: vendor.name,
+                        })),
+                      ]}
                       onValueChange={(value) =>
                         field.onChange(value ? parseInt(value) : undefined)
                       }
@@ -704,12 +743,17 @@ export function ModelMutateDrawer({
                           <SelectValue placeholder={t('Select vendor')} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={String(vendor.id)}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {vendors.map((vendor) => (
+                            <SelectItem
+                              key={vendor.id}
+                              value={String(vendor.id)}
+                            >
+                              {vendor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -737,12 +781,10 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <Separator />
+            </SideDrawerSection>
 
             {/* Matching Configuration */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='text-sm font-semibold'>{t('Matching Rules')}</h3>
 
               <FormField
@@ -785,24 +827,34 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <Separator />
+            </SideDrawerSection>
 
             {/* Endpoints Configuration */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <div className='flex items-center justify-between'>
                 <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
-                <Select onValueChange={handleFillEndpointTemplate}>
+                <Select<string>
+                  items={[
+                    ...Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
+                      value: key,
+                      label: key,
+                    })),
+                  ]}
+                  onValueChange={(v) =>
+                    v !== null && handleFillEndpointTemplate(v)
+                  }
+                >
                   <SelectTrigger size='sm' className='w-[200px]'>
                     <SelectValue placeholder={t('Load template...')} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
-                      <SelectItem key={key} value={key}>
-                        {key}
-                      </SelectItem>
-                    ))}
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
+                        <SelectItem key={key} value={key}>
+                          {key}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -834,12 +886,10 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <Separator />
+            </SideDrawerSection>
 
             {/* Pricing Configuration */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='text-sm font-semibold'>
                 {t('Pricing Configuration')}
               </h3>
@@ -1049,21 +1099,23 @@ export function ModelMutateDrawer({
                     open={advancedOpen}
                     onOpenChange={setAdvancedOpen}
                   >
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        type='button'
-                        variant='outline'
-                        className='flex w-full items-center justify-between'
-                      >
-                        {t('Advanced options')}
-                        <ChevronDown
-                          className={`h-4 w-4 transition-transform duration-200 ${
-                            advancedOpen ? 'rotate-180' : ''
-                          }`}
+                    <CollapsibleTrigger
+                      render={
+                        <Button
+                          type='button'
+                          variant='outline'
+                          className='flex w-full items-center justify-between'
                         />
-                      </Button>
+                      }
+                    >
+                      {t('Advanced options')}
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          advancedOpen ? 'rotate-180' : ''
+                        }`}
+                      />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className='space-y-6 pt-6'>
+                    <CollapsibleContent className='flex flex-col gap-4 pt-4'>
                       <FormField
                         control={form.control}
                         name='cacheRatio'
@@ -1175,20 +1227,18 @@ export function ModelMutateDrawer({
                   </Collapsible>
                 </>
               )}
-            </div>
-
-            <Separator />
+            </SideDrawerSection>
 
             {/* Status & Sync */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='text-sm font-semibold'>{t('Status & Sync')}</h3>
 
               <FormField
                 control={form.control}
                 name='status'
                 render={({ field }) => (
-                  <FormItem className='flex items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <div className='flex flex-col gap-0.5'>
                       <FormLabel className='text-base'>
                         {t('Enabled')}
                       </FormLabel>
@@ -1210,8 +1260,8 @@ export function ModelMutateDrawer({
                 control={form.control}
                 name='sync_official'
                 render={({ field }) => (
-                  <FormItem className='flex items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <div className='flex flex-col gap-0.5'>
                       <FormLabel className='text-base'>
                         {t('Official Sync')}
                       </FormLabel>
@@ -1228,15 +1278,15 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
-            </div>
+            </SideDrawerSection>
           </form>
         </Form>
 
-        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
-          <SheetClose asChild>
-            <Button variant='outline' disabled={isSubmitting}>
-              {t('Cancel')}
-            </Button>
+        <SheetFooter className={sideDrawerFooterClassName()}>
+          <SheetClose
+            render={<Button variant='outline' disabled={isSubmitting} />}
+          >
+            {t('Cancel')}
           </SheetClose>
           <Button form='model-form' type='submit' disabled={isSubmitting}>
             {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

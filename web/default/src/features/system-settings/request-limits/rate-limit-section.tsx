@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -17,6 +35,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { RateLimitVisualEditor } from './rate-limit-visual-editor'
@@ -89,36 +113,34 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
   }
 
   return (
-    <SettingsSection
-      title={t('Rate Limiting')}
-      description={t(
-        'Control request frequency to prevent abuse and manage system load.'
-      )}
-    >
+    <SettingsSection title={t('Rate Limiting')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+            saveLabel='Save rate limits'
+          />
           <FormField
             control={form.control}
             name='ModelRequestRateLimitEnabled'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
-                    {t('Enable rate limiting')}
-                  </FormLabel>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable rate limiting')}</FormLabel>
                   <FormDescription>
                     {t(
-                      'Restrict user model request frequency (may impact high concurrency performance)'
+                      'This controls model request rate limiting. Web/API route throttling is configured by environment variables and may still return 429.'
                     )}
                   </FormDescription>
-                </div>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -288,11 +310,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               </FormItem>
             )}
           />
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save rate limits')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

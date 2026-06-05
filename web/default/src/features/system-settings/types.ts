@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 export type SystemOption = {
   key: string
   value: string
@@ -21,13 +39,24 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type ConfirmPaymentComplianceResponse = {
+  success: boolean
+  message: string
+  data?: {
+    confirmed: boolean
+    terms_version: string
+    confirmed_at: number
+    confirmed_by: number
+  }
+}
+
 export type DeleteLogsResponse = {
   success: boolean
   message: string
   data?: number
 }
 
-export type GeneralSettings = {
+export type SiteSettings = {
   'theme.frontend': string
   Notice: string
   SystemName: string
@@ -38,32 +67,8 @@ export type GeneralSettings = {
   ServerAddress: string
   'legal.user_agreement': string
   'legal.privacy_policy': string
-  QuotaForNewUser: number
-  PreConsumedQuota: number
-  QuotaForInviter: number
-  QuotaForInvitee: number
-  TopUpLink: string
-  'general_setting.docs_link': string
-  'quota_setting.enable_free_model_pre_consume': boolean
-  QuotaPerUnit: number
-  USDExchangeRate: number
-  'general_setting.quota_display_type': string
-  'general_setting.custom_currency_symbol': string
-  'general_setting.custom_currency_exchange_rate': number
-  RetryTimes: number
-  DisplayInCurrencyEnabled: boolean
-  DisplayTokenStatEnabled: boolean
-  DefaultCollapseSidebar: boolean
-  DemoSiteEnabled: boolean
-  SelfUseModeEnabled: boolean
-  'checkin_setting.enabled': boolean
-  'checkin_setting.min_quota': number
-  'checkin_setting.max_quota': number
-  'channel_affinity_setting.enabled': boolean
-  'channel_affinity_setting.switch_on_success': boolean
-  'channel_affinity_setting.max_entries': number
-  'channel_affinity_setting.default_ttl_seconds': number
-  'channel_affinity_setting.rules': string
+  HeaderNavModules: string
+  SidebarModulesAdmin: string
 }
 
 export type AuthSettings = {
@@ -131,76 +136,6 @@ export type ContentSettings = {
   MjActionCheckSuccessEnabled: boolean
 }
 
-export type IntegrationSettings = {
-  SMTPServer: string
-  SMTPPort: string
-  SMTPAccount: string
-  SMTPFrom: string
-  SMTPToken: string
-  SMTPSSLEnabled: boolean
-  SMTPForceAuthLogin: boolean
-  WorkerUrl: string
-  WorkerValidKey: string
-  WorkerAllowHttpImageRequestEnabled: boolean
-  ChannelDisableThreshold: string
-  QuotaRemindThreshold: string
-  AutomaticDisableChannelEnabled: boolean
-  AutomaticEnableChannelEnabled: boolean
-  AutomaticDisableKeywords: string
-  AutomaticDisableStatusCodes: string
-  AutomaticRetryStatusCodes: string
-  'monitor_setting.auto_test_channel_enabled': boolean
-  'monitor_setting.auto_test_channel_minutes': number
-  'model_deployment.ionet.api_key': string
-  'model_deployment.ionet.enabled': boolean
-  PayAddress: string
-  EpayId: string
-  EpayKey: string
-  Price: number
-  MinTopUp: number
-  CustomCallbackAddress: string
-  PayMethods: string
-  'payment_setting.amount_options': string
-  'payment_setting.amount_discount': string
-  StripeApiSecret: string
-  StripeWebhookSecret: string
-  StripePriceId: string
-  StripeUnitPrice: number
-  StripeMinTopUp: number
-  StripePromotionCodesEnabled: boolean
-  CreemApiKey: string
-  CreemWebhookSecret: string
-  CreemTestMode: boolean
-  CreemProducts: string
-  WaffoEnabled: boolean
-  WaffoApiKey: string
-  WaffoPrivateKey: string
-  WaffoPublicCert: string
-  WaffoSandboxPublicCert: string
-  WaffoSandboxApiKey: string
-  WaffoSandboxPrivateKey: string
-  WaffoSandbox: boolean
-  WaffoMerchantId: string
-  WaffoCurrency: string
-  WaffoUnitPrice: number
-  WaffoMinTopUp: number
-  WaffoNotifyUrl: string
-  WaffoReturnUrl: string
-  WaffoPayMethods: string
-  WaffoPancakeEnabled: boolean
-  WaffoPancakeSandbox: boolean
-  WaffoPancakeMerchantID: string
-  WaffoPancakePrivateKey: string
-  WaffoPancakeWebhookPublicKey: string
-  WaffoPancakeWebhookTestKey: string
-  WaffoPancakeStoreID: string
-  WaffoPancakeProductID: string
-  WaffoPancakeReturnURL: string
-  WaffoPancakeCurrency: string
-  WaffoPancakeUnitPrice: number
-  WaffoPancakeMinTopUp: number
-}
-
 export type ModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
@@ -239,13 +174,125 @@ export type ModelSettings = {
   AutoGroups: string
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
+  'channel_affinity_setting.enabled': boolean
+  'channel_affinity_setting.switch_on_success': boolean
+  'channel_affinity_setting.max_entries': number
+  'channel_affinity_setting.default_ttl_seconds': number
+  'channel_affinity_setting.rules': string
+  'model_deployment.ionet.api_key': string
+  'model_deployment.ionet.enabled': boolean
 }
 
-export type MaintenanceSettings = {
-  Notice: string
+export type BillingSettings = {
+  QuotaForNewUser: number
+  PreConsumedQuota: number
+  QuotaForInviter: number
+  QuotaForInvitee: number
+  TopUpLink: string
+  'general_setting.docs_link': string
+  'quota_setting.enable_free_model_pre_consume': boolean
+  QuotaPerUnit: number
+  USDExchangeRate: number
+  'general_setting.quota_display_type': string
+  'general_setting.custom_currency_symbol': string
+  'general_setting.custom_currency_exchange_rate': number
+  DisplayInCurrencyEnabled: boolean
+  DisplayTokenStatEnabled: boolean
+  ModelPrice: string
+  ModelRatio: string
+  CacheRatio: string
+  CreateCacheRatio: string
+  CompletionRatio: string
+  ImageRatio: string
+  AudioRatio: string
+  AudioCompletionRatio: string
+  ExposeRatioEnabled: boolean
+  'billing_setting.billing_mode': string
+  'billing_setting.billing_expr': string
+  'tool_price_setting.prices': string
+  TopupGroupRatio: string
+  GroupRatio: string
+  UserUsableGroups: string
+  GroupGroupRatio: string
+  AutoGroups: string
+  DefaultUseAutoGroup: boolean
+  'group_ratio_setting.group_special_usable_group': string
+  PayAddress: string
+  EpayId: string
+  EpayKey: string
+  Price: number
+  MinTopUp: number
+  CustomCallbackAddress: string
+  PayMethods: string
+  'payment_setting.amount_options': string
+  'payment_setting.amount_discount': string
+  'payment_setting.compliance_confirmed': boolean
+  'payment_setting.compliance_terms_version': string
+  'payment_setting.compliance_confirmed_at': number
+  'payment_setting.compliance_confirmed_by': number
+  'payment_setting.compliance_confirmed_ip': string
+  StripeApiSecret: string
+  StripeWebhookSecret: string
+  StripePriceId: string
+  StripeUnitPrice: number
+  StripeMinTopUp: number
+  StripePromotionCodesEnabled: boolean
+  CreemApiKey: string
+  CreemWebhookSecret: string
+  CreemTestMode: boolean
+  CreemProducts: string
+  WaffoEnabled: boolean
+  WaffoApiKey: string
+  WaffoPrivateKey: string
+  WaffoPublicCert: string
+  WaffoSandboxPublicCert: string
+  WaffoSandboxApiKey: string
+  WaffoSandboxPrivateKey: string
+  WaffoSandbox: boolean
+  WaffoMerchantId: string
+  WaffoCurrency: string
+  WaffoUnitPrice: number
+  WaffoMinTopUp: number
+  WaffoNotifyUrl: string
+  WaffoReturnUrl: string
+  WaffoPayMethods: string
+  WaffoPancakeMerchantID: string
+  WaffoPancakePrivateKey: string
+  WaffoPancakeReturnURL: string
+  // Bound by the operator through the catalog flow in the admin Pancake
+  // section (saved via /api/option/waffo-pancake/save).
+  WaffoPancakeStoreID: string
+  WaffoPancakeProductID: string
+  'checkin_setting.enabled': boolean
+  'checkin_setting.min_quota': number
+  'checkin_setting.max_quota': number
+}
+
+export type OperationsSettings = {
+  RetryTimes: number
+  DefaultCollapseSidebar: boolean
+  DemoSiteEnabled: boolean
+  SelfUseModeEnabled: boolean
+  ChannelDisableThreshold: string
+  QuotaRemindThreshold: string
+  AutomaticDisableChannelEnabled: boolean
+  AutomaticEnableChannelEnabled: boolean
+  AutomaticDisableKeywords: string
+  AutomaticDisableStatusCodes: string
+  AutomaticRetryStatusCodes: string
+  'monitor_setting.auto_test_channel_enabled': boolean
+  'monitor_setting.auto_test_channel_minutes': number
+  SMTPServer: string
+  SMTPPort: string
+  SMTPAccount: string
+  SMTPFrom: string
+  SMTPToken: string
+  SMTPSSLEnabled: boolean
+  SMTPForceAuthLogin: boolean
+  WorkerUrl: string
+  WorkerValidKey: string
+  WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
-  HeaderNavModules: string
-  SidebarModulesAdmin: string
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number
@@ -254,9 +301,13 @@ export type MaintenanceSettings = {
   'performance_setting.monitor_cpu_threshold': number
   'performance_setting.monitor_memory_threshold': number
   'performance_setting.monitor_disk_threshold': number
+  'perf_metrics_setting.enabled': boolean
+  'perf_metrics_setting.flush_interval': number
+  'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
+  'perf_metrics_setting.retention_days': number
 }
 
-export type RequestLimitsSettings = {
+export type SecuritySettings = {
   ModelRequestRateLimitEnabled: boolean
   ModelRequestRateLimitCount: number
   ModelRequestRateLimitSuccessCount: number

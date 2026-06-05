@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
@@ -11,7 +29,8 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { GroupBadge } from '@/components/group-badge'
-import { StatusBadge } from '@/components/status-badge'
+import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import {
   getModelStatusConfig,
   getNameRuleConfig,
@@ -29,25 +48,12 @@ function renderLimitedItems(
   items: React.ReactNode[],
   maxDisplay: number = 2
 ): React.ReactNode {
-  if (items.length === 0)
-    return <span className='text-muted-foreground text-xs'>-</span>
-
-  const displayed = items.slice(0, maxDisplay)
-  const remaining = items.length - maxDisplay
-
   return (
-    <div className='flex max-w-full items-center gap-1 overflow-x-auto'>
-      {displayed}
-      {remaining > 0 && (
-        <StatusBadge
-          label={`+${remaining}`}
-          variant='neutral'
-          size='sm'
-          copyable={false}
-          className='flex-shrink-0'
-        />
-      )}
-    </div>
+    <StatusBadgeList
+      items={items}
+      max={maxDisplay}
+      renderItem={(item) => item}
+    />
   )
 }
 
@@ -73,10 +79,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       id: 'select',
       header: ({ table }) => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label='Select all'
         />
@@ -102,15 +106,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       ),
       cell: ({ row }) => {
         const id = row.getValue('id') as number
-        return (
-          <StatusBadge
-            label={String(id)}
-            variant='neutral'
-            copyText={String(id)}
-            size='sm'
-            className='font-mono'
-          />
-        )
+        return <TableId value={id} />
       },
       size: 80,
     },
@@ -202,9 +198,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           return (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>{badge}</div>
-                </TooltipTrigger>
+                <TooltipTrigger render={<div />}>{badge}</TooltipTrigger>
                 <TooltipContent
                   side='top'
                   className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
@@ -236,7 +230,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           <StatusBadge
             label={config.label}
             variant={config.variant}
-            showDot={config.showDot}
             size='sm'
             copyable={false}
           />
@@ -324,8 +317,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(tagBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(tagBadges, 2)}
               </TooltipTrigger>
               {tagArray.length > 2 && (
                 <TooltipContent
@@ -363,8 +356,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(endpointBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(endpointBadges, 2)}
               </TooltipTrigger>
               {endpointArray.length > 2 && (
                 <TooltipContent
@@ -411,8 +404,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(channelBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(channelBadges, 2)}
               </TooltipTrigger>
               {channels.length > 2 && (
                 <TooltipContent
@@ -451,8 +444,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(groupBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(groupBadges, 2)}
               </TooltipTrigger>
               {groups.length > 2 && (
                 <TooltipContent
@@ -504,8 +497,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(quotaBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(quotaBadges, 2)}
               </TooltipTrigger>
               {quotaTypes.length > 2 && (
                 <TooltipContent

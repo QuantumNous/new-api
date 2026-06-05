@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +36,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -27,6 +46,9 @@ import { StatusBadge } from '@/components/status-badge'
 const OP_ADD = 'add' as const
 const OP_REMOVE = 'remove' as const
 const OP_APPEND = 'append' as const
+const sectionCardClassName =
+  'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
+const sectionHeaderClassName = 'border-b bg-muted/20'
 
 type OpType = typeof OP_ADD | typeof OP_REMOVE | typeof OP_APPEND
 
@@ -133,14 +155,16 @@ function GroupSection(props: GroupSectionProps) {
       <div className='rounded-lg border'>
         <div className='flex items-center justify-between p-3'>
           <div className='flex items-center gap-2'>
-            <CollapsibleTrigger asChild>
-              <Button variant='ghost' size='sm' className='h-6 w-6 p-0'>
-                {open ? (
-                  <ChevronUp className='h-4 w-4' />
-                ) : (
-                  <ChevronDown className='h-4 w-4' />
-                )}
-              </Button>
+            <CollapsibleTrigger
+              render={
+                <Button variant='ghost' size='sm' className='h-6 w-6 p-0' />
+              }
+            >
+              {open ? (
+                <ChevronUp className='h-4 w-4' />
+              ) : (
+                <ChevronDown className='h-4 w-4' />
+              )}
             </CollapsibleTrigger>
             <span className='font-semibold'>{props.groupName}</span>
             <StatusBadge variant='neutral' copyable={false}>
@@ -171,8 +195,42 @@ function GroupSection(props: GroupSectionProps) {
             {props.items.map((rule) => (
               <div key={rule._id} className='flex items-center gap-2'>
                 <Select
+                  items={[
+                    {
+                      value: OP_ADD,
+                      label: (
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_ADD].label)}
+                          variant={OP_BADGE_MAP[OP_ADD].variant}
+                          copyable={false}
+                        />
+                      ),
+                    },
+                    {
+                      value: OP_REMOVE,
+                      label: (
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_REMOVE].label)}
+                          variant={OP_BADGE_MAP[OP_REMOVE].variant}
+                          copyable={false}
+                        />
+                      ),
+                    },
+                    {
+                      value: OP_APPEND,
+                      label: (
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_APPEND].label)}
+                          variant={OP_BADGE_MAP[OP_APPEND].variant}
+                          copyable={false}
+                        />
+                      ),
+                    },
+                  ]}
                   value={rule.op}
-                  onValueChange={(v) => props.onUpdate(rule._id, 'op', v)}
+                  onValueChange={(v) =>
+                    v !== null && props.onUpdate(rule._id, 'op', v)
+                  }
                 >
                   <SelectTrigger className='w-[130px]'>
                     <SelectValue>
@@ -183,28 +241,30 @@ function GroupSection(props: GroupSectionProps) {
                       />
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={OP_ADD}>
-                      <StatusBadge
-                        label={t(OP_BADGE_MAP[OP_ADD].label)}
-                        variant={OP_BADGE_MAP[OP_ADD].variant}
-                        copyable={false}
-                      />
-                    </SelectItem>
-                    <SelectItem value={OP_REMOVE}>
-                      <StatusBadge
-                        label={t(OP_BADGE_MAP[OP_REMOVE].label)}
-                        variant={OP_BADGE_MAP[OP_REMOVE].variant}
-                        copyable={false}
-                      />
-                    </SelectItem>
-                    <SelectItem value={OP_APPEND}>
-                      <StatusBadge
-                        label={t(OP_BADGE_MAP[OP_APPEND].label)}
-                        variant={OP_BADGE_MAP[OP_APPEND].variant}
-                        copyable={false}
-                      />
-                    </SelectItem>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value={OP_ADD}>
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_ADD].label)}
+                          variant={OP_BADGE_MAP[OP_ADD].variant}
+                          copyable={false}
+                        />
+                      </SelectItem>
+                      <SelectItem value={OP_REMOVE}>
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_REMOVE].label)}
+                          variant={OP_BADGE_MAP[OP_REMOVE].variant}
+                          copyable={false}
+                        />
+                      </SelectItem>
+                      <SelectItem value={OP_APPEND}>
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_APPEND].label)}
+                          variant={OP_BADGE_MAP[OP_APPEND].variant}
+                          copyable={false}
+                        />
+                      </SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <Input
@@ -340,8 +400,8 @@ export function GroupSpecialUsableRulesEditor(
   }, [rules])
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={sectionCardClassName}>
+      <CardHeader className={sectionHeaderClassName}>
         <CardTitle>{t('Special usable group rules')}</CardTitle>
         <CardDescription>
           {t(

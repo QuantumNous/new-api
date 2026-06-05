@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { CheckIcon, CopyIcon } from 'lucide-react'
@@ -94,8 +112,8 @@ export function ResetPasswordConfirm({
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {newPassword
-              ? 'Your password has been reset successfully'
-              : 'Confirm the reset request to generate a new password.'}
+              ? t('auth.resetPasswordConfirm.success')
+              : t('auth.resetPasswordConfirm.description')}
           </p>
         </div>
 
@@ -160,10 +178,12 @@ export function ResetPasswordConfirm({
             }
           >
             {newPassword
-              ? 'Return to login'
+              ? t('auth.resetPasswordConfirm.backToLogin')
               : isActive
-                ? `Retry (${secondsLeft}s)`
-                : 'Confirm reset password'}
+                ? t('auth.resetPasswordConfirm.retry', {
+                    seconds: secondsLeft,
+                  })
+                : t('auth.resetPasswordConfirm.confirm')}
           </Button>
 
           {!newPassword && (

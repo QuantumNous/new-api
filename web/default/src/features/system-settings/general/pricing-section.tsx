@@ -1,10 +1,26 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import * as z from 'zod'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -18,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -25,9 +42,16 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const createPricingSchema = (t: (key: string) => string) =>
   z
@@ -122,12 +146,15 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <SettingsSection
-        title={t('Pricing & Display')}
-        description={t('Configure pricing model and display options')}
-      >
+      <SettingsSection title={t('Pricing & Display')}>
         <Form {...form}>
-          <form onSubmit={handleSubmit} className='space-y-6'>
+          <SettingsForm onSubmit={handleSubmit}>
+            <SettingsPageFormActions
+              onSave={handleSubmit}
+              onReset={handleReset}
+              isSaving={updateOption.isPending || isSubmitting}
+              isResetDisabled={!isDirty}
+            />
             <FormDirtyIndicator isDirty={isDirty} />
             {showQuotaPerUnit && (
               <FormField
@@ -162,23 +189,34 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Display Mode')}</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    items={[
+                      { value: 'USD', label: t('USD') },
+                      { value: 'CNY', label: t('CNY') },
+                      { value: 'CUSTOM', label: t('Custom Currency') },
+                      { value: 'TOKENS', label: t('Tokens Only') },
+                    ]}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={t('Select display mode')} />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value='USD'>{t('USD')}</SelectItem>
-                      <SelectItem value='CNY'>{t('CNY')}</SelectItem>
-                      <SelectItem value='CUSTOM'>
-                        {t('Custom Currency')}
-                      </SelectItem>
-                      {showTokensOnlyOption && (
-                        <SelectItem value='TOKENS'>
-                          {t('Tokens Only')}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='USD'>{t('USD')}</SelectItem>
+                        <SelectItem value='CNY'>{t('CNY')}</SelectItem>
+                        <SelectItem value='CUSTOM'>
+                          {t('Custom Currency')}
                         </SelectItem>
-                      )}
+                        {showTokensOnlyOption && (
+                          <SelectItem value='TOKENS'>
+                            {t('Tokens Only')}
+                          </SelectItem>
+                        )}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>
@@ -206,11 +244,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                       <Input
                         type='number'
                         step='0.01'
-                        value={field.value as number}
-                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
+                        {...safeNumberFieldProps(field)}
                       />
                     </FormControl>
                     <FormDescription>
@@ -290,11 +324,9 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                 control={form.control}
                 name='DisplayInCurrencyEnabled'
                 render={({ field }) => (
-                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>
-                        {t('Display in Currency')}
-                      </FormLabel>
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Display in Currency')}</FormLabel>
                       <FormDescription>
                         {displayType === 'TOKENS'
                           ? t(
@@ -302,14 +334,14 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                             )
                           : t('Show prices in currency instead of quota.')}
                       </FormDescription>
-                    </div>
+                    </SettingsSwitchContent>
                     <FormControl>
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                  </FormItem>
+                  </SettingsSwitchItem>
                 )}
               />
             )}
@@ -318,43 +350,23 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               control={form.control}
               name='DisplayTokenStatEnabled'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Display Token Statistics')}
-                    </FormLabel>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Display Token Statistics')}</FormLabel>
                     <FormDescription>
                       {t('Show token usage statistics in the UI')}
                     </FormDescription>
-                  </div>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
-
-            <div className='flex gap-2'>
-              <Button
-                type='submit'
-                disabled={updateOption.isPending || isSubmitting}
-              >
-                {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-              </Button>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleReset}
-                disabled={!isDirty || updateOption.isPending || isSubmitting}
-              >
-                <RotateCcw className='mr-2 h-4 w-4' />
-                {t('Reset')}
-              </Button>
-            </div>
-          </form>
+          </SettingsForm>
         </Form>
       </SettingsSection>
     </>

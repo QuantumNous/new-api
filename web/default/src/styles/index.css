@@ -1,9 +1,34 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
+/* Editorial serif (Lora) backing the `serif` font axis and the Anthropic
+ * preset's default typography. See `--font-serif` in theme.css for the
+ * full Latin + CJK fallback stack and `theme-presets.css` for the cascade
+ * that activates it. Loaded globally so font-switching is instantaneous
+ * with no FOUT once the variable is fetched. */
+@import '@fontsource-variable/lora';
 
 @import './theme.css';
+@import './theme-presets.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
@@ -25,10 +50,14 @@
     @apply overflow-x-hidden font-sans;
   }
   body {
-    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full font-sans;
+    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
+    /* Font is driven by the theme's font axis via `--font-body`
+     * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
+     * in theme-presets.css). Defaults to the project's humanist sans. */
+    font-family: var(--font-body);
   }
 
-  /* Override Radix scroll locking for sticky headers */
+  /* Keep sticky headers stable while primitives lock body scrolling. */
   body[data-scroll-locked] {
     overflow: unset !important;
   }
@@ -117,6 +146,18 @@
   scrollbar-width: none; /* Firefox */
 }
 
+/* Tooltip content can still scroll, but should not show a distracting axis. */
+[data-slot='tooltip-content'],
+[data-slot='tooltip-content'] * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+[data-slot='tooltip-content']::-webkit-scrollbar,
+[data-slot='tooltip-content'] *::-webkit-scrollbar {
+  display: none;
+}
+
 @utility hover-scrollbar {
   /* Hide scrollbar by default */
   scrollbar-width: thin;
@@ -158,10 +199,10 @@
   overflow: hidden;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .CollapsibleContent[data-state='open'] {
+  .CollapsibleContent[data-open] {
     animation: slideDown 300ms ease-out;
   }
-  .CollapsibleContent[data-state='closed'] {
+  .CollapsibleContent:not([data-open]) {
     animation: slideUp 300ms ease-out;
   }
 }
@@ -171,13 +212,13 @@
     height: 0;
   }
   to {
-    height: var(--radix-collapsible-content-height);
+    height: var(--collapsible-panel-height);
   }
 }
 
 @keyframes slideUp {
   from {
-    height: var(--radix-collapsible-content-height);
+    height: var(--collapsible-panel-height);
   }
   to {
     height: 0;

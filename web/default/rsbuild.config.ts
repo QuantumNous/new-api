@@ -34,9 +34,9 @@ export default defineConfig(({ envMode }) => {
           priority: 0,
           enforce: true,
         },
-        'vendor-radix': {
-          test: /node_modules[\\/]@radix-ui[\\/]/,
-          name: 'vendor-radix',
+        'vendor-ui-primitives': {
+          test: /node_modules[\\/](@base-ui|@radix-ui)[\\/]/,
+          name: 'vendor-ui-primitives',
           chunks: 'all',
           priority: 0,
           enforce: true,
@@ -65,6 +65,7 @@ export default defineConfig(({ envMode }) => {
     },
     server: {
       host: '0.0.0.0',
+      strictPort: true,
       proxy: devProxy,
     },
     output: {

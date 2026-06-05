@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -35,7 +53,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -45,6 +62,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -220,12 +238,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   }
 
   return (
-    <SettingsSection
-      title={t('FAQ')}
-      description={t(
-        'Maintain a list of common questions for the dashboard help panel'
-      )}
-    >
+    <SettingsSection title={t('FAQ')}>
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -253,12 +266,12 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>
-              {t('Enabled')}
-            </span>
-            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
-          </div>
+          <SettingsSwitchField
+            checked={isEnabled}
+            onCheckedChange={handleToggleEnabled}
+            label={t('Enabled')}
+            className='border-b-0 py-0'
+          />
         </div>
 
         <div className='rounded-md border'>

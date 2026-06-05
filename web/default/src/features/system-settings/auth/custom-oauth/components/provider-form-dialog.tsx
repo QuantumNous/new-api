@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect } from 'react'
 import { type Resolver, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,6 +42,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -31,6 +50,11 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../../../components/settings-form-layout'
 import {
   useCreateProvider,
   useUpdateProvider,
@@ -166,7 +190,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+          <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
             {/* Preset Selector (only for creating) */}
             {!isEditing && <PresetSelector form={form} />}
 
@@ -178,22 +202,20 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                 control={form.control}
                 name='enabled'
                 render={({ field }) => (
-                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>
-                        {t('Enabled')}
-                      </FormLabel>
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Enabled')}</FormLabel>
                       <FormDescription>
                         {t('Allow users to sign in with this provider')}
                       </FormDescription>
-                    </div>
+                    </SettingsSwitchContent>
                     <FormControl>
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                  </FormItem>
+                  </SettingsSwitchItem>
                 )}
               />
 
@@ -302,6 +324,12 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('Auth Style')}</FormLabel>
                     <Select
+                      items={[
+                        ...AUTH_STYLE_OPTIONS.map((option) => ({
+                          value: String(option.value),
+                          label: t(option.labelKey),
+                        })),
+                      ]}
                       value={String(field.value)}
                       onValueChange={(val) => field.onChange(Number(val))}
                     >
@@ -310,15 +338,17 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {AUTH_STYLE_OPTIONS.map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={String(option.value)}
-                          >
-                            {t(option.labelKey)}
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {AUTH_STYLE_OPTIONS.map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={String(option.value)}
+                            >
+                              {t(option.labelKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>
@@ -575,7 +605,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                     : t('Create Provider')}
               </Button>
             </DialogFooter>
-          </form>
+          </SettingsForm>
         </Form>
       </DialogContent>
     </Dialog>

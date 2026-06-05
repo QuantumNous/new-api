@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useMemo, useState } from 'react'
 import { AlertTriangle, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -204,43 +222,43 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
           <div className='space-y-6'>
             <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
               <div className='flex items-start gap-4'>
-              <div className='bg-muted rounded-md p-2'>
-                <KeyRound className='h-5 w-5' />
-              </div>
-              <div className='space-y-1'>
-                <div className='flex flex-wrap items-center gap-2'>
-                  <p className='font-medium'>{t('Passkey Authentication')}</p>
-                  <StatusBadge
-                    label={enabled ? t('Enabled') : t('Disabled')}
-                    variant={enabled ? 'success' : 'neutral'}
-                    showDot
-                    copyable={false}
-                  />
-                  {status?.backup_eligible !== undefined && (
+                <div className='bg-muted rounded-md p-2'>
+                  <KeyRound className='h-5 w-5' />
+                </div>
+                <div className='space-y-1'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <p className='font-medium'>{t('Passkey Authentication')}</p>
                     <StatusBadge
-                      label={
-                        status.backup_eligible
-                          ? status.backup_state
-                            ? t('Backed up')
-                            : t('Not backed up')
-                          : t('No backup')
-                      }
-                      variant={
-                        status.backup_eligible
-                          ? status.backup_state
-                            ? 'success'
-                            : 'warning'
-                          : 'neutral'
-                      }
+                      label={enabled ? t('Enabled') : t('Disabled')}
+                      variant={enabled ? 'success' : 'neutral'}
                       showDot
                       copyable={false}
                     />
-                  )}
+                    {status?.backup_eligible !== undefined && (
+                      <StatusBadge
+                        label={
+                          status.backup_eligible
+                            ? status.backup_state
+                              ? t('Backed up')
+                              : t('Not backed up')
+                            : t('No backup')
+                        }
+                        variant={
+                          status.backup_eligible
+                            ? status.backup_state
+                              ? 'success'
+                              : 'warning'
+                            : 'neutral'
+                        }
+                        showDot
+                        copyable={false}
+                      />
+                    )}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Last used:')} {formattedLastUsed}
+                  </p>
                 </div>
-                <p className='text-muted-foreground text-sm'>
-                  {t('Last used:')} {formattedLastUsed}
-                </p>
-              </div>
               </div>
 
               {!enabled && (
@@ -260,19 +278,21 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
             {enabled && (
               <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row xl:flex-col 2xl:flex-row'>
                 <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant='destructive'
-                      className='flex-1'
-                      disabled={removing}
-                    >
-                      {removing ? (
-                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      ) : (
-                        <AlertTriangle className='mr-2 h-4 w-4' />
-                      )}
-                      {t('Remove Passkey')}
-                    </Button>
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        variant='destructive'
+                        className='flex-1'
+                        disabled={removing}
+                      />
+                    }
+                  >
+                    {removing ? (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    ) : (
+                      <AlertTriangle className='mr-2 h-4 w-4' />
+                    )}
+                    {t('Remove Passkey')}
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>

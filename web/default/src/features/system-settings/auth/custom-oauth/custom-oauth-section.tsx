@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SettingsSection } from '../../components/settings-section'
@@ -32,12 +50,7 @@ export function CustomOAuthSection() {
 
   if (isLoading) {
     return (
-      <SettingsSection
-        title={t('Custom OAuth Providers')}
-        description={t(
-          'Configure custom OAuth providers for user authentication'
-        )}
-      >
+      <SettingsSection title={t('Custom OAuth Providers')}>
         <div className='text-muted-foreground py-8 text-center text-sm'>
           {t('Loading...')}
         </div>
@@ -46,12 +59,7 @@ export function CustomOAuthSection() {
   }
 
   return (
-    <SettingsSection
-      title={t('Custom OAuth Providers')}
-      description={t(
-        'Configure custom OAuth providers for user authentication'
-      )}
-    >
+    <SettingsSection title={t('Custom OAuth Providers')}>
       <ProviderTable
         providers={providers}
         onEdit={handleEdit}

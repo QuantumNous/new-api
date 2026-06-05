@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
@@ -14,7 +32,7 @@ export const API_KEY_STATUS = {
 
 export const API_KEY_STATUSES: Record<
   number,
-  Pick<StatusBadgeProps, 'variant' | 'showDot'> & {
+  Pick<StatusBadgeProps, 'variant'> & {
     label: string
     value: number
   }
@@ -23,25 +41,21 @@ export const API_KEY_STATUSES: Record<
     label: 'Enabled',
     variant: 'success',
     value: API_KEY_STATUS.ENABLED,
-    showDot: true,
   },
   [API_KEY_STATUS.DISABLED]: {
     label: 'Disabled',
     variant: 'neutral',
     value: API_KEY_STATUS.DISABLED,
-    showDot: true,
   },
   [API_KEY_STATUS.EXPIRED]: {
     label: 'Expired',
     variant: 'warning',
     value: API_KEY_STATUS.EXPIRED,
-    showDot: true,
   },
   [API_KEY_STATUS.EXHAUSTED]: {
     label: 'Exhausted',
     variant: 'danger',
     value: API_KEY_STATUS.EXHAUSTED,
-    showDot: true,
   },
 } as const
 

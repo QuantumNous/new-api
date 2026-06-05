@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 // ============================================================================
 // Channel Types (from constant/channel.go)
 // All label/name values are i18n keys; use t(value) when displaying.
@@ -113,22 +131,18 @@ export const CHANNEL_STATUS_CONFIG = {
   [CHANNEL_STATUS.UNKNOWN]: {
     variant: 'neutral' as const,
     label: 'Unknown',
-    showDot: true,
   },
   [CHANNEL_STATUS.ENABLED]: {
     variant: 'success' as const,
     label: 'Enabled',
-    showDot: true,
   },
   [CHANNEL_STATUS.MANUAL_DISABLED]: {
-    variant: 'neutral' as const,
+    variant: 'danger' as const,
     label: 'Disabled',
-    showDot: true,
   },
   [CHANNEL_STATUS.AUTO_DISABLED]: {
-    variant: 'danger' as const,
+    variant: 'warning' as const,
     label: 'Auto Disabled',
-    showDot: true,
   },
 }
 

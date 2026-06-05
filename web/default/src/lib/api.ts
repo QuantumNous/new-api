@@ -1,7 +1,35 @@
-import axios from 'axios'
-import i18next from 'i18next'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import axios, { type AxiosRequestConfig } from 'axios'
+import { t } from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipBusinessError?: boolean
+    skipErrorHandler?: boolean
+    disableDuplicate?: boolean
+  }
+}
+
+export type ApiRequestConfig = AxiosRequestConfig
 
 // ============================================================================
 // Axios Instance Configuration
@@ -28,14 +56,11 @@ export const api = axios.create({
 const inFlightGet = new Map<string, Promise<unknown>>()
 const originalGet = api.get.bind(api)
 
-api.get = ((url: string, config = {}) => {
-  const disableDuplicate = (config as unknown as Record<string, unknown>)
-    ?.disableDuplicate
+api.get = ((url: string, config: ApiRequestConfig = {}) => {
+  const disableDuplicate = config.disableDuplicate
   if (disableDuplicate) return originalGet(url, config)
 
-  const params = (config as unknown as Record<string, unknown>)?.params
-    ? JSON.stringify((config as unknown as Record<string, unknown>).params)
-    : '{}'
+  const params = config.params ? JSON.stringify(config.params) : '{}'
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
@@ -54,8 +79,7 @@ api.get = ((url: string, config = {}) => {
 // Handle business logic errors and HTTP errors globally
 api.interceptors.response.use(
   (response) => {
-    const skipBusiness = (response.config as unknown as Record<string, unknown>)
-      ?.skipBusinessError
+    const skipBusiness = response.config.skipBusinessError
 
     // Unified business response format: { success, message, data }
     if (
@@ -66,7 +90,7 @@ api.interceptors.response.use(
     ) {
       if (!response.data.success) {
         // Show error toast for business failures
-        const msg = response.data.message || 'Request failed'
+        const msg = response.data.message || t('Request failed')
         toast.error(msg)
       }
     }
@@ -74,23 +98,23 @@ api.interceptors.response.use(
   },
   (error) => {
     const skip = error?.config?.skipErrorHandler
-    if (!skip) {
-      const status = error?.response?.status
+    const status = error?.response?.status
 
-      if (status === 401) {
-        // Unauthorized: clear auth state and show toast
-        toast.error(i18next.t('Session expired!'))
-        try {
-          useAuthStore.getState().auth.reset()
-        } catch {
-          /* empty */
-        }
-      } else {
-        // Other errors: show error message from response or default
-        const msg =
-          error?.response?.data?.message || error?.message || 'Request error'
-        toast.error(msg)
+    if (status === 401) {
+      try {
+        useAuthStore.getState().auth.reset()
+      } catch {
+        /* empty */
       }
+
+      if (!skip) {
+        toast.error(t('Session expired!'))
+      }
+    } else if (!skip) {
+      // Other errors: show error message from response or default
+      const msg =
+        error?.response?.data?.message || error?.message || t('Request failed')
+      toast.error(msg)
     }
     return Promise.reject(error)
   }
@@ -157,7 +181,7 @@ export async function getSelf() {
   const res = await api.get('/api/user/self', {
     // Avoid global 401 toast during guards/preloads
     skipErrorHandler: true,
-  } as Record<string, unknown>)
+  })
   return res.data
 }
 

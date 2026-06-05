@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useMemo } from 'react'
 import { Lightbulb, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -213,11 +231,13 @@ export function PaymentMethodsVisualEditor({
         </div>
         <div className='flex gap-2'>
           <Popover>
-            <PopoverTrigger asChild>
-              <Button variant='outline' className='flex-1 sm:flex-none'>
-                <Lightbulb className='h-4 w-4 sm:mr-2' />
-                <span className='sm:inline'>{t('Templates')}</span>
-              </Button>
+            <PopoverTrigger
+              render={
+                <Button variant='outline' className='flex-1 sm:flex-none' />
+              }
+            >
+              <Lightbulb className='h-4 w-4 sm:mr-2' />
+              <span className='sm:inline'>{t('Templates')}</span>
             </PopoverTrigger>
             <PopoverContent className='w-60'>
               <div className='space-y-2'>
@@ -291,7 +311,7 @@ export function PaymentMethodsVisualEditor({
                         {method.name}
                       </TableCell>
                       <TableCell>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
+                        <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
                           {method.type}
                         </code>
                       </TableCell>
@@ -303,7 +323,7 @@ export function PaymentMethodsVisualEditor({
                               style={{ backgroundColor: colorPreview }}
                             />
                           )}
-                          <span className='text-muted-foreground truncate font-mono text-xs'>
+                          <span className='text-muted-foreground truncate font-mono text-sm'>
                             {method.color}
                           </span>
                         </div>

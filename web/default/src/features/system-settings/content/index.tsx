@@ -1,11 +1,27 @@
-import { useMemo } from 'react'
-import { useParams } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
-import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
-import type { ContentSettings } from '../types'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { SettingsPage } from '../components/settings-page'
+import type { ContentSettings, SystemOption } from '../types'
 import {
   CONTENT_DEFAULT_SECTION,
   getContentSectionContent,
+  getContentSectionMeta,
 } from './section-registry.tsx'
 
 const defaultContentSettings: ContentSettings = {
@@ -29,84 +45,53 @@ const defaultContentSettings: ContentSettings = {
   MjActionCheckSuccessEnabled: false,
 }
 
-export function ContentSettings() {
-  const { t } = useTranslation()
-  const { data, isLoading } = useSystemOptions()
-  const params = useParams({
-    from: '/_authenticated/system-settings/content/$section',
-  })
+function resolveContentSettings(
+  settings: ContentSettings,
+  raw: SystemOption[] | undefined
+): ContentSettings {
+  if (!raw || raw.length === 0) return settings
 
-  const settings = useMemo(() => {
-    const resolved = getOptionValue(data?.data, defaultContentSettings)
+  const optionMap = new Map(raw.map((item) => [item.key, item.value]))
+  const next = { ...settings }
 
-    const optionMap = new Map(
-      (data?.data ?? []).map((item) => [item.key, item.value])
-    )
+  const legacyMap = [
+    { current: 'console_setting.announcements', legacy: 'Announcements' },
+    { current: 'console_setting.api_info', legacy: 'ApiInfo' },
+    { current: 'console_setting.faq', legacy: 'FAQ' },
+  ] as const
 
-    if (!optionMap.has('console_setting.announcements')) {
-      const legacy = optionMap.get('Announcements')
-      if (legacy !== undefined) {
-        resolved['console_setting.announcements'] = legacy
+  for (const { current, legacy } of legacyMap) {
+    if (!optionMap.has(current)) {
+      const legacyValue = optionMap.get(legacy)
+      if (legacyValue !== undefined) {
+        next[current] = legacyValue
       }
     }
-
-    if (!optionMap.has('console_setting.api_info')) {
-      const legacy = optionMap.get('ApiInfo')
-      if (legacy !== undefined) {
-        resolved['console_setting.api_info'] = legacy
-      }
-    }
-
-    if (!optionMap.has('console_setting.faq')) {
-      const legacy = optionMap.get('FAQ')
-      if (legacy !== undefined) {
-        resolved['console_setting.faq'] = legacy
-      }
-    }
-
-    if (!optionMap.has('console_setting.uptime_kuma_groups')) {
-      const legacyUrl = optionMap.get('UptimeKumaUrl')
-      const legacySlug = optionMap.get('UptimeKumaSlug')
-      if (legacyUrl && legacySlug) {
-        resolved['console_setting.uptime_kuma_groups'] = JSON.stringify([
-          {
-            id: 1,
-            categoryName: 'Legacy',
-            url: legacyUrl,
-            slug: legacySlug,
-          },
-        ])
-      }
-    }
-
-    return resolved
-  }, [data?.data])
-
-  if (isLoading) {
-    return (
-      <div className='flex items-center justify-center py-12'>
-        <div className='text-muted-foreground'>
-          {t('Loading content settings...')}
-        </div>
-      </div>
-    )
   }
 
-  const activeSection = (params?.section ?? CONTENT_DEFAULT_SECTION) as
-    | 'dashboard'
-    | 'announcements'
-    | 'api-info'
-    | 'faq'
-    | 'uptime-kuma'
-    | 'chat'
-    | 'drawing'
-  const sectionContent = getContentSectionContent(activeSection, settings)
+  if (!optionMap.has('console_setting.uptime_kuma_groups')) {
+    const legacyUrl = optionMap.get('UptimeKumaUrl')
+    const legacySlug = optionMap.get('UptimeKumaSlug')
+    if (legacyUrl && legacySlug) {
+      next['console_setting.uptime_kuma_groups'] = JSON.stringify([
+        { id: 1, categoryName: 'Legacy', url: legacyUrl, slug: legacySlug },
+      ])
+    }
+  }
 
+  return next
+}
+
+export function ContentSettings() {
   return (
-    <div className='flex h-full w-full flex-1 flex-col'>
-      <div className='faded-bottom h-full w-full overflow-y-auto scroll-smooth pe-4 pb-12'>
-        <div className='space-y-4'>{sectionContent}</div>
-      </div>
-    </div>
+    <SettingsPage
+      routePath='/_authenticated/system-settings/content/$section'
+      defaultSettings={defaultContentSettings}
+      defaultSection={CONTENT_DEFAULT_SECTION}
+      getSectionContent={getContentSectionContent}
+      getSectionMeta={getContentSectionMeta}
+      loadingMessage='Loading content settings...'
+      resolveSettings={resolveContentSettings}
+    />
   )
 }

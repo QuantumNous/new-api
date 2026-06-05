@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react'
 import { type LucideIcon } from 'lucide-react'
@@ -6,59 +24,59 @@ import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 export const dotColorMap = {
-  success: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  danger: 'bg-rose-500',
-  info: 'bg-sky-500',
-  neutral: 'bg-slate-400',
-  purple: 'bg-purple-500',
-  amber: 'bg-amber-500',
-  blue: 'bg-blue-500',
-  cyan: 'bg-cyan-500',
-  green: 'bg-green-500',
-  grey: 'bg-gray-500',
-  indigo: 'bg-indigo-500',
-  'light-blue': 'bg-sky-500',
-  'light-green': 'bg-green-500',
-  lime: 'bg-lime-500',
-  orange: 'bg-orange-500',
-  pink: 'bg-pink-500',
-  red: 'bg-red-500',
-  teal: 'bg-teal-500',
-  violet: 'bg-violet-500',
-  yellow: 'bg-yellow-500',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-destructive',
+  info: 'bg-info',
+  neutral: 'bg-neutral',
+  purple: 'bg-chart-4',
+  amber: 'bg-warning',
+  blue: 'bg-chart-1',
+  cyan: 'bg-chart-2',
+  green: 'bg-success',
+  grey: 'bg-neutral',
+  indigo: 'bg-chart-1',
+  'light-blue': 'bg-info',
+  'light-green': 'bg-success',
+  lime: 'bg-chart-3',
+  orange: 'bg-warning',
+  pink: 'bg-chart-5',
+  red: 'bg-destructive',
+  teal: 'bg-chart-2',
+  violet: 'bg-chart-4',
+  yellow: 'bg-warning',
 } as const
 
 export const textColorMap = {
-  success: 'text-emerald-700 dark:text-emerald-400',
-  warning: 'text-amber-700 dark:text-amber-400',
-  danger: 'text-rose-700 dark:text-rose-400',
-  info: 'text-sky-700 dark:text-sky-400',
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-destructive',
+  info: 'text-info',
   neutral: 'text-muted-foreground',
-  purple: 'text-purple-700 dark:text-purple-400',
-  amber: 'text-amber-700 dark:text-amber-400',
-  blue: 'text-blue-700 dark:text-blue-400',
-  cyan: 'text-cyan-700 dark:text-cyan-400',
-  green: 'text-green-700 dark:text-green-400',
+  purple: 'text-chart-4',
+  amber: 'text-warning',
+  blue: 'text-chart-1',
+  cyan: 'text-chart-2',
+  green: 'text-success',
   grey: 'text-muted-foreground',
-  indigo: 'text-indigo-700 dark:text-indigo-400',
-  'light-blue': 'text-sky-700 dark:text-sky-400',
-  'light-green': 'text-green-600 dark:text-green-400',
-  lime: 'text-lime-700 dark:text-lime-400',
-  orange: 'text-orange-700 dark:text-orange-400',
-  pink: 'text-pink-700 dark:text-pink-400',
-  red: 'text-red-700 dark:text-red-400',
-  teal: 'text-teal-700 dark:text-teal-400',
-  violet: 'text-violet-700 dark:text-violet-400',
-  yellow: 'text-yellow-700 dark:text-yellow-400',
+  indigo: 'text-chart-1',
+  'light-blue': 'text-info',
+  'light-green': 'text-success',
+  lime: 'text-chart-3',
+  orange: 'text-warning',
+  pink: 'text-chart-5',
+  red: 'text-destructive',
+  teal: 'text-chart-2',
+  violet: 'text-chart-4',
+  yellow: 'text-warning',
 } as const
 
 export type StatusVariant = keyof typeof dotColorMap
 
 const sizeMap = {
-  sm: 'text-xs gap-1.5',
-  md: 'text-xs gap-1.5',
-  lg: 'text-sm gap-2',
+  sm: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  md: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
 } as const
 
 export interface StatusBadgeProps extends Omit<
@@ -69,12 +87,10 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** When false, hides the leading dot */
+  /** Kept for compatibility. Badges no longer render leading dots. */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
-  /** @deprecated No longer applicable in flat design */
-  rounded?: 'full' | 'md' | 'sm' | 'lg'
   copyable?: boolean
   copyText?: string
   autoColor?: string
@@ -88,7 +104,6 @@ export function StatusBadge({
   size = 'sm',
   pulse = false,
   showDot = true,
-  rounded: _rounded,
   copyable = true,
   copyText,
   autoColor,
@@ -110,17 +125,18 @@ export function StatusBadge({
     onClick?.(e)
   }
 
-  const content = children ?? (label ? <span className='truncate'>{label}</span> : null)
+  const content =
+    children ?? (label ? <span className='truncate'>{label}</span> : null)
 
   return (
     <span
       className={cn(
-        'inline-flex w-fit shrink-0 items-center font-medium whitespace-nowrap',
+        'inline-flex w-fit max-w-full shrink-0 items-center rounded-4xl font-medium tracking-normal whitespace-nowrap transition-colors',
         sizeMap[size ?? 'sm'],
         textColorMap[computedVariant],
         pulse && 'animate-pulse',
         copyable &&
-          'cursor-pointer transition-opacity hover:opacity-70 active:scale-95',
+          'cursor-copy hover:brightness-95 active:scale-95 dark:hover:brightness-110',
         className
       )}
       onClick={handleClick}
@@ -136,9 +152,66 @@ export function StatusBadge({
           aria-hidden='true'
         />
       )}
-      {Icon && <Icon className='size-3 shrink-0' />}
+      {Icon && <Icon className='size-3.5 shrink-0' />}
       {content}
     </span>
+  )
+}
+
+export interface StatusBadgeListProps<T> extends Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  'children'
+> {
+  empty?: React.ReactNode
+  getKey?: (item: T, index: number) => React.Key
+  items: T[]
+  max?: number
+  moreLabel?: (remaining: number) => string
+  renderItem: (item: T, index: number) => React.ReactNode
+}
+
+export function StatusBadgeList<T>(props: StatusBadgeListProps<T>) {
+  const {
+    className,
+    empty = <span className='text-muted-foreground text-xs'>-</span>,
+    getKey,
+    items,
+    max = 2,
+    moreLabel,
+    renderItem,
+    ...domProps
+  } = props
+
+  if (items.length === 0) {
+    return empty
+  }
+
+  const displayed = items.slice(0, max)
+  const remaining = items.length - max
+
+  return (
+    <div
+      className={cn(
+        'flex max-w-full items-center gap-1 overflow-hidden',
+        className
+      )}
+      {...domProps}
+    >
+      {displayed.map((item, index) => (
+        <React.Fragment key={getKey?.(item, index) ?? index}>
+          {renderItem(item, index)}
+        </React.Fragment>
+      ))}
+      {remaining > 0 && (
+        <StatusBadge
+          label={moreLabel?.(remaining) ?? `+${remaining}`}
+          variant='neutral'
+          size='sm'
+          copyable={false}
+          className='shrink-0'
+        />
+      )}
+    </div>
   )
 }
 
@@ -146,27 +219,22 @@ export const statusPresets = {
   active: {
     variant: 'success' as const,
     label: 'Active',
-    showDot: true,
   },
   inactive: {
     variant: 'neutral' as const,
     label: 'Inactive',
-    showDot: true,
   },
   invited: {
     variant: 'info' as const,
     label: 'Invited',
-    showDot: true,
   },
   suspended: {
     variant: 'danger' as const,
     label: 'Suspended',
-    showDot: true,
   },
   pending: {
     variant: 'warning' as const,
     label: 'Pending',
-    showDot: true,
     pulse: true,
   },
 } as const

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { ContentSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
@@ -23,7 +41,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'dashboard',
     titleKey: 'Data Dashboard',
-    descriptionKey: 'Configure data export settings for dashboard',
     build: (settings: ContentSettings) => (
       <DashboardSection
         defaultValues={{
@@ -39,7 +56,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'announcements',
     titleKey: 'Announcements',
-    descriptionKey: 'Configure system announcements',
     build: (settings: ContentSettings) => (
       <AnnouncementsSection
         enabled={settings['console_setting.announcements_enabled']}
@@ -50,7 +66,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'api-info',
     titleKey: 'API Addresses',
-    descriptionKey: 'Configure API information display',
     build: (settings: ContentSettings) => (
       <ApiInfoSection
         enabled={settings['console_setting.api_info_enabled']}
@@ -61,7 +76,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'faq',
     titleKey: 'FAQ',
-    descriptionKey: 'Configure frequently asked questions',
     build: (settings: ContentSettings) => (
       <FAQSection
         enabled={settings['console_setting.faq_enabled']}
@@ -72,7 +86,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'uptime-kuma',
     titleKey: 'Uptime Kuma',
-    descriptionKey: 'Configure Uptime Kuma monitoring integration',
     build: (settings: ContentSettings) => (
       <UptimeKumaSection
         enabled={settings['console_setting.uptime_kuma_enabled']}
@@ -83,7 +96,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'chat',
     titleKey: 'Chat Presets',
-    descriptionKey: 'Configure chat-related settings',
     build: (settings: ContentSettings) => (
       <ChatSettingsSection defaultValue={settings.Chats} />
     ),
@@ -91,7 +103,6 @@ const CONTENT_SECTIONS = [
   {
     id: 'drawing',
     titleKey: 'Drawing',
-    descriptionKey: 'Configure drawing and Midjourney settings',
     build: (settings: ContentSettings) => (
       <DrawingSettingsSection
         defaultValues={{
@@ -123,3 +134,4 @@ export const CONTENT_SECTION_IDS = contentRegistry.sectionIds
 export const CONTENT_DEFAULT_SECTION = contentRegistry.defaultSection
 export const getContentSectionNavItems = contentRegistry.getSectionNavItems
 export const getContentSectionContent = contentRegistry.getSectionContent
+export const getContentSectionMeta = contentRegistry.getSectionMeta

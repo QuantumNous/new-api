@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestamp } from '@/lib/format'
@@ -12,12 +30,9 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
-import { StatusBadge, dotColorMap } from '@/components/status-badge'
-import {
-  USER_STATUSES,
-  USER_ROLES,
-  isUserDeleted,
-} from '../constants'
+import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
+import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -34,10 +49,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
       id: 'select',
       header: ({ table }) => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label='Select all'
           className='translate-y-[2px]'
@@ -61,7 +74,9 @@ export function useUsersColumns(): ColumnDef<User>[] {
         <DataTableColumnHeader column={column} title='ID' />
       ),
       cell: ({ row }) => {
-        return <div className='w-[60px]'>{row.getValue('id')}</div>
+        return (
+          <TableId value={row.getValue('id') as number} className='w-[60px]' />
+        )
       },
       meta: { label: t('ID'), mobileHidden: true },
     },
@@ -83,10 +98,10 @@ export function useUsersColumns(): ColumnDef<User>[] {
               </LongText>
               {remark && (
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <StatusBadge variant='success' copyable={false}>
-                      <LongText className='max-w-[80px]'>{remark}</LongText>
-                    </StatusBadge>
+                  <TooltipTrigger
+                    render={<StatusBadge variant='success' copyable={false} />}
+                  >
+                    <LongText className='max-w-[80px]'>{remark}</LongText>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className='text-xs'>{remark}</p>
@@ -124,15 +139,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
 
         return (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <div className='cursor-help'>
-                <StatusBadge
-                  label={t(statusConfig.labelKey)}
-                  variant={statusConfig.variant}
-                  showDot={statusConfig.showDot}
-                  copyable={false}
-                />
-              </div>
+            <TooltipTrigger render={<div className='cursor-help' />}>
+              <StatusBadge
+                label={t(statusConfig.labelKey)}
+                variant={statusConfig.variant}
+                copyable={false}
+              />
             </TooltipTrigger>
             <TooltipContent>
               <p className='text-xs'>
@@ -173,21 +185,21 @@ export function useUsersColumns(): ColumnDef<User>[] {
 
         return (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <div className='w-[150px] cursor-help space-y-1'>
-                <div className='flex justify-between text-xs'>
-                  <span className='font-medium tabular-nums'>
-                    {formatQuota(remaining)}
-                  </span>
-                  <span className='text-muted-foreground tabular-nums'>
-                    {formatQuota(total)}
-                  </span>
-                </div>
-                <Progress
-                  value={percentage}
-                  className={cn('h-1.5', getQuotaProgressColor(percentage))}
-                />
+            <TooltipTrigger
+              render={<div className='w-[150px] cursor-help space-y-1' />}
+            >
+              <div className='flex justify-between text-xs'>
+                <span className='font-medium tabular-nums'>
+                  {formatQuota(remaining)}
+                </span>
+                <span className='text-muted-foreground tabular-nums'>
+                  {formatQuota(total)}
+                </span>
               </div>
+              <Progress
+                value={percentage}
+                className={cn('h-1.5', getQuotaProgressColor(percentage))}
+              />
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
@@ -266,57 +278,62 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const inviterId = user.inviter_id || 0
 
         return (
-          <div className='flex items-center gap-1.5 text-xs font-medium'>
-            <span
-              className={cn(
-                'size-1.5 shrink-0 rounded-full',
-                dotColorMap.neutral
-              )}
-              aria-hidden='true'
-            />
+          <div className='flex items-center gap-1'>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-help'>
-                  {t('Invited')}: {affCount}
-                </span>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <StatusBadge
+                    label={`${t('Invited')}: ${affCount}`}
+                    variant='neutral'
+                    copyable={false}
+                    className='cursor-help'
+                  />
+                }
+              />
               <TooltipContent>
                 <p className='text-xs'>{t('Number of users invited')}</p>
               </TooltipContent>
             </Tooltip>
-            <span className='text-muted-foreground/30'>·</span>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-help'>
-                  {t('Revenue')}: {formatQuota(affHistoryQuota)}
-                </span>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <StatusBadge
+                    label={`${t('Revenue')}: ${formatQuota(affHistoryQuota)}`}
+                    variant='neutral'
+                    copyable={false}
+                    className='cursor-help'
+                  />
+                }
+              />
               <TooltipContent>
                 <p className='text-xs'>{t('Total invitation revenue')}</p>
               </TooltipContent>
             </Tooltip>
             {inviterId > 0 && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='text-muted-foreground cursor-help'>
-                      {t('Inviter')}: {inviterId}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className='text-xs'>
-                      {t('Invited by user ID')} {inviterId}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <StatusBadge
+                      label={`${t('Inviter')}: ${inviterId}`}
+                      variant='neutral'
+                      copyable={false}
+                      className='cursor-help'
+                    />
+                  }
+                />
+                <TooltipContent>
+                  <p className='text-xs'>
+                    {t('Invited by user ID')} {inviterId}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             )}
             {inviterId === 0 && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <span className='text-muted-foreground'>{t('No Inviter')}</span>
-              </>
+              <StatusBadge
+                label={t('No Inviter')}
+                variant='neutral'
+                copyable={false}
+              />
             )}
           </div>
         )

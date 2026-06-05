@@ -1,8 +1,24 @@
-import { useMemo } from 'react'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
 import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -16,7 +32,6 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { getSystemOptions } from '@/features/system-settings/api'
 import { API_KEY_STATUSES } from '../constants'
 import { type ApiKey } from '../types'
 import {
@@ -33,31 +48,9 @@ function getQuotaProgressColor(percentage: number): string {
 }
 
 function useGroupRatios(): Record<string, number> {
-  const isAdmin = useAuthStore((s) =>
-    Boolean(s.auth.user?.role && s.auth.user.role >= 10)
-  )
-
-  const { data: adminData } = useQuery({
-    queryKey: ['system-options-group-ratio'],
-    queryFn: getSystemOptions,
-    enabled: isAdmin,
-    staleTime: 5 * 60 * 1000,
-    select: (res) => {
-      if (!res.success || !res.data) return {}
-      const option = res.data.find((o) => o.key === 'GroupRatio')
-      if (!option?.value) return {}
-      try {
-        return JSON.parse(option.value) as Record<string, number>
-      } catch {
-        return {}
-      }
-    },
-  })
-
-  const { data: userGroupsData } = useQuery({
+  const { data } = useQuery({
     queryKey: ['user-self-groups'],
     queryFn: getUserGroups,
-    enabled: !isAdmin,
     staleTime: 5 * 60 * 1000,
     select: (res) => {
       if (!res.success || !res.data) return {}
@@ -71,10 +64,7 @@ function useGroupRatios(): Record<string, number> {
     },
   })
 
-  return useMemo(
-    () => (isAdmin ? adminData : userGroupsData) ?? {},
-    [isAdmin, adminData, userGroupsData]
-  )
+  return data ?? {}
 }
 
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
@@ -85,10 +75,8 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'select',
       header: ({ table }) => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label='Select all'
           className='translate-y-[2px]'
@@ -130,7 +118,6 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           <StatusBadge
             label={t(statusConfig.label)}
             variant={statusConfig.variant}
-            showDot={statusConfig.showDot}
             copyable={false}
           />
         )
@@ -171,21 +158,19 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
 
         return (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <div className='w-[150px] space-y-1'>
-                <div className='flex justify-between text-xs'>
-                  <span className='font-medium tabular-nums'>
-                    {formatQuota(remaining)}
-                  </span>
-                  <span className='text-muted-foreground tabular-nums'>
-                    {formatQuota(total)}
-                  </span>
-                </div>
-                <Progress
-                  value={percentage}
-                  className={cn('h-1.5', getQuotaProgressColor(percentage))}
-                />
+            <TooltipTrigger render={<div className='w-[150px] space-y-1' />}>
+              <div className='flex justify-between text-xs'>
+                <span className='font-medium tabular-nums'>
+                  {formatQuota(remaining)}
+                </span>
+                <span className='text-muted-foreground tabular-nums'>
+                  {formatQuota(total)}
+                </span>
               </div>
+              <Progress
+                value={percentage}
+                className={cn('h-1.5', getQuotaProgressColor(percentage))}
+              />
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
@@ -219,18 +204,19 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         if (group === 'auto') {
           return (
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className='inline-flex items-center gap-1.5 text-xs'>
-                  <GroupBadge group='auto' />
-                  {apiKey.cross_group_retry && (
-                    <>
-                      <span className='text-muted-foreground/30'>·</span>
-                      <span className='text-muted-foreground/60'>
-                        {t('Cross-group')}
-                      </span>
-                    </>
-                  )}
-                </span>
+              <TooltipTrigger
+                render={
+                  <span className='inline-flex items-center gap-1.5 text-xs' />
+                }
+              >
+                <GroupBadge group='auto' />
+                {apiKey.cross_group_retry && (
+                  <StatusBadge
+                    label={t('Cross-group')}
+                    variant='info'
+                    copyable={false}
+                  />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 <span className='text-xs'>

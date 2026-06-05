@@ -1,9 +1,26 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -16,13 +33,18 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SettingsAccordion } from '../components/settings-accordion'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { formatJsonForEditor, normalizeJsonString } from './utils'
 
 type JsonToggleSectionProps = {
   value: string
   title: string
-  description?: string
   toggleDescription?: string
   optionKey: string
   enabledKey: string
@@ -45,7 +67,6 @@ type JsonToggleFormValues = {
 export function JsonToggleSection({
   value,
   title,
-  description,
   toggleDescription,
   optionKey,
   enabledKey,
@@ -139,30 +160,33 @@ export function JsonToggleSection({
   }
 
   return (
-    <SettingsAccordion value={value} title={title} description={description}>
+    <SettingsAccordion value={value} title={title}>
       <Form {...form}>
         {/* eslint-disable-next-line react-hooks/refs */}
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+            saveLabel={submitLabel}
+          />
           <FormField
             control={form.control}
             name='enabled'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
-                    {t('Module availability')}
-                  </FormLabel>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Module availability')}</FormLabel>
                   {toggleDescription && (
                     <FormDescription>{t(toggleDescription)}</FormDescription>
                   )}
-                </div>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -185,11 +209,7 @@ export function JsonToggleSection({
               </FormItem>
             )}
           />
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t(submitLabel)}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsAccordion>
   )

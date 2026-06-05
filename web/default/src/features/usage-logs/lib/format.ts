@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { StatusBadgeProps } from '@/components/status-badge'
 import {
   BILLING_PRICING_VARS,
@@ -39,8 +57,8 @@ const PARAM_OVERRIDE_ACTION_MAP: Record<string, string> = {
  * Get localized label for a param override action
  */
 export function getParamOverrideActionLabel(
-    action: string,
-    t: (key: string) => string
+  action: string,
+  t: (key: string) => string
 ): string {
   const key = PARAM_OVERRIDE_ACTION_MAP[action.toLowerCase()]
   return key ? t(key) : action
@@ -50,7 +68,7 @@ export function getParamOverrideActionLabel(
  * Parse a param override audit line into action and content
  */
 export function parseAuditLine(
-    line: string
+  line: string
 ): { action: string; content: string } | null {
   if (typeof line !== 'string') return null
   const firstSpace = line.indexOf(' ')
@@ -67,9 +85,9 @@ export function parseAuditLine(
 export function isViolationFeeLog(other: LogOtherData | null): boolean {
   if (!other) return false
   return (
-      other.violation_fee === true ||
-      Boolean(other.violation_fee_code) ||
-      Boolean(other.violation_fee_marker)
+    other.violation_fee === true ||
+    Boolean(other.violation_fee_code) ||
+    Boolean(other.violation_fee_marker)
   )
 }
 
@@ -91,7 +109,7 @@ export function parseLogOther(other: string): LogOtherData | null {
  * Get time color based on duration (in seconds)
  */
 export function getTimeColor(
-    seconds: number
+  seconds: number
 ): 'success' | 'warning' | 'danger' {
   if (seconds < 10) return 'success'
   if (seconds < 30) return 'warning'
@@ -102,7 +120,7 @@ export function getTimeColor(
  * Get first-response-token color based on latency (in seconds)
  */
 export function getFirstResponseTimeColor(
-    seconds: number
+  seconds: number
 ): 'success' | 'warning' | 'danger' {
   if (seconds < 5) return 'success'
   if (seconds < 10) return 'warning'
@@ -113,7 +131,7 @@ export function getFirstResponseTimeColor(
  * Get throughput color based on generated tokens per second
  */
 export function getThroughputColor(
-    tokensPerSecond: number
+  tokensPerSecond: number
 ): 'success' | 'warning' | 'danger' {
   if (tokensPerSecond >= 30) return 'success'
   if (tokensPerSecond >= 15) return 'warning'
@@ -124,8 +142,8 @@ export function getThroughputColor(
  * Get response color using throughput only when enough output tokens exist.
  */
 export function getResponseTimeColor(
-    seconds: number,
-    completionTokens: number
+  seconds: number,
+  completionTokens: number
 ): 'success' | 'warning' | 'danger' {
   if (completionTokens < 100 || seconds <= 0) return getTimeColor(seconds)
   return getThroughputColor(completionTokens / seconds)
@@ -141,9 +159,9 @@ export function formatModelName(log: UsageLog): {
 } {
   const other = parseLogOther(log.other)
   const isMapped = !!(
-      other?.is_model_mapped &&
-      other?.upstream_model_name &&
-      other.upstream_model_name !== ''
+    other?.is_model_mapped &&
+    other?.upstream_model_name &&
+    other.upstream_model_name !== ''
   )
 
   return {
@@ -161,9 +179,9 @@ export function decodeBillingExprB64(exprB64: string | undefined): string {
   if (!exprB64) return ''
   try {
     const binaryString =
-        typeof window !== 'undefined'
-            ? window.atob(exprB64)
-            : Buffer.from(exprB64, 'base64').toString('binary')
+      typeof window !== 'undefined'
+        ? window.atob(exprB64)
+        : Buffer.from(exprB64, 'base64').toString('binary')
     const bytes = new Uint8Array(binaryString.length)
 
     for (let i = 0; i < binaryString.length; i++) {
@@ -175,9 +193,9 @@ export function decodeBillingExprB64(exprB64: string | undefined): string {
     }
 
     return decodeURIComponent(
-        Array.prototype.map
-            .call(bytes, (byte: number) => '%' + byte.toString(16).padStart(2, '0'))
-            .join('')
+      Array.prototype.map
+        .call(bytes, (byte: number) => '%' + byte.toString(16).padStart(2, '0'))
+        .join('')
     )
   } catch {
     return ''
@@ -190,8 +208,8 @@ export function decodeBillingExprB64(exprB64: string | undefined): string {
  * that would display guessed unit prices.
  */
 export function resolveMatchedTier(
-    tiers: ParsedTier[],
-    matchedLabel: string | undefined
+  tiers: ParsedTier[],
+  matchedLabel: string | undefined
 ): ParsedTier | null {
   if (tiers.length === 0) return null
   if (!matchedLabel) return null
@@ -220,19 +238,19 @@ export interface TieredBillingSummary {
  * not exercise the cache path (mirrors the classic frontend behaviour).
  */
 export function hasAnyCacheTokens(
-    other: LogOtherData | null | undefined
+  other: LogOtherData | null | undefined
 ): boolean {
   if (!other) return false
   return (
-      (other.cache_tokens || 0) > 0 ||
-      (other.cache_creation_tokens || 0) > 0 ||
-      (other.cache_creation_tokens_5m || 0) > 0 ||
-      (other.cache_creation_tokens_1h || 0) > 0
+    (other.cache_tokens || 0) > 0 ||
+    (other.cache_creation_tokens || 0) > 0 ||
+    (other.cache_creation_tokens_5m || 0) > 0 ||
+    (other.cache_creation_tokens_1h || 0) > 0
   )
 }
 
 export function getTieredBillingSummary(
-    other: LogOtherData | null
+  other: LogOtherData | null
 ): TieredBillingSummary | null {
   if (!other || other.billing_mode !== 'tiered_expr') return null
   const exprStr = decodeBillingExprB64(other.expr_b64)
@@ -267,16 +285,16 @@ export function getTieredBillingSummary(
  * @param unit - Unit of the timestamps ('seconds' or 'milliseconds')
  */
 export function formatDuration(
-    submitTime?: number,
-    finishTime?: number,
-    unit: 'seconds' | 'milliseconds' = 'milliseconds'
+  submitTime?: number,
+  finishTime?: number,
+  unit: 'seconds' | 'milliseconds' = 'milliseconds'
 ): { durationSec: number; variant: StatusBadgeProps['variant'] } | null {
   if (!submitTime || !finishTime) return null
 
   const durationSec =
-      unit === 'milliseconds'
-          ? (finishTime - submitTime) / 1000
-          : finishTime - submitTime
+    unit === 'milliseconds'
+      ? (finishTime - submitTime) / 1000
+      : finishTime - submitTime
 
   return { durationSec, variant: durationSec > 60 ? 'red' : 'green' }
 }

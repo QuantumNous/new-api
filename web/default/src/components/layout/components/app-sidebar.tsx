@@ -1,65 +1,74 @@
-import { useMemo } from 'react'
-import { useLocation } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
 import { useLayout } from '@/context/layout-provider'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarRail,
-} from '@/components/ui/sidebar'
-import { getNavGroupsForPath } from '../lib/workspace-registry'
+import { useSidebarView } from '@/hooks/use-sidebar-view'
+import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
 import { NavGroup } from './nav-group'
-import { WorkspaceSwitcher } from './workspace-switcher'
+import { SidebarViewHeader } from './sidebar-view-header'
 
 /**
- * Application sidebar component
- * Fetches corresponding navigation menu from workspace registry based on current path
- * Dynamically filters navigation items based on backend SidebarModulesAdmin configuration
+ * Application sidebar.
  *
- * Automatically matches workspace configuration for current path through workspace registry system
- * Adding new workspaces only requires registration in workspace-registry.ts
+ * Adopts the Vercel / Cloudflare "drill-in" pattern: the URL drives
+ * which sidebar *view* is rendered. Clicking a top-level entry like
+ * `System Settings` swaps the sidebar to a contextual workspace —
+ * with a `← Back to Dashboard` affordance — instead of stacking the
+ * sub-navigation inside the root tree.
+ *
+ * Architecture:
+ *   - View resolution + filtering: {@link useSidebarView}
+ *   - View registry: `layout/lib/sidebar-view-registry.ts`
+ *   - Per-view header: {@link SidebarViewHeader}
+ *
+ * Adding a new nested view only requires registering a {@link SidebarView}
+ * in the registry; this component requires no changes.
  */
 export function AppSidebar() {
-  const { t } = useTranslation()
   const { collapsible, variant } = useLayout()
-  const { pathname } = useLocation()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
-  const sidebarData = useSidebarData()
-
-  // Get navigation group configuration corresponding to current path from workspace registry
-  const allNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
-
-  // Filter sidebar navigation items based on backend configuration
-  const configFilteredNavGroups = useSidebarConfig(allNavGroups)
-
-  // Filter navigation groups based on user role
-  // Non-Admin users cannot see Admin navigation group
-  const currentNavGroups = useMemo(() => {
-    const isAdmin = userRole && userRole >= ROLE.ADMIN
-    return configFilteredNavGroups.filter((group) => {
-      if (group.id === 'admin') {
-        return isAdmin
-      }
-      return true
-    })
-  }, [configFilteredNavGroups, userRole])
+  const { key, view, navGroups } = useSidebarView()
+  const shouldReduce = useReducedMotion()
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
-      <SidebarHeader>
-        <WorkspaceSwitcher workspaces={sidebarData.workspaces} />
-      </SidebarHeader>
-      <SidebarContent>
-        {currentNavGroups.map((props) => {
-          const key = props.id || props.title
-          return <NavGroup key={key} {...props} />
-        })}
+      {view && <SidebarViewHeader view={view} />}
+
+      <SidebarContent className='py-2'>
+        <AnimatePresence mode='wait' initial={false}>
+          <motion.div
+            key={key}
+            initial={
+              shouldReduce ? false : MOTION_VARIANTS.sidebarSlide.initial
+            }
+            animate={MOTION_VARIANTS.sidebarSlide.animate}
+            exit={shouldReduce ? undefined : MOTION_VARIANTS.sidebarSlide.exit}
+            transition={MOTION_TRANSITION.fast}
+            className='flex flex-col'
+          >
+            {navGroups.map((props) => (
+              <NavGroup key={props.id || props.title} {...props} />
+            ))}
+          </motion.div>
+        </AnimatePresence>
       </SidebarContent>
+
       <SidebarRail />
     </Sidebar>
   )

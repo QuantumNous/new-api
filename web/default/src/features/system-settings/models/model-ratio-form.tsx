@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { memo, useCallback, useState } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
 import { Code2, Eye } from 'lucide-react'
@@ -14,6 +32,12 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { ModelRatioVisualEditor } from './model-ratio-visual-editor'
 
 type ModelFormValues = {
@@ -81,6 +105,25 @@ export const ModelRatioForm = memo(function ModelRatioForm({
       </div>
 
       <Form {...form}>
+        <SettingsPageActionsPortal>
+          <Button
+            type='button'
+            variant='destructive'
+            size='sm'
+            onClick={onReset}
+            disabled={isResetting}
+          >
+            {t('Reset prices')}
+          </Button>
+          <Button
+            type='button'
+            size='sm'
+            onClick={form.handleSubmit(onSave)}
+            disabled={isSaving}
+          >
+            {isSaving ? t('Saving...') : t('Save model prices')}
+          </Button>
+        </SettingsPageActionsPortal>
         {editMode === 'visual' ? (
           <div className='space-y-6'>
             <ModelRatioVisualEditor
@@ -109,43 +152,27 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               control={form.control}
               name='ExposeRatioEnabled'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Expose ratio API')}
-                    </FormLabel>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Expose ratio API')}</FormLabel>
                     <FormDescription>
                       {t(
                         'Allow clients to query configured ratios via `/api/ratio`.'
                       )}
                     </FormDescription>
-                  </div>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
-
-            <div className='flex flex-wrap gap-4'>
-              <Button onClick={form.handleSubmit(onSave)} disabled={isSaving}>
-                {isSaving ? t('Saving...') : t('Save model ratios')}
-              </Button>
-              <Button
-                type='button'
-                variant='destructive'
-                onClick={onReset}
-                disabled={isResetting}
-              >
-                {t('Reset ratios')}
-              </Button>
-            </div>
           </div>
         ) : (
-          <form onSubmit={form.handleSubmit(onSave)} className='space-y-6'>
+          <SettingsForm onSubmit={form.handleSubmit(onSave)}>
             <FormField
               control={form.control}
               name='ModelPrice'
@@ -300,41 +327,25 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               control={form.control}
               name='ExposeRatioEnabled'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Expose ratio API')}
-                    </FormLabel>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Expose ratio API')}</FormLabel>
                     <FormDescription>
                       {t(
                         'Allow clients to query configured ratios via `/api/ratio`.'
                       )}
                     </FormDescription>
-                  </div>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
-
-            <div className='flex flex-wrap gap-4'>
-              <Button type='submit' disabled={isSaving}>
-                {isSaving ? t('Saving...') : t('Save model ratios')}
-              </Button>
-              <Button
-                type='button'
-                variant='destructive'
-                onClick={onReset}
-                disabled={isResetting}
-              >
-                {t('Reset ratios')}
-              </Button>
-            </div>
-          </form>
+          </SettingsForm>
         )}
       </Form>
     </div>

@@ -1,10 +1,28 @@
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CaretSortIcon,
-  EyeNoneIcon,
-} from '@radix-ui/react-icons'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type Column } from '@tanstack/react-table'
+import {
+  ArrowDown as ArrowDownIcon,
+  ArrowUp as ArrowUpIcon,
+  ChevronsUpDown as CaretSortIcon,
+  EyeOff as EyeNoneIcon,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -35,21 +53,23 @@ export function DataTableColumnHeader<TData, TValue>({
   return (
     <div className={cn('flex items-center space-x-2', className)}>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='data-[state=open]:bg-accent -ms-3 h-8'
-          >
-            <span>{title}</span>
-            {column.getIsSorted() === 'desc' ? (
-              <ArrowDownIcon className='ms-2 h-4 w-4' />
-            ) : column.getIsSorted() === 'asc' ? (
-              <ArrowUpIcon className='ms-2 h-4 w-4' />
-            ) : (
-              <CaretSortIcon className='ms-2 h-4 w-4' />
-            )}
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='sm'
+              className='data-popup-open:bg-accent -ms-3 h-8'
+            />
+          }
+        >
+          <span>{title}</span>
+          {column.getIsSorted() === 'desc' ? (
+            <ArrowDownIcon className='ms-2 h-4 w-4' />
+          ) : column.getIsSorted() === 'asc' ? (
+            <ArrowUpIcon className='ms-2 h-4 w-4' />
+          ) : (
+            <CaretSortIcon className='ms-2 h-4 w-4' />
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
           <DropdownMenuItem onClick={() => column.toggleSorting(false)}>

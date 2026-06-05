@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -21,13 +39,19 @@ import {
   FormControl,
   FormDescription,
   FormField,
-  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { deleteLogsBefore } from '../api'
+import {
+  SettingsControlGroup,
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -143,27 +167,27 @@ export function LogSettingsSection({
   }
 
   return (
-    <SettingsSection
-      title={t('Log Maintenance')}
-      description={t('Control log retention and clean historical data.')}
-    >
+    <SettingsSection title={t('Log Maintenance')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+            saveLabel='Save log settings'
+          />
           <FormField
             control={form.control}
             name='LogConsumeEnabled'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5 pe-4'>
-                  <FormLabel className='text-base'>
-                    {t('Record quota usage')}
-                  </FormLabel>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Record quota usage')}</FormLabel>
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
                     )}
                   </FormDescription>
-                </div>
+                </SettingsSwitchContent>
                 <FormControl>
                   <Switch
                     checked={field.value}
@@ -171,11 +195,11 @@ export function LogSettingsSection({
                   />
                 </FormControl>
                 <FormMessage />
-              </FormItem>
+              </SettingsSwitchItem>
             )}
           />
 
-          <div className='space-y-4 rounded-lg border p-4'>
+          <SettingsControlGroup className='space-y-3'>
             <div>
               <h4 className='text-sm font-medium'>{t('Clean history logs')}</h4>
               <p className='text-muted-foreground text-sm'>
@@ -205,12 +229,8 @@ export function LogSettingsSection({
                 {isCleaning ? t('Cleaning...') : t('Clean logs')}
               </Button>
             </div>
-          </div>
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save log settings')}
-          </Button>
-        </form>
+          </SettingsControlGroup>
+        </SettingsForm>
       </Form>
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>

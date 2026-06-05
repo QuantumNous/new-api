@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 /**
  * Shared constants for usage logs feature
  */
@@ -42,6 +60,12 @@ export const LOG_TYPE_ENUM = {
   REFUND: 6,
 } as const
 
+/**
+ * The log list/stat backend uses type=0 as the "all types" sentinel.
+ * Row rendering still displays records with type=0 as "Unknown".
+ */
+export const LOG_TYPE_ALL_VALUE = '0' as const
+
 // ============================================================================
 // Time Range Presets
 // ============================================================================
@@ -75,11 +99,18 @@ export const LOG_TYPES = [
 
 /**
  * Log types for DataTableToolbar filters (single select mode)
+ * Backend treats type=0 as "all logs" in list/stat endpoints, so the filter
+ * must not expose the display-only "Unknown" label for that value.
  */
-export const LOG_TYPE_FILTERS = LOG_TYPES.map((type) => ({
-  label: type.label,
-  value: String(type.value),
-}))
+export const LOG_TYPE_FILTERS = [
+  { label: 'All Types', value: LOG_TYPE_ALL_VALUE },
+  ...LOG_TYPES.filter((type) => type.value !== LOG_TYPE_ENUM.UNKNOWN).map(
+    (type) => ({
+      label: type.label,
+      value: String(type.value),
+    })
+  ),
+] as const
 
 // ============================================================================
 // Drawing Logs (Midjourney) Constants
