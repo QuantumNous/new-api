@@ -1068,31 +1068,17 @@ export function getQuotaWithUnit(quota, digits = 6) {
   return (quota / quotaPerUnit).toFixed(digits);
 }
 
+// amount 为系统内部的美元值
 export function renderQuotaWithAmount(amount) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  if (quotaDisplayType === 'TOKENS') {
+  const { symbol, rate, type } = getCurrencyConfig();
+  if (type === 'TOKENS') {
     return renderNumber(renderUnitWithQuota(amount));
   }
-
   const numericAmount = Number(amount);
-  const formattedAmount = Number.isFinite(numericAmount)
-      ? numericAmount.toFixed(2)
-      : amount;
-
-  if (quotaDisplayType === 'CNY') {
-    return '¥' + formattedAmount;
-  } else if (quotaDisplayType === 'CUSTOM') {
-    const statusStr = localStorage.getItem('status');
-    let symbol = '¤';
-    try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        symbol = s?.custom_currency_symbol || symbol;
-      }
-    } catch (e) {}
-    return symbol + formattedAmount;
+  if (!Number.isFinite(numericAmount)) {
+    return symbol + amount;
   }
-  return '$' + formattedAmount;
+  return symbol + (numericAmount * rate).toFixed(2);
 }
 
 /**
