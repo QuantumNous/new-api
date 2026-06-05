@@ -108,6 +108,51 @@ func TestConvertOpenAIRequest_Passthrough(t *testing.T) {
 	}
 }
 
+// TestConvertOpenAIRequest_DropsParallelToolCallsWhenNoTools asserts that
+// parallel_tool_calls is stripped when no tools are present, since the upstream
+// rejects "'parallel_tool_calls' is only allowed when 'tools' are specified".
+func TestConvertOpenAIRequest_DropsParallelToolCallsWhenNoTools(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI}
+
+	ptc := false
+	in := &dto.GeneralOpenAIRequest{Model: "openai/gpt-4o-br", ParallelTooCalls: &ptc}
+
+	out, err := a.ConvertOpenAIRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := out.(*dto.GeneralOpenAIRequest)
+	if got.ParallelTooCalls != nil {
+		t.Fatalf("parallel_tool_calls must be nil when no tools; got %v", *got.ParallelTooCalls)
+	}
+}
+
+// TestConvertOpenAIRequest_KeepsParallelToolCallsWithTools asserts the field is
+// preserved when tools are present (valid upstream combination).
+func TestConvertOpenAIRequest_KeepsParallelToolCallsWithTools(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI}
+
+	ptc := false
+	in := &dto.GeneralOpenAIRequest{
+		Model:            "openai/gpt-4o-br",
+		ParallelTooCalls: &ptc,
+		Tools:            []dto.ToolCallRequest{{Type: "function"}},
+	}
+
+	out, err := a.ConvertOpenAIRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := out.(*dto.GeneralOpenAIRequest)
+	if got.ParallelTooCalls == nil || *got.ParallelTooCalls != false {
+		t.Fatalf("parallel_tool_calls must be preserved when tools present; got %v", got.ParallelTooCalls)
+	}
+}
+
 // TestConvertOpenAIRequest_NilRejected asserts a nil request is rejected.
 func TestConvertOpenAIRequest_NilRejected(t *testing.T) {
 	a := &Adaptor{}

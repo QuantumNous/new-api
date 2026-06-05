@@ -167,12 +167,18 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
-// ConvertOpenAIRequest is a pure passthrough. We are listed in
+// ConvertOpenAIRequest is a near passthrough. We are listed in
 // streamSupportedChannels, so StreamOptions is left intact and BlockRun decides
 // whether to honour stream_options.include_usage.
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("blockrun: request is nil")
+	}
+	// parallel_tool_calls is only valid when tools are specified; otherwise the
+	// upstream rejects with "'parallel_tool_calls' is only allowed when 'tools'
+	// are specified". Drop it here since this adaptor passes the request through.
+	if len(request.Tools) == 0 {
+		request.ParallelTooCalls = nil
 	}
 	return request, nil
 }
