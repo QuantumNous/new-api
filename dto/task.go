@@ -46,10 +46,11 @@ type TaskDto struct {
 	SubmitTime int64           `json:"submit_time"`
 	StartTime  int64           `json:"start_time"`
 	FinishTime int64           `json:"finish_time"`
-	Progress   string          `json:"progress"`
-	Properties any             `json:"properties"`
-	Username   string          `json:"username,omitempty"`
-	Data       json.RawMessage `json:"data"`
+	Progress   string            `json:"progress"`
+	Properties any               `json:"properties"`
+	Username   string            `json:"username,omitempty"`
+	Data       json.RawMessage   `json:"data"`
+	Usage      *OpenAIVideoUsage `json:"usage,omitempty"` // 上游 token 用量（有则回传）
 }
 
 type FetchReq struct {

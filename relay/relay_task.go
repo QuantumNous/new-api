@@ -464,6 +464,10 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
 	}
+	if ti.CompletionTokens > 0 || ti.TotalTokens > 0 {
+		task.PrivateData.CompletionTokens = ti.CompletionTokens
+		task.PrivateData.TotalTokens = ti.TotalTokens
+	}
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
 	} else if ti.Url != "" {
@@ -491,6 +495,12 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		"status":   mapTaskStatusToSimple(task.Status),
 		"task_id":  task.TaskID,
 		"url":      task.GetResultURL(),
+	}
+	if task.PrivateData.CompletionTokens > 0 || task.PrivateData.TotalTokens > 0 {
+		out["usage"] = dto.OpenAIVideoUsage{
+			CompletionTokens: task.PrivateData.CompletionTokens,
+			TotalTokens:      task.PrivateData.TotalTokens,
+		}
 	}
 	respBody, _ := common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
@@ -567,6 +577,13 @@ func TaskModel2DtoAdmin(task *model.Task) *dto.TaskDto {
 }
 
 func taskModel2DtoFull(task *model.Task) *dto.TaskDto {
+	var usage *dto.OpenAIVideoUsage
+	if task.PrivateData.CompletionTokens > 0 || task.PrivateData.TotalTokens > 0 {
+		usage = &dto.OpenAIVideoUsage{
+			CompletionTokens: task.PrivateData.CompletionTokens,
+			TotalTokens:      task.PrivateData.TotalTokens,
+		}
+	}
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
@@ -588,5 +605,6 @@ func taskModel2DtoFull(task *model.Task) *dto.TaskDto {
 		Properties: task.Properties,
 		Username:   task.Username,
 		Data:       task.Data,
+		Usage:      usage,
 	}
 }
