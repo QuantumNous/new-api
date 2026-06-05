@@ -11,13 +11,13 @@ import (
 
 func AnonymousRequestBodyLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.Body == nil {
+		maxBytes := common.GetAnonymousRequestBodyLimitBytes()
+		if maxBytes <= 0 || c.Request.Body == nil {
 			c.Next()
 			return
 		}
 
 		originalBody := c.Request.Body
-		maxBytes := common.GetAnonymousRequestBodyLimitBytes()
 		limitedBody, err := readAnonymousRequestBody(originalBody, maxBytes)
 		_ = originalBody.Close()
 		if err != nil {
