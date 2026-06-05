@@ -260,6 +260,14 @@ export function UserAuthForm({
 
   const alternativeLoginMethods = (
     <>
+      {/* OAuth Providers */}
+      <OAuthProviders
+        status={status}
+        disabled={isLoading}
+        onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+        isWeChatLoading={isWeChatSubmitting}
+      />
+
       {passkeyLoginEnabled && (
         <div className='mt-2 space-y-1'>
           <Button
@@ -283,14 +291,6 @@ export function UserAuthForm({
           )}
         </div>
       )}
-
-      {/* OAuth Providers */}
-      <OAuthProviders
-        status={status}
-        disabled={isLoading}
-        onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
-        isWeChatLoading={isWeChatSubmitting}
-      />
     </>
   )
 
