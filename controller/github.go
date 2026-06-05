@@ -141,8 +141,8 @@ func GitHubOAuth(c *gin.Context) {
 			user.Email = githubUser.Email
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
-			registrationInviteCode := getRegistrationInviteCodeFromSession(session)
-			if _, err := createUserWithRegistrationInviteCode(&user, registrationInviteCode); err != nil {
+			registrationInvite := getRegistrationInviteContextFromSession(session)
+			if _, err := createUserWithRegistrationInviteContext(&user, registrationInvite); err != nil {
 				if respondInviteCodeError(c, err) {
 					return
 				}

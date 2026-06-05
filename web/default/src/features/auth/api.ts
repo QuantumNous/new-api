@@ -100,8 +100,14 @@ export async function wechatLoginByCode(
   code: string,
   inviteCode?: string
 ): Promise<ApiResponse> {
+  const aff =
+    typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
   const res = await api.get('/api/oauth/wechat', {
-    params: { code, invite_code: inviteCode?.trim() || undefined },
+    params: {
+      code,
+      aff,
+      invite_code: inviteCode?.trim() || undefined,
+    },
   })
   return res.data
 }

@@ -365,11 +365,15 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 }
 
 func GetUserIdByAffCode(affCode string) (int, error) {
+	return GetUserIdByAffCodeWithTx(DB, affCode)
+}
+
+func GetUserIdByAffCodeWithTx(tx *gorm.DB, affCode string) (int, error) {
 	if affCode == "" {
 		return 0, errors.New("affCode 为空！")
 	}
 	var user User
-	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
+	err := tx.Select("id").First(&user, "aff_code = ?", affCode).Error
 	return user.Id, err
 }
 

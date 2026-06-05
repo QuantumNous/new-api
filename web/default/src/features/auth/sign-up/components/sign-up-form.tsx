@@ -95,7 +95,7 @@ export function SignUpForm({
     defaultValues: {
       username: '',
       email: '',
-      inviteCode: getAffiliateCode(),
+      inviteCode: '',
       password: '',
       confirmPassword: '',
     },
@@ -144,9 +144,8 @@ export function SignUpForm({
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
     if (aff) {
       saveAffiliateCode(aff)
-      form.setValue('inviteCode', aff, { shouldDirty: true })
     }
-  }, [form])
+  }, [])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {

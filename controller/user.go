@@ -175,7 +175,7 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	registrationInviteCode := getRegistrationInviteCodeFromUser(user)
+	registrationInvite := getRegistrationInviteContextFromUser(user)
 	inviterId := 0
 	cleanUser := model.User{
 		Username:    user.Username,
@@ -189,7 +189,7 @@ func Register(c *gin.Context) {
 	}
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInviteCode)
+		inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInvite)
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ func Register(c *gin.Context) {
 		if err := cleanUser.InsertWithTx(tx, inviterId); err != nil {
 			return err
 		}
-		return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInviteCode, cleanUser.Id)
+		return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInvite.InviteCode, cleanUser.Id)
 	})
 	if err != nil {
 		if respondInviteCodeError(c, err) {

@@ -151,8 +151,8 @@ func DiscordOAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "Discord User"
 			}
-			registrationInviteCode := getRegistrationInviteCodeFromSession(session)
-			if _, err := createUserWithRegistrationInviteCode(&user, registrationInviteCode); err != nil {
+			registrationInvite := getRegistrationInviteContextFromSession(session)
+			if _, err := createUserWithRegistrationInviteContext(&user, registrationInvite); err != nil {
 				if respondInviteCodeError(c, err) {
 					return
 				}

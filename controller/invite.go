@@ -19,50 +19,79 @@ var (
 	errInviteCodeInvalid  = errors.New("invite code invalid")
 )
 
-func getInviterIdForRegistrationWithTx(tx *gorm.DB, inviteCode string) (int, error) {
-	inviteCode = strings.TrimSpace(inviteCode)
+type registrationInviteContext struct {
+	InviteCode string
+	AffCode    string
+}
+
+func normalizeRegistrationInviteContext(registration registrationInviteContext) registrationInviteContext {
+	return registrationInviteContext{
+		InviteCode: strings.TrimSpace(registration.InviteCode),
+		AffCode:    strings.TrimSpace(registration.AffCode),
+	}
+}
+
+func getInviterIdForRegistrationWithTx(tx *gorm.DB, registration registrationInviteContext) (int, error) {
+	registration = normalizeRegistrationInviteContext(registration)
+	inviteCode := registration.InviteCode
+	affCode := registration.AffCode
+	inviteInviterId := 0
 	if inviteCode == "" {
 		if common.InviteOnlyRegisterEnabled {
 			return 0, errInviteCodeRequired
 		}
-		return 0, nil
+	} else {
+		inviterId, err := model.GetInviterIdByInviteCodeWithTx(tx, inviteCode)
+		if err != nil || inviterId == 0 {
+			return 0, errInviteCodeInvalid
+		}
+		inviteInviterId = inviterId
 	}
 
-	inviterId, _, err := model.GetInviterIdByRegistrationInviteCodeWithTx(tx, inviteCode)
-	if err != nil || inviterId == 0 {
-		return 0, errInviteCodeInvalid
+	if affCode != "" {
+		if affInviterId, err := model.GetUserIdByAffCodeWithTx(tx, affCode); err == nil && affInviterId != 0 {
+			return affInviterId, nil
+		}
 	}
-	return inviterId, nil
+	return inviteInviterId, nil
 }
 
-func getRegistrationInviteCodeFromUser(user model.User) string {
-	if strings.TrimSpace(user.InviteCode) != "" {
-		return user.InviteCode
+func getRegistrationInviteContextFromUser(user model.User) registrationInviteContext {
+	return registrationInviteContext{
+		InviteCode: user.InviteCode,
+		AffCode:    user.AffCode,
 	}
-	return user.AffCode
 }
 
-func getRegistrationInviteCodeFromSession(session sessions.Session) string {
+func getRegistrationInviteContextFromSession(session sessions.Session) registrationInviteContext {
 	inviteCode, _ := session.Get("invite_code").(string)
-	if strings.TrimSpace(inviteCode) != "" {
-		return inviteCode
-	}
 	affCode, _ := session.Get("aff").(string)
-	return affCode
+	return registrationInviteContext{
+		InviteCode: inviteCode,
+		AffCode:    affCode,
+	}
 }
 
-func createUserWithRegistrationInviteCode(user *model.User, inviteCode string) (int, error) {
+func getRegistrationInviteContextFromQuery(c *gin.Context) registrationInviteContext {
+	return registrationInviteContext{
+		InviteCode: c.Query("invite_code"),
+		AffCode:    c.Query("aff"),
+	}
+}
+
+func createUserWithRegistrationInviteContext(user *model.User, registration registrationInviteContext) (int, error) {
+	registration = normalizeRegistrationInviteContext(registration)
 	inviterId := 0
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		inviterId, err = getInviterIdForRegistrationWithTx(tx, inviteCode)
+		inviterId, err = getInviterIdForRegistrationWithTx(tx, registration)
 		if err != nil {
 			return err
 		}
 		if err := user.InsertWithTx(tx, inviterId); err != nil {
 			return err
 		}
-		return model.ConsumeRegistrationInviteCodeWithTx(tx, inviteCode, user.Id)
+		return model.ConsumeRegistrationInviteCodeWithTx(tx, registration.InviteCode, user.Id)
 	})
 	if err != nil {
 		return 0, err

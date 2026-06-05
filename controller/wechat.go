@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -97,11 +96,8 @@ func WeChatAuth(c *gin.Context) {
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 
-			registrationInviteCode := strings.TrimSpace(c.Query("invite_code"))
-			if registrationInviteCode == "" {
-				registrationInviteCode = c.Query("aff")
-			}
-			if _, err := createUserWithRegistrationInviteCode(&user, registrationInviteCode); err != nil {
+			registrationInvite := getRegistrationInviteContextFromQuery(c)
+			if _, err := createUserWithRegistrationInviteContext(&user, registrationInvite); err != nil {
 				if respondInviteCodeError(c, err) {
 					return
 				}

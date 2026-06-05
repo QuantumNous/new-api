@@ -274,7 +274,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	registrationInviteCode := getRegistrationInviteCodeFromSession(session)
+	registrationInvite := getRegistrationInviteContextFromSession(session)
 	inviterId := 0
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
@@ -282,7 +282,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Custom provider: create user and binding in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			var err error
-			inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInviteCode)
+			inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInvite)
 			if err != nil {
 				return err
 			}
@@ -301,7 +301,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				return err
 			}
 
-			return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInviteCode, user.Id)
+			return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInvite.InviteCode, user.Id)
 		})
 		if err != nil {
 			return nil, err
@@ -313,7 +313,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			var err error
-			inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInviteCode)
+			inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInvite)
 			if err != nil {
 				return err
 			}
@@ -335,7 +335,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				return err
 			}
 
-			return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInviteCode, user.Id)
+			return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInvite.InviteCode, user.Id)
 		})
 		if err != nil {
 			return nil, err

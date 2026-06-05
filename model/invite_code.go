@@ -263,6 +263,26 @@ func GetInviterIdByRegistrationInviteCode(code string) (int, bool, error) {
 	return GetInviterIdByRegistrationInviteCodeWithTx(DB, code)
 }
 
+func GetInviterIdByInviteCodeWithTx(tx *gorm.DB, code string) (int, error) {
+	code = normalizeInviteCode(code)
+	if code == "" {
+		return 0, ErrInviteCodeNotFound
+	}
+
+	var inviteCode InviteCode
+	err := tx.Set("gorm:query_option", "FOR UPDATE").Where("code = ?", code).First(&inviteCode).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, ErrInviteCodeNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	if err := validateInviteCode(&inviteCode); err != nil {
+		return 0, err
+	}
+	return inviteCode.InviterId, nil
+}
+
 func GetInviterIdByRegistrationInviteCodeWithTx(tx *gorm.DB, code string) (int, bool, error) {
 	code = normalizeInviteCode(code)
 	if code == "" {
