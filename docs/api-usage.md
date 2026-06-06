@@ -1,6 +1,6 @@
 # API 调用文档
 
-本文档描述了通过本服务调用 AI 视频生成、图片生成和文本对话的完整方式。所有接口兼容 OpenAI API 格式，可直接使用任何 OpenAI SDK 或兼容客户端调用。
+本文档描述了通过本服务调用 AI 视频生成、图片生成和文本对话的完整方式，定位为内部接入、验证和排障手册。所有接口兼容 OpenAI API 格式，可直接使用任何 OpenAI SDK 或兼容客户端调用。
 
 ---
 
@@ -11,7 +11,7 @@
 | Base URL | `http://192.129.209.36:3001/v1` |
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
 | 兼容协议 | OpenAI API (Chat Completions, Models, Video Generations) |
-| 测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
+| 内部测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
 | 测试 Key 额度 | 无限额度（unlimited_quota） |
 
 当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成全模型回归测试，所有推荐模型均通过真实创建、轮询完成和 `/content` 视频下载验证。
@@ -55,7 +55,7 @@ curl -s "http://192.129.209.36:3001/v1/videos" \
   -d '{"model":"grok-imagine-1.0-video","prompt":"A green sphere floating over a white table, clean studio lighting","seconds":"6","size":"720x1280"}'
 ```
 
-> **⚠️ 尺寸约束**：Grok 仅支持 `720x1280`、`1280x720`、`1024x1024`、`1024x1792`、`1792x1024` 共 5 种尺寸，传其他值会报错。
+> **⚠️ 尺寸约束**：Grok 稳定验证过的尺寸是 `720x1280`、`1280x720`、`1024x1024`、`1024x1792`、`1792x1024`。`aspect_ratio` 也会映射 `4:3`、`3:4`、`21:9`，但这 3 个比例未完成同等生产抽检。
 
 ### ss-sora-2 — Sora 2 备用路径（≈3 分钟，$0.40/次）
 
@@ -245,7 +245,7 @@ Grok 渠道注意事项：
 | ratio | string | 否 | 兼容麒麟插件字段。Grok 渠道未传 `size` 时会按 `aspect_ratio` 同样规则映射 |
 | resolution | string | 否 | Grok 渠道未传时默认 `720p` |
 | quality | string | 否 | Qilin/Grok 原生画质字段。未传时按 `resolution` 自动补 `high` 或 `standard` |
-| size | string | 否 | 输出尺寸。Grok 横屏建议 `1280x720`，竖屏建议 `720x1280`，方形建议 `1024x1024`；新版插件还映射 `1152x864`、`864x1152`、`1680x720`。**⚠️ Grok 仅支持这 5 种尺寸，传其他值（如 `1920x1080`）会报错** |
+| size | string | 否 | 输出尺寸。Grok 横屏建议 `1280x720`，竖屏建议 `720x1280`，方形建议 `1024x1024`；`aspect_ratio=4:3/3:4/21:9` 会映射 `1152x864`、`864x1152`、`1680x720`，但未完成同等生产抽检。不要直接传未验证尺寸（如 `1920x1080`） |
 
 ### 1.3 可用视频模型
 
@@ -257,9 +257,9 @@ Grok 渠道注意事项：
 |----------|----------|------------------|------|------|
 | `veo3.1-fast` | Apexer / Veo | `task_kPRJVkUnFmkznGZbKaUAY8UAy5daQTaS` | ✅ 完成并可下载 | 当前推荐的 Veo 快速模型，约 1.5 分钟完成 |
 | `xb-sora2` | Hongniao / Sora | `task_AnRb9zA2TNPKnUl3WjK0ep2yvbBgdaoD` | ✅ 完成并可下载 | 当前推荐的 Sora 主路径，约 3.5 分钟完成 |
-| `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径；**⚠️ 仅支持 `720x1280` / `1280x720` / `1024x1024` / `1024x1792` / `1792x1024` 共 5 种尺寸，传其他值会报错** |
+| `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径；稳定验证尺寸见 [1.2 请求参数](#12-请求参数) |
 | `ss-sora-2` | Hongniao / Sora | `task_s4H8Mwn0LwsUMviZTWviEH2GVBHvC7V4` | ✅ 完成并可下载 | Sora 2 备用路径，约 3 分钟完成 |
-| `veo3.1-4k` | Apexer / Veo 4K | `task_mDFMyYk4fXPREqIZad9ZFTSNvEhQ46Wz` | ✅ 完成并可下载 | 4K 高质量，约 4 分钟完成，$15/次 |
+| `veo3.1-4k` | Apexer / Veo 4K | `task_mDFMyYk4fXPREqIZad9ZFTSNvEhQ46Wz` | ✅ 完成并可下载 | 4K 高质量，约 4 分钟完成，$1.5/次 |
 
 下载抽查结果：
 
@@ -600,7 +600,11 @@ curl -s "${BASE_URL}/videos" \
 
 ## 二、图片生成
 
-图片生成推荐使用 OpenAI 兼容的 **Images** 接口调用。当前已真实验证的主路径是 `apexer-images-openai` 下游，适合直接走 `/v1/images/generations`。
+图片生成推荐使用 OpenAI 兼容的 **Images** 接口调用，统一入口是 `/v1/images/generations`；图像编辑使用 `/v1/images/edits`。当前内部主用三类模型：
+
+- 下划线模型：`gemini_3.*_image_preview`，走 Apexer OpenAI 兼容通道。
+- 横线模型：`gemini-3.*-image-preview` 和 `gpt-image-2`，当前可通过 ListenHub 通道跑通。
+- SiliconFlow 模型：`Qwen/Qwen-Image`、`baidu/ERNIE-Image-Turbo`、`Tongyi-MAI/Z-Image` 和 `Qwen/Qwen-Image-Edit-2509`，返回 `data[0].url`。
 
 Chat Completions 形式仍保留兼容：部分上游会把图片 URL 放在 `choices[0].message.content` 的 Markdown 图片语法中返回。新接入和业务调用优先使用 Images 接口。
 
@@ -631,18 +635,107 @@ Authorization: Bearer <api-key>
 | prompt | string | 是 | 图片描述，建议用英文，描述越详细效果越好 |
 | n | integer | 否 | 生成图片数量，默认 1 |
 | size | string | 否 | 输出尺寸，常用 `1024x1024`；4K 模型建议使用模型默认高清能力 |
-| response_format | string | 否 | OpenAI 兼容字段，支持情况取决于下游 |
+| response_format | string | 否 | OpenAI 兼容字段，支持情况取决于下游；调用方需要同时兼容 `data[0].b64_json` 和 `data[0].url` |
+| image / images | string / array | 否 | 图像编辑或参考图。SiliconFlow 支持 URL、`data:image/...;base64,...`，最多映射到 `image`、`image2`、`image3` |
+| extra_body | object | 否 | 下游扩展参数。SiliconFlow 支持 `seed`、`num_inference_steps`、`guidance_scale`、`cfg`、`negative_prompt`、`image_size`、`batch_size` 等 |
 | extra_body.google.image_config.aspect_ratio | string | 否 | Apexer 兼容参数，例如 `1:1`、`16:9`、`9:16` |
 | extra_body.google.image_config.image_size | string | 否 | Apexer 兼容参数，例如 `1K`、`4K` |
 
-**当前已验证可用图片模型（2026-06-01）：**
+**当前已通过统一入口验证的图片模型（更新至 2026-06-06）：**
 
-| 模型名 | 说明 | 单次价格 | 建议场景 |
-|--------|------|----------|----------|
-| gemini_3.0_pro_image_preview | Apexer Gemini 3 Pro 生图 | $0.3 | 广告图、产品图、高精度插画 |
-| gemini_3.0_pro_image_preview_4K | Apexer Gemini 3 Pro 4K 生图 | $0.35 | 海报、印刷级素材 |
-| gemini_3.1_flash_image_preview | Apexer Gemini 3.1 Flash 生图 | $0.25 | 快速草稿、社媒配图 |
-| gemini_3.1_flash_image_preview_4K | Apexer Gemini 3.1 Flash 4K 生图 | $0.3 | 高清壁纸、快速高清输出 |
+| 模型名 | 通道 | 单次价格 | 本次耗时 | 返回 | 建议场景 |
+|--------|------|----------|----------|------|----------|
+| `gemini_3.1_flash_image_preview` | Apexer OpenAI 兼容 | $0.25 | 约 29 秒 | `b64_json` | 首选快速生图 |
+| `gemini_3.0_pro_image_preview` | Apexer OpenAI 兼容 | $0.3 | 约 58 秒 | `b64_json` | 高质量图片、产品图 |
+| `gemini_3.1_flash_image_preview_4K` | Apexer OpenAI 兼容 | $0.3 | 约 65 秒 | `b64_json` | 快速高清输出 |
+| `gemini_3.0_pro_image_preview_4K` | Apexer OpenAI 兼容 | $0.35 | 约 383 秒 | `b64_json` | 4K 高质量，耗时明显更长 |
+| `gemini-3.1-flash-image-preview` | ListenHub | $0.2 | 约 93 秒 | `b64_json` | 横线命名快速生图 |
+| `gemini-3-pro-image-preview` | ListenHub | $0.3 | 约 67 秒 | `b64_json` | 横线命名高质量生图 |
+| `gpt-image-2` | ListenHub | $0.5 | 约 53 秒 | `b64_json` | OpenAI 图片模型路径 |
+| `baidu/ERNIE-Image-Turbo` | SiliconFlow | 按后台配置 | 约 20-30 秒 | `url` | 快速通用生图 |
+| `Qwen/Qwen-Image` | SiliconFlow | 按后台配置 | 约 55-60 秒 | `url` | 通用高质量生图 |
+| `Tongyi-MAI/Z-Image` | SiliconFlow | 按后台配置 | 约 20-30 秒 | `url` | 通义图像模型路径 |
+| `Qwen/Qwen-Image-Edit-2509` | SiliconFlow | 按后台配置 | 约 25 秒 | `url` | 图像编辑、风格转换 |
+
+> **2026-06-02 远端验证方式**：使用内部测试 Key 直接请求 `POST http://192.129.209.36:3001/v1/images/generations`，上述 7 个模型均返回 HTTP 200，`data` 数组长度为 1。4K 响应体可能超过 20 MB，不要在日志或终端中直接打印完整 `b64_json`。
+>
+> **2026-06-06 SiliconFlow 远端验证方式**：通过本服务统一入口验证 4 个 SiliconFlow 模型；`baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image` 走 `/v1/images/generations`，`Qwen/Qwen-Image-Edit-2509` 走 `/v1/images/edits`，均返回 HTTP 200，`data` 数组长度为 1，结果在 `data[0].url`。
+
+**SiliconFlow 图片平台：**
+
+SiliconFlow 已作为既有渠道类型 `SiliconFlow` / `type=40` 扩展图片能力，远端渠道配置如下：
+
+| 配置项 | 值 |
+|--------|----|
+| 渠道名称 | `siliconflow-images` |
+| 渠道 ID | `13` |
+| Base URL | `https://api.siliconflow.cn` |
+| 上游接口 | `/v1/images/generations` |
+| 对外生图入口 | `/v1/images/generations` |
+| 对外编辑入口 | `/v1/images/edits` |
+| 返回格式 | OpenAI Images 兼容，图片在 `data[0].url` |
+
+SiliconFlow 支持模型：
+
+| 模型名 | 类型 | 说明 |
+|--------|------|------|
+| `baidu/ERNIE-Image-Turbo` | 生图 | 文心图像快速模型 |
+| `Qwen/Qwen-Image` | 生图 | Qwen 图片生成模型；常用 OpenAI 尺寸会自动映射到 SiliconFlow 推荐尺寸 |
+| `Tongyi-MAI/Z-Image` | 生图 | 通义 Z-Image 图片生成模型 |
+| `Qwen/Qwen-Image-Edit-2509` | 图像编辑 | SiliconFlow 使用 `/v1/images/generations` 上游接口接收 `image`、`image2`、`image3` |
+
+SiliconFlow 参数映射：
+
+| 上游 OpenAI 兼容参数 | SiliconFlow 参数 |
+|----------------------|------------------|
+| `model` | `model` |
+| `prompt` | `prompt` |
+| `n` | `batch_size` |
+| `size` | `image_size`；`Qwen/Qwen-Image` 会将常见 OpenAI 尺寸映射到官方推荐尺寸 |
+| `output_format` | `output_format` |
+| `image` / `images` / multipart `image` | `image`、`image2`、`image3`，最多 3 张 |
+| `extra_body.seed` | `seed` |
+| `extra_body.num_inference_steps` | `num_inference_steps` |
+| `extra_body.guidance_scale` | `guidance_scale` |
+| `extra_body.cfg` | `cfg` |
+| `extra_body.negative_prompt` | `negative_prompt` |
+
+SiliconFlow 生图示例：
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/images/generations" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen-Image",
+    "prompt": "A simple red square icon on a white background",
+    "size": "1024x1024",
+    "n": 1,
+    "extra_body": {
+      "seed": 1,
+      "cfg": 4,
+      "num_inference_steps": 20
+    }
+  }'
+```
+
+SiliconFlow 图像编辑示例：
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/images/edits" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen-Image-Edit-2509",
+    "prompt": "Turn the image into a clean watercolor style while preserving the main subject",
+    "image": "https://example.com/input.png",
+    "n": 1,
+    "extra_body": {
+      "seed": 2,
+      "num_inference_steps": 20
+    }
+  }'
+```
 
 **ListenHub 图片平台：**
 
@@ -669,10 +762,10 @@ ListenHub 验证状态：
 | 检查项 | 状态 | 说明 |
 |--------|------|------|
 | 本项目渠道适配 | 已接入 | 新增 `type=59`，对外走 `/v1/images/generations` |
-| 远端现有渠道 | 已创建 | 渠道 ID `12`，名称 `listenhub-images`，`priority=120`，当前手动禁用，待部署 `type=59` 代码后启用 |
-| 真实上游生成 | 已直连验证 | 2026-06-01 使用 ListenHub Key 直连 Marswave 上游验证通过；relay channel test 需部署后执行 |
+| 远端统一入口 | 已跑通 | 2026-06-02 通过本服务 `/v1/images/generations` 验证 `gemini-3-pro-image-preview`、`gemini-3.1-flash-image-preview`、`gpt-image-2` 均成功 |
+| 返回格式 | OpenAI Images 兼容 | 当前返回 `data[0].b64_json`，不是 URL |
 
-ListenHub 上游直连验证结果（2026-06-01）：
+ListenHub 上游直连验证结果（2026-06-01，历史记录）：
 
 | provider | 模型 | 结果 | 耗时 | 返回 |
 |----------|------|------|------|------|
@@ -695,22 +788,21 @@ ListenHub 参数映射：
 | `extra_body.listenhub.imageConfig` | 覆盖 `imageConfig` |
 | `image` / `images` / `referenceImages` | `referenceImages`，支持 URL 和 `data:image/...;base64,...` |
 
-真实探测结果：
+Apexer 统一入口真实探测结果（2026-06-02）：
 
 | 渠道 | 模型 | 端点 | 结果 | 耗时 |
 |------|------|------|------|------|
-| apexer-images-openai | gemini_3.0_pro_image_preview | `/v1/images/generations` | ✅ 成功 | 约 39 秒 |
-| apexer-images-openai | gemini_3.0_pro_image_preview_4K | `/v1/images/generations` | ✅ 成功 | 约 89 秒 |
-| apexer-images-openai | gemini_3.1_flash_image_preview | `/v1/images/generations` | ✅ 成功 | 约 26 秒 |
-| apexer-images-openai | gemini_3.1_flash_image_preview_4K | `/v1/images/generations` | ✅ 成功 | 约 63 秒 |
+| apexer-images-openai | `gemini_3.1_flash_image_preview` | `/v1/images/generations` | ✅ 成功，返回 `b64_json` | 约 29 秒 |
+| apexer-images-openai | `gemini_3.0_pro_image_preview` | `/v1/images/generations` | ✅ 成功，返回 `b64_json` | 约 58 秒 |
+| apexer-images-openai | `gemini_3.1_flash_image_preview_4K` | `/v1/images/generations` | ✅ 成功，返回 `b64_json` | 约 65 秒 |
+| apexer-images-openai | `gemini_3.0_pro_image_preview_4K` | `/v1/images/generations` | ✅ 成功，返回 `b64_json` | 约 383 秒 |
 
 暂不推荐模型：
 
 | 模型名 | 当前状态 |
 |--------|----------|
-| gpt-image-2 | Apexer OpenAI 兼容通道当前返回无可用渠道 |
-| nano-banana / nano-banana-hd / nano-banana-pro | BLTCY 通道当前在标准 Images 路径返回无可用渠道或路径不支持 |
-| gemini-2.5-flash-image / gemini-3-pro-image-preview | BLTCY 通道当前不支持 `/v1/images/generations` 标准路径 |
+| `nano-banana` / `nano-banana-hd` / `nano-banana-pro` | 仍会在 `/v1/models` 暴露，但 2026-06-02 用标准 Images 路径测试 `nano-banana` 返回 503 / `model_not_found`，不要推荐为 `/v1/images/generations` 主路径 |
+| `gemini-2.5-flash-image` / `gemini-2.5-flash-image-preview` | 模型列表暴露，但本次未做统一入口真实生成；如需使用先单独验证 |
 
 ListenHub 调用示例：
 
@@ -773,11 +865,26 @@ curl -s "http://192.129.209.36:3001/v1/images/generations" \
   "created": 1770000000,
   "data": [
     {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUg..."
+    }
+  ]
+}
+```
+
+SiliconFlow 等下游会返回 URL：
+
+```json
+{
+  "created": 1770000000,
+  "data": [
+    {
       "url": "https://example.com/generated-image.png"
     }
   ]
 }
 ```
+
+调用方应同时兼容 `data[0].b64_json` 和 `data[0].url` 两种格式。
 
 如果使用 Chat Completions 兼容入口，成功响应通常如下：
 
@@ -804,11 +911,12 @@ curl -s "http://192.129.209.36:3001/v1/images/generations" \
 }
 ```
 
-**图片 URL 提取方式：** Images 接口读取 `data[0].url`；Chat Completions 兼容入口中，图片 URL 通常嵌入在 `choices[0].message.content`，格式为 Markdown 图片语法 `![image1](url)`，可通过正则表达式 `!\[.*?\]\((.*?)\)` 提取。
+**图片结果提取方式：** Images 接口读取 `data[0].b64_json` 或 `data[0].url`。Chat Completions 兼容入口中，图片 URL 通常嵌入在 `choices[0].message.content`，格式为 Markdown 图片语法 `![image1](url)`，可通过正则表达式 `!\[.*?\]\((.*?)\)` 提取。
 
 ### 2.2 完整调用示例（Python）
 
 ```python
+import base64
 import requests
 import re
 
@@ -838,27 +946,35 @@ def generate_image(prompt, model="gemini_3.1_flash_image_preview"):
         print(f"生成失败: {result['error']}")
         return None
 
-    if result.get("data") and result["data"][0].get("url"):
-        return result["data"][0]["url"]
+    if result.get("data"):
+        first = result["data"][0]
+        if first.get("b64_json"):
+            image_bytes = base64.b64decode(first["b64_json"])
+            return {"type": "b64_json", "bytes": image_bytes}
+        if first.get("url"):
+            return {"type": "url", "url": first["url"]}
 
     # 兼容少数下游按 Chat Completions 格式返回 Markdown 图片 URL 的情况
-    content = result["choices"][0]["message"]["content"]
+    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
 
     urls = re.findall(r'!\[.*?\]\((.*?)\)', content)
     if urls:
-        return urls[0]
+        return {"type": "url", "url": urls[0]}
 
     url_pattern = r'(https?://[^\s\)]+\.(png|jpg|jpeg|webp))'
     urls = re.findall(url_pattern, content)
     if urls:
-        return urls[0][0]
+        return {"type": "url", "url": urls[0][0]}
 
-    print(f"未找到图片 URL，原始内容: {content[:200]}")
+    print(f"未找到图片结果，原始响应: {str(result)[:300]}")
     return None
 
-image_url = generate_image("A sunset over snow-capped mountains, oil painting style")
-if image_url:
-    print(f"图片 URL: {image_url}")
+image_result = generate_image("A sunset over snow-capped mountains, oil painting style")
+if image_result:
+    if image_result["type"] == "b64_json":
+        print(f"图片 base64 已解码，字节数: {len(image_result['bytes'])}")
+    else:
+        print(f"图片 URL: {image_result['url']}")
 ```
 
 ---
@@ -970,7 +1086,11 @@ Authorization: Bearer <api-key>
 | gemini_3.0_pro_image_preview_4K | 图片 | $0.35 | Apexer Pro 4K |
 | gemini_3.1_flash_image_preview | 图片 | $0.25 | Apexer Flash |
 | gemini_3.1_flash_image_preview_4K | 图片 | $0.3 | Apexer Flash 4K |
-| gpt-image-2 | 图片 | $0.5 | Apexer GPT Image |
+| gpt-image-2 | 图片 | $0.5 | OpenAI 图片模型，当前 ListenHub 路径已验证 |
+| baidu/ERNIE-Image-Turbo | 图片 | 按后台配置 | SiliconFlow 快速通用生图 |
+| Qwen/Qwen-Image | 图片 | 按后台配置 | SiliconFlow Qwen 生图 |
+| Tongyi-MAI/Z-Image | 图片 | 按后台配置 | SiliconFlow 通义 Z-Image |
+| Qwen/Qwen-Image-Edit-2509 | 图片 | 按后台配置 | SiliconFlow Qwen 图像编辑 |
 | gemini-2.5-flash | 文本 | 按 token 计费 | 快速对话 |
 
 ### 上游采购价（内部参考）
@@ -1007,6 +1127,10 @@ Authorization: Bearer <api-key>
 | gemini_3.0_pro_image_preview_4K | $0.25 | Apexer |
 | gemini_3.1_flash_image_preview | $0.15 | Apexer |
 | gemini_3.1_flash_image_preview_4K | $0.2 | Apexer |
+| baidu/ERNIE-Image-Turbo | 按 SiliconFlow 账号计费 | SiliconFlow |
+| Qwen/Qwen-Image | 按 SiliconFlow 账号计费 | SiliconFlow |
+| Tongyi-MAI/Z-Image | 按 SiliconFlow 账号计费 | SiliconFlow |
+| Qwen/Qwen-Image-Edit-2509 | 按 SiliconFlow 账号计费 | SiliconFlow |
 
 ### 已对接平台
 
@@ -1015,8 +1139,10 @@ Authorization: Bearer <api-key>
 | bltcy.ai / ablai.top | 默认（无匹配时） | 100（最高） | MiniMax-Hailuo-02/2.3*, doubao-seedance-*, wan*, 生图模型（注：veo3.1*/sora-2 受上游 BUG 影响不可用） | 统一格式接口，支持首尾帧、多图参考 |
 | www.937qq.cn | 937qq / qilin | 80（Grok 专用） | grok-imagine-1.0-video, grok-imagine-1.0-video-20s, grok-imagine-1.0-video-30s | 麒麟 API，xAI Grok 视频专用；已验证 JSON 直传、多参数、1 张参考图、2 张首尾帧；新版插件支持 7 张参考图和 20/30 秒长时长模型 |
 | open.hongniaoai.com | xb-sora2 / hongniao | 90（Sora2 主路径） | 推荐 `xb-sora2`；其他线路模型需单独验证 | Hongniao AI 视频平台，使用 `X-API-Key`、`/videos/generate`、`/videos/{task_id}`；2026-05-24 真实验证 `xb-sora2` 完成并可下载 |
+| api.marswave.ai / ListenHub | listenhub | 120（图片） | `gemini-3-pro-image-preview`、`gemini-3.1-flash-image-preview`、`gpt-image-2` | ListenHub 图片平台，2026-06-02 已通过本服务 `/v1/images/generations` 验证，返回 `data[0].b64_json` |
+| api.siliconflow.cn / SiliconFlow | siliconflow-images | 0（默认） | `baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image`、`Qwen/Qwen-Image-Edit-2509` | SiliconFlow 图片平台，2026-06-06 已通过本服务 `/v1/images/generations` 和 `/v1/images/edits` 验证，返回 `data[0].url` |
 | api.lk888.ai | lk888 / AI聚合站 | 35（Grok 线路） | 推荐 `grok-video-3` | AI 聚合站媒体生成平台，使用 Bearer Token、`/v1/media/generate`、`/v1/skills/task-status`；2026-05-24 真实验证 `grok-video-3` 完成并可下载 |
-| www.aiapexers.com | apexer | 50（第二） | 视频：veo3.1_*；图片：gemini_3.*_image_preview, gpt-image-2 | Apexer new-api 实例，视频和图片均已按统一入口适配 |
+| www.aiapexers.com | apexer | 50（第二） | 视频：veo3.1_*；图片：gemini_3.*_image_preview | Apexer new-api 实例，视频和图片均已按统一入口适配 |
 | xgapi.top | xgapi | 10（兜底） | `veo3.1-lite`, `sora-2` | 当前不可作为主路径；2026-05-24 `veo3.1-lite` 创建失败 |
 | runway-api | runway | 暂不启用 | seedance/gen4/wan/kling/happyhorse 系列 | 当前暂不可用，不推荐给上游 |
 

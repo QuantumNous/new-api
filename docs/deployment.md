@@ -25,7 +25,7 @@
 | SSH 账号 | `root` |
 | 系统 | Ubuntu 24.04 / Linux 6.8 |
 | 磁盘 | 约 96G，部署时剩余约 76G |
-| 内存 | 约 5.8GiB + 3GiB swap |
+| 内存 | 约 5.8GiB + 9GiB swap（含 `/swapfile-build` 6GiB 构建辅助 swap） |
 | 服务端口 | `3001 -> 3000` |
 
 SSH 连接：
@@ -80,6 +80,8 @@ Coolify 使用的 Compose 由 Coolify 资源生成，核心配置如下：
 | 2026-05-28 | 容器重启 | Coolify service `running:healthy`，API status `success=true` |
 | 2026-05-28 | 全模型回归 | 5 个视频模型真实验证完成（veo3.1-fast, xb-sora2, grok-imagine-1.0-video, ss-sora-2, veo3.1-4k），详见 [api-usage.md](./api-usage.md) |
 | 2026-05-28 | Runway 状态 | 确认 Runway 渠道当前未配置，kling-3.0/o3 等新模型已注册在 constants.go 但未暴露给上游 |
+| 2026-06-06 | SiliconFlow 图片渠道 | 已部署硅基流动渠道 `siliconflow-images`（channel id `13`，type `40`，base URL `https://api.siliconflow.cn`，group `default`）。模型 `baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image`、`Qwen/Qwen-Image-Edit-2509` 已经通过远端 `/v1/images/generations` 或 `/v1/images/edits` 真实请求验证，均返回 HTTP 200 且 `data` 长度为 1。 |
+| 2026-06-06 | SiliconFlow 部署备份 | 新增渠道前备份 SQLite 到 `/opt/new-api-data/one-api.db.before-siliconflow-20260606-064135`；API key 仅保存在远端数据库渠道配置中，不写入仓库文档。 |
 
 ### 新服务器常用命令
 

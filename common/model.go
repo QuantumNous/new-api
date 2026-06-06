@@ -18,6 +18,9 @@ var (
 		"prefix:imagen-",
 		"gemini_3.0_pro_image_preview",
 		"gemini_3.1_flash_image_preview",
+		"baidu/ernie-image-turbo",
+		"qwen/qwen-image",
+		"tongyi-mai/z-image",
 		"flux-",
 		"flux.1-",
 	}
