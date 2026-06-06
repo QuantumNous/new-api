@@ -387,7 +387,7 @@ docker run --name new-api -d --restart always \
 
 1. 宝塔パネル（**9.2.0バージョン**以上）をインストールし、アプリケーションストアで**New-API**を検索してインストールします。
 
-📖 [画像付きチュートリアル](./docs/BT.md)
+📖 [画像付きチュートリアル](./docs/installation/BT.md)
 
 </details>
 
