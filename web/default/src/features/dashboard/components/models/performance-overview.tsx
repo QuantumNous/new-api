@@ -25,6 +25,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
+  getPerformanceAvailability,
+  type PerformanceAvailability,
+  performanceAvailabilityDotClassName,
+  performanceAvailabilityTextClassName,
+} from '@/features/performance-metrics/lib/availability'
+import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -41,6 +47,7 @@ type PerformanceSummary = {
   avgLatencyMs: number
   avgTps: number
   successRate: number
+  availability: PerformanceAvailability
 }
 
 function simpleAverage(
@@ -62,6 +69,19 @@ function simpleAverage(
 }
 
 function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
+  const availableCount = rows.filter(
+    (row) => getPerformanceAvailability(row) === 'available'
+  ).length
+  const unavailableCount = rows.filter(
+    (row) => getPerformanceAvailability(row) === 'unavailable'
+  ).length
+  const availability: PerformanceAvailability =
+    availableCount > 0
+      ? 'available'
+      : unavailableCount > 0
+        ? 'unavailable'
+        : 'unknown'
+
   return {
     totalRequests: rows.length,
     avgLatencyMs: Math.round(
@@ -77,21 +97,8 @@ function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
       (value) => Number.isFinite(value) && value > 0
     ),
     successRate: simpleAverage(rows, 'success_rate', Number.isFinite),
+    availability,
   }
-}
-
-function successRateClassName(successRate: number): string {
-  if (!Number.isFinite(successRate)) return 'text-muted-foreground'
-  if (successRate >= 99.9) return 'text-success'
-  if (successRate >= 99) return 'text-warning'
-  return 'text-destructive'
-}
-
-function successDotClassName(successRate: number): string {
-  if (!Number.isFinite(successRate)) return 'bg-muted-foreground'
-  if (successRate >= 99.9) return 'bg-success'
-  if (successRate >= 99) return 'bg-warning'
-  return 'bg-destructive'
 }
 
 export function PerformanceOverview() {
@@ -114,6 +121,7 @@ export function PerformanceOverview() {
     [metricsQuery.data]
   )
   const summary = useMemo(() => buildPerformanceSummary(models), [models])
+  const summaryAvailability = getPerformanceAvailability(summary)
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
@@ -155,7 +163,9 @@ export function PerformanceOverview() {
               icon={HeartPulse}
               label={t('Success rate')}
               value={formatUptimePct(summary.successRate)}
-              valueClassName={successRateClassName(summary.successRate)}
+              valueClassName={performanceAvailabilityTextClassName(
+                summaryAvailability
+              )}
             />
             <InlineMetric
               icon={Timer}
@@ -224,14 +234,16 @@ function ModelBadge(props: { model: PerfModelSummary }) {
       <span
         className={cn(
           'size-1.5 rounded-full',
-          successDotClassName(model.success_rate)
+          performanceAvailabilityDotClassName(getPerformanceAvailability(model))
         )}
         aria-hidden='true'
       />
       <span
         className={cn(
           'font-mono text-[11px] font-semibold tabular-nums',
-          successRateClassName(model.success_rate)
+          performanceAvailabilityTextClassName(
+            getPerformanceAvailability(model)
+          )
         )}
       >
         {formatUptimePct(model.success_rate)}

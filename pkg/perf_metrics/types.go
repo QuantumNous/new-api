@@ -38,6 +38,7 @@ type GroupResult struct {
 	AvgLatencyMs int64         `json:"avg_latency_ms"`
 	SuccessRate  float64       `json:"success_rate"`
 	AvgTps       float64       `json:"avg_tps"`
+	Availability string        `json:"availability"`
 	Series       []BucketPoint `json:"series"`
 }
 
@@ -52,6 +53,7 @@ type ModelSummary struct {
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgTps       float64 `json:"avg_tps"`
+	Availability string  `json:"availability"`
 	RequestCount int64   `json:"-"`
 }
 

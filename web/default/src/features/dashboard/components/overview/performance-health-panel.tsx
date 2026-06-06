@@ -25,6 +25,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
+  getPerformanceAvailability,
+  type PerformanceAvailability,
+  performanceAvailabilityDotClassName,
+  performanceAvailabilityTextClassName,
+} from '@/features/performance-metrics/lib/availability'
+import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -52,20 +58,6 @@ function simpleAverage(
   return count > 0 ? total / count : NaN
 }
 
-function rateTextClass(rate: number): string {
-  if (!Number.isFinite(rate)) return 'text-muted-foreground'
-  if (rate >= 99.9) return 'text-success'
-  if (rate >= 99) return 'text-warning'
-  return 'text-destructive'
-}
-
-function rateDotClass(rate: number): string {
-  if (!Number.isFinite(rate)) return 'bg-muted-foreground'
-  if (rate >= 99.9) return 'bg-success'
-  if (rate >= 99) return 'bg-warning'
-  return 'bg-destructive'
-}
-
 export function PerformanceHealthPanel() {
   const { t } = useTranslation()
   const perfMetricsVisible = usePerformanceMetricsVisibility()
@@ -87,6 +79,19 @@ export function PerformanceHealthPanel() {
   )
 
   const summary = useMemo(() => {
+    const availableCount = models.filter(
+      (model) => getPerformanceAvailability(model) === 'available'
+    ).length
+    const unavailableCount = models.filter(
+      (model) => getPerformanceAvailability(model) === 'unavailable'
+    ).length
+    const availability: PerformanceAvailability =
+      availableCount > 0
+        ? 'available'
+        : unavailableCount > 0
+          ? 'unavailable'
+          : 'unknown'
+
     return {
       avgLatencyMs: Math.round(
         simpleAverage(
@@ -101,8 +106,10 @@ export function PerformanceHealthPanel() {
         (v) => Number.isFinite(v) && v > 0
       ),
       successRate: simpleAverage(models, 'success_rate', Number.isFinite),
+      availability,
     }
   }, [models])
+  const summaryAvailability = getPerformanceAvailability(summary)
 
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
@@ -132,7 +139,9 @@ export function PerformanceHealthPanel() {
             label={t('Success rate')}
             value={formatUptimePct(summary.successRate)}
             loading={loading}
-            valueClassName={rateTextClass(summary.successRate)}
+            valueClassName={performanceAvailabilityTextClassName(
+              summaryAvailability
+            )}
           />
           <MetricCell
             icon={Timer}
@@ -173,14 +182,18 @@ export function PerformanceHealthPanel() {
                       <span
                         className={cn(
                           'size-1.5 rounded-full',
-                          rateDotClass(model.success_rate)
+                          performanceAvailabilityDotClassName(
+                            getPerformanceAvailability(model)
+                          )
                         )}
                         aria-hidden='true'
                       />
                       <span
                         className={cn(
                           'font-mono text-[11px] font-semibold tabular-nums',
-                          rateTextClass(model.success_rate)
+                          performanceAvailabilityTextClassName(
+                            getPerformanceAvailability(model)
+                          )
                         )}
                       >
                         {formatUptimePct(model.success_rate)}

@@ -48,6 +48,11 @@ import { PublicLayout } from '@/components/layout'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
+  getPerformanceAvailability,
+  type PerformanceAvailability,
+  performanceAvailabilityIntent,
+} from '@/features/performance-metrics/lib/availability'
+import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -174,7 +179,7 @@ function OverviewMetric(props: {
   icon: React.ComponentType<{ className?: string }>
   label: string
   value: React.ReactNode
-  intent?: 'default' | 'warning' | 'success'
+  intent?: 'default' | 'destructive' | 'success'
 }) {
   const Icon = props.icon
   const intent = props.intent ?? 'default'
@@ -189,7 +194,8 @@ function OverviewMetric(props: {
         <div
           className={cn(
             'text-foreground truncate font-mono text-sm font-semibold tabular-nums',
-            intent === 'warning' && 'text-amber-600 dark:text-amber-400',
+            intent === 'destructive' &&
+              'text-destructive dark:text-destructive',
             intent === 'success' && 'text-emerald-600 dark:text-emerald-400'
           )}
         >
@@ -222,12 +228,24 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
     successRates.length > 0
       ? successRates.reduce((sum, rate) => sum + rate, 0) / successRates.length
       : Number.NaN
-  let successIntent: 'default' | 'warning' | 'success' = 'warning'
-  if (successRate >= 99.9) {
-    successIntent = 'success'
-  } else if (successRate >= 99) {
-    successIntent = 'default'
-  }
+  const availableCount = groups.filter(
+    (group) => getPerformanceAvailability(group) === 'available'
+  ).length
+  const unavailableCount = groups.filter(
+    (group) => getPerformanceAvailability(group) === 'unavailable'
+  ).length
+  const availability: PerformanceAvailability =
+    availableCount > 0
+      ? 'available'
+      : unavailableCount > 0
+        ? 'unavailable'
+        : 'unknown'
+  const successIntent = performanceAvailabilityIntent(
+    getPerformanceAvailability({
+      availability,
+      success_rate: successRate,
+    })
+  )
   const tpsValues = groups
     .map((group) => group.avg_tps)
     .filter((value) => value > 0)
