@@ -54,7 +54,7 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
-			if requiredEndpointType != "" && !channelSupportsEndpointType(channel, modelRequest.Model, requiredEndpointType) {
+			if requiredEndpointType != "" && !channelSupportsRequest(c, channel, modelRequest.Model, requiredEndpointType) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
 				return
 			}
@@ -115,7 +115,7 @@ func Distribute() func(c *gin.Context) {
 							autoGroups := service.GetUserAutoGroup(userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									if requiredEndpointType == "" || channelSupportsEndpointType(preferred, modelRequest.Model, requiredEndpointType) {
+									if requiredEndpointType == "" || channelSupportsRequest(c, preferred, modelRequest.Model, requiredEndpointType) {
 										selectGroup = g
 										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
 										channel = preferred
@@ -126,7 +126,7 @@ func Distribute() func(c *gin.Context) {
 								}
 							}
 						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) &&
-							(requiredEndpointType == "" || channelSupportsEndpointType(preferred, modelRequest.Model, requiredEndpointType)) {
+							(requiredEndpointType == "" || channelSupportsRequest(c, preferred, modelRequest.Model, requiredEndpointType)) {
 							channel = preferred
 							selectGroup = usingGroup
 							affinityUsable = true
@@ -436,6 +436,168 @@ func channelSupportsEndpointType(channel *model.Channel, modelName string, endpo
 	return false
 }
 
+func channelSupportsRequest(c *gin.Context, channel *model.Channel, modelName string, endpointType constant.EndpointType) bool {
+	if !channelSupportsEndpointType(channel, modelName, endpointType) {
+		return false
+	}
+	if endpointType == constant.EndpointTypeImageGeneration &&
+		isXGAPIChannel(channel) &&
+		requestHasImageReference(c) {
+		return false
+	}
+	return true
+}
+
+func isXGAPIChannel(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	return containsXGAPIIdentifier(channel.GetBaseURL()) ||
+		containsXGAPIIdentifier(channel.Other) ||
+		containsXGAPIIdentifier(channel.Name)
+}
+
+func containsXGAPIIdentifier(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "xgapi") ||
+		strings.Contains(value, "xingguang") ||
+		strings.Contains(value, "星光")
+}
+
+const contextKeyImageReferenceRequest = "_new_api_image_reference_request"
+
+func requestHasImageReference(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if cached, ok := c.Get(contextKeyImageReferenceRequest); ok {
+		hasReference, _ := cached.(bool)
+		return hasReference
+	}
+	hasReference := parseRequestHasImageReference(c)
+	c.Set(contextKeyImageReferenceRequest, hasReference)
+	return hasReference
+}
+
+func parseRequestHasImageReference(c *gin.Context) bool {
+	if strings.Contains(c.Request.Header.Get("Content-Type"), gin.MIMEMultipartPOSTForm) {
+		return multipartRequestHasImageReference(c)
+	}
+	var imageRequest dto.ImageRequest
+	if err := common.UnmarshalBodyReusable(c, &imageRequest); err != nil {
+		return false
+	}
+	return imageRequestHasReference(imageRequest)
+}
+
+func multipartRequestHasImageReference(c *gin.Context) bool {
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil || form == nil {
+		return false
+	}
+	for _, key := range imageReferenceFieldNames() {
+		if len(form.Value[key]) > 0 || len(form.File[key]) > 0 {
+			return true
+		}
+	}
+	for key, values := range form.Value {
+		if isImageReferenceFieldName(key) && len(values) > 0 {
+			return true
+		}
+	}
+	for key, files := range form.File {
+		if isImageReferenceFieldName(key) && len(files) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func imageRequestHasReference(request dto.ImageRequest) bool {
+	if rawJSONHasValue(request.Image) || rawJSONHasValue(request.Images) {
+		return true
+	}
+	for _, key := range imageReferenceFieldNames() {
+		if rawJSONHasValue(request.Extra[key]) {
+			return true
+		}
+	}
+	return rawObjectHasImageReference(request.ExtraBody)
+}
+
+func rawObjectHasImageReference(raw []byte) bool {
+	if !rawJSONHasValue(raw) {
+		return false
+	}
+	var fields map[string]any
+	if err := common.Unmarshal(raw, &fields); err != nil {
+		return false
+	}
+	for _, key := range imageReferenceFieldNames() {
+		if jsonValueHasMeaning(fields[key]) {
+			return true
+		}
+	}
+	for _, key := range []string{"listenhub", "xgapi", "imageConfig", "image_config"} {
+		if !jsonValueHasMeaning(fields[key]) {
+			continue
+		}
+		nested, err := common.Marshal(fields[key])
+		if err == nil && rawObjectHasImageReference(nested) {
+			return true
+		}
+	}
+	return false
+}
+
+func rawJSONHasValue(raw []byte) bool {
+	value := strings.TrimSpace(string(raw))
+	return value != "" &&
+		value != "null" &&
+		value != `""` &&
+		value != "[]" &&
+		value != "{}"
+}
+
+func jsonValueHasMeaning(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(typed) != ""
+	case []any:
+		return len(typed) > 0
+	case map[string]any:
+		return len(typed) > 0
+	default:
+		return true
+	}
+}
+
+func imageReferenceFieldNames() []string {
+	return []string{
+		"image",
+		"image[]",
+		"images",
+		"referenceImages",
+		"reference_images",
+		"input_image",
+		"input_images",
+		"inputReference",
+		"input_reference",
+	}
+}
+
+func isImageReferenceFieldName(name string) bool {
+	if slices.Contains(imageReferenceFieldNames(), name) {
+		return true
+	}
+	return strings.HasPrefix(name, "image[") ||
+		strings.HasPrefix(name, "images[") ||
+		strings.HasPrefix(name, "referenceImages[") ||
+		strings.HasPrefix(name, "reference_images[")
+}
+
 func getRandomSatisfiedEndpointChannel(c *gin.Context, usingGroup string, modelName string, endpointType constant.EndpointType) (*model.Channel, string, error) {
 	maxRetry := common.RetryTimes
 	if endpointType != "" && maxRetry < 5 {
@@ -456,7 +618,7 @@ func getRandomSatisfiedEndpointChannel(c *gin.Context, usingGroup string, modelN
 		if channel == nil {
 			return nil, selectGroup, nil
 		}
-		if channelSupportsEndpointType(channel, modelName, endpointType) {
+		if channelSupportsRequest(c, channel, modelName, endpointType) {
 			return channel, selectGroup, nil
 		}
 	}

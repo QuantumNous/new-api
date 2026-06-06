@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -23,17 +24,97 @@ type HasImage interface {
 }
 
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
-	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
-
 	if strings.HasPrefix(baseURL, "https://gateway.ai.cloudflare.com") {
 		switch channelType {
 		case constant.ChannelTypeOpenAI:
-			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/v1"))
+			return joinRequestURL(baseURL, strings.TrimPrefix(requestURL, "/v1"))
 		case constant.ChannelTypeAzure:
-			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
+			return joinRequestURL(baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
 		}
 	}
-	return fullRequestURL
+	return joinRequestURL(baseURL, requestURL)
+}
+
+func joinRequestURL(baseURL string, requestURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	requestURL = strings.TrimSpace(requestURL)
+	if baseURL == "" {
+		return requestURL
+	}
+	if requestURL == "" {
+		return baseURL
+	}
+
+	request, err := url.Parse(requestURL)
+	if err != nil {
+		return simpleJoinRequestURL(baseURL, requestURL)
+	}
+	if request.IsAbs() {
+		return request.String()
+	}
+
+	if base, err := url.Parse(baseURL); err == nil {
+		overlap := overlappingPathSegments(base.Path, request.Path)
+		if overlap > 0 {
+			request.Path = trimLeadingPathSegments(request.Path, overlap)
+			request.RawPath = ""
+		}
+	}
+
+	relative := request.String()
+	if relative == "" {
+		return baseURL
+	}
+	if strings.HasPrefix(relative, "/") || strings.HasPrefix(relative, "?") || strings.HasPrefix(relative, "#") {
+		return baseURL + relative
+	}
+	return baseURL + "/" + relative
+}
+
+func simpleJoinRequestURL(baseURL string, requestURL string) string {
+	if strings.HasPrefix(requestURL, "/") {
+		return baseURL + requestURL
+	}
+	return baseURL + "/" + requestURL
+}
+
+func overlappingPathSegments(basePath string, requestPath string) int {
+	baseSegments := splitPathSegments(basePath)
+	requestSegments := splitPathSegments(requestPath)
+	maxOverlap := len(baseSegments)
+	if len(requestSegments) < maxOverlap {
+		maxOverlap = len(requestSegments)
+	}
+
+	for overlap := maxOverlap; overlap > 0; overlap-- {
+		matched := true
+		for i := 0; i < overlap; i++ {
+			if baseSegments[len(baseSegments)-overlap+i] != requestSegments[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return overlap
+		}
+	}
+	return 0
+}
+
+func splitPathSegments(path string) []string {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return nil
+	}
+	return strings.Split(path, "/")
+}
+
+func trimLeadingPathSegments(path string, count int) string {
+	segments := splitPathSegments(path)
+	if count >= len(segments) {
+		return ""
+	}
+	return "/" + strings.Join(segments[count:], "/")
 }
 
 func GetAPIVersion(c *gin.Context) string {

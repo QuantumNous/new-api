@@ -2,7 +2,7 @@
 
 本文档面向合作方接入和 AI agent 自动调用，覆盖视频生成、图片生成、图像编辑、文本对话、模型列表、错误处理和价格参考。所有接口兼容 OpenAI API 格式，可直接使用 OpenAI SDK 或兼容客户端调用。
 
-> **最后验证：2026-06-06**。当前分支已合并 `origin/main` 最新代码并重新部署远端服务；`/api/status`、`/v1/models`、视频推荐模型和本次新增的 4 个 SiliconFlow 图片模型均已通过远端真实接口验证。
+> **最后验证：2026-06-07**。当前分支已合并 `origin/main` 最新代码并重新部署远端服务；`/api/status`、`/v1/models`、视频推荐模型、SiliconFlow 图片模型，以及 xgapi 图片兜底模型均已通过远端真实接口验证。
 
 ---
 
@@ -68,7 +68,12 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 | `gemini_3.0_pro_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 383 秒 | `data[0].b64_json` | Apexer 4K 高质量，耗时较长 |
 | `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 93 秒 | `data[0].b64_json` | ListenHub 横线命名快速生图 |
 | `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 67 秒 | `data[0].b64_json` | ListenHub 横线命名高质量生图 |
-| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 53 秒 | `data[0].b64_json` | ListenHub OpenAI 图片模型路径 |
+| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 45-53 秒 | `data[0].url` / `data[0].b64_json` | 直接生图优先 xgapi；带参考图自动回退 ListenHub |
+| `gpt-image-2(线路XF)` | `POST /v1/images/generations` | 生图 | 48-50 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
+| `gr-image-2` | `POST /v1/images/generations` | 生图 | 46-55 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
+| `nano-banana` | `POST /v1/images/generations` | 生图 | 8-9 秒 | `data[0].url` | bltcy 快速生图 |
+| `nano-banana-hd` | `POST /v1/images/generations` | 生图 | 10-11 秒 | `data[0].url` | bltcy 高清生图 |
+| `nano-banana-pro` | `POST /v1/images/generations` | 生图 | 46-48 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` 兜底 |
 
 ### 文本模型
 
@@ -84,7 +89,7 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 | `grok-video-3(线路W)` | 下游未开放 OpenAPI | 使用 `grok-imagine-1.0-video` |
 | `veo3.1-lite`、`全能视频2.0` | 远端创建失败 | 使用 `veo3.1-fast` 或 `veo3.1-4k` |
 | `seedance-*`、`gen4-*`、`wan-*`、`kling-*`、`happyhorse-*`、`pixverse`、`vidu` | Runway 私有适配器当前未就绪 | 等 Runway 渠道上线后再验证 |
-| `nano-banana*`、`gemini-2.5-flash-image*` | 模型列表可能暴露，但未完成本服务真实生成验证 | 使用上表已验证图片模型 |
+| `gemini-2.5-flash-image*` | 模型列表可能暴露，但未完成本服务真实生成验证 | 使用上表已验证图片模型 |
 
 ---
 
@@ -343,13 +348,14 @@ Grok 渠道注意事项：
 
 #### 真实验证可用模型（推荐上游使用）
 
-以下模型在 2026-05-28 做过真实生成测试：提交任务成功、轮询到 `completed`、并且 `GET /v1/videos/{task_id}/content` 返回 `200 video/mp4`。
+以下模型已做过真实生成测试：提交任务成功、轮询到 `completed`、并且 `GET /v1/videos/{task_id}/content` 返回 `200 video/mp4`。
 
 | 推荐模型 | 下游链路 | 本次验证 task_id | 结果 | 说明 |
 |----------|----------|------------------|------|------|
 | `veo3.1-fast` | Apexer / Veo | `task_kPRJVkUnFmkznGZbKaUAY8UAy5daQTaS` | ✅ 完成并可下载 | 当前推荐的 Veo 快速模型，约 1.5 分钟完成 |
 | `xb-sora2` | Hongniao / Sora | `task_AnRb9zA2TNPKnUl3WjK0ep2yvbBgdaoD` | ✅ 完成并可下载 | 当前推荐的 Sora 主路径，约 3.5 分钟完成 |
 | `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径；稳定验证尺寸见 [1.2 请求参数](#12-请求参数) |
+| `grok-video-3` | LK888 / AI 聚合站 | `task_fjCxJlZ18U0eQIQOfXy077K4HHMzNHum` | ✅ 完成并可下载 | 2026-06-07 复测完成，`/content` 返回 `video/mp4` |
 | `ss-sora-2` | Hongniao / Sora | `task_s4H8Mwn0LwsUMviZTWviEH2GVBHvC7V4` | ✅ 完成并可下载 | Sora 2 备用路径，约 3 分钟完成 |
 | `veo3.1-4k` | Apexer / Veo 4K | `task_mDFMyYk4fXPREqIZad9ZFTSNvEhQ46Wz` | ✅ 完成并可下载 | 4K 高质量，约 4 分钟完成，$1.5/次 |
 
@@ -695,7 +701,7 @@ curl -s "${BASE_URL}/videos" \
 图片生成推荐使用 OpenAI 兼容的 **Images** 接口调用，统一入口是 `/v1/images/generations`；图像编辑使用 `/v1/images/edits`。当前内部主用三类模型：
 
 - 下划线模型：`gemini_3.*_image_preview`，走 Apexer OpenAI 兼容通道。
-- 横线模型：`gemini-3.*-image-preview` 和 `gpt-image-2`，当前可通过 ListenHub 通道跑通。
+- 横线模型：`gemini-3.*-image-preview` 当前可通过 ListenHub 通道跑通；`gpt-image-2` 已切到 xgapi 图片兜底主路径，ListenHub 保留为备用验证路径。
 - SiliconFlow 模型：`Qwen/Qwen-Image`、`baidu/ERNIE-Image-Turbo`、`Tongyi-MAI/Z-Image` 和 `Qwen/Qwen-Image-Edit-2509`，返回 `data[0].url`。
 
 Chat Completions 形式仍保留兼容：部分上游会把图片 URL 放在 `choices[0].message.content` 的 Markdown 图片语法中返回。新接入和业务调用优先使用 Images 接口。
@@ -733,7 +739,7 @@ Authorization: Bearer <api-key>
 | extra_body.google.image_config.aspect_ratio | string | 否 | Apexer 兼容参数，例如 `1:1`、`16:9`、`9:16` |
 | extra_body.google.image_config.image_size | string | 否 | Apexer 兼容参数，例如 `1K`、`4K` |
 
-**当前已通过统一入口验证的图片模型（更新至 2026-06-06）：**
+**当前已通过统一入口验证的图片模型（更新至 2026-06-07）：**
 
 | 模型名 | 通道 | 单次价格 | 本次耗时 | 返回 | 建议场景 |
 |--------|------|----------|----------|------|----------|
@@ -743,7 +749,12 @@ Authorization: Bearer <api-key>
 | `gemini_3.0_pro_image_preview_4K` | Apexer OpenAI 兼容 | $0.35 | 约 383 秒 | `b64_json` | 4K 高质量，耗时明显更长 |
 | `gemini-3.1-flash-image-preview` | ListenHub | $0.2 | 约 93 秒 | `b64_json` | 横线命名快速生图 |
 | `gemini-3-pro-image-preview` | ListenHub | $0.3 | 约 67 秒 | `b64_json` | 横线命名高质量生图 |
-| `gpt-image-2` | ListenHub | $0.5 | 约 53 秒 | `b64_json` | OpenAI 图片模型路径 |
+| `gpt-image-2` | xgapi-images / ListenHub | $0.5 | 45-53 秒 | `url` / `b64_json` | 直接生图优先 xgapi；带参考图自动回退 ListenHub |
+| `gpt-image-2(线路XF)` | xgapi-images | $0.3 | 48-50 秒 | `url` | 映射到 xgapi `gpt-image-2` |
+| `gr-image-2` | xgapi-images | $0.3 | 46-55 秒 | `url` | 映射到 xgapi `gpt-image-2` |
+| `nano-banana` | bltcy-images | $0.18 | 8-9 秒 | `url` | 快速生图 |
+| `nano-banana-hd` | bltcy-images | $0.22 | 10-11 秒 | `url` | 高清生图 |
+| `nano-banana-pro` | xgapi-images | $0.3 | 46-48 秒 | `url` | 映射到 xgapi `gpt-image-2` 兜底 |
 | `baidu/ERNIE-Image-Turbo` | SiliconFlow | 按后台配置 | 20.89 秒 | `url` | 快速通用生图 |
 | `Qwen/Qwen-Image` | SiliconFlow | 按后台配置 | 18.76 秒 | `url` | 通用高质量生图 |
 | `Tongyi-MAI/Z-Image` | SiliconFlow | 按后台配置 | 12.20 秒 | `url` | 通义图像模型路径 |
@@ -752,6 +763,12 @@ Authorization: Bearer <api-key>
 > **2026-06-02 远端验证方式**：使用远端测试 Key 直接请求 `POST http://192.129.209.36:3001/v1/images/generations`，上述 7 个非 SiliconFlow 图片模型均返回 HTTP 200，`data` 数组长度为 1。4K 响应体可能超过 20 MB，不要在日志或终端中直接打印完整 `b64_json`。
 >
 > **2026-06-06 SiliconFlow 远端验证方式**：通过本服务统一入口验证 4 个 SiliconFlow 模型；`baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image` 走 `/v1/images/generations`，`Qwen/Qwen-Image-Edit-2509` 走 `/v1/images/edits`，均返回 HTTP 200，`data` 数组长度为 1，结果在 `data[0].url`。本次实测耗时分别为 20.89 秒、18.76 秒、12.20 秒、24.60 秒。
+>
+> **2026-06-07 xgapi 图片兜底验证方式**：修复部署后，通过公网统一入口连续 2 轮验证 `gpt-image-2`、`gpt-image-2(线路XF)`、`gr-image-2`、`nano-banana`、`nano-banana-hd`、`nano-banana-pro`，共 12 次请求全部 HTTP 200，均返回标准 `data[0].url`。其中 `gpt-image-2`、`gpt-image-2(线路XF)`、`gr-image-2`、`nano-banana-pro` 命中 `xgapi-images` 渠道，后三个别名映射到上游 `gpt-image-2`。
+>
+> **2026-06-07 xgapi 比例与参考图兼容验证**：远端部署后复测 `gpt-image-2`，直接生图请求 `size=1792x1024` 且 prompt 不写比例，命中 `channel_id=14`，HTTP 200，46.33 秒，返回 PNG `1659x948`，比例约 `1.75`。服务端会把 `size` / `aspect_ratio` 推导出的比例自动追加到 xgapi 上游 prompt。带 `image` 参考图字段的同模型请求自动避开 xgapi，命中 ListenHub `channel_id=12`，HTTP 200，45.08 秒，返回 `b64_json` PNG `2048x2048`。
+>
+> **2026-06-07 生产自测补充**：修剪 Apexer channel 6/7 的 `gpt-image-2` 后再次验证当前路径：`gpt-image-2` 直接生图命中 channel 14，46.51 秒，PNG `1659x948`；`gpt-image-2` 带 `image` 参考图命中 channel 12，93.63 秒，PNG `2048x2048`；`Qwen/Qwen-Image-Edit-2509` 图像编辑命中 channel 13，29.97 秒，返回 PNG；`grok-video-3` 视频任务命中 channel 11，轮询到 `completed`，`/content` 返回 `200 video/mp4`。
 
 **SiliconFlow 图片平台：**
 
@@ -889,11 +906,12 @@ Apexer 统一入口真实探测结果（2026-06-02）：
 | apexer-images-openai | `gemini_3.1_flash_image_preview_4K` | `/v1/images/generations` | ✅ 成功，返回 `b64_json` | 约 65 秒 |
 | apexer-images-openai | `gemini_3.0_pro_image_preview_4K` | `/v1/images/generations` | ✅ 成功，返回 `b64_json` | 约 383 秒 |
 
+> 2026-06-07 生产日志显示 `gpt-image-2` 在 Apexer 图片 OpenAI/Gemini 渠道上会分别出现上游 distributor 503 和 `only imagen models are supported`，因此已从 channel 6/7 的模型列表移除。`gpt-image-2` 当前只通过 xgapi 直接生图和 ListenHub 参考图 fallback 承载。
+
 暂不推荐模型：
 
 | 模型名 | 当前状态 |
 |--------|----------|
-| `nano-banana` / `nano-banana-hd` / `nano-banana-pro` | 仍会在 `/v1/models` 暴露，但 2026-06-02 用标准 Images 路径测试 `nano-banana` 返回 503 / `model_not_found`，不要推荐为 `/v1/images/generations` 主路径 |
 | `gemini-2.5-flash-image` / `gemini-2.5-flash-image-preview` | 模型列表暴露，但本次未做统一入口真实生成；如需使用先单独验证 |
 
 ListenHub 调用示例：
@@ -1178,7 +1196,7 @@ Authorization: Bearer <api-key>
 | gemini_3.0_pro_image_preview_4K | 图片 | $0.35 | Apexer Pro 4K |
 | gemini_3.1_flash_image_preview | 图片 | $0.25 | Apexer Flash |
 | gemini_3.1_flash_image_preview_4K | 图片 | $0.3 | Apexer Flash 4K |
-| gpt-image-2 | 图片 | $0.5 | OpenAI 图片模型，当前 ListenHub 路径已验证 |
+| gpt-image-2 | 图片 | $0.5 | OpenAI 图片模型，当前 xgapi 图片兜底主路径已验证 |
 | baidu/ERNIE-Image-Turbo | 图片 | 按后台配置 | SiliconFlow 快速通用生图 |
 | Qwen/Qwen-Image | 图片 | 按后台配置 | SiliconFlow Qwen 生图 |
 | Tongyi-MAI/Z-Image | 图片 | 按后台配置 | SiliconFlow 通义 Z-Image |
@@ -1231,7 +1249,8 @@ Authorization: Bearer <api-key>
 | bltcy.ai / ablai.top | 默认（无匹配时） | 100（最高） | MiniMax-Hailuo-02/2.3*, doubao-seedance-*, wan*, 生图模型（注：veo3.1*/sora-2 受上游 BUG 影响不可用） | 统一格式接口，支持首尾帧、多图参考 |
 | www.937qq.cn | 937qq / qilin | 80（Grok 专用） | grok-imagine-1.0-video, grok-imagine-1.0-video-20s, grok-imagine-1.0-video-30s | 麒麟 API，xAI Grok 视频专用；已验证 JSON 直传、多参数、1 张参考图、2 张首尾帧；新版插件支持 7 张参考图和 20/30 秒长时长模型 |
 | open.hongniaoai.com | xb-sora2 / hongniao | 90（Sora2 主路径） | 推荐 `xb-sora2`；其他线路模型需单独验证 | Hongniao AI 视频平台，使用 `X-API-Key`、`/videos/generate`、`/videos/{task_id}`；2026-05-24 真实验证 `xb-sora2` 完成并可下载 |
-| api.marswave.ai / ListenHub | listenhub | 120（图片） | `gemini-3-pro-image-preview`、`gemini-3.1-flash-image-preview`、`gpt-image-2` | ListenHub 图片平台，2026-06-02 已通过本服务 `/v1/images/generations` 验证，返回 `data[0].b64_json` |
+| xgapi.top | xgapi-images | 130（图片兜底） | `gpt-image-2`、`gpt-image-2(线路XF)`、`gr-image-2`、`nano-banana-pro` | xgapi 图片平台，2026-06-07 连续 12 次统一入口验证中的 8 次命中该渠道，均返回 `data[0].url`；直接生图会把比例自动补到上游 prompt |
+| api.marswave.ai / ListenHub | listenhub | 120（图片） | `gemini-3-pro-image-preview`、`gemini-3.1-flash-image-preview`、`gpt-image-2` | ListenHub 图片平台，2026-06-02 已通过本服务 `/v1/images/generations` 验证，返回 `data[0].b64_json`；`gpt-image-2` 当前直接生图优先 xgapi，带参考图自动回退 ListenHub |
 | api.siliconflow.cn / SiliconFlow | siliconflow-images | 0（默认） | `baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image`、`Qwen/Qwen-Image-Edit-2509` | SiliconFlow 图片平台，2026-06-06 已通过本服务 `/v1/images/generations` 和 `/v1/images/edits` 验证，返回 `data[0].url` |
 | api.lk888.ai | lk888 / AI聚合站 | 35（Grok 线路） | 推荐 `grok-video-3` | AI 聚合站媒体生成平台，使用 Bearer Token、`/v1/media/generate`、`/v1/skills/task-status`；2026-05-24 真实验证 `grok-video-3` 完成并可下载 |
 | www.aiapexers.com | apexer | 50（第二） | 视频：veo3.1_*；图片：gemini_3.*_image_preview | Apexer new-api 实例，视频和图片均已按统一入口适配 |

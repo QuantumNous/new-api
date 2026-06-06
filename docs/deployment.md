@@ -84,6 +84,13 @@ Coolify 使用的 Compose 由 Coolify 资源生成，核心配置如下：
 | 2026-06-06 | SiliconFlow 部署备份 | 新增渠道前备份 SQLite 到 `/opt/new-api-data/one-api.db.before-siliconflow-20260606-064135`；API key 仅保存在远端数据库渠道配置中，不写入仓库文档。 |
 | 2026-06-06 | upstream 同步部署 | 当前功能分支已 merge `origin/main` 最新提交 `adc390c5f`，解决 4 个冲突后远端 Docker/Coolify 构建成功，镜像 `new-api-local:coolify` 重建完成，容器状态 `healthy`。 |
 | 2026-06-06 | 合并后 SiliconFlow 回归 | 远端公网入口复测 4 个 SiliconFlow 模型均返回 HTTP 200、`data` 长度 1 且包含 `url`：`baidu/ERNIE-Image-Turbo` 20.89s、`Qwen/Qwen-Image` 18.76s、`Tongyi-MAI/Z-Image` 12.20s、`Qwen/Qwen-Image-Edit-2509` 24.60s。 |
+| 2026-06-07 | 图片路由修复与 xgapi 兜底 | 部署 URL 拼接去重和图片模型分类修复；新增 `xgapi-images`（channel id `14`，type `1`，priority `130`），使用 xgapi `gpt-image-2` 兜底 `gpt-image-2`、`gpt-image-2(线路XF)`、`gr-image-2`、`nano-banana-pro`，并从 Hongniao 视频渠道移除不支持标准 Images 的 `gr-image-2` / `gpt-image-2(线路XF)`。数据库变更前备份到 `/opt/new-api-data/one-api.db.before-image-fallback-20260606-190024`。 |
+| 2026-06-07 | 图片模型稳定性回归 | 公网统一入口连续 2 轮验证 `gpt-image-2`、`gpt-image-2(线路XF)`、`gr-image-2`、`nano-banana`、`nano-banana-hd`、`nano-banana-pro`，共 12 次全部 HTTP 200，均返回标准 `data[0].url`。 |
+| 2026-06-07 | xgapi 图片比例与参考图兼容 | 部署 xgapi 图片兼容逻辑：直接生图按 `size` / `aspect_ratio` 自动把比例补到上游 prompt；带 `image` / `images` / `referenceImages` 的请求避开 xgapi 直接生图线路并回退 ListenHub。远端复测 `gpt-image-2`：无比例 prompt + `size=1792x1024` 命中 channel 14，HTTP 200，46.33s，PNG `1659x948`；参考图请求命中 channel 12，HTTP 200，45.08s，PNG `2048x2048`。 |
+| 2026-06-07 | 近期使用记录巡检 | 远端 `logs` 近 24h：成功消费 77 条，其中 `/v1/images/generations` 73 条、`/v1/images/edits` 4 条；部署后近 30 分钟错误日志 0 条。远端 `tasks` 近 30 天视频任务 121 条：103 成功、18 失败；失败集中在 2026-05-28 及以前的上游 token/429/旧尺寸格式问题，当前未发现新视频失败。 |
+| 2026-06-07 | Apexer gpt-image-2 配置修剪 | 生产错误日志显示 `gpt-image-2` 在 Apexer channel 6/7 会触发上游 distributor 503 或 `only imagen models are supported`，已从 `apexer-images-openai` / `apexer-images-gemini` 移除，仅保留 xgapi 直接生图与 ListenHub 参考图 fallback。变更前备份 SQLite 到 `/opt/new-api-data/one-api.db.before-apexer-gpt-image2-prune-20260606-194956`。 |
+| 2026-06-07 | 图片/视频生产自测 | 重新验证当前路径：`gpt-image-2` 直接生图 channel 14，46.51s，PNG `1659x948`；`gpt-image-2` 参考图 channel 12，93.63s，PNG `2048x2048`；`Qwen/Qwen-Image-Edit-2509` 编辑 channel 13，29.97s，PNG；`grok-video-3` channel 11 轮询到 `completed`，`/content` 返回 `200 video/mp4`。 |
+| 2026-06-07 | LK888 模型列表能力补齐 | 发现 channel 11 的 `channels.models` 已有 `sora-2,grok-video-3`，但 `abilities` 缺失导致 `/v1/models` 不暴露裸 `grok-video-3`。已补齐 channel 11 的 `sora-2` / `grok-video-3` abilities，变更前备份到 `/opt/new-api-data/one-api.db.before-lk888-abilities-20260606-200036`；同步后 `/v1/models` 已确认包含 `grok-video-3`。 |
 
 ### 新服务器常用命令
 
@@ -346,12 +353,15 @@ df -h /
 | 3 | bltcy-images | 1 (OpenAI) | 100 | 关闭 | https://api.bltcy.ai | nano-banana, gemini image 系列 |
 | 4 | apexer-veo | 58 (OpenAI Video) | 50 | 开启 | https://www.aiapexers.com | veo3.1/fast/pro、4K、components |
 | 5 | xgapi-veo | 58 (OpenAI Video) | 10 | 开启 | https://xgapi.top | veo3.1-lite, sora-2（账号资源受限，详见已知问题） |
-| 6 | apexer-images-openai | 1 (OpenAI) | 60 | 开启 | https://www.aiapexers.com | gemini_3.*_image_preview, gpt-image-2（OpenAI 图片/对话格式） |
-| 7 | apexer-images-gemini | 24 (Gemini) | 50 | 开启 | https://www.aiapexers.com | gemini_3.*_image_preview, gpt-image-2（Gemini 原生格式） |
+| 6 | apexer-images-openai | 1 (OpenAI) | 60 | 开启 | https://www.aiapexers.com | gemini_3.*_image_preview（OpenAI 图片/对话格式） |
+| 7 | apexer-images-gemini | 24 (Gemini) | 50 | 开启 | https://www.aiapexers.com | gemini_3.*_image_preview（Gemini 原生格式） |
 | 8 | qilin-grok-video | 58 (OpenAI Video) | 80 | 开启 | http://www.937qq.cn | grok-imagine-1.0-video, grok-imagine-1.0-video-20s, grok-imagine-1.0-video-30s |
 | 9 | xb-sora2 | 58 (OpenAI Video) | 90 | 关闭 | https://open.hongniaoai.com/v1 | xb-sora2, ss-sora-2, sora-2(线路BF), sora-2-pro(线路BF), je-grok, grok-video-3(线路W), 全能视频2.0 等 |
 | 10 | runway-explore | 58 (OpenAI Video) | 110 | 关闭 | http://127.0.0.1:8787 | seedance-2, gen4-turbo, wan-2.6-flash, kling-2.5-turbo-standard, gen4.5, happyhorse-1, wan-2.6, kling-2.5-turbo-pro, kling-2.6, wan-2.2-animate |
 | 11 | ai-juhe-lk888 | 58 (OpenAI Video) | 35 | 关闭 | https://api.lk888.ai/api | sora-2, grok-video-3 |
+| 12 | listenhub-images | 59 (ListenHub) | 120 | 开启 | https://api.marswave.ai/openapi | gemini-3-pro-image-preview, gemini-3.1-flash-image-preview, gpt-image-2（参考图 fallback） |
+| 13 | siliconflow-images | 40 (SiliconFlow) | 0 | 开启 | https://api.siliconflow.cn | baidu/ERNIE-Image-Turbo, Qwen/Qwen-Image, Tongyi-MAI/Z-Image, Qwen/Qwen-Image-Edit-2509 |
+| 14 | xgapi-images | 1 (OpenAI) | 130 | 关闭 | https://xgapi.top | gpt-image-2, gpt-image-2(线路XF), gr-image-2, nano-banana-pro（直接生图；后三者映射到上游 gpt-image-2） |
 
 ### AI 聚合站 / LK888 验证记录
 
