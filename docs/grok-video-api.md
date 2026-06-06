@@ -1,6 +1,6 @@
 # Grok 视频生成 API 调用文档
 
-最后更新：2026-05-28
+最后更新：2026-06-06
 
 > **2026-05-28 回归验证**：`grok-imagine-1.0-video` 重新通过真实验证（task `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf`，产出 3.8MB MP4）。注意该模型**仅支持以下尺寸**：`720x1280`、`1280x720`、`1024x1024`、`1024x1792`、`1792x1024`，传入 `1920x1080` 会报错。`grok-imagine-1.0-video-20s` 今天返回 `model_not_found`（渠道未注册该模型）。
 
@@ -33,7 +33,7 @@ AI 聚合站 / LK888 也已接入 `grok-video-3`，该线路使用 `/v1/media/ge
 | Base URL | `http://192.129.209.36:3001/v1` |
 | 模型 | `grok-imagine-1.0-video`、`grok-imagine-1.0-video-20s`、`grok-imagine-1.0-video-30s` |
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
-| 测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
+| API Key | 由我方单独发放；本文档不内嵌真实密钥 |
 
 ## 接口
 

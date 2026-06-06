@@ -1,6 +1,8 @@
 # API 调用文档
 
-本文档描述了通过本服务调用 AI 视频生成、图片生成和文本对话的完整方式，定位为内部接入、验证和排障手册。所有接口兼容 OpenAI API 格式，可直接使用任何 OpenAI SDK 或兼容客户端调用。
+本文档面向合作方接入和 AI agent 自动调用，覆盖视频生成、图片生成、图像编辑、文本对话、模型列表、错误处理和价格参考。所有接口兼容 OpenAI API 格式，可直接使用 OpenAI SDK 或兼容客户端调用。
+
+> **最后验证：2026-06-06**。当前分支已合并 `origin/main` 最新代码并重新部署远端服务；`/api/status`、`/v1/models`、视频推荐模型和本次新增的 4 个 SiliconFlow 图片模型均已通过远端真实接口验证。
 
 ---
 
@@ -10,23 +12,113 @@
 |------|-----|
 | Base URL | `http://192.129.209.36:3001/v1` |
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
-| 兼容协议 | OpenAI API (Chat Completions, Models, Video Generations) |
-| 内部测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
-| 测试 Key 额度 | 无限额度（unlimited_quota） |
+| 兼容协议 | OpenAI API (Chat Completions, Models, Images, Video Generations) |
+| API Key | 由我方单独发放；本文档不内嵌真实密钥 |
+| 测试 Key 额度 | 当前测试 Key 为无限额度（unlimited_quota）；生产 Key 以实际配置为准 |
 
-当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成全模型回归测试，所有推荐模型均通过真实创建、轮询完成和 `/content` 视频下载验证。
+当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成视频全模型回归测试；2026-06-06 再次合并 upstream 最新代码、重新部署远端服务，并完成 SiliconFlow 图片模型实测。
 
-所有请求必须在 HTTP Header 中携带 API Key（以下为测试 Key，生产环境请使用自己的 Key）：
+所有请求必须在 HTTP Header 中携带 API Key：
 
 ```
-Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
+Authorization: Bearer your-api-key-here
 ```
+
+不要把真实 API Key 写入代码、日志、Prompt、截图或共享文档。调用方拿到 Key 后只在运行环境变量、密钥管理系统或后端配置中保存。
+
+---
+
+## 给 AI agent 的读取规则
+
+- 模型名必须逐字使用表格中的值，不要翻译、改大小写、替换斜杠或自动补后缀。
+- 所有请求统一使用 `http://192.129.209.36:3001/v1` 作为 Base URL，并携带 `Authorization: Bearer your-api-key-here`。
+- 图片生成返回可能是 `data[0].url` 或 `data[0].b64_json`；客户端必须同时兼容两种字段，不要假设只有一种。
+- 视频生成是异步任务：先 `POST /v1/videos` 获取 `task_id`，再 `GET /v1/videos/{task_id}` 轮询，完成后用 `GET /v1/videos/{task_id}/content` 下载。
+- 不要在日志中打印完整 `b64_json`、签名图片 URL、视频下载 URL 或 API Key；排障只记录模型名、HTTP 状态、耗时、`task_id` 和返回字段是否存在。
+- 优先调用“现有可用模型合集”中的推荐模型；“暂不推荐/不建议”的模型不要主动推荐给业务方。
+- 如果 `/v1/models` 中出现本文档未列出的模型，先小流量真实验证，再更新本文档。
+
+---
+
+## 现有可用模型合集（2026-06-06）
+
+本节是给人和 AI agent 的快速索引。详细参数、轮询方式、错误处理和价格见后续章节。
+
+### 视频模型
+
+| 推荐模型 | 入口 | 类型 | 远端实测 | 返回方式 | 适用场景 |
+|----------|------|------|----------|----------|----------|
+| `veo3.1-fast` | `POST /v1/videos` | 文生视频、图生视频 | 约 1.5 分钟 | `task_id` 后轮询 | 默认首选，速度和成本均衡 |
+| `xb-sora2` | `POST /v1/videos` | 文生视频、参考图视频 | 约 3.5 分钟 | `task_id` 后轮询 | Sora 2 主路径 |
+| `grok-imagine-1.0-video` | `POST /v1/videos` | 文生视频、参考图视频 | 约 2 分钟 | `task_id` 后轮询 | Grok Imagine；建议使用稳定尺寸 |
+| `ss-sora-2` | `POST /v1/videos` | 文生视频 | 约 3 分钟 | `task_id` 后轮询 | Sora 2 备用路径 |
+| `veo3.1-4k` | `POST /v1/videos` | 文生视频、图生视频 | 约 4 分钟 | `task_id` 后轮询 | 4K 高质量输出 |
+
+### 图片生成与编辑模型
+
+| 推荐模型 | 入口 | 类型 | 远端实测耗时 | 返回字段 | 适用场景 |
+|----------|------|------|--------------|----------|----------|
+| `Tongyi-MAI/Z-Image` | `POST /v1/images/generations` | 生图 | 12.20 秒 | `data[0].url` | SiliconFlow 通义图片路径，当前实测最快 |
+| `Qwen/Qwen-Image` | `POST /v1/images/generations` | 生图 | 18.76 秒 | `data[0].url` | SiliconFlow Qwen 生图，高质量通用 |
+| `baidu/ERNIE-Image-Turbo` | `POST /v1/images/generations` | 生图 | 20.89 秒 | `data[0].url` | SiliconFlow 文心快速生图 |
+| `Qwen/Qwen-Image-Edit-2509` | `POST /v1/images/edits` | 图像编辑 | 24.60 秒 | `data[0].url` | SiliconFlow 图像编辑、风格转换 |
+| `gemini_3.1_flash_image_preview` | `POST /v1/images/generations` | 生图 | 约 29 秒 | `data[0].b64_json` | Apexer 快速生图 |
+| `gemini_3.0_pro_image_preview` | `POST /v1/images/generations` | 生图 | 约 58 秒 | `data[0].b64_json` | Apexer 高质量图片、产品图 |
+| `gemini_3.1_flash_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 65 秒 | `data[0].b64_json` | Apexer 快速高清输出 |
+| `gemini_3.0_pro_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 383 秒 | `data[0].b64_json` | Apexer 4K 高质量，耗时较长 |
+| `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 93 秒 | `data[0].b64_json` | ListenHub 横线命名快速生图 |
+| `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 67 秒 | `data[0].b64_json` | ListenHub 横线命名高质量生图 |
+| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 53 秒 | `data[0].b64_json` | ListenHub OpenAI 图片模型路径 |
+
+### 文本模型
+
+| 推荐模型 | 入口 | 类型 | 说明 |
+|----------|------|------|------|
+| `gemini-2.5-flash` | `POST /v1/chat/completions` | 文本对话 | 快速文本对话，响应格式与 OpenAI Chat Completions 一致 |
+
+### 暂不推荐直接调用的模型
+
+| 模型 | 原因 | 替代建议 |
+|------|------|----------|
+| `openai-sora-2`、`sora-2-image-to-video`、`sora-2-pro-text-to-video`、`sora-2(线路BF)` | 真实创建失败或下游未开放 OpenAPI | 使用 `xb-sora2` 或 `ss-sora-2` |
+| `grok-video-3(线路W)` | 下游未开放 OpenAPI | 使用 `grok-imagine-1.0-video` |
+| `veo3.1-lite`、`全能视频2.0` | 远端创建失败 | 使用 `veo3.1-fast` 或 `veo3.1-4k` |
+| `seedance-*`、`gen4-*`、`wan-*`、`kling-*`、`happyhorse-*`、`pixverse`、`vidu` | Runway 私有适配器当前未就绪 | 等 Runway 渠道上线后再验证 |
+| `nano-banana*`、`gemini-2.5-flash-image*` | 模型列表可能暴露，但未完成本服务真实生成验证 | 使用上表已验证图片模型 |
 
 ---
 
 ## 快速开始
 
-以下是 5 个已通过真实验证的推荐模型，可直接复制 cURL 命令提交任务。提交后返回 `task_id`，轮询 `GET /v1/videos/{task_id}` 即可获取生成结果。
+以下是已通过真实验证的最小调用示例，可直接替换 API Key 后调用。视频提交后返回 `task_id`，轮询 `GET /v1/videos/{task_id}` 即可获取生成结果；图片接口同步返回 `data` 数组。
+
+### SiliconFlow 生图 — Qwen 图片生成（实测 18.76 秒）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/images/generations" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen-Image",
+    "prompt": "A clean product photo of a white ceramic coffee cup on a wooden desk, soft studio lighting",
+    "size": "1024x1024",
+    "n": 1
+  }'
+```
+
+### SiliconFlow 图像编辑 — Qwen Image Edit（实测 24.60 秒）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/images/edits" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen-Image-Edit-2509",
+    "prompt": "Turn the input image into a clean watercolor illustration while preserving the main subject",
+    "image": "https://example.com/input.png",
+    "n": 1
+  }'
+```
 
 ### veo3.1-fast — 快速视频生成（≈1.5 分钟，$0.30/次）
 
@@ -273,7 +365,7 @@ Grok 渠道注意事项：
 
 #### 可尝试但未逐一真实验证的同族模型
 
-这些模型属于当前可用链路的同族模型，可能出现在 `/v1/models` 中，但本次没有逐个消耗额度真实生成。业务上建议先使用上方 4 个推荐模型；如需使用下列模型，请先小流量单独验证。
+这些模型属于当前可用链路的同族模型，可能出现在 `/v1/models` 中，但本次没有逐个消耗额度真实生成。业务上建议先使用上方 5 个推荐模型；如需使用下列模型，请先小流量单独验证。
 
 | 模型名 | 链路 | 说明 |
 |--------|------|------|
@@ -652,14 +744,14 @@ Authorization: Bearer <api-key>
 | `gemini-3.1-flash-image-preview` | ListenHub | $0.2 | 约 93 秒 | `b64_json` | 横线命名快速生图 |
 | `gemini-3-pro-image-preview` | ListenHub | $0.3 | 约 67 秒 | `b64_json` | 横线命名高质量生图 |
 | `gpt-image-2` | ListenHub | $0.5 | 约 53 秒 | `b64_json` | OpenAI 图片模型路径 |
-| `baidu/ERNIE-Image-Turbo` | SiliconFlow | 按后台配置 | 约 20-30 秒 | `url` | 快速通用生图 |
-| `Qwen/Qwen-Image` | SiliconFlow | 按后台配置 | 约 55-60 秒 | `url` | 通用高质量生图 |
-| `Tongyi-MAI/Z-Image` | SiliconFlow | 按后台配置 | 约 20-30 秒 | `url` | 通义图像模型路径 |
-| `Qwen/Qwen-Image-Edit-2509` | SiliconFlow | 按后台配置 | 约 25 秒 | `url` | 图像编辑、风格转换 |
+| `baidu/ERNIE-Image-Turbo` | SiliconFlow | 按后台配置 | 20.89 秒 | `url` | 快速通用生图 |
+| `Qwen/Qwen-Image` | SiliconFlow | 按后台配置 | 18.76 秒 | `url` | 通用高质量生图 |
+| `Tongyi-MAI/Z-Image` | SiliconFlow | 按后台配置 | 12.20 秒 | `url` | 通义图像模型路径 |
+| `Qwen/Qwen-Image-Edit-2509` | SiliconFlow | 按后台配置 | 24.60 秒 | `url` | 图像编辑、风格转换 |
 
-> **2026-06-02 远端验证方式**：使用内部测试 Key 直接请求 `POST http://192.129.209.36:3001/v1/images/generations`，上述 7 个模型均返回 HTTP 200，`data` 数组长度为 1。4K 响应体可能超过 20 MB，不要在日志或终端中直接打印完整 `b64_json`。
+> **2026-06-02 远端验证方式**：使用远端测试 Key 直接请求 `POST http://192.129.209.36:3001/v1/images/generations`，上述 7 个非 SiliconFlow 图片模型均返回 HTTP 200，`data` 数组长度为 1。4K 响应体可能超过 20 MB，不要在日志或终端中直接打印完整 `b64_json`。
 >
-> **2026-06-06 SiliconFlow 远端验证方式**：通过本服务统一入口验证 4 个 SiliconFlow 模型；`baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image` 走 `/v1/images/generations`，`Qwen/Qwen-Image-Edit-2509` 走 `/v1/images/edits`，均返回 HTTP 200，`data` 数组长度为 1，结果在 `data[0].url`。
+> **2026-06-06 SiliconFlow 远端验证方式**：通过本服务统一入口验证 4 个 SiliconFlow 模型；`baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image` 走 `/v1/images/generations`，`Qwen/Qwen-Image-Edit-2509` 走 `/v1/images/edits`，均返回 HTTP 200，`data` 数组长度为 1，结果在 `data[0].url`。本次实测耗时分别为 20.89 秒、18.76 秒、12.20 秒、24.60 秒。
 
 **SiliconFlow 图片平台：**
 
