@@ -23,9 +23,11 @@ import {
   ChevronsLeft as DoubleArrowLeftIcon,
   ChevronsRight as DoubleArrowRightIcon,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn, getPageNumbers } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -46,6 +48,31 @@ export function DataTablePagination<TData>({
   const currentPage = table.getState().pagination.pageIndex + 1
   const totalPages = table.getPageCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
+  const [pageInput, setPageInput] = useState(String(currentPage))
+
+  useEffect(() => {
+    setPageInput(String(currentPage))
+  }, [currentPage])
+
+  const handlePageJump = () => {
+    if (totalPages <= 0) {
+      setPageInput(String(currentPage))
+      return
+    }
+
+    const parsedPage = Number(pageInput)
+    if (!Number.isFinite(parsedPage)) {
+      setPageInput(String(currentPage))
+      return
+    }
+
+    const targetPage = Math.min(
+      Math.max(1, Math.trunc(parsedPage)),
+      totalPages
+    )
+    table.setPageIndex(targetPage - 1)
+    setPageInput(String(targetPage))
+  }
 
   return (
     <div
@@ -101,6 +128,40 @@ export function DataTablePagination<TData>({
             total: totalPages,
           })}
         </div>
+        <form
+          className='hidden items-center gap-1.5 md:flex'
+          onSubmit={(event) => {
+            event.preventDefault()
+            handlePageJump()
+          }}
+        >
+          <span className='text-muted-foreground text-sm font-medium whitespace-nowrap'>
+            {t('Page')}
+          </span>
+          <Input
+            aria-label={t('Page')}
+            className='h-8 w-16 text-center'
+            inputMode='numeric'
+            min={1}
+            max={Math.max(1, totalPages)}
+            type='number'
+            value={pageInput}
+            onBlur={handlePageJump}
+            onChange={(event) => setPageInput(event.target.value)}
+          />
+          <span className='text-muted-foreground text-sm font-medium whitespace-nowrap'>
+            / {Math.max(1, totalPages)}
+          </span>
+          <Button
+            type='submit'
+            variant='outline'
+            className='size-8 p-0'
+            disabled={totalPages <= 1}
+          >
+            <span className='sr-only'>{t('Page')}</span>
+            <ChevronRightIcon className='h-4 w-4' />
+          </Button>
+        </form>
         <div className='flex items-center space-x-1.5 sm:space-x-2'>
           <Button
             variant='outline'
