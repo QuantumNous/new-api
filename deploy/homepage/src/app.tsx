@@ -7,9 +7,9 @@ import {
   Route,
   KeyRound,
   PlayCircle,
-  Languages,
 } from 'lucide-react'
 import { useI18n } from './i18n'
+import { LanguageSelect } from './components/language-select'
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
@@ -96,7 +96,7 @@ export function App() {
 /* ------------------------------------------------------------------ */
 
 function Nav({ systemName }: { systemName: string }) {
-  const { t, toggle, label } = useI18n()
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
 
   return (
@@ -109,17 +109,11 @@ function Nav({ systemName }: { systemName: string }) {
         <a href="#models">{t('nav.models')}</a>
         <a href="/docs/">{t('nav.docs')}</a>
         <a href="/pricing">{t('nav.pricing')}</a>
-        <button onClick={toggle} className="nav-lang" title="Switch language">
-          <Languages size={14} />
-          {label}
-        </button>
+        <LanguageSelect className="nav-lang" />
         <a href="/sign-in" className="nav-action">{t('nav.console')}</a>
       </div>
       <div className="mobile-actions">
-        <button onClick={toggle} className="nav-lang" title="Switch language">
-          <Languages size={14} />
-          {label}
-        </button>
+        <LanguageSelect className="nav-lang" />
         <button className="mobile-toggle" onClick={() => setOpen(!open)} aria-label="Menu">
           <span /><span /><span />
         </button>

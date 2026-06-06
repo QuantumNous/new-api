@@ -221,7 +221,7 @@ export function Keys() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Quota ($)</label>
+              <label className="form-label">{t('common.quotaUsd')}</label>
               <input
                 className="form-input"
                 type="number"
@@ -232,27 +232,27 @@ export function Keys() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Expired Time</label>
+              <label className="form-label">{t('common.expiredTime')}</label>
               <input
                 className="form-input"
                 type="datetime-local"
                 onChange={(e) => setForm({ ...form, expired_time: e.target.value ? Number(new Date(e.target.value).getTime() / 1000) : -1 })}
               />
-              <span className="form-hint">Leave empty for never expire</span>
+              <span className="form-hint">{t('common.neverExpireHint')}</span>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Models</label>
+              <label className="form-label">{t('channels.models')}</label>
               <input
                 className="form-input"
                 value={form.models}
                 onChange={(e) => setForm({ ...form, models: e.target.value })}
-                placeholder="Leave empty for all models"
+                placeholder={t('common.allModelsHint')}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Group</label>
+              <label className="form-label">{t('common.group')}</label>
               <input
                 className="form-input"
                 value={form.group}
@@ -262,7 +262,7 @@ export function Keys() {
             </div>
 
             <div className="modal-actions">
-              <button className="btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn-ghost" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
               <button className="btn-primary" onClick={handleCreate} disabled={saving || !form.name.trim()}>
                 {saving ? 'Creating...' : t('keys.create')}
               </button>

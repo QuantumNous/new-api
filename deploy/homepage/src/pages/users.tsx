@@ -173,13 +173,13 @@ export function Users() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Email</th>
+                <th>{t('common.username')}</th>
+                <th>{t('common.email')}</th>
                 <th>{t('users.role')}</th>
                 <th>{t('users.status')}</th>
                 <th>{t('users.quota')}</th>
                 <th>Used</th>
-                <th>Group</th>
+                <th>{t('common.group')}</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -232,23 +232,25 @@ export function Users() {
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editingId ? 'Edit User' : t('users.create')}</h2>
+              <h2>{editingId ? t('users.edit') : t('users.create')}</h2>
               <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>X</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label className="form-label">Username</label>
+                <label className="form-label">{t('common.username')}</label>
                 <input className="form-input" value={form.username}
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
                   disabled={!!editingId} />
               </div>
               <div className="form-group">
-                <label className="form-label">Password{editingId ? ' (leave blank to keep)' : ''}</label>
+                <label className="form-label">
+                  {t('auth.password')}{editingId ? ` (${t('common.passwordKeepHint')})` : ''}
+                </label>
                 <input className="form-input" type="password" value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Email</label>
+                <label className="form-label">{t('common.email')}</label>
                 <input className="form-input" type="email" value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
@@ -277,13 +279,13 @@ export function Users() {
                   onChange={(e) => setForm({ ...form, quota: Number(e.target.value) })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Group</label>
+                <label className="form-label">{t('common.group')}</label>
                 <input className="form-input" value={form.group}
                   onChange={(e) => setForm({ ...form, group: e.target.value })} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>{t('common.cancel')}</button>
               <button className="btn-primary" disabled={submitting} onClick={handleSubmit}>
                 {submitting ? 'Saving...' : 'Save'}
               </button>

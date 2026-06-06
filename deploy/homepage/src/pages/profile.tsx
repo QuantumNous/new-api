@@ -64,15 +64,15 @@ export function Profile() {
 
           <div className="profile-info">
             <div className="info-row">
-              <span className="info-label">Username</span>
+              <span className="info-label">{t('common.username')}</span>
               <span className="info-value mono-sm">{user?.username}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Email</span>
+              <span className="info-label">{t('common.email')}</span>
               <span className="info-value mono-sm">{user?.email || '-'}</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Role</span>
+              <span className="info-label">{t('common.role')}</span>
               <span className="info-value">
                 <span className="role-badge">
                   {user?.role === 100 ? 'ROOT' : user?.role === 10 ? 'ADMIN' : 'USER'}
@@ -80,7 +80,7 @@ export function Profile() {
               </span>
             </div>
             <div className="info-row">
-              <span className="info-label">Group</span>
+              <span className="info-label">{t('common.group')}</span>
               <span className="info-value mono-sm">{user?.group || 'default'}</span>
             </div>
           </div>
@@ -126,7 +126,7 @@ export function Profile() {
           <div className="profile-section">
             <div className="section-header">
               <Shield size={16} />
-              <h2 className="section-subtitle">Security</h2>
+              <h2 className="section-subtitle">{t('settings.security')}</h2>
             </div>
             <div className="security-items">
               <div className="security-item">
@@ -149,11 +149,11 @@ export function Profile() {
           <div className="profile-section">
             <div className="section-header">
               <Key size={16} />
-              <h2 className="section-subtitle">Affiliate</h2>
+              <h2 className="section-subtitle">{t('common.affiliate')}</h2>
             </div>
             <div className="aff-info">
               <div className="aff-row">
-                <span className="aff-label">Code</span>
+                <span className="aff-label">{t('common.code')}</span>
                 <div className="aff-value-group">
                   <code className="aff-code">{user?.aff_code || '-'}</code>
                   <button className="btn-icon" onClick={() => handleCopy(user?.aff_code || '')}>
@@ -163,7 +163,7 @@ export function Profile() {
               </div>
               {affLink && (
                 <div className="aff-row">
-                  <span className="aff-label"><Link2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Link</span>
+                  <span className="aff-label"><Link2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('common.link')}</span>
                   <code className="aff-link">{affLink}</code>
                 </div>
               )}

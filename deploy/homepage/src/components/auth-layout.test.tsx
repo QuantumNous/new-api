@@ -48,15 +48,15 @@ describe('AuthLayout', () => {
     expect(screen.getByText('V')).toBeInTheDocument()
   })
 
-  it('renders language toggle button', () => {
+  it('renders language selector with Russian option', () => {
     render(
       <I18nProvider>
         <AuthLayout />
       </I18nProvider>
     )
 
-    const langButton = screen.getByRole('button')
-    expect(langButton).toHaveTextContent('中')
+    expect(screen.getByLabelText('Switch language')).toHaveDisplayValue('English')
+    expect(screen.getByText('Русский')).toBeInTheDocument()
   })
 
   it('renders background grid element', () => {

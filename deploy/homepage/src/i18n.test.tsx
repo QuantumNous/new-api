@@ -13,9 +13,9 @@ describe('I18nProvider', () => {
     })
 
     expect(result.current.lang).toBe('en')
-    expect(result.current.label).toBe('中')
     expect(typeof result.current.t).toBe('function')
-    expect(typeof result.current.toggle).toBe('function')
+    expect(typeof result.current.setLanguage).toBe('function')
+    expect(result.current.languages.map((item) => item.value)).toEqual(['zh', 'en', 'ru'])
   })
 
   it('translates keys in English', () => {
@@ -33,19 +33,32 @@ describe('I18nProvider', () => {
       wrapper: ({ children }) => <I18nProvider>{children}</I18nProvider>,
     })
 
-    // Toggle to Chinese
     act(() => {
-      result.current.toggle()
+      result.current.setLanguage('zh')
     })
 
     expect(result.current.lang).toBe('zh')
-    expect(result.current.label).toBe('EN')
     expect(result.current.t('nav.models')).toBe('模型')
     expect(result.current.t('hero.title')).toBe('一个 API，')
     expect(result.current.t('common.save')).toBe('保存')
   })
 
-  it('toggles language', () => {
+  it('translates keys in Russian', () => {
+    const { result } = renderHook(() => useI18n(), {
+      wrapper: ({ children }) => <I18nProvider>{children}</I18nProvider>,
+    })
+
+    act(() => {
+      result.current.setLanguage('ru')
+    })
+
+    expect(result.current.lang).toBe('ru')
+    expect(result.current.t('nav.models')).toBe('Модели')
+    expect(result.current.t('channels.title')).toBe('Каналы')
+    expect(result.current.t('common.save')).toBe('Сохранить')
+  })
+
+  it('sets language and saves preference', () => {
     const { result } = renderHook(() => useI18n(), {
       wrapper: ({ children }) => <I18nProvider>{children}</I18nProvider>,
     })
@@ -53,18 +66,11 @@ describe('I18nProvider', () => {
     expect(result.current.lang).toBe('en')
 
     act(() => {
-      result.current.toggle()
+      result.current.setLanguage('ru')
     })
 
-    expect(result.current.lang).toBe('zh')
-    expect(localStorage.getItem('vynex-lang')).toBe('zh')
-
-    act(() => {
-      result.current.toggle()
-    })
-
-    expect(result.current.lang).toBe('en')
-    expect(localStorage.getItem('vynex-lang')).toBe('en')
+    expect(result.current.lang).toBe('ru')
+    expect(localStorage.getItem('vynex-lang')).toBe('ru')
   })
 
   it('saves language preference to localStorage', () => {
@@ -75,7 +81,7 @@ describe('I18nProvider', () => {
     expect(localStorage.getItem('vynex-lang')).toBeNull()
 
     act(() => {
-      // Toggle should save to localStorage
+      // Initial state should not save to localStorage.
     })
 
     // Initial state doesn't save, only toggle does
@@ -90,6 +96,17 @@ describe('I18nProvider', () => {
 
     expect(result.current.lang).toBe('zh')
     expect(result.current.t('nav.models')).toBe('模型')
+  })
+
+  it('loads saved Russian preference', () => {
+    localStorage.setItem('vynex-lang', 'ru')
+
+    const { result } = renderHook(() => useI18n(), {
+      wrapper: ({ children }) => <I18nProvider>{children}</I18nProvider>,
+    })
+
+    expect(result.current.lang).toBe('ru')
+    expect(result.current.t('nav.channels')).toBe('Каналы')
   })
 
   it('falls back to English for missing keys', () => {
@@ -151,6 +168,25 @@ describe('I18nProvider', () => {
     })
   })
 
+  it('handles browser language detection for Russian', () => {
+    const originalLanguage = navigator.language
+    Object.defineProperty(navigator, 'language', {
+      value: 'ru-RU',
+      writable: true,
+    })
+
+    const { result } = renderHook(() => useI18n(), {
+      wrapper: ({ children }) => <I18nProvider>{children}</I18nProvider>,
+    })
+
+    expect(result.current.lang).toBe('ru')
+
+    Object.defineProperty(navigator, 'language', {
+      value: originalLanguage,
+      writable: true,
+    })
+  })
+
   it('defaults to English for non-Chinese browser languages', () => {
     const originalLanguage = navigator.language
     Object.defineProperty(navigator, 'language', {
@@ -198,6 +234,6 @@ describe('useI18n hook', () => {
     // Context has default values, so it doesn't throw
     expect(result.current.lang).toBe('en')
     expect(result.current.t('nav.models')).toBe('nav.models')
-    expect(typeof result.current.toggle).toBe('function')
+    expect(typeof result.current.setLanguage).toBe('function')
   })
 })

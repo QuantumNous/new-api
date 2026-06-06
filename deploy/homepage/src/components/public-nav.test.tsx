@@ -47,7 +47,7 @@ describe('PublicNav', () => {
     expect(screen.getByText('Console')).toBeInTheDocument()
   })
 
-  it('renders language toggle button', () => {
+  it('renders language selector with Russian option', () => {
     mockApiGet.mockResolvedValue({ system_name: 'Test API' })
 
     render(
@@ -56,9 +56,10 @@ describe('PublicNav', () => {
       </I18nProvider>
     )
 
-    const langButtons = screen.getAllByTitle('Switch language')
-    expect(langButtons.length).toBeGreaterThan(0)
-    expect(langButtons[0]).toHaveTextContent('中')
+    const selectors = screen.getAllByLabelText('Switch language')
+    expect(selectors.length).toBeGreaterThan(0)
+    expect(selectors[0]).toHaveDisplayValue('English')
+    expect(screen.getAllByText('Русский').length).toBeGreaterThan(0)
   })
 
   it('has correct href attributes for nav links', () => {

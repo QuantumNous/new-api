@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router'
 import {
   LayoutDashboard, Key, Wallet, FileText, User, MessageSquare,
-  Server, Users, Cpu, Gift, CreditCard, Settings, LogOut, Menu, X, ChevronDown, Languages, BookOpen,
+  Server, Users, Cpu, Gift, CreditCard, Settings, LogOut, Menu, X, ChevronDown, BookOpen,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../i18n'
+import { LanguageSelect } from './language-select'
 
 const NAV_ITEMS = [
   { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
@@ -34,7 +35,7 @@ export function AppLayout() {
   const { user, logout, isAdmin, isRoot } = useAuth()
   const nav = useNavigate()
   const loc = useLocation()
-  const { t, toggle, label } = useI18n()
+  const { t } = useI18n()
 
   const isActive = (path: string) => loc.pathname === path || loc.pathname.startsWith(path + '/')
 
@@ -106,9 +107,7 @@ export function AppLayout() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="top-bar-spacer" />
-          <button onClick={toggle} className="btn-ghost-sm">
-            <Languages size={14} /> {label}
-          </button>
+          <LanguageSelect />
           <div className="top-bar-user">
             <span className="user-name">{user?.display_name || user?.username}</span>
             <span className="user-role-badge">{user?.role === 100 ? 'ROOT' : user?.role === 10 ? 'ADMIN' : 'USER'}</span>

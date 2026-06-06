@@ -57,7 +57,7 @@ export function UsageLogs() {
 
       <div className="filter-bar">
         <div className="filter-group">
-          <label className="form-label">Date</label>
+          <label className="form-label">{t('common.date')}</label>
           <input
             className="form-input"
             type="date"

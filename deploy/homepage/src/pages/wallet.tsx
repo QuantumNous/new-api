@@ -116,7 +116,7 @@ export function Wallet() {
         <h2 className="section-subtitle">{t('wallet.affCode')}</h2>
         <div className="aff-info">
           <div className="aff-row">
-            <span className="aff-label">Affiliate Code</span>
+            <span className="aff-label">{t('common.affiliateCode')}</span>
             <div className="aff-value-group">
               <code className="aff-code">{user?.aff_code || '-'}</code>
               <button className="btn-icon" onClick={() => handleCopy(user?.aff_code || '')}>
@@ -126,7 +126,7 @@ export function Wallet() {
           </div>
           {affLink && (
             <div className="aff-row">
-              <span className="aff-label"><Link2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Invite Link</span>
+              <span className="aff-label"><Link2 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('common.inviteLink')}</span>
               <code className="aff-link">{affLink}</code>
             </div>
           )}

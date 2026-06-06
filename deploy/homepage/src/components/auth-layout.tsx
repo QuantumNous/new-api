@@ -1,16 +1,11 @@
 import { Outlet } from 'react-router'
-import { Languages } from 'lucide-react'
-import { useI18n } from '../i18n'
+import { LanguageSelect } from './language-select'
 
 export function AuthLayout() {
-  const { t, toggle, label } = useI18n()
-
   return (
     <div className="auth-page">
       <div className="auth-lang-toggle">
-        <button onClick={toggle} className="btn-ghost-sm">
-          <Languages size={14} /> {label}
-        </button>
+        <LanguageSelect />
       </div>
       <div className="auth-card">
         <div className="auth-brand">

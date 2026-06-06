@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Languages } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { api, type StatusData } from '../lib/api'
+import { LanguageSelect } from './language-select'
 
 export function PublicNav() {
-  const { t, toggle, label } = useI18n()
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [systemName, setSystemName] = useState('Vynex API')
 
@@ -26,17 +26,11 @@ export function PublicNav() {
         <a href="/#models">{t('nav.models')}</a>
         <a href="/docs/">{t('nav.docs')}</a>
         <a href="/pricing">{t('nav.pricing')}</a>
-        <button onClick={toggle} className="nav-lang" title="Switch language">
-          <Languages size={14} />
-          {label}
-        </button>
+        <LanguageSelect className="nav-lang" />
         <a href="/sign-in" className="nav-action">{t('nav.console')}</a>
       </div>
       <div className="mobile-actions">
-        <button onClick={toggle} className="nav-lang" title="Switch language">
-          <Languages size={14} />
-          {label}
-        </button>
+        <LanguageSelect className="nav-lang" />
         <button className="mobile-toggle" onClick={() => setOpen(!open)} aria-label="Menu">
           <span /><span /><span />
         </button>

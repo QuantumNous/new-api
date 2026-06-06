@@ -193,7 +193,7 @@ export function RedemptionCodes() {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label className="form-label">Count</label>
+                <label className="form-label">{t('redemptions.count')}</label>
                 <input className="form-input" type="number" min={1} value={form.count}
                   onChange={(e) => setForm({ ...form, count: Number(e.target.value) })} />
               </div>
@@ -207,7 +207,7 @@ export function RedemptionCodes() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>{t('common.cancel')}</button>
               <button className="btn-primary" disabled={submitting} onClick={handleSubmit}>
                 {submitting ? 'Creating...' : 'Create'}
               </button>

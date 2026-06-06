@@ -86,16 +86,16 @@ export function Subscriptions() {
                     <div className="sub-card-name">{sub.plan_name}</div>
                     <span className={`sub-status ${isActive ? 'active' : 'expired'}`}>
                       {isActive ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                      {isActive ? 'Active' : 'Expired'}
+                      {isActive ? t('common.active') : t('common.expired')}
                     </span>
                   </div>
                   <div className="sub-card-body">
                     <div className="sub-detail">
-                      <span className="sub-detail-label">Period</span>
+                      <span className="sub-detail-label">{t('common.period')}</span>
                       <span className="mono-sm">{formatDate(sub.start_time)} - {formatDate(sub.end_time)}</span>
                     </div>
                     <div className="sub-detail">
-                      <span className="sub-detail-label">Quota</span>
+                      <span className="sub-detail-label">{t('keys.quota')}</span>
                       <span className="mono-sm">{formatQuota(sub.used_quota)} / {formatQuota(sub.quota)}</span>
                     </div>
                     <div className="sub-progress-track">

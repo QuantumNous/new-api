@@ -168,6 +168,31 @@ body::after {
   border-color: var(--accent); color: var(--accent);
 }
 
+.language-select {
+  cursor: pointer;
+}
+.language-select select {
+  min-width: 78px;
+  max-width: 120px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  cursor: pointer;
+  appearance: none;
+}
+.language-select select:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+.language-select option {
+  color: #0f1520;
+  background: #ffffff;
+}
+
 .mobile-actions {
   display: flex; align-items: center; gap: 12px;
 }

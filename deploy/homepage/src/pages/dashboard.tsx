@@ -67,12 +67,12 @@ export function Dashboard() {
             <BarChart3 size={18} />
           </div>
           <div className="metric-card-value">{formatQuota(user?.quota ?? 0)}</div>
-          <div className="metric-card-label">Balance</div>
+          <div className="metric-card-label">{t('common.balance')}</div>
         </div>
       </div>
 
       <div className="page-section">
-        <h2 className="section-subtitle">Usage Overview</h2>
+        <h2 className="section-subtitle">{t('common.usageOverview')}</h2>
         <div className="usage-chart">
           <div className="chart-bar-container">
             {recentUsage.map((entry, i) => (

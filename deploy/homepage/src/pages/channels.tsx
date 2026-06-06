@@ -239,7 +239,7 @@ export function Channels() {
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editingId ? 'Edit Channel' : t('channels.create')}</h2>
+              <h2>{editingId ? t('channels.edit') : t('channels.create')}</h2>
               <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>X</button>
             </div>
             <div className="modal-body">
@@ -258,38 +258,38 @@ export function Channels() {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Base URL</label>
+                <label className="form-label">{t('common.baseUrl')}</label>
                 <input className="form-input" value={form.base_url}
                   onChange={(e) => setForm({ ...form, base_url: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Key</label>
+                <label className="form-label">{t('common.key')}</label>
                 <input className="form-input" type="password" value={form.key}
                   onChange={(e) => setForm({ ...form, key: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">{t('channels.models')} (comma-separated)</label>
+                <label className="form-label">{t('channels.models')} ({t('common.commaSeparated')})</label>
                 <input className="form-input" value={form.models}
                   onChange={(e) => setForm({ ...form, models: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Group</label>
+                <label className="form-label">{t('common.group')}</label>
                 <input className="form-input" value={form.group}
                   onChange={(e) => setForm({ ...form, group: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Weight</label>
+                <label className="form-label">{t('common.weight')}</label>
                 <input className="form-input" type="number" value={form.weight}
                   onChange={(e) => setForm({ ...form, weight: Number(e.target.value) })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Priority</label>
+                <label className="form-label">{t('common.priority')}</label>
                 <input className="form-input" type="number" value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>{t('common.cancel')}</button>
               <button className="btn-primary" disabled={submitting} onClick={handleSubmit}>
                 {submitting ? 'Saving...' : 'Save'}
               </button>

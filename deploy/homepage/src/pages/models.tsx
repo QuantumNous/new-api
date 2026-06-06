@@ -138,9 +138,9 @@ export function Models() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Model ID</th>
+                <th>{t('models.modelId')}</th>
                 <th>{t('models.vendor')}</th>
-                <th>Enabled</th>
+                <th>{t('models.enabled')}</th>
                 <th>{t('models.inputPrice')}</th>
                 <th>{t('models.outputPrice')}</th>
                 <th>Actions</th>
@@ -189,12 +189,12 @@ export function Models() {
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editingId ? 'Edit Model' : t('models.create')}</h2>
+              <h2>{editingId ? t('models.edit') : t('models.create')}</h2>
               <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>X</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label className="form-label">Model ID</label>
+                <label className="form-label">{t('models.modelId')}</label>
                 <input className="form-input" value={form.model_id}
                   onChange={(e) => setForm({ ...form, model_id: e.target.value })}
                   disabled={!!editingId} />
@@ -205,11 +205,11 @@ export function Models() {
                   onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Enabled</label>
+                <label className="form-label">{t('models.enabled')}</label>
                 <select className="form-select" value={form.enabled ? 'true' : 'false'}
                   onChange={(e) => setForm({ ...form, enabled: e.target.value === 'true' })}>
-                  <option value="true">Enabled</option>
-                  <option value="false">Disabled</option>
+                  <option value="true">{t('common.enabled')}</option>
+                  <option value="false">{t('common.disabled')}</option>
                 </select>
               </div>
               <div className="form-group">
@@ -223,13 +223,13 @@ export function Models() {
                   onChange={(e) => setForm({ ...form, output_price: Number(e.target.value) })} />
               </div>
               <div className="form-group">
-                <label className="form-label">Description</label>
+                <label className="form-label">{t('common.description')}</label>
                 <input className="form-input" value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="btn-ghost-sm" onClick={() => setModalOpen(false)}>{t('common.cancel')}</button>
               <button className="btn-primary" disabled={submitting} onClick={handleSubmit}>
                 {submitting ? 'Saving...' : 'Save'}
               </button>

@@ -1,6 +1,16 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 
-type Lang = 'en' | 'zh'
+export const languages = [
+  { value: 'zh', label: '简体中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ru', label: 'Русский' },
+] as const
+
+export type Lang = (typeof languages)[number]['value']
+
+function isLang(value: string | null): value is Lang {
+  return languages.some((item) => item.value === value)
+}
 
 const translations: Record<Lang, Record<string, string>> = {
   en: {
@@ -263,6 +273,30 @@ const translations: Record<Lang, Record<string, string>> = {
     'common.page': 'Page',
     'common.of': 'of',
     'common.total': 'Total',
+    'common.baseUrl': 'Base URL',
+    'common.key': 'Key',
+    'common.group': 'Group',
+    'common.weight': 'Weight',
+    'common.priority': 'Priority',
+    'common.username': 'Username',
+    'common.email': 'Email',
+    'common.passwordKeepHint': 'leave blank to keep',
+    'common.balance': 'Balance',
+    'common.usageOverview': 'Usage Overview',
+    'common.quotaUsd': 'Quota ($)',
+    'common.expiredTime': 'Expired Time',
+    'common.neverExpireHint': 'Leave empty for never expire',
+    'common.allModelsHint': 'Leave empty for all models',
+    'common.affiliateCode': 'Affiliate Code',
+    'common.inviteLink': 'Invite Link',
+    'common.role': 'Role',
+    'common.code': 'Code',
+    'common.link': 'Link',
+    'common.affiliate': 'Affiliate',
+    'common.period': 'Period',
+    'common.date': 'Date',
+    'common.description': 'Description',
+    'common.commaSeparated': 'comma-separated',
   },
   zh: {
     // Nav
@@ -524,37 +558,345 @@ const translations: Record<Lang, Record<string, string>> = {
     'common.page': '第',
     'common.of': '页，共',
     'common.total': '条',
+    'common.baseUrl': 'Base URL',
+    'common.key': '密钥',
+    'common.group': '分组',
+    'common.weight': '权重',
+    'common.priority': '优先级',
+    'common.username': '用户名',
+    'common.email': '邮箱',
+    'common.passwordKeepHint': '留空则保持不变',
+    'common.balance': '余额',
+    'common.usageOverview': '用量概览',
+    'common.quotaUsd': '配额（$）',
+    'common.expiredTime': '过期时间',
+    'common.neverExpireHint': '留空表示永不过期',
+    'common.allModelsHint': '留空表示全部模型',
+    'common.affiliateCode': '推广码',
+    'common.inviteLink': '邀请链接',
+    'common.role': '角色',
+    'common.code': '代码',
+    'common.link': '链接',
+    'common.affiliate': '推广',
+    'common.period': '周期',
+    'common.date': '日期',
+    'common.description': '描述',
+    'common.commaSeparated': '逗号分隔',
+  },
+  ru: {
+    // Nav
+    'nav.models': 'Модели',
+    'nav.docs': 'Документация',
+    'nav.pricing': 'Цены',
+    'nav.console': 'Консоль',
+
+    // Hero
+    'hero.eyebrow': 'API-хаб AI-моделей',
+    'hero.title': 'Один API,',
+    'hero.title.accent': 'все передовые модели.',
+    'hero.lead': 'Единая OpenAI-совместимая точка доступа для GPT, Claude, Gemini и других моделей. Одна интеграция, все модели.',
+    'hero.cta.primary': 'Получить API-ключ',
+    'hero.cta.secondary': 'Открыть документацию',
+    'hero.routing': 'Маршрутизация',
+
+    // Metrics
+    'metric.1.value': '34+',
+    'metric.1.label': 'Онлайн текстовые модели',
+    'metric.2.value': '/v1',
+    'metric.2.label': 'Совместимо с OpenAI',
+    'metric.3.value': '4',
+    'metric.3.label': 'Семейства моделей',
+    'metric.4.value': 'Docs',
+    'metric.4.label': 'Публичная документация',
+
+    // Models
+    'models.eyebrow': 'Хаб моделей',
+    'models.title': 'Используйте нужную модель без повторной интеграции.',
+    'models.desc': 'Vynex объединяет основные семейства моделей в единый предсказуемый API, чтобы команды могли тестировать и переключать модели из консоли.',
+    'models.gpt.title': 'GPT',
+    'models.gpt.desc': 'Рассуждения, код, вызовы инструментов и универсальные ассистенты.',
+    'models.claude.title': 'Claude',
+    'models.claude.desc': 'Длинные рассуждения, тексты, анализ и агенты.',
+    'models.gemini.title': 'Gemini',
+    'models.gemini.desc': 'Мультимодальные модели для структурированных production-процессов.',
+    'models.open.title': 'Open',
+    'models.open.desc': 'Экономичные маршруты открытых моделей для типовых нагрузок.',
+
+    // Workflow
+    'workflow.eyebrow': 'API-процесс',
+    'workflow.title': 'Один токен, один Base URL, все поддерживаемые модели.',
+    'workflow.desc': 'Сохраните текущий OpenAI SDK и выбирайте upstream-модель через параметр model.',
+    'workflow.step1.title': 'Создайте токен',
+    'workflow.step1.desc': 'Создайте один API-ключ в консоли и ограничьте его по использованию.',
+    'workflow.step2.title': 'Укажите Base URL',
+    'workflow.step2.desc': 'Направьте SDK на OpenAI-совместимую точку /v1.',
+    'workflow.step3.title': 'Маршрутизируйте по имени модели',
+    'workflow.step3.desc': 'Переключайте upstream-модели, меняя только поле model.',
+
+    // Dev links
+    'dev.eyebrow': 'Точки входа для разработчиков',
+    'dev.title': 'Все необходимое для отправки запросов доступно посетителям.',
+    'dev.desc': 'Публичная документация показывает API и примеры, а авторизованные пользователи управляют ключами и тестируют вызовы из консоли.',
+    'dev.docs.title': 'Документация API',
+    'dev.docs.desc': 'Просматривайте endpoints, примеры моделей и форматы запросов.',
+    'dev.console.title': 'Консоль',
+    'dev.console.desc': 'Управляйте ключами, балансом, логами использования и настройками маршрутизации.',
+    'dev.playground.title': 'Playground',
+    'dev.playground.desc': 'Тестируйте chat completions перед переносом запросов в код.',
+
+    // CTA
+    'cta.title': 'Запускайте AI-функции без интеграции каждого upstream-провайдера.',
+    'cta.desc': 'Используйте {brand} как стабильный слой доступа для тестирования моделей, маршрутизации и production-вызовов.',
+    'cta.primary': 'Получить API-ключ',
+    'cta.secondary': 'Открыть документацию',
+
+    // Footer
+    'footer.docs': 'Документация',
+    'footer.pricing': 'Цены',
+    'footer.console': 'Консоль',
+
+    // Playground
+    'playground.title': 'Playground',
+    'playground.model': 'Модель',
+    'playground.placeholder': 'Введите сообщение...',
+    'playground.send': 'Отправить',
+
+    // Pricing
+    'pricing.title': 'Цены',
+    'pricing.model': 'Модель',
+    'pricing.input': 'Цена входа',
+    'pricing.output': 'Цена выхода',
+    'pricing.group': 'Коэффициент группы',
+
+    // About
+    'about.title': 'О проекте',
+
+    // Settings
+    'settings.title': 'Настройки',
+    'settings.site': 'Сайт',
+    'settings.auth': 'Аутентификация',
+    'settings.billing': 'Биллинг',
+    'settings.content': 'Контент',
+    'settings.models': 'Модели',
+    'settings.operations': 'Операции',
+    'settings.security': 'Безопасность',
+    'settings.save': 'Сохранить',
+
+    // Not Found
+    'notFound.title': 'Страница не найдена',
+    'notFound.message': 'Страница, которую вы ищете, не существует или была перемещена.',
+    'notFound.home': 'На главную',
+
+    // Console Navigation
+    'nav.dashboard': 'Панель',
+    'nav.keys': 'API-ключи',
+    'nav.wallet': 'Кошелек',
+    'nav.usageLogs': 'Логи использования',
+    'nav.playground': 'Playground',
+    'nav.subscriptions': 'Подписки',
+    'nav.profile': 'Профиль',
+    'nav.channels': 'Каналы',
+    'nav.users': 'Пользователи',
+    'nav.redemptions': 'Коды пополнения',
+    'nav.settings': 'Настройки',
+    'nav.logout': 'Выйти',
+    'nav.userSection': 'Консоль',
+    'nav.adminSection': 'Администрирование',
+    'nav.rootSection': 'Система',
+
+    // Dashboard
+    'dashboard.title': 'Панель',
+    'dashboard.totalQuota': 'Общая квота',
+    'dashboard.usedQuota': 'Использованная квота',
+    'dashboard.requests': 'Запросы',
+    'dashboard.recentLogs': 'Последние логи',
+
+    // Keys
+    'keys.title': 'API-ключи',
+    'keys.create': 'Создать ключ',
+    'keys.name': 'Название',
+    'keys.key': 'Ключ',
+    'keys.status': 'Статус',
+    'keys.quota': 'Квота',
+    'keys.actions': 'Действия',
+    'keys.delete': 'Удалить',
+    'keys.copy': 'Копировать',
+
+    // Wallet
+    'wallet.title': 'Кошелек',
+    'wallet.balance': 'Текущий баланс',
+    'wallet.topUp': 'Пополнить',
+    'wallet.history': 'История пополнений',
+    'wallet.affCode': 'Партнерская программа',
+
+    // Logs
+    'logs.title': 'Логи использования',
+    'logs.time': 'Время',
+    'logs.model': 'Модель',
+    'logs.token': 'Токен',
+    'logs.quota': 'Квота',
+    'logs.channel': 'Канал',
+
+    // Profile
+    'profile.title': 'Профиль',
+    'profile.displayName': 'Отображаемое имя',
+    'profile.changePassword': 'Сменить пароль',
+    'profile.save': 'Сохранить изменения',
+    'profile.2fa': 'Двухфакторная аутентификация',
+    'profile.passkey': 'Passkey',
+
+    // Subscriptions
+    'subs.title': 'Подписки',
+    'subs.plans': 'Доступные планы',
+    'subs.active': 'Активные подписки',
+    'subs.purchase': 'Купить',
+
+    // Auth
+    'auth.signIn.title': 'Вход',
+    'auth.signIn.submit': 'Войти',
+    'auth.signIn.noAccount': 'Нет аккаунта?',
+    'auth.signIn.forgotPassword': 'Забыли пароль?',
+    'auth.register.title': 'Создать аккаунт',
+    'auth.register.submit': 'Зарегистрироваться',
+    'auth.register.hasAccount': 'Уже есть аккаунт?',
+    'auth.register.verificationSent': 'Письмо подтверждения отправлено. Проверьте почту.',
+    'auth.forgotPassword.title': 'Сброс пароля',
+    'auth.forgotPassword.submit': 'Отправить ссылку',
+    'auth.forgotPassword.success': 'Ссылка для сброса отправлена на вашу почту.',
+    'auth.forgotPassword.backToSignIn': 'Вернуться ко входу',
+    'auth.resetPassword.title': 'Новый пароль',
+    'auth.resetPassword.submit': 'Сбросить пароль',
+    'auth.resetPassword.success': 'Пароль успешно сброшен. Переход ко входу...',
+    'auth.username': 'Имя пользователя',
+    'auth.password': 'Пароль',
+    'auth.confirmPassword': 'Подтвердите пароль',
+    'auth.email': 'Email (необязательно)',
+    'auth.2faCode': 'Код 2FA',
+    'auth.2faRequired': 'Требуется двухфакторная аутентификация',
+    'auth.registerSuccess': 'Аккаунт успешно создан!',
+    'auth.or': 'или',
+
+    // Channels
+    'channels.title': 'Каналы',
+    'channels.create': 'Добавить канал',
+    'channels.edit': 'Редактировать канал',
+    'channels.test': 'Тест',
+    'channels.balance': 'Баланс',
+    'channels.delete': 'Удалить',
+    'channels.name': 'Название',
+    'channels.type': 'Тип',
+    'channels.status': 'Статус',
+    'channels.models': 'Модели',
+    'channels.baseUrl': 'Base URL',
+    'channels.key': 'API-ключ',
+    'channels.weight': 'Вес',
+    'channels.priority': 'Приоритет',
+    'channels.group': 'Группа',
+    'channels.testResult': 'Время ответа',
+    'channels.updateBalance': 'Обновить баланс',
+
+    // Users
+    'users.title': 'Пользователи',
+    'users.create': 'Добавить пользователя',
+    'users.edit': 'Редактировать пользователя',
+    'users.role': 'Роль',
+    'users.quota': 'Квота',
+    'users.status': 'Статус',
+    'users.delete': 'Удалить',
+    'users.search': 'Поиск пользователей...',
+
+    // Models
+    'models.pageTitle': 'Модели',
+    'models.create': 'Добавить модель',
+    'models.edit': 'Редактировать модель',
+    'models.vendor': 'Поставщик',
+    'models.inputPrice': 'Цена входа',
+    'models.outputPrice': 'Цена выхода',
+    'models.enabled': 'Включено',
+    'models.modelId': 'ID модели',
+
+    // Redemptions
+    'redemptions.title': 'Коды пополнения',
+    'redemptions.create': 'Создать коды',
+    'redemptions.key': 'Код',
+    'redemptions.quota': 'Квота',
+    'redemptions.status': 'Статус',
+    'redemptions.delete': 'Удалить',
+    'redemptions.deleteInvalid': 'Удалить все недействительные',
+    'redemptions.count': 'Количество',
+
+    // Common
+    'common.save': 'Сохранить',
+    'common.cancel': 'Отмена',
+    'common.confirm': 'Подтвердить',
+    'common.deleteConfirm': 'Вы уверены, что хотите удалить это?',
+    'common.loading': 'Загрузка...',
+    'common.error': 'Произошла ошибка',
+    'common.noData': 'Нет данных',
+    'common.search': 'Поиск...',
+    'common.enabled': 'Включено',
+    'common.disabled': 'Отключено',
+    'common.active': 'Активно',
+    'common.expired': 'Истекло',
+    'common.unlimited': 'Без ограничений',
+    'common.all': 'Все',
+    'common.page': 'Страница',
+    'common.of': 'из',
+    'common.total': 'Всего',
+    'common.baseUrl': 'Base URL',
+    'common.key': 'Ключ',
+    'common.group': 'Группа',
+    'common.weight': 'Вес',
+    'common.priority': 'Приоритет',
+    'common.username': 'Имя пользователя',
+    'common.email': 'Email',
+    'common.passwordKeepHint': 'оставьте пустым, чтобы сохранить текущий',
+    'common.balance': 'Баланс',
+    'common.usageOverview': 'Обзор использования',
+    'common.quotaUsd': 'Квота ($)',
+    'common.expiredTime': 'Время истечения',
+    'common.neverExpireHint': 'Оставьте пустым, чтобы срок не истекал',
+    'common.allModelsHint': 'Оставьте пустым для всех моделей',
+    'common.affiliateCode': 'Партнерский код',
+    'common.inviteLink': 'Ссылка приглашения',
+    'common.role': 'Роль',
+    'common.code': 'Код',
+    'common.link': 'Ссылка',
+    'common.affiliate': 'Партнерская программа',
+    'common.period': 'Период',
+    'common.date': 'Дата',
+    'common.description': 'Описание',
+    'common.commaSeparated': 'через запятую',
   },
 }
 
 type I18nContextValue = {
   lang: Lang
+  languages: typeof languages
+  setLanguage: (next: Lang) => void
   t: (key: string, vars?: Record<string, string>) => string
-  toggle: () => void
-  label: string
 }
 
 const I18nContext = createContext<I18nContextValue>({
   lang: 'en',
+  languages,
+  setLanguage: () => {},
   t: (k) => k,
-  toggle: () => {},
-  label: 'EN',
 })
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('vynex-lang') : null
-    if (saved === 'zh' || saved === 'en') return saved
+    if (isLang(saved)) return saved
     const browser = navigator.language.toLowerCase()
-    return browser.startsWith('zh') ? 'zh' : 'en'
+    if (browser.startsWith('zh')) return 'zh'
+    if (browser.startsWith('ru')) return 'ru'
+    return 'en'
   })
 
-  const toggle = useCallback(() => {
-    setLang((prev) => {
-      const next = prev === 'en' ? 'zh' : 'en'
-      localStorage.setItem('vynex-lang', next)
-      return next
-    })
+  const setLanguage = useCallback((next: Lang) => {
+    setLang(next)
+    localStorage.setItem('vynex-lang', next)
   }, [])
 
   const t = useCallback(
@@ -571,7 +913,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <I18nContext.Provider value={{ lang, t, toggle, label: lang === 'en' ? '中' : 'EN' }}>
+    <I18nContext.Provider value={{ lang, languages, setLanguage, t }}>
       {children}
     </I18nContext.Provider>
   )

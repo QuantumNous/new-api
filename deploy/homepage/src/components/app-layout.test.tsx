@@ -227,7 +227,7 @@ describe('AppLayout', () => {
     expect(mockLogout).toHaveBeenCalled()
   })
 
-  it('renders language toggle', () => {
+  it('renders language selector with Russian option', () => {
     mockUseAuth.mockReturnValue({
       user: { id: 1, username: 'test', display_name: 'Test User', role: 1 },
       logout: mockLogout,
@@ -237,8 +237,8 @@ describe('AppLayout', () => {
 
     renderWithRouter(<AppLayout />)
 
-    const langButtons = screen.getAllByText('中')
-    expect(langButtons.length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Switch language')).toHaveDisplayValue('English')
+    expect(screen.getByText('Русский')).toBeInTheDocument()
   })
 
   it('renders mobile toggle button', () => {
