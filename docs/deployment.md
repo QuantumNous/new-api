@@ -82,6 +82,8 @@ Coolify 使用的 Compose 由 Coolify 资源生成，核心配置如下：
 | 2026-05-28 | Runway 状态 | 确认 Runway 渠道当前未配置，kling-3.0/o3 等新模型已注册在 constants.go 但未暴露给上游 |
 | 2026-06-06 | SiliconFlow 图片渠道 | 已部署硅基流动渠道 `siliconflow-images`（channel id `13`，type `40`，base URL `https://api.siliconflow.cn`，group `default`）。模型 `baidu/ERNIE-Image-Turbo`、`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image`、`Qwen/Qwen-Image-Edit-2509` 已经通过远端 `/v1/images/generations` 或 `/v1/images/edits` 真实请求验证，均返回 HTTP 200 且 `data` 长度为 1。 |
 | 2026-06-06 | SiliconFlow 部署备份 | 新增渠道前备份 SQLite 到 `/opt/new-api-data/one-api.db.before-siliconflow-20260606-064135`；API key 仅保存在远端数据库渠道配置中，不写入仓库文档。 |
+| 2026-06-06 | upstream 同步部署 | 当前功能分支已 merge `origin/main` 最新提交 `adc390c5f`，解决 4 个冲突后远端 Docker/Coolify 构建成功，镜像 `new-api-local:coolify` 重建完成，容器状态 `healthy`。 |
+| 2026-06-06 | 合并后 SiliconFlow 回归 | 远端公网入口复测 4 个 SiliconFlow 模型均返回 HTTP 200、`data` 长度 1 且包含 `url`：`baidu/ERNIE-Image-Turbo` 20.89s、`Qwen/Qwen-Image` 18.76s、`Tongyi-MAI/Z-Image` 12.20s、`Qwen/Qwen-Image-Edit-2509` 24.60s。 |
 
 ### 新服务器常用命令
 
