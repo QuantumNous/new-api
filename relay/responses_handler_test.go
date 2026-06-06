@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,6 +69,19 @@ func TestShouldRetryResponsesTranscriptReplayIgnoresPayloadTooLarge(t *testing.T
 	require.False(t, shouldRetryResponsesTranscriptReplay(413, []byte(`<html>too large</html>`), []byte(`{
 		"input":[{"type":"reasoning","encrypted_content":"bad-ciphertext","summary":[]}]
 	}`)))
+}
+
+func TestResponsesTranscriptReplayErrorBodyPreservesStreamErrorCodes(t *testing.T) {
+	streamErr := types.WithOpenAIError(types.OpenAIError{
+		Message: `code: invalid_encrypted_content; message: The encrypted content gAAA...V2ln could not be verified. Reason: Encrypted content could not be decrypted or parsed.`,
+		Type:    "invalid_request_error",
+		Code:    "-4003",
+	}, 500)
+
+	body, err := responsesTranscriptReplayErrorBody(streamErr)
+
+	require.NoError(t, err)
+	require.True(t, shouldRetryResponsesTranscriptReplay(streamErr.StatusCode, body, []byte(`{"input":[]}`)))
 }
 
 func TestNewResponsesOutboundJSONBodyKeepsLargeReplayBodyAsJSON(t *testing.T) {

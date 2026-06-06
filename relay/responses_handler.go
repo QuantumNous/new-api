@@ -178,6 +178,15 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		replayResp, replayError := retryCodexResponsesTranscriptReplayAfterStreamError(c, info, adaptor, newAPIError, requestBodyBytes, statusCodeMappingStr)
+		if replayError != nil {
+			return replayError
+		}
+		if replayResp != nil {
+			usage, newAPIError = adaptor.DoResponse(c, replayResp, info)
+		}
+	}
+	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
@@ -251,6 +260,10 @@ func logResponsesInfo(c *gin.Context, msg string) {
 	logger.LogInfo(c, msg)
 }
 
+type responsesTranscriptReplayErrorPayload struct {
+	Error types.OpenAIError `json:"error"`
+}
+
 func retryCodexResponsesTranscriptReplay(
 	c *gin.Context,
 	info *relaycommon.RelayInfo,
@@ -306,6 +319,77 @@ func retryCodexResponsesTranscriptReplay(
 		return nil, newAPIError
 	}
 	return nil, newAPIErrorFromCapturedHTTPError(c, replayResp, replayResponseBody, statusCodeMappingStr, true)
+}
+
+func retryCodexResponsesTranscriptReplayAfterStreamError(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+	adaptor relaychannel.Adaptor,
+	streamErr *types.NewAPIError,
+	requestBodyBytes []byte,
+	statusCodeMappingStr string,
+) (*http.Response, *types.NewAPIError) {
+	if c == nil || c.Writer.Written() || !shouldUseResponsesTranscriptReplay(info) || streamErr == nil || len(requestBodyBytes) == 0 {
+		return nil, nil
+	}
+	if info.ResponsesTranscriptReplay != nil && info.ResponsesTranscriptReplay.Replayed {
+		return nil, nil
+	}
+	responseBody, err := responsesTranscriptReplayErrorBody(streamErr)
+	if err != nil {
+		logger.LogWarn(c, fmt.Sprintf("codex responses transcript replay skipped on channel #%d: marshal stream error failed: %s", info.ChannelId, err.Error()))
+		return nil, nil
+	}
+	statusCode := streamErr.StatusCode
+	if statusCode < http.StatusBadRequest {
+		statusCode = http.StatusInternalServerError
+	}
+	if !shouldRetryResponsesTranscriptReplay(statusCode, responseBody, requestBodyBytes) {
+		return nil, nil
+	}
+
+	replayBody, ok, reason := relaycommon.BuildResponsesTranscriptReplayRequest(info, requestBodyBytes)
+	if !ok {
+		logger.LogWarn(c, fmt.Sprintf("codex responses transcript replay skipped on channel #%d after stream error: %s", info.ChannelId, reason))
+		return nil, markResponsesTranscriptReplaySkipRetry(streamErr)
+	}
+
+	relaycommon.UpdateResponsesTranscriptReplayRequest(info, replayBody, true)
+	replayRequestBody, replayCloser, newAPIError := newResponsesOutboundJSONBody(info, replayBody)
+	if newAPIError != nil {
+		return nil, markResponsesTranscriptReplaySkipRetry(newAPIError)
+	}
+	defer replayCloser.Close()
+
+	logger.LogInfo(c, fmt.Sprintf("codex responses transcript replay after stream error on channel #%d: %s; original_body_bytes=%d retry_body_bytes=%d", info.ChannelId, reason, len(requestBodyBytes), len(replayBody)))
+	resp, err := adaptor.DoRequest(c, info, replayRequestBody)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
+	replayResp := resp.(*http.Response)
+	if replayResp.StatusCode == http.StatusOK {
+		return replayResp, nil
+	}
+	if replayResp.StatusCode == http.StatusRequestEntityTooLarge {
+		logResponsesTranscriptRequestShape(c, info, "upstream_413_after_stream_retry", replayBody, replayResp.StatusCode)
+	}
+
+	replayResponseBody, readErr := captureHTTPErrorBody(replayResp)
+	if readErr != nil {
+		newAPIError := types.NewOpenAIError(readErr, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return nil, newAPIError
+	}
+	return nil, newAPIErrorFromCapturedHTTPError(c, replayResp, replayResponseBody, statusCodeMappingStr, true)
+}
+
+func responsesTranscriptReplayErrorBody(newAPIError *types.NewAPIError) ([]byte, error) {
+	if newAPIError == nil {
+		return nil, fmt.Errorf("missing stream error")
+	}
+	return common.Marshal(responsesTranscriptReplayErrorPayload{
+		Error: newAPIError.ToOpenAIError(),
+	})
 }
 
 func shouldRetryResponsesTranscriptReplay(statusCode int, responseBody []byte, requestBody []byte) bool {
