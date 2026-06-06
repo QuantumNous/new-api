@@ -271,12 +271,17 @@ func VerifyEmailLoginCode(c *gin.Context) {
 	err := model.DB.Where("email = ?", req.Email).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Verified email + no existing user → auto-create with trial credits.
+		// Group "free" lands the user on JINN's free-tier channels (1-6) with
+		// 100 req/5hr rate limit per ModelRequestRateLimitGroup. Without this
+		// explicit value, GORM falls back to the column default ("default")
+		// which has no JINN channel routing.
 		cleanUser := model.User{
 			Username:    "u_" + common.GetRandomString(8),
 			Password:    common.GetRandomString(24),
 			Email:       req.Email,
 			DisplayName: emailLocalPart(req.Email),
 			Role:        common.RoleCommonUser,
+			Group:       "free",
 		}
 		if err := cleanUser.Insert(0); err != nil {
 			common.ApiError(c, err)

@@ -519,11 +519,23 @@ func (user *User) Edit(updatePassword bool) error {
 	}
 
 	newUser := *user
+	// Only update fields the caller actually provided. Empty string is treated
+	// as "not provided" because the JSON decoder fills omitted fields with the
+	// zero value, and a PUT like {"id":N,"group":"plus"} would otherwise wipe
+	// username/display_name/remark to "". This costs the ability to clear
+	// these fields via the admin UI; clearing should use a dedicated endpoint
+	// if needed (none exists today, so the loss is theoretical).
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"group": newUser.Group,
+	}
+	if newUser.Username != "" {
+		updates["username"] = newUser.Username
+	}
+	if newUser.DisplayName != "" {
+		updates["display_name"] = newUser.DisplayName
+	}
+	if newUser.Remark != "" {
+		updates["remark"] = newUser.Remark
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
