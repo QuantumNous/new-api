@@ -12,6 +12,14 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_REACT_APP_SERVER_URL ||
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
+  const gadsConversionId =
+    process.env.VITE_GADS_CONVERSION_ID ||
+    env.rawPublicVars.VITE_GADS_CONVERSION_ID ||
+    ''
+  const gadsSignupSendTo =
+    process.env.VITE_GADS_SIGNUP_SEND_TO ||
+    env.rawPublicVars.VITE_GADS_SIGNUP_SEND_TO ||
+    ''
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
@@ -54,6 +62,13 @@ export default defineConfig(({ envMode }) => {
       entry: {
         index: './src/main.tsx',
       },
+      define: {
+        ...env.publicVars,
+        'import.meta.env.VITE_GADS_CONVERSION_ID':
+          JSON.stringify(gadsConversionId),
+        'import.meta.env.VITE_GADS_SIGNUP_SEND_TO':
+          JSON.stringify(gadsSignupSendTo),
+      },
     },
     resolve: {
       alias: {
@@ -85,7 +100,11 @@ export default defineConfig(({ envMode }) => {
       // Speed up repeated `rsbuild build` (local + CI when node_modules/.cache is preserved).
       // @see https://v2.rsbuild.dev/config/performance/build-cache
       buildCache: {
-        cacheDigest: [process.env.VITE_REACT_APP_VERSION],
+        cacheDigest: [
+          process.env.VITE_REACT_APP_VERSION,
+          gadsConversionId,
+          gadsSignupSendTo,
+        ],
       },
     },
     tools: {
