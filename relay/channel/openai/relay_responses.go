@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -79,9 +78,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
-	var upstreamProtocolErr error
-	skipUpstreamProtocolRetry := false
-	validResponsesEventSeen := false
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -89,24 +85,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
-			if upstreamProtocolErr == nil {
-				upstreamProtocolErr = fmt.Errorf("upstream responses stream returned invalid JSON chunk: %w", err)
-				skipUpstreamProtocolRetry = validResponsesEventSeen || c.Writer.Written()
-			}
-			sr.Stop(err)
-			return
-		}
-		if err := validateResponsesStreamChunk(streamResponse, data); err != nil {
-			logger.LogError(c, err.Error())
-			if upstreamProtocolErr == nil {
-				upstreamProtocolErr = err
-				skipUpstreamProtocolRetry = validResponsesEventSeen || c.Writer.Written()
-			}
-			sr.Stop(err)
+			sr.Error(err)
 			return
 		}
 		sendResponsesStreamData(c, streamResponse, data)
-		validResponsesEventSeen = true
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {
@@ -147,13 +129,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
-	if upstreamProtocolErr != nil {
-		var errOptions []types.NewAPIErrorOptions
-		if skipUpstreamProtocolRetry {
-			errOptions = append(errOptions, types.ErrOptionWithSkipRetry())
-		}
-		return nil, types.NewOpenAIError(upstreamProtocolErr, types.ErrorCodeBadResponse, http.StatusBadGateway, errOptions...)
-	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
@@ -172,33 +147,4 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
-}
-
-func validateResponsesStreamChunk(streamResponse dto.ResponsesStreamResponse, data string) error {
-	if strings.TrimSpace(streamResponse.Type) != "" {
-		return nil
-	}
-	if isChatCompletionsChunk(data) {
-		if containsUpstreamInternalErrorText(data) {
-			return fmt.Errorf("upstream responses stream returned chat completions error chunk without response event type")
-		}
-		return fmt.Errorf("upstream responses stream returned chat completions chunk without response event type")
-	}
-	if containsUpstreamInternalErrorText(data) {
-		return fmt.Errorf("upstream responses stream returned internal error chunk without response event type")
-	}
-	return fmt.Errorf("upstream responses stream chunk missing response event type")
-}
-
-func isChatCompletionsChunk(data string) bool {
-	return gjson.Get(data, "choices").Exists() ||
-		strings.HasPrefix(gjson.Get(data, "object").String(), "chat.completion")
-}
-
-func containsUpstreamInternalErrorText(data string) bool {
-	lowerData := strings.ToLower(data)
-	return strings.Contains(lowerData, "internal failed") ||
-		strings.Contains(lowerData, "websocket") ||
-		strings.Contains(lowerData, "status=403") ||
-		strings.Contains(lowerData, "failed to websocket")
 }
