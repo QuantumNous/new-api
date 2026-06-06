@@ -70,7 +70,12 @@ export function UserLeaderboard(props: UserLeaderboardProps) {
                 {row.rank}
               </td>
               <td className='text-foreground py-2.5 pr-2 text-sm font-medium'>
-                {row.username}
+                {row.display_name || row.username}
+                {row.display_name && (
+                  <span className='text-muted-foreground ml-1 text-xs font-normal'>
+                    @{row.username}
+                  </span>
+                )}
               </td>
               <td className='text-foreground py-2.5 pr-2 text-right font-mono text-sm font-semibold tabular-nums'>
                 {formatTokens(row.total_tokens)}

@@ -127,6 +127,7 @@ export type UserRanking = {
   rank: number
   user_id: number
   username: string
+  display_name: string
   total_tokens: number
   count: number
   share: number

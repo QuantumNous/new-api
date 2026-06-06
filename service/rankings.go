@@ -57,6 +57,7 @@ type RankedUser struct {
 	Rank        int     `json:"rank"`
 	UserID      int     `json:"user_id"`
 	Username    string  `json:"username"`
+	DisplayName string  `json:"display_name"`
 	TotalTokens int64   `json:"total_tokens"`
 	Count       int     `json:"count"`
 	Share       float64 `json:"share"`
@@ -292,6 +293,7 @@ func buildRankedUsers(config rankingPeriodConfig, startTime int64, endTime int64
 			Rank:        idx + 1,
 			UserID:      u.UserID,
 			Username:    u.Username,
+			DisplayName: u.DisplayName,
 			TotalTokens: u.TotalTokens,
 			Count:       u.Count,
 			Share:       rankingShare(u.TotalTokens, totalTokens),
