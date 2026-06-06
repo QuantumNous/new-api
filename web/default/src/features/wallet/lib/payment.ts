@@ -155,7 +155,12 @@ export function getDefaultCustomTopupAmount(
   const minTopup = getMinTopupAmount(topupInfo)
   const normalizedMinTopup =
     Number.isFinite(minTopup) && minTopup > 0 ? minTopup : DEFAULT_MIN_TOPUP
-  return Math.max(DEFAULT_CUSTOM_TOPUP_AMOUNT, normalizedMinTopup)
+  const configuredDefault = Number(topupInfo?.default_topup_amount)
+  const normalizedConfiguredDefault =
+    Number.isFinite(configuredDefault) && configuredDefault > 0
+      ? configuredDefault
+      : DEFAULT_CUSTOM_TOPUP_AMOUNT
+  return Math.max(normalizedConfiguredDefault, normalizedMinTopup)
 }
 
 /**

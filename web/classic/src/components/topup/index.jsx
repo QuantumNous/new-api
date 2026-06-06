@@ -65,9 +65,14 @@ function isSafeHttpCheckoutUrl(value) {
   }
 }
 
-function getDefaultTopUpCount(minAmount) {
+function getDefaultTopUpCount(minAmount, defaultAmount = 100) {
   const normalizedMinAmount = Number(minAmount) || 1;
-  return Math.max(100, normalizedMinAmount);
+  const numericDefaultAmount = Number(defaultAmount);
+  const normalizedDefaultAmount =
+    Number.isFinite(numericDefaultAmount) && numericDefaultAmount > 0
+      ? numericDefaultAmount
+      : 100;
+  return Math.max(normalizedDefaultAmount, normalizedMinAmount);
 }
 
 const TopUp = () => {
@@ -142,6 +147,7 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    default_topup_amount: 100,
     enable_redemption: true,
     payment_compliance_confirmed: true,
   });
@@ -642,6 +648,7 @@ const TopUp = () => {
         setTopupInfo({
           amount_options: data.amount_options || [],
           discount: data.discount || {},
+          default_topup_amount: data.default_topup_amount || 100,
         });
 
         // 处理支付方式
@@ -719,7 +726,10 @@ const TopUp = () => {
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
           setMinTopUp(minTopUpValue);
-          const defaultTopUpCount = getDefaultTopUpCount(minTopUpValue);
+          const defaultTopUpCount = getDefaultTopUpCount(
+            minTopUpValue,
+            data.default_topup_amount,
+          );
           setTopUpCount(defaultTopUpCount);
           setTopUpLink(data.topup_link || '');
           setTopupInfo((prev) => ({
