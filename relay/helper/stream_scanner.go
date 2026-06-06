@@ -71,6 +71,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		writeMutex sync.Mutex     // Mutex to protect concurrent writes
 		wg         sync.WaitGroup // 用于等待所有 goroutine 退出
 	)
+	var cleanupOnce sync.Once
 
 	generalSettings := operation_setting.GetGeneralSetting()
 	pingEnabled := generalSettings.PingIntervalEnabled && !info.DisablePing
@@ -90,30 +91,33 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	logger.LogDebug(c, "ping interval seconds: %d", int64(pingInterval.Seconds()))
 
 	// 改进资源清理，确保所有 goroutine 正确退出
-	defer func() {
+	cleanup := func() {
 		// 通知所有 goroutine 停止
-		common.SafeSendBool(stopChan, true)
+		cleanupOnce.Do(func() {
+			common.SafeSendBool(stopChan, true)
 
-		ticker.Stop()
-		if pingTicker != nil {
-			pingTicker.Stop()
-		}
+			ticker.Stop()
+			if pingTicker != nil {
+				pingTicker.Stop()
+			}
 
-		// 等待所有 goroutine 退出，最多等待5秒
-		done := make(chan struct{})
-		gopool.Go(func() {
-			wg.Wait()
-			close(done)
+			// 等待所有 goroutine 退出，最多等待5秒
+			done := make(chan struct{})
+			gopool.Go(func() {
+				wg.Wait()
+				close(done)
+			})
+
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				logger.LogError(c, "timeout waiting for goroutines to exit")
+			}
+
+			close(stopChan)
 		})
-
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			logger.LogError(c, "timeout waiting for goroutines to exit")
-		}
-
-		close(stopChan)
-	}()
+	}
+	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)
 	SetEventStreamHeaders(c)
@@ -287,6 +291,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	case <-c.Request.Context().Done():
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
 	}
+
+	cleanup()
 
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
