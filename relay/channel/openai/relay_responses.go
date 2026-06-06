@@ -152,7 +152,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if isResponsesStreamTerminalError(streamResponse.Type) {
 			openAIError := responsesStreamOpenAIError(streamResponse)
 			streamErr = types.WithOpenAIError(openAIError, http.StatusInternalServerError)
-			logResponsesStreamTerminalError(c, info, streamResponse.Type, openAIError)
+			logResponsesStreamTerminalError(c, info, streamResponse.Type, openAIError, data)
 			if !shouldDeferResponsesStreamErrorToHandler(c, sentDownstream) {
 				flushPendingPrelude()
 				sendResponsesStreamData(c, streamResponse, data)
@@ -267,8 +267,23 @@ func responsesStreamOpenAIError(streamResponse dto.ResponsesStreamResponse) type
 			}
 		}
 	}
+	return responsesStreamFallbackOpenAIError(streamResponse)
+}
+
+func responsesStreamFallbackOpenAIError(streamResponse dto.ResponsesStreamResponse) types.OpenAIError {
+	message := fmt.Sprintf("responses stream terminal event: %s", streamResponse.Type)
+	if streamResponse.Response != nil {
+		if status := common.JsonRawMessageToString(streamResponse.Response.Status); status != "" {
+			message += fmt.Sprintf(" status=%s", status)
+		}
+		if streamResponse.Response.IncompleteDetails != nil {
+			if details, err := common.Marshal(streamResponse.Response.IncompleteDetails); err == nil {
+				message += fmt.Sprintf(" incomplete_details=%s", details)
+			}
+		}
+	}
 	return types.OpenAIError{
-		Message: fmt.Sprintf("responses stream terminal event: %s", streamResponse.Type),
+		Message: message,
 		Type:    string(types.ErrorCodeBadResponse),
 		Code:    string(types.ErrorCodeBadResponse),
 	}
@@ -353,7 +368,7 @@ func responsesStreamFailureEvent(newAPIError *types.NewAPIError) (dto.ResponsesS
 	return streamResponse, string(data)
 }
 
-func logResponsesStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo, eventType string, openAIError types.OpenAIError) {
+func logResponsesStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo, eventType string, openAIError types.OpenAIError, data string) {
 	channelID := 0
 	if info != nil {
 		channelID = info.ChannelId
@@ -366,6 +381,14 @@ func logResponsesStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo
 		openAIError.Code,
 		truncateResponsesStreamErrorMessage(openAIError.Message),
 	))
+	if openAIError.Code == string(types.ErrorCodeBadResponse) && strings.HasPrefix(openAIError.Message, "responses stream terminal event:") {
+		logger.LogError(c, fmt.Sprintf(
+			"responses stream terminal event raw payload on channel #%d: event=%s payload=%s",
+			channelID,
+			eventType,
+			truncateResponsesStreamErrorMessage(data),
+		))
+	}
 }
 
 func logResponsesStreamIncomplete(c *gin.Context, info *relaycommon.RelayInfo, sentDownstream bool, newAPIError *types.NewAPIError) {

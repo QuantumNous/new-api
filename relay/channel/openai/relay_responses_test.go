@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -183,6 +184,22 @@ func TestResponsesStreamOpenAIErrorFallsBackForEmptyPayload(t *testing.T) {
 
 	require.Equal(t, "bad_response", openAIError.Code)
 	require.Contains(t, openAIError.Message, "response.error")
+}
+
+func TestResponsesStreamOpenAIErrorFallbackIncludesResponseStatus(t *testing.T) {
+	openAIError := responsesStreamOpenAIError(dto.ResponsesStreamResponse{
+		Type: responsesStreamEventFailed,
+		Response: &dto.OpenAIResponsesResponse{
+			Status: json.RawMessage(`"failed"`),
+			IncompleteDetails: &dto.IncompleteDetails{
+				Reasoning: "upstream stopped",
+			},
+		},
+	})
+
+	require.Equal(t, "bad_response", openAIError.Code)
+	require.Contains(t, openAIError.Message, "status=failed")
+	require.Contains(t, openAIError.Message, "upstream stopped")
 }
 
 func TestResponsesStreamOpenAIErrorUsesTopLevelError(t *testing.T) {
