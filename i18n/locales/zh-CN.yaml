@@ -278,3 +278,13 @@ custom_oauth.name_empty: "提供商名称不能为空"
 custom_oauth.has_bindings: "无法删除已有用户绑定的提供商"
 custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
+
+# Email messages
+email.verification.subject: "{{.SystemName}} 邮箱验证"
+email.verification.content: "<p>您好，</p><p>您正在进行 <strong>{{.SystemName}}</strong> 邮箱验证。</p><p>您的验证码为：<strong>{{.Code}}</strong></p><p>验证码 {{.Minutes}} 分钟内有效，如果不是本人操作，请忽略此邮件。</p>"
+email.password_reset.subject: "{{.SystemName}} 密码重置"
+email.password_reset.content: "<p>您好，</p><p>您正在进行 <strong>{{.SystemName}}</strong> 密码重置。</p><p>点击 <a href='{{.Link}}'>此处</a> 进行密码重置。</p><p>如果链接无法点击，请将以下链接复制到浏览器中打开：<br>{{.Link}}</p><p>重置链接 {{.Minutes}} 分钟内有效，如果不是本人操作，请忽略此邮件。</p>"
+email.channel_disabled.subject: "通道「{{.ChannelName}}」（#{{.ChannelId}}）已被禁用"
+email.channel_disabled.content: "通道「{{.ChannelName}}」（#{{.ChannelId}}）已被禁用，原因：{{.Reason}}"
+email.channel_enabled.subject: "通道「{{.ChannelName}}」（#{{.ChannelId}}）已被启用"
+email.channel_enabled.content: "通道「{{.ChannelName}}」（#{{.ChannelId}}）已被启用"
