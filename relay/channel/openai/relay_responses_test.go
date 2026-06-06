@@ -46,7 +46,7 @@ func setupResponsesStreamHandlerTest(t *testing.T, body string) (*gin.Context, *
 	return c, recorder, resp, info
 }
 
-func TestOaiResponsesStreamHandlerConvertsTerminalFailureToErrorEvent(t *testing.T) {
+func TestOaiResponsesStreamHandlerDefersTerminalFailureBeforeWriting(t *testing.T) {
 	c, recorder, resp, info := setupResponsesStreamHandlerTest(t, strings.Join([]string{
 		`event: response.failed`,
 		`data: {"type":"response.failed","response":{"error":{"message":"The encrypted content gAAA...as53 could not be verified. Reason: Encrypted content could not be decrypted or parsed.","type":"invalid_request_error","param":"","code":"thinking_signature_invalid"}}}`,
@@ -58,11 +58,26 @@ func TestOaiResponsesStreamHandlerConvertsTerminalFailureToErrorEvent(t *testing
 	require.Nil(t, usage)
 	require.NotNil(t, newAPIError)
 	require.Equal(t, "thinking_signature_invalid", string(newAPIError.GetErrorCode()))
+	require.Empty(t, recorder.Body.String())
+	require.False(t, c.Writer.Written())
+}
 
+func TestOaiResponsesStreamHandlerPassesTerminalFailureAfterWriting(t *testing.T) {
+	c, recorder, resp, info := setupResponsesStreamHandlerTest(t, strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		`data: {"type":"response.failed","response":{"error":{"message":"upstream failed","type":"server_error","param":"","code":"server_error"}}}`,
+		``,
+	}, "\n"))
+
+	usage, newAPIError := OaiResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, newAPIError)
+	require.Equal(t, "server_error", string(newAPIError.GetErrorCode()))
 	body := recorder.Body.String()
-	require.Contains(t, body, "event: error")
-	require.Contains(t, body, `"code":"thinking_signature_invalid"`)
-	require.NotContains(t, body, "event: response.failed")
+	require.Contains(t, body, "event: response.output_text.delta")
+	require.Contains(t, body, "event: response.failed")
+	require.Contains(t, body, `"code":"server_error"`)
 }
 
 func TestOaiResponsesStreamHandlerDefersReplayableFailureBeforeWriting(t *testing.T) {
@@ -112,4 +127,19 @@ func TestResponsesStreamOpenAIErrorFallsBackForEmptyPayload(t *testing.T) {
 
 	require.Equal(t, "bad_response", openAIError.Code)
 	require.Contains(t, openAIError.Message, "response.error")
+}
+
+func TestResponsesStreamOpenAIErrorUsesTopLevelError(t *testing.T) {
+	openAIError := responsesStreamOpenAIError(dto.ResponsesStreamResponse{
+		Type: responsesStreamEventFailed,
+		Error: map[string]interface{}{
+			"message": "code: invalid_encrypted_content; message: could not verify",
+			"type":    "invalid_request_error",
+			"code":    "-4003",
+		},
+	})
+
+	require.Equal(t, "-4003", openAIError.Code)
+	require.Equal(t, "invalid_request_error", openAIError.Type)
+	require.Contains(t, openAIError.Message, "invalid_encrypted_content")
 }

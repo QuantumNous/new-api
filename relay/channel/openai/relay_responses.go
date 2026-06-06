@@ -31,10 +31,6 @@ type responsesStreamDataEvent struct {
 	Data     string
 }
 
-type responsesStreamErrorPayload struct {
-	Error types.OpenAIError `json:"error"`
-}
-
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -136,13 +132,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			openAIError := responsesStreamOpenAIError(streamResponse)
 			streamErr = types.WithOpenAIError(openAIError, http.StatusInternalServerError)
 			logResponsesStreamTerminalError(c, info, streamResponse.Type, openAIError)
-			if !shouldDeferResponsesStreamErrorForReplay(info, openAIError, sentDownstream) {
+			if !shouldDeferResponsesStreamErrorToHandler(c, sentDownstream) {
 				flushPendingPrelude()
-				if sendErr := sendResponsesStreamErrorData(c, openAIError); sendErr != nil {
-					streamErr = types.NewOpenAIError(sendErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
-				} else {
-					sentDownstream = true
-				}
+				sendResponsesStreamData(c, streamResponse, data)
+				sentDownstream = true
 			}
 			sr.Stop(streamErr)
 			return
@@ -230,6 +223,11 @@ func shouldBufferResponsesStreamPrelude(info *relaycommon.RelayInfo, eventType s
 }
 
 func responsesStreamOpenAIError(streamResponse dto.ResponsesStreamResponse) types.OpenAIError {
+	if openAIError := dto.GetOpenAIError(streamResponse.Error); openAIError != nil {
+		if openAIError.Message != "" || openAIError.Type != "" || openAIError.Code != nil {
+			return *openAIError
+		}
+	}
 	if streamResponse.Response != nil {
 		if openAIError := streamResponse.Response.GetOpenAIError(); openAIError != nil {
 			if openAIError.Message != "" || openAIError.Type != "" || openAIError.Code != nil {
@@ -244,25 +242,11 @@ func responsesStreamOpenAIError(streamResponse dto.ResponsesStreamResponse) type
 	}
 }
 
-func shouldDeferResponsesStreamErrorForReplay(info *relaycommon.RelayInfo, openAIError types.OpenAIError, sentDownstream bool) bool {
-	if sentDownstream || info == nil || info.ResponsesTranscriptReplay == nil || info.ResponsesTranscriptReplay.Replayed {
+func shouldDeferResponsesStreamErrorToHandler(c *gin.Context, sentDownstream bool) bool {
+	if sentDownstream || c == nil || c.Writer == nil {
 		return false
 	}
-	body, err := common.Marshal(responsesStreamErrorPayload{Error: openAIError})
-	if err != nil {
-		return false
-	}
-	return relaycommon.IsResponsesTranscriptReplayError(http.StatusBadRequest, body)
-}
-
-func sendResponsesStreamErrorData(c *gin.Context, openAIError types.OpenAIError) error {
-	payload, err := common.Marshal(responsesStreamErrorPayload{Error: openAIError})
-	if err != nil {
-		return err
-	}
-	c.Render(-1, common.CustomEvent{Data: "event: error\n"})
-	c.Render(-1, common.CustomEvent{Data: "data: " + string(payload)})
-	return helper.FlushWriter(c)
+	return !c.Writer.Written()
 }
 
 func logResponsesStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo, eventType string, openAIError types.OpenAIError) {
