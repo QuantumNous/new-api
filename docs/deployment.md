@@ -104,6 +104,37 @@ sqlite3 /opt/new-api-data/one-api.db "SELECT id, name, type, status, base_url FR
 
 > 注意：Coolify API 默认保持关闭。2026-05-26 为自动创建 `new-api-video-gateway` 曾临时开启 API 并创建临时 token；接入完成后已删除 token，并将 `instance_settings.is_api_enabled` 恢复为 `false`。
 
+### 同步 upstream 最新代码流程
+
+本仓库的业务改动集中在当前功能分支，`fork/main` 只作为 fork 的主分支镜像使用。同步官方 `origin/main` 时优先使用 merge，不使用 rebase，避免改写已部署和已推送的历史。
+
+推荐流程：
+
+```bash
+# 1. 确认工作区干净
+git status -sb
+
+# 2. 拉取官方仓库和 fork 最新引用
+git fetch origin --prune
+git fetch fork --prune
+
+# 3. 记录合并前备份点
+git branch ccj/pre-origin-main-merge-$(date +%Y%m%d-%H%M%S) HEAD
+
+# 4. 合并官方 main
+git merge --no-ff origin/main
+
+# 5. 解决冲突后做静态检查
+git diff --check
+rg -n "^(<<<<<<<|=======|>>>>>>>)" -g '!web/**/node_modules/**' -g '!tmp/**' -g '!logs/**' . || true
+
+# 6. 提交并推送当前功能分支
+git commit
+git push fork feature/openai-video-failover
+```
+
+合并后不要在本地跑项目 test/build；如需验证，按本文档的新服务器 Coolify 流程远端构建部署，再用真实 API 请求验证关键自定义通道。
+
 ---
 
 ## 旧服务器信息（历史/备用）
