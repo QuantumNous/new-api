@@ -18,6 +18,14 @@ type RankingQuotaBucket struct {
 	Tokens    int64  `json:"tokens"`
 }
 
+type RankingUserTotal struct {
+	UserID      int    `json:"user_id"`
+	Username    string `json:"username"`
+	TotalTokens int64  `json:"total_tokens"`
+	Count       int    `json:"count"`
+	TopModel    string `json:"top_model"`
+}
+
 func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal, error) {
 	var rows []RankingQuotaTotal
 	query := DB.Table("quota_data").
@@ -28,6 +36,37 @@ func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal,
 		Order("total_tokens DESC")
 	query = applyRankingQuotaTimeRange(query, startTime, endTime)
 	err := query.Find(&rows).Error
+	return rows, err
+}
+
+func GetRankingUserTotals(startTime int64, endTime int64) ([]RankingUserTotal, error) {
+	var rows []RankingUserTotal
+	query := DB.Table("quota_data").
+		Select("user_id, username, sum(token_used) as total_tokens, sum(count) as count").
+		Where("model_name <> ''").
+		Group("user_id, username").
+		Having("sum(token_used) > 0").
+		Order("total_tokens DESC")
+	query = applyRankingQuotaTimeRange(query, startTime, endTime)
+	err := query.Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		var topModel string
+		topQuery := DB.Table("quota_data").
+			Select("model_name").
+			Where("user_id = ? AND model_name <> ''", rows[i].UserID).
+			Group("model_name").
+			Order("sum(token_used) DESC").
+			Limit(1)
+		topQuery = applyRankingQuotaTimeRange(topQuery, startTime, endTime)
+		row := topQuery.Row()
+		if row != nil {
+			_ = row.Scan(&topModel)
+		}
+		rows[i].TopModel = topModel
+	}
 	return rows, err
 }
 
