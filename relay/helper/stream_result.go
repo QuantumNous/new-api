@@ -30,14 +30,14 @@ func (r *StreamResult) Stop(err error) {
 	if err != nil {
 		r.status.RecordError(err.Error())
 	}
-	r.status.SetEndReason(relaycommon.StreamEndReasonHandlerStop, err)
+	r.status.SetHandlerEndReason(relaycommon.StreamEndReasonHandlerStop, err)
 	r.stopped = true
 }
 
 // Done signals that the handler has finished processing normally
 // (e.g., Dify "message_end"). The stream stops after this chunk.
 func (r *StreamResult) Done() {
-	r.status.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+	r.status.SetHandlerEndReason(relaycommon.StreamEndReasonDone, nil)
 	r.stopped = true
 }
 

@@ -31,6 +31,16 @@ type responsesStreamDataEvent struct {
 	Data     string
 }
 
+type responsesStreamFailurePayload struct {
+	Type     string                         `json:"type"`
+	Response responsesStreamFailureResponse `json:"response"`
+}
+
+type responsesStreamFailureResponse struct {
+	Status string            `json:"status"`
+	Error  types.OpenAIError `json:"error"`
+}
+
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -95,6 +105,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var responseTextBuilder strings.Builder
 	var streamErr *types.NewAPIError
 	var sentDownstream bool
+	var sawCompleted bool
 	var pendingPrelude []responsesStreamDataEvent
 
 	flushPendingPrelude := func() {
@@ -114,6 +125,16 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		flushPendingPrelude()
+		sendResponsesStreamData(c, streamResponse, data)
+		sentDownstream = true
+	}
+
+	sendStreamFailure := func(newAPIError *types.NewAPIError) {
+		if newAPIError == nil {
+			return
+		}
+		flushPendingPrelude()
+		streamResponse, data := responsesStreamFailureEvent(newAPIError)
 		sendResponsesStreamData(c, streamResponse, data)
 		sentDownstream = true
 	}
@@ -144,6 +165,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		sendStreamData(streamResponse, data)
 		switch streamResponse.Type {
 		case responsesStreamEventCompleted:
+			sawCompleted = true
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -165,6 +187,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 				}
 			}
+			sr.Done()
 		case responsesStreamEventTextDelta:
 			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
@@ -183,6 +206,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	if streamErr == nil {
+		streamErr = responsesStreamCompletionError(info, sawCompleted)
+		if streamErr != nil {
+			logResponsesStreamIncomplete(c, info, sentDownstream, streamErr)
+			if !shouldDeferResponsesStreamErrorToHandler(c, sentDownstream) {
+				sendStreamFailure(streamErr)
+			}
+		}
+	}
 	if streamErr != nil {
 		return nil, streamErr
 	}
@@ -249,6 +281,78 @@ func shouldDeferResponsesStreamErrorToHandler(c *gin.Context, sentDownstream boo
 	return !c.Writer.Written()
 }
 
+func responsesStreamCompletionError(info *relaycommon.RelayInfo, sawCompleted bool) *types.NewAPIError {
+	if sawCompleted {
+		return nil
+	}
+	if info == nil || info.StreamStatus == nil {
+		return nil
+	}
+
+	status := info.StreamStatus
+	switch status.EndReason {
+	case relaycommon.StreamEndReasonEOF, relaycommon.StreamEndReasonDone:
+		return types.NewOpenAIError(
+			fmt.Errorf("responses stream closed before completion event: %s", status.Summary()),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
+	case relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonPanic, relaycommon.StreamEndReasonPingFail:
+		return types.NewOpenAIError(
+			fmt.Errorf("responses stream interrupted before completion event: %s", status.Summary()),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
+	case relaycommon.StreamEndReasonClientGone:
+		return types.NewOpenAIError(
+			fmt.Errorf("responses stream client disconnected before completion event: %s", status.Summary()),
+			types.ErrorCodeBadResponse,
+			499,
+			types.ErrOptionWithSkipRetry(),
+		)
+	case relaycommon.StreamEndReasonHandlerStop:
+		if status.HasErrors() {
+			return types.NewOpenAIError(
+				fmt.Errorf("responses stream handler stopped before completion event: %s", status.Summary()),
+				types.ErrorCodeBadResponse,
+				http.StatusBadGateway,
+			)
+		}
+	}
+	return nil
+}
+
+func responsesStreamFailureEvent(newAPIError *types.NewAPIError) (dto.ResponsesStreamResponse, string) {
+	openAIError := types.OpenAIError{
+		Message: string(types.ErrorCodeBadResponse),
+		Type:    string(types.ErrorCodeBadResponse),
+		Code:    string(types.ErrorCodeBadResponse),
+	}
+	if newAPIError != nil {
+		openAIError = newAPIError.ToOpenAIError()
+	}
+	streamResponse := dto.ResponsesStreamResponse{
+		Type: responsesStreamEventFailed,
+	}
+	payload := responsesStreamFailurePayload{
+		Type: responsesStreamEventFailed,
+		Response: responsesStreamFailureResponse{
+			Status: "failed",
+			Error:  openAIError,
+		},
+	}
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return streamResponse, fmt.Sprintf(`{"type":"%s","response":{"status":"failed","error":{"message":"%s","type":"%s","code":"%s"}}}`,
+			responsesStreamEventFailed,
+			string(types.ErrorCodeBadResponse),
+			string(types.ErrorCodeBadResponse),
+			string(types.ErrorCodeBadResponse),
+		)
+	}
+	return streamResponse, string(data)
+}
+
 func logResponsesStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo, eventType string, openAIError types.OpenAIError) {
 	channelID := 0
 	if info != nil {
@@ -261,6 +365,28 @@ func logResponsesStreamTerminalError(c *gin.Context, info *relaycommon.RelayInfo
 		openAIError.Type,
 		openAIError.Code,
 		truncateResponsesStreamErrorMessage(openAIError.Message),
+	))
+}
+
+func logResponsesStreamIncomplete(c *gin.Context, info *relaycommon.RelayInfo, sentDownstream bool, newAPIError *types.NewAPIError) {
+	channelID := 0
+	streamSummary := "StreamStatus<nil>"
+	if info != nil {
+		channelID = info.ChannelId
+		if info.StreamStatus != nil {
+			streamSummary = info.StreamStatus.Summary()
+		}
+	}
+	message := ""
+	if newAPIError != nil {
+		message = newAPIError.Error()
+	}
+	logger.LogError(c, fmt.Sprintf(
+		"responses stream ended before completion event on channel #%d: sent_downstream=%t stream=%s error=%s",
+		channelID,
+		sentDownstream,
+		streamSummary,
+		truncateResponsesStreamErrorMessage(message),
 	))
 }
 

@@ -89,10 +89,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			if relayFormat == types.RelayFormatOpenAIRealtime {
+				newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				return
+			}
+			if c.Writer != nil && c.Writer.Written() {
+				logger.LogError(c, "relay error occurred after downstream response was written; skipping error body")
+				return
+			}
+			if c.Request != nil && c.Request.Context().Err() != nil {
+				logger.LogError(c, fmt.Sprintf("relay error occurred after downstream disconnected; skipping error body: %s", c.Request.Context().Err()))
+				return
+			}
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
-			case types.RelayFormatOpenAIRealtime:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError())
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
@@ -325,6 +336,14 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
+	}
+	if c != nil {
+		if c.Writer != nil && c.Writer.Written() {
+			return false
+		}
+		if c.Request != nil && c.Request.Context().Err() != nil {
+			return false
+		}
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false

@@ -484,7 +484,22 @@ func TestStreamScannerHandler_StreamStatus_InitializedIfNil(t *testing.T) {
 	assert.NotNil(t, info.StreamStatus)
 }
 
-func TestStreamScannerHandler_StreamStatus_ReplacesPreInitialized(t *testing.T) {
+func TestStreamScannerHandler_DefaultsNonPositiveStreamingTimeout(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 0
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := buildSSEBody(1)
+	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+
+	require.NotPanics(t, func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+	})
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
+func TestStreamScannerHandler_StreamStatus_PreInitialized(t *testing.T) {
 	t.Parallel()
 
 	body := buildSSEBody(5)

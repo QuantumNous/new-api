@@ -31,6 +31,29 @@ func TestStreamStatus_SetEndReason_WithError(t *testing.T) {
 	assert.Equal(t, expectedErr, s.EndError)
 }
 
+func TestStreamStatus_SetHandlerEndReason_OverridesEOF(t *testing.T) {
+	t.Parallel()
+	s := NewStreamStatus()
+
+	s.SetEndReason(StreamEndReasonEOF, nil)
+	s.SetHandlerEndReason(StreamEndReasonDone, nil)
+
+	assert.Equal(t, StreamEndReasonDone, s.EndReason)
+	assert.Nil(t, s.EndError)
+}
+
+func TestStreamStatus_SetHandlerEndReason_DoesNotOverrideScannerError(t *testing.T) {
+	t.Parallel()
+	s := NewStreamStatus()
+
+	expectedErr := fmt.Errorf("read failed")
+	s.SetEndReason(StreamEndReasonScannerErr, expectedErr)
+	s.SetHandlerEndReason(StreamEndReasonDone, nil)
+
+	assert.Equal(t, StreamEndReasonScannerErr, s.EndReason)
+	assert.Equal(t, expectedErr, s.EndError)
+}
+
 func TestStreamStatus_SetEndReason_NilSafe(t *testing.T) {
 	t.Parallel()
 	var s *StreamStatus

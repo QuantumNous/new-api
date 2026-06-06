@@ -116,10 +116,66 @@ func TestOaiResponsesStreamHandlerFlushesBufferedPreludeOnNormalStream(t *testin
 	require.Equal(t, 2, usage.PromptTokens)
 	require.Equal(t, 1, usage.CompletionTokens)
 	require.Equal(t, 3, usage.TotalTokens)
+	require.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 
 	body := recorder.Body.String()
 	require.Contains(t, body, "event: response.created")
 	require.Contains(t, body, "event: response.output_text.delta")
+}
+
+func TestOaiResponsesStreamHandlerDefersEOFBeforeCompletedBeforeWriting(t *testing.T) {
+	c, recorder, resp, info := setupResponsesStreamHandlerTest(t, strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+		`data: {"type":"response.in_progress","response":{"id":"resp_1"}}`,
+		``,
+	}, "\n"))
+	info.ResponsesTranscriptReplay = &relaycommon.ResponsesTranscriptReplayState{}
+
+	usage, newAPIError := OaiResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, newAPIError)
+	require.Equal(t, "bad_response", string(newAPIError.GetErrorCode()))
+	require.Contains(t, newAPIError.Error(), "completion event")
+	require.Empty(t, recorder.Body.String())
+	require.False(t, c.Writer.Written())
+}
+
+func TestOaiResponsesStreamHandlerEmitsFailureWhenEOFBeforeCompletedAfterWriting(t *testing.T) {
+	c, recorder, resp, info := setupResponsesStreamHandlerTest(t, strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"partial"}`,
+		``,
+	}, "\n"))
+
+	usage, newAPIError := OaiResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, newAPIError)
+	require.Equal(t, "bad_response", string(newAPIError.GetErrorCode()))
+	require.Contains(t, newAPIError.Error(), "completion event")
+	body := recorder.Body.String()
+	require.Contains(t, body, "event: response.output_text.delta")
+	require.Contains(t, body, "event: response.failed")
+	require.Contains(t, body, "responses stream closed before completion event")
+	require.NotContains(t, body, `"object":""`)
+}
+
+func TestOaiResponsesStreamHandlerAllowsCompletedStreamWithoutDone(t *testing.T) {
+	c, recorder, resp, info := setupResponsesStreamHandlerTest(t, strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"hi"}`,
+		`data: {"type":"response.completed","response":{"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}`,
+		``,
+	}, "\n"))
+
+	usage, newAPIError := OaiResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, 2, usage.PromptTokens)
+	require.Equal(t, 1, usage.CompletionTokens)
+	require.Equal(t, 3, usage.TotalTokens)
+	require.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+	require.NotContains(t, recorder.Body.String(), "event: response.failed")
 }
 
 func TestResponsesStreamOpenAIErrorFallsBackForEmptyPayload(t *testing.T) {
