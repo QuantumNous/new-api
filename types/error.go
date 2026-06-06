@@ -77,6 +77,7 @@ const (
 	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
 	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
 	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
+	ErrorCodeServiceUnavailable     ErrorCode = "service_unavailable"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -92,10 +93,52 @@ type NewAPIError struct {
 	RelayError     any
 	skipRetry      bool
 	recordErrorLog *bool
+	upstreamError  bool
 	errorType      ErrorType
 	errorCode      ErrorCode
 	StatusCode     int
 	Metadata       json.RawMessage
+}
+
+const PublicServiceUnavailableMessage = "Service Unavailable"
+
+func shouldMarkErrorCodeAsUpstream(errorCode ErrorCode) bool {
+	switch errorCode {
+	case ErrorCodeDoRequestFailed,
+		ErrorCodeBadResponseStatusCode,
+		ErrorCodeBadResponse,
+		ErrorCodeReadResponseBodyFailed,
+		ErrorCodeBadResponseBody:
+		return true
+	default:
+		return false
+	}
+}
+
+func ApplyDownstreamNewAPIErrorPolicy(err *NewAPIError, requestId string) *NewAPIError {
+	if err == nil {
+		return nil
+	}
+	if !err.upstreamError {
+		err.SetMessage(common.MessageWithRequestId(err.Error(), requestId))
+		return err
+	}
+	return NewErrorWithStatusCode(
+		errors.New(common.MessageWithRequestId(PublicServiceUnavailableMessage, requestId)),
+		ErrorCodeServiceUnavailable,
+		http.StatusServiceUnavailable,
+	)
+}
+
+func MarkAsUpstreamError(err *NewAPIError) *NewAPIError {
+	if err != nil {
+		err.upstreamError = true
+	}
+	return err
+}
+
+func IsUpstreamError(err *NewAPIError) bool {
+	return err != nil && err.upstreamError
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -245,17 +288,21 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 	var newErr *NewAPIError
 	// 保留深层传递的 new err
 	if errors.As(err, &newErr) {
+		if shouldMarkErrorCodeAsUpstream(errorCode) {
+			MarkAsUpstreamError(newErr)
+		}
 		for _, op := range ops {
 			op(newErr)
 		}
 		return newErr
 	}
 	e := &NewAPIError{
-		Err:        err,
-		RelayError: nil,
-		errorType:  ErrorTypeNewAPIError,
-		StatusCode: http.StatusInternalServerError,
-		errorCode:  errorCode,
+		Err:           err,
+		RelayError:    nil,
+		errorType:     ErrorTypeNewAPIError,
+		StatusCode:    http.StatusInternalServerError,
+		errorCode:     errorCode,
+		upstreamError: shouldMarkErrorCodeAsUpstream(errorCode),
 	}
 	for _, op := range ops {
 		op(e)
@@ -267,6 +314,9 @@ func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAP
 	var newErr *NewAPIError
 	// 保留深层传递的 new err
 	if errors.As(err, &newErr) {
+		if shouldMarkErrorCodeAsUpstream(errorCode) {
+			MarkAsUpstreamError(newErr)
+		}
 		if newErr.RelayError == nil {
 			openaiError := OpenAIError{
 				Message: newErr.Error(),
@@ -303,9 +353,10 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 			Message: err.Error(),
 			Type:    string(errorCode),
 		},
-		errorType:  ErrorTypeNewAPIError,
-		StatusCode: statusCode,
-		errorCode:  errorCode,
+		errorType:     ErrorTypeNewAPIError,
+		StatusCode:    statusCode,
+		errorCode:     errorCode,
+		upstreamError: shouldMarkErrorCodeAsUpstream(errorCode),
 	}
 	for _, op := range ops {
 		op(e)
@@ -327,11 +378,12 @@ func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIError
 		openAIError.Type = "upstream_error"
 	}
 	e := &NewAPIError{
-		RelayError: openAIError,
-		errorType:  ErrorTypeOpenAIError,
-		StatusCode: statusCode,
-		Err:        errors.New(openAIError.Message),
-		errorCode:  ErrorCode(code),
+		RelayError:    openAIError,
+		errorType:     ErrorTypeOpenAIError,
+		StatusCode:    statusCode,
+		Err:           errors.New(openAIError.Message),
+		errorCode:     ErrorCode(code),
+		upstreamError: shouldMarkErrorCodeAsUpstream(ErrorCode(code)),
 	}
 	// OpenRouter
 	if len(openAIError.Metadata) > 0 {
@@ -351,11 +403,12 @@ func WithClaudeError(claudeError ClaudeError, statusCode int, ops ...NewAPIError
 		claudeError.Type = "upstream_error"
 	}
 	e := &NewAPIError{
-		RelayError: claudeError,
-		errorType:  ErrorTypeClaudeError,
-		StatusCode: statusCode,
-		Err:        errors.New(claudeError.Message),
-		errorCode:  ErrorCode(claudeError.Type),
+		RelayError:    claudeError,
+		errorType:     ErrorTypeClaudeError,
+		StatusCode:    statusCode,
+		Err:           errors.New(claudeError.Message),
+		errorCode:     ErrorCode(claudeError.Type),
+		upstreamError: shouldMarkErrorCodeAsUpstream(ErrorCode(claudeError.Type)),
 	}
 	for _, op := range ops {
 		op(e)

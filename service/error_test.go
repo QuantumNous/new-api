@@ -122,6 +122,22 @@ func TestRelayErrorHandlerKeepsOpenAIErrorMessage(t *testing.T) {
 	require.Equal(t, message, newAPIError.Error())
 }
 
+func TestRelayErrorHandlerMarksStructuredErrorAsUpstreamForDownstreamPolicy(t *testing.T) {
+	body := `{"error":{"message":"token quota is not enough, url: https://example.invalid/responses","type":"upstream_error","code":"insufficient_quota"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusForbidden,
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, false)
+	responseError := types.ApplyDownstreamNewAPIErrorPolicy(newAPIError, "req_upstream")
+
+	require.NotNil(t, newAPIError)
+	require.Equal(t, http.StatusServiceUnavailable, responseError.StatusCode)
+	require.Equal(t, "Service Unavailable (request id: req_upstream)", responseError.Error())
+	require.Equal(t, types.ErrorCodeServiceUnavailable, responseError.GetErrorCode())
+}
+
 func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	withDebugEnabled(t, true)
 

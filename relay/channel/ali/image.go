@@ -311,12 +311,12 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 			return types.NewError(err, types.ErrorCodeBadResponse), nil
 		}
 		if aliResponse.Output.TaskStatus != "SUCCEEDED" {
-			return types.WithOpenAIError(types.OpenAIError{
+			return types.MarkAsUpstreamError(types.WithOpenAIError(types.OpenAIError{
 				Message: aliResponse.Output.Message,
 				Type:    "ali_error",
 				Param:   "",
 				Code:    aliResponse.Output.Code,
-			}, resp.StatusCode), nil
+			}, resp.StatusCode)), nil
 		}
 	}
 

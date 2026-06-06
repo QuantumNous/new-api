@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -72,6 +73,9 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
+			if isUserVisibleUpstreamErrorLog(logs[i], otherMap) {
+				maskUserUpstreamErrorLog(logs[i], otherMap)
+			}
 			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")
 			// delete(otherMap, "reject_reason")
@@ -80,6 +84,46 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
 	}
+}
+
+func isUserVisibleUpstreamErrorLog(log *Log, otherMap map[string]interface{}) bool {
+	if log == nil || log.Type != LogTypeError || otherMap == nil {
+		return false
+	}
+	if upstream, ok := otherMap["upstream_error"]; ok {
+		switch v := upstream.(type) {
+		case bool:
+			return v
+		case string:
+			return strings.EqualFold(v, "true")
+		}
+	}
+	code, _ := otherMap["error_code"].(string)
+	switch types.ErrorCode(code) {
+	case types.ErrorCodeDoRequestFailed,
+		types.ErrorCodeBadResponseStatusCode,
+		types.ErrorCodeBadResponse,
+		types.ErrorCodeReadResponseBodyFailed,
+		types.ErrorCodeBadResponseBody:
+		return true
+	default:
+		return false
+	}
+}
+
+func maskUserUpstreamErrorLog(log *Log, otherMap map[string]interface{}) {
+	log.Content = fmt.Sprintf("status_code=%d, %s", http.StatusServiceUnavailable, types.PublicServiceUnavailableMessage)
+	log.ChannelId = 0
+	log.ChannelName = ""
+	log.UpstreamRequestId = ""
+
+	otherMap["status_code"] = http.StatusServiceUnavailable
+	otherMap["error_code"] = string(types.ErrorCodeServiceUnavailable)
+	otherMap["error_type"] = string(types.ErrorTypeNewAPIError)
+	delete(otherMap, "channel_id")
+	delete(otherMap, "channel_name")
+	delete(otherMap, "channel_type")
+	delete(otherMap, "upstream_error")
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {

@@ -187,11 +187,11 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if minimaxResponse.BaseResp.StatusCode != 0 {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.MarkAsUpstreamError(types.WithOpenAIError(types.OpenAIError{
 			Message: minimaxResponse.BaseResp.StatusMsg,
 			Type:    "minimax_image_error",
 			Code:    fmt.Sprintf("%d", minimaxResponse.BaseResp.StatusCode),
-		}, resp.StatusCode)
+		}, resp.StatusCode))
 	}
 
 	openAIResponse, err := responseMiniMax2OpenAIImage(&minimaxResponse, info)
