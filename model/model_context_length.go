@@ -1,8 +1,11 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 // GetModelContextLength parses a model's comma-separated Tags field for a
@@ -23,16 +26,29 @@ import (
 // GetPricing() when the cache is already populated, so a call here never
 // triggers a database refresh — making it safe to invoke on every
 // /v1/models request and from tests that do not initialize a database.
-func GetModelContextLength(modelName string) *int64 {
+func GetModelContextLength(modelName string) (result *int64) {
 	if modelName == "" {
 		return nil
 	}
 
-	// Warm the pricing cache only if it already has entries, to avoid
-	// forcing a DB refresh from hot paths and test paths alike.
-	if len(pricingMap) > 0 {
-		GetPricing()
-	}
+	// Ensure the pricing cache is fresh. We always call GetPricing() (which
+	// is internally guarded by a 1-minute TTL and a mutex) so the cold-start
+	// path of /v1/models still surfaces context_length for the first request
+	// after a container restart. This mirrors GetModelEnableGroups and
+	// GetModelQuotaTypes in model_extra.go.
+	//
+	// The recover() guards test paths (and any future degraded DB state)
+	// where the cache refresh might panic. A failed refresh simply means
+	// we cannot resolve context_length for this request, which is the same
+	// outcome as "model not found in the cache" - return nil, do not crash
+	// the /v1/models response.
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysLog(fmt.Sprintf("GetModelContextLength: cache refresh panicked for model %q: %v", modelName, r))
+			result = nil
+		}
+	}()
+	GetPricing()
 
 	for i := range pricingMap {
 		if pricingMap[i].ModelName != modelName {

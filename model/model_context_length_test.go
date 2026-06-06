@@ -165,3 +165,33 @@ func TestGetModelContextLength(t *testing.T) {
 		})
 	}
 }
+
+// TestGetModelContextLengthColdCache verifies that a call against an
+// empty pricingMap returns nil cleanly (does not panic) even when the
+// underlying GetPricing() refresh would fail because no database is
+// reachable. This is the production cold-start path: every fresh
+// container start hits /v1/models with an empty cache and no DB
+// connection until the first admin request warms it.
+func TestGetModelContextLengthColdCache(t *testing.T) {
+	// Snapshot and restore the global cache state so this test does not
+	// pollute sibling tests.
+	origPricingMap := pricingMap
+	origLastGetPricingTime := lastGetPricingTime
+	t.Cleanup(func() {
+		pricingMap = origPricingMap
+		lastGetPricingTime = origLastGetPricingTime
+	})
+
+	// Simulate a fresh container: empty cache, stale timestamp (so
+	// GetPricing() would attempt a DB refresh if called).
+	pricingMap = nil
+	lastGetPricingTime = time.Time{}
+
+	// In a unit test environment there is no database wired up, so the
+	// refresh path inside GetPricing() may panic. The helper must recover
+	// and return nil rather than crashing the request handler.
+	got := GetModelContextLength("any-model")
+	if got != nil {
+		t.Fatalf("GetModelContextLength with empty cache = %d, want nil", *got)
+	}
+}
