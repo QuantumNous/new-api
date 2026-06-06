@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/service/conversationarchive"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -81,6 +83,12 @@ func ConversationArchive() gin.HandlerFunc {
 }
 
 func shouldArchiveRequest(c *gin.Context) bool {
+	if !operation_setting.IsConversationArchiveEnabled() {
+		return false
+	}
+	if common.GetContextKeyInt(c, constant.ContextKeyUserRole) >= common.RoleAdminUser {
+		return false
+	}
 	if c.Request == nil {
 		return false
 	}

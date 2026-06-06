@@ -100,6 +100,9 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultArchiveEnabled={Boolean(
+          settings['conversation_archive_setting.enabled']
+        )}
       />
     ),
   },

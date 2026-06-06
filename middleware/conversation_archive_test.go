@@ -1,0 +1,62 @@
+package middleware
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+)
+
+func TestShouldArchiveRequestAllowsCommonPost(t *testing.T) {
+	setConversationArchiveSetting(t, true)
+	c := newArchiveTestContext(http.MethodPost, common.RoleCommonUser, "{}")
+
+	require.True(t, shouldArchiveRequest(c))
+}
+
+func TestShouldArchiveRequestSkipsAdminAndRoot(t *testing.T) {
+	setConversationArchiveSetting(t, true)
+
+	for _, role := range []int{common.RoleAdminUser, common.RoleRootUser} {
+		c := newArchiveTestContext(http.MethodPost, role, "{}")
+		require.False(t, shouldArchiveRequest(c))
+	}
+}
+
+func TestShouldArchiveRequestSkipsDisabledSetting(t *testing.T) {
+	setConversationArchiveSetting(t, false)
+	c := newArchiveTestContext(http.MethodPost, common.RoleCommonUser, "{}")
+
+	require.False(t, shouldArchiveRequest(c))
+}
+
+func TestShouldArchiveRequestSkipsNonPost(t *testing.T) {
+	setConversationArchiveSetting(t, true)
+	c := newArchiveTestContext(http.MethodGet, common.RoleCommonUser, "{}")
+
+	require.False(t, shouldArchiveRequest(c))
+}
+
+func newArchiveTestContext(method string, role int, body string) *gin.Context {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(method, "/v1/chat/completions", strings.NewReader(body))
+	common.SetContextKey(c, constant.ContextKeyUserRole, role)
+	return c
+}
+
+func setConversationArchiveSetting(t *testing.T, enabled bool) {
+	t.Helper()
+	setting := operation_setting.GetConversationArchiveSetting()
+	previous := setting.Enabled
+	setting.Enabled = enabled
+	t.Cleanup(func() {
+		setting.Enabled = previous
+	})
+}

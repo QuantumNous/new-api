@@ -57,12 +57,14 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  ConversationArchiveEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultArchiveEnabled: boolean
 }
 
 const HOURS_IN_DAY = 24
@@ -92,6 +94,7 @@ const quickSelectOptions = [
 
 export function LogSettingsSection({
   defaultEnabled,
+  defaultArchiveEnabled,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -99,6 +102,7 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      ConversationArchiveEnabled: defaultArchiveEnabled,
     },
   })
 
@@ -109,8 +113,11 @@ export function LogSettingsSection({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: defaultEnabled,
+      ConversationArchiveEnabled: defaultArchiveEnabled,
+    })
+  }, [defaultArchiveEnabled, defaultEnabled, form])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -123,11 +130,22 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates: Array<{ key: string; value: boolean }> = []
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      updates.push({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.ConversationArchiveEnabled !== defaultArchiveEnabled) {
+      updates.push({
+        key: 'conversation_archive_setting.enabled',
+        value: values.ConversationArchiveEnabled,
+      })
+    }
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -185,6 +203,29 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='ConversationArchiveEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Collect conversation archive')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Store request and response bodies for non-admin relay requests. Environment archive settings must also be enabled.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>
