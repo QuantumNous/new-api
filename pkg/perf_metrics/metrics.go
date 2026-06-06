@@ -203,6 +203,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			AvgLatencyMs: avgLatency,
 			SuccessRate:  math.Round(successRate*100) / 100,
 			AvgTps:       math.Round(avgTps*100) / 100,
+			Availability: availability(total),
 			RequestCount: total.requestCount,
 		})
 	}
@@ -296,6 +297,7 @@ func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResu
 			AvgLatencyMs: avg(total.totalLatencyMs, total.requestCount),
 			SuccessRate:  successRate(total),
 			AvgTps:       avgTps(total),
+			Availability: availability(total),
 			Series:       series,
 		})
 	}
@@ -329,6 +331,16 @@ func successRate(value counters) float64 {
 		return 0
 	}
 	return float64(value.successCount) / float64(value.requestCount) * 100
+}
+
+func availability(value counters) string {
+	if value.requestCount <= 0 {
+		return "unknown"
+	}
+	if value.successCount > 0 {
+		return "available"
+	}
+	return "unavailable"
 }
 
 func avgTps(value counters) float64 {

@@ -33,6 +33,11 @@ import { GroupBadge } from '@/components/group-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
+  getPerformanceAvailability,
+  type PerformanceAvailability,
+  performanceAvailabilityIntent,
+} from '@/features/performance-metrics/lib/availability'
+import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -48,7 +53,7 @@ function StatCard(props: {
   label: string
   value: React.ReactNode
   hint?: string
-  intent?: 'default' | 'warning' | 'success'
+  intent?: 'default' | 'destructive' | 'success'
 }) {
   const Icon = props.icon
   const intent = props.intent ?? 'default'
@@ -61,7 +66,7 @@ function StatCard(props: {
       <span
         className={cn(
           'text-foreground font-mono text-lg font-semibold tabular-nums',
-          intent === 'warning' && 'text-amber-600 dark:text-amber-400',
+          intent === 'destructive' && 'text-destructive dark:text-destructive',
           intent === 'success' && 'text-emerald-600 dark:text-emerald-400'
         )}
       >
@@ -82,6 +87,7 @@ type PerformanceRow = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
+  availability?: 'available' | 'unavailable' | 'unknown'
 }
 
 function toLatencySeries(groups: PerformanceGroup[]) {
@@ -176,6 +182,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
         avg_latency_ms: group.avg_latency_ms,
         success_rate: group.success_rate,
         avg_tps: group.avg_tps,
+        availability: group.availability,
       })),
     [groups]
   )
@@ -216,14 +223,26 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     successRates.length > 0
       ? successRates.reduce((sum, value) => sum + value, 0) /
         successRates.length
-      : 0
+      : Number.NaN
   const incidentCount = uptimeSeries.reduce((s, p) => s + p.incidents, 0)
-  let intent: 'default' | 'warning' | 'success' = 'warning'
-  if (successRate >= 99.9) {
-    intent = 'success'
-  } else if (successRate >= 99) {
-    intent = 'default'
-  }
+  const availableCount = performances.filter(
+    (perf) => getPerformanceAvailability(perf) === 'available'
+  ).length
+  const unavailableCount = performances.filter(
+    (perf) => getPerformanceAvailability(perf) === 'unavailable'
+  ).length
+  const availability: PerformanceAvailability =
+    availableCount > 0
+      ? 'available'
+      : unavailableCount > 0
+        ? 'unavailable'
+        : 'unknown'
+  const intent = performanceAvailabilityIntent(
+    getPerformanceAvailability({
+      availability,
+      success_rate: successRate,
+    })
+  )
 
   const headerCellClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
