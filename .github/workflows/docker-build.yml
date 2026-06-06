@@ -271,19 +271,34 @@ jobs:
       - name: Manifest summary
         shell: bash
         run: |
+          inspect_manifest() {
+            local image="$1"
+            local attempt
+
+            for attempt in 1 2 3; do
+              if docker buildx imagetools inspect "${image}" >> $GITHUB_STEP_SUMMARY; then
+                return 0
+              fi
+              echo "Manifest inspect failed for ${image}, retry ${attempt}/3." >&2
+              sleep 5
+            done
+
+            echo "Manifest inspect unavailable for ${image}; the manifest create step already completed." >> $GITHUB_STEP_SUMMARY
+          }
+
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect ${GHCR_IMAGE}:${IMAGE_VERSION} >> $GITHUB_STEP_SUMMARY
+          inspect_manifest ${GHCR_IMAGE}:${IMAGE_VERSION}
           if [ "${PUBLISH_LATEST}" = "true" ]; then
             echo "---" >> $GITHUB_STEP_SUMMARY
-            docker buildx imagetools inspect ${GHCR_IMAGE}:latest >> $GITHUB_STEP_SUMMARY
+            inspect_manifest ${GHCR_IMAGE}:latest
           fi
           if [ "${DOCKERHUB_ENABLED}" = "true" ]; then
             echo "---" >> $GITHUB_STEP_SUMMARY
-            docker buildx imagetools inspect ${DOCKERHUB_IMAGE}:${IMAGE_VERSION} >> $GITHUB_STEP_SUMMARY
+            inspect_manifest ${DOCKERHUB_IMAGE}:${IMAGE_VERSION}
             if [ "${PUBLISH_LATEST}" = "true" ]; then
               echo "---" >> $GITHUB_STEP_SUMMARY
-              docker buildx imagetools inspect ${DOCKERHUB_IMAGE}:latest >> $GITHUB_STEP_SUMMARY
+              inspect_manifest ${DOCKERHUB_IMAGE}:latest
             fi
           else
             echo "---" >> $GITHUB_STEP_SUMMARY
