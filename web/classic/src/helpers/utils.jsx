@@ -123,7 +123,7 @@ export function showError(error) {
   console.error(error);
   if (error.message) {
     if (error.name === 'AxiosError') {
-      switch (error.response.status) {
+      switch (error.response?.status) {
         case 401:
           // 清除用户状态
           localStorage.removeItem('user');
