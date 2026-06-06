@@ -1,6 +1,7 @@
 package conversationarchive
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,10 @@ func TestCompressBytesRoundTrip(t *testing.T) {
 
 func TestBodyForExport(t *testing.T) {
 	jsonBody := bodyForExport([]byte(`{"ok":true}`))
-	require.IsType(t, map[string]any{}, jsonBody)
+	require.IsType(t, json.RawMessage{}, jsonBody)
+	rendered, err := jsonBody.(json.RawMessage).MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, []byte(`{"ok":true}`), rendered)
 
 	streamBody := bodyForExport([]byte("data: {\"ok\":true}\n\n"))
 	require.Equal(t, "data: {\"ok\":true}\n\n", streamBody)

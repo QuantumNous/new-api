@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -261,7 +262,10 @@ func CompressBytes(data []byte) ([]byte, error) {
 
 func CompressReader(reader io.Reader) ([]byte, error) {
 	var buf bytes.Buffer
-	zw := gzip.NewWriter(&buf)
+	zw, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := io.Copy(zw, reader); err != nil {
 		_ = zw.Close()
 		return nil, err
@@ -318,7 +322,11 @@ type ResponseRecorder struct {
 
 func NewResponseRecorder() *ResponseRecorder {
 	recorder := &ResponseRecorder{}
-	recorder.writer = gzip.NewWriter(&recorder.buf)
+	writer, err := gzip.NewWriterLevel(&recorder.buf, gzip.BestSpeed)
+	if err != nil {
+		writer = gzip.NewWriter(&recorder.buf)
+	}
+	recorder.writer = writer
 	return recorder
 }
 
@@ -485,9 +493,8 @@ func bodyForExport(body []byte) any {
 	if len(trimmed) == 0 {
 		return ""
 	}
-	var value any
-	if err := common.Unmarshal(trimmed, &value); err == nil {
-		return value
+	if gjson.ValidBytes(trimmed) {
+		return json.RawMessage(trimmed)
 	}
 	return string(body)
 }
