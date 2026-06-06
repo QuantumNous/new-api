@@ -37,3 +37,6 @@ token_estimator_test.go
 skills-lock.json
 generated-videos/
 docs/*.local.md
+tmp/
+test-*.mp4
+web/**/pnpm-lock.yaml
