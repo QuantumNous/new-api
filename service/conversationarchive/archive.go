@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -26,23 +27,39 @@ const (
 	defaultSessionHeader = "X-Session-Id"
 	defaultQueueSize     = 10000
 	defaultWorkerCount   = 2
+	defaultBatchSize     = 20
+	defaultFlushInterval = 500
+	defaultQueueMaxMB    = 4096
 	defaultDumpBatchSize = 1000
+	defaultDrainTimeout  = 600
 	defaultDumpMinute    = 10
 	tablePrefix          = "conversation_archive_"
 )
 
 type Config struct {
-	Enabled       bool
-	DSN           string
-	SessionHeader string
-	QueueSize     int
-	WorkerCount   int
-	Strict        bool
-	DumpEnabled   bool
-	DumpDir       string
-	DumpTimezone  string
-	DumpHour      int
-	DumpMinute    int
+	Enabled          bool
+	DSN              string
+	SessionHeader    string
+	QueueSize        int
+	QueueMaxBytesMB  int
+	WorkerCount      int
+	BatchSize        int
+	FlushIntervalMs  int
+	Strict           bool
+	DumpEnabled      bool
+	DumpDir          string
+	DumpTimezone     string
+	DumpHour         int
+	DumpMinute       int
+	DumpDrainSeconds int
+	R2Enabled        bool
+	R2Endpoint       string
+	R2Bucket         string
+	R2AccessKeyID    string
+	R2SecretKey      string
+	R2Region         string
+	R2Prefix         string
+	DropAfterUpload  bool
 }
 
 type Record struct {
@@ -66,6 +83,13 @@ type service struct {
 	cfg           Config
 	db            *gorm.DB
 	queue         chan Record
+	queueMaxBytes int64
+	queuedBytes   atomic.Int64
+	droppedCount  atomic.Int64
+	failedCount   atomic.Int64
+	writtenCount  atomic.Int64
+	queuedTables  map[string]int
+	queuedTableMu sync.Mutex
 	ensuredTables map[string]struct{}
 	tableMu       sync.Mutex
 }
@@ -77,17 +101,29 @@ var (
 
 func InitFromEnv() error {
 	cfg := Config{
-		Enabled:       common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_ENABLED", false),
-		DSN:           strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_DSN")),
-		SessionHeader: common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_SESSION_HEADER", defaultSessionHeader),
-		QueueSize:     common.GetEnvOrDefault("CONVERSATION_ARCHIVE_QUEUE_SIZE", defaultQueueSize),
-		WorkerCount:   common.GetEnvOrDefault("CONVERSATION_ARCHIVE_WORKERS", defaultWorkerCount),
-		Strict:        common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_STRICT", false),
-		DumpEnabled:   common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_DUMP_ENABLED", false),
-		DumpDir:       common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_DUMP_DIR", ""),
-		DumpTimezone:  common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_TIMEZONE", "Asia/Shanghai"),
-		DumpHour:      common.GetEnvOrDefault("CONVERSATION_ARCHIVE_DUMP_HOUR", 0),
-		DumpMinute:    common.GetEnvOrDefault("CONVERSATION_ARCHIVE_DUMP_MINUTE", defaultDumpMinute),
+		Enabled:          common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_ENABLED", false),
+		DSN:              strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_DSN")),
+		SessionHeader:    common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_SESSION_HEADER", defaultSessionHeader),
+		QueueSize:        common.GetEnvOrDefault("CONVERSATION_ARCHIVE_QUEUE_SIZE", defaultQueueSize),
+		QueueMaxBytesMB:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_QUEUE_MAX_BYTES_MB", defaultQueueMaxMB),
+		WorkerCount:      common.GetEnvOrDefault("CONVERSATION_ARCHIVE_WORKERS", defaultWorkerCount),
+		BatchSize:        common.GetEnvOrDefault("CONVERSATION_ARCHIVE_BATCH_SIZE", defaultBatchSize),
+		FlushIntervalMs:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_FLUSH_INTERVAL_MS", defaultFlushInterval),
+		Strict:           common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_STRICT", false),
+		DumpEnabled:      common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_DUMP_ENABLED", false),
+		DumpDir:          common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_DUMP_DIR", ""),
+		DumpTimezone:     common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_TIMEZONE", "Asia/Shanghai"),
+		DumpHour:         common.GetEnvOrDefault("CONVERSATION_ARCHIVE_DUMP_HOUR", 0),
+		DumpMinute:       common.GetEnvOrDefault("CONVERSATION_ARCHIVE_DUMP_MINUTE", defaultDumpMinute),
+		DumpDrainSeconds: common.GetEnvOrDefault("CONVERSATION_ARCHIVE_DUMP_DRAIN_TIMEOUT_SECONDS", defaultDrainTimeout),
+		R2Enabled:        common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_R2_ENABLED", false),
+		R2Endpoint:       strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_R2_ENDPOINT")),
+		R2Bucket:         strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_R2_BUCKET")),
+		R2AccessKeyID:    strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_R2_ACCESS_KEY_ID")),
+		R2SecretKey:      strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_R2_SECRET_ACCESS_KEY")),
+		R2Region:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_R2_REGION", "auto"),
+		R2Prefix:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_R2_PREFIX", "newapi-conversation-archive"),
+		DropAfterUpload:  common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_DROP_AFTER_UPLOAD", false),
 	}
 	return Init(cfg)
 }
@@ -109,8 +145,17 @@ func Init(cfg Config) error {
 	if cfg.QueueSize <= 0 {
 		cfg.QueueSize = defaultQueueSize
 	}
+	if cfg.QueueMaxBytesMB <= 0 {
+		cfg.QueueMaxBytesMB = defaultQueueMaxMB
+	}
 	if cfg.WorkerCount <= 0 {
 		cfg.WorkerCount = defaultWorkerCount
+	}
+	if cfg.BatchSize <= 0 {
+		cfg.BatchSize = defaultBatchSize
+	}
+	if cfg.FlushIntervalMs <= 0 {
+		cfg.FlushIntervalMs = defaultFlushInterval
 	}
 	if cfg.DumpMinute < 0 || cfg.DumpMinute > 59 {
 		cfg.DumpMinute = defaultDumpMinute
@@ -118,11 +163,23 @@ func Init(cfg Config) error {
 	if cfg.DumpHour < 0 || cfg.DumpHour > 23 {
 		cfg.DumpHour = 0
 	}
+	if cfg.DumpDrainSeconds <= 0 {
+		cfg.DumpDrainSeconds = defaultDrainTimeout
+	}
+	if cfg.R2Region == "" {
+		cfg.R2Region = "auto"
+	}
+	cfg.R2Prefix = strings.Trim(strings.TrimSpace(cfg.R2Prefix), "/")
+	if cfg.R2Enabled {
+		if cfg.R2Endpoint == "" || cfg.R2Bucket == "" || cfg.R2AccessKeyID == "" || cfg.R2SecretKey == "" {
+			return fmt.Errorf("启用会话归档 R2 上传时，endpoint、bucket、access key 与 secret key 均不能为空")
+		}
+	}
 
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN:                  cfg.DSN,
 		PreferSimpleProtocol: true,
-	}), &gorm.Config{PrepareStmt: true})
+	}), &gorm.Config{PrepareStmt: true, SkipDefaultTransaction: true})
 	if err != nil {
 		return err
 	}
@@ -131,6 +188,8 @@ func Init(cfg Config) error {
 		cfg:           cfg,
 		db:            db,
 		queue:         make(chan Record, cfg.QueueSize),
+		queueMaxBytes: int64(cfg.QueueMaxBytesMB) * 1024 * 1024,
+		queuedTables:  map[string]int{},
 		ensuredTables: map[string]struct{}{},
 	}
 	setCurrent(svc)
@@ -172,13 +231,25 @@ func Enqueue(record Record) {
 	if record.SessionID == "" {
 		record.SessionID = "unknown"
 	}
+	recordSize := compressedRecordSize(record)
 	if svc.cfg.Strict {
+		svc.reserveStrict(recordSize)
+		svc.trackQueuedTable(record)
 		svc.queue <- record
 		return
 	}
+	if !svc.tryReserve(recordSize) {
+		svc.droppedCount.Add(1)
+		logger.LogWarn(context.Background(), "会话归档队列字节上限已满，本条归档记录被跳过")
+		return
+	}
+	svc.trackQueuedTable(record)
 	select {
 	case svc.queue <- record:
 	default:
+		svc.releaseQueuedBytes(recordSize)
+		svc.releaseQueuedTable(record)
+		svc.droppedCount.Add(1)
 		logger.LogWarn(context.Background(), "会话归档队列已满，本条归档记录被跳过")
 	}
 }
@@ -199,26 +270,153 @@ func Close() error {
 }
 
 func (s *service) worker() {
-	for record := range s.queue {
-		if err := s.insert(record); err != nil {
+	batch := make([]Record, 0, s.cfg.BatchSize)
+	flushInterval := time.Duration(s.cfg.FlushIntervalMs) * time.Millisecond
+	for {
+		record, ok := <-s.queue
+		if !ok {
+			return
+		}
+		batch = append(batch[:0], record)
+		timer := time.NewTimer(flushInterval)
+		for len(batch) < s.cfg.BatchSize {
+			select {
+			case record, ok := <-s.queue:
+				if !ok {
+					goto flush
+				}
+				batch = append(batch, record)
+			case <-timer.C:
+				goto flush
+			}
+		}
+	flush:
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		if err := s.insertBatch(batch); err != nil {
+			s.failedCount.Add(int64(len(batch)))
 			logger.LogWarn(context.Background(), fmt.Sprintf("会话归档写入失败: %v", err))
+		} else {
+			s.writtenCount.Add(int64(len(batch)))
+		}
+		for _, record := range batch {
+			s.releaseQueuedBytes(compressedRecordSize(record))
+			s.releaseQueuedTable(record)
 		}
 	}
 }
 
-func (s *service) insert(record Record) error {
-	tableName := tableNameFor(record.RequestTime)
-	if err := s.ensureTable(tableName); err != nil {
-		return err
+func compressedRecordSize(record Record) int64 {
+	return int64(len(record.RequestBodyGzip) + len(record.ResponseBodyGzip))
+}
+
+func (s *service) reserveStrict(size int64) {
+	if s.queueMaxBytes <= 0 || size <= 0 {
+		return
 	}
-	row := archiveRow{
-		SessionID:        record.SessionID,
-		RequestTime:      record.RequestTime,
-		ResponseTime:     record.ResponseTime,
-		RequestBodyGzip:  record.RequestBodyGzip,
-		ResponseBodyGzip: record.ResponseBodyGzip,
+	if size > s.queueMaxBytes {
+		s.queuedBytes.Add(size)
+		return
 	}
-	return s.db.Table(tableName).Create(&row).Error
+	for !s.tryReserve(size) {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (s *service) tryReserve(size int64) bool {
+	if s.queueMaxBytes <= 0 || size <= 0 {
+		return true
+	}
+	for {
+		currentBytes := s.queuedBytes.Load()
+		if currentBytes+size > s.queueMaxBytes {
+			return false
+		}
+		if s.queuedBytes.CompareAndSwap(currentBytes, currentBytes+size) {
+			return true
+		}
+	}
+}
+
+func (s *service) releaseQueuedBytes(size int64) {
+	if s.queueMaxBytes <= 0 || size <= 0 {
+		return
+	}
+	s.queuedBytes.Add(-size)
+}
+
+func (s *service) trackQueuedTable(record Record) {
+	tableName := tableNameForRecord(record)
+	s.queuedTableMu.Lock()
+	defer s.queuedTableMu.Unlock()
+	if s.queuedTables == nil {
+		s.queuedTables = map[string]int{}
+	}
+	s.queuedTables[tableName]++
+}
+
+func (s *service) releaseQueuedTable(record Record) {
+	tableName := tableNameForRecord(record)
+	s.queuedTableMu.Lock()
+	defer s.queuedTableMu.Unlock()
+	count := s.queuedTables[tableName]
+	if count <= 1 {
+		delete(s.queuedTables, tableName)
+		return
+	}
+	s.queuedTables[tableName] = count - 1
+}
+
+func (s *service) queuedTableCount(tableName string) int {
+	s.queuedTableMu.Lock()
+	defer s.queuedTableMu.Unlock()
+	return s.queuedTables[tableName]
+}
+
+func (s *service) waitQueuedTableDrained(tableName string) error {
+	timeout := time.Duration(s.cfg.DumpDrainSeconds) * time.Second
+	deadline := time.Now().Add(timeout)
+	for {
+		count := s.queuedTableCount(tableName)
+		if count == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("归档表 %s 仍有 %d 条队列记录未写入", tableName, count)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func (s *service) insertBatch(records []Record) error {
+	recordsByTable := map[string][]Record{}
+	for _, record := range records {
+		tableName := tableNameForRecord(record)
+		recordsByTable[tableName] = append(recordsByTable[tableName], record)
+	}
+	for tableName, tableRecords := range recordsByTable {
+		if err := s.ensureTable(tableName); err != nil {
+			return err
+		}
+		rows := make([]archiveRow, 0, len(tableRecords))
+		for _, record := range tableRecords {
+			rows = append(rows, archiveRow{
+				SessionID:        record.SessionID,
+				RequestTime:      record.RequestTime,
+				ResponseTime:     record.ResponseTime,
+				RequestBodyGzip:  record.RequestBodyGzip,
+				ResponseBodyGzip: record.ResponseBodyGzip,
+			})
+		}
+		if err := s.db.Table(tableName).CreateInBatches(&rows, len(rows)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *service) ensureTable(tableName string) error {
@@ -227,7 +425,7 @@ func (s *service) ensureTable(tableName string) error {
 	if _, ok := s.ensuredTables[tableName]; ok {
 		return nil
 	}
-	if !strings.HasPrefix(tableName, tablePrefix) {
+	if !validArchiveTableName(tableName) {
 		return fmt.Errorf("非法归档表名: %s", tableName)
 	}
 	createSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (
@@ -254,6 +452,29 @@ response_body_gzip BYTEA NOT NULL
 
 func tableNameFor(t time.Time) string {
 	return tablePrefix + t.Format("20060102")
+}
+
+func tableNameForRecord(record Record) string {
+	if !record.ResponseTime.IsZero() {
+		return tableNameFor(record.ResponseTime)
+	}
+	return tableNameFor(record.RequestTime)
+}
+
+func validArchiveTableName(tableName string) bool {
+	if !strings.HasPrefix(tableName, tablePrefix) {
+		return false
+	}
+	suffix := strings.TrimPrefix(tableName, tablePrefix)
+	if len(suffix) != len("20060102") {
+		return false
+	}
+	for _, ch := range suffix {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func CompressBytes(data []byte) ([]byte, error) {
@@ -413,6 +634,9 @@ func (s *service) DumpDate(date time.Time) error {
 	loc := s.dumpLocation()
 	localDate := date.In(loc)
 	tableName := tableNameFor(localDate)
+	if err := s.waitQueuedTableDrained(tableName); err != nil {
+		return err
+	}
 	if !s.db.Migrator().HasTable(tableName) {
 		return nil
 	}
@@ -439,7 +663,21 @@ func (s *service) DumpDate(date time.Time) error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, finalPath)
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		return err
+	}
+	if s.cfg.R2Enabled {
+		key := s.r2ObjectKey(localDate, fileName)
+		if err := s.uploadDumpToR2(context.Background(), finalPath, key); err != nil {
+			return err
+		}
+		if s.cfg.DropAfterUpload {
+			if err := s.dropArchiveTable(tableName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s *service) writeDumpRows(writer io.Writer, tableName string, loc *time.Location) error {
