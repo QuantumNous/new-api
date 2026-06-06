@@ -47,8 +47,10 @@ func TestBodyForExport(t *testing.T) {
 
 func TestValidArchiveTableName(t *testing.T) {
 	require.True(t, validArchiveTableName("conversation_archive_20260606"))
+	require.True(t, validArchiveTableName("conversation_archive_abnormal_20260606"))
 	require.False(t, validArchiveTableName("conversation_archive_202606"))
 	require.False(t, validArchiveTableName("conversation_archive_2026060a"))
+	require.False(t, validArchiveTableName("conversation_archive_abnormal_2026060a"))
 	require.False(t, validArchiveTableName("other_20260606"))
 }
 
@@ -58,6 +60,28 @@ func TestTableNameForRecordPrefersResponseTime(t *testing.T) {
 		ResponseTime: time.Date(2026, 6, 7, 0, 1, 0, 0, time.UTC),
 	}
 	require.Equal(t, "conversation_archive_20260607", tableNameForRecord(record))
+}
+
+func TestTableNameForRecordUsesAbnormalPrefix(t *testing.T) {
+	record := Record{
+		Kind:         ArchiveKindAbnormal,
+		RequestTime:  time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC),
+		ResponseTime: time.Date(2026, 6, 6, 8, 1, 0, 0, time.UTC),
+	}
+	require.Equal(t, "conversation_archive_abnormal_20260606", tableNameForRecord(record))
+}
+
+func TestArchiveLookupTablesIncludesNormalAndAbnormal(t *testing.T) {
+	base := time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC)
+	createdAt := base.Unix()
+	tables := archiveLookupTables(createdAt)
+	localBase := time.Unix(createdAt, 0)
+
+	require.Len(t, tables, 6)
+	require.Equal(t, archiveLookupTable{tableName: tableNameForKind(localBase, ArchiveKindNormal), kind: ArchiveKindNormal}, tables[0])
+	require.Equal(t, archiveLookupTable{tableName: tableNameForKind(localBase, ArchiveKindAbnormal), kind: ArchiveKindAbnormal}, tables[1])
+	require.Equal(t, archiveLookupTable{tableName: tableNameForKind(localBase.AddDate(0, 0, -1), ArchiveKindNormal), kind: ArchiveKindNormal}, tables[2])
+	require.Equal(t, archiveLookupTable{tableName: tableNameForKind(localBase.AddDate(0, 0, -1), ArchiveKindAbnormal), kind: ArchiveKindAbnormal}, tables[3])
 }
 
 func TestQueueByteReservation(t *testing.T) {

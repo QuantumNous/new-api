@@ -79,6 +79,7 @@ func ConversationArchive() gin.HandlerFunc {
 			return
 		}
 		conversationarchive.Enqueue(conversationarchive.Record{
+			Kind:               archiveKind(c),
 			SessionID:          sessionID,
 			RequestID:          requestID,
 			RequestTime:        requestTime,
@@ -88,6 +89,13 @@ func ConversationArchive() gin.HandlerFunc {
 			ResponseBodyGzip:   responseBodyGzip,
 		})
 	}
+}
+
+func archiveKind(c *gin.Context) conversationarchive.ArchiveKind {
+	if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+		return conversationarchive.ArchiveKindAbnormal
+	}
+	return conversationarchive.ArchiveKindNormal
 }
 
 func shouldArchiveRequest(c *gin.Context) bool {

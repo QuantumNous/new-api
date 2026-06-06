@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +60,21 @@ func TestGetArchiveRequestHeadersRoundTrip(t *testing.T) {
 	require.NoError(t, common.Unmarshal(raw, &headers))
 	require.Equal(t, []string{"Bearer test"}, headers["Authorization"])
 	require.Equal(t, []string{"first", "second"}, headers["X-Trace"])
+}
+
+func TestArchiveKindMarksCanceledRequestAbnormal(t *testing.T) {
+	c := newArchiveTestContext(http.MethodPost, common.RoleCommonUser, "{}")
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	cancel()
+	c.Request = c.Request.WithContext(ctx)
+
+	require.Equal(t, conversationarchive.ArchiveKindAbnormal, archiveKind(c))
+}
+
+func TestArchiveKindDefaultsNormal(t *testing.T) {
+	c := newArchiveTestContext(http.MethodPost, common.RoleCommonUser, "{}")
+
+	require.Equal(t, conversationarchive.ArchiveKindNormal, archiveKind(c))
 }
 
 func newArchiveTestContext(method string, role int, body string) *gin.Context {

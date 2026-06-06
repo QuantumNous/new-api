@@ -34,6 +34,14 @@ const (
 	defaultDrainTimeout  = 600
 	defaultDumpMinute    = 10
 	tablePrefix          = "conversation_archive_"
+	abnormalTablePrefix  = "conversation_archive_abnormal_"
+)
+
+type ArchiveKind string
+
+const (
+	ArchiveKindNormal   ArchiveKind = "normal"
+	ArchiveKindAbnormal ArchiveKind = "abnormal"
 )
 
 type Config struct {
@@ -63,6 +71,7 @@ type Config struct {
 }
 
 type Record struct {
+	Kind               ArchiveKind
 	SessionID          string
 	RequestID          string
 	RequestTime        time.Time
@@ -81,6 +90,13 @@ type archiveRow struct {
 	RequestHeadersGzip []byte
 	RequestBodyGzip    []byte
 	ResponseBodyGzip   []byte
+}
+
+func (k ArchiveKind) normalized() ArchiveKind {
+	if k == ArchiveKindAbnormal {
+		return ArchiveKindAbnormal
+	}
+	return ArchiveKindNormal
 }
 
 type service struct {
@@ -453,7 +469,7 @@ response_body_gzip BYTEA NOT NULL
 	if err := s.db.Exec(fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN IF NOT EXISTS request_headers_gzip BYTEA NOT NULL DEFAULT decode('', 'hex')`, tableName)).Error; err != nil {
 		return err
 	}
-	suffix := strings.TrimPrefix(tableName, tablePrefix)
+	suffix := archiveIndexSuffix(tableName)
 	if err := s.db.Exec(fmt.Sprintf(`CREATE INDEX IF NOT EXISTS "idx_conv_archive_%s_request_id" ON "%s" (request_id)`, suffix, tableName)).Error; err != nil {
 		return err
 	}
@@ -468,21 +484,30 @@ response_body_gzip BYTEA NOT NULL
 }
 
 func tableNameFor(t time.Time) string {
-	return tablePrefix + t.Format("20060102")
+	return tableNameForKind(t, ArchiveKindNormal)
+}
+
+func tableNameForKind(t time.Time, kind ArchiveKind) string {
+	prefix := tablePrefix
+	if kind.normalized() == ArchiveKindAbnormal {
+		prefix = abnormalTablePrefix
+	}
+	return prefix + t.Format("20060102")
 }
 
 func tableNameForRecord(record Record) string {
+	kind := record.Kind.normalized()
 	if !record.ResponseTime.IsZero() {
-		return tableNameFor(record.ResponseTime)
+		return tableNameForKind(record.ResponseTime, kind)
 	}
-	return tableNameFor(record.RequestTime)
+	return tableNameForKind(record.RequestTime, kind)
 }
 
 func validArchiveTableName(tableName string) bool {
-	if !strings.HasPrefix(tableName, tablePrefix) {
+	suffix := archiveTableSuffix(tableName)
+	if suffix == "" {
 		return false
 	}
-	suffix := strings.TrimPrefix(tableName, tablePrefix)
 	if len(suffix) != len("20060102") {
 		return false
 	}
@@ -492,6 +517,23 @@ func validArchiveTableName(tableName string) bool {
 		}
 	}
 	return true
+}
+
+func archiveTableSuffix(tableName string) string {
+	if strings.HasPrefix(tableName, abnormalTablePrefix) {
+		return strings.TrimPrefix(tableName, abnormalTablePrefix)
+	}
+	if strings.HasPrefix(tableName, tablePrefix) {
+		return strings.TrimPrefix(tableName, tablePrefix)
+	}
+	return ""
+}
+
+func archiveIndexSuffix(tableName string) string {
+	if strings.HasPrefix(tableName, abnormalTablePrefix) {
+		return "abnormal_" + strings.TrimPrefix(tableName, abnormalTablePrefix)
+	}
+	return strings.TrimPrefix(tableName, tablePrefix)
 }
 
 func CompressBytes(data []byte) ([]byte, error) {
@@ -778,13 +820,14 @@ func headersForExport(headers []byte) any {
 }
 
 type Detail struct {
-	SessionID      string `json:"session_id"`
-	RequestID      string `json:"request_id"`
-	RequestTime    string `json:"request_time"`
-	ResponseTime   string `json:"response_time"`
-	RequestHeaders any    `json:"request_headers"`
-	RequestBody    any    `json:"request_body"`
-	ResponseBody   any    `json:"response_body"`
+	ArchiveKind    ArchiveKind `json:"archive_kind"`
+	SessionID      string      `json:"session_id"`
+	RequestID      string      `json:"request_id"`
+	RequestTime    string      `json:"request_time"`
+	ResponseTime   string      `json:"response_time"`
+	RequestHeaders any         `json:"request_headers"`
+	RequestBody    any         `json:"request_body"`
+	ResponseBody   any         `json:"response_body"`
 }
 
 func GetDetailByRequestID(requestID string, createdAt int64) (*Detail, error) {
@@ -802,7 +845,8 @@ func (s *service) getDetailByRequestID(requestID string, createdAt int64) (*Deta
 	if requestID == "" {
 		return nil, fmt.Errorf("日志缺少 request_id，无法定位归档")
 	}
-	for _, tableName := range archiveLookupTables(createdAt) {
+	for _, lookup := range archiveLookupTables(createdAt) {
+		tableName := lookup.tableName
 		if !s.db.Migrator().HasTable(tableName) {
 			continue
 		}
@@ -813,7 +857,7 @@ func (s *service) getDetailByRequestID(requestID string, createdAt int64) (*Deta
 			Limit(1).
 			First(&row).Error
 		if err == nil {
-			return archiveDetailFromRow(row)
+			return archiveDetailFromRow(row, lookup.kind)
 		}
 		if err != gorm.ErrRecordNotFound {
 			return nil, err
@@ -822,25 +866,36 @@ func (s *service) getDetailByRequestID(requestID string, createdAt int64) (*Deta
 	return nil, fmt.Errorf("未找到该日志对应的会话归档")
 }
 
-func archiveLookupTables(createdAt int64) []string {
+type archiveLookupTable struct {
+	tableName string
+	kind      ArchiveKind
+}
+
+func archiveLookupTables(createdAt int64) []archiveLookupTable {
 	base := time.Now()
 	if createdAt > 0 {
 		base = time.Unix(createdAt, 0)
 	}
-	tables := make([]string, 0, 3)
+	tables := make([]archiveLookupTable, 0, 6)
 	seen := map[string]struct{}{}
 	for _, offset := range []int{0, -1, 1} {
-		tableName := tableNameFor(base.AddDate(0, 0, offset))
-		if _, ok := seen[tableName]; ok {
-			continue
+		date := base.AddDate(0, 0, offset)
+		for _, kind := range []ArchiveKind{ArchiveKindNormal, ArchiveKindAbnormal} {
+			tableName := tableNameForKind(date, kind)
+			if _, ok := seen[tableName]; ok {
+				continue
+			}
+			seen[tableName] = struct{}{}
+			tables = append(tables, archiveLookupTable{
+				tableName: tableName,
+				kind:      kind,
+			})
 		}
-		seen[tableName] = struct{}{}
-		tables = append(tables, tableName)
 	}
 	return tables
 }
 
-func archiveDetailFromRow(row archiveRow) (*Detail, error) {
+func archiveDetailFromRow(row archiveRow, kind ArchiveKind) (*Detail, error) {
 	requestHeaders, err := DecompressOptionalBytes(row.RequestHeadersGzip)
 	if err != nil {
 		return nil, err
@@ -854,6 +909,7 @@ func archiveDetailFromRow(row archiveRow) (*Detail, error) {
 		return nil, err
 	}
 	return &Detail{
+		ArchiveKind:    kind.normalized(),
 		SessionID:      row.SessionID,
 		RequestID:      row.RequestID,
 		RequestTime:    row.RequestTime.Format(time.RFC3339Nano),

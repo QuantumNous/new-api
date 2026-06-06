@@ -330,6 +330,7 @@ export interface GetLogStatsResponse {
 }
 
 export interface LogArchiveDetail {
+  archive_kind?: 'normal' | 'abnormal'
   session_id: string
   request_id: string
   request_time: string
