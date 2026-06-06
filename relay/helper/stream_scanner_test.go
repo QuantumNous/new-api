@@ -415,6 +415,54 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 	assert.False(t, info.StreamStatus.IsNormalEnd())
 }
 
+func TestStreamScannerHandler_StreamStatus_FirstDataTimeout(t *testing.T) {
+	// Not parallel: modifies global constant.StreamingTimeout
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 1
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		deadline := time.After(2 * time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := fmt.Fprint(pw, "event: keepalive\n\n"); err != nil {
+					return
+				}
+			case <-deadline:
+				return
+			}
+		}
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first data timeout")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+}
+
 func TestStreamScannerHandler_StreamStatus_SoftErrors(t *testing.T) {
 	t.Parallel()
 

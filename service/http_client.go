@@ -10,16 +10,21 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"golang.org/x/net/proxy"
 )
 
 var (
-	httpClient      *http.Client
-	proxyClientLock sync.Mutex
-	proxyClients    = make(map[string]*http.Client)
+	httpClient         *http.Client
+	streamHttpClient   *http.Client
+	proxyClientLock    sync.Mutex
+	proxyClients       = make(map[string]*http.Client)
+	streamProxyClients = make(map[string]*http.Client)
 )
+
+const defaultStreamingResponseHeaderTimeout = 60 * time.Second
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	fetchSetting := system_setting.GetFetchSetting()
@@ -31,6 +36,39 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 		return fmt.Errorf("stopped after 10 redirects")
 	}
 	return nil
+}
+
+func streamingResponseHeaderTimeout() time.Duration {
+	if constant.StreamingTimeout > 0 {
+		return time.Duration(constant.StreamingTimeout) * time.Second
+	}
+	return defaultStreamingResponseHeaderTimeout
+}
+
+func newHTTPClient(transport *http.Transport, timeout time.Duration) *http.Client {
+	client := &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
+	}
+	if timeout > 0 {
+		client.Timeout = timeout
+	}
+	return client
+}
+
+func newStreamingHTTPClient(transport *http.Transport) *http.Client {
+	streamTransport := transport.Clone()
+	timeout := streamingResponseHeaderTimeout()
+	if streamTransport.DialContext == nil {
+		dialer := &net.Dialer{
+			Timeout:   timeout,
+			KeepAlive: 30 * time.Second,
+		}
+		streamTransport.DialContext = dialer.DialContext
+	}
+	streamTransport.TLSHandshakeTimeout = timeout
+	streamTransport.ResponseHeaderTimeout = timeout
+	return newHTTPClient(streamTransport, 0)
 }
 
 func InitHttpClient() {
@@ -45,22 +83,16 @@ func InitHttpClient() {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
 
-	if common.RelayTimeout == 0 {
-		httpClient = &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-	} else {
-		httpClient = &http.Client{
-			Transport:     transport,
-			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
-			CheckRedirect: checkRedirect,
-		}
-	}
+	httpClient = newHTTPClient(transport, time.Duration(common.RelayTimeout)*time.Second)
+	streamHttpClient = newStreamingHTTPClient(transport)
 }
 
 func GetHttpClient() *http.Client {
 	return httpClient
+}
+
+func GetStreamHttpClient() *http.Client {
+	return streamHttpClient
 }
 
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
@@ -69,6 +101,14 @@ func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
 		return GetHttpClient(), nil
 	}
 	return NewProxyHttpClient(proxyURL)
+}
+
+// GetStreamHttpClientWithProxy returns a streaming client without a total request timeout.
+func GetStreamHttpClientWithProxy(proxyURL string) (*http.Client, error) {
+	if proxyURL == "" {
+		return GetStreamHttpClient(), nil
+	}
+	return NewStreamProxyHttpClient(proxyURL)
 }
 
 // ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
@@ -81,19 +121,42 @@ func ResetProxyClientCache() {
 		}
 	}
 	proxyClients = make(map[string]*http.Client)
+	for _, client := range streamProxyClients {
+		if transport, ok := client.Transport.(*http.Transport); ok && transport != nil {
+			transport.CloseIdleConnections()
+		}
+	}
+	streamProxyClients = make(map[string]*http.Client)
 }
 
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
 func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
+	return newProxyHttpClient(proxyURL, false)
+}
+
+// NewStreamProxyHttpClient 创建支持代理的流式 HTTP 客户端。
+func NewStreamProxyHttpClient(proxyURL string) (*http.Client, error) {
+	return newProxyHttpClient(proxyURL, true)
+}
+
+func newProxyHttpClient(proxyURL string, stream bool) (*http.Client, error) {
 	if proxyURL == "" {
-		if client := GetHttpClient(); client != nil {
+		client := GetHttpClient()
+		if stream {
+			client = GetStreamHttpClient()
+		}
+		if client != nil {
 			return client, nil
 		}
 		return http.DefaultClient, nil
 	}
 
 	proxyClientLock.Lock()
-	if client, ok := proxyClients[proxyURL]; ok {
+	cache := proxyClients
+	if stream {
+		cache = streamProxyClients
+	}
+	if client, ok := cache[proxyURL]; ok {
 		proxyClientLock.Unlock()
 		return client, nil
 	}
@@ -116,13 +179,18 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
-		client := &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
+		var client *http.Client
+		if stream {
+			client = newStreamingHTTPClient(transport)
+		} else {
+			client = newHTTPClient(transport, time.Duration(common.RelayTimeout)*time.Second)
 		}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
+		if stream {
+			streamProxyClients[proxyURL] = client
+		} else {
+			proxyClients[proxyURL] = client
+		}
 		proxyClientLock.Unlock()
 		return client, nil
 
@@ -141,7 +209,14 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 
 		// 创建 SOCKS5 代理拨号器
 		// proxy.SOCKS5 使用 tcp 参数，所有 TCP 连接包括 DNS 查询都将通过代理进行。行为与 socks5h 相同
-		dialer, err := proxy.SOCKS5("tcp", parsedURL.Host, auth, proxy.Direct)
+		var forward proxy.Dialer = proxy.Direct
+		if stream {
+			forward = &net.Dialer{
+				Timeout:   streamingResponseHeaderTimeout(),
+				KeepAlive: 30 * time.Second,
+			}
+		}
+		dialer, err := proxy.SOCKS5("tcp", parsedURL.Host, auth, forward)
 		if err != nil {
 			return nil, err
 		}
@@ -159,10 +234,18 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
 
-		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+		var client *http.Client
+		if stream {
+			client = newStreamingHTTPClient(transport)
+		} else {
+			client = newHTTPClient(transport, time.Duration(common.RelayTimeout)*time.Second)
+		}
 		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
+		if stream {
+			streamProxyClients[proxyURL] = client
+		} else {
+			proxyClients[proxyURL] = client
+		}
 		proxyClientLock.Unlock()
 		return client, nil
 

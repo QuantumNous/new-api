@@ -25,7 +25,7 @@ const (
 	InitialScannerBufferSize    = 64 << 10  // 64KB (64*1024)
 	DefaultMaxScannerBufferSize = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
 	DefaultPingInterval         = 10 * time.Second
-	DefaultStreamingTimeout     = 300 * time.Second
+	DefaultStreamingTimeout     = 60 * time.Second
 )
 
 func getScannerBufferSize() int {
@@ -39,6 +39,19 @@ func NewStreamScanner(reader io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, InitialScannerBufferSize), getScannerBufferSize())
 	return scanner
+}
+
+func parseStreamDataLine(line string) (string, bool) {
+	line = strings.TrimSpace(line)
+	switch {
+	case strings.HasPrefix(line, "data:"):
+		data := strings.TrimSpace(line[5:])
+		return data, data != ""
+	case strings.HasPrefix(line, "[DONE]"):
+		return "[DONE]", true
+	default:
+		return "", false
+	}
 }
 
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
@@ -240,21 +253,17 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			default:
 			}
 
-			ticker.Reset(streamingTimeout)
-			data := scanner.Text()
-			logger.LogDebug(c, "stream scanner data: %s", data)
+			rawLine := scanner.Text()
+			logger.LogDebug(c, "stream scanner data: %s", rawLine)
 
-			if len(data) < 6 {
+			data, ok := parseStreamDataLine(rawLine)
+			if !ok {
+				if info.HasSendResponse() {
+					ticker.Reset(streamingTimeout)
+				}
 				continue
 			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
-				continue
-			}
-			data = data[5:]
-			data = strings.TrimSpace(data)
-			if data == "" {
-				continue
-			}
+			ticker.Reset(streamingTimeout)
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
