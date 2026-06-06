@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import type { SystemStatus } from '@/features/auth/types'
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
 
@@ -41,6 +42,34 @@ const STATUS_RELATED_KEYS = [
 export function useUpdateOption() {
   const queryClient = useQueryClient()
 
+  const patchStatusCache = (enabled: boolean) => {
+    queryClient.setQueryData<SystemStatus | undefined>(['status'], (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        perf_metrics_enabled: enabled,
+      }
+    })
+
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = window.localStorage.getItem('status')
+        if (saved) {
+          const parsed = JSON.parse(saved) as SystemStatus
+          window.localStorage.setItem(
+            'status',
+            JSON.stringify({
+              ...parsed,
+              perf_metrics_enabled: enabled,
+            })
+          )
+        }
+      }
+    } catch {
+      /* empty */
+    }
+  }
+
   return useMutation({
     mutationFn: (request: UpdateOptionRequest) => updateSystemOption(request),
     onSuccess: (data, variables) => {
@@ -50,11 +79,16 @@ export function useUpdateOption() {
 
         // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.includes(variables.key)) {
+          if (variables.key === 'perf_metrics_setting.enabled') {
+            patchStatusCache(Boolean(variables.value))
+          }
           queryClient.invalidateQueries({ queryKey: ['status'] })
-          try {
-            window.localStorage.removeItem('status')
-          } catch {
-            /* empty */
+          if (variables.key !== 'perf_metrics_setting.enabled') {
+            try {
+              window.localStorage.removeItem('status')
+            } catch {
+              /* empty */
+            }
           }
         }
 
