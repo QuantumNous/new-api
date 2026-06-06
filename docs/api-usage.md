@@ -13,7 +13,7 @@
 | Base URL | `http://192.129.209.36:3001/v1` |
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
 | 兼容协议 | OpenAI API (Chat Completions, Models, Images, Video Generations) |
-| API Key | 由我方单独发放；本文档不内嵌真实密钥 |
+| 内部测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
 | 测试 Key 额度 | 当前测试 Key 为无限额度（unlimited_quota）；生产 Key 以实际配置为准 |
 
 当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成视频全模型回归测试；2026-06-06 再次合并 upstream 最新代码、重新部署远端服务，并完成 SiliconFlow 图片模型实测。
@@ -21,17 +21,17 @@
 所有请求必须在 HTTP Header 中携带 API Key：
 
 ```
-Authorization: Bearer your-api-key-here
+Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 ```
 
-不要把真实 API Key 写入代码、日志、Prompt、截图或共享文档。调用方拿到 Key 后只在运行环境变量、密钥管理系统或后端配置中保存。
+本文档保留的是本服务内部测试 Key，供联调和 AI agent 读取。生产 Key、上游供应商 Key 和个人 Key 不要写入代码、日志、Prompt 或截图。
 
 ---
 
 ## 给 AI agent 的读取规则
 
 - 模型名必须逐字使用表格中的值，不要翻译、改大小写、替换斜杠或自动补后缀。
-- 所有请求统一使用 `http://192.129.209.36:3001/v1` 作为 Base URL，并携带 `Authorization: Bearer your-api-key-here`。
+- 所有请求统一使用 `http://192.129.209.36:3001/v1` 作为 Base URL，并携带上方 `Authorization` Header。
 - 图片生成返回可能是 `data[0].url` 或 `data[0].b64_json`；客户端必须同时兼容两种字段，不要假设只有一种。
 - 视频生成是异步任务：先 `POST /v1/videos` 获取 `task_id`，再 `GET /v1/videos/{task_id}` 轮询，完成后用 `GET /v1/videos/{task_id}/content` 下载。
 - 不要在日志中打印完整 `b64_json`、签名图片 URL、视频下载 URL 或 API Key；排障只记录模型名、HTTP 状态、耗时、`task_id` 和返回字段是否存在。

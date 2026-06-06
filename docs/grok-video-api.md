@@ -33,7 +33,7 @@ AI 聚合站 / LK888 也已接入 `grok-video-3`，该线路使用 `/v1/media/ge
 | Base URL | `http://192.129.209.36:3001/v1` |
 | 模型 | `grok-imagine-1.0-video`、`grok-imagine-1.0-video-20s`、`grok-imagine-1.0-video-30s` |
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
-| API Key | 由我方单独发放；本文档不内嵌真实密钥 |
+| 内部测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
 
 ## 接口
 
