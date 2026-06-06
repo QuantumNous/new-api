@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
   formatLatency,
   formatThroughput,
@@ -67,9 +68,15 @@ function rateDotClass(rate: number): string {
 
 export function PerformanceHealthPanel() {
   const { t } = useTranslation()
+  const perfMetricsVisible = usePerformanceMetricsVisibility()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
+    queryKey: [
+      'perf-metrics-summary',
+      PERFORMANCE_WINDOW_HOURS,
+      perfMetricsVisible,
+    ],
     queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
+    enabled: perfMetricsVisible,
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -100,6 +107,10 @@ export function PerformanceHealthPanel() {
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
+
+  if (!perfMetricsVisible) {
+    return null
+  }
 
   return (
     <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>

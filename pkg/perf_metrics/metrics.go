@@ -77,6 +77,15 @@ func Record(sample Sample) {
 }
 
 func Query(params QueryParams) (QueryResult, error) {
+	setting := perf_metrics_setting.GetSetting()
+	if !setting.Enabled {
+		return QueryResult{
+			ModelName:    params.Model,
+			SeriesSchema: seriesSchema,
+			Groups:       []GroupResult{},
+		}, nil
+	}
+
 	if params.Hours <= 0 {
 		params.Hours = 24
 	}
@@ -123,6 +132,11 @@ func Query(params QueryParams) (QueryResult, error) {
 }
 
 func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
+	setting := perf_metrics_setting.GetSetting()
+	if !setting.Enabled {
+		return SummaryAllResult{Models: []ModelSummary{}}, nil
+	}
+
 	if hours <= 0 {
 		hours = 24
 	}

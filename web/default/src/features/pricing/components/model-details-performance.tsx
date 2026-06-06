@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { GroupBadge } from '@/components/group-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
+import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
   formatLatency,
   formatThroughput,
@@ -156,9 +157,11 @@ function average(
 
 export function ModelDetailsPerformance(props: { model: PricingModel }) {
   const { t } = useTranslation()
+  const perfMetricsVisible = usePerformanceMetricsVisibility()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
+    queryKey: ['perf-metrics', props.model.model_name, perfMetricsVisible],
     queryFn: () => getPerfMetrics(props.model.model_name, 24),
+    enabled: perfMetricsVisible,
     staleTime: 60 * 1000,
   })
   const groups = useMemo(
@@ -185,6 +188,10 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     }
     return map
   }, [groups])
+
+  if (!perfMetricsVisible) {
+    return null
+  }
 
   if (metricsQuery.isLoading || performances.length === 0) {
     return (

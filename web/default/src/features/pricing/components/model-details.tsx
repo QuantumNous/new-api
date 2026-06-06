@@ -46,6 +46,7 @@ import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
 import { PublicLayout } from '@/components/layout'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
+import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
   formatLatency,
   formatThroughput,
@@ -201,11 +202,17 @@ function OverviewMetric(props: {
 
 function OverviewSummaryGrid(props: { model: PricingModel }) {
   const { t } = useTranslation()
+  const perfMetricsVisible = usePerformanceMetricsVisibility()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
+    queryKey: ['perf-metrics', props.model.model_name, perfMetricsVisible],
     queryFn: () => getPerfMetrics(props.model.model_name, 24),
+    enabled: perfMetricsVisible,
     staleTime: 60 * 1000,
   })
+
+  if (!perfMetricsVisible) {
+    return null
+  }
 
   const groups = metricsQuery.data?.data.groups ?? []
   const successRates = groups
@@ -269,9 +276,7 @@ function ModelHeader(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
-  const modelIcon = modelIconKey
-    ? getLobeIcon(modelIconKey, 20)
-    : null
+  const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const description = model.description || model.vendor_description || null
   const tags = parseTags(model.tags)
   const isSpecialExpression =
@@ -912,18 +917,27 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
   const metadata = useMemo(() => inferModelMetadata(props.model), [props.model])
+  const perfMetricsVisible = usePerformanceMetricsVisibility()
 
   const isDynamic =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
+  const showPerformanceTab = perfMetricsVisible
 
   return (
     <div className='@container/details space-y-4'>
       <ModelHeader model={props.model} />
 
       <Tabs defaultValue='overview' className='gap-4'>
-        <TabsList className='bg-muted/60 grid w-full grid-cols-3 gap-1 rounded-lg p-1 group-data-horizontal/tabs:h-auto'>
-          {TAB_VALUES.map((value) => {
+        <TabsList
+          className={cn(
+            'bg-muted/60 grid w-full gap-1 rounded-lg p-1 group-data-horizontal/tabs:h-auto',
+            showPerformanceTab ? 'grid-cols-3' : 'grid-cols-2'
+          )}
+        >
+          {TAB_VALUES.filter(
+            (value) => showPerformanceTab || value !== 'performance'
+          ).map((value) => {
             const Icon = TAB_META[value].icon
             return (
               <TabsTrigger
@@ -976,9 +990,11 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
           <ModelDetailsProviderInfo model={props.model} />
         </TabsContent>
 
-        <TabsContent value='performance' className='outline-none'>
-          <ModelDetailsPerformance model={props.model} />
-        </TabsContent>
+        {showPerformanceTab && (
+          <TabsContent value='performance' className='outline-none'>
+            <ModelDetailsPerformance model={props.model} />
+          </TabsContent>
+        )}
 
         <TabsContent value='api' className='outline-none'>
           <ModelDetailsApi

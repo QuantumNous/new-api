@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { usePerformanceMetricsVisibility } from '@/features/performance-metrics/hooks/use-performance-metrics-visibility'
 import {
   formatLatency,
   formatThroughput,
@@ -95,9 +96,15 @@ function successDotClassName(successRate: number): string {
 
 export function PerformanceOverview() {
   const { t } = useTranslation()
+  const perfMetricsVisible = usePerformanceMetricsVisibility()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
+    queryKey: [
+      'perf-metrics-summary',
+      PERFORMANCE_WINDOW_HOURS,
+      perfMetricsVisible,
+    ],
     queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
+    enabled: perfMetricsVisible,
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -111,12 +118,8 @@ export function PerformanceOverview() {
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
 
-  if (!loading && !hasData) {
-    return (
-      <div className='text-muted-foreground overflow-hidden rounded-lg border px-4 py-3 text-center text-xs'>
-        {t('No performance data available')}
-      </div>
-    )
+  if (!perfMetricsVisible) {
+    return null
   }
 
   return (
