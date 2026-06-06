@@ -329,15 +329,17 @@ export interface GetLogStatsResponse {
   data?: LogStatistics
 }
 
+export type LogArchivePart = 'request_headers' | 'request_body' | 'response_body'
+
 export interface LogArchiveDetail {
   archive_kind?: 'normal' | 'abnormal'
   session_id: string
   request_id: string
   request_time: string
   response_time: string
-  request_headers: unknown
-  request_body: unknown
-  response_body: unknown
+  request_headers?: unknown
+  request_body?: unknown
+  response_body?: unknown
 }
 
 export interface GetLogArchiveResponse {

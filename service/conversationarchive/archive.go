@@ -825,26 +825,64 @@ type Detail struct {
 	RequestID      string      `json:"request_id"`
 	RequestTime    string      `json:"request_time"`
 	ResponseTime   string      `json:"response_time"`
-	RequestHeaders any         `json:"request_headers"`
-	RequestBody    any         `json:"request_body"`
-	ResponseBody   any         `json:"response_body"`
+	RequestHeaders any         `json:"request_headers,omitempty"`
+	RequestBody    any         `json:"request_body,omitempty"`
+	ResponseBody   any         `json:"response_body,omitempty"`
+}
+
+type DetailPart string
+
+const (
+	DetailPartAll            DetailPart = "all"
+	DetailPartRequestHeaders DetailPart = "request_headers"
+	DetailPartRequestBody    DetailPart = "request_body"
+	DetailPartResponseBody   DetailPart = "response_body"
+)
+
+func ParseDetailPart(value string) (DetailPart, error) {
+	switch strings.TrimSpace(value) {
+	case "", string(DetailPartAll):
+		return DetailPartAll, nil
+	case string(DetailPartRequestHeaders):
+		return DetailPartRequestHeaders, nil
+	case string(DetailPartRequestBody):
+		return DetailPartRequestBody, nil
+	case string(DetailPartResponseBody):
+		return DetailPartResponseBody, nil
+	default:
+		return "", fmt.Errorf("无效的归档详情 part 参数")
+	}
+}
+
+func (part DetailPart) normalized() DetailPart {
+	switch part {
+	case DetailPartRequestHeaders, DetailPartRequestBody, DetailPartResponseBody:
+		return part
+	default:
+		return DetailPartAll
+	}
 }
 
 func GetDetailByRequestID(requestID string, createdAt int64) (*Detail, error) {
+	return GetDetailByRequestIDWithPart(requestID, createdAt, DetailPartAll)
+}
+
+func GetDetailByRequestIDWithPart(requestID string, createdAt int64, part DetailPart) (*Detail, error) {
 	currentMu.RLock()
 	svc := current
 	currentMu.RUnlock()
 	if svc == nil {
 		return nil, fmt.Errorf("会话归档未启用")
 	}
-	return svc.getDetailByRequestID(requestID, createdAt)
+	return svc.getDetailByRequestID(requestID, createdAt, part)
 }
 
-func (s *service) getDetailByRequestID(requestID string, createdAt int64) (*Detail, error) {
+func (s *service) getDetailByRequestID(requestID string, createdAt int64, part DetailPart) (*Detail, error) {
 	requestID = strings.TrimSpace(requestID)
 	if requestID == "" {
 		return nil, fmt.Errorf("日志缺少 request_id，无法定位归档")
 	}
+	part = part.normalized()
 	for _, lookup := range archiveLookupTables(createdAt) {
 		tableName := lookup.tableName
 		if !s.db.Migrator().HasTable(tableName) {
@@ -852,18 +890,33 @@ func (s *service) getDetailByRequestID(requestID string, createdAt int64) (*Deta
 		}
 		var row archiveRow
 		err := s.db.Table(tableName).
+			Select(detailSelectColumns(part)).
 			Where("request_id = ?", requestID).
 			Order("response_time DESC, id DESC").
 			Limit(1).
 			First(&row).Error
 		if err == nil {
-			return archiveDetailFromRow(row, lookup.kind)
+			return archiveDetailFromRow(row, lookup.kind, part)
 		}
 		if err != gorm.ErrRecordNotFound {
 			return nil, err
 		}
 	}
 	return nil, fmt.Errorf("未找到该日志对应的会话归档")
+}
+
+func detailSelectColumns(part DetailPart) []string {
+	columns := []string{"id", "session_id", "request_id", "request_time", "response_time"}
+	switch part.normalized() {
+	case DetailPartRequestHeaders:
+		return append(columns, "request_headers_gzip")
+	case DetailPartRequestBody:
+		return append(columns, "request_body_gzip")
+	case DetailPartResponseBody:
+		return append(columns, "response_body_gzip")
+	default:
+		return append(columns, "request_headers_gzip", "request_body_gzip", "response_body_gzip")
+	}
 }
 
 type archiveLookupTable struct {
@@ -895,27 +948,35 @@ func archiveLookupTables(createdAt int64) []archiveLookupTable {
 	return tables
 }
 
-func archiveDetailFromRow(row archiveRow, kind ArchiveKind) (*Detail, error) {
-	requestHeaders, err := DecompressOptionalBytes(row.RequestHeadersGzip)
-	if err != nil {
-		return nil, err
+func archiveDetailFromRow(row archiveRow, kind ArchiveKind, part DetailPart) (*Detail, error) {
+	detail := &Detail{
+		ArchiveKind:  kind.normalized(),
+		SessionID:    row.SessionID,
+		RequestID:    row.RequestID,
+		RequestTime:  row.RequestTime.Format(time.RFC3339Nano),
+		ResponseTime: row.ResponseTime.Format(time.RFC3339Nano),
 	}
-	requestBody, err := DecompressBytes(row.RequestBodyGzip)
-	if err != nil {
-		return nil, err
+	part = part.normalized()
+	if part == DetailPartAll || part == DetailPartRequestHeaders {
+		requestHeaders, err := DecompressOptionalBytes(row.RequestHeadersGzip)
+		if err != nil {
+			return nil, err
+		}
+		detail.RequestHeaders = headersForExport(requestHeaders)
 	}
-	responseBody, err := DecompressBytes(row.ResponseBodyGzip)
-	if err != nil {
-		return nil, err
+	if part == DetailPartAll || part == DetailPartRequestBody {
+		requestBody, err := DecompressBytes(row.RequestBodyGzip)
+		if err != nil {
+			return nil, err
+		}
+		detail.RequestBody = bodyForExport(requestBody)
 	}
-	return &Detail{
-		ArchiveKind:    kind.normalized(),
-		SessionID:      row.SessionID,
-		RequestID:      row.RequestID,
-		RequestTime:    row.RequestTime.Format(time.RFC3339Nano),
-		ResponseTime:   row.ResponseTime.Format(time.RFC3339Nano),
-		RequestHeaders: headersForExport(requestHeaders),
-		RequestBody:    bodyForExport(requestBody),
-		ResponseBody:   bodyForExport(responseBody),
-	}, nil
+	if part == DetailPartAll || part == DetailPartResponseBody {
+		responseBody, err := DecompressBytes(row.ResponseBodyGzip)
+		if err != nil {
+			return nil, err
+		}
+		detail.ResponseBody = bodyForExport(responseBody)
+	}
+	return detail, nil
 }

@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/tabs'
 import { getLogArchive } from '../../api'
 import type { UsageLog } from '../../data/schema'
-import type { LogArchiveDetail } from '../../types'
+import type { LogArchiveDetail, LogArchivePart } from '../../types'
 
 interface ArchiveDialogProps {
   log: UsageLog | null
@@ -51,6 +51,17 @@ interface ArchiveDialogProps {
 interface ArchivePayloadPanelProps {
   title: string
   value: unknown
+  isLoading?: boolean
+}
+
+const defaultArchivePart: LogArchivePart = 'response_body'
+
+function emptyLoadedParts(): Record<LogArchivePart, boolean> {
+  return {
+    request_headers: false,
+    request_body: false,
+    response_body: false,
+  }
 }
 
 function formatPayload(value: unknown): string {
@@ -77,7 +88,7 @@ function ArchiveMetaRow(props: { label: string; value: string }) {
   )
 }
 
-function ArchivePayloadPanel({ title, value }: ArchivePayloadPanelProps) {
+function ArchivePayloadPanel({ title, value, isLoading }: ArchivePayloadPanelProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const text = formatPayload(value)
@@ -93,7 +104,7 @@ function ArchivePayloadPanel({ title, value }: ArchivePayloadPanelProps) {
           variant='ghost'
           size='sm'
           className='h-7 px-2'
-          disabled={!text}
+          disabled={!text || isLoading}
           onClick={() => copyToClipboard(text)}
           title={t('Copy to clipboard')}
           aria-label={t('Copy to clipboard')}
@@ -106,14 +117,20 @@ function ArchivePayloadPanel({ title, value }: ArchivePayloadPanelProps) {
         </Button>
       </div>
       <ScrollArea className='bg-muted/30 h-[48vh] min-h-[18rem] overflow-hidden rounded-md border'>
-        <pre
-          className={cn(
-            'min-w-0 p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap',
-            !text && 'text-muted-foreground'
-          )}
-        >
-          {text || t('No archive data available')}
-        </pre>
+        {isLoading ? (
+          <div className='flex h-full min-h-[18rem] items-center justify-center'>
+            <Loader2 className='text-muted-foreground size-5 animate-spin' />
+          </div>
+        ) : (
+          <pre
+            className={cn(
+              'min-w-0 p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap',
+              !text && 'text-muted-foreground'
+            )}
+          >
+            {text || t('No archive data available')}
+          </pre>
+        )}
       </ScrollArea>
     </div>
   )
@@ -124,27 +141,40 @@ export function ArchiveDialog({ log, open, onOpenChange }: ArchiveDialogProps) {
   const [detail, setDetail] = useState<LogArchiveDetail | null>(null)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [activePart, setActivePart] =
+    useState<LogArchivePart>(defaultArchivePart)
+  const [loadedParts, setLoadedParts] =
+    useState<Record<LogArchivePart, boolean>>(emptyLoadedParts)
 
   useEffect(() => {
-    if (!open || !log?.id) {
-      if (!open) {
-        setDetail(null)
-        setError('')
-        setIsLoading(false)
-      }
+    setDetail(null)
+    setError('')
+    setIsLoading(false)
+    setActivePart(defaultArchivePart)
+    setLoadedParts(emptyLoadedParts())
+  }, [log?.id, open])
+
+  useEffect(() => {
+    if (!open || !log?.id || loadedParts[activePart]) {
       return
     }
 
     let cancelled = false
     setIsLoading(true)
     setError('')
-    setDetail(null)
 
-    getLogArchive(log.id)
+    getLogArchive(log.id, activePart)
       .then((result) => {
         if (cancelled) return
         if (result.success && result.data) {
-          setDetail(result.data)
+          setDetail((previous) => ({
+            ...(previous ?? {}),
+            ...result.data,
+          }) as LogArchiveDetail)
+          setLoadedParts((previous) => ({
+            ...previous,
+            [activePart]: true,
+          }))
         } else {
           setError(result.message || t('Failed to load archive details'))
         }
@@ -162,7 +192,7 @@ export function ArchiveDialog({ log, open, onOpenChange }: ArchiveDialogProps) {
     return () => {
       cancelled = true
     }
-  }, [log?.id, open, t])
+  }, [activePart, loadedParts, log?.id, open, t])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,11 +204,11 @@ export function ArchiveDialog({ log, open, onOpenChange }: ArchiveDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
+        {isLoading && !detail ? (
           <div className='flex items-center justify-center py-16'>
             <Loader2 className='text-muted-foreground size-6 animate-spin' />
           </div>
-        ) : error ? (
+        ) : !detail && error ? (
           <Alert variant='destructive'>
             <AlertTriangle className='size-4' />
             <AlertTitle>{t('Failed to load archive details')}</AlertTitle>
@@ -187,7 +217,7 @@ export function ArchiveDialog({ log, open, onOpenChange }: ArchiveDialogProps) {
         ) : detail ? (
           <div className='min-w-0 space-y-3'>
             <div className='grid min-w-0 grid-cols-1 gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-2 lg:grid-cols-4'>
-              <ArchiveMetaRow label={t('Session')} value={detail.session_id} />
+              <ArchiveMetaRow label={t('Session')} value={detail.session_id || ''} />
               <ArchiveMetaRow
                 label={t('Request ID')}
                 value={detail.request_id || log?.request_id || ''}
@@ -202,7 +232,19 @@ export function ArchiveDialog({ log, open, onOpenChange }: ArchiveDialogProps) {
               />
             </div>
 
-            <Tabs defaultValue='request_body' className='min-w-0'>
+            {error ? (
+              <Alert variant='destructive'>
+                <AlertTriangle className='size-4' />
+                <AlertTitle>{t('Failed to load archive details')}</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <Tabs
+              value={activePart}
+              onValueChange={(value) => setActivePart(value as LogArchivePart)}
+              className='min-w-0'
+            >
               <TabsList className='w-full sm:w-fit'>
                 <TabsTrigger value='request_headers'>
                   {t('Request Headers')}
@@ -218,18 +260,21 @@ export function ArchiveDialog({ log, open, onOpenChange }: ArchiveDialogProps) {
                 <ArchivePayloadPanel
                   title={t('Request Headers')}
                   value={detail.request_headers}
+                  isLoading={isLoading && activePart === 'request_headers'}
                 />
               </TabsContent>
               <TabsContent value='request_body' className='min-w-0'>
                 <ArchivePayloadPanel
                   title={t('Request Body')}
                   value={detail.request_body}
+                  isLoading={isLoading && activePart === 'request_body'}
                 />
               </TabsContent>
               <TabsContent value='response_body' className='min-w-0'>
                 <ArchivePayloadPanel
                   title={t('Response Body')}
                   value={detail.response_body}
+                  isLoading={isLoading && activePart === 'response_body'}
                 />
               </TabsContent>
             </Tabs>

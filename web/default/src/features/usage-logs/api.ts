@@ -26,6 +26,7 @@ import type {
   GetLogStatsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  LogArchivePart,
   UserInfo,
 } from './types'
 
@@ -85,9 +86,11 @@ export const getUserLogStats = (
 ) => fetchLogStats('/api/log', params, false)
 
 export async function getLogArchive(
-  logId: number
+  logId: number,
+  part?: LogArchivePart | 'all'
 ): Promise<GetLogArchiveResponse> {
-  const res = await api.get(`/api/log/${logId}/archive`)
+  const query = part ? `?part=${encodeURIComponent(part)}` : ''
+  const res = await api.get(`/api/log/${logId}/archive${query}`)
   return res.data
 }
 

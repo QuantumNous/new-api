@@ -109,7 +109,12 @@ func GetLogArchive(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	detail, err := conversationarchive.GetDetailByRequestID(log.RequestId, log.CreatedAt)
+	part, err := conversationarchive.ParseDetailPart(c.Query("part"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	detail, err := conversationarchive.GetDetailByRequestIDWithPart(log.RequestId, log.CreatedAt, part)
 	if err != nil {
 		common.ApiError(c, err)
 		return

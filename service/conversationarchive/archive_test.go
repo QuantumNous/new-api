@@ -84,6 +84,54 @@ func TestArchiveLookupTablesIncludesNormalAndAbnormal(t *testing.T) {
 	require.Equal(t, archiveLookupTable{tableName: tableNameForKind(localBase.AddDate(0, 0, -1), ArchiveKindAbnormal), kind: ArchiveKindAbnormal}, tables[3])
 }
 
+func TestParseDetailPart(t *testing.T) {
+	part, err := ParseDetailPart("")
+	require.NoError(t, err)
+	require.Equal(t, DetailPartAll, part)
+
+	part, err = ParseDetailPart("response_body")
+	require.NoError(t, err)
+	require.Equal(t, DetailPartResponseBody, part)
+
+	_, err = ParseDetailPart("invalid")
+	require.Error(t, err)
+}
+
+func TestArchiveDetailFromRowOnlyDecompressesRequestedPart(t *testing.T) {
+	responseGzip, err := CompressBytes([]byte(`{"answer":"ok"}`))
+	require.NoError(t, err)
+	row := archiveRow{
+		SessionID:          "session",
+		RequestID:          "request",
+		RequestTime:        time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC),
+		ResponseTime:       time.Date(2026, 6, 6, 8, 1, 0, 0, time.UTC),
+		RequestHeadersGzip: []byte("bad gzip"),
+		RequestBodyGzip:    []byte("bad gzip"),
+		ResponseBodyGzip:   responseGzip,
+	}
+
+	detail, err := archiveDetailFromRow(row, ArchiveKindAbnormal, DetailPartResponseBody)
+	require.NoError(t, err)
+	require.Equal(t, ArchiveKindAbnormal, detail.ArchiveKind)
+	require.Nil(t, detail.RequestHeaders)
+	require.Nil(t, detail.RequestBody)
+
+	rendered, err := detail.ResponseBody.(json.RawMessage).MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, []byte(`{"answer":"ok"}`), rendered)
+}
+
+func TestDetailSelectColumns(t *testing.T) {
+	require.Equal(t,
+		[]string{"id", "session_id", "request_id", "request_time", "response_time", "response_body_gzip"},
+		detailSelectColumns(DetailPartResponseBody),
+	)
+	require.Equal(t,
+		[]string{"id", "session_id", "request_id", "request_time", "response_time", "request_headers_gzip", "request_body_gzip", "response_body_gzip"},
+		detailSelectColumns(DetailPartAll),
+	)
+}
+
 func TestQueueByteReservation(t *testing.T) {
 	svc := &service{queueMaxBytes: 10}
 	require.True(t, svc.tryReserve(6))
