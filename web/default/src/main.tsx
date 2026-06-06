@@ -26,6 +26,7 @@ import {
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import i18next from 'i18next'
+import { applyBrandDocumentTitle } from '@/lib/brand'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
@@ -117,24 +118,32 @@ const rootElement = document.getElementById('root')!
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
-    const apply = (name: string) => {
-      document.title = name
-      const metaTitle = document.querySelector(
-        'meta[name="title"]'
-      ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+    const apply = (systemName?: string) => {
+      applyBrandDocumentTitle(i18next.t.bind(i18next), systemName)
     }
     // Cache-first
     try {
       const saved = localStorage.getItem('status')
       if (saved) {
         const s = JSON.parse(saved)
-        if (s?.system_name) apply(s.system_name)
+        apply(s?.system_name)
         if (s?.logo) applyFaviconToDom(s.logo)
       }
     } catch {
       /* empty */
     }
+    const refreshTitle = () => {
+      try {
+        const saved = localStorage.getItem('status')
+        const systemName = saved
+          ? (JSON.parse(saved)?.system_name as string | undefined)
+          : undefined
+        apply(systemName)
+      } catch {
+        apply()
+      }
+    }
+    i18next.on('languageChanged', refreshTitle)
     // Background refresh
     getStatus()
       .then((s) => {

@@ -20,8 +20,7 @@ import { Fragment, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
-import { useSystemConfig } from '@/hooks/use-system-config'
+import { useBrandName } from '@/hooks/use-brand-name'
 
 interface FooterLink {
   text: string
@@ -124,18 +123,11 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
 // row. inline=false wraps in a centered/right-aligned div (default).
 function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
   const { t } = useTranslation()
+  const brandName = useBrandName()
   const content = (
     <span className='text-muted-foreground/45'>
-      &copy; {props.currentYear}{' '}
-      <a
-        href='https://github.com/QuantumNous/new-api'
-        target='_blank'
-        rel='noopener noreferrer'
-        className='text-foreground/70 hover:text-foreground font-medium transition-colors'
-      >
-        {t('New API')}
-      </a>
-      . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
+      &copy; {props.currentYear} {brandName}.{' '}
+      {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
     </span>
   )
   if (props.inline) {
@@ -151,14 +143,14 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
 export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const {
-    systemName,
     logo: systemLogo,
     footerHtml,
     demoSiteEnabled,
   } = useSystemConfig()
 
+  const brandName = useBrandName()
   const displayLogo = systemLogo || props.logo || '/logo.png'
-  const displayName = systemName || props.name || 'New API'
+  const displayName = brandName || props.name || t('brand.name')
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 

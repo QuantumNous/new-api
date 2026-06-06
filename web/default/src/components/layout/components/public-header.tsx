@@ -23,6 +23,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { useBrandName } from '@/hooks/use-brand-name'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { Button } from '@/components/ui/button'
 import {
@@ -88,11 +89,11 @@ export function PublicHeader(props: PublicHeaderProps) {
     useState(AUTH_PROMPT_SECONDS)
   const { auth } = useAuthStore()
   const {
-    systemName,
     logo: systemLogo,
     loading,
     logoLoaded,
   } = useSystemConfig()
+  const brandName = useBrandName()
   const dynamicLinks = useTopNavLinks()
   const notifications = useNotifications()
   const routerState = useRouterState()
@@ -100,7 +101,7 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   const user = auth.user
   const isAuthenticated = !!user
-  const displaySiteName = customSiteName || systemName
+  const displaySiteName = customSiteName || brandName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
   useEffect(() => {

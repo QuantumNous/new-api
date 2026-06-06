@@ -27,6 +27,7 @@ import {
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import { getDisplayBrandName } from './brand';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -47,9 +48,7 @@ export function isRoot() {
 }
 
 export function getSystemName() {
-  let system_name = localStorage.getItem('system_name');
-  if (!system_name) return 'New API';
-  return system_name;
+  return getDisplayBrandName(localStorage.getItem('system_name'));
 }
 
 export function getLogo() {

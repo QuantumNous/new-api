@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2025 QuantumNous
+Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -16,18 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useTranslation } from 'react-i18next'
+import { getDisplayBrandName } from '@/lib/brand'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { useStatus } from '@/hooks/use-status'
 
-export * from './brand';
-export * from './history';
-export * from './auth';
-export * from './utils';
-export * from './base64';
-export * from './api';
-export * from './render';
-export * from './log';
-export * from './data';
-export * from './token';
-export * from './boolean';
-export * from './dashboard';
-export * from './passkey';
-export * from './statusCodeRules';
+export function useBrandName() {
+  const { t, i18n } = useTranslation()
+  const { systemName } = useSystemConfig()
+  const { status } = useStatus()
+
+  const rawName = status?.system_name || systemName
+  return getDisplayBrandName(rawName, t)
+}
+
+export function useBrandNameWithLanguage() {
+  const { t, i18n } = useTranslation()
+  const brandName = useBrandName()
+
+  return { brandName, language: i18n.language, t }
+}

@@ -30,8 +30,8 @@ import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useTranslation } from 'react-i18next';
 import {
   API,
+  applyBrandDocumentTitle,
   getLogo,
-  getSystemName,
   showError,
   setStatusData,
 } from '../../helpers';
@@ -105,10 +105,7 @@ const PageLayout = () => {
   useEffect(() => {
     loadUser();
     loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
+    applyBrandDocumentTitle(localStorage.getItem('system_name'));
     let logo = getLogo();
     if (logo) {
       let linkElement = document.querySelector("link[rel~='icon']");
@@ -117,6 +114,10 @@ const PageLayout = () => {
       }
     }
   }, []);
+
+  useEffect(() => {
+    applyBrandDocumentTitle(localStorage.getItem('system_name'));
+  }, [i18n.language]);
 
   useEffect(() => {
     let preferredLang;

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { useBrandName } from '@/hooks/use-brand-name'
 import { Skeleton } from '@/components/ui/skeleton'
 
 type AuthLayoutProps = {
@@ -27,7 +28,8 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation()
-  const { systemName, logo, loading } = useSystemConfig()
+  const { logo, loading } = useSystemConfig()
+  const brandName = useBrandName()
 
   return (
     <div className='relative grid h-svh max-w-none'>
@@ -49,7 +51,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          <h1 className='text-xl font-medium'>{brandName}</h1>
         )}
       </Link>
       <div className='container flex items-center pt-16 sm:pt-0'>

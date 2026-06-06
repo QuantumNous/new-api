@@ -17,17 +17,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export * from './brand';
-export * from './history';
-export * from './auth';
-export * from './utils';
-export * from './base64';
-export * from './api';
-export * from './render';
-export * from './log';
-export * from './data';
-export * from './token';
-export * from './boolean';
-export * from './dashboard';
-export * from './passkey';
-export * from './statusCodeRules';
+import i18n from '../i18n/i18n';
+
+export const BRAND_NAME_EN = 'BabelTower';
+
+const LEGACY_DEFAULT_NAMES = new Set([
+  '',
+  'New API',
+  'NewAPI',
+  'RedShore',
+  BRAND_NAME_EN,
+]);
+
+export function getDisplayBrandName(systemName) {
+  const normalized = (systemName || '').trim();
+  if (!normalized || LEGACY_DEFAULT_NAMES.has(normalized)) {
+    return i18n.t('brand.name');
+  }
+  return normalized;
+}
+
+export function applyBrandDocumentTitle(systemName) {
+  if (typeof document === 'undefined') return;
+  document.title = getDisplayBrandName(systemName);
+}
