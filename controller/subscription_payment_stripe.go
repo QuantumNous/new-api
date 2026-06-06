@@ -2,15 +2,14 @@ package controller
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
@@ -22,6 +21,10 @@ type SubscriptionStripePayRequest struct {
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
 	var req SubscriptionStripePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
@@ -78,19 +81,20 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 
 	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
 	if err != nil {
-		log.Println("获取Stripe Checkout支付链接失败", err)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
-		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodStripe,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:          userId,
+		PlanId:          plan.Id,
+		Money:           plan.PriceAmount,
+		TradeNo:         referenceId,
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
@@ -110,8 +114,8 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
-		SuccessURL:        stripe.String(system_setting.ServerAddress + "/console/topup"),
-		CancelURL:         stripe.String(system_setting.ServerAddress + "/console/topup"),
+		SuccessURL:        stripe.String(paymentReturnPath("/console/topup")),
+		CancelURL:         stripe.String(paymentReturnPath("/console/topup")),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(priceId),

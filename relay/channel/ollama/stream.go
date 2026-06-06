@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,7 +69,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	defer service.CloseResponseBodyGracefully(resp)
 
 	helper.SetEventStreamHeaders(c)
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := helper.NewStreamScanner(resp.Body)
 	usage := &dto.Usage{}
 	var model = info.UpstreamModelName
 	var responseId = common.GetUUID()
@@ -273,7 +272,7 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 
 	msg := dto.Message{Role: "assistant", Content: contentPtr(content)}
 	if rc := reasoningBuilder.String(); rc != "" {
-		msg.ReasoningContent = rc
+		msg.ReasoningContent = &rc
 	}
 	full := dto.OpenAITextResponse{
 		Id:      common.GetUUID(),

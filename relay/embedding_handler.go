@@ -1,8 +1,8 @@
 package relay
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
@@ -57,8 +57,15 @@ func EmbeddingHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 	}
 
-	logger.LogDebug(c, fmt.Sprintf("converted embedding request body: %s", string(jsonData)))
-	requestBody := bytes.NewBuffer(jsonData)
+	logger.LogDebug(c, "converted embedding request body: %s", jsonData)
+	body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	defer closer.Close()
+	jsonData = nil
+	info.UpstreamRequestBodySize = size
+	var requestBody io.Reader = body
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
