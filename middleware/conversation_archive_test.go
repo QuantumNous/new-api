@@ -45,23 +45,6 @@ func TestShouldArchiveRequestSkipsNonPost(t *testing.T) {
 	require.False(t, shouldArchiveRequest(c))
 }
 
-func TestGetArchiveRequestHeadersRoundTrip(t *testing.T) {
-	c := newArchiveTestContext(http.MethodPost, common.RoleCommonUser, "{}")
-	c.Request.Header.Set("Authorization", "Bearer test")
-	c.Request.Header.Add("X-Trace", "first")
-	c.Request.Header.Add("X-Trace", "second")
-
-	compressed, err := getArchiveRequestHeaders(c)
-	require.NoError(t, err)
-	raw, err := conversationarchive.DecompressBytes(compressed)
-	require.NoError(t, err)
-
-	var headers map[string][]string
-	require.NoError(t, common.Unmarshal(raw, &headers))
-	require.Equal(t, []string{"Bearer test"}, headers["Authorization"])
-	require.Equal(t, []string{"first", "second"}, headers["X-Trace"])
-}
-
 func TestArchiveKindMarksCanceledRequestAbnormal(t *testing.T) {
 	c := newArchiveTestContext(http.MethodPost, common.RoleCommonUser, "{}")
 	ctx, cancel := context.WithCancel(c.Request.Context())

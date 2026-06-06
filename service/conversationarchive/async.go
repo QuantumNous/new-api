@@ -447,9 +447,6 @@ func (s *service) cleanupSpoolPath(path string) {
 }
 
 func (s *service) waitPendingJobsDrained(tableName string) error {
-	if !s.cfg.AsyncCompression {
-		return nil
-	}
 	if err := s.ensureJobTable(); err != nil {
 		return err
 	}

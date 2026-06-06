@@ -4595,6 +4595,16 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Archive dump and retention": "归档导出与保留",
+    "Control daily dump, Cloudflare R2 upload, and archive table retention.": "控制每日导出、Cloudflare R2 上传和归档表保留时间。",
+    "Enable daily archive dump": "启用每日归档导出",
+    "Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.": "将已完成的每日归档表写入本地 jsonl.gz 文件，同时需要环境导出配置已启用。",
+    "Upload dumps to Cloudflare R2": "上传导出文件到 Cloudflare R2",
+    "Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.": "在已配置 R2 环境凭据时，将本地导出文件上传到 Cloudflare R2。",
+    "Delete local dump after R2 upload": "R2 上传后删除本地导出文件",
+    "Remove the local dump file after Cloudflare R2 upload succeeds.": "Cloudflare R2 上传成功后移除本地导出文件。",
+    "Archive table retention days": "归档表保留天数",
+    "Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables.": "删除早于该天数的正常和异常归档日期表。设置为 0 时保留数据库表。"
   }
 }

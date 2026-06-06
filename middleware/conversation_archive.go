@@ -47,59 +47,8 @@ func ConversationArchive() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if conversationarchive.AsyncCompressionEnabled() {
-			conversationArchiveAsync(c)
-			return
-		}
-		conversationArchiveSync(c)
+		conversationArchiveAsync(c)
 	}
-}
-
-func conversationArchiveSync(c *gin.Context) {
-	requestTime := time.Now()
-	requestBodyGzip, sessionBody, err := getArchiveRequestBody(c)
-	if err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("会话归档读取请求体失败: %v", err))
-		c.Next()
-		return
-	}
-	requestHeadersGzip, err := getArchiveRequestHeaders(c)
-	if err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("会话归档读取请求头失败: %v", err))
-		c.Next()
-		return
-	}
-
-	requestID := c.GetString(common.RequestIdKey)
-	sessionID := conversationarchive.ResolveSessionID(
-		c.GetHeader(conversationarchive.SessionHeader()),
-		sessionBody,
-		requestID,
-	)
-	recorder := conversationarchive.NewResponseRecorder()
-	originWriter := c.Writer
-	c.Writer = &conversationArchiveWriter{
-		ResponseWriter: originWriter,
-		recorder:       recorder,
-	}
-
-	c.Next()
-
-	responseBodyGzip, err := recorder.Close()
-	if err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("会话归档压缩响应体失败: %v", err))
-		return
-	}
-	conversationarchive.Enqueue(conversationarchive.Record{
-		Kind:               archiveKind(c),
-		SessionID:          sessionID,
-		RequestID:          requestID,
-		RequestTime:        requestTime,
-		ResponseTime:       time.Now(),
-		RequestHeadersGzip: requestHeadersGzip,
-		RequestBodyGzip:    requestBodyGzip,
-		ResponseBodyGzip:   responseBodyGzip,
-	})
 }
 
 func conversationArchiveAsync(c *gin.Context) {
@@ -180,39 +129,6 @@ func shouldArchiveRequest(c *gin.Context) bool {
 	return c.Request.Body != nil
 }
 
-func getArchiveRequestBody(c *gin.Context) ([]byte, []byte, error) {
-	storage, err := common.GetBodyStorage(c)
-	if err != nil {
-		return nil, nil, err
-	}
-	var sessionBody []byte
-	var bodyGzip []byte
-	if strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
-		body, err := storage.Bytes()
-		if err != nil {
-			return nil, nil, err
-		}
-		sessionBody = body
-		bodyGzip, err = conversationarchive.CompressBytes(body)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		if _, err := storage.Seek(0, io.SeekStart); err != nil {
-			return nil, nil, err
-		}
-		bodyGzip, err = conversationarchive.CompressReader(storage)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	if _, err := storage.Seek(0, io.SeekStart); err != nil {
-		return nil, nil, err
-	}
-	c.Request.Body = io.NopCloser(storage)
-	return bodyGzip, sessionBody, nil
-}
-
 func getArchiveRequestBodySpool(c *gin.Context) (conversationarchive.SpoolFile, []byte, error) {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
@@ -245,25 +161,6 @@ func getArchiveRequestBodySpool(c *gin.Context) (conversationarchive.SpoolFile, 
 	}
 	c.Request.Body = io.NopCloser(storage)
 	return bodyFile, sessionBody, nil
-}
-
-func getArchiveRequestHeaders(c *gin.Context) ([]byte, error) {
-	headers := map[string][]string{}
-	if c == nil || c.Request == nil {
-		data, err := common.Marshal(headers)
-		if err != nil {
-			return nil, err
-		}
-		return conversationarchive.CompressBytes(data)
-	}
-	for key, values := range c.Request.Header {
-		headers[key] = append([]string(nil), values...)
-	}
-	data, err := common.Marshal(headers)
-	if err != nil {
-		return nil, err
-	}
-	return conversationarchive.CompressBytes(data)
 }
 
 func getArchiveRequestHeadersSpool(c *gin.Context) (conversationarchive.SpoolFile, error) {

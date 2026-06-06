@@ -134,30 +134,6 @@ func TestDetailSelectColumns(t *testing.T) {
 	)
 }
 
-func TestQueueByteReservation(t *testing.T) {
-	svc := &service{queueMaxBytes: 10}
-	require.True(t, svc.tryReserve(6))
-	require.Equal(t, int64(6), svc.queuedBytes.Load())
-	require.False(t, svc.tryReserve(5))
-	svc.releaseQueuedBytes(6)
-	require.Equal(t, int64(0), svc.queuedBytes.Load())
-}
-
-func TestQueuedTableCount(t *testing.T) {
-	svc := &service{queuedTables: map[string]int{}}
-	record := Record{RequestTime: time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC)}
-	tableName := tableNameFor(record.RequestTime)
-
-	svc.trackQueuedTable(record)
-	svc.trackQueuedTable(record)
-	require.Equal(t, 2, svc.queuedTableCount(tableName))
-
-	svc.releaseQueuedTable(record)
-	require.Equal(t, 1, svc.queuedTableCount(tableName))
-	svc.releaseQueuedTable(record)
-	require.Equal(t, 0, svc.queuedTableCount(tableName))
-}
-
 func TestWriteSpoolBytesTracksAndCleansBytes(t *testing.T) {
 	currentMu.RLock()
 	previous := current
@@ -226,6 +202,20 @@ func TestAsyncJobClaimUsesConditionalUpdate(t *testing.T) {
 
 	_, ok, err = svc.claimJob()
 	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestArchiveTableDate(t *testing.T) {
+	loc := time.UTC
+	normalDate, ok := archiveTableDate("conversation_archive_20260606", loc)
+	require.True(t, ok)
+	require.Equal(t, time.Date(2026, 6, 6, 0, 0, 0, 0, loc), normalDate)
+
+	abnormalDate, ok := archiveTableDate("conversation_archive_abnormal_20260607", loc)
+	require.True(t, ok)
+	require.Equal(t, time.Date(2026, 6, 7, 0, 0, 0, 0, loc), abnormalDate)
+
+	_, ok = archiveTableDate("conversation_archive_jobs", loc)
 	require.False(t, ok)
 }
 

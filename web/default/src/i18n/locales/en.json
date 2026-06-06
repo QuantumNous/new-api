@@ -4595,6 +4595,16 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Archive dump and retention": "Archive dump and retention",
+    "Control daily dump, Cloudflare R2 upload, and archive table retention.": "Control daily dump, Cloudflare R2 upload, and archive table retention.",
+    "Enable daily archive dump": "Enable daily archive dump",
+    "Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.": "Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.",
+    "Upload dumps to Cloudflare R2": "Upload dumps to Cloudflare R2",
+    "Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.": "Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.",
+    "Delete local dump after R2 upload": "Delete local dump after R2 upload",
+    "Remove the local dump file after Cloudflare R2 upload succeeds.": "Remove the local dump file after Cloudflare R2 upload succeeds.",
+    "Archive table retention days": "Archive table retention days",
+    "Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables.": "Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables."
   }
 }

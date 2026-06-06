@@ -103,6 +103,18 @@ const OPERATIONS_SECTIONS = [
         defaultArchiveEnabled={Boolean(
           settings['conversation_archive_setting.enabled']
         )}
+        defaultArchiveDumpEnabled={Boolean(
+          settings['conversation_archive_setting.dump_enabled']
+        )}
+        defaultArchiveR2Enabled={Boolean(
+          settings['conversation_archive_setting.r2_enabled']
+        )}
+        defaultArchiveDeleteLocalDumpAfterUpload={Boolean(
+          settings['conversation_archive_setting.delete_local_dump_after_upload']
+        )}
+        defaultArchiveRetentionDays={Number(
+          settings['conversation_archive_setting.retention_days'] ?? 7
+        )}
       />
     ),
   },

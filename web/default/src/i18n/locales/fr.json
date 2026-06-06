@@ -4595,6 +4595,16 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Archive dump and retention": "Export et conservation des archives",
+    "Control daily dump, Cloudflare R2 upload, and archive table retention.": "Contrôle l’export quotidien, l’envoi vers Cloudflare R2 et la durée de conservation des tables d’archive.",
+    "Enable daily archive dump": "Activer l’export quotidien des archives",
+    "Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.": "Écrit les tables d’archive quotidiennes terminées dans des fichiers jsonl.gz locaux. Les paramètres d’export d’environnement doivent aussi être activés.",
+    "Upload dumps to Cloudflare R2": "Envoyer les exports vers Cloudflare R2",
+    "Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.": "Envoie les fichiers d’export locaux vers Cloudflare R2 lorsque les identifiants R2 sont configurés dans l’environnement.",
+    "Delete local dump after R2 upload": "Supprimer l’export local après l’envoi R2",
+    "Remove the local dump file after Cloudflare R2 upload succeeds.": "Supprime le fichier d’export local après la réussite de l’envoi vers Cloudflare R2.",
+    "Archive table retention days": "Jours de conservation des tables d’archive",
+    "Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables.": "Supprime les tables d’archive normales et anormales plus anciennes que ce nombre de jours. Définissez 0 pour conserver les tables en base."
   }
 }

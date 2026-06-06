@@ -39,9 +39,11 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { deleteLogsBefore } from '../api'
@@ -58,6 +60,10 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
   ConversationArchiveEnabled: z.boolean(),
+  ConversationArchiveDumpEnabled: z.boolean(),
+  ConversationArchiveR2Enabled: z.boolean(),
+  ConversationArchiveDeleteLocalDumpAfterUpload: z.boolean(),
+  ConversationArchiveRetentionDays: z.number().int().min(0).max(3650),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
@@ -65,6 +71,10 @@ type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
   defaultArchiveEnabled: boolean
+  defaultArchiveDumpEnabled: boolean
+  defaultArchiveR2Enabled: boolean
+  defaultArchiveDeleteLocalDumpAfterUpload: boolean
+  defaultArchiveRetentionDays: number
 }
 
 const HOURS_IN_DAY = 24
@@ -95,6 +105,10 @@ const quickSelectOptions = [
 export function LogSettingsSection({
   defaultEnabled,
   defaultArchiveEnabled,
+  defaultArchiveDumpEnabled,
+  defaultArchiveR2Enabled,
+  defaultArchiveDeleteLocalDumpAfterUpload,
+  defaultArchiveRetentionDays,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -103,6 +117,11 @@ export function LogSettingsSection({
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
       ConversationArchiveEnabled: defaultArchiveEnabled,
+      ConversationArchiveDumpEnabled: defaultArchiveDumpEnabled,
+      ConversationArchiveR2Enabled: defaultArchiveR2Enabled,
+      ConversationArchiveDeleteLocalDumpAfterUpload:
+        defaultArchiveDeleteLocalDumpAfterUpload,
+      ConversationArchiveRetentionDays: defaultArchiveRetentionDays,
     },
   })
 
@@ -116,8 +135,21 @@ export function LogSettingsSection({
     form.reset({
       LogConsumeEnabled: defaultEnabled,
       ConversationArchiveEnabled: defaultArchiveEnabled,
+      ConversationArchiveDumpEnabled: defaultArchiveDumpEnabled,
+      ConversationArchiveR2Enabled: defaultArchiveR2Enabled,
+      ConversationArchiveDeleteLocalDumpAfterUpload:
+        defaultArchiveDeleteLocalDumpAfterUpload,
+      ConversationArchiveRetentionDays: defaultArchiveRetentionDays,
     })
-  }, [defaultArchiveEnabled, defaultEnabled, form])
+  }, [
+    defaultArchiveDeleteLocalDumpAfterUpload,
+    defaultArchiveDumpEnabled,
+    defaultArchiveEnabled,
+    defaultArchiveR2Enabled,
+    defaultArchiveRetentionDays,
+    defaultEnabled,
+    form,
+  ])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -130,7 +162,7 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    const updates: Array<{ key: string; value: boolean }> = []
+    const updates: Array<{ key: string; value: boolean | number }> = []
     if (values.LogConsumeEnabled !== defaultEnabled) {
       updates.push({
         key: 'LogConsumeEnabled',
@@ -141,6 +173,35 @@ export function LogSettingsSection({
       updates.push({
         key: 'conversation_archive_setting.enabled',
         value: values.ConversationArchiveEnabled,
+      })
+    }
+    if (values.ConversationArchiveDumpEnabled !== defaultArchiveDumpEnabled) {
+      updates.push({
+        key: 'conversation_archive_setting.dump_enabled',
+        value: values.ConversationArchiveDumpEnabled,
+      })
+    }
+    if (values.ConversationArchiveR2Enabled !== defaultArchiveR2Enabled) {
+      updates.push({
+        key: 'conversation_archive_setting.r2_enabled',
+        value: values.ConversationArchiveR2Enabled,
+      })
+    }
+    if (
+      values.ConversationArchiveDeleteLocalDumpAfterUpload !==
+      defaultArchiveDeleteLocalDumpAfterUpload
+    ) {
+      updates.push({
+        key: 'conversation_archive_setting.delete_local_dump_after_upload',
+        value: values.ConversationArchiveDeleteLocalDumpAfterUpload,
+      })
+    }
+    if (
+      values.ConversationArchiveRetentionDays !== defaultArchiveRetentionDays
+    ) {
+      updates.push({
+        key: 'conversation_archive_setting.retention_days',
+        value: values.ConversationArchiveRetentionDays,
       })
     }
     for (const update of updates) {
@@ -239,6 +300,120 @@ export function LogSettingsSection({
               </SettingsSwitchItem>
             )}
           />
+          <SettingsControlGroup className='space-y-3'>
+            <div>
+              <h4 className='text-sm font-medium'>
+                {t('Archive dump and retention')}
+              </h4>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Control daily dump, Cloudflare R2 upload, and archive table retention.'
+                )}
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name='ConversationArchiveDumpEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable daily archive dump')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='ConversationArchiveR2Enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Upload dumps to Cloudflare R2')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='ConversationArchiveDeleteLocalDumpAfterUpload'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('Delete local dump after R2 upload')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Remove the local dump file after Cloudflare R2 upload succeeds.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='ConversationArchiveRetentionDays'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Archive table retention days')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={3650}
+                      step={1}
+                      value={Number.isFinite(field.value) ? field.value : ''}
+                      onChange={(event) =>
+                        field.onChange(
+                          event.target.value === ''
+                            ? 0
+                            : Number(event.target.value)
+                        )
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </SettingsControlGroup>
 
           <SettingsControlGroup className='space-y-3'>
             <div>

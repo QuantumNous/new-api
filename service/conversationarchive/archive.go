@@ -16,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/tidwall/gjson"
@@ -24,20 +25,16 @@ import (
 )
 
 const (
-	defaultSessionHeader = "X-Session-Id"
-	defaultQueueSize     = 10000
-	defaultWorkerCount   = 2
-	defaultBatchSize     = 20
-	defaultFlushInterval = 500
-	defaultQueueMaxMB    = 4096
-	defaultDumpBatchSize = 1000
-	defaultDrainTimeout  = 600
-	defaultDumpMinute    = 10
-	tablePrefix          = "conversation_archive_"
-	abnormalTablePrefix  = "conversation_archive_abnormal_"
-	defaultSpoolMaxMB    = 8192
-	defaultJobPollMs     = 500
-	defaultJobAttempts   = 3
+	defaultSessionHeader   = "X-Session-Id"
+	defaultDumpBatchSize   = 1000
+	defaultDrainTimeout    = 600
+	defaultDumpMinute      = 10
+	tablePrefix            = "conversation_archive_"
+	abnormalTablePrefix    = "conversation_archive_abnormal_"
+	defaultSpoolMaxMB      = 8192
+	defaultCompressWorkers = 2
+	defaultJobPollMs       = 500
+	defaultJobAttempts     = 3
 )
 
 type ArchiveKind string
@@ -51,12 +48,6 @@ type Config struct {
 	Enabled          bool
 	DSN              string
 	SessionHeader    string
-	QueueSize        int
-	QueueMaxBytesMB  int
-	WorkerCount      int
-	BatchSize        int
-	FlushIntervalMs  int
-	Strict           bool
 	DumpEnabled      bool
 	DumpDir          string
 	DumpTimezone     string
@@ -70,8 +61,6 @@ type Config struct {
 	R2SecretKey      string
 	R2Region         string
 	R2Prefix         string
-	DropAfterUpload  bool
-	AsyncCompression bool
 	SpoolDir         string
 	SpoolMaxBytesMB  int
 	CompressWorkers  int
@@ -111,14 +100,7 @@ func (k ArchiveKind) normalized() ArchiveKind {
 type service struct {
 	cfg           Config
 	db            *gorm.DB
-	queue         chan Record
-	queueMaxBytes int64
-	queuedBytes   atomic.Int64
-	droppedCount  atomic.Int64
-	failedCount   atomic.Int64
 	writtenCount  atomic.Int64
-	queuedTables  map[string]int
-	queuedTableMu sync.Mutex
 	ensuredTables map[string]struct{}
 	tableMu       sync.Mutex
 	spoolMaxBytes int64
@@ -137,12 +119,6 @@ func InitFromEnv() error {
 		Enabled:          common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_ENABLED", false),
 		DSN:              strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_DSN")),
 		SessionHeader:    common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_SESSION_HEADER", defaultSessionHeader),
-		QueueSize:        common.GetEnvOrDefault("CONVERSATION_ARCHIVE_QUEUE_SIZE", defaultQueueSize),
-		QueueMaxBytesMB:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_QUEUE_MAX_BYTES_MB", defaultQueueMaxMB),
-		WorkerCount:      common.GetEnvOrDefault("CONVERSATION_ARCHIVE_WORKERS", defaultWorkerCount),
-		BatchSize:        common.GetEnvOrDefault("CONVERSATION_ARCHIVE_BATCH_SIZE", defaultBatchSize),
-		FlushIntervalMs:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_FLUSH_INTERVAL_MS", defaultFlushInterval),
-		Strict:           common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_STRICT", false),
 		DumpEnabled:      common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_DUMP_ENABLED", false),
 		DumpDir:          common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_DUMP_DIR", ""),
 		DumpTimezone:     common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_TIMEZONE", "Asia/Shanghai"),
@@ -156,8 +132,6 @@ func InitFromEnv() error {
 		R2SecretKey:      strings.TrimSpace(os.Getenv("CONVERSATION_ARCHIVE_R2_SECRET_ACCESS_KEY")),
 		R2Region:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_R2_REGION", "auto"),
 		R2Prefix:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_R2_PREFIX", "newapi-conversation-archive"),
-		DropAfterUpload:  common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_DROP_AFTER_UPLOAD", false),
-		AsyncCompression: common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_ASYNC_COMPRESSION", true),
 		SpoolDir:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_SPOOL_DIR", ""),
 		SpoolMaxBytesMB:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_SPOOL_MAX_BYTES_MB", defaultSpoolMaxMB),
 		CompressWorkers:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_COMPRESS_WORKERS", 0),
@@ -181,26 +155,11 @@ func Init(cfg Config) error {
 	if cfg.SessionHeader == "" {
 		cfg.SessionHeader = defaultSessionHeader
 	}
-	if cfg.QueueSize <= 0 {
-		cfg.QueueSize = defaultQueueSize
-	}
-	if cfg.QueueMaxBytesMB <= 0 {
-		cfg.QueueMaxBytesMB = defaultQueueMaxMB
-	}
-	if cfg.WorkerCount <= 0 {
-		cfg.WorkerCount = defaultWorkerCount
-	}
-	if cfg.BatchSize <= 0 {
-		cfg.BatchSize = defaultBatchSize
-	}
-	if cfg.FlushIntervalMs <= 0 {
-		cfg.FlushIntervalMs = defaultFlushInterval
-	}
 	if cfg.SpoolMaxBytesMB <= 0 {
 		cfg.SpoolMaxBytesMB = defaultSpoolMaxMB
 	}
 	if cfg.CompressWorkers <= 0 {
-		cfg.CompressWorkers = cfg.WorkerCount
+		cfg.CompressWorkers = defaultCompressWorkers
 	}
 	if cfg.JobPollMs <= 0 {
 		cfg.JobPollMs = defaultJobPollMs
@@ -245,35 +204,24 @@ func Init(cfg Config) error {
 	svc := &service{
 		cfg:           cfg,
 		db:            db,
-		queue:         make(chan Record, cfg.QueueSize),
-		queueMaxBytes: int64(cfg.QueueMaxBytesMB) * 1024 * 1024,
 		spoolMaxBytes: int64(cfg.SpoolMaxBytesMB) * 1024 * 1024,
-		queuedTables:  map[string]int{},
 		ensuredTables: map[string]struct{}{},
 	}
-	if cfg.AsyncCompression {
-		if err := os.MkdirAll(cfg.SpoolDir, 0755); err != nil {
-			return fmt.Errorf("创建会话归档 spool 目录失败: %w", err)
-		}
-		svc.spoolBytes.Store(svc.scanSpoolBytes())
-		if err := svc.ensureJobTable(); err != nil {
-			return err
-		}
-		if err := svc.resetProcessingJobs(); err != nil {
-			return err
-		}
+	if err := os.MkdirAll(cfg.SpoolDir, 0755); err != nil {
+		return fmt.Errorf("创建会话归档 spool 目录失败: %w", err)
+	}
+	svc.spoolBytes.Store(svc.scanSpoolBytes())
+	if err := svc.ensureJobTable(); err != nil {
+		return err
+	}
+	if err := svc.resetProcessingJobs(); err != nil {
+		return err
 	}
 	setCurrent(svc)
-	for i := 0; i < cfg.WorkerCount; i++ {
-		gopool.Go(svc.worker)
+	for i := 0; i < cfg.CompressWorkers; i++ {
+		gopool.Go(svc.compressWorker)
 	}
-	if cfg.AsyncCompression {
-		for i := 0; i < cfg.CompressWorkers; i++ {
-			gopool.Go(svc.compressWorker)
-		}
-		logger.LogInfo(context.Background(), "会话归档异步压缩已启用")
-	}
-	logger.LogInfo(context.Background(), "会话归档已启用")
+	logger.LogInfo(context.Background(), "会话归档异步压缩已启用")
 	return nil
 }
 
@@ -298,45 +246,6 @@ func SessionHeader() string {
 	return current.cfg.SessionHeader
 }
 
-func AsyncCompressionEnabled() bool {
-	currentMu.RLock()
-	defer currentMu.RUnlock()
-	return current != nil && current.cfg.AsyncCompression
-}
-
-func Enqueue(record Record) {
-	currentMu.RLock()
-	svc := current
-	currentMu.RUnlock()
-	if svc == nil {
-		return
-	}
-	if record.SessionID == "" {
-		record.SessionID = "unknown"
-	}
-	recordSize := compressedRecordSize(record)
-	if svc.cfg.Strict {
-		svc.reserveStrict(recordSize)
-		svc.trackQueuedTable(record)
-		svc.queue <- record
-		return
-	}
-	if !svc.tryReserve(recordSize) {
-		svc.droppedCount.Add(1)
-		logger.LogWarn(context.Background(), "会话归档队列字节上限已满，本条归档记录被跳过")
-		return
-	}
-	svc.trackQueuedTable(record)
-	select {
-	case svc.queue <- record:
-	default:
-		svc.releaseQueuedBytes(recordSize)
-		svc.releaseQueuedTable(record)
-		svc.droppedCount.Add(1)
-		logger.LogWarn(context.Background(), "会话归档队列已满，本条归档记录被跳过")
-	}
-}
-
 func Close() error {
 	currentMu.Lock()
 	svc := current
@@ -350,129 +259,6 @@ func Close() error {
 		return err
 	}
 	return sqlDB.Close()
-}
-
-func (s *service) worker() {
-	batch := make([]Record, 0, s.cfg.BatchSize)
-	flushInterval := time.Duration(s.cfg.FlushIntervalMs) * time.Millisecond
-	for {
-		record, ok := <-s.queue
-		if !ok {
-			return
-		}
-		batch = append(batch[:0], record)
-		timer := time.NewTimer(flushInterval)
-		for len(batch) < s.cfg.BatchSize {
-			select {
-			case record, ok := <-s.queue:
-				if !ok {
-					goto flush
-				}
-				batch = append(batch, record)
-			case <-timer.C:
-				goto flush
-			}
-		}
-	flush:
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-		if err := s.insertBatch(batch); err != nil {
-			s.failedCount.Add(int64(len(batch)))
-			logger.LogWarn(context.Background(), fmt.Sprintf("会话归档写入失败: %v", err))
-		} else {
-			s.writtenCount.Add(int64(len(batch)))
-		}
-		for _, record := range batch {
-			s.releaseQueuedBytes(compressedRecordSize(record))
-			s.releaseQueuedTable(record)
-		}
-	}
-}
-
-func compressedRecordSize(record Record) int64 {
-	return int64(len(record.RequestHeadersGzip) + len(record.RequestBodyGzip) + len(record.ResponseBodyGzip))
-}
-
-func (s *service) reserveStrict(size int64) {
-	if s.queueMaxBytes <= 0 || size <= 0 {
-		return
-	}
-	if size > s.queueMaxBytes {
-		s.queuedBytes.Add(size)
-		return
-	}
-	for !s.tryReserve(size) {
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-func (s *service) tryReserve(size int64) bool {
-	if s.queueMaxBytes <= 0 || size <= 0 {
-		return true
-	}
-	for {
-		currentBytes := s.queuedBytes.Load()
-		if currentBytes+size > s.queueMaxBytes {
-			return false
-		}
-		if s.queuedBytes.CompareAndSwap(currentBytes, currentBytes+size) {
-			return true
-		}
-	}
-}
-
-func (s *service) releaseQueuedBytes(size int64) {
-	if s.queueMaxBytes <= 0 || size <= 0 {
-		return
-	}
-	s.queuedBytes.Add(-size)
-}
-
-func (s *service) trackQueuedTable(record Record) {
-	tableName := tableNameForRecord(record)
-	s.queuedTableMu.Lock()
-	defer s.queuedTableMu.Unlock()
-	if s.queuedTables == nil {
-		s.queuedTables = map[string]int{}
-	}
-	s.queuedTables[tableName]++
-}
-
-func (s *service) releaseQueuedTable(record Record) {
-	tableName := tableNameForRecord(record)
-	s.queuedTableMu.Lock()
-	defer s.queuedTableMu.Unlock()
-	count := s.queuedTables[tableName]
-	if count <= 1 {
-		delete(s.queuedTables, tableName)
-		return
-	}
-	s.queuedTables[tableName] = count - 1
-}
-
-func (s *service) queuedTableCount(tableName string) int {
-	s.queuedTableMu.Lock()
-	defer s.queuedTableMu.Unlock()
-	return s.queuedTables[tableName]
-}
-
-func (s *service) waitQueuedTableDrained(tableName string) error {
-	timeout := time.Duration(s.cfg.DumpDrainSeconds) * time.Second
-	deadline := time.Now().Add(timeout)
-	for {
-		count := s.queuedTableCount(tableName)
-		if count == 0 {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("归档表 %s 仍有 %d 条队列记录未写入", tableName, count)
-		}
-		time.Sleep(time.Second)
-	}
 }
 
 func (s *service) insertBatch(records []Record) error {
@@ -668,42 +454,6 @@ func jsonStringValue(body []byte, path string) string {
 	return ""
 }
 
-type ResponseRecorder struct {
-	buf    bytes.Buffer
-	writer *gzip.Writer
-	closed bool
-}
-
-func NewResponseRecorder() *ResponseRecorder {
-	recorder := &ResponseRecorder{}
-	writer, err := gzip.NewWriterLevel(&recorder.buf, gzip.BestSpeed)
-	if err != nil {
-		writer = gzip.NewWriter(&recorder.buf)
-	}
-	recorder.writer = writer
-	return recorder
-}
-
-func (r *ResponseRecorder) Write(data []byte) {
-	if r == nil || r.closed || len(data) == 0 {
-		return
-	}
-	_, _ = r.writer.Write(data)
-}
-
-func (r *ResponseRecorder) Close() ([]byte, error) {
-	if r == nil {
-		return nil, nil
-	}
-	if !r.closed {
-		r.closed = true
-		if err := r.writer.Close(); err != nil {
-			return nil, err
-		}
-	}
-	return r.buf.Bytes(), nil
-}
-
 type exportRow struct {
 	SessionID      string `json:"session_id"`
 	RequestID      string `json:"request_id,omitempty"`
@@ -726,9 +476,15 @@ func StartDumpTask() {
 		for {
 			next := svc.nextDumpTime(time.Now())
 			time.Sleep(time.Until(next))
+			if !operation_setting.IsConversationArchiveDumpEnabled() {
+				continue
+			}
 			date := next.AddDate(0, 0, -1)
 			if err := svc.DumpDate(date); err != nil {
 				logger.LogWarn(context.Background(), fmt.Sprintf("会话归档每日导出失败: %v", err))
+			}
+			if err := svc.DropExpiredTables(next); err != nil {
+				logger.LogWarn(context.Background(), fmt.Sprintf("会话归档过期表清理失败: %v", err))
 			}
 		}
 	})
@@ -769,9 +525,6 @@ func (s *service) DumpDate(date time.Time) error {
 	loc := s.dumpLocation()
 	localDate := date.In(loc)
 	tableName := tableNameFor(localDate)
-	if err := s.waitQueuedTableDrained(tableName); err != nil {
-		return err
-	}
 	if err := s.waitPendingJobsDrained(tableName); err != nil {
 		return err
 	}
@@ -804,18 +557,91 @@ func (s *service) DumpDate(date time.Time) error {
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		return err
 	}
-	if s.cfg.R2Enabled {
+	if s.shouldUploadDumpToR2() {
 		key := s.r2ObjectKey(localDate, fileName)
 		if err := s.uploadDumpToR2(context.Background(), finalPath, key); err != nil {
 			return err
 		}
-		if s.cfg.DropAfterUpload {
-			if err := s.dropArchiveTable(tableName); err != nil {
-				return err
+		if operation_setting.ShouldDeleteConversationArchiveLocalDumpAfterUpload() {
+			if err := os.Remove(finalPath); err != nil {
+				logger.LogWarn(context.Background(), fmt.Sprintf("删除上传成功的本地会话归档文件失败: %v", err))
+			} else {
+				logger.LogInfo(context.Background(), fmt.Sprintf("已删除上传成功的本地会话归档文件: %s", finalPath))
 			}
 		}
 	}
 	return nil
+}
+
+func (s *service) shouldUploadDumpToR2() bool {
+	return s.cfg.R2Enabled && operation_setting.IsConversationArchiveR2Enabled()
+}
+
+func DropExpiredTables(now time.Time) error {
+	currentMu.RLock()
+	svc := current
+	currentMu.RUnlock()
+	if svc == nil {
+		return fmt.Errorf("会话归档未启用")
+	}
+	return svc.DropExpiredTables(now)
+}
+
+func (s *service) DropExpiredTables(now time.Time) error {
+	retentionDays := operation_setting.ConversationArchiveRetentionDays()
+	if retentionDays <= 0 {
+		return nil
+	}
+	loc := s.dumpLocation()
+	localNow := now.In(loc)
+	cutoff := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -retentionDays)
+	tables, err := s.listArchiveTables()
+	if err != nil {
+		return err
+	}
+	for _, tableName := range tables {
+		tableDate, ok := archiveTableDate(tableName, loc)
+		if !ok || !tableDate.Before(cutoff) {
+			continue
+		}
+		if err := s.dropArchiveTable(tableName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *service) listArchiveTables() ([]string, error) {
+	type tableNameRow struct {
+		TableName string `gorm:"column:table_name"`
+	}
+	var rows []tableNameRow
+	err := s.db.Raw(
+		`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE ? ORDER BY table_name`,
+		"conversation_archive%",
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	validTables := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if validArchiveTableName(row.TableName) {
+			validTables = append(validTables, row.TableName)
+		}
+	}
+	return validTables, nil
+}
+
+func archiveTableDate(tableName string, loc *time.Location) (time.Time, bool) {
+	if !validArchiveTableName(tableName) {
+		return time.Time{}, false
+	}
+	datePart := tableName[len(tableName)-8:]
+	parsed, err := time.ParseInLocation("20060102", datePart, loc)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed, true
 }
 
 func (s *service) writeDumpRows(writer io.Writer, tableName string, loc *time.Location) error {

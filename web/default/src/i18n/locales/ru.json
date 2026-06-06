@@ -4595,6 +4595,16 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Archive dump and retention": "Выгрузка и хранение архива",
+    "Control daily dump, Cloudflare R2 upload, and archive table retention.": "Управляет ежедневной выгрузкой, загрузкой в Cloudflare R2 и сроком хранения таблиц архива.",
+    "Enable daily archive dump": "Включить ежедневную выгрузку архива",
+    "Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.": "Записывает завершенные ежедневные таблицы архива в локальные файлы jsonl.gz. Параметры выгрузки окружения также должны быть включены.",
+    "Upload dumps to Cloudflare R2": "Загружать выгрузки в Cloudflare R2",
+    "Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.": "Загружает локальные файлы выгрузки в Cloudflare R2, когда учетные данные R2 настроены в окружении.",
+    "Delete local dump after R2 upload": "Удалять локальную выгрузку после загрузки в R2",
+    "Remove the local dump file after Cloudflare R2 upload succeeds.": "Удаляет локальный файл выгрузки после успешной загрузки в Cloudflare R2.",
+    "Archive table retention days": "Дней хранения таблиц архива",
+    "Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables.": "Удаляет нормальные и аномальные таблицы архива дат старше указанного числа дней. Установите 0, чтобы хранить таблицы в базе данных."
   }
 }

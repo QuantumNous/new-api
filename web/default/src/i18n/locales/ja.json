@@ -4595,6 +4595,16 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Archive dump and retention": "アーカイブのエクスポートと保持",
+    "Control daily dump, Cloudflare R2 upload, and archive table retention.": "日次エクスポート、Cloudflare R2 へのアップロード、アーカイブテーブルの保持期間を制御します。",
+    "Enable daily archive dump": "日次アーカイブエクスポートを有効化",
+    "Write completed daily archive tables to local jsonl.gz files. Environment dump settings must also be enabled.": "完了した日次アーカイブテーブルをローカルの jsonl.gz ファイルに書き出します。環境側のエクスポート設定も有効である必要があります。",
+    "Upload dumps to Cloudflare R2": "エクスポートを Cloudflare R2 にアップロード",
+    "Upload local dump files to Cloudflare R2 when R2 environment credentials are configured.": "R2 の環境認証情報が設定されている場合、ローカルのエクスポートファイルを Cloudflare R2 にアップロードします。",
+    "Delete local dump after R2 upload": "R2 アップロード後にローカルエクスポートを削除",
+    "Remove the local dump file after Cloudflare R2 upload succeeds.": "Cloudflare R2 へのアップロードが成功した後、ローカルのエクスポートファイルを削除します。",
+    "Archive table retention days": "アーカイブテーブルの保持日数",
+    "Drop normal and abnormal archive date tables older than this many days. Set 0 to keep database tables.": "この日数より古い通常および異常アーカイブ日付テーブルを削除します。0 に設定するとデータベーステーブルを保持します。"
   }
 }
