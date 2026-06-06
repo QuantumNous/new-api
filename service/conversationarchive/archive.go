@@ -35,6 +35,9 @@ const (
 	defaultDumpMinute    = 10
 	tablePrefix          = "conversation_archive_"
 	abnormalTablePrefix  = "conversation_archive_abnormal_"
+	defaultSpoolMaxMB    = 8192
+	defaultJobPollMs     = 500
+	defaultJobAttempts   = 3
 )
 
 type ArchiveKind string
@@ -68,6 +71,12 @@ type Config struct {
 	R2Region         string
 	R2Prefix         string
 	DropAfterUpload  bool
+	AsyncCompression bool
+	SpoolDir         string
+	SpoolMaxBytesMB  int
+	CompressWorkers  int
+	JobPollMs        int
+	JobMaxAttempts   int
 }
 
 type Record struct {
@@ -112,6 +121,10 @@ type service struct {
 	queuedTableMu sync.Mutex
 	ensuredTables map[string]struct{}
 	tableMu       sync.Mutex
+	spoolMaxBytes int64
+	spoolBytes    atomic.Int64
+	jobTableOnce  sync.Once
+	jobTableErr   error
 }
 
 var (
@@ -144,6 +157,12 @@ func InitFromEnv() error {
 		R2Region:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_R2_REGION", "auto"),
 		R2Prefix:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_R2_PREFIX", "newapi-conversation-archive"),
 		DropAfterUpload:  common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_DROP_AFTER_UPLOAD", false),
+		AsyncCompression: common.GetEnvOrDefaultBool("CONVERSATION_ARCHIVE_ASYNC_COMPRESSION", true),
+		SpoolDir:         common.GetEnvOrDefaultString("CONVERSATION_ARCHIVE_SPOOL_DIR", ""),
+		SpoolMaxBytesMB:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_SPOOL_MAX_BYTES_MB", defaultSpoolMaxMB),
+		CompressWorkers:  common.GetEnvOrDefault("CONVERSATION_ARCHIVE_COMPRESS_WORKERS", 0),
+		JobPollMs:        common.GetEnvOrDefault("CONVERSATION_ARCHIVE_JOB_POLL_MS", defaultJobPollMs),
+		JobMaxAttempts:   common.GetEnvOrDefault("CONVERSATION_ARCHIVE_JOB_MAX_ATTEMPTS", defaultJobAttempts),
 	}
 	return Init(cfg)
 }
@@ -177,6 +196,18 @@ func Init(cfg Config) error {
 	if cfg.FlushIntervalMs <= 0 {
 		cfg.FlushIntervalMs = defaultFlushInterval
 	}
+	if cfg.SpoolMaxBytesMB <= 0 {
+		cfg.SpoolMaxBytesMB = defaultSpoolMaxMB
+	}
+	if cfg.CompressWorkers <= 0 {
+		cfg.CompressWorkers = cfg.WorkerCount
+	}
+	if cfg.JobPollMs <= 0 {
+		cfg.JobPollMs = defaultJobPollMs
+	}
+	if cfg.JobMaxAttempts <= 0 {
+		cfg.JobMaxAttempts = defaultJobAttempts
+	}
 	if cfg.DumpMinute < 0 || cfg.DumpMinute > 59 {
 		cfg.DumpMinute = defaultDumpMinute
 	}
@@ -188,6 +219,13 @@ func Init(cfg Config) error {
 	}
 	if cfg.R2Region == "" {
 		cfg.R2Region = "auto"
+	}
+	if cfg.SpoolDir == "" {
+		if cfg.DumpDir != "" {
+			cfg.SpoolDir = filepath.Join(filepath.Dir(cfg.DumpDir), "conversation-archive-spool")
+		} else {
+			cfg.SpoolDir = filepath.Join(os.TempDir(), "new-api-conversation-archive-spool")
+		}
 	}
 	cfg.R2Prefix = strings.Trim(strings.TrimSpace(cfg.R2Prefix), "/")
 	if cfg.R2Enabled {
@@ -209,12 +247,31 @@ func Init(cfg Config) error {
 		db:            db,
 		queue:         make(chan Record, cfg.QueueSize),
 		queueMaxBytes: int64(cfg.QueueMaxBytesMB) * 1024 * 1024,
+		spoolMaxBytes: int64(cfg.SpoolMaxBytesMB) * 1024 * 1024,
 		queuedTables:  map[string]int{},
 		ensuredTables: map[string]struct{}{},
+	}
+	if cfg.AsyncCompression {
+		if err := os.MkdirAll(cfg.SpoolDir, 0755); err != nil {
+			return fmt.Errorf("创建会话归档 spool 目录失败: %w", err)
+		}
+		svc.spoolBytes.Store(svc.scanSpoolBytes())
+		if err := svc.ensureJobTable(); err != nil {
+			return err
+		}
+		if err := svc.resetProcessingJobs(); err != nil {
+			return err
+		}
 	}
 	setCurrent(svc)
 	for i := 0; i < cfg.WorkerCount; i++ {
 		gopool.Go(svc.worker)
+	}
+	if cfg.AsyncCompression {
+		for i := 0; i < cfg.CompressWorkers; i++ {
+			gopool.Go(svc.compressWorker)
+		}
+		logger.LogInfo(context.Background(), "会话归档异步压缩已启用")
 	}
 	logger.LogInfo(context.Background(), "会话归档已启用")
 	return nil
@@ -239,6 +296,12 @@ func SessionHeader() string {
 		return defaultSessionHeader
 	}
 	return current.cfg.SessionHeader
+}
+
+func AsyncCompressionEnabled() bool {
+	currentMu.RLock()
+	defer currentMu.RUnlock()
+	return current != nil && current.cfg.AsyncCompression
 }
 
 func Enqueue(record Record) {
@@ -413,6 +476,10 @@ func (s *service) waitQueuedTableDrained(tableName string) error {
 }
 
 func (s *service) insertBatch(records []Record) error {
+	return s.insertBatchWithDB(s.db, records)
+}
+
+func (s *service) insertBatchWithDB(db *gorm.DB, records []Record) error {
 	recordsByTable := map[string][]Record{}
 	for _, record := range records {
 		tableName := tableNameForRecord(record)
@@ -434,7 +501,7 @@ func (s *service) insertBatch(records []Record) error {
 				ResponseBodyGzip:   record.ResponseBodyGzip,
 			})
 		}
-		if err := s.db.Table(tableName).CreateInBatches(&rows, len(rows)).Error; err != nil {
+		if err := db.Table(tableName).CreateInBatches(&rows, len(rows)).Error; err != nil {
 			return err
 		}
 	}
@@ -703,6 +770,9 @@ func (s *service) DumpDate(date time.Time) error {
 	localDate := date.In(loc)
 	tableName := tableNameFor(localDate)
 	if err := s.waitQueuedTableDrained(tableName); err != nil {
+		return err
+	}
+	if err := s.waitPendingJobsDrained(tableName); err != nil {
 		return err
 	}
 	if !s.db.Migrator().HasTable(tableName) {

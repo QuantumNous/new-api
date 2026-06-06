@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestResolveSessionID(t *testing.T) {
@@ -156,8 +158,92 @@ func TestQueuedTableCount(t *testing.T) {
 	require.Equal(t, 0, svc.queuedTableCount(tableName))
 }
 
+func TestWriteSpoolBytesTracksAndCleansBytes(t *testing.T) {
+	currentMu.RLock()
+	previous := current
+	currentMu.RUnlock()
+	t.Cleanup(func() {
+		setCurrent(previous)
+	})
+	svc := &service{
+		cfg:           Config{SpoolDir: t.TempDir()},
+		spoolMaxBytes: 1024,
+	}
+	setCurrent(svc)
+
+	file, err := WriteSpoolBytes([]byte("hello"))
+	require.NoError(t, err)
+	require.FileExists(t, file.Path)
+	require.Equal(t, int64(5), file.Size)
+	require.Equal(t, int64(5), svc.spoolBytes.Load())
+
+	CleanupSpoolFiles(file)
+	require.NoFileExists(t, file.Path)
+	require.Equal(t, int64(0), svc.spoolBytes.Load())
+}
+
+func TestWriteSpoolBytesRespectsLimit(t *testing.T) {
+	currentMu.RLock()
+	previous := current
+	currentMu.RUnlock()
+	t.Cleanup(func() {
+		setCurrent(previous)
+	})
+	svc := &service{
+		cfg:           Config{SpoolDir: t.TempDir()},
+		spoolMaxBytes: 4,
+	}
+	setCurrent(svc)
+
+	_, err := WriteSpoolBytes([]byte("hello"))
+	require.Error(t, err)
+	require.Equal(t, int64(0), svc.spoolBytes.Load())
+}
+
+func TestAsyncJobClaimUsesConditionalUpdate(t *testing.T) {
+	db := newArchiveTestDB(t)
+	now := time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC)
+	svc := &service{
+		cfg:           Config{JobMaxAttempts: defaultJobAttempts},
+		db:            db,
+		ensuredTables: map[string]struct{}{},
+	}
+
+	err := svc.enqueueRaw(RawRecord{
+		Kind:         ArchiveKindNormal,
+		SessionID:    "session",
+		RequestID:    "request",
+		RequestTime:  now,
+		ResponseTime: now,
+	})
+	require.NoError(t, err)
+
+	job, ok, err := svc.claimJob()
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, jobStatusRunning, job.Status)
+	require.Equal(t, 1, job.Attempts)
+
+	_, ok, err = svc.claimJob()
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
 func TestR2ObjectKey(t *testing.T) {
 	svc := &service{cfg: Config{R2Prefix: "archive-root"}}
 	date := time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC)
 	require.Equal(t, "archive-root/2026/06/06/conversation_archive_20260606.jsonl.gz", svc.r2ObjectKey(date, "conversation_archive_20260606.jsonl.gz"))
+}
+
+func newArchiveTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	return db
 }
