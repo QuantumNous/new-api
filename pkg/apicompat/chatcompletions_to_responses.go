@@ -88,6 +88,16 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		out.ToolChoice = tc
 	}
 
+	// response_format → text.format. Without this the structured-output
+	// constraint (json_schema/json_object) is silently dropped and the model
+	// returns free-form text.
+	if format := convertChatResponseFormatToResponsesTextFormat(req.ResponseFormat); len(format) > 0 {
+		if out.Text == nil {
+			out.Text = &ResponsesText{}
+		}
+		out.Text.Format = format
+	}
+
 	return out, nil
 }
 
@@ -481,6 +491,47 @@ func normalizeChatToolChoiceToResponses(raw json.RawMessage) json.RawMessage {
 		}
 	}
 	return raw
+}
+
+// convertChatResponseFormatToResponsesTextFormat converts a Chat Completions
+// response_format into the Responses API text.format value. The json_schema
+// payload is flattened from the nested Chat shape into the flat Responses shape:
+//
+//	Chat:      {"type":"json_schema","json_schema":{"name":"X","strict":true,"schema":{...}}}
+//	Responses: {"type":"json_schema","name":"X","strict":true,"schema":{...}}
+//
+// json_object / text pass through as {"type":"json_object"} / {"type":"text"}.
+// Returns nil when there is nothing to convert.
+func convertChatResponseFormatToResponsesTextFormat(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var rf map[string]any
+	if err := common.Unmarshal(raw, &rf); err != nil {
+		return nil
+	}
+	typ, _ := rf["type"].(string)
+	if typ == "" {
+		return nil
+	}
+
+	format := map[string]any{"type": typ}
+	if typ == "json_schema" {
+		if js, ok := rf["json_schema"].(map[string]any); ok {
+			for k, v := range js {
+				if k == "type" {
+					continue
+				}
+				format[k] = v
+			}
+		}
+	}
+
+	out, err := common.Marshal(format)
+	if err != nil {
+		return nil
+	}
+	return out
 }
 
 // convertChatFunctionCallToToolChoice maps the legacy function_call field to a
