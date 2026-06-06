@@ -42,14 +42,19 @@ func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal,
 
 func GetRankingUserTotals(startTime int64, endTime int64) ([]RankingUserTotal, error) {
 	var rows []RankingUserTotal
-	query := DB.Table("quota_data as qd").
-		Select("qd.user_id, qd.username, COALESCE(u.display_name, '') as display_name, sum(qd.token_used) as total_tokens, sum(qd.count) as count").
-		Joins("LEFT JOIN users as u ON qd.user_id = u.id").
-		Where("qd.model_name <> ''").
-		Group("qd.user_id, qd.username, u.display_name").
-		Having("sum(qd.token_used) > 0").
+	query := DB.Table("quota_data").
+		Select("quota_data.user_id, quota_data.username, COALESCE(users.display_name, '') as display_name, sum(quota_data.token_used) as total_tokens, sum(quota_data.count) as count").
+		Joins("LEFT JOIN users ON quota_data.user_id = users.id").
+		Where("quota_data.model_name <> ''").
+		Group("quota_data.user_id, quota_data.username, users.display_name").
+		Having("sum(quota_data.token_used) > 0").
 		Order("total_tokens DESC")
-	query = applyRankingQuotaTimeRange(query, startTime, endTime)
+	if startTime > 0 {
+		query = query.Where("quota_data.created_at >= ?", startTime)
+	}
+	if endTime > 0 {
+		query = query.Where("quota_data.created_at <= ?", endTime)
+	}
 	err := query.Find(&rows).Error
 	if err != nil {
 		return nil, err
