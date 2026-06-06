@@ -253,6 +253,8 @@ export interface FeishuTokenListResponse {
 }
 
 export interface FeishuCreateTokenRequest {
+  user_id?: number
+  username?: string
   feishu_open_id?: string
   feishu_user_id?: string
   name?: string
@@ -275,6 +277,8 @@ export interface FeishuCreateTokenResponse {
 }
 
 export async function getFeishuTokens(params: {
+  user_id?: number
+  username?: string
   feishu_open_id?: string
   feishu_user_id?: string
   p?: number

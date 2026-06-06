@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -12,18 +12,31 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { createFeishuToken, getFeishuTokens, type FeishuTokenItem } from '../api'
+import type { User } from '../types'
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  user?: Pick<User, 'id' | 'username'>
 }
 
-export function FeishuTokenManagerDialog(props: Props) {
+const ensureSkPrefix = (value?: string) => {
+  const v = (value || '').trim()
+  if (!v) return ''
+  return v.startsWith('sk-') ? v : `sk-${v}`
+}
+
+export function FeishuTokenManagerDialog({ open, onOpenChange, user }: Props) {
   const { t } = useTranslation()
-  const [feishuOpenId, setFeishuOpenId] = useState('')
-  const [feishuUserId, setFeishuUserId] = useState('')
   const [tokenName, setTokenName] = useState('admin-created')
   const [tokens, setTokens] = useState<FeishuTokenItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -31,15 +44,15 @@ export function FeishuTokenManagerDialog(props: Props) {
   const [newKey, setNewKey] = useState('')
 
   const loadTokens = async () => {
-    if (!feishuOpenId.trim() && !feishuUserId.trim()) {
-      toast.error(t('Please provide feishu_open_id or feishu_user_id'))
+    if (!user?.id && !user?.username) {
+      setTokens([])
       return
     }
     setLoading(true)
     try {
       const res = await getFeishuTokens({
-        feishu_open_id: feishuOpenId.trim() || undefined,
-        feishu_user_id: feishuUserId.trim() || undefined,
+        user_id: user?.id,
+        username: user?.username,
         p: 1,
         page_size: 100,
       })
@@ -53,23 +66,30 @@ export function FeishuTokenManagerDialog(props: Props) {
     }
   }
 
+  useEffect(() => {
+    if (!open) return
+    setNewKey('')
+    setTokens([])
+    void loadTokens()
+  }, [open, user?.id, user?.username])
+
   const handleCreate = async () => {
-    if (!feishuOpenId.trim() && !feishuUserId.trim()) {
-      toast.error(t('Please provide feishu_open_id or feishu_user_id'))
+    if (!user?.id && !user?.username) {
+      toast.error(t('Missing user information'))
       return
     }
     setCreating(true)
     try {
       const res = await createFeishuToken({
-        feishu_open_id: feishuOpenId.trim() || undefined,
-        feishu_user_id: feishuUserId.trim() || undefined,
+        user_id: user?.id,
+        username: user?.username,
         name: tokenName.trim() || 'admin-created',
       })
       if (!res.success) {
         toast.error(res.message || t('Failed to create token'))
         return
       }
-      setNewKey(res.data?.key || '')
+      setNewKey(ensureSkPrefix(res.data?.key))
       toast.success(t('Token created successfully'))
       await loadTokens()
     } finally {
@@ -78,33 +98,17 @@ export function FeishuTokenManagerDialog(props: Props) {
   }
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-5xl'>
         <DialogHeader>
-          <DialogTitle>{t('Feishu Token Manager')}</DialogTitle>
+          <DialogTitle>{t('User Token Management')}</DialogTitle>
           <DialogDescription>
-            {t('Query all plaintext keys for a Feishu user and create new key (permission-limited).')}
+            {t('Current User')}: {user?.username || '-'} (ID: {user?.id || '-'})
           </DialogDescription>
         </DialogHeader>
 
-        <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
-          <div className='space-y-2'>
-            <Label>{t('Feishu Open ID')}</Label>
-            <Input
-              value={feishuOpenId}
-              onChange={(e) => setFeishuOpenId(e.target.value)}
-              placeholder='ou_xxx'
-            />
-          </div>
-          <div className='space-y-2'>
-            <Label>{t('Feishu User ID')}</Label>
-            <Input
-              value={feishuUserId}
-              onChange={(e) => setFeishuUserId(e.target.value)}
-              placeholder='u_xxx'
-            />
-          </div>
-          <div className='space-y-2'>
+        <div className='flex flex-wrap items-end gap-3'>
+          <div className='w-64 space-y-2'>
             <Label>{t('Token Name')}</Label>
             <Input
               value={tokenName}
@@ -116,7 +120,7 @@ export function FeishuTokenManagerDialog(props: Props) {
 
         {newKey && (
           <div className='rounded-md border border-amber-300 bg-amber-50 p-3 text-xs'>
-            <div className='mb-1 font-medium text-amber-800'>{t('New plaintext key')}</div>
+            <div className='mb-1 font-medium text-amber-800'>{t('New plaintext token')}</div>
             <div className='break-all font-mono text-amber-900'>{newKey}</div>
           </div>
         )}
@@ -127,7 +131,7 @@ export function FeishuTokenManagerDialog(props: Props) {
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>{t('Name')}</TableHead>
-                <TableHead>{t('Plaintext Key')}</TableHead>
+                <TableHead>{t('Plaintext Token')}</TableHead>
                 <TableHead>{t('Group')}</TableHead>
                 <TableHead>{t('Status')}</TableHead>
               </TableRow>
@@ -137,7 +141,9 @@ export function FeishuTokenManagerDialog(props: Props) {
                 <TableRow key={item.id}>
                   <TableCell>{item.id}</TableCell>
                   <TableCell>{item.name}</TableCell>
-                  <TableCell className='max-w-[460px] break-all font-mono text-xs'>{item.key}</TableCell>
+                  <TableCell className='max-w-[460px] break-all font-mono text-xs'>
+                    {ensureSkPrefix(item.key)}
+                  </TableCell>
                   <TableCell>{item.group || '-'}</TableCell>
                   <TableCell>{item.status}</TableCell>
                 </TableRow>
@@ -155,14 +161,13 @@ export function FeishuTokenManagerDialog(props: Props) {
 
         <DialogFooter>
           <Button variant='outline' onClick={loadTokens} disabled={loading || creating}>
-            {loading ? t('Loading...') : t('Query Keys')}
+            {loading ? t('Loading...') : t('Refresh List')}
           </Button>
           <Button onClick={handleCreate} disabled={loading || creating}>
-            {creating ? t('Creating...') : t('Create Key')}
+            {creating ? t('Creating...') : t('Create Token')}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-

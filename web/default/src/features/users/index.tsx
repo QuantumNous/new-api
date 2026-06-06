@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { FeishuBatchInitDialog } from './components/feishu-batch-init-dialog'
-import { FeishuTokenManagerDialog } from './components/feishu-token-manager-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
@@ -50,10 +49,6 @@ function UsersContent() {
       <UsersDeleteDialog />
       <FeishuBatchInitDialog
         open={open === 'feishu_batch_init'}
-        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
-      />
-      <FeishuTokenManagerDialog
-        open={open === 'feishu_token_manager'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
       />
     </>

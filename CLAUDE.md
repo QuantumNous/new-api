@@ -135,3 +135,19 @@ For request structs that are parsed from client JSON and then re-marshaled to up
 ### Rule 7: Billing Expression System — Read `pkg/billingexpr/expr.md`
 
 When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
+
+### Rule 8: Frontend Theme — Default Theme Is `default`
+
+Production and test environments should use the `default` frontend theme by default. The legacy `classic` theme remains in the repository for comparison and fallback only; do not implement new admin/dashboard features in `web/classic/` unless explicitly requested.
+
+Operational requirements:
+- Build and release the `web/default/` frontend for production changes.
+- Ensure the system option `theme.frontend` is set to `default` before production rollout.
+- Keep OAuth callback domains/ports consistent with the deployed backend origin; for local Feishu OAuth testing, use the same single backend origin that is configured in the Feishu app.
+
+Test deployment workflow:
+1. Build the default frontend from `web/default/` with `bun run build`.
+2. Build the Go binary so the embedded frontend assets are included.
+3. Run the backend on port `3000` for local single-origin testing.
+4. Set `theme.frontend=default` in the test database/system options.
+5. Verify `/sign-in`, `/users`, `/subscriptions`, and `/user-model-stats` on `http://localhost:3000/`.

@@ -212,6 +212,24 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
   return res.data
 }
 
+export interface GroupSyncResult {
+  updated?: number
+  skipped?: number
+  errors?: unknown[]
+}
+
+export async function syncPlanGroup(
+  groupName: string,
+  onlyMissing = true
+): Promise<ApiResponse<GroupSyncResult>> {
+  const res = await api.post('/api/user/group-sync', {
+    full: false,
+    group_name: groupName,
+    only_missing: onlyMissing,
+  })
+  return res.data
+}
+
 export interface SubscriptionPlanUsageItem {
   user_id: number
   username: string

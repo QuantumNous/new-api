@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type Row } from '@tanstack/react-table'
-import { MoreHorizontal, Pencil, Power, PowerOff } from 'lucide-react'
+import { MoreHorizontal, Pencil, Power, PowerOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { PlanRecord } from '../types'
+import { syncPlanGroup } from '../api'
 import { useSubscriptions } from './subscriptions-provider'
 
 interface DataTableRowActionsProps {
@@ -36,6 +38,28 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow, complianceConfirmed } = useSubscriptions()
+  const bindGroup = (row.original.plan.bind_group || '').trim()
+  const isSyncDisabled = !bindGroup
+
+  const handleManualSync = async () => {
+    if (!bindGroup) {
+      toast.error(t('This plan has no bound group'))
+      return
+    }
+    try {
+      const res = await syncPlanGroup(bindGroup, true)
+      if (res.success) {
+        const d = res.data || {}
+        toast.success(
+          `${t('Sync completed')} | ${t('Updated')}: ${d.updated || 0}, ${t('Skipped')}: ${d.skipped || 0}, ${t('Errors')}: ${(d.errors || []).length}`,
+        )
+      } else {
+        toast.error(res.message || t('Sync failed'))
+      }
+    } catch (e) {
+      toast.error((e as Error)?.message || t('Sync failed'))
+    }
+  }
 
   return (
     <DropdownMenu>
@@ -73,6 +97,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               {t('Enable')}
             </>
           )}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={isSyncDisabled}
+          onClick={handleManualSync}
+        >
+          <RefreshCw className='mr-2 h-4 w-4' />
+          {t('Manual Sync')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

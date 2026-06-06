@@ -208,6 +208,23 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         size: 100,
       },
       {
+        id: 'bind_group',
+        meta: { label: t('Bind Group'), mobileHidden: true },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Bind Group')} />
+        ),
+        cell: ({ row }) => {
+          const group = row.original.plan.bind_group
+          if (!group) {
+            return (
+              <span className='text-muted-foreground'>{t('No Bind')}</span>
+            )
+          }
+          return <GroupBadge group={group} />
+        },
+        size: 100,
+      },
+      {
         id: 'actions',
         cell: ({ row }) => <DataTableRowActions row={row} />,
         size: 80,
