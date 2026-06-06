@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -132,27 +133,33 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
+// EstimateBilling 检测请求是否包含视频参考输入，返回视频折扣 OtherRatio。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-	if hasVideoInMetadata(req.Metadata) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
+	if !hasVideoInput(&req) {
+		return nil
+	}
+	if ratio, ok := billing_setting.GetVideoInputRatio(info.OriginModelName); ok {
+		return map[string]float64{"video_input": ratio}
 	}
 	return nil
 }
 
-// hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
-// 避免构建完整的上游 requestPayload。
-func hasVideoInMetadata(metadata map[string]interface{}) bool {
-	if metadata == nil {
+// hasVideoInput 检查官方 content 数组或 metadata.content 是否包含 video_url 条目。
+func hasVideoInput(req *relaycommon.TaskSubmitReq) bool {
+	if req == nil {
 		return false
 	}
-	contentRaw, ok := metadata["content"]
+	if hasVideoInContent(req.Content) {
+		return true
+	}
+	if req.Metadata == nil {
+		return false
+	}
+	contentRaw, ok := req.Metadata["content"]
 	if !ok {
 		return false
 	}
@@ -160,15 +167,24 @@ func hasVideoInMetadata(metadata map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
+	content := make([]map[string]interface{}, 0, len(contentSlice))
 	for _, item := range contentSlice {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
+		if itemMap, ok := item.(map[string]interface{}); ok {
+			content = append(content, itemMap)
+		}
+	}
+	return hasVideoInContent(content)
+}
+
+func hasVideoInContent(content []map[string]interface{}) bool {
+	for _, item := range content {
+		if item == nil {
 			continue
 		}
-		if itemMap["type"] == "video_url" {
+		if item["type"] == "video_url" {
 			return true
 		}
-		if _, has := itemMap["video_url"]; has {
+		if _, has := item["video_url"]; has {
 			return true
 		}
 	}

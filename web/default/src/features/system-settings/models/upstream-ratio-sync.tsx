@@ -99,6 +99,8 @@ function optionKeyBySyncField(ratioType: string): string {
   const explicit: Record<string, string> = {
     billing_mode: 'billing_setting.billing_mode',
     billing_expr: 'billing_setting.billing_expr',
+    upstream_cost_multiplier: 'billing_setting.upstream_cost_multiplier',
+    video_input_ratio: 'billing_setting.video_input_ratio',
   }
   if (explicit[ratioType]) return explicit[ratioType]
   return ratioType

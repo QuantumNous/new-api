@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 func TestParseCreateTaskID(t *testing.T) {
@@ -67,6 +68,67 @@ func TestParseTaskResultNumericID(t *testing.T) {
 	}
 	if ti.Status != model.TaskStatusInProgress {
 		t.Fatalf("got status %q, want in_progress", ti.Status)
+	}
+}
+
+func TestHasVideoInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  relaycommon.TaskSubmitReq
+		want bool
+	}{
+		{
+			name: "top-level content video_url",
+			req: relaycommon.TaskSubmitReq{
+				Content: []map[string]interface{}{
+					{"type": "video_url", "video_url": map[string]interface{}{"url": "https://example.com/in.mp4"}},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "top-level content text only",
+			req: relaycommon.TaskSubmitReq{
+				Content: []map[string]interface{}{
+					{"type": "text", "text": "prompt"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "metadata content video_url",
+			req: relaycommon.TaskSubmitReq{
+				Metadata: map[string]interface{}{
+					"content": []interface{}{
+						map[string]interface{}{
+							"type":      "video_url",
+							"video_url": map[string]interface{}{"url": "https://example.com/in.mp4"},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "image only",
+			req: relaycommon.TaskSubmitReq{
+				Content: []map[string]interface{}{
+					{"type": "image_url", "image_url": map[string]interface{}{"url": "https://example.com/in.png"}},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := hasVideoInput(&tt.req); got != tt.want {
+				t.Fatalf("hasVideoInput() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

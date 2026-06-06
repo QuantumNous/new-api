@@ -113,7 +113,13 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'tool-prices', 'upstream-sync']}
+        videoInputRatiosDefault={settings['billing_setting.video_input_ratio']}
+        visibleTabs={[
+          'models',
+          'tool-prices',
+          'video-input-ratios',
+          'upstream-sync',
+        ]}
       />
     ),
   },
@@ -128,6 +134,7 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
+        videoInputRatiosDefault={settings['billing_setting.video_input_ratio']}
         visibleTabs={['groups']}
       />
     ),

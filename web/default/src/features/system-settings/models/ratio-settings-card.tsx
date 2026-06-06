@@ -32,6 +32,7 @@ import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
 import { ToolPriceSettings } from './tool-price-settings'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
+import { VideoInputRatioSettings } from './video-input-ratio-settings'
 import {
   formatJsonForTextarea,
   normalizeJsonString,
@@ -197,12 +198,18 @@ const groupSchema = z.object({
 
 type ModelFormValues = z.infer<typeof modelSchema>
 type GroupFormValues = z.infer<typeof groupSchema>
-type RatioTabId = 'models' | 'groups' | 'tool-prices' | 'upstream-sync'
+type RatioTabId =
+  | 'models'
+  | 'groups'
+  | 'tool-prices'
+  | 'video-input-ratios'
+  | 'upstream-sync'
 
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
   groupDefaults: GroupFormValues
   toolPricesDefault: string
+  videoInputRatiosDefault: string
   titleKey?: string
   descriptionKey?: string
   visibleTabs?: RatioTabId[]
@@ -212,9 +219,16 @@ export function RatioSettingsCard({
   modelDefaults,
   groupDefaults,
   toolPricesDefault,
+  videoInputRatiosDefault,
   titleKey = 'Pricing Ratios',
   descriptionKey = 'Configure model, caching, and group ratios used for billing',
-  visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
+  visibleTabs = [
+    'models',
+    'groups',
+    'tool-prices',
+    'video-input-ratios',
+    'upstream-sync',
+  ],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -443,6 +457,7 @@ export function RatioSettingsCard({
     models: 'Model prices',
     groups: 'Group ratios',
     'tool-prices': 'Tool prices',
+    'video-input-ratios': 'Video reference pricing',
     'upstream-sync': 'Upstream price sync',
   }
   const tabsGridClass =
@@ -451,7 +466,8 @@ export function RatioSettingsCard({
       2: 'grid-cols-2',
       3: 'grid-cols-3',
       4: 'grid-cols-4',
-    }[visibleTabs.length] ?? 'grid-cols-4'
+      5: 'grid-cols-5',
+    }[visibleTabs.length] ?? 'grid-cols-5'
   const defaultTab = visibleTabs[0] ?? 'models'
 
   const renderTabContent = (tab: RatioTabId) => {
@@ -477,6 +493,11 @@ export function RatioSettingsCard({
     }
     if (tab === 'tool-prices') {
       return <ToolPriceSettings defaultValue={toolPricesDefault} />
+    }
+    if (tab === 'video-input-ratios') {
+      return (
+        <VideoInputRatioSettings defaultValue={videoInputRatiosDefault} />
+      )
     }
     return (
       <UpstreamRatioSync

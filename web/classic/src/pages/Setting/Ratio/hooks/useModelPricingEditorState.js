@@ -43,6 +43,7 @@ const EMPTY_MODEL = {
   billingExpr: '',
   requestRuleExpr: '',
   upstreamCostMultiplier: '',
+  videoInputRatio: '',
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -167,6 +168,7 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+  const videoInputRatio = toNumericString(sourceMaps.ModelVideoInputRatio?.[name]);
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
@@ -216,6 +218,7 @@ const buildModelState = (name, sourceMaps) => {
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
     requestRuleExpr: '',
+    videoInputRatio,
     rawRatios: {
       modelRatio,
       completionRatio,
@@ -357,6 +360,7 @@ export const buildOptionalFieldToggles = (model) => ({
   imagePrice: hasValue(model.imagePrice),
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
+  videoInputRatio: hasValue(model.videoInputRatio),
 });
 
 const serializeModel = (model, t) => {
@@ -589,6 +593,11 @@ export const buildPreviewRows = (model, t) => {
           ? model.rawRatios.audioCompletionRatio
           : t('空'),
       },
+      {
+        key: 'VideoInputRatio',
+        label: 'VideoInputRatio',
+        value: hasValue(model.videoInputRatio) ? model.videoInputRatio : t('空'),
+      },
     ];
     return rows;
   }
@@ -653,6 +662,11 @@ export const buildPreviewRows = (model, t) => {
           ? formatNumber(audioOutputPrice / audioInputPrice)
           : t('空'),
     },
+    {
+      key: 'VideoInputRatio',
+      label: 'VideoInputRatio',
+      value: hasValue(model.videoInputRatio) ? model.videoInputRatio : t('空'),
+    },
   ];
   return rows;
 };
@@ -690,6 +704,9 @@ export function useModelPricingEditorState({
       ModelUpstreamCostMultiplier: parseOptionJSON(
         options['billing_setting.upstream_cost_multiplier'],
       ),
+      ModelVideoInputRatio: parseOptionJSON(
+        options['billing_setting.video_input_ratio'],
+      ),
     };
 
     const names = new Set([
@@ -706,6 +723,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
       ...Object.keys(sourceMaps.ModelUpstreamCostMultiplier),
+      ...Object.keys(sourceMaps.ModelVideoInputRatio),
     ]);
 
     const nextModels = Array.from(names)
@@ -1008,6 +1026,7 @@ export function useModelPricingEditorState({
           billingMode: selectedModel.billingMode,
           fixedPrice: selectedModel.fixedPrice,
           upstreamCostMultiplier: selectedModel.upstreamCostMultiplier,
+          videoInputRatio: selectedModel.videoInputRatio,
           inputPrice: selectedModel.inputPrice,
           completionPrice: selectedModel.completionPrice,
           cachePrice: selectedModel.cachePrice,
@@ -1050,6 +1069,7 @@ export function useModelPricingEditorState({
           audioOutputPrice:
             Boolean(sourceToggles.audioInputPrice) &&
             Boolean(sourceToggles.audioOutputPrice),
+          videoInputRatio: Boolean(sourceToggles.videoInputRatio),
         };
       });
       return next;
@@ -1085,6 +1105,9 @@ export function useModelPricingEditorState({
       const costMultiplierOutput = {
         ...parseOptionJSON(options['billing_setting.upstream_cost_multiplier']),
       };
+      const videoInputRatioOutput = {
+        ...parseOptionJSON(options['billing_setting.video_input_ratio']),
+      };
       const prevBillingModes = parseOptionJSON(
         options['billing_setting.billing_mode'],
       );
@@ -1112,6 +1135,17 @@ export function useModelPricingEditorState({
           if (prevBillingModes?.[model.name] === 'per_second') {
             tieredOutput['billing_setting.billing_mode'][model.name] = 'ratio';
           }
+        }
+
+        if (model.billingMode === 'per-token') {
+          const videoRatio = toNumberOrNull(model.videoInputRatio);
+          if (videoRatio !== null && videoRatio > 0) {
+            videoInputRatioOutput[model.name] = videoRatio;
+          } else {
+            delete videoInputRatioOutput[model.name];
+          }
+        } else {
+          delete videoInputRatioOutput[model.name];
         }
 
         // Always serialize ratio/price values for all models (including
@@ -1148,6 +1182,10 @@ export function useModelPricingEditorState({
         API.put('/api/option/', {
           key: 'billing_setting.upstream_cost_multiplier',
           value: JSON.stringify(costMultiplierOutput, null, 2),
+        }),
+        API.put('/api/option/', {
+          key: 'billing_setting.video_input_ratio',
+          value: JSON.stringify(videoInputRatioOutput, null, 2),
         }),
       ];
 

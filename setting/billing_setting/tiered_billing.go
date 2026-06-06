@@ -15,7 +15,10 @@ const (
 	BillingModePerSecond = "per_second"
 	BillingModeField              = "billing_mode"
 	BillingExprField              = "billing_expr"
-	UpstreamCostMultiplierField   = "upstream_cost_multiplier"
+	UpstreamCostMultiplierField = "upstream_cost_multiplier"
+	// VideoInputRatioField: discount when task request includes video reference (e.g. Seedance video_url).
+	// Ratio = with-video price / without-video price; ModelRatio should be the higher no-video rate.
+	VideoInputRatioField = "video_input_ratio"
 )
 
 // IsPerSecondModel reports whether the model uses per-second fixed pricing (not flat per-call).
@@ -29,12 +32,19 @@ type BillingSetting struct {
 	BillingMode            map[string]string  `json:"billing_mode"`
 	BillingExpr            map[string]string  `json:"billing_expr"`
 	UpstreamCostMultiplier map[string]float64 `json:"upstream_cost_multiplier"`
+	VideoInputRatio        map[string]float64 `json:"video_input_ratio"`
+}
+
+var defaultVideoInputRatio = map[string]float64{
+	"doubao-seedance-2-0-260128":      28.0 / 46.0,
+	"doubao-seedance-2-0-fast-260128": 22.0 / 37.0,
 }
 
 var billingSetting = BillingSetting{
 	BillingMode:            make(map[string]string),
 	BillingExpr:            make(map[string]string),
 	UpstreamCostMultiplier: make(map[string]float64),
+	VideoInputRatio:        lo.Assign(defaultVideoInputRatio),
 }
 
 func init() {
@@ -54,6 +64,9 @@ func ensureBillingSettingMaps() {
 	}
 	if billingSetting.UpstreamCostMultiplier == nil {
 		billingSetting.UpstreamCostMultiplier = make(map[string]float64)
+	}
+	if billingSetting.VideoInputRatio == nil {
+		billingSetting.VideoInputRatio = make(map[string]float64)
 	}
 }
 
@@ -108,8 +121,29 @@ func GetUpstreamCostMultiplierCopy() map[string]float64 {
 	return lo.Assign(billingSetting.UpstreamCostMultiplier)
 }
 
+// GetVideoInputRatio returns the multiplier applied when a video task request includes video reference input.
+// Second return is false when unset.
+func GetVideoInputRatio(model string) (float64, bool) {
+	ensureBillingSettingMaps()
+	if model == "" || billingSetting.VideoInputRatio == nil {
+		return 1, false
+	}
+	r, ok := billingSetting.VideoInputRatio[model]
+	if !ok || r <= 0 {
+		return 1, false
+	}
+	return r, true
+}
+
+func GetVideoInputRatioCopy() map[string]float64 {
+	if billingSetting.VideoInputRatio == nil {
+		return map[string]float64{}
+	}
+	return lo.Assign(billingSetting.VideoInputRatio)
+}
+
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 3)
+	extra := make(map[string]any, 4)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
@@ -118,6 +152,9 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	}
 	if mults := GetUpstreamCostMultiplierCopy(); len(mults) > 0 {
 		extra[UpstreamCostMultiplierField] = mults
+	}
+	if ratios := GetVideoInputRatioCopy(); len(ratios) > 0 {
+		extra[VideoInputRatioField] = ratios
 	}
 	return lo.Assign(base, extra)
 }

@@ -36,6 +36,7 @@ type Pricing struct {
 	BillingMode              string   `json:"billing_mode,omitempty"`
 	BillingExpr              string   `json:"billing_expr,omitempty"`
 	UpstreamCostMultiplier   *float64 `json:"upstream_cost_multiplier,omitempty"`
+	VideoInputRatio          *float64 `json:"video_input_ratio,omitempty"`
 	PricingVersion           string   `json:"pricing_version,omitempty"`
 }
 
@@ -345,6 +346,9 @@ func updatePricing() {
 					pricing.UpstreamCostMultiplier = &mult
 				}
 			}
+		}
+		if ratio, ok := billing_setting.GetVideoInputRatio(model); ok {
+			pricing.VideoInputRatio = &ratio
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

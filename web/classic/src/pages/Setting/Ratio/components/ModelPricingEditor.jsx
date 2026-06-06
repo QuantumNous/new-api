@@ -724,6 +724,33 @@ export default function ModelPricingEditor({
                               : ''
                         }
                       />
+                      <PriceInput
+                        label={t('视频参考折扣比例')}
+                        value={selectedModel.videoInputRatio}
+                        placeholder={t('例如 0.6087')}
+                        suffix=''
+                        onChange={(value) =>
+                          handleNumericFieldChange('videoInputRatio', value)
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'videoInputRatio',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle('videoInputRatio', checked)
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(selectedModel, 'videoInputRatio')
+                        }
+                        extraText={t(
+                          '请求 content 含 video_url 时，实际计费 = ModelRatio × 此比例。输入价格请填不含视频参考的较高单价；比例 = 含视频单价 ÷ 不含视频单价。',
+                        )}
+                      />
                     </Card>
                   </>
                 )}
