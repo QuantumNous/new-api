@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/conversationarchive"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -65,6 +66,9 @@ func main() {
 	}
 
 	defer func() {
+		if err := conversationarchive.Close(); err != nil {
+			common.FatalLog("failed to close conversation archive database: " + err.Error())
+		}
 		err := model.CloseDB()
 		if err != nil {
 			common.FatalLog("failed to close database: " + err.Error())
@@ -118,6 +122,8 @@ func main() {
 
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
+
+	conversationarchive.StartDumpTask()
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
@@ -297,6 +303,11 @@ func InitResources() error {
 
 	// Initialize SQL Database
 	err = model.InitLogDB()
+	if err != nil {
+		return err
+	}
+
+	err = conversationarchive.InitFromEnv()
 	if err != nil {
 		return err
 	}
