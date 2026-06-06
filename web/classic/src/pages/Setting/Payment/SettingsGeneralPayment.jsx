@@ -39,6 +39,7 @@ export default function SettingsGeneralPayment(props) {
     PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
+    DefaultTopUpAmount: 100,
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -52,6 +53,10 @@ export default function SettingsGeneralPayment(props) {
         PayMethods: props.options.PayMethods || '',
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
+        DefaultTopUpAmount:
+          props.options.DefaultTopUpAmount !== undefined
+            ? Number(props.options.DefaultTopUpAmount) || 100
+            : 100,
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -129,6 +134,12 @@ export default function SettingsGeneralPayment(props) {
         options.push({
           key: 'payment_setting.amount_discount',
           value: inputs.AmountDiscount,
+        });
+      }
+      if (originInputs.DefaultTopUpAmount !== inputs.DefaultTopUpAmount) {
+        options.push({
+          key: 'payment_setting.default_topup_amount',
+          value: String(inputs.DefaultTopUpAmount),
         });
       }
 
@@ -210,6 +221,20 @@ export default function SettingsGeneralPayment(props) {
               />
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.InputNumber
+                field='DefaultTopUpAmount'
+                label={t('默认充值金额')}
+                placeholder={t('例如：100')}
+                min={1}
+                extraText={t('用户进入充值页时输入框默认显示的金额')}
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='AmountOptions'
                 label={t('自定义充值数量选项')}
@@ -222,9 +247,7 @@ export default function SettingsGeneralPayment(props) {
                 )}
               />
             </Col>
-          </Row>
-          <Row style={{ marginTop: 16 }}>
-            <Col span={24}>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='AmountDiscount'
                 label={t('充值金额折扣配置')}

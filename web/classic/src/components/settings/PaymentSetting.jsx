@@ -44,6 +44,7 @@ const PaymentSetting = () => {
     PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
+    DefaultTopUpAmount: 100,
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
@@ -146,6 +147,9 @@ const PaymentSetting = () => {
               newInputs['AmountDiscount'] = item.value;
             }
             break;
+          case 'payment_setting.default_topup_amount':
+            newInputs['DefaultTopUpAmount'] = parseFloat(item.value) || 100;
+            break;
           case 'payment_setting.compliance_confirmed':
             newInputs[item.key] = toBoolean(item.value);
             break;
@@ -158,6 +162,7 @@ const PaymentSetting = () => {
             break;
           case 'Price':
           case 'MinTopUp':
+          case 'DefaultTopUpAmount':
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
