@@ -59,12 +59,6 @@ const LazyModelCharts = lazy(() =>
   }))
 )
 
-const LazyTopUpAnalysisChart = lazy(() =>
-  import('./components/models/topup-analysis-chart').then((m) => ({
-    default: m.TopUpAnalysisChart,
-  }))
-)
-
 const LazyConsumptionDistributionChart = lazy(() =>
   import('./components/models/consumption-distribution-chart').then((m) => ({
     default: m.ConsumptionDistributionChart,
@@ -295,18 +289,6 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              {isAdmin && (
-                <FadeIn delay={0.2}>
-                  <Suspense fallback={<ModelChartsFallback />}>
-                    <LazyTopUpAnalysisChart
-                      filters={modelFilters}
-                      timeGranularity={
-                        modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                      }
-                    />
-                  </Suspense>
-                </FadeIn>
-              )}
             </>
           )}
           {activeSection === 'users' && (
