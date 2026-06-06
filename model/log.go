@@ -259,6 +259,14 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	return logs, err
 }
 
+func GetLogById(id int) (*Log, error) {
+	var log Log
+	if err := LOG_DB.Where("id = ?", id).First(&log).Error; err != nil {
+		return nil, err
+	}
+	return &log, nil
+}
+
 func RecordLog(userId int, logType int, content string) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
 		return

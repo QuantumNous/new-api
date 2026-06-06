@@ -1,12 +1,14 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/conversationarchive"
 
 	"github.com/gin-gonic/gin"
 )
@@ -94,6 +96,25 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func GetLogArchive(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiError(c, fmt.Errorf("无效的日志 ID"))
+		return
+	}
+	log, err := model.GetLogById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	detail, err := conversationarchive.GetDetailByRequestID(log.RequestId, log.CreatedAt)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, detail)
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。

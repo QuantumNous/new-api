@@ -21,6 +21,7 @@ import { buildQueryParams } from './lib/utils'
 import type {
   GetLogsParams,
   GetLogsResponse,
+  GetLogArchiveResponse,
   GetLogStatsParams,
   GetLogStatsResponse,
   GetMidjourneyLogsParams,
@@ -82,6 +83,13 @@ export const getLogStats = (params: GetLogStatsParams = {}) =>
 export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ) => fetchLogStats('/api/log', params, false)
+
+export async function getLogArchive(
+  logId: number
+): Promise<GetLogArchiveResponse> {
+  const res = await api.get(`/api/log/${logId}/archive`)
+  return res.data
+}
 
 export async function getUserInfo(
   userId: number

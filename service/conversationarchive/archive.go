@@ -63,20 +63,24 @@ type Config struct {
 }
 
 type Record struct {
-	SessionID        string
-	RequestTime      time.Time
-	ResponseTime     time.Time
-	RequestBodyGzip  []byte
-	ResponseBodyGzip []byte
+	SessionID          string
+	RequestID          string
+	RequestTime        time.Time
+	ResponseTime       time.Time
+	RequestHeadersGzip []byte
+	RequestBodyGzip    []byte
+	ResponseBodyGzip   []byte
 }
 
 type archiveRow struct {
-	ID               uint64
-	SessionID        string
-	RequestTime      time.Time
-	ResponseTime     time.Time
-	RequestBodyGzip  []byte
-	ResponseBodyGzip []byte
+	ID                 uint64
+	SessionID          string
+	RequestID          string
+	RequestTime        time.Time
+	ResponseTime       time.Time
+	RequestHeadersGzip []byte
+	RequestBodyGzip    []byte
+	ResponseBodyGzip   []byte
 }
 
 type service struct {
@@ -311,7 +315,7 @@ func (s *service) worker() {
 }
 
 func compressedRecordSize(record Record) int64 {
-	return int64(len(record.RequestBodyGzip) + len(record.ResponseBodyGzip))
+	return int64(len(record.RequestHeadersGzip) + len(record.RequestBodyGzip) + len(record.ResponseBodyGzip))
 }
 
 func (s *service) reserveStrict(size int64) {
@@ -405,11 +409,13 @@ func (s *service) insertBatch(records []Record) error {
 		rows := make([]archiveRow, 0, len(tableRecords))
 		for _, record := range tableRecords {
 			rows = append(rows, archiveRow{
-				SessionID:        record.SessionID,
-				RequestTime:      record.RequestTime,
-				ResponseTime:     record.ResponseTime,
-				RequestBodyGzip:  record.RequestBodyGzip,
-				ResponseBodyGzip: record.ResponseBodyGzip,
+				SessionID:          record.SessionID,
+				RequestID:          record.RequestID,
+				RequestTime:        record.RequestTime,
+				ResponseTime:       record.ResponseTime,
+				RequestHeadersGzip: record.RequestHeadersGzip,
+				RequestBodyGzip:    record.RequestBodyGzip,
+				ResponseBodyGzip:   record.ResponseBodyGzip,
 			})
 		}
 		if err := s.db.Table(tableName).CreateInBatches(&rows, len(rows)).Error; err != nil {
@@ -431,15 +437,26 @@ func (s *service) ensureTable(tableName string) error {
 	createSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (
 id BIGSERIAL PRIMARY KEY,
 session_id TEXT NOT NULL,
+request_id TEXT NOT NULL DEFAULT '',
 request_time TIMESTAMPTZ NOT NULL,
 response_time TIMESTAMPTZ NOT NULL,
+request_headers_gzip BYTEA NOT NULL DEFAULT decode('', 'hex'),
 request_body_gzip BYTEA NOT NULL,
 response_body_gzip BYTEA NOT NULL
 )`, tableName)
 	if err := s.db.Exec(createSQL).Error; err != nil {
 		return err
 	}
+	if err := s.db.Exec(fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN IF NOT EXISTS request_id TEXT NOT NULL DEFAULT ''`, tableName)).Error; err != nil {
+		return err
+	}
+	if err := s.db.Exec(fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN IF NOT EXISTS request_headers_gzip BYTEA NOT NULL DEFAULT decode('', 'hex')`, tableName)).Error; err != nil {
+		return err
+	}
 	suffix := strings.TrimPrefix(tableName, tablePrefix)
+	if err := s.db.Exec(fmt.Sprintf(`CREATE INDEX IF NOT EXISTS "idx_conv_archive_%s_request_id" ON "%s" (request_id)`, suffix, tableName)).Error; err != nil {
+		return err
+	}
 	if err := s.db.Exec(fmt.Sprintf(`CREATE INDEX IF NOT EXISTS "idx_conv_archive_%s_request_time" ON "%s" (request_time)`, suffix, tableName)).Error; err != nil {
 		return err
 	}
@@ -504,6 +521,13 @@ func DecompressBytes(data []byte) ([]byte, error) {
 	}
 	defer zr.Close()
 	return io.ReadAll(zr)
+}
+
+func DecompressOptionalBytes(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return []byte{}, nil
+	}
+	return DecompressBytes(data)
 }
 
 func ResolveSessionID(headerValue string, requestBody []byte, fallback string) string {
@@ -572,11 +596,13 @@ func (r *ResponseRecorder) Close() ([]byte, error) {
 }
 
 type exportRow struct {
-	SessionID    string `json:"session_id"`
-	RequestTime  string `json:"request_time"`
-	ResponseTime string `json:"response_time"`
-	RequestBody  any    `json:"request_body"`
-	ResponseBody any    `json:"response_body"`
+	SessionID      string `json:"session_id"`
+	RequestID      string `json:"request_id,omitempty"`
+	RequestTime    string `json:"request_time"`
+	ResponseTime   string `json:"response_time"`
+	RequestHeaders any    `json:"request_headers"`
+	RequestBody    any    `json:"request_body"`
+	ResponseBody   any    `json:"response_body"`
 }
 
 func StartDumpTask() {
@@ -696,6 +722,10 @@ func (s *service) writeDumpRows(writer io.Writer, tableName string, loc *time.Lo
 			return nil
 		}
 		for _, row := range rows {
+			requestHeaders, err := DecompressOptionalBytes(row.RequestHeadersGzip)
+			if err != nil {
+				return err
+			}
 			requestBody, err := DecompressBytes(row.RequestBodyGzip)
 			if err != nil {
 				return err
@@ -705,11 +735,13 @@ func (s *service) writeDumpRows(writer io.Writer, tableName string, loc *time.Lo
 				return err
 			}
 			export := exportRow{
-				SessionID:    row.SessionID,
-				RequestTime:  row.RequestTime.In(loc).Format(time.RFC3339Nano),
-				ResponseTime: row.ResponseTime.In(loc).Format(time.RFC3339Nano),
-				RequestBody:  bodyForExport(requestBody),
-				ResponseBody: bodyForExport(responseBody),
+				SessionID:      row.SessionID,
+				RequestID:      row.RequestID,
+				RequestTime:    row.RequestTime.In(loc).Format(time.RFC3339Nano),
+				ResponseTime:   row.ResponseTime.In(loc).Format(time.RFC3339Nano),
+				RequestHeaders: headersForExport(requestHeaders),
+				RequestBody:    bodyForExport(requestBody),
+				ResponseBody:   bodyForExport(responseBody),
 			}
 			line, err := common.Marshal(export)
 			if err != nil {
@@ -735,4 +767,99 @@ func bodyForExport(body []byte) any {
 		return json.RawMessage(trimmed)
 	}
 	return string(body)
+}
+
+func headersForExport(headers []byte) any {
+	trimmed := bytes.TrimSpace(headers)
+	if len(trimmed) == 0 {
+		return map[string][]string{}
+	}
+	return bodyForExport(trimmed)
+}
+
+type Detail struct {
+	SessionID      string `json:"session_id"`
+	RequestID      string `json:"request_id"`
+	RequestTime    string `json:"request_time"`
+	ResponseTime   string `json:"response_time"`
+	RequestHeaders any    `json:"request_headers"`
+	RequestBody    any    `json:"request_body"`
+	ResponseBody   any    `json:"response_body"`
+}
+
+func GetDetailByRequestID(requestID string, createdAt int64) (*Detail, error) {
+	currentMu.RLock()
+	svc := current
+	currentMu.RUnlock()
+	if svc == nil {
+		return nil, fmt.Errorf("会话归档未启用")
+	}
+	return svc.getDetailByRequestID(requestID, createdAt)
+}
+
+func (s *service) getDetailByRequestID(requestID string, createdAt int64) (*Detail, error) {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return nil, fmt.Errorf("日志缺少 request_id，无法定位归档")
+	}
+	for _, tableName := range archiveLookupTables(createdAt) {
+		if !s.db.Migrator().HasTable(tableName) {
+			continue
+		}
+		var row archiveRow
+		err := s.db.Table(tableName).
+			Where("request_id = ?", requestID).
+			Order("response_time DESC, id DESC").
+			Limit(1).
+			First(&row).Error
+		if err == nil {
+			return archiveDetailFromRow(row)
+		}
+		if err != gorm.ErrRecordNotFound {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("未找到该日志对应的会话归档")
+}
+
+func archiveLookupTables(createdAt int64) []string {
+	base := time.Now()
+	if createdAt > 0 {
+		base = time.Unix(createdAt, 0)
+	}
+	tables := make([]string, 0, 3)
+	seen := map[string]struct{}{}
+	for _, offset := range []int{0, -1, 1} {
+		tableName := tableNameFor(base.AddDate(0, 0, offset))
+		if _, ok := seen[tableName]; ok {
+			continue
+		}
+		seen[tableName] = struct{}{}
+		tables = append(tables, tableName)
+	}
+	return tables
+}
+
+func archiveDetailFromRow(row archiveRow) (*Detail, error) {
+	requestHeaders, err := DecompressOptionalBytes(row.RequestHeadersGzip)
+	if err != nil {
+		return nil, err
+	}
+	requestBody, err := DecompressBytes(row.RequestBodyGzip)
+	if err != nil {
+		return nil, err
+	}
+	responseBody, err := DecompressBytes(row.ResponseBodyGzip)
+	if err != nil {
+		return nil, err
+	}
+	return &Detail{
+		SessionID:      row.SessionID,
+		RequestID:      row.RequestID,
+		RequestTime:    row.RequestTime.Format(time.RFC3339Nano),
+		ResponseTime:   row.ResponseTime.Format(time.RFC3339Nano),
+		RequestHeaders: headersForExport(requestHeaders),
+		RequestBody:    bodyForExport(requestBody),
+		ResponseBody:   bodyForExport(responseBody),
+	}, nil
 }

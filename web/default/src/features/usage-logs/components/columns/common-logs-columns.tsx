@@ -57,6 +57,7 @@ import {
   isPerCallBilling,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+import { ArchiveDialog } from '../dialogs/archive-dialog'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
@@ -715,7 +716,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status Code')} />
       ),
-      cell: ({ row }) => {
+      cell: function StatusCodeCell({ row }) {
+        const [dialogOpen, setDialogOpen] = useState(false)
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
@@ -723,7 +725,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const statusCode = getLogStatusCode(log, other)
         if (statusCode == null) return <EmptyValue />
 
-        return (
+        const badge = (
           <StatusBadge
             label={String(statusCode)}
             variant={getStatusCodeVariant(statusCode)}
@@ -731,6 +733,29 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             copyable={false}
             className='font-mono'
           />
+        )
+
+        if (!isAdmin) return badge
+
+        return (
+          <>
+            <button
+              type='button'
+              className='group inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+              title={t('Click to view archived request')}
+              onClick={(e) => {
+                e.stopPropagation()
+                setDialogOpen(true)
+              }}
+            >
+              {badge}
+            </button>
+            <ArchiveDialog
+              log={log}
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+            />
+          </>
         )
       },
       meta: { label: t('Status Code'), mobileHidden: true },

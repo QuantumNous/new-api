@@ -51,6 +51,12 @@ func ConversationArchive() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		requestHeadersGzip, err := getArchiveRequestHeaders(c)
+		if err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("会话归档读取请求头失败: %v", err))
+			c.Next()
+			return
+		}
 
 		requestID := c.GetString(common.RequestIdKey)
 		sessionID := conversationarchive.ResolveSessionID(
@@ -73,11 +79,13 @@ func ConversationArchive() gin.HandlerFunc {
 			return
 		}
 		conversationarchive.Enqueue(conversationarchive.Record{
-			SessionID:        sessionID,
-			RequestTime:      requestTime,
-			ResponseTime:     time.Now(),
-			RequestBodyGzip:  requestBodyGzip,
-			ResponseBodyGzip: responseBodyGzip,
+			SessionID:          sessionID,
+			RequestID:          requestID,
+			RequestTime:        requestTime,
+			ResponseTime:       time.Now(),
+			RequestHeadersGzip: requestHeadersGzip,
+			RequestBodyGzip:    requestBodyGzip,
+			ResponseBodyGzip:   responseBodyGzip,
 		})
 	}
 }
@@ -129,4 +137,23 @@ func getArchiveRequestBody(c *gin.Context) ([]byte, []byte, error) {
 	}
 	c.Request.Body = io.NopCloser(storage)
 	return bodyGzip, sessionBody, nil
+}
+
+func getArchiveRequestHeaders(c *gin.Context) ([]byte, error) {
+	headers := map[string][]string{}
+	if c == nil || c.Request == nil {
+		data, err := common.Marshal(headers)
+		if err != nil {
+			return nil, err
+		}
+		return conversationarchive.CompressBytes(data)
+	}
+	for key, values := range c.Request.Header {
+		headers[key] = append([]string(nil), values...)
+	}
+	data, err := common.Marshal(headers)
+	if err != nil {
+		return nil, err
+	}
+	return conversationarchive.CompressBytes(data)
 }

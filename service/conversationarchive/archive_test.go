@@ -27,6 +27,13 @@ func TestCompressBytesRoundTrip(t *testing.T) {
 	require.Equal(t, origin, decompressed)
 }
 
+func TestDecompressOptionalBytesAllowsEmptyLegacyField(t *testing.T) {
+	decompressed, err := DecompressOptionalBytes(nil)
+	require.NoError(t, err)
+	require.Empty(t, decompressed)
+	require.Equal(t, map[string][]string{}, headersForExport(decompressed))
+}
+
 func TestBodyForExport(t *testing.T) {
 	jsonBody := bodyForExport([]byte(`{"ok":true}`))
 	require.IsType(t, json.RawMessage{}, jsonBody)

@@ -329,6 +329,22 @@ export interface GetLogStatsResponse {
   data?: LogStatistics
 }
 
+export interface LogArchiveDetail {
+  session_id: string
+  request_id: string
+  request_time: string
+  response_time: string
+  request_headers: unknown
+  request_body: unknown
+  response_body: unknown
+}
+
+export interface GetLogArchiveResponse {
+  success: boolean
+  message?: string
+  data?: LogArchiveDetail
+}
+
 // ============================================================================
 // Drawing Log Types
 // ============================================================================
