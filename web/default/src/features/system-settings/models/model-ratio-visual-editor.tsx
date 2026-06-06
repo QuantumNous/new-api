@@ -78,6 +78,7 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  imageModelSetting: string
   onChange: (field: string, value: string) => void
 }
 
@@ -95,6 +96,11 @@ type ModelRow = {
   billingExpr?: string
   requestRuleExpr?: string
   hasConflict: boolean
+  // Per-resolution pricing
+  price1k?: string
+  price2k?: string
+  price4k?: string
+  perRequestSubMode?: 'fixed' | 'per-resolution'
 }
 
 const STORAGE_KEY = 'model-ratio-column-visibility'
@@ -122,14 +128,23 @@ const filterBySelectedValues = (
   return filterValue.includes(String(rowValue))
 }
 
-const getModeLabel = (mode?: string) => {
-  if (mode === 'per-request') return 'Per-request'
+const getModeLabel = (mode?: string, perRequestSubMode?: string) => {
+  if (mode === 'per-request') {
+    if (perRequestSubMode === 'per-resolution') return 'Per-resolution'
+    return 'Per-request'
+  }
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
 }
 
-const getModeVariant = (mode?: string): 'warning' | 'info' | 'success' => {
-  if (mode === 'per-request') return 'warning'
+const getModeVariant = (
+  mode?: string,
+  perRequestSubMode?: string
+): 'warning' | 'info' | 'success' | 'orange' => {
+  if (mode === 'per-request') {
+    if (perRequestSubMode === 'per-resolution') return 'orange'
+    return 'warning'
+  }
   if (mode === 'tiered_expr') return 'info'
   return 'success'
 }
@@ -147,7 +162,19 @@ const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
     return getExpressionSummary(row, t)
   }
   if (row.billingMode === 'per-request') {
-    return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
+    if (row.perRequestSubMode === 'per-resolution') {
+      const parts = [
+        row.price1k ? `1K $${row.price1k}` : null,
+        row.price2k ? `2K $${row.price2k}` : null,
+        row.price4k ? `4K $${row.price4k}` : null,
+      ].filter(Boolean)
+      return parts.length > 0
+        ? parts.join(' · ')
+        : t('Per-resolution (default prices)')
+    }
+    return row.price && row.price !== '0'
+      ? `$${row.price} / ${t('request')}`
+      : t('Unset price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -174,6 +201,9 @@ const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
       : t('Expression based')
   }
   if (row.billingMode === 'per-request') {
+    if (row.perRequestSubMode === 'per-resolution') {
+      return t('Billed per image by resolution tier')
+    }
     return t('Fixed request price')
   }
 
@@ -204,6 +234,7 @@ export const ModelRatioVisualEditor = memo(
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    imageModelSetting,
     onChange,
   }: ModelRatioVisualEditorProps) {
     const { t } = useTranslation()
@@ -319,6 +350,19 @@ export const ModelRatioVisualEditor = memo(
         ...Object.keys(billingExprMap),
       ])
 
+      // Parse imageModelSetting once outside the per-model map to avoid
+      // redundant JSON parsing on every iteration.
+      type ImgCfg = {
+        billing_mode?: string
+        price_1k?: number
+        price_2k?: number
+        price_4k?: number
+      }
+      const imgModelsMap = safeJsonParse<Record<string, ImgCfg>>(
+        imageModelSetting,
+        { fallback: {}, silent: true }
+      )
+
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
         const price = priceMap[name]?.toString() || ''
         const ratio = ratioMap[name]?.toString() || ''
@@ -329,6 +373,10 @@ export const ModelRatioVisualEditor = memo(
         const audio = audioMap[name]?.toString() || ''
         const audioCompletion = audioCompletionMap[name]?.toString() || ''
 
+        // Read per-resolution config from image_model_setting.models
+        // The prop value is the raw image model settings map JSON.
+        const imgCfg: ImgCfg | undefined = imgModelsMap[name]
+        const isPerResolution = imgCfg?.billing_mode === 'per_size'
         const modeForModel = billingModeMap[name]
         if (modeForModel === 'tiered_expr') {
           // Tiered_expr models may also retain ratio/price values as fallback
@@ -365,6 +413,10 @@ export const ModelRatioVisualEditor = memo(
           audioRatio: audio,
           audioCompletionRatio: audioCompletion,
           billingMode: price !== '' ? 'per-request' : 'per-token',
+          perRequestSubMode: isPerResolution ? 'per-resolution' : 'fixed',
+          price1k: imgCfg?.price_1k != null ? String(imgCfg.price_1k) : '',
+          price2k: imgCfg?.price_2k != null ? String(imgCfg.price_2k) : '',
+          price4k: imgCfg?.price_4k != null ? String(imgCfg.price_4k) : '',
           hasConflict:
             price !== '' &&
             (ratio !== '' ||
@@ -389,6 +441,7 @@ export const ModelRatioVisualEditor = memo(
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      imageModelSetting,
     ])
 
     const modeCounts = useMemo(
@@ -432,6 +485,10 @@ export const ModelRatioVisualEditor = memo(
                 : 'per-token',
           billingExpr: model.billingExpr,
           requestRuleExpr: model.requestRuleExpr,
+          price1k: model.price1k,
+          price2k: model.price2k,
+          price4k: model.price4k,
+          perRequestSubMode: model.perRequestSubMode,
         })
         setEditorOpen(true)
         if (isMobile) setSheetOpen(true)
@@ -616,8 +673,16 @@ export const ModelRatioVisualEditor = memo(
           ),
           cell: ({ row }) => (
             <StatusBadge
-              label={t(getModeLabel(row.original.billingMode))}
-              variant={getModeVariant(row.original.billingMode)}
+              label={t(
+                getModeLabel(
+                  row.original.billingMode,
+                  row.original.perRequestSubMode
+                )
+              )}
+              variant={getModeVariant(
+                row.original.billingMode,
+                row.original.perRequestSubMode
+              )}
               copyable={false}
             />
           ),
@@ -788,6 +853,14 @@ export const ModelRatioVisualEditor = memo(
             setIfPresent(imageMap, name, data.imageRatio)
             setIfPresent(audioMap, name, data.audioRatio)
             setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+          } else if (
+            data.billingMode === 'per-request' &&
+            data.perRequestSubMode === 'per-resolution'
+          ) {
+            // Per-resolution billing: write a sentinel price of 0 so the UI
+            // shows "Per-request" mode. The actual per-image prices are stored
+            // in image_model_setting and read by the backend billing engine.
+            priceMap[name] = 0
           } else if (data.price && data.price !== '') {
             setIfPresent(priceMap, name, data.price)
           } else {
@@ -820,6 +893,42 @@ export const ModelRatioVisualEditor = memo(
           'billing_setting.billing_expr',
           JSON.stringify(billingExprMap, null, 2)
         )
+
+        type ImgCfg = {
+          billing_mode: string
+          price_1k?: number
+          price_2k?: number
+          price_4k?: number
+        }
+        const imgModels: Record<string, ImgCfg> = safeJsonParse<
+          Record<string, ImgCfg>
+        >(imageModelSetting, { fallback: {}, silent: true })
+        const previousImageModelSetting = JSON.stringify(imgModels)
+
+        targetNames.forEach((name) => {
+          if (
+            data.billingMode === 'per-request' &&
+            data.perRequestSubMode === 'per-resolution'
+          ) {
+            const cfg: ImgCfg = { billing_mode: 'per_size' }
+            const p1k = parseFloat(data.price1k ?? '')
+            const p2k = parseFloat(data.price2k ?? '')
+            const p4k = parseFloat(data.price4k ?? '')
+            if (Number.isFinite(p1k)) cfg.price_1k = p1k
+            if (Number.isFinite(p2k)) cfg.price_2k = p2k
+            if (Number.isFinite(p4k)) cfg.price_4k = p4k
+            imgModels[name] = cfg
+          } else {
+            delete imgModels[name]
+          }
+        })
+
+        if (JSON.stringify(imgModels) !== previousImageModelSetting) {
+          onChange(
+            'image_model_setting.models',
+            JSON.stringify(imgModels, null, 2)
+          )
+        }
       },
       [
         modelPrice,
@@ -832,6 +941,7 @@ export const ModelRatioVisualEditor = memo(
         audioCompletionRatio,
         billingMode,
         billingExpr,
+        imageModelSetting,
         onChange,
       ]
     )
@@ -1042,6 +1152,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.imageModelSetting === nextProps.imageModelSetting &&
       prevProps.onChange === nextProps.onChange
     )
   }

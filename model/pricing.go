@@ -11,9 +11,18 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
+
+// ImagePerSizePrices holds the per-resolution flat prices (USD/image) for
+// image models that use the "per_size" billing mode.
+type ImagePerSizePrices struct {
+	Price1K float64 `json:"price_1k"`
+	Price2K float64 `json:"price_2k"`
+	Price4K float64 `json:"price_4k"`
+}
 
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
@@ -36,6 +45,11 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// ImageBillingMode is "per_size" when the model charges a flat per-image
+	// price based on output resolution, or empty/absent for token billing.
+	ImageBillingMode    string              `json:"image_billing_mode,omitempty"`
+	// ImagePerSizePrices is populated when ImageBillingMode == "per_size".
+	ImagePerSizePrices *ImagePerSizePrices `json:"image_per_size_prices,omitempty"`
 }
 
 type PricingVendor struct {
@@ -335,6 +349,15 @@ func updatePricing() {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
+			}
+		}
+		// Populate per-resolution image billing info when configured.
+		if operation_setting.IsImagePerSizeBilling(model) {
+			pricing.ImageBillingMode = operation_setting.ImageBillingModePerSize
+			pricing.ImagePerSizePrices = &ImagePerSizePrices{
+				Price1K: operation_setting.GetImagePerSizePrice(model, operation_setting.ImageSizeTier1K),
+				Price2K: operation_setting.GetImagePerSizePrice(model, operation_setting.ImageSizeTier2K),
+				Price4K: operation_setting.GetImagePerSizePrice(model, operation_setting.ImageSizeTier4K),
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

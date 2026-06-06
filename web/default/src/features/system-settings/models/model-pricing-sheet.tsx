@@ -112,6 +112,13 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  // Per-resolution image pricing (only used when pricingMode === 'per-request'
+  // and the model is an image model). Stored in image_model_setting separately.
+  price1k?: string
+  price2k?: string
+  price4k?: string
+  // Signals that per-request billing uses per-resolution sub-mode
+  perRequestSubMode?: 'fixed' | 'per-resolution'
 }
 
 type ModelPricingSheetProps = {
@@ -295,7 +302,11 @@ function buildPreviewRows(
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
-  t: (key: string) => string
+  t: (key: string) => string,
+  perRequestSubMode?: 'fixed' | 'per-resolution',
+  price1k?: string,
+  price2k?: string,
+  price4k?: string
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
     const effectiveExpr = combineBillingExpr(billingExpr, requestRuleExpr)
@@ -311,6 +322,26 @@ function buildPreviewRows(
   }
 
   if (mode === 'per-request') {
+    if (perRequestSubMode === 'per-resolution') {
+      return [
+        { key: 'submode', label: t('Sub-mode'), value: 'per-resolution' },
+        {
+          key: 'p1k',
+          label: t('1K price'),
+          value: price1k ? `$${price1k}` : t('Default'),
+        },
+        {
+          key: 'p2k',
+          label: t('2K price'),
+          value: price2k ? `$${price2k}` : t('Default'),
+        },
+        {
+          key: 'p4k',
+          label: t('4K price'),
+          value: price4k ? `$${price4k}` : t('Default'),
+        },
+      ]
+    }
     return [
       {
         key: 'price',
@@ -319,7 +350,6 @@ function buildPreviewRows(
       },
     ]
   }
-
   return [
     {
       key: 'inputPrice',
@@ -433,6 +463,13 @@ export function ModelPricingEditorPanel({
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const [previewOpen, setPreviewOpen] = useState(true)
+  // Per-resolution image pricing (shown when pricingMode === 'per-request' and subMode === 'per-resolution')
+  const [perRequestSubMode, setPerRequestSubMode] = useState<
+    'fixed' | 'per-resolution'
+  >('fixed')
+  const [price1k, setPrice1k] = useState('')
+  const [price2k, setPrice2k] = useState('')
+  const [price4k, setPrice4k] = useState('')
   const isEditMode = !!editData
 
   const form = useForm<ModelPricingFormValues>({
@@ -474,6 +511,17 @@ export function ModelPricingEditorPanel({
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setPrice1k(editData.price1k || '')
+      setPrice2k(editData.price2k || '')
+      setPrice4k(editData.price4k || '')
+      setPerRequestSubMode(
+        editData.perRequestSubMode === 'per-resolution' ||
+          editData.price1k ||
+          editData.price2k ||
+          editData.price4k
+          ? 'per-resolution'
+          : 'fixed'
+      )
     } else {
       form.reset({
         name: '',
@@ -489,6 +537,10 @@ export function ModelPricingEditorPanel({
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setPerRequestSubMode('fixed')
+      setPrice1k('')
+      setPrice2k('')
+      setPrice4k('')
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -628,7 +680,11 @@ export function ModelPricingEditorPanel({
         promptPrice,
         lanePrices,
         laneEnabled,
-        t
+        t,
+        perRequestSubMode,
+        price1k,
+        price2k,
+        price4k
       ),
     [
       billingExpr,
@@ -639,6 +695,10 @@ export function ModelPricingEditorPanel({
       requestRuleExpr,
       t,
       watchedValues,
+      perRequestSubMode,
+      price1k,
+      price2k,
+      price4k,
     ]
   )
 
@@ -715,7 +775,10 @@ export function ModelPricingEditorPanel({
     const data: ModelRatioData = {
       name: values.name.trim(),
       billingMode: pricingMode,
-      price: values.price || '',
+      price:
+        pricingMode === 'per-request' && perRequestSubMode === 'fixed'
+          ? values.price || ''
+          : '',
       ratio: values.ratio || '',
       cacheRatio: values.cacheRatio || '',
       createCacheRatio: values.createCacheRatio || '',
@@ -723,6 +786,20 @@ export function ModelPricingEditorPanel({
       imageRatio: values.imageRatio || '',
       audioRatio: values.audioRatio || '',
       audioCompletionRatio: values.audioCompletionRatio || '',
+      price1k:
+        pricingMode === 'per-request' && perRequestSubMode === 'per-resolution'
+          ? price1k || ''
+          : '',
+      price2k:
+        pricingMode === 'per-request' && perRequestSubMode === 'per-resolution'
+          ? price2k || ''
+          : '',
+      price4k:
+        pricingMode === 'per-request' && perRequestSubMode === 'per-resolution'
+          ? price4k || ''
+          : '',
+      perRequestSubMode:
+        pricingMode === 'per-request' ? perRequestSubMode : undefined,
     }
 
     if (pricingMode === 'tiered_expr') {
@@ -859,40 +936,126 @@ export function ModelPricingEditorPanel({
                   value='per-request'
                   className='flex flex-col gap-5'
                 >
-                  <FormField
-                    control={form.control}
-                    name='price'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Fixed price')}</FormLabel>
-                        <FormControl>
-                          <InputGroup>
-                            <InputGroupAddon>$</InputGroupAddon>
-                            <InputGroupInput
-                              inputMode='decimal'
-                              placeholder='0.01'
-                              {...field}
-                              onChange={(event) => {
-                                const value = event.target.value
-                                if (numericDraftRegex.test(value)) {
-                                  field.onChange(value)
-                                }
-                              }}
-                            />
-                            <InputGroupAddon align='inline-end'>
-                              {t('per request')}
-                            </InputGroupAddon>
-                          </InputGroup>
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Cost in USD per request, regardless of tokens used.'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Sub-mode selector: fixed price vs per-resolution */}
+                  <div className='flex gap-2'>
+                    <Button
+                      type='button'
+                      variant={
+                        perRequestSubMode === 'fixed' ? 'default' : 'outline'
+                      }
+                      size='sm'
+                      onClick={() => setPerRequestSubMode('fixed')}
+                    >
+                      {t('Fixed price')}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant={
+                        perRequestSubMode === 'per-resolution'
+                          ? 'default'
+                          : 'outline'
+                      }
+                      size='sm'
+                      onClick={() => setPerRequestSubMode('per-resolution')}
+                    >
+                      {t('Per-resolution')}
+                    </Button>
+                  </div>
+
+                  {perRequestSubMode === 'fixed' && (
+                    <FormField
+                      control={form.control}
+                      name='price'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Fixed price')}</FormLabel>
+                          <FormControl>
+                            <InputGroup>
+                              <InputGroupAddon>$</InputGroupAddon>
+                              <InputGroupInput
+                                inputMode='decimal'
+                                placeholder='0.01'
+                                {...field}
+                                onChange={(event) => {
+                                  const value = event.target.value
+                                  if (numericDraftRegex.test(value)) {
+                                    field.onChange(value)
+                                  }
+                                }}
+                              />
+                              <InputGroupAddon align='inline-end'>
+                                {t('per request')}
+                              </InputGroupAddon>
+                            </InputGroup>
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Cost in USD per request, regardless of tokens used.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {perRequestSubMode === 'per-resolution' && (
+                    <FieldGroup>
+                      <FieldDescription>
+                        {t(
+                          'Charge a flat price per image based on output resolution tier. 1K = long edge ≤ 1024px, 2K = ≤ 2048px, 4K = > 2048px. Leave empty to use the built-in default price.'
+                        )}
+                      </FieldDescription>
+                      <div className='grid gap-3 sm:grid-cols-3'>
+                        {(
+                          [
+                            {
+                              labelKey: '1K (≤ 1024px)',
+                              value: price1k,
+                              setter: setPrice1k,
+                              placeholder: '0.011',
+                            },
+                            {
+                              labelKey: '2K (≤ 2048px)',
+                              value: price2k,
+                              setter: setPrice2k,
+                              placeholder: '0.042',
+                            },
+                            {
+                              labelKey: '4K (> 2048px)',
+                              value: price4k,
+                              setter: setPrice4k,
+                              placeholder: '0.167',
+                            },
+                          ] as const
+                        ).map(({ labelKey, value, setter, placeholder }) => (
+                          <Field key={labelKey}>
+                            <FieldLabel>{t(labelKey)}</FieldLabel>
+                            <FieldContent>
+                              <InputGroup>
+                                <InputGroupAddon>$</InputGroupAddon>
+                                <InputGroupInput
+                                  inputMode='decimal'
+                                  placeholder={placeholder}
+                                  value={value}
+                                  onChange={(e) => {
+                                    if (
+                                      numericDraftRegex.test(e.target.value)
+                                    ) {
+                                      setter(e.target.value)
+                                    }
+                                  }}
+                                />
+                                <InputGroupAddon align='inline-end'>
+                                  {t('/ img')}
+                                </InputGroupAddon>
+                              </InputGroup>
+                            </FieldContent>
+                          </Field>
+                        ))}
+                      </div>
+                    </FieldGroup>
+                  )}
                 </TabsContent>
 
                 <TabsContent
