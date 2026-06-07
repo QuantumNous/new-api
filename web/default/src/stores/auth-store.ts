@@ -46,7 +46,7 @@ export interface AuthUser {
   linux_do_id?: string
   setting?: Record<string, unknown> | string
   stripe_customer?: string
-  sidebar_modules?: string
+  sidebar_modules?: string | Record<string, unknown>
   permissions?: UserPermissions
 }
 

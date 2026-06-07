@@ -144,15 +144,20 @@ function parseSidebarConfig(
  * so legacy users with an empty sidebar_modules field keep the full admin view.
  */
 function parseUserSidebarConfig(
-  value: string | null | undefined
+  value: string | Record<string, unknown> | null | undefined
 ): SidebarModulesUserConfig {
-  if (!value || value.trim() === '') {
-    return null
-  }
+  if (!value) return null
   try {
-    const parsed = JSON.parse(value) as SidebarModulesAdminConfig
+    let parsed: unknown
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return null
+      parsed = JSON.parse(trimmed)
+    } else {
+      parsed = value
+    }
     if (!parsed || typeof parsed !== 'object') return null
-    return parsed
+    return parsed as SidebarModulesAdminConfig
   } catch {
     return null
   }

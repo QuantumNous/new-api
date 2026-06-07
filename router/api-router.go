@@ -124,57 +124,57 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
 			}
 
-			adminRoute := userRoute.Group("/")
-			adminRoute.Use(middleware.AdminAuth())
-			{
-				adminRoute.GET("/", controller.GetAllUsers)
-				adminRoute.GET("/topup", controller.GetAllTopUps)
-				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
-				adminRoute.GET("/search", controller.SearchUsers)
-				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
-				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
-				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
-				adminRoute.GET("/:id", controller.GetUser)
-				adminRoute.POST("/", controller.CreateUser)
-				adminRoute.POST("/manage", controller.ManageUser)
-				adminRoute.PUT("/", controller.UpdateUser)
-				adminRoute.DELETE("/:id", controller.DeleteUser)
-				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
-
-				// Admin 2FA routes
-				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
-				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
-			}
-		}
-
-		// Subscription billing (plans, purchase, admin management)
-		subscriptionRoute := apiRouter.Group("/subscription")
-		subscriptionRoute.Use(middleware.UserAuth())
+		adminRoute := userRoute.Group("/")
+		adminRoute.Use(middleware.StaffAuth())
 		{
-			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
-			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
-			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
-			subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
-			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
-			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
-			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
-			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
-		}
-		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
-		subscriptionAdminRoute.Use(middleware.AdminAuth())
-		{
-			subscriptionAdminRoute.GET("/plans", controller.AdminListSubscriptionPlans)
-			subscriptionAdminRoute.POST("/plans", controller.AdminCreateSubscriptionPlan)
-			subscriptionAdminRoute.PUT("/plans/:id", controller.AdminUpdateSubscriptionPlan)
-			subscriptionAdminRoute.PATCH("/plans/:id", controller.AdminUpdateSubscriptionPlanStatus)
-			subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
+			adminRoute.GET("/", controller.GetAllUsers)
+			adminRoute.GET("/topup", controller.GetAllTopUps)
+			adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
+			adminRoute.GET("/search", controller.SearchUsers)
+			adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
+			adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
+			adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
+			adminRoute.GET("/:id", controller.GetUser)
+			adminRoute.POST("/", controller.CreateUser)
+			adminRoute.POST("/manage", controller.ManageUser)
+			adminRoute.PUT("/", controller.UpdateUser)
+			adminRoute.DELETE("/:id", controller.DeleteUser)
+			adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
 
-			// User subscription management (admin)
-			subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
-			subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
-			subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
-			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
+			// Admin 2FA routes
+			adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
+			adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 		}
+	}
+
+	// Subscription billing (plans, purchase, admin management)
+	subscriptionRoute := apiRouter.Group("/subscription")
+	subscriptionRoute.Use(middleware.UserAuth())
+	{
+		subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
+		subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
+		subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+		subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
+		subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
+		subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
+		subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+		subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
+	}
+	subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
+	subscriptionAdminRoute.Use(middleware.StaffAuth())
+	{
+		subscriptionAdminRoute.GET("/plans", controller.AdminListSubscriptionPlans)
+		subscriptionAdminRoute.POST("/plans", controller.AdminCreateSubscriptionPlan)
+		subscriptionAdminRoute.PUT("/plans/:id", controller.AdminUpdateSubscriptionPlan)
+		subscriptionAdminRoute.PATCH("/plans/:id", controller.AdminUpdateSubscriptionPlanStatus)
+		subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
+
+		// User subscription management (admin)
+		subscriptionAdminRoute.GET("/users/:id/subscriptions", controller.AdminListUserSubscriptions)
+		subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
+		subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
+		subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
+	}
 
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", anonymousRequestBodyLimit, controller.SubscriptionEpayNotify)
@@ -293,7 +293,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		redemptionRoute := apiRouter.Group("/redemption")
-		redemptionRoute.Use(middleware.AdminAuth())
+		redemptionRoute.Use(middleware.StaffAuth())
 		{
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
@@ -304,18 +304,18 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		logRoute := apiRouter.Group("/log")
-		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
-		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
-		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
+		logRoute.GET("/", middleware.StaffAuth(), controller.GetAllLogs)
+		logRoute.DELETE("/", middleware.StaffAuth(), controller.DeleteHistoryLogs)
+		logRoute.GET("/stat", middleware.StaffAuth(), controller.GetLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
-		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
+		logRoute.GET("/search", middleware.StaffAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
-		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
+		dataRoute.GET("/", middleware.StaffAuth(), controller.GetAllQuotaDates)
+		dataRoute.GET("/users", middleware.StaffAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
@@ -339,12 +339,12 @@ func SetApiRouter(router *gin.Engine) {
 
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
-		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
+		mjRoute.GET("/", middleware.StaffAuth(), controller.GetAllMidjourney)
 
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
-			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("/", middleware.StaffAuth(), controller.GetAllTask)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

@@ -109,9 +109,14 @@ export async function deleteUser(id: number): Promise<ApiResponse> {
  */
 export async function manageUser(
   id: number,
-  action: ManageUserAction
+  action: ManageUserAction,
+  value?: number
 ): Promise<ApiResponse<Partial<User>>> {
-  const res = await api.post('/api/user/manage', { id, action })
+  const payload: Record<string, unknown> = { id, action }
+  if (value !== undefined) {
+    payload.value = value
+  }
+  const res = await api.post('/api/user/manage', payload)
   return res.data
 }
 

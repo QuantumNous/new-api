@@ -129,17 +129,26 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 
 	// 管理员区域 - 根据角色决定
 	if userRole == common.RoleAdminUser {
-		// 管理员可以访问管理员区域，但不能访问系统设置
 		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
 			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"setting":    false,
+			"subscription": false,
+		}
+	} else if userRole == common.RoleOperatorAdmin {
+		defaultConfig["admin"] = map[string]interface{}{
+			"enabled":    true,
+			"channel":    false,
+			"models":     false,
+			"redemption": true,
+			"user":       true,
+			"setting":    false,
+			"subscription": false,
 		}
 	} else if userRole == common.RoleRootUser {
-		// 超级管理员可以访问所有功能
 		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
 			"channel":    true,
@@ -524,6 +533,7 @@ func (user *User) Edit(updatePassword bool) error {
 		"display_name": newUser.DisplayName,
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
+		"role":         newUser.Role,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -532,6 +542,24 @@ func (user *User) Edit(updatePassword bool) error {
 	DB.First(&user, user.Id)
 	if err = DB.Model(user).Updates(updates).Error; err != nil {
 		return err
+	}
+
+	// If role changed, regenerate sidebar modules configuration
+	if user.Role != newUser.Role {
+		newSidebarConfig := generateDefaultSidebarConfigForRole(newUser.Role)
+		if newSidebarConfig != "" {
+			userSetting := user.GetSetting()
+			userSetting.SidebarModules = newSidebarConfig
+			settingBytes, err := common.Marshal(userSetting)
+			if err != nil {
+				common.SysLog("failed to marshal setting on role change: " + err.Error())
+			} else {
+				user.Setting = string(settingBytes)
+				if err := DB.Model(user).Update("setting", user.Setting).Error; err != nil {
+					common.SysLog("failed to update setting on role change: " + err.Error())
+				}
+			}
+		}
 	}
 
 	// Update cache
@@ -728,6 +756,19 @@ func IsAdmin(userId int) bool {
 		return false
 	}
 	return user.Role >= common.RoleAdminUser
+}
+
+func IsStaffOrAbove(userId int) bool {
+	if userId == 0 {
+		return false
+	}
+	var user User
+	err := DB.Where("id = ?", userId).Select("role").Find(&user).Error
+	if err != nil {
+		common.SysLog("no such user " + err.Error())
+		return false
+	}
+	return user.Role >= common.RoleOperatorAdmin
 }
 
 //// IsUserEnabled checks user status from Redis first, falls back to DB if needed

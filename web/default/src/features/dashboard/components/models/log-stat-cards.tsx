@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -41,7 +42,7 @@ interface LogStatCardsProps {
 export function LogStatCards(props: LogStatCardsProps) {
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = !!(user?.role && user.role >= 10)
+  const isAdmin = !!(user?.role && user.role >= ROLE.OPERATOR)
   const [stats, setStats] = useState<{
     totalQuota: number
     totalCount: number

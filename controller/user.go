@@ -455,19 +455,23 @@ func calculateUserPermissions(userRole int) map[string]interface{} {
 		// 超级管理员不需要边栏设置功能
 		permissions["sidebar_settings"] = false
 		permissions["sidebar_modules"] = map[string]interface{}{}
-	} else if userRole == common.RoleAdminUser {
-		// 管理员可以设置边栏，但不包含系统设置功能
+	} else if userRole == common.RoleAdminUser || userRole == common.RoleOperatorAdmin {
 		permissions["sidebar_settings"] = true
 		permissions["sidebar_modules"] = map[string]interface{}{
 			"admin": map[string]interface{}{
-				"setting": false, // 管理员不能访问系统设置
+				"channel":    userRole == common.RoleAdminUser,
+				"models":     userRole == common.RoleAdminUser,
+				"redemption": true,
+				"user":       true,
+				"setting":    false,
+				"subscription": false,
 			},
 		}
 	} else {
 		// 普通用户只能设置个人功能，不包含管理员区域
 		permissions["sidebar_settings"] = true
 		permissions["sidebar_modules"] = map[string]interface{}{
-			"admin": false, // 普通用户不能访问管理员区域
+			"admin": false,
 		}
 	}
 
@@ -511,7 +515,19 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"models":     true,
 			"redemption": true,
 			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"setting":    false,
+			"subscription": false,
+		}
+	} else if userRole == common.RoleOperatorAdmin {
+		// 运营管理员只能访问用户管理和兑换码
+		defaultConfig["admin"] = map[string]interface{}{
+			"enabled":    true,
+			"channel":    false,
+			"models":     false,
+			"redemption": true,
+			"user":       true,
+			"setting":    false,
+			"subscription": false,
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
@@ -925,21 +941,47 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserAdminCannotPromote)
 			return
 		}
-		if user.Role >= common.RoleAdminUser {
-			common.ApiErrorI18n(c, i18n.MsgUserAlreadyAdmin)
-			return
+		newRole := req.Value
+		if newRole > 0 && common.IsValidateRole(newRole) {
+			if newRole <= user.Role {
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+			if !canManageTargetRole(myRole, newRole) {
+				common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
+				return
+			}
+			user.Role = newRole
+		} else {
+			if user.Role >= common.RoleAdminUser {
+				common.ApiErrorI18n(c, i18n.MsgUserAlreadyAdmin)
+				return
+			}
+			user.Role = common.RoleAdminUser
 		}
-		user.Role = common.RoleAdminUser
 	case "demote":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDemoteRootUser)
 			return
 		}
-		if user.Role == common.RoleCommonUser {
-			common.ApiErrorI18n(c, i18n.MsgUserAlreadyCommon)
-			return
+		newRole := req.Value
+		if newRole > 0 && common.IsValidateRole(newRole) {
+			if newRole >= user.Role {
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+			if !canManageTargetRole(myRole, newRole) {
+				common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
+				return
+			}
+			user.Role = newRole
+		} else {
+			if user.Role == common.RoleCommonUser {
+				common.ApiErrorI18n(c, i18n.MsgUserAlreadyCommon)
+				return
+			}
+			user.Role = common.RoleCommonUser
 		}
-		user.Role = common.RoleCommonUser
 	case "add_quota":
 		adminName := c.GetString("username")
 		adminId := c.GetInt("id")

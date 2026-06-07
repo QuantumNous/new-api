@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -81,7 +82,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
   const { t } = useTranslation()
   // 使用已缓存的用户数据，避免重复调用 API
   const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = user?.role && user.role >= 10
+  const isAdmin = Boolean(user?.role && user.role >= ROLE.OPERATOR)
 
   const [open, setOpen] = useState(false)
   const [filters, setFilters] = useState<DashboardFilters>(() =>

@@ -70,9 +70,10 @@ export function transformFormDataToPayload(
 
   // For create: only send required fields
   if (userId === undefined) {
-    payload.role = data.role || 1 // Default to common user
+    payload.role = data.role ?? 1 // Default to common user
   } else {
-    // For update: quota is adjusted atomically via /api/user/manage, not sent here
+    // For update: send role, group, and remark
+    payload.role = data.role
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.id = userId

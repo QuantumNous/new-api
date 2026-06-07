@@ -63,7 +63,7 @@ import {
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
 import { createUser, updateUser, getUser, getGroups } from '../api'
-import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES, getUserRoleOptions } from '../constants'
 import {
   userFormSchema,
   type UserFormValues,
@@ -232,45 +232,44 @@ export function UsersMutateDrawer({
                   )}
                 />
 
-                {!isUpdate && (
-                  <FormField
-                    control={form.control}
-                    name='role'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Role')}</FormLabel>
-                        <Select
-                          items={[
-                            { value: '1', label: t('Common User') },
-                            { value: '10', label: t('Admin') },
-                          ]}
-                          onValueChange={(value) =>
-                            value !== null && field.onChange(parseInt(value))
-                          }
-                          value={String(field.value)}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('Select a role')} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent alignItemWithTrigger={false}>
-                            <SelectGroup>
-                              <SelectItem value='1'>
-                                {t('Common User')}
+                <FormField
+                  control={form.control}
+                  name='role'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Role')}</FormLabel>
+                      <Select
+                        items={getUserRoleOptions(t)}
+                        onValueChange={(value) =>
+                          value !== null && field.onChange(parseInt(value))
+                        }
+                        value={String(field.value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('Select a role')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {getUserRoleOptions(t).map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
                               </SelectItem>
-                              <SelectItem value='10'>{t('Admin')}</SelectItem>
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          {t("Set the user's role (cannot be Root)")}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t("Set the user's role")}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}

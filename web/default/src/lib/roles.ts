@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { t } from 'i18next'
 
 export const ROLE = {
-  GUEST: 0, // 后续如果需要用到这个角色那就再加，同语先留一下
+  GUEST: 0,
   USER: 1,
+  OPERATOR: 5,
   ADMIN: 10,
   SUPER_ADMIN: 100,
 } as const
@@ -32,6 +33,7 @@ const DEFAULT_ROLE = ROLE.GUEST
 const ROLE_LABEL_KEYS: Record<RoleValue, string> = {
   [ROLE.SUPER_ADMIN]: 'Super Admin',
   [ROLE.ADMIN]: 'Admin',
+  [ROLE.OPERATOR]: 'Operator',
   [ROLE.USER]: 'User',
   [ROLE.GUEST]: 'Guest',
 }
