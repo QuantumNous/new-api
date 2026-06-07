@@ -31,6 +31,9 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 ## 给 AI agent 的读取规则
 
 - 模型名必须逐字使用表格中的值，不要翻译、改大小写、替换斜杠或自动补后缀。
+- 上游调用方优先使用推荐的标准模型名；不要为了指定供应商自行拼接线路后缀或平台名。
+- 同一个对外模型名可能由多个内部 channel 承载，服务会按配置自动路由、重试和做模型名映射。
+- 带“线路”或供应商风格的模型名通常是历史兼容或排障别名，只有表格明确推荐时才给业务方使用。
 - 所有请求统一使用 `http://192.129.209.36:3001/v1` 作为 Base URL，并携带上方 `Authorization` Header。
 - 图片生成返回可能是 `data[0].url` 或 `data[0].b64_json`；客户端必须同时兼容两种字段，不要假设只有一种。
 - 视频生成是异步任务：先 `POST /v1/videos` 获取 `task_id`，再 `GET /v1/videos/{task_id}` 轮询，完成后用 `GET /v1/videos/{task_id}/content` 下载。
@@ -43,6 +46,19 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 ## 现有可用模型合集（2026-06-06）
 
 本节是给人和 AI agent 的快速索引。详细参数、轮询方式、错误处理和价格见后续章节。
+
+### 模型命名与自动路由
+
+对外模型名是本服务给上游的稳定调用名，不等同于下游供应商内部模型名。调用方只需要传推荐模型名，系统会自动选择可用 channel，并在需要时把模型名映射成下游实际名称。
+
+| 场景 | 上游推荐传参 | 内部处理 |
+|------|--------------|----------|
+| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 xgapi 图片 channel，并自动把 `size` / `aspect_ratio` 推导出的比例补到上游 prompt |
+| `gpt-image-2` 带参考图 | `model: "gpt-image-2"` + `image` / `images` | 自动避开 xgapi 直接生图线路，回退 ListenHub 参考图接口 |
+| 历史图片别名 | `gpt-image-2(线路XF)` / `gr-image-2` / `nano-banana-pro` | 作为兼容别名映射到 xgapi 上游 `gpt-image-2` |
+| `grok-video-3` 视频 | `model: "grok-video-3"` | 走 LK888 视频 channel；`/v1/models` 已暴露该标准名 |
+
+除非是在排障或兼容旧调用方，不建议上游主动选择带线路后缀的别名。
 
 ### 视频模型
 
