@@ -54,44 +54,54 @@ export function GeneralError({
     : t('Please try again later.')
 
   return (
-    <div className={cn('h-svh w-full', className)}>
-      <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
-        {!minimal && (
-          <h1 className='text-[7rem] leading-tight font-bold'>
-            {status ?? 500}
-          </h1>
-        )}
-        <span className='font-medium'>{title}</span>
-        <p className='text-muted-foreground text-center'>
-          {t('We apologize for the inconvenience.')} <br /> {description}
-        </p>
-        {!minimal && (
-          <p className='text-muted-foreground text-center text-sm'>
-            {t('If this keeps happening, please report it on GitHub Issues.')}
+    <div className={cn('flex min-h-svh items-center justify-center bg-background p-4', className)}>
+      <div className='w-full max-w-[800px]'>
+        <div className={cn(
+          'text-center',
+          !minimal && 'rounded-[8px] border border-border bg-card p-12 shadow-sm'
+        )}>
+          {!minimal && (
+            <div className='text-[72px] font-bold leading-none tracking-tight text-muted-foreground'>
+              {status ?? 500}
+            </div>
+          )}
+          <h2 className={cn('font-semibold', minimal ? 'text-base' : 'mt-4 text-xl')}>
+            {title}
+          </h2>
+          <p className={cn(
+            'text-muted-foreground',
+            !minimal && 'mx-auto mt-2 max-w-[320px] text-sm'
+          )}>
+            {t('We apologize for the inconvenience.')} <br /> {description}
           </p>
-        )}
-        {!minimal && (
-          <div className='mt-6 flex flex-wrap justify-center gap-4'>
-            <Button variant='outline' onClick={() => history.go(-1)}>
-              {t('Go Back')}
-            </Button>
-            <Button
-              variant='outline'
-              render={
-                <a
-                  href={FEEDBACK_URL}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                />
-              }
-            >
-              {t('Report an issue')}
-            </Button>
-            <Button onClick={() => navigate({ to: '/' })}>
-              {t('Back to Home')}
-            </Button>
-          </div>
-        )}
+          {!minimal && (
+            <p className='mx-auto mt-2 max-w-[320px] text-center text-sm text-muted-foreground'>
+              {t('If this keeps happening, please report it on GitHub Issues.')}
+            </p>
+          )}
+          {!minimal && (
+            <div className='mt-6 flex flex-wrap justify-center gap-2'>
+              <Button variant='outline' onClick={() => history.go(-1)}>
+                {t('Go Back')}
+              </Button>
+              <Button
+                variant='outline'
+                render={
+                  <a
+                    href={FEEDBACK_URL}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              >
+                {t('Report an issue')}
+              </Button>
+              <Button onClick={() => navigate({ to: '/' })}>
+                {t('Back to Home')}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

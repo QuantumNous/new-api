@@ -173,72 +173,28 @@ export function EmailSettingsSection({
             )}
           />
 
-          <div className='grid gap-6 md:grid-cols-2'>
-            <FormField
-              control={form.control}
-              name='SMTPPort'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Port')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoComplete='off'
-                      type='number'
-                      placeholder='587'
-                      {...field}
-                      onChange={(event) => field.onChange(event.target.value)}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('Common ports include 25, 465, and 587')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='SMTPSSLEnabled'
-              render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Enable SSL/TLS')}</FormLabel>
-                    <FormDescription>
-                      {t('Use secure connection when sending emails')}
-                    </FormDescription>
-                  </SettingsSwitchContent>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </SettingsSwitchItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='SMTPForceAuthLogin'
-              render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Force AUTH LOGIN')}</FormLabel>
-                    <FormDescription>
-                      {t('Force SMTP authentication using AUTH LOGIN method')}
-                    </FormDescription>
-                  </SettingsSwitchContent>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </SettingsSwitchItem>
-              )}
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name='SMTPPort'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Port')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    type='number'
+                    placeholder='587'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Common ports include 25, 465, and 587')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}
@@ -256,6 +212,29 @@ export function EmailSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Account used when authenticating with the SMTP server')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='SMTPToken'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Password / Access Token')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    type='password'
+                    placeholder={t('Enter new token to update')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Leave blank to keep the existing credential')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -286,24 +265,43 @@ export function EmailSettingsSection({
 
           <FormField
             control={form.control}
-            name='SMTPToken'
+            name='SMTPSSLEnabled'
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Password / Access Token')}</FormLabel>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable SSL/TLS')}</FormLabel>
+                  <FormDescription>
+                    {t('Use secure connection when sending emails')}
+                  </FormDescription>
+                </SettingsSwitchContent>
                 <FormControl>
-                  <Input
-                    autoComplete='off'
-                    type='password'
-                    placeholder={t('Enter new token to update')}
-                    {...field}
-                    onChange={(event) => field.onChange(event.target.value)}
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
                   />
                 </FormControl>
-                <FormDescription>
-                  {t('Leave blank to keep the existing credential')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='SMTPForceAuthLogin'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Force AUTH LOGIN')}</FormLabel>
+                  <FormDescription>
+                    {t('Force SMTP authentication using AUTH LOGIN method')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
             )}
           />
         </SettingsForm>

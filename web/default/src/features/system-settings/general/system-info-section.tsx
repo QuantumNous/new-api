@@ -143,16 +143,17 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <SettingsSection title={t('System Information')}>
-        <Form {...form}>
-          <SettingsForm onSubmit={handleSubmit}>
-            <SettingsPageFormActions
-              onSave={handleSubmit}
-              onReset={handleReset}
-              isSaving={isSubmitting || updateOption.isPending}
-              isResetDisabled={!isDirty}
-            />
-            <FormDirtyIndicator isDirty={isDirty} />
+      <Form {...form}>
+        <SettingsForm onSubmit={handleSubmit}>
+          <SettingsPageFormActions
+            onSave={handleSubmit}
+            onReset={handleReset}
+            isSaving={isSubmitting || updateOption.isPending}
+            isResetDisabled={!isDirty}
+          />
+          <FormDirtyIndicator isDirty={isDirty} />
+
+          <SettingsSection title={t('System Information')}>
             <SettingsFormGrid>
               <FormField
                 control={form.control}
@@ -255,29 +256,35 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   </FormItem>
                 )}
               />
+            </SettingsFormGrid>
+          </SettingsSection>
 
-              <FormField
-                control={form.control}
-                name='Footer'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Footer')}</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder={t(
-                          '© 2025 Your Company. All rights reserved.'
-                        )}
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Footer text displayed at the bottom of pages')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <SettingsSection
+            title={t('Home Page Content')}
+            description={t(
+              'Content displayed on the home page (supports Markdown)'
+            )}
+          >
+            <SettingsFormGrid>
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name='HomePageContent'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Home Page Content')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder={t('Welcome to our New API...')}
+                          rows={6}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsFormGridItem>
 
               <FormField
                 control={form.control}
@@ -303,31 +310,33 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   </FormItem>
                 )}
               />
+            </SettingsFormGrid>
+          </SettingsSection>
 
-              <SettingsFormGridItem span='full'>
-                <FormField
-                  control={form.control}
-                  name='HomePageContent'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Home Page Content')}</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder={t('Welcome to our New API...')}
-                          rows={6}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          'Content displayed on the home page (supports Markdown)'
+          <SettingsSection title={t('Footer & Legal')}>
+            <SettingsFormGrid>
+              <FormField
+                control={form.control}
+                name='Footer'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Footer')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={t(
+                          '© 2025 Your Company. All rights reserved.'
                         )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </SettingsFormGridItem>
+                        rows={4}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Footer text displayed at the bottom of pages')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -379,9 +388,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 )}
               />
             </SettingsFormGrid>
-          </SettingsForm>
-        </Form>
-      </SettingsSection>
+          </SettingsSection>
+        </SettingsForm>
+      </Form>
     </>
   )
 }

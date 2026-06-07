@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
+  flexRender,
   type SortingState,
   type VisibilityState,
   getCoreRowModel,
@@ -30,12 +31,12 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { useDebounce } from '@/hooks'
+import { useDebounce, useMediaQuery } from '@/hooks'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn, getPageNumbers } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Empty,
@@ -44,14 +45,37 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
-  DataTablePage,
+  TableEmpty,
+  TableSkeleton,
 } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  Search01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+} from '@hugeicons/core-free-icons'
 import { getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
@@ -191,6 +215,7 @@ function ApiKeysMobileList({
 export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const columns = useApiKeysColumns()
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -283,6 +308,7 @@ export function ApiKeysTable() {
   })
 
   const apiKeys = data?.items || []
+  const totalCount = data?.total || 0
 
   const table = useReactTable({
     data: apiKeys,
@@ -318,42 +344,232 @@ export function ApiKeysTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  // Filter handlers
+  const handleStatusFilterChange = (value: string) => {
+    const column = table.getColumn('status')
+    if (!column) return
+    if (value === 'all') {
+      column.setFilterValue([])
+    } else {
+      column.setFilterValue([value])
+    }
+  }
+
+  const currentStatusValue =
+    (columnFilters.find((f) => f.id === 'status')?.value as string[] || [])
+      .filter((v) => v !== 'all')[0] || 'all'
+
+  // Selected count
+  const selectedCount = Object.keys(rowSelection).length
+
+  // Pagination
+  const currentPage = table.getState().pagination.pageIndex + 1
+  const totalPages = table.getPageCount()
+  const pageNumbers = getPageNumbers(currentPage, totalPages)
+  const startRow =
+    totalCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
+  const endRow = Math.min(
+    (pagination.pageIndex + 1) * pagination.pageSize,
+    totalCount
+  )
+
+  // Rows
+  const rows = table.getRowModel().rows
+
   return (
-    <DataTablePage
-      table={table}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      emptyTitle={t('No API Keys Found')}
-      emptyDescription={t(
-        'No API keys available. Create your first API key to get started.'
+    <div className='space-y-6'>
+      {/* Table Wrap */}
+      <div
+        className={cn(
+          'overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150',
+          isFetching && !isLoading && 'pointer-events-none opacity-60'
+        )}
+      >
+        {/* Toolbar */}
+        <div className='flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <div className='relative'>
+              <HugeiconsIcon
+                icon={Search01Icon}
+                strokeWidth={2}
+                className='pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground'
+              />
+              <Input
+                placeholder={t('Filter by name...')}
+                value={globalFilter ?? ''}
+                onChange={(event) => table.setGlobalFilter(event.target.value)}
+                className='h-8 w-full pl-8 text-xs sm:w-[200px] lg:w-[240px]'
+              />
+            </div>
+
+            <Input
+              placeholder={t('Filter by API key...')}
+              aria-label={t('Filter by API key...')}
+              value={tokenFilterInput}
+              onChange={(e) => setTokenFilterInput(e.target.value)}
+              className='h-8 w-full text-xs sm:w-[180px] lg:w-[220px]'
+            />
+
+            <Select
+              value={currentStatusValue}
+              onValueChange={handleStatusFilterChange}
+            >
+              <SelectTrigger className='h-8 w-[130px] text-xs'>
+                <SelectValue placeholder={t('All Status')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>{t('All Status')}</SelectItem>
+                {[...API_KEY_STATUS_OPTIONS].map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <span className='text-[11px] text-muted-foreground'>
+            {t('Selected {{count}} items', { count: selectedCount })}
+          </span>
+        </div>
+
+        {/* Desktop Table */}
+        {!isMobile && (
+        <div className='overflow-x-auto'>
+          <Table>
+            <TableHeader className='bg-muted/30'>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeleton
+                  table={table}
+                  keyPrefix='api-keys-skeleton'
+                />
+              ) : rows.length === 0 ? (
+                <TableEmpty
+                  colSpan={columns.length}
+                  title={t('No API Keys Found')}
+                  description={t(
+                    'No API keys available. Create your first API key to get started.'
+                  )}
+                />
+              ) : (
+                rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={
+                      row.getIsSelected() ? 'selected' : undefined
+                    }
+                    className={
+                      isDisabledApiKeyRow(row.original)
+                        ? DISABLED_ROW_DESKTOP
+                        : undefined
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        )}
+
+        {/* Mobile List */}
+        {isMobile && (
+          <ApiKeysMobileList table={table} isLoading={isLoading} />
+        )}
+
+        {/* Footer */}
+        <div className='flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-xs text-muted-foreground'>
+          <span>
+            {t('Total {{count}} keys', { count: totalCount })}
+          </span>
+
+          {totalPages > 0 && (
+            <div className='flex items-center gap-0.5'>
+              <Button
+                variant='ghost'
+                className='h-6.5 w-6.5 p-0 text-xs'
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <HugeiconsIcon
+                  icon={ArrowLeft01Icon}
+                  strokeWidth={2}
+                  className='size-3.5'
+                />
+              </Button>
+
+              {pageNumbers.map((pageNumber, index) => (
+                <div
+                  key={`${pageNumber}-${index}`}
+                  className='flex items-center'
+                >
+                  {pageNumber === '...' ? (
+                    <span className='px-1 text-muted-foreground'>...</span>
+                  ) : (
+                    <Button
+                      variant={
+                        currentPage === pageNumber ? 'default' : 'ghost'
+                      }
+                      className='h-6.5 min-w-6.5 px-1.5 text-xs'
+                      onClick={() =>
+                        table.setPageIndex((pageNumber as number) - 1)
+                      }
+                    >
+                      {pageNumber}
+                    </Button>
+                  )}
+                </div>
+              ))}
+
+              <Button
+                variant='ghost'
+                className='h-6.5 w-6.5 p-0 text-xs'
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  strokeWidth={2}
+                  className='size-3.5'
+                />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {!isMobile && Object.keys(rowSelection).length > 0 && (
+        <DataTableBulkActions table={table} />
       )}
-      skeletonKeyPrefix='api-keys-skeleton'
-      toolbarProps={{
-        searchPlaceholder: t('Filter by name...'),
-        additionalSearch: (
-          <Input
-            placeholder={t('Filter by API key...')}
-            aria-label={t('Filter by API key...')}
-            value={tokenFilterInput}
-            onChange={(e) => setTokenFilterInput(e.target.value)}
-            className='w-full sm:w-50 lg:w-60'
-          />
-        ),
-        filters: [
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: API_KEY_STATUS_OPTIONS,
-            singleSelect: true,
-          },
-        ],
-      }}
-      mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}
-      getRowClassName={(row) =>
-        isDisabledApiKeyRow(row.original) ? DISABLED_ROW_DESKTOP : undefined
-      }
-      bulkActions={<DataTableBulkActions table={table} />}
-    />
+    </div>
   )
 }

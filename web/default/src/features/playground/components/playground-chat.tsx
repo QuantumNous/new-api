@@ -103,21 +103,30 @@ export function PlaygroundChat({
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
       <ConversationContent className='p-0'>
-        <div className='mx-auto w-full max-w-4xl px-4 py-4'>
+        <div className='flex flex-col gap-4 px-4 py-4'>
           {messages.map((message, messageIndex) => {
             const { versions = [] } = message
             const isLastAssistantMessage =
               messageIndex === messages.length - 1 &&
               message.from === MESSAGE_ROLES.ASSISTANT
             return (
-              <Branch defaultBranch={0} key={message.key}>
-                <BranchMessages>
-                  {versions.map((version, versionIndex) => (
-                    <Message
-                      className='group flex-row-reverse'
-                      from={message.from}
-                      key={`${message.key}-${version.id}-${versionIndex}`}
-                    >
+              <div
+                key={message.key}
+                className={cn(
+                  'flex w-full',
+                  message.from === MESSAGE_ROLES.USER
+                    ? 'justify-end'
+                    : 'justify-start'
+                )}
+              >
+                <Branch defaultBranch={0}>
+                  <BranchMessages>
+                    {versions.map((version, versionIndex) => (
+                      <Message
+                        className='group'
+                        from={message.from}
+                        key={`${message.key}-${version.id}-${versionIndex}`}
+                      >
                       <div className='w-full min-w-0 flex-1 basis-full py-1'>
                         {isEditing(message.key) ? (
                           <div className='space-y-2'>
@@ -250,6 +259,16 @@ export function PlaygroundChat({
                                   ) : (
                                     showMessageContent && (
                                       <>
+                                        <div
+                                          className={cn(
+                                            'mb-[3px] text-[10px] font-medium uppercase tracking-wider',
+                                            isAssistant
+                                              ? 'text-muted-foreground'
+                                              : 'text-primary-foreground/60'
+                                          )}
+                                        >
+                                          {isAssistant ? 'Assistant' : 'You'}
+                                        </div>
                                         <MessageContent
                                           variant='flat'
                                           className={cn(
@@ -272,15 +291,16 @@ export function PlaygroundChat({
                   ))}
                 </BranchMessages>
 
-                {/* Branch selector for multiple versions */}
-                {versions.length > 1 && (
-                  <BranchSelector className='px-0' from={message.from}>
-                    <BranchPrevious />
-                    <BranchPage />
-                    <BranchNext />
-                  </BranchSelector>
-                )}
-              </Branch>
+                  {/* Branch selector for multiple versions */}
+                  {versions.length > 1 && (
+                    <BranchSelector className='px-0' from={message.from}>
+                      <BranchPrevious />
+                      <BranchPage />
+                      <BranchNext />
+                    </BranchSelector>
+                  )}
+                </Branch>
+              </div>
             )
           })}
         </div>

@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Plus,
   MoreHorizontal,
-  RefreshCw,
   List,
   Building2,
   AlertCircle,
@@ -34,6 +33,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Refresh01Icon } from '@hugeicons/core-free-icons'
 import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
@@ -63,8 +64,23 @@ export function ModelsPrimaryButtons() {
 
   return (
     <div className='flex items-center gap-2'>
+      {/* Sync Upstream */}
+      <Button
+        onClick={handleSync}
+        variant='outline'
+        size='sm'
+        className='gap-1.5'
+      >
+        <HugeiconsIcon
+          icon={Refresh01Icon}
+          strokeWidth={2}
+          className='size-3.5'
+        />
+        {t('Sync Upstream')}
+      </Button>
+
       {/* Create Model */}
-      <Button onClick={handleCreateModel} size='sm'>
+      <Button onClick={handleCreateModel} size='sm' className='gap-1.5'>
         <Plus className='h-4 w-4' />
         {t('Add Model')}
       </Button>
@@ -79,13 +95,6 @@ export function ModelsPrimaryButtons() {
             {t('Missing Models')}
             <DropdownMenuShortcut>
               <AlertCircle className='h-4 w-4' />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem onClick={handleSync}>
-            {t('Sync Upstream')}
-            <DropdownMenuShortcut>
-              <RefreshCw className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 

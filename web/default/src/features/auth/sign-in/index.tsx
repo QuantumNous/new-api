@@ -30,33 +30,30 @@ export function SignIn() {
 
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+      <div className='flex flex-col items-center gap-6'>
+        <div className='flex flex-col items-center gap-2 text-center'>
+          <h1 className='text-2xl font-semibold tracking-tight'>
             {t('Sign in')}
-          </h2>
-          {!status?.self_use_mode_enabled &&
-            status?.register_enabled !== false && (
-              <p className='text-muted-foreground text-left text-sm sm:text-base'>
-                {t("Don't have an account?")}{' '}
-                <Link
-                  to='/sign-up'
-                  className='hover:text-primary font-medium underline underline-offset-4'
-                >
-                  {t('Sign up')}
-                </Link>
-                .
-              </p>
-            )}
+          </h1>
+          <p className='text-sm text-muted-foreground'>
+            {t('Sign in to your account to continue')}
+          </p>
         </div>
 
         <UserAuthForm redirectTo={redirect} />
 
-        <TermsFooter
-          variant='sign-in'
-          status={status}
-          className='text-center'
-        />
+        {!status?.self_use_mode_enabled &&
+          status?.register_enabled !== false && (
+            <p className='text-center text-sm text-muted-foreground'>
+              {t("Don't have an account?")}{' '}
+              <Link
+                to='/sign-up'
+                className='font-medium text-primary hover:underline underline-offset-4'
+              >
+                {t('Sign up')}
+              </Link>
+            </p>
+          )}
       </div>
     </AuthLayout>
   )

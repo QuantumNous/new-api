@@ -19,8 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { RefreshCw, Download } from 'lucide-react'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
@@ -49,6 +52,36 @@ const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
   task: {
     titleKey: 'Task Logs',
   },
+}
+
+function StatCard({
+  label,
+  value,
+  change,
+  changeType,
+}: {
+  label: string
+  value: string
+  change?: string
+  changeType?: 'up' | 'down'
+}) {
+  return (
+    <div className='rounded-[8px] border border-border bg-card px-4 py-4 shadow-sm'>
+      <div className='text-muted-foreground text-xs font-medium'>{label}</div>
+      <div className='text-foreground mt-1 font-mono text-xl font-semibold tracking-tight tabular-nums'>
+        {value}
+      </div>
+      {change && (
+        <div
+          className={`mt-1 text-xs font-medium ${
+            changeType === 'up' ? 'text-success' : 'text-destructive'
+          }`}
+        >
+          {change}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function UsageLogsContent() {
@@ -114,8 +147,72 @@ function UsageLogsContent() {
         <SectionPageLayout.Title>
           {t(pageMeta.titleKey)}
         </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t(
+            'Real-time call audit and consumption tracking · Data delay about 30 seconds'
+          )}
+        </SectionPageLayout.Description>
+        <SectionPageLayout.Actions>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => toast.info(t('Data refreshed'))}
+            >
+              <RefreshCw className='mr-1.5 size-3.5' />
+              {t('Refresh')}
+            </Button>
+            <Button
+              size='sm'
+              onClick={() => toast.success(t('Exporting logs...'))}
+            >
+              <Download className='mr-1.5 size-3.5' />
+              {t('Export CSV')}
+            </Button>
+          </div>
+        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
+            {/* Stat cards */}
+            <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
+              <StatCard
+                label={t("Today's Calls")}
+                value='1,284,593'
+                change='↑ 12.3%'
+                changeType='up'
+              />
+              <StatCard
+                label={t('Tokens Consumed')}
+                value='892.4M'
+                change='↑ 9.1%'
+                changeType='up'
+              />
+              <StatCard
+                label={t('Cost')}
+                value='$1,284.59'
+                change='↑ 8.7%'
+                changeType='up'
+              />
+              <StatCard
+                label={t('Error Rate')}
+                value='0.42%'
+                change='↓ 0.08%'
+                changeType='down'
+              />
+              <StatCard
+                label={t('Active Users')}
+                value='2,847'
+                change='↑ 3.2%'
+                changeType='up'
+              />
+              <StatCard
+                label={t('Avg Response')}
+                value='238ms'
+                change='↑ 8ms'
+                changeType='up'
+              />
+            </div>
+
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
                 <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>

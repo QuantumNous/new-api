@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Info } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { SectionPageLayout } from '@/components/layout'
 import { SubscriptionsDialogs } from './components/subscriptions-dialogs'
 import { SubscriptionsPrimaryButtons } from './components/subscriptions-primary-buttons'
@@ -26,11 +25,13 @@ import {
   SubscriptionsProvider,
   useSubscriptions,
 } from './components/subscriptions-provider'
-import { SubscriptionsTable } from './components/subscriptions-table'
+import { PlansGrid } from './components/plans-grid'
+import { SelfSubscriptionsTable } from './components/self-subscriptions-table'
 
 function SubscriptionsContent() {
   const { t } = useTranslation()
   const { complianceConfirmed } = useSubscriptions()
+  const [activeTab, setActiveTab] = useState<'plans' | 'subs'>('plans')
 
   return (
     <>
@@ -38,30 +39,48 @@ function SubscriptionsContent() {
         <SectionPageLayout.Title>
           {t('Subscription Management')}
         </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Plan configuration and user subscription records')}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
-          <div className='flex items-center gap-2'>
-            <Alert variant='default' className='hidden px-3 py-2 sm:flex'>
-              <Info className='h-4 w-4' />
-              <AlertDescription className='text-xs'>
-                {t(
-                  'Stripe/Creem requires creating products on the third-party platform and entering the ID'
-                )}
-              </AlertDescription>
-            </Alert>
-            <SubscriptionsPrimaryButtons />
-          </div>
+          <SubscriptionsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          {!complianceConfirmed ? (
-            <Alert variant='destructive' className='mb-4'>
-              <AlertDescription>
+          <div className='space-y-4'>
+            {/* Tabs */}
+            <div className='flex border-b border-border'>
+              <button
+                className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === 'plans'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('plans')}
+              >
+                {t('Plans List')}
+              </button>
+              <button
+                className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === 'subs'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('subs')}
+              >
+                {t('User Subscriptions')}
+              </button>
+            </div>
+
+            {!complianceConfirmed && activeTab === 'plans' ? (
+              <div className='rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
                 {t(
                   'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
                 )}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <SubscriptionsTable />
+              </div>
+            ) : null}
+
+            {activeTab === 'plans' ? <PlansGrid /> : <SelfSubscriptionsTable />}
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

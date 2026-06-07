@@ -20,6 +20,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
+  flexRender,
   getCoreRowModel,
   useReactTable,
   getExpandedRowModel,
@@ -33,12 +34,39 @@ import { useDebounce, useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { cn, getPageNumbers } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
-  DataTablePage,
+  TableEmpty,
+  TableSkeleton,
+  MobileCardList,
 } from '@/components/data-table'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  Search01Icon,
+  FilterResetIcon,
+  Download01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+} from '@hugeicons/core-free-icons'
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -371,57 +399,344 @@ export function ChannelsTable() {
     ...groupOptions,
   ]
 
+  // Filter handlers
+  const handleStatusFilterChange = (value: string) => {
+    const column = table.getColumn('status')
+    if (!column) return
+    if (value === 'all') {
+      column.setFilterValue([])
+    } else {
+      column.setFilterValue([value])
+    }
+  }
+
+  const handleTypeFilterChange = (value: string) => {
+    const column = table.getColumn('type')
+    if (!column) return
+    if (value === 'all') {
+      column.setFilterValue([])
+    } else {
+      column.setFilterValue([value])
+    }
+  }
+
+  const handleGroupFilterChange = (value: string) => {
+    const column = table.getColumn('group')
+    if (!column) return
+    if (value === 'all') {
+      column.setFilterValue([])
+    } else {
+      column.setFilterValue([value])
+    }
+  }
+
+  const currentStatusValue =
+    statusFilter.length > 0 && !statusFilter.includes('all')
+      ? statusFilter[0]
+      : 'all'
+  const currentTypeValue =
+    typeFilter.length > 0 && !typeFilter.includes('all')
+      ? typeFilter[0]
+      : 'all'
+  const currentGroupValue =
+    groupFilter.length > 0 && !groupFilter.includes('all')
+      ? groupFilter[0]
+      : 'all'
+
+  // Is filtered?
+  const isFiltered =
+    !!globalFilter ||
+    columnFilters.some((f) => {
+      const value = f.value as string[]
+      return value && value.length > 0 && !value.includes('all')
+    }) ||
+    !!modelFilter
+
+  // Reset filters
+  const handleReset = () => {
+    table.resetColumnFilters()
+    table.setGlobalFilter('')
+    setModelFilterInput('')
+    onColumnFiltersChange((prev) => prev.filter((f) => f.id !== 'model'))
+  }
+
+  // Pagination
+  const currentPage = table.getState().pagination.pageIndex + 1
+  const totalPages = table.getPageCount()
+  const pageNumbers = getPageNumbers(currentPage, totalPages)
+  const startRow =
+    totalCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
+  const endRow = Math.min(
+    (pagination.pageIndex + 1) * pagination.pageSize,
+    totalCount
+  )
+
+  // Rows
+  const rows = table.getRowModel().rows
+
   return (
-    <DataTablePage
-      table={table}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      emptyTitle={t('No Channels Found')}
-      emptyDescription={t(
-        'No channels available. Create your first channel to get started.'
-      )}
-      skeletonKeyPrefix='channel-skeleton'
-      applyHeaderSize
-      toolbarProps={{
-        searchPlaceholder: t('Filter by name, ID, or key...'),
-        additionalSearch: (
-          <Input
-            placeholder={t('Filter by model...')}
-            value={modelFilterInput}
-            onChange={(e) => setModelFilterInput(e.target.value)}
-            className='w-full sm:w-[150px] lg:w-[180px]'
+    <div className='space-y-6'>
+      {/* Filter Bar */}
+      <div className='flex flex-wrap items-center gap-2'>
+        <div className='relative'>
+          <HugeiconsIcon
+            icon={Search01Icon}
+            strokeWidth={2}
+            className='pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground'
           />
-        ),
-        filters: [
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...CHANNEL_STATUS_OPTIONS],
-            singleSelect: true,
-          },
-          {
-            columnId: 'type',
-            title: t('Type'),
-            options: typeFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'group',
-            title: t('Group'),
-            options: groupFilterOptions,
-            singleSelect: true,
-          },
-        ],
-      }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledChannelRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
-      bulkActions={<DataTableBulkActions table={table} />}
-    />
+          <Input
+            placeholder={t('Filter by name, ID, or key...')}
+            value={globalFilter ?? ''}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
+            className='h-8 w-full pl-8 text-xs sm:w-[240px] lg:w-[280px]'
+          />
+        </div>
+
+        <Input
+          placeholder={t('Filter by model...')}
+          value={modelFilterInput}
+          onChange={(e) => setModelFilterInput(e.target.value)}
+          className='h-8 w-full text-xs sm:w-[150px] lg:w-[180px]'
+        />
+
+        <Select
+          value={currentStatusValue}
+          onValueChange={handleStatusFilterChange}
+        >
+          <SelectTrigger className='h-8 w-[130px] text-xs'>
+            <SelectValue placeholder={t('All Status')} />
+          </SelectTrigger>
+          <SelectContent>
+            {[...CHANNEL_STATUS_OPTIONS].map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={currentTypeValue}
+          onValueChange={handleTypeFilterChange}
+        >
+          <SelectTrigger className='h-8 w-[130px] text-xs'>
+            <SelectValue placeholder={t('All Types')} />
+          </SelectTrigger>
+          <SelectContent>
+            {typeFilterOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {t(option.label)}
+                {option.count != null ? ` (${option.count})` : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={currentGroupValue}
+          onValueChange={handleGroupFilterChange}
+        >
+          <SelectTrigger className='h-8 w-[130px] text-xs'>
+            <SelectValue placeholder={t('All Groups')} />
+          </SelectTrigger>
+          <SelectContent>
+            {groupFilterOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={handleReset}
+          className='h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground'
+        >
+          <HugeiconsIcon
+            icon={FilterResetIcon}
+            strokeWidth={2}
+            className='size-3'
+          />
+          {t('Reset')}
+        </Button>
+      </div>
+
+      {/* Table Wrap */}
+      <div
+        className={cn(
+          'overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150',
+          isFetching && !isLoading && 'pointer-events-none opacity-60'
+        )}
+      >
+        {/* Toolbar */}
+        <div className='flex items-center justify-between border-b border-border px-4 py-3'>
+          <span className='text-sm text-muted-foreground'>
+            {t('Total {{count}} channels', { count: totalCount })}
+          </span>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground'
+          >
+            <HugeiconsIcon
+              icon={Download01Icon}
+              strokeWidth={2}
+              className='size-3'
+            />
+            {t('Export')}
+          </Button>
+        </div>
+
+        {/* Desktop Table */}
+        {!isMobile && (
+          <div className='overflow-x-auto'>
+            <Table>
+              <TableHeader className='bg-muted/30'>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton
+                    table={table}
+                    keyPrefix='channel-skeleton'
+                  />
+                ) : rows.length === 0 ? (
+                  <TableEmpty
+                    colSpan={columns.length}
+                    title={t('No Channels Found')}
+                    description={t(
+                      'No channels available. Create your first channel to get started.'
+                    )}
+                  />
+                ) : (
+                  rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={
+                        row.getIsSelected() ? 'selected' : undefined
+                      }
+                      className={
+                        isDisabledChannelRow(row.original)
+                          ? DISABLED_ROW_DESKTOP
+                          : undefined
+                      }
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Mobile Card List */}
+        {isMobile && (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle={t('No Channels Found')}
+            emptyDescription={t(
+              'No channels available. Create your first channel to get started.'
+            )}
+          />
+        )}
+
+        {/* Footer */}
+        <div className='flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-xs text-muted-foreground'>
+          <span>
+            {t('Showing {{start}} to {{end}} of {{total}}', {
+              start: startRow,
+              end: endRow,
+              total: totalCount,
+            })}
+          </span>
+
+          {totalPages > 0 && (
+            <div className='flex items-center gap-0.5'>
+              <Button
+                variant='ghost'
+                className='h-6.5 w-6.5 p-0 text-xs'
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <HugeiconsIcon
+                  icon={ArrowLeft01Icon}
+                  strokeWidth={2}
+                  className='size-3.5'
+                />
+              </Button>
+
+              {pageNumbers.map((pageNumber, index) => (
+                <div
+                  key={`${pageNumber}-${index}`}
+                  className='flex items-center'
+                >
+                  {pageNumber === '...' ? (
+                    <span className='px-1 text-muted-foreground'>...</span>
+                  ) : (
+                    <Button
+                      variant={
+                        currentPage === pageNumber ? 'default' : 'ghost'
+                      }
+                      className='h-6.5 min-w-6.5 px-1.5 text-xs'
+                      onClick={() =>
+                        table.setPageIndex((pageNumber as number) - 1)
+                      }
+                    >
+                      {pageNumber}
+                    </Button>
+                  )}
+                </div>
+              ))}
+
+              <Button
+                variant='ghost'
+                className='h-6.5 w-6.5 p-0 text-xs'
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  strokeWidth={2}
+                  className='size-3.5'
+                />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {!isMobile && Object.keys(rowSelection).length > 0 && (
+        <DataTableBulkActions table={table} />
+      )}
+    </div>
   )
 }

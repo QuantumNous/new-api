@@ -25,6 +25,7 @@ import { ApiKeysTable } from './components/api-keys-table'
 
 export function ApiKeys() {
   const { t } = useTranslation()
+
   return (
     <ApiKeysProvider>
       <SectionPageLayout>

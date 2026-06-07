@@ -19,9 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { listDeployments } from './api'
@@ -42,12 +40,14 @@ import {
 
 const route = getRouteApi('/_authenticated/models/$section')
 
-const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
+const SECTION_META: Record<ModelsSectionId, { titleKey: string; descKey: string }> = {
   metadata: {
     titleKey: 'Metadata',
+    descKey: 'Models management',
   },
   deployments: {
     titleKey: 'Deployments',
+    descKey: 'Model deployments',
   },
 }
 
@@ -120,19 +120,31 @@ function ModelsContent() {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          <div className='whitespace-normal'>
+            <span className='block text-base font-bold tracking-tight sm:text-lg'>
+              {t(meta.titleKey)}
+            </span>
+            <span className='block text-xs text-muted-foreground font-normal'>
+              {t('Model metadata, pricing and availability configuration')}
+            </span>
+          </div>
+        </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
           ) : (
-            <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
-              <Plus className='h-4 w-4' />
+            <button
+              onClick={() => setCreateDeploymentOpen(true)}
+              className='inline-flex h-8 items-center justify-center gap-2 rounded-lg bg-primary px-3.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90'
+            >
+              <span className='text-sm leading-none'>+</span>
               {t('Create deployment')}
-            </Button>
+            </button>
           )}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='space-y-4'>
+          <div className='space-y-6'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
               <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                 {MODELS_SECTION_IDS.map((section) => (

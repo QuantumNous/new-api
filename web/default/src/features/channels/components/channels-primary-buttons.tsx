@@ -104,6 +104,18 @@ export function ChannelsPrimaryButtons() {
           />
         </div>
 
+        {/* Test All Channels */}
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => {
+            handleTestAllChannels(queryClient)
+          }}
+        >
+          <TestTube className='h-4 w-4' />
+          <span className='max-sm:hidden'>{t('Test All')}</span>
+        </Button>
+
         {/* Create Channel */}
         <Button
           onClick={() => {
@@ -143,17 +155,6 @@ export function ChannelsPrimaryButtons() {
             </DropdownMenuCheckboxItem>
 
             <DropdownMenuSeparator className='sm:hidden' />
-
-            <DropdownMenuItem
-              onClick={() => {
-                handleTestAllChannels(queryClient)
-              }}
-            >
-              {t('Test All Channels')}
-              <DropdownMenuShortcut>
-                <TestTube className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
 
             <DropdownMenuItem
               onClick={() => {

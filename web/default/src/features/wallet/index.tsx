@@ -17,11 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
+import { formatQuota } from '@/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
@@ -29,7 +34,6 @@ import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialo
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
-import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE } from './constants'
 import {
   useTopupInfo,
@@ -262,16 +266,44 @@ export function Wallet(props: WalletProps) {
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
-          <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
-            <WalletStatsCard user={user} loading={userLoading} />
+          <div className='mx-auto w-full max-w-5xl space-y-5'>
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <div className='bg-card flex items-center gap-5 rounded-[8px] border p-5 shadow-sm'>
+                <div className='bg-primary/10 text-primary flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px]'>
+                  <WalletCards className='h-6 w-6' />
+                </div>
+                <div>
+                  <div className='text-muted-foreground text-sm'>
+                    {t('Current Balance')}
+                  </div>
+                  <div className='mt-0.5 text-2xl font-semibold tracking-tight'>
+                    {formatQuota(user?.quota ?? 0)}
+                  </div>
+                  <div className='text-muted-foreground mt-0.5 text-[11px]'>
+                    {t('Remaining quota')}
+                  </div>
+                </div>
+              </div>
 
-            <div
-              className={
-                showSubscriptionPanel
-                  ? 'grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] xl:items-start'
-                  : 'grid gap-4'
-              }
-            >
+              <div className='bg-card flex items-center gap-5 rounded-[8px] border p-5 shadow-sm'>
+                <div className='bg-emerald-500/10 text-emerald-600 flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px]'>
+                  <BarChart3 className='h-6 w-6' />
+                </div>
+                <div>
+                  <div className='text-muted-foreground text-sm'>
+                    {t('Total Usage')}
+                  </div>
+                  <div className='mt-0.5 text-2xl font-semibold tracking-tight'>
+                    {formatQuota(user?.used_quota ?? 0)}
+                  </div>
+                  <div className='text-muted-foreground mt-0.5 text-[11px]'>
+                    {t('Total consumed quota')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]'>
               <div id='wallet-add-funds' className='scroll-mt-4'>
                 <RechargeFormCard
                   topupInfo={topupInfo}
@@ -303,15 +335,59 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  hideRedemption
                 />
               </div>
 
-              <SubscriptionPlansCard
-                topupInfo={topupInfo}
-                onAvailabilityChange={handleSubscriptionAvailabilityChange}
-                userQuota={user?.quota}
-                onPurchaseSuccess={fetchUser}
-              />
+              <div className='bg-card rounded-[8px] border p-5 shadow-sm'>
+                <h3 className='mb-1 text-sm font-semibold'>
+                  {t('Redemption Code')}
+                </h3>
+                <p className='text-muted-foreground mb-4 text-xs'>
+                  {t('Enter a redemption code to add balance to your account')}
+                </p>
+                <div className='space-y-3'>
+                  <div className='space-y-1.5'>
+                    <Label className='text-xs'>{t('Redemption Code')}</Label>
+                    <Input
+                      value={redemptionCode}
+                      onChange={(e) => setRedemptionCode(e.target.value)}
+                      placeholder={t('Enter your redemption code')}
+                      className='h-9 text-sm'
+                    />
+                    <p className='text-muted-foreground text-[11px]'>
+                      {t('Case-insensitive, auto-formatted with hyphens')}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleRedeem}
+                    disabled={redeeming}
+                    className='w-full'
+                    size='sm'
+                  >
+                    {redeeming ? t('Redeeming...') : t('Redeem')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className='bg-card rounded-[8px] border p-5 shadow-sm'>
+              <div className='mb-4 flex items-center justify-between'>
+                <h3 className='text-sm font-semibold'>
+                  {t('Recent Transactions')}
+                </h3>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-8 text-xs'
+                  onClick={() => setBillingDialogOpen(true)}
+                >
+                  {t('View All')} →
+                </Button>
+              </div>
+              <div className='text-muted-foreground py-8 text-center text-sm'>
+                {t('View your complete transaction history in the billing dialog')}
+              </div>
             </div>
 
             <AffiliateRewardsCard
@@ -322,6 +398,13 @@ export function Wallet(props: WalletProps) {
                 topupInfo?.payment_compliance_confirmed !== false
               }
               loading={affiliateLoading}
+            />
+
+            <SubscriptionPlansCard
+              topupInfo={topupInfo}
+              onAvailabilityChange={handleSubscriptionAvailabilityChange}
+              userQuota={user?.quota}
+              onPurchaseSuccess={fetchUser}
             />
           </div>
         </SectionPageLayout.Content>

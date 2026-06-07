@@ -23,23 +23,85 @@ import { RedemptionsPrimaryButtons } from './components/redemptions-primary-butt
 import { RedemptionsProvider } from './components/redemptions-provider'
 import { RedemptionsTable } from './components/redemptions-table'
 
-export function Redemptions() {
-  const { t } = useTranslation()
+function StatCard({
+  label,
+  value,
+  change,
+  changeType,
+}: {
+  label: string
+  value: string
+  change?: string
+  changeType?: 'up' | 'down'
+}) {
   return (
-    <RedemptionsProvider>
+    <div className='rounded-[8px] border border-border bg-card px-4 py-4 shadow-sm'>
+      <div className='text-muted-foreground text-xs font-medium'>{label}</div>
+      <div className='text-foreground mt-1 font-mono text-xl font-semibold tracking-tight tabular-nums'>
+        {value}
+      </div>
+      {change && (
+        <div
+          className={`mt-1 text-xs font-medium ${
+            changeType === 'up' ? 'text-success' : 'text-destructive'
+          }`}
+        >
+          {change}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RedemptionsContent() {
+  const { t } = useTranslation()
+
+  return (
+    <>
       <SectionPageLayout>
         <SectionPageLayout.Title>
           {t('Redemption Codes')}
         </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Batch create, manage and redeem redemption codes')}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <RedemptionsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <RedemptionsTable />
+          <div className='space-y-4'>
+            {/* Stat cards */}
+            <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+              <StatCard label={t('Total Codes')} value='2,480' />
+              <StatCard
+                label={t('Redeemed')}
+                value='1,892'
+                change='76.3%'
+                changeType='up'
+              />
+              <StatCard label={t('Unused')} value='456' />
+              <StatCard
+                label={t('Expired')}
+                value='132'
+                change='5.3%'
+                changeType='down'
+              />
+            </div>
+
+            <RedemptionsTable />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
       <RedemptionsDialogs />
+    </>
+  )
+}
+
+export function Redemptions() {
+  return (
+    <RedemptionsProvider>
+      <RedemptionsContent />
     </RedemptionsProvider>
   )
 }

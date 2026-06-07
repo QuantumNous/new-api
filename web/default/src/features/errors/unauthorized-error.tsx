@@ -25,21 +25,27 @@ export function UnauthorisedError() {
   const navigate = useNavigate()
   const { history } = useRouter()
   return (
-    <div className='h-svh'>
-      <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
-        <h1 className='text-[7rem] leading-tight font-bold'>401</h1>
-        <span className='font-medium'>{t('Unauthorized Access')}</span>
-        <p className='text-muted-foreground text-center'>
-          {t('Please log in with the appropriate credentials')} <br />{' '}
-          {t('to access this resource.')}
-        </p>
-        <div className='mt-6 flex gap-4'>
-          <Button variant='outline' onClick={() => history.go(-1)}>
-            {t('Go Back')}
-          </Button>
-          <Button onClick={() => navigate({ to: '/' })}>
-            {t('Back to Home')}
-          </Button>
+    <div className='flex min-h-svh items-center justify-center bg-background p-4'>
+      <div className='w-full max-w-[800px]'>
+        <div className='rounded-[8px] border border-border bg-card p-12 text-center shadow-sm'>
+          <div className='text-[72px] font-bold leading-none tracking-tight text-muted-foreground'>
+            401
+          </div>
+          <h2 className='mt-4 text-xl font-semibold'>
+            {t('Unauthorized Access')}
+          </h2>
+          <p className='mx-auto mt-2 max-w-[320px] text-sm text-muted-foreground'>
+            {t('Please log in with the appropriate credentials')}{' '}
+            {t('to access this resource.')}
+          </p>
+          <div className='mt-6 flex justify-center gap-2'>
+            <Button variant='outline' onClick={() => history.go(-1)}>
+              {t('Go Back')}
+            </Button>
+            <Button onClick={() => navigate({ to: '/' })}>
+              {t('Back to Home')}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

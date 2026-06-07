@@ -23,6 +23,7 @@ import { SectionPageLayout } from '@/components/layout'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { SystemOption } from '../types'
 import { SettingsPageProvider } from './settings-page-context'
+import { SettingsCategoryTabs } from './settings-category-tabs'
 
 type SettingsPageProps<
   TSettings extends Record<string, string | number | boolean | unknown[]>,
@@ -50,6 +51,7 @@ type SettingsPageProps<
 
 type SettingsPageFrameProps = {
   title: ReactNode
+  description?: ReactNode
   children: ReactNode
 }
 
@@ -66,22 +68,30 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
     >
       <SectionPageLayout>
         <SectionPageLayout.Title>
-          <span className='inline-flex max-w-full min-w-0 items-center gap-2 align-middle'>
-            <span className='truncate'>{props.title}</span>
+          <span className='inline-flex max-w-full min-w-0 flex-col gap-0.5 align-middle'>
+            <span className='truncate text-[15px] font-semibold tracking-tight'>
+              {props.title}
+            </span>
+            {props.description && (
+              <span className='text-muted-foreground text-xs truncate'>
+                {props.description}
+              </span>
+            )}
             <span
               ref={setTitleStatusContainer}
               className='inline-flex shrink-0'
             />
           </span>
         </SectionPageLayout.Title>
-        <SectionPageLayout.Actions>
-          <div
-            ref={setActionsContainer}
-            className='flex flex-wrap items-center justify-end gap-2'
-          />
-        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex w-full flex-col gap-4'>{props.children}</div>
+          <div className='flex w-full flex-col gap-4'>
+            <SettingsCategoryTabs />
+            {props.children}
+            <div
+              ref={setActionsContainer}
+              className='flex flex-wrap items-center justify-end gap-2 mt-4 empty:hidden'
+            />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
     </SettingsPageProvider>
@@ -125,7 +135,10 @@ export function SettingsPage<
 
   if (isLoading) {
     return (
-      <SettingsPageFrame title={t(sectionMeta.titleKey)}>
+      <SettingsPageFrame
+        title={t('System Settings')}
+        description={t(sectionMeta.titleKey)}
+      >
         <div className='text-muted-foreground flex min-h-40 items-center justify-center text-sm'>
           {t(loadingMessage)}
         </div>
@@ -140,7 +153,10 @@ export function SettingsPage<
   )
 
   return (
-    <SettingsPageFrame title={t(sectionMeta.titleKey)}>
+    <SettingsPageFrame
+      title={t('System Settings')}
+      description={t(sectionMeta.titleKey)}
+    >
       {sectionContent}
     </SettingsPageFrame>
   )

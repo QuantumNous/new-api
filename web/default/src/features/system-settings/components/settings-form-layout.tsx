@@ -44,7 +44,7 @@ type SettingsSwitchFieldProps = SettingsSwitchRowProps & {
 }
 
 const settingsSwitchRowClassName =
-  'flex min-w-0 flex-row items-center justify-between gap-4 border-b py-2.5 last:border-b-0'
+  'flex min-w-0 flex-row items-center justify-between gap-4 border-b border-border/50 py-3 last:border-b-0'
 
 export function SettingsFormGrid(props: SettingsFormGridProps) {
   return (

@@ -16,17 +16,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { SectionPageLayout } from '@/components/layout'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
+import { UsersStats } from './components/users-stats'
 import { UsersTable } from './components/users-table'
+import { getUsers } from './api'
 
 function UsersContent() {
   const { t } = useTranslation()
   const { open, setOpen, currentRow } = useUsers()
+
+  // Fetch all users for stats computation (unpaginated)
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['users', 'all'],
+    queryFn: () => getUsers({ page_size: 9999 }),
+    staleTime: 30_000,
+  })
+
+  const allUsers = useMemo(
+    () => statsData?.data?.items ?? [],
+    [statsData]
+  )
+  const totalCount = statsData?.data?.total ?? 0
 
   return (
     <>
@@ -36,7 +53,14 @@ function UsersContent() {
           <UsersPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <UsersTable />
+          <div className='space-y-6'>
+            <UsersStats
+              users={allUsers}
+              total={totalCount}
+              isLoading={statsLoading}
+            />
+            <UsersTable />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

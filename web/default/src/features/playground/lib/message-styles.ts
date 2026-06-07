@@ -22,29 +22,29 @@ For commercial licensing, please contact support@quantumnous.com
  */
 export function getMessageContentStyles() {
   return [
-    // Assistant content fills the row; user bubble auto-width
-    'group-[.is-assistant]:w-full',
-    'group-[.is-assistant]:max-w-none',
-    'group-[.is-user]:w-fit',
-    // User bubble: rounded and themed background
-    'group-[.is-user]:text-foreground',
-    'group-[.is-user]:bg-secondary',
-    'dark:group-[.is-user]:bg-muted',
-    'group-[.is-user]:rounded-3xl',
-    // Assistant bubble: flat serif style (one-sided style)
-    'group-[.is-assistant]:text-foreground',
-    'group-[.is-assistant]:bg-transparent',
-    'group-[.is-assistant]:p-0',
-    'group-[.is-assistant]:font-serif',
-    // Preferred readable widths and wrapping
+    // Both: max-width and rounded
+    'max-w-[85%]',
+    'rounded-[8px]',
+    'text-sm',
     'leading-relaxed',
     'break-words',
     'whitespace-pre-wrap',
+    // User bubble: primary background, right-aligned
+    'group-[.is-user]:self-end',
+    'group-[.is-user]:bg-primary',
+    'group-[.is-user]:text-primary-foreground',
+    'group-[.is-user]:rounded-br-[3px]',
+    'group-[.is-user]:px-4',
+    'group-[.is-user]:py-3',
+    // Assistant bubble: background with border, left-aligned
+    'group-[.is-assistant]:self-start',
+    'group-[.is-assistant]:bg-background',
+    'group-[.is-assistant]:border',
+    'group-[.is-assistant]:border-border',
+    'group-[.is-assistant]:rounded-bl-[3px]',
+    'group-[.is-assistant]:px-4',
+    'group-[.is-assistant]:py-3',
+    // Preferred readable widths and wrapping
     'sm:leading-7',
-    // Cap user bubble width so it does not look like a banner
-    'group-[.is-user]:max-w-[85%]',
-    'sm:group-[.is-user]:max-w-[62ch]',
-    'md:group-[.is-user]:max-w-[68ch]',
-    'lg:group-[.is-user]:max-w-[72ch]',
   ].join(' ')
 }

@@ -20,7 +20,9 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
+  Activity,
   ArrowRight,
+  BarChart3,
   BookOpen,
   Check,
   ChevronDown,
@@ -29,18 +31,23 @@ import {
   Copy,
   CreditCard,
   FileText,
+  Globe,
   KeyRound,
+  Layers,
   ListChecks,
   RadioTower,
   ShieldCheck,
   TerminalSquare,
   Timer,
+  WalletCards,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { formatQuota } from '@/lib/format'
 import { getUserModels } from '@/lib/api'
 import { MOTION_TRANSITION } from '@/lib/motion'
 import { ROLE } from '@/lib/roles'
@@ -738,6 +745,73 @@ export function OverviewDashboard() {
           </CardStaggerItem>
         </CardStaggerContainer>
       )}
+
+      <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
+        {[
+          {
+            label: t('API Requests'),
+            value: requestCount.toLocaleString(),
+            icon: Activity,
+            tone: 'blue',
+          },
+          {
+            label: t('Current Balance'),
+            value: formatQuota(remainQuota),
+            icon: WalletCards,
+            tone: 'green',
+          },
+          {
+            label: t('Total Usage'),
+            value: formatQuota(usedQuota),
+            icon: BarChart3,
+            tone: 'amber',
+          },
+          {
+            label: t('API Keys'),
+            value: String(apiKeysQuery.data?.length ?? 0),
+            icon: KeyRound,
+            tone: 'red',
+          },
+          {
+            label: t('API Routes'),
+            value: String(apiInfoItems.length),
+            icon: Globe,
+            tone: 'blue',
+          },
+          {
+            label: t('Models'),
+            value: String(modelsQuery.data?.length ?? 0),
+            icon: Layers,
+            tone: 'green',
+          },
+        ].map((stat) => {
+          const Icon = stat.icon
+          const toneBg =
+            stat.tone === 'blue'
+              ? 'bg-primary/10 text-primary'
+              : stat.tone === 'green'
+                ? 'bg-emerald-500/10 text-emerald-600'
+                : stat.tone === 'amber'
+                  ? 'bg-amber-500/10 text-amber-600'
+                  : 'bg-rose-500/10 text-rose-600'
+          return (
+            <div
+              key={stat.label}
+              className='bg-card rounded-[8px] border p-4 shadow-sm'
+            >
+              <div
+                className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${toneBg}`}
+              >
+                <Icon className='h-4 w-4' />
+              </div>
+              <div className='text-muted-foreground text-xs'>{stat.label}</div>
+              <div className='mt-1 font-mono text-lg font-semibold tracking-tight'>
+                {stat.value}
+              </div>
+            </div>
+          )
+        })}
+      </div>
 
       <SummaryCards />
 
