@@ -89,17 +89,17 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 				request.TopP = nil
 				request.TopK = nil
 			} else {
-				// 因为BudgetTokens 必须大于1024
+				// BudgetTokens must be at least 1024.
 				if request.MaxTokens == nil || *request.MaxTokens < 1280 {
 					request.MaxTokens = common.GetPointer[uint](1280)
 				}
 
-				// BudgetTokens 为 max_tokens 的 80%
+				// Set BudgetTokens to a configured percentage of max_tokens.
 				request.Thinking = &dto.Thinking{
 					Type:         "enabled",
 					BudgetTokens: common.GetPointer[int](int(float64(*request.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
 				}
-				// TODO: 临时处理
+				// TODO: temporary workaround
 				// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
 				request.Temperature = common.GetPointer[float64](1.0)
 			}
@@ -202,7 +202,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
+			// reset status code
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError
 		}
@@ -211,7 +211,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	//log.Printf("usage: %v", usage)
 	if newAPIError != nil {
-		// reset status code 重置状态码
+		// reset status code
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
