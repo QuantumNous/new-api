@@ -18,12 +18,14 @@ new-api
 /__debug_bin*
 .DS_Store
 tiktoken_cache
+bin/seed-output-*.txt
 .eslintcache
 .gocache
 .gomodcache/
 .cache
 plans
 .claude
+!.claude/commands/
 .cursor
 
 electron/node_modules
