@@ -23,6 +23,12 @@ import {
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
 import type { Channel } from '../types'
+import {
+  CUSTOM_ENDPOINT_CHANNEL_TYPE,
+  formatCustomEndpointRoutes,
+  parseCustomEndpointRoutesText,
+  validateCustomEndpointRoutesText,
+} from './custom-endpoint'
 
 // ============================================================================
 // Form Validation Schema
@@ -170,6 +176,7 @@ export const channelFormSchema = z
       .optional()
       .refine(isOptionalJsonObject, ERROR_MESSAGES.INVALID_JSON),
     other: z.string().optional(),
+    custom_endpoint_routes: z.string().optional(),
     // Multi-key options (not sent to backend directly)
     multi_key_mode: z.enum(['single', 'batch', 'multi_to_single']).optional(),
     multi_key_type: z.enum(['random', 'polling']).optional(),
@@ -215,6 +222,16 @@ export const channelFormSchema = z
         'other',
         'This channel type requires additional configuration'
       )
+    }
+
+    if (data.type === CUSTOM_ENDPOINT_CHANNEL_TYPE) {
+      const routeError = validateCustomEndpointRoutesText(
+        data.custom_endpoint_routes || '',
+        true
+      )
+      if (routeError) {
+        addRequiredIssue(ctx, 'custom_endpoint_routes', routeError)
+      }
     }
 
     if (data.type === 57) {
@@ -316,6 +333,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  custom_endpoint_routes: '',
 }
 
 // ============================================================================
@@ -337,6 +355,7 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
   }
+  let customEndpointRoutes = ''
 
   if (channel.setting) {
     try {
@@ -348,6 +367,14 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+      }
+      if (
+        isJsonObjectValue(parsed.custom_endpoint) &&
+        isJsonObjectValue(parsed.custom_endpoint.routes)
+      ) {
+        customEndpointRoutes = formatCustomEndpointRoutes(
+          parsed.custom_endpoint.routes
+        )
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -443,6 +470,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    custom_endpoint_routes: customEndpointRoutes,
   }
 }
 
@@ -450,14 +478,39 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
-    force_format: formData.force_format || false,
-    thinking_to_content: formData.thinking_to_content || false,
-    proxy: formData.proxy || '',
-    pass_through_body_enabled: formData.pass_through_body_enabled || false,
-    system_prompt: formData.system_prompt || '',
-    system_prompt_override: formData.system_prompt_override || false,
+  let settingObj: Record<string, unknown> = {}
+
+  if (formData.setting?.trim()) {
+    try {
+      const parsed = JSON.parse(formData.setting)
+      if (isJsonObjectValue(parsed)) {
+        settingObj = parsed
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to parse existing channel setting:', error)
+    }
   }
+
+  settingObj.force_format = formData.force_format || false
+  settingObj.thinking_to_content = formData.thinking_to_content || false
+  settingObj.proxy = formData.proxy || ''
+  settingObj.pass_through_body_enabled =
+    formData.pass_through_body_enabled || false
+  settingObj.system_prompt = formData.system_prompt || ''
+  settingObj.system_prompt_override = formData.system_prompt_override || false
+
+  if (formData.type === CUSTOM_ENDPOINT_CHANNEL_TYPE) {
+    const { routes } = parseCustomEndpointRoutesText(
+      formData.custom_endpoint_routes || ''
+    )
+    settingObj.custom_endpoint = {
+      routes: routes || {},
+    }
+  } else if ('custom_endpoint' in settingObj) {
+    delete settingObj.custom_endpoint
+  }
+
   return JSON.stringify(settingObj)
 }
 

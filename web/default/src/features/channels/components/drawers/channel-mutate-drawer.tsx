@@ -126,6 +126,7 @@ import {
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  CUSTOM_ENDPOINT_CHANNEL_TYPE,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -148,6 +149,7 @@ import {
 } from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
+import { CustomEndpointRoutesEditor } from '../custom-endpoint-routes-editor'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import {
@@ -1285,6 +1287,36 @@ export function ChannelMutateDrawer({
                       />
                     )}
 
+                    {/* Custom Advanced Channel (type 58) */}
+                    {currentType === CUSTOM_ENDPOINT_CHANNEL_TYPE && (
+                      <FormField
+                        control={form.control}
+                        name='custom_endpoint_routes'
+                        render={({ field }) => (
+                          <FormItem className='space-y-3'>
+                            <div className='space-y-1'>
+                              <FormLabel>
+                                {t('Custom Endpoint Routes *')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Configure entry paths, final upstream URLs, and request transformers.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <CustomEndpointRoutesEditor
+                                value={field.value || ''}
+                                onChange={field.onChange}
+                                disabled={isSubmitting}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
                     {/* Xunfei/Spark (type 18) */}
                     {currentType === 18 && (
                       <FormField
@@ -1772,7 +1804,9 @@ export function ChannelMutateDrawer({
                     )}
 
                     {/* General base_url for other types */}
-                    {![3, 8, 22, 36, 45].includes(currentType) && (
+                    {![3, 8, 22, 36, 45, CUSTOM_ENDPOINT_CHANNEL_TYPE].includes(
+                      currentType
+                    ) && (
                       <FormField
                         control={form.control}
                         name='base_url'

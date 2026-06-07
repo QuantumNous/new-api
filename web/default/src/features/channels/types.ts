@@ -86,6 +86,16 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  custom_endpoint?: {
+    routes?: Record<
+      string,
+      {
+        path: string
+        transformer: string
+        stream_options_supported?: boolean
+      }
+    >
+  }
 }
 
 export interface ChannelOtherSettings {
@@ -318,6 +328,7 @@ export interface ChannelFormData {
   header_override?: string
   settings?: string
   other?: string
+  custom_endpoint_routes?: string
   // Multi-key specific
   multi_key_mode?: 'single' | 'batch' | 'multi_to_single'
   multi_key_type?: 'random' | 'polling'
