@@ -945,6 +945,11 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if channel.Type == constant.ChannelTypeCustomEndpoint {
+		if err := channelParams.CustomEndpoint.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
