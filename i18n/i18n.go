@@ -121,12 +121,18 @@ func SetUserLangLoader(loader func(userId int) string) {
 	userLangLoaderFunc = loader
 }
 
+func usesExplicitLanguageOnly(c *gin.Context) bool {
+	routeTag := c.GetString(string(constant.ContextKeyRouteTag))
+	return routeTag == "relay" || routeTag == "old_api"
+}
+
 // GetLangFromContext extracts the language setting from gin context
 // It checks multiple sources in priority order:
 // 1. User settings (ContextKeyUserSetting) - if already loaded (e.g., by TokenAuth)
 // 2. Lazy load user language from cache/DB using user ID
-// 3. Language set by middleware (ContextKeyLanguage) - from Accept-Language header
-// 4. Default language (English)
+// 3. For API-client routes, default to English instead of Accept-Language
+// 4. Language set by middleware (ContextKeyLanguage) - from Accept-Language header
+// 5. Default language (English)
 func GetLangFromContext(c *gin.Context) string {
 	if c == nil {
 		return DefaultLang
@@ -157,7 +163,12 @@ func GetLangFromContext(c *gin.Context) string {
 		}
 	}
 
-	// 3. Try to get language from context (set by I18n middleware from Accept-Language)
+	// API clients should receive stable English errors unless the user explicitly saved a language preference.
+	if usesExplicitLanguageOnly(c) {
+		return DefaultLang
+	}
+
+	// 4. Try to get language from context (set by I18n middleware from Accept-Language)
 	if lang := c.GetString(string(constant.ContextKeyLanguage)); lang != "" {
 		normalized := normalizeLang(lang)
 		if IsSupported(normalized) {
@@ -165,7 +176,7 @@ func GetLangFromContext(c *gin.Context) string {
 		}
 	}
 
-	// 4. Try Accept-Language header directly (fallback if middleware didn't run)
+	// 5. Try Accept-Language header directly (fallback if middleware didn't run)
 	if acceptLang := c.GetHeader("Accept-Language"); acceptLang != "" {
 		lang := ParseAcceptLanguage(acceptLang)
 		if IsSupported(lang) {
