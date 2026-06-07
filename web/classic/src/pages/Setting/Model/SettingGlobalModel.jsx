@@ -25,8 +25,6 @@ import {
   Row,
   Spin,
   Banner,
-  Tag,
-  Divider,
 } from '@douyinfe/semi-ui';
 import {
   compareObjects,
@@ -40,28 +38,6 @@ import { useTranslation } from 'react-i18next';
 
 const thinkingExample = JSON.stringify(
   ['moonshotai/kimi-k2-thinking', 'kimi-k2-thinking'],
-  null,
-  2,
-);
-
-const chatCompletionsToResponsesPolicyExample = JSON.stringify(
-  {
-    enabled: true,
-    all_channels: false,
-    channel_ids: [1, 2],
-    channel_types: [1],
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
-  },
-  null,
-  2,
-);
-
-const chatCompletionsToResponsesPolicyAllChannelsExample = JSON.stringify(
-  {
-    enabled: true,
-    all_channels: true,
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
-  },
   null,
   2,
 );
@@ -246,10 +222,7 @@ export default function SettingGlobalModel(props) {
                     flexWrap: 'wrap',
                   }}
                 >
-                  {t('ChatCompletions→Responses 兼容配置')}
-                  <Tag color='orange' size='small'>
-                    测试版
-                  </Tag>
+                  {`${t('ChatCompletions→Responses 兼容配置')}（${t('已禁用')}）`}
                 </span>
               }
             >
@@ -257,9 +230,7 @@ export default function SettingGlobalModel(props) {
                 <Col span={24}>
                   <Banner
                     type='warning'
-                    description={t(
-                      '提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。',
-                    )}
+                    description={`${t('已禁用')} · ${t('旧格式（JSON 对象）')}`}
                   />
                 </Col>
               </Row>
@@ -267,17 +238,9 @@ export default function SettingGlobalModel(props) {
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
                   <Form.TextArea
-                    label={t('参数配置')}
+                    label={`${t('参数配置')}（${t('旧格式（JSON 对象）')}）`}
                     field={chatCompletionsToResponsesPolicyKey}
-                    placeholder={
-                      t('例如（指定渠道）：') +
-                      '\n' +
-                      chatCompletionsToResponsesPolicyExample +
-                      '\n\n' +
-                      t('例如（全渠道）：') +
-                      '\n' +
-                      chatCompletionsToResponsesPolicyAllChannelsExample
-                    }
+                    placeholder='{}'
                     rows={8}
                     rules={[
                       {
@@ -308,28 +271,6 @@ export default function SettingGlobalModel(props) {
                       alignItems: 'center',
                     }}
                   >
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() =>
-                        setChatCompletionsToResponsesPolicyValue(
-                          chatCompletionsToResponsesPolicyExample,
-                        )
-                      }
-                    >
-                      {t('填充模板（指定渠道）')}
-                    </Button>
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() =>
-                        setChatCompletionsToResponsesPolicyValue(
-                          chatCompletionsToResponsesPolicyAllChannelsExample,
-                        )
-                      }
-                    >
-                      {t('填充模板（全渠道）')}
-                    </Button>
                     <Button
                       type='secondary'
                       size='small'

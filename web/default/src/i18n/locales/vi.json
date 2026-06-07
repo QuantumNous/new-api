@@ -676,6 +676,7 @@
     "Chat preset not found": "Thiết lập sẵn trò chuyện không tìm thấy",
     "Chat Presets": "Cài đặt sẵn trò chuyện",
     "Chat session management": "Quản lý phiên trò chuyện",
+    "Automatic public-endpoint protocol conversion has been removed. This setting is kept only for backward-compatible storage and no longer affects public chat/completions or Claude endpoints.": "Cơ chế chuyển đổi giao thức tự động cho endpoint công khai đã bị loại bỏ. Thiết lập này chỉ được giữ lại để tương thích lưu trữ cấu hình cũ và không còn ảnh hưởng tới các endpoint công khai chat/completions hoặc Claude.",
     "ChatCompletions -> Responses Compatibility": "Tương thích ChatCompletions -> Phản hồi",
     "Check for updates": "Kiểm tra cập nhật",
     "Check in daily to receive random quota rewards": "Nhận phòng hàng ngày để nhận phần thưởng theo hạn ngạch ngẫu nhiên",

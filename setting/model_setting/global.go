@@ -33,8 +33,11 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 }
 
 type GlobalSettings struct {
-	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
-	ThinkingModelBlacklist           []string                         `json:"thinking_model_blacklist"`
+	PassThroughRequestEnabled bool     `json:"pass_through_request_enabled"`
+	ThinkingModelBlacklist    []string `json:"thinking_model_blacklist"`
+	// Deprecated: the stored policy is kept for backward-compatible config
+	// loading only. Public chat/completions and Claude endpoints no longer use
+	// automatic Chat Completions -> Responses conversion at runtime.
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
 }
 
