@@ -244,15 +244,16 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 		}
 	}
 
+	// Airbotix / DeepRouter policy: whitelist checked against the client-requested
+	// model name BEFORE channel model_mapping. Embedding payloads carry no
+	// user/system to mutate so only the whitelist guard is needed here.
+	if rejErr := checkAirbotixModelWhitelist(c, info.OriginModelName); rejErr != nil {
+		return rejErr
+	}
+
 	err = helper.ModelMappedHelper(c, info, req)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Airbotix / DeepRouter policy: model whitelist on the upstream-resolved
-	// Gemini model. Embedding payloads carry no user/system to mutate.
-	if rejErr := checkAirbotixModelWhitelist(c, info.UpstreamModelName); rejErr != nil {
-		return rejErr
 	}
 
 	req.SetModelName("models/" + info.UpstreamModelName)
