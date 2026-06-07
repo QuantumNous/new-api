@@ -118,6 +118,11 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
                 variant='neutral'
                 copyable={false}
               />
+              <StatusBadge
+                label={`${t('User ID')} ${profile.id}`}
+                variant='info'
+                copyText={String(profile.id)}
+              />
             </div>
 
             <div className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:gap-x-4 sm:text-sm'>
