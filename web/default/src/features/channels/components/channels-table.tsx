@@ -33,6 +33,7 @@ import { useDebounce, useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { Input } from '@/components/ui/input'
 import {
   DISABLED_ROW_DESKTOP,
@@ -68,6 +69,15 @@ const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'test_time',
 ])
 
+const CHANNELS_TABLE_COLUMN_VISIBILITY_STORAGE_KEY =
+  'channels-table-column-visibility'
+const CHANNELS_TABLE_LEGACY_COLUMN_VISIBILITY_STORAGE_KEY =
+  'channels-table-columns'
+const DEFAULT_COLUMN_VISIBILITY: VisibilityState = {
+  models: false,
+  tag: false,
+}
+
 function isDisabledChannelRow(channel: Channel) {
   return (
     !isTagAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
@@ -81,10 +91,25 @@ export function ChannelsTable() {
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    models: false,
-    tag: false,
-  })
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => {
+      const saved =
+        localStorage.getItem(CHANNELS_TABLE_COLUMN_VISIBILITY_STORAGE_KEY) ??
+        localStorage.getItem(
+          CHANNELS_TABLE_LEGACY_COLUMN_VISIBILITY_STORAGE_KEY
+        )
+      if (!saved) {
+        return DEFAULT_COLUMN_VISIBILITY
+      }
+      return {
+        ...DEFAULT_COLUMN_VISIBILITY,
+        ...safeJsonParse<VisibilityState>(saved, {
+          fallback: DEFAULT_COLUMN_VISIBILITY,
+          silent: true,
+        }),
+      }
+    }
+  )
   const [rowSelection, setRowSelection] = useState({})
   const [expanded, setExpanded] = useState<ExpandedState>({})
 
@@ -131,6 +156,13 @@ export function ChannelsTable() {
   useEffect(() => {
     setModelFilterInput(modelFilterFromUrl)
   }, [modelFilterFromUrl])
+
+  useEffect(() => {
+    localStorage.setItem(
+      CHANNELS_TABLE_COLUMN_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(columnVisibility)
+    )
+  }, [columnVisibility])
 
   // Update URL when debounced value changes
   useEffect(() => {
