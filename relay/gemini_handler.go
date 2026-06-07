@@ -65,17 +65,18 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// Airbotix / DeepRouter policy: checked against the client-requested model
+	// name BEFORE channel model_mapping. Gemini puts the model in the URL path
+	// (not the request struct), so we read it from info.OriginModelName which
+	// is set by middleware before any mapping occurs.
+	if rejErr := applyAirbotixPolicyToGemini(c, info.OriginModelName, request); rejErr != nil {
+		return rejErr
+	}
+
 	// model mapped 模型映射
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Airbotix / DeepRouter policy: model whitelist + replace SystemInstructions
-	// on kids_mode. Gemini has no User/Store equivalents. Model name lives on
-	// info (Gemini puts it in the URL path), not on the request struct.
-	if rejErr := applyAirbotixPolicyToGemini(c, info.UpstreamModelName, request); rejErr != nil {
-		return rejErr
 	}
 
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {

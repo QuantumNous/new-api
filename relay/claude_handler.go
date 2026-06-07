@@ -36,14 +36,16 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// Airbotix / DeepRouter policy: checked against the client-requested model
+	// name BEFORE channel model_mapping so that a kids_mode whitelist entry is
+	// honoured even when the channel remaps it to a different upstream name.
+	if rejErr := applyAirbotixPolicyToClaude(c, request); rejErr != nil {
+		return rejErr
+	}
+
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Airbotix / DeepRouter policy on the Anthropic-native shape.
-	if rejErr := applyAirbotixPolicyToClaude(c, request); rejErr != nil {
-		return rejErr
 	}
 
 	adaptor := GetAdaptor(info.ApiType)

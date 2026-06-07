@@ -60,14 +60,16 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// Airbotix / DeepRouter policy: checked against the client-requested model
+	// name BEFORE channel model_mapping so that a kids_mode whitelist entry is
+	// honoured even when the channel remaps it to a different upstream name.
+	if rejErr := applyAirbotixPolicyToResponses(c, info.ChannelType, request); rejErr != nil {
+		return rejErr
+	}
+
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Airbotix / DeepRouter policy on the /v1/responses shape.
-	if rejErr := applyAirbotixPolicyToResponses(c, info.ChannelType, request); rejErr != nil {
-		return rejErr
 	}
 
 	adaptor := GetAdaptor(info.ApiType)
