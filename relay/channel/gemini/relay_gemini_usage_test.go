@@ -331,3 +331,38 @@ func TestGeminiTextGenerationHandlerUsesEstimatedPromptTokensWhenUsagePromptMiss
 	require.Equal(t, 100, usage.CompletionTokens)
 	require.Equal(t, 110, usage.TotalTokens)
 }
+
+func TestCovertOpenAI2GeminiPreservesExplicitFalseIncludeThoughts(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	request := dto.GeneralOpenAIRequest{
+		Model: "gemini-2.5-flash",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+		ExtraBody: []byte(`{
+			"google": {
+				"thinking_config": {
+					"include_thoughts": false
+				}
+			}
+		}`),
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-2.5-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeGemini,
+			UpstreamModelName: "gemini-2.5-flash",
+		},
+	}
+
+	converted, err := CovertOpenAI2Gemini(c, request, info)
+	require.NoError(t, err)
+	require.NotNil(t, converted.GenerationConfig.ThinkingConfig)
+	require.NotNil(t, converted.GenerationConfig.ThinkingConfig.IncludeThoughts)
+	require.False(t, *converted.GenerationConfig.ThinkingConfig.IncludeThoughts)
+}

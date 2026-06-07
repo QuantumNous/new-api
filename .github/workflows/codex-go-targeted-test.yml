@@ -1,0 +1,25 @@
+name: Codex Go Targeted Test
+
+on:
+  push:
+    branches:
+      - codex/gemini-include-thoughts-cloud-test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-go-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.25.1'
+          cache: true
+
+      - name: Run targeted Go tests
+        run: go test ./dto ./relay/channel/gemini

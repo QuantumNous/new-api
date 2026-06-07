@@ -87,3 +87,54 @@ func TestGeminiChatGenerationConfigPreservesExplicitZeroValuesSnakeCase(t *testi
 	assert.Equal(t, float64(0), generationConfig["seed"])
 	assert.Equal(t, false, generationConfig["responseLogprobs"])
 }
+
+func TestGeminiThinkingConfigPreservesExplicitFalseValues(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  []byte
+	}{
+		{
+			name: "camel case",
+			raw: []byte(`{
+				"contents":[{"role":"user","parts":[{"text":"hello"}]}],
+				"generationConfig":{
+					"thinkingConfig":{
+						"includeThoughts":false
+					}
+				}
+			}`),
+		},
+		{
+			name: "snake case",
+			raw: []byte(`{
+				"contents":[{"role":"user","parts":[{"text":"hello"}]}],
+				"generationConfig":{
+					"thinking_config":{
+						"include_thoughts":false
+					}
+				}
+			}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req GeminiChatRequest
+			require.NoError(t, common.Unmarshal(tt.raw, &req))
+
+			encoded, err := common.Marshal(req)
+			require.NoError(t, err)
+
+			var out map[string]any
+			require.NoError(t, common.Unmarshal(encoded, &out))
+
+			generationConfig, ok := out["generationConfig"].(map[string]any)
+			require.True(t, ok)
+			thinkingConfig, ok := generationConfig["thinkingConfig"].(map[string]any)
+			require.True(t, ok)
+
+			assert.Contains(t, thinkingConfig, "includeThoughts")
+			assert.Equal(t, false, thinkingConfig["includeThoughts"])
+		})
+	}
+}
