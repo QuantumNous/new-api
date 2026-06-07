@@ -12,7 +12,10 @@ import (
 )
 
 func TestChatCompletionsViaResponsesDisabled(t *testing.T) {
+	previousMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
+	defer gin.SetMode(previousMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
