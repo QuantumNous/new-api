@@ -155,7 +155,7 @@ export function ModelCharts(props: ModelChartsProps) {
         </div>
       </div>
 
-      <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+      <div className='h-[240px] p-1.5 sm:h-[280px] sm:p-2'>
         {themeReady && spec && (
           <VChart
             key={chartKey}

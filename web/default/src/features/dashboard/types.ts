@@ -58,11 +58,20 @@ export interface DashboardFilters {
   end_timestamp?: Date
   time_granularity?: TimeGranularity
   username?: string
+  model_name?: string
+  provider?: DashboardProviderFilter
 }
 
 export type ConsumptionDistributionChartType = 'bar' | 'area'
 
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'
+
+export type DashboardProviderFilter =
+  | 'all'
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'other'
 
 export interface DashboardChartPreferences {
   consumptionDistributionChart: ConsumptionDistributionChartType

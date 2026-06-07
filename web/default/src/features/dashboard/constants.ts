@@ -61,9 +61,19 @@ export const MODEL_ANALYTICS_CHART_OPTIONS = [
   { value: 'top', labelKey: 'Call Count Ranking' },
 ] as const
 
+export const DASHBOARD_PROVIDER_OPTIONS = [
+  { value: 'all', labelKey: 'All Providers' },
+  { value: 'openai', labelKey: 'OpenAI' },
+  { value: 'anthropic', labelKey: 'Anthropic' },
+  { value: 'google', labelKey: 'Gemini / Google' },
+  { value: 'other', labelKey: 'Other Providers' },
+] as const
+
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
   start_timestamp: undefined,
   end_timestamp: undefined,
   time_granularity: 'hour',
   username: '',
+  model_name: '',
+  provider: 'all',
 }

@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatNumber, formatQuota } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
@@ -27,11 +28,14 @@ import {
   buildQueryParams,
   calculateDashboardStats,
   getDefaultDays,
+  applyDashboardDataFilters,
 } from '@/features/dashboard/lib'
 import type {
   QuotaDataItem,
   DashboardFilters,
 } from '@/features/dashboard/types'
+
+const EMPTY_QUOTA_DATA: QuotaDataItem[] = []
 
 interface LogStatCardsProps {
   filters?: DashboardFilters
@@ -41,18 +45,32 @@ interface LogStatCardsProps {
 export function LogStatCards(props: LogStatCardsProps) {
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = !!(user?.role && user.role >= 10)
-  const [stats, setStats] = useState<{
-    totalQuota: number
-    totalCount: number
-    totalTokens: number
-  } | null>(null)
+  const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const currentDataScopeKey = `${user?.id ?? 0}:${isAdmin ? 'admin' : 'self'}`
+  const [rawData, setRawData] = useState<QuotaDataItem[]>([])
+  const [rawDataScopeKey, setRawDataScopeKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
 
   const { filters, onDataUpdate } = props
+  const scopedRawData =
+    rawDataScopeKey === currentDataScopeKey ? rawData : EMPTY_QUOTA_DATA
+  const scopedLoading =
+    rawDataScopeKey === currentDataScopeKey ? loading : true
+  const filteredData = useMemo(
+    () => applyDashboardDataFilters(scopedRawData, filters),
+    [scopedRawData, filters?.model_name, filters?.provider]
+  )
+  const stats = useMemo(
+    () => calculateDashboardStats(filteredData),
+    [filteredData]
+  )
+
+  useEffect(() => {
+    if (!scopedLoading && !error) onDataUpdate?.(filteredData, false)
+  }, [error, filteredData, onDataUpdate, scopedLoading])
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -74,12 +92,13 @@ export function LogStatCards(props: LogStatCardsProps) {
       .then((res) => {
         if (abortController.signal.aborted) return
         const data = res?.data || []
-        setStats(calculateDashboardStats(data))
-        onDataUpdate?.(data, false)
+        setRawData(data)
+        setRawDataScopeKey(currentDataScopeKey)
       })
       .catch(() => {
         if (abortController.signal.aborted) return
-        setStats(null)
+        setRawData([])
+        setRawDataScopeKey(currentDataScopeKey)
         setError(true)
         onDataUpdate?.([], false)
       })
@@ -92,7 +111,15 @@ export function LogStatCards(props: LogStatCardsProps) {
     return () => {
       abortController.abort()
     }
-  }, [filters, isAdmin, onDataUpdate])
+  }, [
+    filters?.end_timestamp,
+    filters?.start_timestamp,
+    filters?.time_granularity,
+    filters?.username,
+    currentDataScopeKey,
+    isAdmin,
+    onDataUpdate,
+  ])
 
   const adaptedStats = {
     rpm: stats?.totalCount ?? 0,
@@ -127,7 +154,7 @@ export function LogStatCards(props: LogStatCardsProps) {
                 </div>
               </div>
 
-              {loading ? (
+              {scopedLoading ? (
                 <div className='mt-2 space-y-1.5'>
                   <Skeleton className='h-7 w-20' />
                   <Skeleton className='h-3.5 w-28' />

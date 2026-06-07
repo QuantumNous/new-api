@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  lazy,
+  Suspense,
+} from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -25,8 +32,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
+import { ModelInsightCards } from './components/models/model-insight-cards'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
-import { ModelsFilter } from './components/models/models-filter-dialog'
+import { ModelsFilterBar } from './components/models/models-filter-bar'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
@@ -100,7 +108,7 @@ function ModelChartsFallback() {
         <Skeleton className='h-5 w-32' />
         <Skeleton className='h-8 w-72' />
       </div>
-      <div className='h-96 p-2'>
+      <div className='h-[280px] p-2'>
         <Skeleton className='h-full w-full' />
       </div>
     </div>
@@ -146,11 +154,20 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
-  const activeSection = (params.section ??
+  const user = useAuthStore((state) => state.auth.user)
+  const requestedSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
+  const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const activeSection =
+    !isAdmin && requestedSection === 'users' ? 'models' : requestedSection
+  const currentModelDataScopeKey = `${user?.id ?? 0}:${
+    isAdmin ? 'admin' : 'self'
+  }`
 
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])
+  const [modelDataScopeKey, setModelDataScopeKey] = useState<string | null>(
+    null
+  )
   const [dataLoading, setDataLoading] = useState(false)
   const [chartPreferences, setChartPreferences] =
     useState<DashboardChartPreferences>(() => getSavedChartPreferences())
@@ -158,9 +175,14 @@ export function Dashboard() {
     buildDefaultDashboardFilters(getSavedChartPreferences())
   )
 
-  const handleFilterChange = useCallback((filters: DashboardFilters) => {
-    setModelFilters(filters)
-  }, [])
+  const handleFilterChange = useCallback(
+    (filters: DashboardFilters) => {
+      setModelFilters(
+        isAdmin ? filters : { ...filters, username: '', provider: 'all' }
+      )
+    },
+    [isAdmin]
+  )
 
   const handleResetFilters = useCallback(() => {
     setModelFilters(buildDefaultDashboardFilters(chartPreferences))
@@ -169,9 +191,10 @@ export function Dashboard() {
   const handleDataUpdate = useCallback(
     (data: QuotaDataItem[], loading: boolean) => {
       setModelData(data)
+      setModelDataScopeKey(currentModelDataScopeKey)
       setDataLoading(loading)
     },
-    []
+    [currentModelDataScopeKey]
   )
 
   const handleChartPreferencesChange = useCallback(
@@ -183,8 +206,28 @@ export function Dashboard() {
     []
   )
 
+  useEffect(() => {
+    if (isAdmin) return
+    setModelFilters((prev) => {
+      if (!prev.username && (prev.provider ?? 'all') === 'all') return prev
+      return { ...prev, username: '', provider: 'all' }
+    })
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (isAdmin || requestedSection !== 'users') return
+    void navigate({
+      to: '/dashboard/$section',
+      params: { section: 'models' },
+      replace: true,
+    })
+  }, [isAdmin, navigate, requestedSection])
+
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
-  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const scopedModelData =
+    modelDataScopeKey === currentModelDataScopeKey ? modelData : []
+  const scopedDataLoading =
+    modelDataScopeKey === currentModelDataScopeKey ? dataLoading : true
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
@@ -205,17 +248,10 @@ export function Dashboard() {
     activeSection !== 'overview' && visibleSections.length > 1
   const modelActions =
     activeSection === 'models' ? (
-      <>
-        <ModelsChartPreferences
-          preferences={chartPreferences}
-          onPreferencesChange={handleChartPreferencesChange}
-        />
-        <ModelsFilter
-          preferences={chartPreferences}
-          onFilterChange={handleFilterChange}
-          onReset={handleResetFilters}
-        />
-      </>
+      <ModelsChartPreferences
+        preferences={chartPreferences}
+        onPreferencesChange={handleChartPreferencesChange}
+      />
     ) : null
 
   return (
@@ -249,6 +285,14 @@ export function Dashboard() {
           {activeSection === 'models' && (
             <>
               <FadeIn>
+                <ModelsFilterBar
+                  filters={modelFilters}
+                  preferences={chartPreferences}
+                  onFilterChange={handleFilterChange}
+                  onReset={handleResetFilters}
+                />
+              </FadeIn>
+              <FadeIn>
                 <Suspense fallback={<LogStatCardsFallback />}>
                   <LazyLogStatCards
                     filters={modelFilters}
@@ -264,34 +308,45 @@ export function Dashboard() {
                 </FadeIn>
               )}
               <FadeIn delay={0.1}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyConsumptionDistributionChart
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartType={
-                      chartPreferences.consumptionDistributionChart
-                    }
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
-                </Suspense>
+                <ModelInsightCards
+                  data={scopedModelData}
+                  loading={scopedDataLoading}
+                  showProviderInsights={isAdmin}
+                />
               </FadeIn>
-              <FadeIn delay={0.15}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyModelCharts
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartTab={chartPreferences.modelAnalyticsChart}
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
-                </Suspense>
-              </FadeIn>
+              <div className='grid gap-3 xl:grid-cols-2'>
+                <FadeIn delay={0.15}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyConsumptionDistributionChart
+                      data={scopedModelData}
+                      loading={scopedDataLoading}
+                      defaultChartType={
+                        chartPreferences.consumptionDistributionChart
+                      }
+                      timeGranularity={
+                        modelFilters.time_granularity ||
+                        DEFAULT_TIME_GRANULARITY
+                      }
+                    />
+                  </Suspense>
+                </FadeIn>
+                <FadeIn delay={0.2}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyModelCharts
+                      data={scopedModelData}
+                      loading={scopedDataLoading}
+                      defaultChartTab={chartPreferences.modelAnalyticsChart}
+                      timeGranularity={
+                        modelFilters.time_granularity ||
+                        DEFAULT_TIME_GRANULARITY
+                      }
+                    />
+                  </Suspense>
+                </FadeIn>
+              </div>
             </>
           )}
-          {activeSection === 'users' && (
+          {activeSection === 'users' && isAdmin && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
