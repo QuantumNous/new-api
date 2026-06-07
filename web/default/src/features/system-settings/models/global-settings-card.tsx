@@ -37,7 +37,6 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { StatusBadge } from '@/components/status-badge'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -49,27 +48,6 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const thinkingBlacklistExample = JSON.stringify(
   ['moonshotai/kimi-k2-thinking', 'kimi-k2-thinking'],
-  null,
-  2
-)
-
-const chatToResponsesPolicyExample = JSON.stringify(
-  {
-    enabled: true,
-    all_channels: false,
-    channel_ids: [1, 2],
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
-  },
-  null,
-  2
-)
-
-const chatToResponsesPolicyAllChannelsExample = JSON.stringify(
-  {
-    enabled: true,
-    all_channels: true,
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
-  },
   null,
   2
 )
@@ -265,20 +243,15 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
           <div className='space-y-4'>
             <div className='flex items-center gap-2'>
               <h3 className='text-base font-semibold'>
-                {t('ChatCompletions -> Responses Compatibility')}
+                {`${t('ChatCompletions -> Responses Compatibility')} (${t('Disabled')})`}
               </h3>
-              <StatusBadge
-                label={t('Preview')}
-                variant='neutral'
-                copyable={false}
-              />
             </div>
 
             <Alert>
-              <AlertTitle>{t('Warning')}</AlertTitle>
+              <AlertTitle>{t('Disabled')}</AlertTitle>
               <AlertDescription>
                 {t(
-                  'This feature is experimental. Configuration format and behavior may change.'
+                  'Automatic public-endpoint protocol conversion has been removed. This setting is kept only for backward-compatible storage and no longer affects public chat/completions or Claude endpoints.'
                 )}
               </AlertDescription>
             </Alert>
@@ -288,11 +261,13 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
               name='global.chat_completions_to_responses_policy'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Policy JSON')}</FormLabel>
+                  <FormLabel>
+                    {`${t('Policy JSON')} (${t('Legacy Format (JSON Object)')})`}
+                  </FormLabel>
                   <FormControl>
                     <Textarea
                       rows={8}
-                      placeholder={`${t('Example (specific channels):')}\n${chatToResponsesPolicyExample}\n\n${t('Example (all channels):')}\n${chatToResponsesPolicyAllChannelsExample}`}
+                      placeholder='{}'
                       {...field}
                       onChange={(event) => field.onChange(event.target.value)}
                     />
@@ -301,34 +276,6 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     {t('Empty value will be saved as {}.')}
                   </FormDescription>
                   <div className='flex flex-wrap gap-2'>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={() =>
-                        form.setValue(
-                          'global.chat_completions_to_responses_policy',
-                          chatToResponsesPolicyExample,
-                          { shouldDirty: true }
-                        )
-                      }
-                    >
-                      {t('Fill example (specific channels)')}
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={() =>
-                        form.setValue(
-                          'global.chat_completions_to_responses_policy',
-                          chatToResponsesPolicyAllChannelsExample,
-                          { shouldDirty: true }
-                        )
-                      }
-                    >
-                      {t('Fill example (all channels)')}
-                    </Button>
                     <Button
                       type='button'
                       variant='outline'

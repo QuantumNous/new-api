@@ -676,6 +676,7 @@
     "Chat preset not found": "Préréglage de chat introuvable",
     "Chat Presets": "Préréglages de chat",
     "Chat session management": "Gestion des sessions de chat",
+    "Automatic public-endpoint protocol conversion has been removed. This setting is kept only for backward-compatible storage and no longer affects public chat/completions or Claude endpoints.": "La conversion automatique du protocole des points de terminaison publics a été supprimée. Ce réglage est conservé uniquement pour la compatibilité avec l'ancien stockage de configuration et n'affecte plus les points de terminaison publics chat/completions ou Claude.",
     "ChatCompletions -> Responses Compatibility": "Compatibilité ChatCompletions -> Réponses",
     "Check for updates": "Vérifier les mises à jour",
     "Check in daily to receive random quota rewards": "Connectez-vous quotidiennement pour recevoir des récompenses de quota aléatoires",

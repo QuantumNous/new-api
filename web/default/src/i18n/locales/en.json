@@ -676,6 +676,7 @@
     "Chat preset not found": "Chat preset not found",
     "Chat Presets": "Chat Presets",
     "Chat session management": "Chat session management",
+    "Automatic public-endpoint protocol conversion has been removed. This setting is kept only for backward-compatible storage and no longer affects public chat/completions or Claude endpoints.": "Automatic public-endpoint protocol conversion has been removed. This setting is kept only for backward-compatible storage and no longer affects public chat/completions or Claude endpoints.",
     "ChatCompletions -> Responses Compatibility": "ChatCompletions -> Responses Compatibility",
     "Check for updates": "Check for updates",
     "Check in daily to receive random quota rewards": "Check in daily to receive random quota rewards",

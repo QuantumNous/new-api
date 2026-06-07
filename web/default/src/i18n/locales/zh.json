@@ -1,4 +1,4 @@
-﻿{
+{
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -676,6 +676,7 @@
     "Chat preset not found": "未找到聊天预设",
     "Chat Presets": "聊天预设",
     "Chat session management": "聊天会话管理",
+    "Automatic public-endpoint protocol conversion has been removed. This setting is kept only for backward-compatible storage and no longer affects public chat/completions or Claude endpoints.": "公开端点的自动协议转换已移除。此设置仅为兼容历史配置存储而保留，不再影响公开的 chat/completions 或 Claude 端点。",
     "ChatCompletions -> Responses Compatibility": "ChatCompletions → 响应兼容",
     "Check for updates": "检查更新",
     "Check in daily to receive random quota rewards": "每日签到可获得随机额度奖励",
@@ -4531,4 +4532,3 @@
     "Zoom": "缩放"
   }
 }
-
