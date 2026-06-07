@@ -1,0 +1,293 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Gateway · 设计原型</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.launcher-body { min-height:100vh; background:var(--bg); }
+.launcher-hero { padding: var(--space-10) var(--space-6) var(--space-6); text-align:center; border-bottom:1px solid var(--border); }
+.launcher-hero .logo-mark { width:48px;height:48px;background:var(--accent);border-radius:var(--radius-md);display:grid;place-items:center;color:var(--accent-on);font-weight:700;font-size:22px;margin:0 auto var(--space-4); }
+.launcher-hero h1 { font-size: var(--text-2xl); font-weight: 600; margin-bottom: var(--space-2); }
+.launcher-hero p { color: var(--muted); font-size: var(--text-md); max-width: 480px; margin: 0 auto; }
+.launcher-progress { display:flex;align-items:center;justify-content:center;gap:var(--space-3);margin-top:var(--space-4); }
+.launcher-progress-track { width:200px;height:6px;background:var(--border);border-radius:3px;overflow:hidden; }
+.launcher-progress-fill { height:100%;background:var(--accent);border-radius:3px;transition:width .4s ease; }
+.launcher-section { max-width:1200px;margin:0 auto;padding:var(--space-6); }
+.launcher-section-title { font-size:var(--text-sm);font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--space-4); }
+.launcher-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-4); }
+.launcher-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);transition:all var(--motion-fast);cursor:pointer;text-decoration:none;color:inherit;display:block; }
+.launcher-card:hover { border-color:var(--accent);box-shadow:var(--elev-raised);transform:translateY(-1px); }
+.launcher-card-header { display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3); }
+.launcher-card-icon { width:36px;height:36px;border-radius:var(--radius-sm);display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex-shrink:0; }
+.launcher-card-title { font-size:var(--text-md);font-weight:600; }
+.launcher-card-desc { font-size:var(--text-sm);color:var(--muted);line-height:1.5; }
+.launcher-card-meta { margin-top:var(--space-3);display:flex;gap:var(--space-2); }
+.launcher-tag { font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:var(--border-soft);color:var(--meta);font-weight:500; }
+.launcher-tag.done { background:var(--success-soft);color:var(--success); }
+.launcher-tag.pending { background:var(--warn-soft);color:color-mix(in oklab,var(--warn),black 20%); }
+.launcher-footer { text-align:center;padding:var(--space-8) var(--space-4);color:var(--meta);font-size:var(--text-sm);border-top:1px solid var(--border); }
+</style>
+</head>
+<body class="launcher-body">
+
+<div class="launcher-hero">
+  <div class="logo-mark">G</div>
+  <h1>API Gateway · 设计原型</h1>
+  <p>AI API 网关管理后台 UED 原型系统<br>Tech/Utility 方向 · 高密度数据 · 亮色/暗色双主题</p>
+  <div class="launcher-progress">
+    <span class="text-sm text-muted">交付进度</span>
+    <div class="launcher-progress-track"><div class="launcher-progress-fill" style="width:20%"></div></div>
+    <span class="text-sm mono">4 / 20</span>
+  </div>
+</div>
+
+<div class="launcher-section">
+  <div class="launcher-section-title">认证入口</div>
+  <div class="launcher-grid">
+    <a href="login.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <span class="launcher-card-title">登录页</span>
+      </div>
+      <div class="launcher-card-desc">密码登录、OAuth (GitHub/Discord)、Passkey、两步验证 OTP 流程</div>
+      <div class="launcher-card-meta"><span class="launcher-tag done">已完成</span></div>
+    </a>
+  </div>
+</div>
+
+<div class="launcher-section">
+  <div class="launcher-section-title">个人中心</div>
+  <div class="launcher-grid">
+    <a href="dashboard.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        </div>
+        <span class="launcher-card-title">仪表盘</span>
+      </div>
+      <div class="launcher-card-desc">统计卡片、调用趋势图表、模型用量分布、最近活动流</div>
+      <div class="launcher-card-meta"><span class="launcher-tag done">已完成</span></div>
+    </a>
+    <a href="api-keys.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        </div>
+        <span class="launcher-card-title">API 密钥</span>
+      </div>
+      <div class="launcher-card-desc">密钥列表、脱敏显示、创建/编辑、模型权限分配、批量操作</div>
+      <div class="launcher-card-meta"><span class="launcher-tag done">已完成</span></div>
+    </a>
+    <a href="wallet.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
+        </div>
+        <span class="launcher-card-title">钱包</span>
+      </div>
+      <div class="launcher-card-desc">余额概览、充值预设/自定义金额、支付确认、兑换码兑换</div>
+      <div class="launcher-card-meta"><span class="launcher-tag done">已完成</span></div>
+    </a>
+    <a href="profile.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <span class="launcher-card-title">个人资料</span>
+      </div>
+      <div class="launcher-card-desc">资料修改、密码管理、2FA/Passkey、OAuth 绑定、签到</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="playground.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <span class="launcher-card-title">Playground</span>
+      </div>
+      <div class="launcher-card-desc">AI 模型测试、参数调节、流式输出、多轮对话、推理过程显示</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+  </div>
+</div>
+
+<div class="launcher-section">
+  <div class="launcher-section-title">管理后台</div>
+  <div class="launcher-grid">
+    <a href="usage-logs.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <span class="launcher-card-title">用量日志</span>
+      </div>
+      <div class="launcher-card-desc">调用日志查询、类型筛选（对话/绘图/任务）、用户详情弹窗</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="channels.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </div>
+        <span class="launcher-card-title">渠道管理</span>
+      </div>
+      <div class="launcher-card-desc">渠道列表、状态健康度、响应时间、创建/编辑 Sheet、多密钥管理</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="models.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="launcher-card-title">模型管理</span>
+      </div>
+      <div class="launcher-card-desc">模型元数据、厂商管理、上游同步、定价配置</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="users.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        </div>
+        <span class="launcher-card-title">用户管理</span>
+      </div>
+      <div class="launcher-card-desc">用户列表、角色管理、额度调整、批量操作</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="codes.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+        </div>
+        <span class="launcher-card-title">兑换码</span>
+      </div>
+      <div class="launcher-card-desc">兑换码列表、批量创建、有效期限、使用统计</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="plans.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        <span class="launcher-card-title">订阅计划</span>
+      </div>
+      <div class="launcher-card-desc">套餐列表、创建/编辑、用户订阅记录、计费规则</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+  </div>
+</div>
+
+<div class="launcher-section">
+  <div class="launcher-section-title">系统设置</div>
+  <div class="launcher-grid">
+    <a href="settings-auth.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <span class="launcher-card-title">认证</span>
+      </div>
+      <div class="launcher-card-desc">登录方式、注册开关、OAuth 配置、2FA 策略</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-site.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        </div>
+        <span class="launcher-card-title">站点</span>
+      </div>
+      <div class="launcher-card-desc">站点名称、Logo、首页内容、Markdown 编辑器</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-billing.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>
+        </div>
+        <span class="launcher-card-title">计费</span>
+      </div>
+      <div class="launcher-card-desc">货币单位、支付网关、发票配置、费率规则</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-models.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+        </div>
+        <span class="launcher-card-title">模型</span>
+      </div>
+      <div class="launcher-card-desc">默认模型、模型分组、定价模板、配额策略</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-channel.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </div>
+        <span class="launcher-card-title">渠道</span>
+      </div>
+      <div class="launcher-card-desc">默认渠道、负载均衡、超时配置、重试策略</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-notification.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+        </div>
+        <span class="launcher-card-title">通知</span>
+      </div>
+      <div class="launcher-card-desc">邮件 SMTP、Webhook、告警阈值、通知模板</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-log.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
+        </div>
+        <span class="launcher-card-title">日志</span>
+      </div>
+      <div class="launcher-card-desc">日志保留期、日志级别、审计策略、存储配置</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+    <a href="settings-security.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <span class="launcher-card-title">安全</span>
+      </div>
+      <div class="launcher-card-desc">IP 白名单、CORS、速率限制、访问审计</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+  </div>
+</div>
+
+<div class="launcher-section">
+  <div class="launcher-section-title">系统页面</div>
+  <div class="launcher-grid">
+    <a href="error.html" class="launcher-card">
+      <div class="launcher-card-header">
+        <div class="launcher-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <span class="launcher-card-title">错误状态页</span>
+      </div>
+      <div class="launcher-card-desc">401 / 403 / 404 / 500 / 503 专用错误页面设计</div>
+      <div class="launcher-card-meta"><span class="launcher-tag pending">待完成</span></div>
+    </a>
+  </div>
+</div>
+
+<div class="launcher-footer">
+  API Gateway Admin · 20 页面设计原型系统 · 分批交付中
+</div>
+
+<script src="js/base.js"></script>
+</body>
+</html>

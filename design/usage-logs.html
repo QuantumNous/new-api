@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>用量日志 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.log-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-4); margin-bottom:var(--space-4); }
+.log-detail-grid .detail-block { background:var(--bg); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:var(--space-3); }
+.log-detail-grid .detail-block h4 { font-size:11px; color:var(--meta); text-transform:uppercase; letter-spacing:.04em; margin-bottom:var(--space-2); }
+.log-detail-grid .detail-block pre { font-family:var(--font-mono); font-size:12px; line-height:1.6; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+.log-meta-list { display:flex; flex-wrap:wrap; gap:var(--space-4); }
+.log-meta-item { display:flex; gap:var(--space-1); font-size:var(--text-sm); }
+.log-meta-item .label { color:var(--muted); }
+.log-meta-item .value { font-family:var(--font-mono); }
+.filter-bar { display:flex; gap:var(--space-2); flex-wrap:wrap; align-items:center; margin-bottom:var(--space-4); }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-main-nav" id="sidebarMainNav">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">G</div>
+      <span class="sidebar-brand">API Gateway</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">概览</div>
+      <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+      <div class="sidebar-section-label">个人中心</div>
+      <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+      <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+      <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+      <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">管理后台</div>
+      <a href="usage-logs.html" class="nav-item active" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+      <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+      <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+      <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+      <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+      <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+      <div class="sidebar-section-label">系统</div>
+      <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+    </div>
+  </div>
+</aside>
+
+<!-- Topnav -->
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">用量日志</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div><div class="dropdown-item" onclick="Toast.show('info','切换到 日本語')">日本語</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button><div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg>退出登录</a></div></div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="main-content">
+  <div class="page-view">
+
+    <div class="page-header">
+      <div><h1>用量日志</h1><p class="page-desc">实时调用审计与消耗追踪 · 数据延迟约 30 秒</p></div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="Toast.show('info','数据已刷新')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>刷新</button>
+        <button class="btn btn-primary" onclick="Toast.show('success','日志导出中…')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导出 CSV</button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-card-label">今日调用</div>
+        <div class="stat-card-value mono">1,284,593</div>
+        <div class="stat-card-change up">↑ 12.3%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">消耗 Token</div>
+        <div class="stat-card-value mono">892.4<span style="font-size:14px;font-weight:400;color:var(--muted)">M</span></div>
+        <div class="stat-card-change up">↑ 9.1%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">消耗金额</div>
+        <div class="stat-card-value mono">$1,284.59</div>
+        <div class="stat-card-change up">↑ 8.7%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">错误率</div>
+        <div class="stat-card-value mono">0.42<span style="font-size:14px;font-weight:400;color:var(--muted)">%</span></div>
+        <div class="stat-card-change up">↓ 0.08%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">活跃用户</div>
+        <div class="stat-card-value mono">2,847</div>
+        <div class="stat-card-change up">↑ 3.2%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">平均响应</div>
+        <div class="stat-card-value mono">238<span style="font-size:14px;font-weight:400;color:var(--muted)">ms</span></div>
+        <div class="stat-card-change down">↑ 8ms</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <div class="table-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="搜索用户、模型、请求 ID…"></div>
+      <select class="form-select" style="width:140px"><option>全部类型</option><option>对话</option><option>图像生成</option><option>嵌入</option><option>TTS</option><option>语音识别</option></select>
+      <select class="form-select" style="width:140px"><option>全部状态</option><option>成功</option><option>错误</option><option>超时</option><option>限流</option></select>
+      <select class="form-select" style="width:160px"><option>全部模型</option><option>GPT-4o</option><option>Claude 3.5 Sonnet</option><option>Gemini 1.5 Pro</option><option>DALL·E 3</option></select>
+      <div class="flex gap-2">
+        <input type="date" class="form-input" style="width:auto;padding:5px 10px;font-size:12px" value="2025-06-01">
+        <input type="date" class="form-input" style="width:auto;padding:5px 10px;font-size:12px" value="2025-06-07">
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="Toast.show('info','筛选条件已重置')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M10 12h4M6 18h12"/></svg>重置</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div style="display:flex;gap:var(--space-2);align-items:center">
+          <span class="text-sm text-muted">共 12,847 条记录</span>
+          <span class="filter-chip active">今天</span>
+          <span class="filter-chip">近 7 天</span>
+          <span class="filter-chip">近 30 天</span>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-sm btn-ghost text-danger" onclick="confirmDelete('确定删除选中的日志记录吗？')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>批量删除</button>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:32px"><input type="checkbox" class="table-checkbox"></th>
+            <th>请求 ID</th>
+            <th>时间</th>
+            <th>用户</th>
+            <th>模型</th>
+            <th>类型</th>
+            <th class="num-col">Input</th>
+            <th class="num-col">Output</th>
+            <th class="num-col">耗时</th>
+            <th>状态</th>
+            <th style="width:80px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_8f3a2b1c</td>
+            <td class="mono text-sm">14:32:18</td>
+            <td class="text-sm">developer@example.com</td>
+            <td class="text-sm">GPT-4o</td>
+            <td><span class="badge badge-neutral">对话</span></td>
+            <td class="num-col mono text-sm">1,247</td>
+            <td class="num-col mono text-sm">856</td>
+            <td class="num-col mono text-sm">234ms</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_9e4c5d6f</td>
+            <td class="mono text-sm">14:31:05</td>
+            <td class="text-sm">alice@corp.net</td>
+            <td class="text-sm">Claude 3.5 Sonnet</td>
+            <td><span class="badge badge-neutral">对话</span></td>
+            <td class="num-col mono text-sm">4,891</td>
+            <td class="num-col mono text-sm">2,104</td>
+            <td class="num-col mono text-sm">412ms</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_a1b2c3d4</td>
+            <td class="mono text-sm">14:30:42</td>
+            <td class="text-sm">bob@startup.io</td>
+            <td class="text-sm">DALL·E 3</td>
+            <td><span class="badge badge-warn">图像</span></td>
+            <td class="num-col mono text-sm">128</td>
+            <td class="num-col mono text-sm">—</td>
+            <td class="num-col mono text-sm">1.2s</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_b5c6d7e8</td>
+            <td class="mono text-sm">14:29:11</td>
+            <td class="text-sm">ci-bot@gitlab.local</td>
+            <td class="text-sm">text-embedding-3</td>
+            <td><span class="badge badge-muted">嵌入</span></td>
+            <td class="num-col mono text-sm">32,768</td>
+            <td class="num-col mono text-sm">1,536</td>
+            <td class="num-col mono text-sm">89ms</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_c8d9e0f1</td>
+            <td class="mono text-sm">14:28:55</td>
+            <td class="text-sm">developer@example.com</td>
+            <td class="text-sm">GPT-4o</td>
+            <td><span class="badge badge-neutral">对话</span></td>
+            <td class="num-col mono text-sm">512</td>
+            <td class="num-col mono text-sm">1,024</td>
+            <td class="num-col mono text-sm">156ms</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_d2e3f4g5</td>
+            <td class="mono text-sm">14:27:33</td>
+            <td class="text-sm">vip@enterprise.com</td>
+            <td class="text-sm">GPT-4o</td>
+            <td><span class="badge badge-neutral">对话</span></td>
+            <td class="num-col mono text-sm">8,192</td>
+            <td class="num-col mono text-sm">4,096</td>
+            <td class="num-col mono text-sm">567ms</td>
+            <td><span class="badge badge-warn">超时</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_e5f6g7h8</td>
+            <td class="mono text-sm">14:26:20</td>
+            <td class="text-sm">alice@corp.net</td>
+            <td class="text-sm">Gemini 1.5 Pro</td>
+            <td><span class="badge badge-neutral">对话</span></td>
+            <td class="num-col mono text-sm">2,048</td>
+            <td class="num-col mono text-sm">1,536</td>
+            <td class="num-col mono text-sm">312ms</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_f8g9h0i1</td>
+            <td class="mono text-sm">14:25:08</td>
+            <td class="text-sm">new-user@test.com</td>
+            <td class="text-sm">GPT-4o-mini</td>
+            <td><span class="badge badge-neutral">对话</span></td>
+            <td class="num-col mono text-sm">256</td>
+            <td class="num-col mono text-sm">512</td>
+            <td class="num-col mono text-sm">78ms</td>
+            <td><span class="badge badge-danger">错误</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_g1h2i3j4</td>
+            <td class="mono text-sm">14:24:45</td>
+            <td class="text-sm">developer@example.com</td>
+            <td class="text-sm">TTS-1</td>
+            <td><span class="badge badge-muted">TTS</span></td>
+            <td class="num-col mono text-sm">64</td>
+            <td class="num-col mono text-sm">—</td>
+            <td class="num-col mono text-sm">245ms</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">req_h4i5j6k7</td>
+            <td class="mono text-sm">14:23:12</td>
+            <td class="text-sm">batch@ai-team.dev</td>
+            <td class="text-sm">Whisper-1</td>
+            <td><span class="badge badge-muted">语音</span></td>
+            <td class="num-col mono text-sm">—</td>
+            <td class="num-col mono text-sm">420</td>
+            <td class="num-col mono text-sm">1.8s</td>
+            <td><span class="badge badge-success">成功</span></td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Dialog.open('logDetailDialog')">详情</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-footer">
+        <span>显示 1–10 条，共 12,847 条</span>
+        <div class="table-pagination">
+          <button>⟨</button><button class="active">1</button><button>2</button><button>3</button><button>…</button><button>1285</button><button>⟩</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</div>
+
+<!-- Log Detail Dialog -->
+<div class="dialog-overlay" id="logDetailDialog">
+  <div class="dialog" style="max-width:680px">
+    <div class="dialog-header">
+      <h2>调用详情</h2>
+      <button class="btn btn-ghost" onclick="Dialog.close('logDetailDialog')">✕</button>
+    </div>
+    <div class="dialog-body">
+      <div class="log-meta-list mb-4">
+        <div class="log-meta-item"><span class="label">请求 ID</span><span class="value">req_8f3a2b1c</span></div>
+        <div class="log-meta-item"><span class="label">用户</span><span class="value">developer@example.com</span></div>
+        <div class="log-meta-item"><span class="label">时间</span><span class="value">2025-06-07 14:32:18</span></div>
+        <div class="log-meta-item"><span class="label">模型</span><span class="value">GPT-4o</span></div>
+        <div class="log-meta-item"><span class="label">渠道</span><span class="value">OpenAI Main</span></div>
+        <div class="log-meta-item"><span class="label">IP</span><span class="value">192.168.1.42</span></div>
+        <div class="log-meta-item"><span class="label">耗时</span><span class="value">234ms</span></div>
+        <div class="log-meta-item"><span class="label">费用</span><span class="value">$0.0084</span></div>
+      </div>
+      <div class="log-detail-grid">
+        <div class="detail-block" style="grid-column:1/-1">
+          <h4>请求体</h4>
+          <pre>{
+  "model": "gpt-4o",
+  "messages": [{"role":"user","content":"解释一下量子计算的基本原理"}],
+  "temperature": 0.7,
+  "max_tokens": 2048
+}</pre>
+        </div>
+        <div class="detail-block" style="grid-column:1/-1">
+          <h4>响应体</h4>
+          <pre>{
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 1247,
+    "completion_tokens": 856,
+    "total_tokens": 2103
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" onclick="copyText('req_8f3a2b1c','请求 ID')">复制请求 ID</button>
+      <button class="btn btn-secondary" onclick="Dialog.close('logDetailDialog')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/base.js"></script>
+</body>
+</html>

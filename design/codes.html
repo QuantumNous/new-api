@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>兑换码 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-main-nav" id="sidebarMainNav">
+  <div class="sidebar-header"><div class="sidebar-logo">G</div><span class="sidebar-brand">API Gateway</span><button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"></path></svg></button></div>
+  <div class="sidebar-scroll">
+    <div class="sidebar-section-label">概览</div>
+    <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg><span class="nav-label">仪表盘</span></a>
+    <div class="sidebar-section-label">个人中心</div>
+    <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg><span class="nav-label">API 密钥</span></a>
+    <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"></path><path d="M3 5v14a2 2 0 002 2h16v-5"></path><path d="M18 12a2 2 0 000 4h4v-4h-4z"></path></svg><span class="nav-label">钱包</span></a>
+    <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><span class="nav-label">个人资料</span></a>
+    <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg><span class="nav-label">Playground</span></a>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">管理后台</div>
+    <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg><span class="nav-label">用量日志</span></a>
+    <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"></path></svg><span class="nav-label">渠道管理</span></a>
+    <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg><span class="nav-label">模型管理</span></a>
+    <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg><span class="nav-label">用户管理</span></a>
+    <a href="codes.html" class="nav-item active" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line></svg><span class="nav-label">兑换码</span></a>
+    <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg><span class="nav-label">订阅计划</span></a>
+    <div class="sidebar-section-label">系统</div>
+    <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg><span class="nav-label">系统设置</span></a>
+  </div>
+</div>
+</aside>
+<div class="topnav" id="topnav">
+  <div class="topnav-left"><button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button><div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">兑换码</span></div></div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 01-3.46 0"></path></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"></path></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"></path></svg></button>
+      <div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> 个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg> 系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline></svg> 退出登录</a></div>
+    </div>
+  </div>
+</div>
+<main class="main-content">
+<div class="page-view">
+
+<div class="page-header"><div><h1>兑换码</h1><p class="page-desc">批量创建、管理与核销兑换码</p></div><div class="page-actions"><button class="btn btn-primary" onclick="Sheet.open('createCodeSheet')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> 批量创建</button></div></div>
+
+<!-- Stats -->
+<div class="stat-cards" style="margin-bottom:var(--space-4)">
+  <div class="stat-card"><div class="stat-card-label">兑换码总数</div><div class="stat-card-value mono">2,480</div></div>
+  <div class="stat-card"><div class="stat-card-label">已核销</div><div class="stat-card-value mono">1,892</div><div class="stat-card-change up">76.3%</div></div>
+  <div class="stat-card"><div class="stat-card-label">未使用</div><div class="stat-card-value mono">456</div></div>
+  <div class="stat-card"><div class="stat-card-label">已过期</div><div class="stat-card-value mono">132</div><div class="stat-card-change down">5.3%</div></div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="flex items-center gap-2">
+      <div class="table-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><input type="text" placeholder="搜索兑换码…"></div>
+      <button class="filter-chip active">全部</button>
+      <button class="filter-chip">未使用</button>
+      <button class="filter-chip">已核销</button>
+      <button class="filter-chip">已过期</button>
+    </div>
+    <div class="flex gap-2"><button class="btn btn-sm btn-secondary" onclick="Toast.show('info','导出 CSV')">导出</button></div>
+  </div>
+  <table class="data-table">
+    <thead><tr><th><input type="checkbox" class="table-checkbox"></th><th>兑换码</th><th>类型</th><th>面值</th><th>状态</th><th>有效期</th><th>使用量</th><th>创建时间</th><th></th></tr></thead>
+    <tbody>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">SUMMER-2026-GIFT</td><td><span class="badge badge-neutral">通用</span></td><td class="num-col">$100.00</td><td><span class="badge badge-success">未使用</span></td><td>2026-12-31</td><td>0 / 500</td><td>2026-06-01</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('SUMMER-2026-GIFT','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">WELCOME-NEW-USER</td><td><span class="badge badge-neutral">通用</span></td><td class="num-col">$10.00</td><td><span class="badge badge-success">未使用</span></td><td>2027-03-31</td><td>42 / 1000</td><td>2026-05-15</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('WELCOME-NEW-USER','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">PROMO-Q2-VIP</td><td><span class="badge badge-warn">VIP 限定</span></td><td class="num-col">$200.00</td><td><span class="badge badge-warn">已核销</span></td><td>2026-06-30</td><td>287 / 300</td><td>2026-04-01</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('PROMO-Q2-VIP','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">OLD-2025-CAMPAIGN</td><td><span class="badge badge-muted">活动</span></td><td class="num-col">$50.00</td><td><span class="badge badge-muted">已过期</span></td><td>2025-12-31</td><td>890 / 900</td><td>2025-10-01</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('OLD-2025-CAMPAIGN','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">REFERRAL-XYZ123</td><td><span class="badge badge-neutral">通用</span></td><td class="num-col">$25.00</td><td><span class="badge badge-success">未使用</span></td><td>2026-09-30</td><td>18 / 200</td><td>2026-05-20</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('REFERRAL-XYZ123','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">HACKATHON-2026</td><td><span class="badge badge-muted">活动</span></td><td class="num-col">$500.00</td><td><span class="badge badge-success">未使用</span></td><td>2026-08-15</td><td>3 / 50</td><td>2026-05-28</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('HACKATHON-2026','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+      <tr><td><input type="checkbox" class="table-checkbox"></td><td class="mono" style="font-size:11px">TEST-INTERNAL-001</td><td><span class="badge badge-neutral">通用</span></td><td class="num-col">$1.00</td><td><span class="badge badge-warn">已核销</span></td><td>2026-12-31</td><td>12 / 20</td><td>2026-01-10</td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="copyText('TEST-INTERNAL-001','兑换码')">复制</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('删除此兑换码？')">删除</button></td></tr>
+    </tbody>
+  </table>
+  <div class="table-footer"><span>显示 1–7 条，共 2,480 条</span><div class="table-pagination"><button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"></polyline></svg></button><button class="active">1</button><button>2</button><button>3</button><button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"></polyline></svg></button></div></div>
+</div>
+
+</div>
+</main>
+</div>
+
+<!-- Sheet: Create Code -->
+<div class="sheet-overlay" id="createCodeSheetOverlay"></div>
+<div class="sheet" id="createCodeSheet">
+  <div class="sheet-header"><h2 style="font-size:var(--text-lg);font-weight:600">批量创建兑换码</h2><button class="btn btn-ghost" onclick="Sheet.close('createCodeSheet')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
+  <div class="sheet-body">
+    <div class="form-group"><label class="form-label">前缀 <span class="text-muted">(可选)</span></label><input type="text" class="form-input" placeholder="如 SUMMER"></div>
+    <div class="form-group"><label class="form-label">数量</label><input type="number" class="form-input" value="10" min="1" max="1000"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">面值类型</label><select class="form-select"><option>固定金额</option><option>百分比折扣</option><option>赠送额度</option></select></div>
+      <div class="form-group"><label class="form-label">面值</label><input type="number" class="form-input" value="100"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">有效期至</label><input type="date" class="form-input" value="2026-12-31"></div>
+      <div class="form-group"><label class="form-label">使用次数限制</label><input type="number" class="form-input" value="1" min="1"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">适用用户组</label>
+      <select class="form-select">
+        <option>全部用户</option><option>VIP 用户</option><option>新注册用户</option><option>指定用户</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">备注</label>
+      <textarea class="form-textarea" placeholder="如：夏季促销活动专用…"></textarea>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-secondary" onclick="Sheet.close('createCodeSheet')">取消</button>
+    <button class="btn btn-primary" onclick="Sheet.close('createCodeSheet'); Toast.show('success','已创建 10 个兑换码')">创建</button>
+  </div>
+</div>
+
+<script src="js/base.js"></script>
+
+
+</body></html>

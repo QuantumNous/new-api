@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playground · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.playground-layout { display:flex;flex-direction:column;height:calc(100vh - 52px - 48px); }
+.playground-config { display:flex;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:var(--space-3);flex-wrap:wrap;align-items:center; }
+.playground-config select { padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);font-size:12px; }
+.playground-config label { font-size:11px;color:var(--muted);font-weight:500; }
+.playground-config .config-group { display:flex;align-items:center;gap:6px; }
+.playground-main { flex:1;display:flex;gap:var(--space-4);min-height:0; }
+.playground-chat { flex:1;display:flex;flex-direction:column;min-width:0; }
+.playground-messages { flex:1;overflow-y:auto;padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-4);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md); }
+.chat-msg { max-width:85%;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);font-size:var(--text-sm);line-height:1.65; }
+.chat-msg.user { align-self:flex-end;background:var(--accent);color:var(--accent-on);border-bottom-right-radius:3px; }
+.chat-msg.assistant { align-self:flex-start;background:var(--bg);border:1px solid var(--border);border-bottom-left-radius:3px; }
+.chat-msg.thinking { align-self:flex-start;background:var(--bg);border:1px dashed var(--border);color:var(--muted);font-style:italic; }
+.chat-msg .msg-role { font-size:10px;color:var(--meta);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;font-weight:500; }
+.chat-msg.user .msg-role { color:color-mix(in oklab,var(--accent-on),transparent 40%); }
+.chat-msg pre { background:color-mix(in oklab,var(--fg) 6%,transparent);padding:var(--space-3);border-radius:var(--radius-sm);margin:var(--space-2) 0;font-family:var(--font-mono);font-size:12px;overflow-x:auto; }
+.chat-msg code { font-family:var(--font-mono);font-size:12px;background:color-mix(in oklab,var(--fg) 6%,transparent);padding:1px 4px;border-radius:3px; }
+.playground-input { display:flex;gap:var(--space-2);margin-top:var(--space-3); }
+.playground-input textarea { flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:var(--text-sm);resize:none;min-height:48px;max-height:120px; }
+.playground-sidebar { width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:var(--space-3); }
+.sidebar-panel { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4); }
+.sidebar-panel h4 { font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--space-3); }
+.param-row { display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3); }
+.param-row label { font-size:12px;color:var(--fg); }
+.param-row span { font-size:11px;color:var(--meta);font-family:var(--font-mono); }
+.param-row input[type="range"] { width:100%;margin-top:4px; }
+.system-prompt { width:100%;min-height:80px;padding:var(--space-3);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);font-size:12px;resize:vertical;line-height:1.5; }
+.streaming-dot { display:inline-block;width:6px;height:6px;background:var(--accent);border-radius:50%;animation:blink 1s infinite;margin-left:4px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-main-nav" id="sidebarMainNav">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">G</div>
+      <span class="sidebar-brand">API Gateway</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">概览</div>
+      <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+      <div class="sidebar-section-label">个人中心</div>
+      <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+      <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+      <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+      <a href="playground.html" class="nav-item active" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">管理后台</div>
+      <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+      <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+      <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+      <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+      <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+      <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+      <div class="sidebar-section-label">系统</div>
+      <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+    </div>
+  </div>
+</aside>
+
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">Playground</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div><div class="dropdown-item" onclick="Toast.show('info','切换到 日本語')">日本語</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button><div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg>退出登录</a></div></div>
+  </div>
+</div>
+
+<main class="main-content">
+  <div class="page-view" style="max-width:none;padding-bottom:0">
+
+    <div class="playground-config">
+      <div class="config-group"><label>模型</label><select id="modelSelect"><option selected>GPT-4o</option><option>Claude 3.5 Sonnet</option><option>Gemini 1.5 Pro</option><option>GPT-4o-mini</option></select></div>
+      <div class="config-group"><label>渠道</label><select><option selected>自动负载均衡</option><option>OpenAI Main</option><option>Anthropic US</option><option>Azure East</option></select></div>
+      <div class="config-group"><label>Temperature</label><span id="tempVal">0.7</span><input type="range" min="0" max="2" step="0.1" value="0.7" style="width:80px" oninput="document.getElementById('tempVal').textContent=this.value"></div>
+      <div class="config-group"><label>Max Tokens</label><span id="tokenVal">4096</span><input type="range" min="256" max="8192" step="256" value="4096" style="width:80px" oninput="document.getElementById('tokenVal').textContent=this.value"></div>
+      <div class="config-group" style="margin-left:auto"><button class="btn btn-sm btn-secondary" onclick="clearChat()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>清空</button><button class="btn btn-sm btn-secondary" onclick="copyLast()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>复制</button></div>
+    </div>
+
+    <div class="playground-main">
+      <div class="playground-chat">
+        <div class="playground-messages" id="chatMessages">
+          <div class="chat-msg assistant">
+            <div class="msg-role">Assistant · GPT-4o</div>
+            <div>你好！我是 API Gateway Playground 中的 AI 助手。你可以在这里测试不同模型的回复效果，调节 Temperature 和 Max Tokens 查看输出变化。有什么可以帮你的吗？</div>
+          </div>
+          <div class="chat-msg user">
+            <div class="msg-role">You</div>
+            <div>请用 Python 写一个快速排序，并加上中文注释</div>
+          </div>
+          <div class="chat-msg assistant">
+            <div class="msg-role">Assistant · GPT-4o</div>
+            <div>当然可以，这里是一个带中文注释的快速排序实现：<pre>def quick_sort(arr):
+    # 基线条件：如果数组长度小于等于1，直接返回
+    if len(arr) <= 1:
+        return arr
+    # 选择基准元素（这里取中间值）
+    pivot = arr[len(arr) // 2]
+    # 小于基准的元素放左边
+    left = [x for x in arr if x < pivot]
+    # 等于基准的元素放中间
+    middle = [x for x in arr if x == pivot]
+    # 大于基准的元素放右边
+    right = [x for x in arr if x > pivot]
+    # 递归排序左右两部分并合并
+    return quick_sort(left) + middle + quick_sort(right)</pre></div>
+          </div>
+          <div class="chat-msg user">
+            <div class="msg-role">You</div>
+            <div>时间复杂度是多少？空间复杂度呢？</div>
+          </div>
+          <div class="chat-msg assistant">
+            <div class="msg-role">Assistant · GPT-4o</div>
+            <div><strong>时间复杂度：</strong><br>• 平均情况：<code>O(n log n)</code> — 每次划分大致平衡<br>• 最坏情况：<code>O(n²)</code> — 基准元素总是最大/最小值<br><br><strong>空间复杂度：</strong><br>• 上述实现为 <code>O(n)</code>（列表推导创建新数组）<br>• 原地分区版本可优化至 <code>O(log n)</code> 栈空间</div>
+          </div>
+        </div>
+        <div class="playground-input">
+          <textarea id="chatInput" placeholder="输入消息… 按 Enter 发送，Shift+Enter 换行"></textarea>
+          <button class="btn btn-primary" style="height:48px;width:48px;padding:0;display:grid;place-items:center" onclick="sendMessage()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+        </div>
+      </div>
+
+      <div class="playground-sidebar">
+        <div class="sidebar-panel">
+          <h4>系统提示词</h4>
+          <textarea class="system-prompt" placeholder="输入系统提示词...">你是一个乐于助人的编程助手，擅长用清晰的中文解释技术概念。</textarea>
+        </div>
+        <div class="sidebar-panel">
+          <h4>参数</h4>
+          <div class="param-row"><label>Top P</label><span>1.0</span></div><input type="range" min="0" max="1" step="0.1" value="1">
+          <div class="param-row"><label>Frequency Penalty</label><span>0</span></div><input type="range" min="-2" max="2" step="0.1" value="0">
+          <div class="param-row"><label>Presence Penalty</label><span>0</span></div><input type="range" min="-2" max="2" step="0.1" value="0">
+        </div>
+        <div class="sidebar-panel">
+          <h4>会话信息</h4>
+          <div class="flex justify-between text-sm mb-2"><span class="text-muted">Tokens (Input)</span><span class="mono">1,247</span></div>
+          <div class="flex justify-between text-sm mb-2"><span class="text-muted">Tokens (Output)</span><span class="mono">856</span></div>
+          <div class="flex justify-between text-sm mb-2"><span class="text-muted">预估费用</span><span class="mono">$0.0142</span></div>
+          <div class="flex justify-between text-sm"><span class="text-muted">耗时</span><span class="mono">2.34s</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</div>
+
+<script src="js/base.js"></script>
+<script>
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const container = document.getElementById('chatMessages');
+  container.insertAdjacentHTML('beforeend',
+    '<div class="chat-msg user"><div class="msg-role">You</div><div>' + text.replace(/</g,'&lt;') + '</div></div>');
+  input.value = '';
+  container.scrollTop = container.scrollHeight;
+
+  // Simulate thinking + response
+  const thinkingId = 'thinking_' + Date.now();
+  setTimeout(() => {
+    container.insertAdjacentHTML('beforeend',
+      '<div class="chat-msg thinking" id="' + thinkingId + '"><div class="msg-role">Assistant · ' + document.getElementById('modelSelect').value + '</div><div>正在思考<span class="streaming-dot"></span></div></div>');
+    container.scrollTop = container.scrollHeight;
+  }, 300);
+
+  setTimeout(() => {
+    const t = document.getElementById(thinkingId);
+    if (t) {
+      t.className = 'chat-msg assistant';
+      t.innerHTML = '<div class="msg-role">Assistant · ' + document.getElementById('modelSelect').value + '</div><div>收到你的消息：<em>"' + text.replace(/</g,'&lt;') + '"</em><br><br>这是一个模拟回复。实际部署时将调用上游模型 API 返回真实内容。</div>';
+    }
+    container.scrollTop = container.scrollHeight;
+  }, 1800);
+}
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+function clearChat() {
+  document.getElementById('chatMessages').innerHTML =
+    '<div class="chat-msg assistant"><div class="msg-role">Assistant · GPT-4o</div><div>对话已清空。有什么可以帮你的吗？</div></div>';
+}
+function copyLast() {
+  const msgs = document.querySelectorAll('#chatMessages .chat-msg.assistant');
+  if (msgs.length) {
+    const text = msgs[msgs.length - 1].querySelector('div:last-child').innerText;
+    copyText(text, '最后一条回复');
+  }
+}
+</script>
+</body>
+</html>

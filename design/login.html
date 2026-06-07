@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.auth-wrap { min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:var(--space-4); }
+.auth-step { display:none; }
+.auth-step.active { display:block; }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="auth-wrap">
+
+<!-- Step 1: Login -->
+<div class="card auth-card auth-step active" id="stepLogin">
+  <div class="auth-logo"><div class="logo-mark">G</div><span>API Gateway</span></div>
+  <h1>登录</h1>
+  <p class="auth-desc">使用你的账户登录管理后台</p>
+  <form id="loginForm" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label class="form-label">邮箱 <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" type="email" placeholder="you@company.com" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">密码 <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" type="password" placeholder="••••••••" required>
+    </div>
+    <div class="flex items-center justify-between" style="margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" checked style="accent-color:var(--accent)"> 记住我
+      </label>
+      <a href="#" style="font-size:12px;color:var(--accent)">忘记密码？</a>
+    </div>
+    <button class="btn btn-primary w-full" type="submit">登录</button>
+  </form>
+  <div class="auth-separator">或使用以下方式</div>
+  <div class="social-btns">
+    <button class="social-btn" onclick="Toast.show('info','正在通过 GitHub 登录…')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.167 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+      GitHub
+    </button>
+    <button class="social-btn" onclick="Toast.show('info','正在通过 Discord 登录…')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.947 2.418-2.157 2.418z"/></svg>
+      Discord
+    </button>
+  </div>
+  <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
+    还没有账户？<a href="#" style="color:var(--accent)">注册</a>
+  </div>
+  <button class="btn btn-secondary w-full mt-4" onclick="Toast.show('info','请使用你的安全密钥进行验证')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    Passkey 登录
+  </button>
+</div>
+
+<!-- Step 2: 2FA -->
+<div class="card auth-card auth-step" id="step2FA" style="text-align:center">
+  <div class="auth-logo"><div class="logo-mark">G</div><span>API Gateway</span></div>
+  <h1>两步验证</h1>
+  <p class="auth-desc">输入验证器应用中的 6 位验证码</p>
+  <div class="otp-inputs">
+    <input class="form-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
+    <input class="form-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
+    <input class="form-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
+    <input class="form-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
+    <input class="form-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
+    <input class="form-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
+  </div>
+  <button class="btn btn-primary w-full" onclick="verify2FA()">验证</button>
+  <p style="margin-top:16px;font-size:12px;color:var(--muted)">
+    收不到验证码？<a href="#" style="color:var(--accent)">使用备用码</a>
+  </p>
+  <button class="btn btn-ghost w-full mt-4" style="font-size:12px" onclick="backToLogin()">← 返回登录</button>
+</div>
+
+</div>
+
+<script src="js/base.js"></script>
+<script>
+function handleLogin(e) {
+  e.preventDefault();
+  document.getElementById('stepLogin').classList.remove('active');
+  document.getElementById('step2FA').classList.add('active');
+  setTimeout(() => document.querySelectorAll('.otp-inputs input')[0]?.focus(), 200);
+}
+function verify2FA() {
+  window.location.href = 'dashboard.html';
+}
+function backToLogin() {
+  document.getElementById('step2FA').classList.remove('active');
+  document.getElementById('stepLogin').classList.add('active');
+}
+// OTP auto-focus
+const otpInputs = document.querySelectorAll('.otp-inputs input');
+otpInputs.forEach((input, idx) => {
+  input.addEventListener('input', () => {
+    input.value = input.value.replace(/\D/g, '');
+    if (input.value && idx < otpInputs.length - 1) otpInputs[idx + 1].focus();
+    if (idx === otpInputs.length - 1 && input.value) verify2FA();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !input.value && idx > 0) otpInputs[idx - 1].focus();
+  });
+});
+</script>
+</body>
+</html>

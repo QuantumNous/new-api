@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>仪表盘 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-main-nav" id="sidebarMainNav">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">G</div>
+      <span class="sidebar-brand">API Gateway</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">概览</div>
+      <a href="dashboard.html" class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        <span class="nav-label">仪表盘</span>
+      </a>
+
+      <div class="sidebar-section-label">个人中心</div>
+      <a href="api-keys.html" class="nav-item" data-view="api-keys">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        <span class="nav-label">API 密钥</span>
+      </a>
+      <a href="wallet.html" class="nav-item" data-view="wallet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
+        <span class="nav-label">钱包</span>
+      </a>
+      <a href="profile.html" class="nav-item" data-view="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="nav-label">个人资料</span>
+      </a>
+      <a href="playground.html" class="nav-item" data-view="playground">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="nav-label">Playground</span>
+      </a>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">管理后台</div>
+      <a href="usage-logs.html" class="nav-item" data-view="usage-logs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="nav-label">用量日志</span>
+      </a>
+      <a href="channels.html" class="nav-item" data-view="channels">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span class="nav-label">渠道管理</span>
+      </a>
+      <a href="models.html" class="nav-item" data-view="models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-label">模型管理</span>
+      </a>
+      <a href="users.html" class="nav-item" data-view="users">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span class="nav-label">用户管理</span>
+      </a>
+      <a href="codes.html" class="nav-item" data-view="codes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+        <span class="nav-label">兑换码</span>
+      </a>
+      <a href="plans.html" class="nav-item" data-view="plans">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span class="nav-label">订阅计划</span>
+      </a>
+
+      <div class="sidebar-section-label">系统</div>
+      <a href="settings-auth.html" class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="nav-label">系统设置</span>
+      </a>
+    </div>
+  </div>
+</aside>
+
+<!-- Topnav -->
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">仪表盘</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap">
+      <button class="topnav-btn" onclick="Toast.show('info','暂无新通知')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-dot"></span>
+      </button>
+    </div>
+    <div class="topnav-btn-wrap dropdown">
+      <button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+      </button>
+      <div class="dropdown-menu" id="langDropdown">
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 日本語')">日本語</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 Français')">Français</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 Русский')">Русский</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 Tiếng Việt')">Tiếng Việt</div>
+      </div>
+    </div>
+    <div class="topnav-btn-wrap">
+      <button class="topnav-btn" onclick="toggleTheme()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown">
+      <button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')">
+        <div class="user-avatar">A</div>
+        <span style="font-size:13px;font-weight:500">Admin</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="dropdown-menu" id="userDropdown" style="right:0">
+        <a href="profile.html" class="dropdown-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          个人中心
+        </a>
+        <a href="settings-auth.html" class="dropdown-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          系统设置
+        </a>
+        <div class="dropdown-divider"></div>
+        <a href="login.html" class="dropdown-item danger">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg>
+          退出登录
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="main-content">
+  <div class="page-view">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div>
+        <h1>仪表盘</h1>
+        <p class="page-desc">平台运行概览与核心指标 · 最后更新 2 分钟前</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="Toast.show('info','数据已刷新')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          刷新
+        </button>
+        <button class="btn btn-primary" onclick="Toast.show('success','报告导出中…')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出报告
+        </button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-card-icon blue">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="stat-card-label">今日调用</div>
+        <div class="stat-card-value mono">1,284,593</div>
+        <div class="stat-card-change up">↑ 12.3%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon green">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        </div>
+        <div class="stat-card-label">活跃用户</div>
+        <div class="stat-card-value mono">2,847</div>
+        <div class="stat-card-change up">↑ 3.2%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon amber">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="stat-card-label">平均响应</div>
+        <div class="stat-card-value mono">238<span style="font-size:14px;font-weight:400;color:var(--muted)">ms</span></div>
+        <div class="stat-card-change down">↑ 8ms</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon red">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="stat-card-label">错误率</div>
+        <div class="stat-card-value mono">0.42<span style="font-size:14px;font-weight:400;color:var(--muted)">%</span></div>
+        <div class="stat-card-change up">↓ 0.08%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon blue">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </div>
+        <div class="stat-card-label">今日消费</div>
+        <div class="stat-card-value mono">$1,284.59</div>
+        <div class="stat-card-change up">↑ 8.7%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon green">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="stat-card-label">活跃渠道</div>
+        <div class="stat-card-value mono">24/28</div>
+        <div class="stat-card-sub">2 渠道异常 <a href="channels.html" style="color:var(--accent)">查看 →</a></div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-4);margin-bottom:var(--space-6)">
+      <div class="card">
+        <div class="flex items-center justify-between mb-4">
+          <span class="card-title">调用趋势 · 近 7 天</span>
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-ghost" onclick="switchChart(this,'line')">折线</button>
+            <button class="btn btn-sm btn-primary" onclick="switchChart(this,'bar')">柱状</button>
+          </div>
+        </div>
+        <div style="height:180px;display:flex;align-items:flex-end;gap:8px;padding:12px 0">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent-soft);border-radius:3px 3px 0 0;height:55%"></div>
+            <span style="font-size:10px;color:var(--meta)">06-01</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent-soft);border-radius:3px 3px 0 0;height:72%"></div>
+            <span style="font-size:10px;color:var(--meta)">06-02</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent-soft);border-radius:3px 3px 0 0;height:48%"></div>
+            <span style="font-size:10px;color:var(--meta)">06-03</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent-soft);border-radius:3px 3px 0 0;height:83%"></div>
+            <span style="font-size:10px;color:var(--meta)">06-04</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent);border-radius:3px 3px 0 0;height:95%"></div>
+            <span style="font-size:10px;color:var(--meta)">06-05</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent-soft);border-radius:3px 3px 0 0;height:68%"></div>
+            <span style="font-size:10px;color:var(--meta)">06-06</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;background:var(--accent-soft);border-radius:3px 3px 0 0;height:62%"></div>
+            <span style="font-size:10px;color:var(--meta)">今天</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="card-title">模型用量分布</span>
+        <div style="margin-top:16px">
+          <div class="flex items-center justify-between mb-1"><span class="text-sm">GPT-4o</span><span class="mono text-sm text-muted">42%</span></div>
+          <div class="progress-track mb-3"><div class="progress-fill" style="width:42%;background:var(--accent)"></div></div>
+          <div class="flex items-center justify-between mb-1"><span class="text-sm">Claude 3.5 Sonnet</span><span class="mono text-sm text-muted">28%</span></div>
+          <div class="progress-track mb-3"><div class="progress-fill" style="width:28%;background:var(--success)"></div></div>
+          <div class="flex items-center justify-between mb-1"><span class="text-sm">Gemini 1.5 Pro</span><span class="mono text-sm text-muted">18%</span></div>
+          <div class="progress-track mb-3"><div class="progress-fill" style="width:18%;background:var(--warn)"></div></div>
+          <div class="flex items-center justify-between mb-1"><span class="text-sm">其他</span><span class="mono text-sm text-muted">12%</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:12%;background:var(--meta)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <span class="card-title">最近活动</span>
+        <a href="usage-logs.html" class="btn btn-sm btn-ghost">查看全部 →</a>
+      </div>
+      <div>
+        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--border-soft)">
+          <div class="flex items-center gap-3">
+            <span class="badge badge-success">创建</span>
+            <span class="text-sm">developer@example.com 创建密钥 "prod-key-3"</span>
+          </div>
+          <span class="text-xs text-muted">2 分钟前</span>
+        </div>
+        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--border-soft)">
+          <div class="flex items-center gap-3">
+            <span class="badge badge-warn">告警</span>
+            <span class="text-sm">OpenAI Main 渠道响应超时 (2 次)</span>
+          </div>
+          <span class="text-xs text-muted">15 分钟前</span>
+        </div>
+        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--border-soft)">
+          <div class="flex items-center gap-3">
+            <span class="badge badge-neutral">充值</span>
+            <span class="text-sm">批量充值成功 — 5 用户 $500.00</span>
+          </div>
+          <span class="text-xs text-muted">1 小时前</span>
+        </div>
+        <div class="flex items-center justify-between py-2">
+          <div class="flex items-center gap-3">
+            <span class="badge badge-muted">更新</span>
+            <span class="text-sm">gpt-4o-mini 模型定价更新</span>
+          </div>
+          <span class="text-xs text-muted">3 小时前</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</div>
+
+<script src="js/base.js"></script>
+<script>
+function switchChart(btn, type) {
+  const parent = btn.parentElement;
+  parent.querySelectorAll('button').forEach(b => b.className = 'btn btn-sm btn-ghost');
+  btn.className = 'btn btn-sm btn-primary';
+  Toast.show('success', '已切换至' + (type === 'line' ? '折线' : '柱状') + '图');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>系统设置 · 渠道 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>.settings-tabs { display:flex; gap:var(--space-1); margin-bottom:var(--space-5); flex-wrap:wrap }
+.settings-tab { padding:6px 14px; border-radius:var(--radius-sm); font-size:var(--text-sm); font-weight:500; color:var(--muted); text-decoration:none; border:1px solid transparent; transition:all var(--motion-fast) }
+.settings-tab:hover { color:var(--fg); border-color:var(--border) }
+.settings-tab.active { background:var(--accent-soft); color:var(--accent); border-color:var(--accent-soft) }
+.settings-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:var(--space-5); margin-bottom:var(--space-4) }
+.settings-card-title { font-size:var(--text-md); font-weight:600; margin-bottom:var(--space-4) }
+.settings-card-desc { font-size:var(--text-sm); color:var(--muted); margin-bottom:var(--space-4) }
+.settings-row { display:flex; align-items:center; justify-content:space-between; padding:var(--space-3) 0; border-bottom:1px solid var(--border-soft) }
+.settings-row:last-child { border-bottom:none }
+.settings-row-info p { font-size:var(--text-sm); font-weight:500 }
+.settings-row-info span { font-size:11px; color:var(--muted) }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-main-nav" id="sidebarMainNav">
+  <div class="sidebar-header"><div class="sidebar-logo">G</div><span class="sidebar-brand">API Gateway</span><button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg></button></div>
+  <div class="sidebar-scroll">
+    <div class="sidebar-section-label">概览</div>
+    <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+    <div class="sidebar-section-label">个人中心</div>
+    <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+    <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+    <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+    <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">管理后台</div>
+    <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+    <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+    <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+    <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+    <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+    <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+    <div class="sidebar-section-label">系统</div>
+    <a href="settings-auth.html" class="nav-item active" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+  </div>
+</div>
+</aside>
+<div class="topnav" id="topnav">
+  <div class="topnav-left"><button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">系统设置</span></div></div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> 个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> 系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg> 退出登录</a></div>
+    </div>
+  </div>
+</div>
+<main class="main-content">
+<div class="page-view">
+<div class="page-header"><div><h1>系统设置</h1><p class="page-desc">认证、站点、计费及系统级配置</p></div></div>
+<div class="settings-tabs">
+  <a href="settings-auth.html" class="settings-tab">认证</a>
+  <a href="settings-site.html" class="settings-tab">站点</a>
+  <a href="settings-billing.html" class="settings-tab">计费</a>
+  <a href="settings-models.html" class="settings-tab">模型</a>
+  <a href="settings-channel.html" class="settings-tab active">渠道</a>
+  <a href="settings-notification.html" class="settings-tab">通知</a>
+  <a href="settings-log.html" class="settings-tab">日志</a>
+  <a href="settings-security.html" class="settings-tab">安全</a>
+</div>
+
+<div class="settings-card">
+  <div class="settings-card-title">负载均衡</div>
+  <div class="form-group"><label class="form-label">默认策略</label><select class="form-select"><option selected>轮询 (Round Robin)</option><option>最少连接 (Least Connections)</option><option>加权轮询 (Weighted Round Robin)</option><option>响应时间优先 (Fastest Response)</option><option>随机 (Random)</option></select></div>
+  <div class="settings-row">
+    <div class="settings-row-info"><p>自动故障转移</p><span>渠道异常时自动切换至备用渠道</span></div>
+    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+  </div>
+  <div class="settings-row">
+    <div class="settings-row-info"><p>健康检查</p><span>定期探测渠道可用性</span></div>
+    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+  </div>
+</div>
+
+<div class="settings-card">
+  <div class="settings-card-title">超时与重试</div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">请求超时 (秒)</label><input type="number" class="form-input" value="60"></div>
+    <div class="form-group"><label class="form-label">连接超时 (秒)</label><input type="number" class="form-input" value="10"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">最大重试次数</label><input type="number" class="form-input" value="3"></div>
+    <div class="form-group"><label class="form-label">重试间隔 (秒)</label><input type="number" class="form-input" value="2" step="0.5"></div>
+  </div>
+  <div class="form-group" style="margin-bottom:0">
+    <label class="form-label">重试状态码</label>
+    <input type="text" class="form-input" value="429, 500, 502, 503, 504">
+    <p class="form-help">逗号分隔，仅对列表中的 HTTP 状态码触发重试</p>
+  </div>
+</div>
+
+<div class="settings-card">
+  <div class="settings-card-title">降级策略</div>
+  <p class="settings-card-desc">当所有渠道不可用时触发的降级行为</p>
+  <div class="form-group">
+    <label class="form-label">降级模式</label>
+    <select class="form-select">
+      <option selected>返回 Queue Full 错误</option>
+      <option>排队等待（最大 60 秒）</option>
+      <option>降级至 gpt-4o-mini</option>
+      <option>降级至本地缓存响应</option>
+    </select>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:flex-end;gap:var(--space-2);margin-top:var(--space-4)">
+  <button class="btn btn-secondary" onclick="Toast.show('info','已重置')">重置</button>
+  <button class="btn btn-primary" onclick="Toast.show('success','渠道设置已保存')">保存更改</button>
+</div>
+</div>
+</main>
+</div>
+<script src="js/base.js"></script>
+</body>
+</html>

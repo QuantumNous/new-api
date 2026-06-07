@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>订阅计划 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-main-nav" id="sidebarMainNav">
+  <div class="sidebar-header"><div class="sidebar-logo">G</div><span class="sidebar-brand">API Gateway</span><button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg></button></div>
+  <div class="sidebar-scroll">
+    <div class="sidebar-section-label">概览</div>
+    <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+    <div class="sidebar-section-label">个人中心</div>
+    <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+    <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+    <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+    <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">管理后台</div>
+    <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+    <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+    <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+    <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+    <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+    <a href="plans.html" class="nav-item active" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+    <div class="sidebar-section-label">系统</div>
+    <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+  </div>
+</div>
+</aside>
+<div class="topnav" id="topnav">
+  <div class="topnav-left"><button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">订阅计划</span></div></div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> 个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> 系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg> 退出登录</a></div>
+    </div>
+  </div>
+</div>
+<main class="main-content">
+<div class="page-view">
+
+<div class="page-header"><div><h1>订阅计划</h1><p class="page-desc">套餐配置与用户订阅记录</p></div><div class="page-actions"><button class="btn btn-primary" onclick="Sheet.open('createPlanSheet')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新建套餐</button></div></div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab(this,'plans')">套餐列表</button>
+  <button class="tab" onclick="switchTab(this,'subs')">用户订阅</button>
+</div>
+
+<!-- Plans grid -->
+<div id="plansPanel">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--space-4)">
+    <div class="card" style="position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--meta)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+        <span style="font-size:var(--text-lg);font-weight:600">Free</span>
+        <span class="badge badge-success">公开</span>
+      </div>
+      <div style="font-size:32px;font-weight:600;letter-spacing:-.02em;margin-bottom:var(--space-2)">$0<span style="font-size:14px;color:var(--muted);font-weight:400">/月</span></div>
+      <p style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-4)">适合个人开发者体验</p>
+      <ul style="list-style:none;padding:0;margin:0 0 var(--space-4);display:flex;flex-direction:column;gap:8px;font-size:var(--text-sm);color:var(--fg)">
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 500 次调用/天</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 2 个 API 密钥</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 社区支持</li>
+        <li style="display:flex;align-items:center;gap:6px;color:var(--meta)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--meta)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> 高级模型</li>
+      </ul>
+      <div style="display:flex;gap:var(--space-2)"><button class="btn btn-secondary w-full" onclick="Sheet.open('createPlanSheet')">编辑</button></div>
+    </div>
+    <div class="card" style="position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+        <span style="font-size:var(--text-lg);font-weight:600">Pro</span>
+        <span class="badge badge-success">公开</span>
+      </div>
+      <div style="font-size:32px;font-weight:600;letter-spacing:-.02em;margin-bottom:var(--space-2)">$29<span style="font-size:14px;color:var(--muted);font-weight:400">/月</span></div>
+      <p style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-4)">适合专业开发者与小团队</p>
+      <ul style="list-style:none;padding:0;margin:0 0 var(--space-4);display:flex;flex-direction:column;gap:8px;font-size:var(--text-sm);color:var(--fg)">
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 50,000 次调用/天</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 20 个 API 密钥</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 全部高级模型</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 邮件优先支持</li>
+      </ul>
+      <div style="display:flex;gap:var(--space-2)"><button class="btn btn-secondary w-full" onclick="Sheet.open('createPlanSheet')">编辑</button></div>
+    </div>
+    <div class="card" style="position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent-2)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+        <span style="font-size:var(--text-lg);font-weight:600">Team</span>
+        <span class="badge badge-success">公开</span>
+      </div>
+      <div style="font-size:32px;font-weight:600;letter-spacing:-.02em;margin-bottom:var(--space-2)">$99<span style="font-size:14px;color:var(--muted);font-weight:400">/月</span></div>
+      <p style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-4)">适合团队协作与企业级应用</p>
+      <ul style="list-style:none;padding:0;margin:0 0 var(--space-4);display:flex;flex-direction:column;gap:8px;font-size:var(--text-sm);color:var(--fg)">
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 无限调用</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 100 个 API 密钥</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 团队管理与用量分摊</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> SLA 保障 + 专属客服</li>
+      </ul>
+      <div style="display:flex;gap:var(--space-2)"><button class="btn btn-secondary w-full" onclick="Sheet.open('createPlanSheet')">编辑</button></div>
+    </div>
+    <div class="card" style="position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--warn)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+        <span style="font-size:var(--text-lg);font-weight:600">Enterprise</span>
+        <span class="badge badge-muted">定制</span>
+      </div>
+      <div style="font-size:32px;font-weight:600;letter-spacing:-.02em;margin-bottom:var(--space-2)">定制</div>
+      <p style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-4)">私有化部署与定制需求</p>
+      <ul style="list-style:none;padding:0;margin:0 0 var(--space-4);display:flex;flex-direction:column;gap:8px;font-size:var(--text-sm);color:var(--fg)">
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 私有部署/专属集群</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 自定义 SLA</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 审计与合规</li>
+        <li style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 专属客户成功经理</li>
+      </ul>
+      <div style="display:flex;gap:var(--space-2)"><button class="btn btn-secondary w-full" onclick="Sheet.open('createPlanSheet')">编辑</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Subscriptions table -->
+<div id="subsPanel" style="display:none">
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <div class="flex items-center gap-2">
+        <div class="table-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="搜索用户…"></div>
+        <button class="filter-chip active">全部</button><button class="filter-chip">活跃</button><button class="filter-chip">已取消</button><button class="filter-chip">已过期</button>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="Toast.show('info','导出 CSV')">导出</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>用户</th><th>套餐</th><th>周期</th><th>金额</th><th>开始日期</th><th>下次扣费</th><th>状态</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:10px;font-weight:600">JD</div><span class="text-sm">john@example.com</span></div></td><td>Pro</td><td>月付</td><td class="num-col">$29.00</td><td>2026-01-15</td><td>2026-07-15</td><td><span class="badge badge-success">活跃</span></td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="Toast.show('info','查看详情')">详情</button></td></tr>
+        <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--success-soft);color:var(--success);display:grid;place-items:center;font-size:10px;font-weight:600">AS</div><span class="text-sm">alice@startup.io</span></div></td><td>Team</td><td>年付</td><td class="num-col">$990.00</td><td>2025-11-01</td><td>2026-11-01</td><td><span class="badge badge-success">活跃</span></td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="Toast.show('info','查看详情')">详情</button></td></tr>
+        <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--warn-soft);color:color-mix(in oklab,var(--warn),black 25%);display:grid;place-items:center;font-size:10px;font-weight:600">MK</div><span class="text-sm">mike@test.dev</span></div></td><td>Pro</td><td>月付</td><td class="num-col">$29.00</td><td>2026-03-20</td><td>—</td><td><span class="badge badge-muted">已取消</span></td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="Toast.show('info','查看详情')">详情</button></td></tr>
+        <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center;font-size:10px;font-weight:600">SR</div><span class="text-sm">sara@agency.com</span></div></td><td>Team</td><td>月付</td><td class="num-col">$99.00</td><td>2026-02-10</td><td>2026-07-10</td><td><span class="badge badge-warn">欠费</span></td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="Toast.show('info','查看详情')">详情</button></td></tr>
+        <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:10px;font-weight:600">TB</div><span class="text-sm">tom@builder.net</span></div></td><td>Free</td><td>—</td><td class="num-col">$0.00</td><td>2026-05-01</td><td>—</td><td><span class="badge badge-success">活跃</span></td><td class="actions"><button class="btn btn-xs btn-ghost" onclick="Toast.show('info','查看详情')">详情</button></td></tr>
+      </tbody>
+    </table>
+    <div class="table-footer"><span>显示 1–5 条，共 1,247 条</span><div class="table-pagination"><button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/></svg></button><button class="active">1</button><button>2</button><button>3</button><button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/></svg></button></div></div>
+  </div>
+</div>
+
+</div>
+</main>
+</div>
+
+<!-- Sheet: Create/Edit Plan -->
+<div class="sheet-overlay" id="createPlanSheetOverlay"></div>
+<div class="sheet" id="createPlanSheet">
+  <div class="sheet-header"><h2 style="font-size:var(--text-lg);font-weight:600">编辑套餐</h2><button class="btn btn-ghost" onclick="Sheet.close('createPlanSheet')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="sheet-body">
+    <div class="form-group"><label class="form-label">套餐名称</label><input type="text" class="form-input" value="Pro"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">价格</label><div style="display:flex;gap:0"><span style="display:flex;align-items:center;padding:0 10px;border:1px solid var(--border);border-right:none;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--bg);font-size:var(--text-sm);color:var(--muted)">$</span><input type="number" class="form-input" value="29" style="border-radius:0 var(--radius-sm) var(--radius-sm) 0"></div></div>
+      <div class="form-group"><label class="form-label">计费周期</label><select class="form-select"><option>月付</option><option>年付</option><option>一次性</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">描述</label><input type="text" class="form-input" value="适合专业开发者与小团队"></div>
+    <div class="form-group"><label class="form-label">每日调用限额</label><input type="number" class="form-input" value="50000"></div>
+    <div class="form-group"><label class="form-label">API 密钥数量</label><input type="number" class="form-input" value="20"></div>
+    <div class="form-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <label class="toggle-switch" style="margin:0"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+        对外开放
+      </label>
+      <p class="form-help">关闭后新用户不可见，已有订阅不受影响</p>
+    </div>
+    <div class="form-group"><label class="form-label">专属颜色</label>
+      <div style="display:flex;gap:8px">
+        <button style="width:28px;height:28px;border-radius:50%;background:var(--meta);border:2px solid transparent" onclick="selectColor(this)"></button>
+        <button style="width:28px;height:28px;border-radius:50%;background:var(--accent);border:2px solid var(--fg)" onclick="selectColor(this)"></button>
+        <button style="width:28px;height:28px;border-radius:50%;background:var(--accent-2);border:2px solid transparent" onclick="selectColor(this)"></button>
+        <button style="width:28px;height:28px;border-radius:50%;background:var(--warn);border:2px solid transparent" onclick="selectColor(this)"></button>
+        <button style="width:28px;height:28px;border-radius:50%;background:var(--danger);border:2px solid transparent" onclick="selectColor(this)"></button>
+      </div>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-secondary" onclick="Sheet.close('createPlanSheet')">取消</button>
+    <button class="btn btn-primary" onclick="Sheet.close('createPlanSheet'); Toast.show('success','套餐已更新')">保存</button>
+  </div>
+</div>
+
+<script src="js/base.js"></script>
+<script>
+function switchTab(btn, id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('plansPanel').style.display = id === 'plans' ? 'block' : 'none';
+  document.getElementById('subsPanel').style.display = id === 'subs' ? 'block' : 'none';
+}
+function selectColor(btn) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.style.borderColor = 'transparent');
+  btn.style.borderColor = 'var(--fg)';
+}
+</script>
+</body>
+</html>

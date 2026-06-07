@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>钱包 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-main-nav" id="sidebarMainNav">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">G</div>
+    <span class="sidebar-brand">API Gateway</span>
+    <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+    </button>
+  </div>
+  <div class="sidebar-scroll">
+    <div class="sidebar-section-label">概览</div>
+    <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+    <div class="sidebar-section-label">个人中心</div>
+    <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+    <a href="wallet.html" class="nav-item active" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+    <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+    <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">管理后台</div>
+    <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+    <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+    <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+    <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+    <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+    <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+    <div class="sidebar-section-label">系统</div>
+    <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+  </div>
+</div>
+</aside>
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">钱包</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> 个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> 系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg> 退出登录</a></div>
+    </div>
+  </div>
+</div>
+<main class="main-content">
+<div class="page-view">
+
+<div class="page-header"><div><h1>钱包</h1><p class="page-desc">余额管理、充值与兑换码核销</p></div></div>
+
+<!-- Balance row -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-6)">
+  <div class="card" style="display:flex;align-items:center;gap:var(--space-5)">
+    <div style="width:56px;height:56px;border-radius:var(--radius-lg);background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex-shrink:0">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="12"/><line x1="12" y1="12" x2="16" y2="16"/></svg>
+    </div>
+    <div>
+      <div style="font-size:var(--text-sm);color:var(--muted);margin-bottom:2px">当前余额</div>
+      <div style="font-size:var(--text-2xl);font-weight:600;letter-spacing:-.02em;font-family:var(--font-display)" class="mono">$<span id="balanceVal">1,284.59</span></div>
+      <div style="font-size:11px;color:var(--meta);margin-top:2px">约等于 ¥9,312.00</div>
+    </div>
+  </div>
+  <div class="card" style="display:flex;align-items:center;gap:var(--space-5)">
+    <div style="width:56px;height:56px;border-radius:var(--radius-lg);background:var(--success-soft);color:var(--success);display:grid;place-items:center;flex-shrink:0">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div style="font-size:var(--text-sm);color:var(--muted);margin-bottom:2px">本月消费</div>
+      <div style="font-size:var(--text-2xl);font-weight:600;letter-spacing:-.02em;font-family:var(--font-display)" class="mono">$<span id="monthSpend">384.22</span></div>
+      <div style="font-size:11px;color:var(--meta);margin-top:2px">较上月 ↑ 12.3%</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recharge + Redeem -->
+<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:var(--space-4);margin-bottom:var(--space-6)">
+  <div class="card">
+    <span class="card-title">充值</span>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-2);margin-bottom:var(--space-4)">
+      <button class="btn btn-secondary" onclick="selectRecharge(this,10)">$10</button>
+      <button class="btn btn-secondary" onclick="selectRecharge(this,50)">$50</button>
+      <button class="btn btn-secondary" onclick="selectRecharge(this,100)">$100</button>
+      <button class="btn btn-secondary" onclick="selectRecharge(this,500)">$500</button>
+    </div>
+    <div class="form-group" style="margin-bottom:var(--space-3)">
+      <label class="form-label">自定义金额</label>
+      <div style="display:flex;gap:var(--space-2)">
+        <span style="display:flex;align-items:center;padding:0 10px;border:1px solid var(--border);border-right:none;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--bg);font-size:var(--text-sm);color:var(--muted)">$</span>
+        <input type="number" class="form-input" id="customAmount" placeholder="输入金额" style="border-radius:0 var(--radius-sm) var(--radius-sm) 0" oninput="clearPreset()">
+      </div>
+    </div>
+    <div style="display:flex;gap:var(--space-2)">
+      <button class="btn btn-primary w-full" onclick="doRecharge()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        立即支付
+      </button>
+    </div>
+    <p class="form-help" style="margin-top:8px">支持 Stripe、PayPal、支付宝、微信支付</p>
+  </div>
+  <div class="card">
+    <span class="card-title">兑换码</span>
+    <p style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-3)">输入兑换码即可将余额充值到账户</p>
+    <div class="form-group">
+      <label class="form-label">兑换码</label>
+      <input type="text" class="form-input mono" id="redeemCode" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" oninput="formatCode(this)">
+      <p class="form-help">大小写不敏感，含连字符自动格式化</p>
+    </div>
+    <button class="btn btn-primary w-full" onclick="doRedeem()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      兑换
+    </button>
+  </div>
+</div>
+
+<!-- Transactions -->
+<div class="card">
+  <div class="flex items-center justify-between mb-4">
+    <span class="card-title">最近交易</span>
+    <button class="btn btn-sm btn-ghost" onclick="Toast.show('info','暂无更多记录')">查看全部 →</button>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>时间</th><th>类型</th><th>描述</th><th>金额</th><th>余额</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr><td>2026-06-07 14:32</td><td><span class="badge badge-success">充值</span></td><td>Stripe 充值</td><td class="num-col" style="color:var(--success)">+$500.00</td><td class="num-col mono">$1,284.59</td><td><span class="badge badge-success">成功</span></td></tr>
+      <tr><td>2026-06-07 11:05</td><td><span class="badge badge-neutral">消费</span></td><td>API 调用 — gpt-4o</td><td class="num-col" style="color:var(--danger)">-$12.45</td><td class="num-col mono">$784.59</td><td><span class="badge badge-success">成功</span></td></tr>
+      <tr><td>2026-06-06 22:18</td><td><span class="badge badge-neutral">消费</span></td><td>API 调用 — claude-sonnet</td><td class="num-col" style="color:var(--danger)">-$8.32</td><td class="num-col mono">$797.04</td><td><span class="badge badge-success">成功</span></td></tr>
+      <tr><td>2026-06-06 09:44</td><td><span class="badge badge-success">充值</span></td><td>兑换码兑换 — SUMMER2026</td><td class="num-col" style="color:var(--success)">+$100.00</td><td class="num-col mono">$805.36</td><td><span class="badge badge-success">成功</span></td></tr>
+      <tr><td>2026-06-05 16:20</td><td><span class="badge badge-neutral">消费</span></td><td>订阅扣费 — Pro 月付</td><td class="num-col" style="color:var(--danger)">-$29.00</td><td class="num-col mono">$705.36</td><td><span class="badge badge-success">成功</span></td></tr>
+      <tr><td>2026-06-04 08:12</td><td><span class="badge badge-warn">退款</span></td><td>渠道异常补偿</td><td class="num-col" style="color:var(--warn)">+$5.00</td><td class="num-col mono">$734.36</td><td><span class="badge badge-success">成功</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="table-footer">
+    <span>显示 1–6 条，共 128 条</span>
+    <div class="table-pagination">
+      <button onclick="Toast.show('info','第一页')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/></svg></button>
+      <button class="active">1</button><button>2</button><button>3</button>
+      <button onclick="Toast.show('info','下一页')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/></svg></button>
+    </div>
+  </div>
+</div>
+
+</div>
+</main>
+</div>
+<script src="js/base.js"></script>
+<script>
+let selectedAmount = 0;
+function selectRecharge(btn, amount) {
+  selectedAmount = amount;
+  document.getElementById('customAmount').value = '';
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('btn-primary'));
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.add('btn-secondary'));
+  btn.classList.remove('btn-secondary');
+  btn.classList.add('btn-primary');
+}
+function clearPreset() {
+  selectedAmount = 0;
+  document.querySelectorAll('.card button.btn-primary').forEach(b => {
+    if(b.textContent.startsWith('$')) { b.classList.remove('btn-primary'); b.classList.add('btn-secondary'); }
+  });
+}
+function doRecharge() {
+  const custom = parseFloat(document.getElementById('customAmount').value);
+  const amount = selectedAmount || custom;
+  if(!amount || amount <= 0) { Toast.show('warn','请选择或输入充值金额'); return; }
+  Toast.show('success',`确认支付 $${amount.toFixed(2)}，跳转至支付网关…`);
+}
+function formatCode(input) {
+  let v = input.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  let out = ''; for(let i=0;i<v.length;i++){ if(i>0 && i%4===0) out+='-'; out+=v[i]; }
+  input.value = out;
+}
+function doRedeem() {
+  const code = document.getElementById('redeemCode').value.trim();
+  if(!code || code.length < 12) { Toast.show('warn','请输入有效的兑换码'); return; }
+  Toast.show('success',`兑换码 ${code} 兑换成功，余额已到账`);
+  document.getElementById('redeemCode').value = '';
+}
+</script>
+</body>
+</html>

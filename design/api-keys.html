@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API 密钥 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.key-cell { display:flex;align-items:center;gap:var(--space-2); }
+.key-value { font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:.02em; }
+.key-value.revealed { color:var(--fg); }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-main-nav" id="sidebarMainNav">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">G</div>
+      <span class="sidebar-brand">API Gateway</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">概览</div>
+      <a href="dashboard.html" class="nav-item" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        <span class="nav-label">仪表盘</span>
+      </a>
+      <div class="sidebar-section-label">个人中心</div>
+      <a href="api-keys.html" class="nav-item active" data-view="api-keys">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        <span class="nav-label">API 密钥</span>
+      </a>
+      <a href="wallet.html" class="nav-item" data-view="wallet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
+        <span class="nav-label">钱包</span>
+      </a>
+      <a href="profile.html" class="nav-item" data-view="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="nav-label">个人资料</span>
+      </a>
+      <a href="playground.html" class="nav-item" data-view="playground">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="nav-label">Playground</span>
+      </a>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">管理后台</div>
+      <a href="usage-logs.html" class="nav-item" data-view="usage-logs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="nav-label">用量日志</span>
+      </a>
+      <a href="channels.html" class="nav-item" data-view="channels">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span class="nav-label">渠道管理</span>
+      </a>
+      <a href="models.html" class="nav-item" data-view="models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-label">模型管理</span>
+      </a>
+      <a href="users.html" class="nav-item" data-view="users">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span class="nav-label">用户管理</span>
+      </a>
+      <a href="codes.html" class="nav-item" data-view="codes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+        <span class="nav-label">兑换码</span>
+      </a>
+      <a href="plans.html" class="nav-item" data-view="plans">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span class="nav-label">订阅计划</span>
+      </a>
+      <div class="sidebar-section-label">系统</div>
+      <a href="settings-auth.html" class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="nav-label">系统设置</span>
+      </a>
+    </div>
+  </div>
+</aside>
+
+<!-- Topnav -->
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">API 密钥</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap">
+      <button class="topnav-btn" onclick="Toast.show('info','暂无新通知')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-dot"></span>
+      </button>
+    </div>
+    <div class="topnav-btn-wrap dropdown">
+      <button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+      </button>
+      <div class="dropdown-menu" id="langDropdown">
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 日本語')">日本語</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 Français')">Français</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 Русский')">Русский</div>
+        <div class="dropdown-item" onclick="Toast.show('info','切换到 Tiếng Việt')">Tiếng Việt</div>
+      </div>
+    </div>
+    <div class="topnav-btn-wrap">
+      <button class="topnav-btn" onclick="toggleTheme()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown">
+      <button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')">
+        <div class="user-avatar">A</div>
+        <span style="font-size:13px;font-weight:500">Admin</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="dropdown-menu" id="userDropdown" style="right:0">
+        <a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>个人中心</a>
+        <a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>系统设置</a>
+        <div class="dropdown-divider"></div>
+        <a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg>退出登录</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="main-content">
+  <div class="page-view">
+
+    <div class="page-header">
+      <div>
+        <h1>API 密钥</h1>
+        <p class="page-desc">管理 API 访问密钥与模型权限 · 共 12 个密钥</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="Dialog.open('batchDialog')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          批量操作
+        </button>
+        <button class="btn btn-primary" onclick="Dialog.open('createKeyDialog')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          创建密钥
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="flex items-center gap-2">
+          <div class="table-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="搜索密钥名称…">
+          </div>
+          <button class="btn btn-sm btn-secondary">状态 ▾</button>
+          <button class="btn btn-sm btn-secondary">模型 ▾</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <span style="font-size:11px;color:var(--muted)">已选 0 项</span>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:32px"><input type="checkbox" class="table-checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+            <th>名称</th>
+            <th>密钥</th>
+            <th>模型权限</th>
+            <th class="num-col">额度</th>
+            <th class="num-col">已用</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th style="width:80px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox row-check"></td>
+            <td><strong class="truncate">Production Key</strong></td>
+            <td>
+              <div class="key-cell">
+                <span class="key-value" id="kv1" data-full="sk-prod-a3f8x9y2zw1q">sk-••••••a3f8</span>
+                <button class="btn btn-xs btn-ghost" onclick="toggleKey(this,'kv1')">查看</button>
+              </div>
+            </td>
+            <td><span class="badge badge-neutral">GPT-4o</span> <span class="badge badge-muted">Claude 3.5</span></td>
+            <td class="num-col mono">$2,000.00</td>
+            <td class="num-col mono">$1,284.50</td>
+            <td><span class="badge badge-success">● 启用</span></td>
+            <td class="text-sm text-muted">2025-01-15</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-xs btn-ghost" onclick="Dialog.open('editKeyDialog1')" title="编辑"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4L18.5 2.5z"/></svg></button>
+                <button class="btn btn-xs btn-ghost" onclick="confirmDelete('确定删除密钥 "Production Key"？此操作不可撤销。')" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox row-check"></td>
+            <td><strong class="truncate">Staging Key</strong></td>
+            <td>
+              <div class="key-cell">
+                <span class="key-value" id="kv2" data-full="sk-stag-b2e7m4n5p8r">sk-••••••b2e7</span>
+                <button class="btn btn-xs btn-ghost" onclick="toggleKey(this,'kv2')">查看</button>
+              </div>
+            </td>
+            <td><span class="badge badge-neutral">GPT-4o-mini</span></td>
+            <td class="num-col mono">$500.00</td>
+            <td class="num-col mono">$89.20</td>
+            <td><span class="badge badge-success">● 启用</span></td>
+            <td class="text-sm text-muted">2025-03-20</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-xs btn-ghost" title="编辑"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4L18.5 2.5z"/></svg></button>
+                <button class="btn btn-xs btn-ghost" onclick="confirmDelete('确定删除密钥 "Staging Key"？')" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox row-check"></td>
+            <td><strong class="truncate">Dev Testing</strong></td>
+            <td>
+              <div class="key-cell">
+                <span class="key-value" id="kv3" data-full="sk-devx-f1c4k7l2o9t">sk-••••••f1c4</span>
+                <button class="btn btn-xs btn-ghost" onclick="toggleKey(this,'kv3')">查看</button>
+              </div>
+            </td>
+            <td><span class="badge badge-muted">All models</span></td>
+            <td class="num-col mono">$100.00</td>
+            <td class="num-col mono">$100.00</td>
+            <td><span class="badge badge-danger">● 已吊销</span></td>
+            <td class="text-sm text-muted">2024-11-01</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-xs btn-ghost" title="编辑"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4L18.5 2.5z"/></svg></button>
+                <button class="btn btn-xs btn-ghost" onclick="confirmDelete('确定删除密钥 "Dev Testing"？')" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox row-check"></td>
+            <td><strong class="truncate">CI/CD Deploy</strong></td>
+            <td>
+              <div class="key-cell">
+                <span class="key-value" id="kv4" data-full="sk-cicd-d9e2r5t8y1u">sk-••••••d9e2</span>
+                <button class="btn btn-xs btn-ghost" onclick="toggleKey(this,'kv4')">查看</button>
+              </div>
+            </td>
+            <td><span class="badge badge-neutral">GPT-4o</span></td>
+            <td class="num-col mono">$5,000.00</td>
+            <td class="num-col mono">$2,341.80</td>
+            <td><span class="badge badge-success">● 启用</span></td>
+            <td class="text-sm text-muted">2025-04-10</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-xs btn-ghost" title="编辑"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4L18.5 2.5z"/></svg></button>
+                <button class="btn btn-xs btn-ghost" onclick="confirmDelete('确定删除密钥 "CI/CD Deploy"？')" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox row-check"></td>
+            <td><strong class="truncate">Mobile App</strong></td>
+            <td>
+              <div class="key-cell">
+                <span class="key-value" id="kv5" data-full="sk-mobl-g3h6j9k2l5m">sk-••••••g3h6</span>
+                <button class="btn btn-xs btn-ghost" onclick="toggleKey(this,'kv5')">查看</button>
+              </div>
+            </td>
+            <td><span class="badge badge-neutral">GPT-4o-mini</span> <span class="badge badge-muted">Claude 3 Haiku</span></td>
+            <td class="num-col mono">$1,000.00</td>
+            <td class="num-col mono">$567.30</td>
+            <td><span class="badge badge-warn">● 即将过期</span></td>
+            <td class="text-sm text-muted">2025-02-28</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-xs btn-ghost" title="编辑"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4L18.5 2.5z"/></svg></button>
+                <button class="btn btn-xs btn-ghost" onclick="confirmDelete('确定删除密钥 "Mobile App"？')" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-footer">
+        <span>共 12 条 · 显示 1–5</span>
+        <div class="table-pagination">
+          <button disabled>←</button>
+          <button class="active">1</button>
+          <button>2</button>
+          <button>3</button>
+          <button>→</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</div>
+
+<!-- Create Key Dialog -->
+<div class="dialog-overlay" id="createKeyDialog">
+  <div class="dialog">
+    <div class="dialog-header"><h2>创建 API 密钥</h2><button class="btn btn-ghost" onclick="Dialog.close('createKeyDialog')" style="width:28px;height:28px">✕</button></div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label class="form-label">名称 <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" placeholder="例如：Production Key">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">额度 (USD)</label>
+          <input class="form-input" type="number" placeholder="0.00" value="1000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">过期时间</label>
+          <select class="form-select"><option>30 天</option><option>90 天</option><option selected>永不过期</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">模型访问权限</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          <label class="filter-chip active"><input type="checkbox" checked style="accent-color:var(--accent)"> GPT-4o</label>
+          <label class="filter-chip active"><input type="checkbox" checked style="accent-color:var(--accent)"> Claude 3.5</label>
+          <label class="filter-chip"><input type="checkbox" style="accent-color:var(--accent)"> Gemini Pro</label>
+          <label class="filter-chip"><input type="checkbox" style="accent-color:var(--accent)"> GPT-4o-mini</label>
+          <label class="filter-chip"><input type="checkbox" style="accent-color:var(--accent)"> Claude 3 Haiku</label>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" onclick="Dialog.close('createKeyDialog')">取消</button>
+      <button class="btn btn-primary" onclick="Dialog.close('createKeyDialog');Toast.show('success','密钥已创建')">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Dialog -->
+<div class="dialog-overlay" id="batchDialog">
+  <div class="dialog" style="max-width:380px">
+    <div class="dialog-header"><h2>批量操作</h2><button class="btn btn-ghost" onclick="Dialog.close('batchDialog')" style="width:28px;height:28px">✕</button></div>
+    <div class="dialog-body">
+      <p class="text-sm text-muted mb-4">选择要对已选密钥执行的操作：</p>
+      <div class="flex flex-col gap-2">
+        <button class="btn btn-secondary" style="justify-content:flex-start" onclick="Dialog.close('batchDialog');Toast.show('success','密钥已批量启用')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>批量启用
+        </button>
+        <button class="btn btn-secondary" style="justify-content:flex-start" onclick="Dialog.close('batchDialog');Toast.show('info','密钥已批量禁用')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>批量禁用
+        </button>
+        <button class="btn btn-secondary" style="justify-content:flex-start;color:var(--danger)" onclick="Dialog.close('batchDialog');confirmDelete('确定批量删除已选密钥？此操作不可撤销。')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>批量删除
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/base.js"></script>
+<script>
+function toggleKey(btn, id) {
+  const span = document.getElementById(id);
+  const isMasked = !span.classList.contains('revealed');
+  if (isMasked) {
+    span.textContent = span.dataset.full;
+    span.classList.add('revealed');
+    btn.textContent = '隐藏';
+  } else {
+    span.textContent = span.dataset.full.substring(0, 3) + '-••••••' + span.dataset.full.substring(span.dataset.full.length - 4);
+    span.classList.remove('revealed');
+    btn.textContent = '查看';
+  }
+}
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.row-check').forEach(r => r.checked = cb.checked);
+}
+</script>
+</body>
+</html>

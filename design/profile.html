@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>个人资料 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.profile-avatar-wrap { display:flex;align-items:center;gap:var(--space-5);margin-bottom:var(--space-6); }
+.profile-avatar { width:72px;height:72px;border-radius:50%;background:var(--accent);color:var(--accent-on);display:grid;place-items:center;font-size:28px;font-weight:600; }
+.profile-avatar-info h2 { font-size:var(--text-lg);font-weight:600; }
+.profile-avatar-info p { color:var(--muted);font-size:var(--text-sm);margin-top:2px; }
+.profile-avatar-actions { display:flex;gap:var(--space-2);margin-top:var(--space-2); }
+.profile-section { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5); }
+.profile-section + .profile-section { margin-top:var(--space-4); }
+.profile-section h3 { font-size:var(--text-md);font-weight:600;margin-bottom:var(--space-4);display:flex;align-items:center;gap:var(--space-2); }
+.profile-section h3 svg { color:var(--accent); }
+.security-item { display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) 0;border-bottom:1px solid var(--border-soft); }
+.security-item:last-child { border-bottom:none; }
+.security-item-info h4 { font-size:var(--text-sm);font-weight:500; }
+.security-item-info p { font-size:11px;color:var(--muted);margin-top:1px; }
+.security-item-status { display:flex;align-items:center;gap:var(--space-2); }
+.oauth-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-3); }
+.oauth-card { display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg); }
+.oauth-card.connected { border-color:var(--success);background:var(--success-soft); }
+.oauth-icon { width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;background:var(--border-soft); }
+.oauth-info { flex:1; }
+.oauth-info h4 { font-size:var(--text-sm);font-weight:500; }
+.oauth-info p { font-size:11px;color:var(--muted); }
+.signin-streak { display:flex;gap:4px; }
+.streak-day { width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;font-size:11px;font-weight:500;background:var(--border-soft);color:var(--muted); }
+.streak-day.done { background:var(--success);color:#fff; }
+.streak-day.today { background:var(--accent);color:var(--accent-on); }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-main-nav" id="sidebarMainNav">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">G</div>
+      <span class="sidebar-brand">API Gateway</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">概览</div>
+      <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+      <div class="sidebar-section-label">个人中心</div>
+      <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+      <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+      <a href="profile.html" class="nav-item active" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+      <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">管理后台</div>
+      <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+      <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+      <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+      <a href="users.html" class="nav-item" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+      <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+      <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+      <div class="sidebar-section-label">系统</div>
+      <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+    </div>
+  </div>
+</aside>
+
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">个人资料</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div><div class="dropdown-item" onclick="Toast.show('info','切换到 日本語')">日本語</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button><div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg>退出登录</a></div></div>
+  </div>
+</div>
+
+<main class="main-content">
+  <div class="page-view">
+
+    <div class="page-header">
+      <div><h1>个人资料</h1><p class="page-desc">管理账户信息与安全设置</p></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="Toast.show('success','资料已保存')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>保存修改</button></div>
+    </div>
+
+    <div class="profile-avatar-wrap">
+      <div class="profile-avatar">A</div>
+      <div class="profile-avatar-info">
+        <h2>Administrator</h2>
+        <p>admin@example.com · 超级管理员 · 注册于 2024-08-12</p>
+        <div class="profile-avatar-actions">
+          <button class="btn btn-sm btn-secondary">更换头像</button>
+          <button class="btn btn-sm btn-ghost" onclick="Dialog.open('qrDialog')">登录二维码</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs" id="profileTabs">
+      <div class="tab active" onclick="switchTab(this,'tabProfile')">基本资料</div>
+      <div class="tab" onclick="switchTab(this,'tabSecurity')">安全设置</div>
+      <div class="tab" onclick="switchTab(this,'tabOAuth')">OAuth 绑定</div>
+    </div>
+
+    <!-- Tab: Profile -->
+    <div id="tabProfile" class="tab-panel">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">用户名</label><input class="form-input" value="Administrator"></div>
+        <div class="form-group"><label class="form-label">显示名称</label><input class="form-input" value="Admin"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">邮箱</label><input class="form-input" value="admin@example.com"></div>
+        <div class="form-group"><label class="form-label">手机号</label><input class="form-input" value="+86 138 **** 8888"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">个人简介</label>
+        <textarea class="form-textarea" placeholder="简短介绍...">API Gateway 平台管理员，负责系统运维与渠道管理。</textarea>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label class="form-label">时区</label><select class="form-select"><option selected>Asia/Shanghai (UTC+8)</option><option>UTC</option><option>America/New_York</option></select></div>
+        <div class="form-group"><label class="form-label">语言</label><select class="form-select"><option selected>简体中文</option><option>English</option><option>日本語</option></select></div>
+        <div class="form-group"><label class="form-label">日期格式</label><select class="form-select"><option selected>YYYY-MM-DD</option><option>DD/MM/YYYY</option><option>MM/DD/YYYY</option></select></div>
+      </div>
+
+      <div class="profile-section mt-6">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>签到日历</h3>
+        <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3)">
+          <span class="text-sm">连续签到 <strong class="mono" style="color:var(--accent)">7</strong> 天</span>
+          <span class="text-xs text-muted">本月累计 +$3.50 奖励</span>
+        </div>
+        <div class="signin-streak">
+          <div class="streak-day done">1</div><div class="streak-day done">2</div><div class="streak-day done">3</div><div class="streak-day done">4</div><div class="streak-day done">5</div><div class="streak-day done">6</div><div class="streak-day today">7</div>
+        </div>
+        <div style="margin-top:var(--space-3)"><button class="btn btn-sm btn-primary" onclick="Toast.show('success','签到成功！+$0.50')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>今日签到</button></div>
+      </div>
+    </div>
+
+    <!-- Tab: Security -->
+    <div id="tabSecurity" class="tab-panel" style="display:none">
+      <div class="profile-section">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>密码</h3>
+        <div class="form-group"><label class="form-label">当前密码</label><input class="form-input" type="password" value="********"></div>
+        <div class="form-row"><div class="form-group"><label class="form-label">新密码</label><input class="form-input" type="password" placeholder="至少 8 位"></div><div class="form-group"><label class="form-label">确认新密码</label><input class="form-input" type="password" placeholder="再次输入"></div></div>
+        <button class="btn btn-primary" onclick="Toast.show('success','密码已更新')">更新密码</button>
+      </div>
+
+      <div class="profile-section">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>双重验证 (2FA)</h3>
+        <div class="security-item">
+          <div class="security-item-info"><h4>TOTP 验证器</h4><p>使用 Google Authenticator / Authy 生成一次性验证码</p></div>
+          <div class="security-item-status"><span class="badge badge-success">已启用</span><button class="btn btn-sm btn-ghost" onclick="Dialog.open('disable2faDialog')">禁用</button></div>
+        </div>
+        <div class="security-item">
+          <div class="security-item-info"><h4>备用恢复码</h4><p>10 组一次性恢复码，用于设备丢失时应急登录</p></div>
+          <div class="security-item-status"><button class="btn btn-sm btn-secondary" onclick="Toast.show('info','恢复码已发送至邮箱')">查看</button></div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/></svg>Passkey</h3>
+        <div class="security-item">
+          <div class="security-item-info"><h4>Touch ID — MacBook Pro</h4><p>注册于 2025-01-10 · 最后使用 2 小时前</p></div>
+          <div class="security-item-status"><button class="btn btn-sm btn-ghost text-danger" onclick="confirmDelete('确定移除该 Passkey？')">移除</button></div>
+        </div>
+        <div class="security-item">
+          <div class="security-item-info"><h4>YubiKey 5 NFC</h4><p>注册于 2024-12-05 · 最后使用 3 天前</p></div>
+          <div class="security-item-status"><button class="btn btn-sm btn-ghost text-danger" onclick="confirmDelete('确定移除该 Passkey？')">移除</button></div>
+        </div>
+        <button class="btn btn-secondary mt-3" onclick="Toast.show('success','请按照浏览器提示完成注册')">注册新 Passkey</button>
+      </div>
+
+      <div class="profile-section">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>最近登录活动</h3>
+        <table class="data-table" style="border:none">
+          <thead><tr><th>时间</th><th>IP 地址</th><th>设备 / 浏览器</th><th>位置</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td class="mono text-sm">2025-06-07 14:32</td><td class="mono text-sm">192.168.1.42</td><td class="text-sm">Chrome 126 / macOS</td><td class="text-sm">上海</td><td><span class="badge badge-success">当前</span></td></tr>
+            <tr><td class="mono text-sm">2025-06-07 09:15</td><td class="mono text-sm">203.0.113.88</td><td class="text-sm">Safari / iOS 18</td><td class="text-sm">上海</td><td><span class="badge badge-muted">成功</span></td></tr>
+            <tr><td class="mono text-sm">2025-06-06 22:40</td><td class="mono text-sm">198.51.100.12</td><td class="text-sm">Firefox / Windows</td><td class="text-sm">北京</td><td><span class="badge badge-muted">成功</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: OAuth -->
+    <div id="tabOAuth" class="tab-panel" style="display:none">
+      <div class="oauth-grid">
+        <div class="oauth-card connected">
+          <div class="oauth-icon" style="background:#24292e;color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></div>
+          <div class="oauth-info"><h4>GitHub</h4><p>已绑定 · @admin-user</p></div>
+          <button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定解除 GitHub 绑定？')">解绑</button>
+        </div>
+        <div class="oauth-card">
+          <div class="oauth-icon" style="background:#4285f4;color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg></div>
+          <div class="oauth-info"><h4>Google</h4><p>未绑定</p></div>
+          <button class="btn btn-xs btn-primary" onclick="Toast.show('info',' redirecting to Google OAuth...')">绑定</button>
+        </div>
+        <div class="oauth-card">
+          <div class="oauth-icon" style="background:#5865f2;color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg></div>
+          <div class="oauth-info"><h4>Discord</h4><p>未绑定</p></div>
+          <button class="btn btn-xs btn-primary" onclick="Toast.show('info',' redirecting to Discord OAuth...')">绑定</button>
+        </div>
+        <div class="oauth-card">
+          <div class="oauth-icon" style="background:#07c160;color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 104 4V4a5 5 0 005 5"/></svg></div>
+          <div class="oauth-info"><h4>微信</h4><p>未绑定</p></div>
+          <button class="btn btn-xs btn-primary" onclick="Toast.show('info','请扫描二维码完成绑定')">绑定</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</div>
+
+<!-- QR Dialog -->
+<div class="dialog-overlay" id="qrDialog"><div class="dialog" style="max-width:360px;text-align:center">
+  <div class="dialog-header" style="justify-content:center"><h2>扫码登录</h2></div>
+  <div class="dialog-body"><div style="width:180px;height:180px;background:var(--border-soft);border-radius:var(--radius-md);margin:0 auto;display:grid;place-items:center"><span class="text-muted">QR Placeholder</span></div><p class="text-sm text-muted mt-3">使用移动端 App 扫描上方二维码即可快速登录</p></div>
+  <div class="dialog-footer" style="justify-content:center"><button class="btn btn-secondary" onclick="Dialog.close('qrDialog')">关闭</button></div>
+</div></div>
+
+<!-- Disable 2FA Dialog -->
+<div class="dialog-overlay" id="disable2faDialog"><div class="dialog" style="max-width:420px">
+  <div class="dialog-header"><h2 style="color:var(--danger)">禁用 2FA</h2><button class="btn btn-ghost" onclick="Dialog.close('disable2faDialog')">✕</button></div>
+  <div class="dialog-body">
+    <p class="text-sm text-muted mb-4">为了安全起见，请输入账户密码确认禁用双重验证。</p>
+    <div class="form-group"><label class="form-label">账户密码</label><input class="form-input" type="password" placeholder="输入密码"></div>
+  </div>
+  <div class="dialog-footer"><button class="btn btn-secondary" onclick="Dialog.close('disable2faDialog')">取消</button><button class="btn btn-danger" onclick="Dialog.close('disable2faDialog');Toast.show('warn','2FA 已禁用，请尽快重新启用')">确认禁用</button></div>
+</div></div>
+
+<script src="js/base.js"></script>
+<script>
+function switchTab(tab, panelId) {
+  document.querySelectorAll('#profileTabs .tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById(panelId).style.display = 'block';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>用户管理 · API Gateway</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+.user-avatar-sm { width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--accent-on); display:grid; place-items:center; font-size:11px; font-weight:600; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-main-nav" id="sidebarMainNav">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">G</div>
+      <span class="sidebar-brand">API Gateway</span>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      </button>
+    </div>
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">概览</div>
+      <a href="dashboard.html" class="nav-item" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="nav-label">仪表盘</span></a>
+      <div class="sidebar-section-label">个人中心</div>
+      <a href="api-keys.html" class="nav-item" data-view="api-keys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><span class="nav-label">API 密钥</span></a>
+      <a href="wallet.html" class="nav-item" data-view="wallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg><span class="nav-label">钱包</span></a>
+      <a href="profile.html" class="nav-item" data-view="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">个人资料</span></a>
+      <a href="playground.html" class="nav-item" data-view="playground"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nav-label">Playground</span></a>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">管理后台</div>
+      <a href="usage-logs.html" class="nav-item" data-view="usage-logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="nav-label">用量日志</span></a>
+      <a href="channels.html" class="nav-item" data-view="channels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="nav-label">渠道管理</span></a>
+      <a href="models.html" class="nav-item" data-view="models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="nav-label">模型管理</span></a>
+      <a href="users.html" class="nav-item active" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="nav-label">用户管理</span></a>
+      <a href="codes.html" class="nav-item" data-view="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg><span class="nav-label">兑换码</span></a>
+      <a href="plans.html" class="nav-item" data-view="plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nav-label">订阅计划</span></a>
+      <div class="sidebar-section-label">系统</div>
+      <a href="settings-auth.html" class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统设置</span></a>
+    </div>
+  </div>
+</aside>
+
+<div class="topnav" id="topnav">
+  <div class="topnav-left">
+    <button class="topnav-btn" onclick="toggleSidebar()" style="display:none" id="mobileMenuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <div class="breadcrumb">API Gateway / <span id="pageBreadcrumb">用户管理</span></div>
+  </div>
+  <div class="topnav-center">
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="Toast.show('info','暂无新通知')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="notif-dot"></span></button></div>
+    <div class="topnav-btn-wrap dropdown"><button class="topnav-btn" onclick="toggleDropdown(event,'langDropdown')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button><div class="dropdown-menu" id="langDropdown"><div class="dropdown-item" onclick="Toast.show('info','切换到 English')">English</div><div class="dropdown-item" onclick="Toast.show('info','切换到 简体中文')">简体中文</div><div class="dropdown-item" onclick="Toast.show('info','切换到 日本語')">日本語</div></div></div>
+    <div class="topnav-btn-wrap"><button class="topnav-btn" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconLight"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIconDark" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></button></div>
+  </div>
+  <div class="topnav-right">
+    <div class="dropdown"><button class="user-menu-btn" onclick="toggleDropdown(event,'userDropdown')"><div class="user-avatar">A</div><span style="font-size:13px;font-weight:500">Admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button><div class="dropdown-menu" id="userDropdown" style="right:0"><a href="profile.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>个人中心</a><a href="settings-auth.html" class="dropdown-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>系统设置</a><div class="dropdown-divider"></div><a href="login.html" class="dropdown-item danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/></svg>退出登录</a></div></div>
+  </div>
+</div>
+
+<main class="main-content">
+  <div class="page-view">
+
+    <div class="page-header">
+      <div><h1>用户管理</h1><p class="page-desc">全平台用户账户、角色与额度管理</p></div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="Toast.show('info','数据已刷新')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>刷新</button>
+        <button class="btn btn-primary" onclick="Dialog.open('addUserDialog')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加用户</button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-card-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+        <div class="stat-card-label">用户总数</div>
+        <div class="stat-card-value mono">2,847</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="stat-card-label">今日活跃</div>
+        <div class="stat-card-value mono">412</div>
+        <div class="stat-card-change up">↑ 5.2%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div>
+        <div class="stat-card-label">今日注册</div>
+        <div class="stat-card-value mono">23</div>
+        <div class="stat-card-change up">↑ 3 人</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="stat-card-label">余额总计</div>
+        <div class="stat-card-value mono">$48,291.50</div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="table-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="搜索用户名、邮箱、ID…"></div>
+      <select class="form-select" style="width:120px"><option>全部角色</option><option>超级管理员</option><option>管理员</option><option>普通用户</option><option>访客</option></select>
+      <select class="form-select" style="width:120px"><option>全部状态</option><option>正常</option><option>禁用</option><option>待验证</option></select>
+      <button class="btn btn-sm btn-secondary" onclick="Toast.show('info','筛选条件已重置')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M10 12h4M6 18h12"/></svg>重置</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div style="display:flex;gap:var(--space-2);align-items:center">
+          <span class="text-sm text-muted">共 2,847 位用户</span>
+          <span class="filter-chip active">全部</span>
+          <span class="filter-chip">VIP</span>
+          <span class="filter-chip">企业</span>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-sm btn-ghost text-danger" onclick="confirmDelete('确定批量删除选中的用户？')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>批量删除</button>
+          <button class="btn btn-sm btn-ghost" onclick="Toast.show('info','已导出用户列表')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导出</button>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th style="width:32px"><input type="checkbox" class="table-checkbox"></th><th>ID</th><th>用户</th><th>角色</th><th>邮箱</th><th class="num-col">本月用量</th><th class="num-col">余额</th><th>状态</th><th>注册时间</th><th style="width:100px">操作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#1001</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm">A</div><span class="text-sm font-medium">Administrator</span></div></td>
+            <td><span class="badge badge-neutral">超级管理员</span></td>
+            <td class="text-sm">admin@example.com</td>
+            <td class="num-col mono text-sm">$1,284.59</td>
+            <td class="num-col mono text-sm">$5,240.00</td>
+            <td><span class="badge badge-success">正常</span></td>
+            <td class="text-sm">2024-08-12</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 Administrator？')">删除</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#1002</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm" style="background:var(--success)">D</div><span class="text-sm font-medium">developer</span></div></td>
+            <td><span class="badge badge-muted">管理员</span></td>
+            <td class="text-sm">developer@example.com</td>
+            <td class="num-col mono text-sm">$892.30</td>
+            <td class="num-col mono text-sm">$1,450.80</td>
+            <td><span class="badge badge-success">正常</span></td>
+            <td class="text-sm">2024-09-03</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 developer？')">删除</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#1847</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm" style="background:var(--warn)">A</div><span class="text-sm font-medium">alice</span></div></td>
+            <td><span class="badge badge-muted">普通用户</span></td>
+            <td class="text-sm">alice@corp.net</td>
+            <td class="num-col mono text-sm">$342.10</td>
+            <td class="num-col mono text-sm">$89.50</td>
+            <td><span class="badge badge-success">正常</span></td>
+            <td class="text-sm">2024-11-20</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 alice？')">删除</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#2103</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm" style="background:var(--danger)">B</div><span class="text-sm font-medium">bob_startup</span></div></td>
+            <td><span class="badge badge-muted">普通用户</span></td>
+            <td class="text-sm">bob@startup.io</td>
+            <td class="num-col mono text-sm">$56.80</td>
+            <td class="num-col mono text-sm">$12.00</td>
+            <td><span class="badge badge-warn">余额不足</span></td>
+            <td class="text-sm">2025-01-15</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 bob_startup？')">删除</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#2846</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm" style="background:var(--meta)">V</div><span class="text-sm font-medium">vip_enterprise</span></div></td>
+            <td><span class="badge badge-neutral">企业</span></td>
+            <td class="text-sm">vip@enterprise.com</td>
+            <td class="num-col mono text-sm">$4,210.50</td>
+            <td class="num-col mono text-sm">$25,000.00</td>
+            <td><span class="badge badge-success">正常</span></td>
+            <td class="text-sm">2025-02-28</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 vip_enterprise？')">删除</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#2847</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm" style="background:#888">N</div><span class="text-sm font-medium">new_user_01</span></div></td>
+            <td><span class="badge badge-muted">访客</span></td>
+            <td class="text-sm">new-user@test.com</td>
+            <td class="num-col mono text-sm">$0.00</td>
+            <td class="num-col mono text-sm">$5.00</td>
+            <td><span class="badge badge-muted">待验证</span></td>
+            <td class="text-sm">2025-06-07</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 new_user_01？')">删除</button></div></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="table-checkbox"></td>
+            <td class="mono text-sm">#1205</td>
+            <td><div class="flex items-center gap-2"><div class="user-avatar-sm" style="background:var(--accent-2)">C</div><span class="text-sm font-medium">ci_bot</span></div></td>
+            <td><span class="badge badge-muted">普通用户</span></td>
+            <td class="text-sm">ci-bot@gitlab.local</td>
+            <td class="num-col mono text-sm">$128.40</td>
+            <td class="num-col mono text-sm">$340.00</td>
+            <td><span class="badge badge-success">正常</span></td>
+            <td class="text-sm">2024-10-08</td>
+            <td><div class="actions"><button class="btn btn-xs btn-ghost" onclick="Sheet.open('editUserSheet')">编辑</button><button class="btn btn-xs btn-ghost text-danger" onclick="confirmDelete('确定删除用户 ci_bot？')">删除</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-footer">
+        <span>显示 1–7 条，共 2,847 条</span>
+        <div class="table-pagination">
+          <button>⟨</button><button class="active">1</button><button>2</button><button>3</button><button>…</button><button>285</button><button>⟩</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</div>
+
+<!-- Add User Dialog -->
+<div class="dialog-overlay" id="addUserDialog">
+  <div class="dialog" style="max-width:480px">
+    <div class="dialog-header"><h2>添加用户</h2><button class="btn btn-ghost" onclick="Dialog.close('addUserDialog')">✕</button></div>
+    <div class="dialog-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">用户名</label><input class="form-input" placeholder="输入用户名"></div>
+        <div class="form-group"><label class="form-label">显示名称</label><input class="form-input" placeholder="输入显示名称"></div>
+      </div>
+      <div class="form-group"><label class="form-label">邮箱</label><input class="form-input" type="email" placeholder="user@example.com"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">密码</label><input class="form-input" type="password" placeholder="至少 8 位"></div>
+        <div class="form-group"><label class="form-label">确认密码</label><input class="form-input" type="password" placeholder="再次输入"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">角色</label><select class="form-select"><option>普通用户</option><option>管理员</option><option>企业</option><option>访客</option></select></div>
+        <div class="form-group"><label class="form-label">初始余额</label><input class="form-input" type="number" value="0" step="0.01"></div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" onclick="Dialog.close('addUserDialog')">取消</button>
+      <button class="btn btn-primary" onclick="Dialog.close('addUserDialog');Toast.show('success','用户创建成功')">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Sheet -->
+<div class="sheet-overlay" id="editUserSheetOverlay"></div>
+<div class="sheet" id="editUserSheet">
+  <div class="sheet-header">
+    <h2 style="font-size:var(--text-lg);font-weight:600">编辑用户</h2>
+    <button class="btn btn-ghost" onclick="Sheet.close('editUserSheet')">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">用户名</label><input class="form-input" value="developer"></div>
+      <div class="form-group"><label class="form-label">显示名称</label><input class="form-input" value="Developer"></div>
+    </div>
+    <div class="form-group"><label class="form-label">邮箱</label><input class="form-input" type="email" value="developer@example.com"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">角色</label><select class="form-select"><option>普通用户</option><option selected>管理员</option><option>企业</option><option>访客</option></select></div>
+      <div class="form-group"><label class="form-label">状态</label><select class="form-select"><option selected>正常</option><option>禁用</option><option>待验证</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">当前余额</label><input class="form-input" type="number" value="1450.80" step="0.01"></div>
+      <div class="form-group"><label class="form-label">追加额度</label><input class="form-input" type="number" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:var(--space-2)">
+        <span class="toggle-switch" style="margin-right:4px"><input type="checkbox"><span class="toggle-slider"></span></span>
+        重置密码
+      </label>
+      <p class="form-help">开启后将发送密码重置邮件到用户邮箱</p>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-secondary" onclick="Sheet.close('editUserSheet')">取消</button>
+    <button class="btn btn-primary" onclick="Sheet.close('editUserSheet');Toast.show('success','用户信息已更新')">保存</button>
+  </div>
+</div>
+
+<script src="js/base.js"></script>
+</body>
+</html>
