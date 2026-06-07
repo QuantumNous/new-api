@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// TestParseContextLengthToken covers the accepted formats (suffix
+// multipliers with K/M/T, raw integers, case-insensitivity, whitespace)
+// and the rejection cases (embedded letters, unknown units, decimals
+// without a suffix, negatives, empty input).
 func TestParseContextLengthToken(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -60,6 +64,13 @@ func TestParseContextLengthToken(t *testing.T) {
 	}
 }
 
+// TestGetModelContextLength exercises GetModelContextLength against a
+// synthetic pricingMap populated for the duration of the test. It checks
+// resolution for every supported tag shape (suffix, raw integer, mixed
+// tags, embedded-letter rejection) as well as the "no context token",
+// "empty tags", "unknown model" and "empty model name" negative paths.
+// The cache is snapshotted on entry and restored on exit so the test
+// does not leak global state into siblings.
 func TestGetModelContextLength(t *testing.T) {
 	// Snapshot the package-level cache and restore on exit so we don't
 	// leak state into other tests.

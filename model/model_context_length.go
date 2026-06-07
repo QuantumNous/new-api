@@ -146,6 +146,9 @@ func parseContextLengthToken(token string) *int64 {
 	return nil
 }
 
+// int64Ptr returns a pointer to the given int64 value. It exists so the
+// parser can return typed pointers directly from branches (regex match,
+// ParseInt) without each call site re-allocating a temp variable.
 func int64Ptr(v int64) *int64 {
 	return &v
 }

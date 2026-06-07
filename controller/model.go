@@ -150,6 +150,13 @@ func getPreferredModelOwners(modelNames []string, groups []string) map[string]st
 	return owners
 }
 
+// buildOpenAIModel assembles the dto.OpenAIModels payload for a single
+// model name. It looks the model up in the static openAIModelsMap and
+// falls back to a "custom" stub when the model is not statically known.
+// The ownerByModel map (computed once per request by the caller) is
+// applied to override OwnedBy for any models that have a resolved
+// channel-level owner. SupportedEndpointTypes and ContextLength are
+// resolved from the model cache for both static and custom paths.
 func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.OpenAIModels {
 	var oaiModel dto.OpenAIModels
 	if staticModel, ok := openAIModelsMap[modelName]; ok {
