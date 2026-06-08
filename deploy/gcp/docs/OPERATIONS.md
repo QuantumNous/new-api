@@ -68,6 +68,36 @@ terraform apply -refresh-only
 
 ---
 
+## Usage reconciliation token (`BLOCKRUN_USAGE_SUMMARY_TOKEN`) — already set up, keep it on
+
+The BlockRun usage reconciliation endpoints — `GET /usage/summary` and `GET /usage/transactions` (code: `controller/usage_reconciliation.go`, `router/usage_reconciliation.go`, auth in `middleware/usage_recon_auth.go`; design spec `docs/superpowers/specs/2026-06-08-blockrun-usage-reconciliation-design.md`) — authenticate with a single static Bearer token read from env `BLOCKRUN_USAGE_SUMMARY_TOKEN`. Same value goes to the external reconciliation consumer.
+
+**State (as of 2026-06-08):**
+
+- Secret Manager secret `newapi-blockrun-usage-summary-token` exists (Terraform-owned: `google_secret_manager_secret.blockrun_usage_summary_token` in `envs/prod/main.tf`), value set (version 1), runtime SA `newapi-runtime@vocai-gemini-prod.iam.gserviceaccount.com` granted `roles/secretmanager.secretAccessor`.
+- The env was **pre-injected on the live service via gcloud** (`gcloud run services update newapi --update-secrets=BLOCKRUN_USAGE_SUMMARY_TOKEN=newapi-blockrun-usage-summary-token:latest --no-traffic`), creating revision `newapi-00051-v4v` at **0% traffic** (serving revision and the `canary` tag were left untouched). So `spec.template` already carries the secret env, and every later CI image deploy inherits it — `gcp-deploy.yml` uses `--update-env-vars` (a delta) + `--image`, which preserves existing env/secrets rather than replacing them.
+- `enable_usage_recon_token = true` in `envs/prod/terraform.tfvars` gates the `dynamic "env"` block in `modules/cloud-run/main.tf`.
+
+**Don't break it:**
+
+- **Keep `enable_usage_recon_token = true`.** Flipping it to false (or deleting the secret env) makes the next `terraform apply` strip `BLOCKRUN_USAGE_SUMMARY_TOKEN` from the service → the endpoints return `503`.
+- The env was set out-of-band via gcloud, so TF state can lag reality. The committed flag keeps desired-state aligned, so a refreshing `terraform plan` shows no env diff; run `terraform apply -refresh-only` to sync state exactly.
+- When writing the secret value, use `printf '%s'`, not `echo` (no trailing newline in the token).
+
+**Rotate the token** (single shared secret — the reconciliation consumer must change in lockstep):
+
+```bash
+printf '%s' '<new-token>' | gcloud secrets versions add newapi-blockrun-usage-summary-token \
+  --project=vocai-gemini-prod --data-file=-
+gcloud run services update newapi --region=us-west1 --project=vocai-gemini-prod \
+  --update-secrets=BLOCKRUN_USAGE_SUMMARY_TOKEN=newapi-blockrun-usage-summary-token:latest
+# then shift traffic to the new revision — see the revision-pinned traffic section above
+```
+
+First-time setup runbook: `DEPLOYMENT.md` → "用量对账 token（`BLOCKRUN_USAGE_SUMMARY_TOKEN`）".
+
+---
+
 ## `gcp-infra.yml` apply currently does not work (IAM gap)
 
 **Symptom**: `workflow_dispatch` on `gcp-infra.yml` fails at the very first `terraform apply` step with errors like:
@@ -197,6 +227,7 @@ To use Proxied for depth-3 names would require Total TLS ($10/mo) — declined p
 - `terraform destroy` on any module (obviously)
 - Bumping `cert_rotation` while a cert is currently ACTIVE (causes new downtime window unnecessarily)
 - Editing `ServerAddress` admin setting (breaks OAuth callbacks, video proxy URLs, email reset links until rolled to all instances)
+- Setting `enable_usage_recon_token = false` or removing the `BLOCKRUN_USAGE_SUMMARY_TOKEN` secret env (breaks the `/usage` reconciliation endpoints → 503; see the section above)
 
 ---
 
