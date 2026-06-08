@@ -61,3 +61,9 @@ variable "cloud_run_ingress" {
   description = "Cloud Run ingress setting. Lock down to INTERNAL_LOAD_BALANCER once the LB is healthy."
   default     = "INGRESS_TRAFFIC_ALL"
 }
+
+variable "enable_usage_recon_token" {
+  type        = bool
+  description = "Inject BLOCKRUN_USAGE_SUMMARY_TOKEN into Cloud Run from Secret Manager. Flip to true ONLY after the secret value has been added (`gcloud secrets versions add newapi-blockrun-usage-summary-token ...`); otherwise the revision fails to start because the secret has no version."
+  default     = false
+}

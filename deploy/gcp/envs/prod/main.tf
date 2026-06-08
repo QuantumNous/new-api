@@ -119,6 +119,23 @@ resource "google_secret_manager_secret_version" "redis_url" {
   secret_data = module.memorystore.redis_url
 }
 
+// Static shared token for the BlockRun usage reconciliation endpoints
+// (BLOCKRUN_USAGE_SUMMARY_TOKEN, consumed by GET /usage/summary + /usage/transactions).
+// Created empty here — the operator adds the value out-of-band:
+//   printf '%s' '<token>' | gcloud secrets versions add newapi-blockrun-usage-summary-token \
+//     --project=vocai-gemini-prod --data-file=-
+// then flips var.enable_usage_recon_token to wire it into Cloud Run (see cloud_run below).
+resource "google_secret_manager_secret" "blockrun_usage_summary_token" {
+  project   = var.project_id
+  secret_id = "newapi-blockrun-usage-summary-token"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [module.apis]
+}
+
 module "service_accounts" {
   source     = "../../modules/service-accounts"
   project_id = var.project_id
@@ -128,6 +145,7 @@ module "service_accounts" {
     [
       google_secret_manager_secret.sql_dsn.secret_id,
       google_secret_manager_secret.redis_url.secret_id,
+      google_secret_manager_secret.blockrun_usage_summary_token.secret_id,
     ],
   )
 
@@ -162,6 +180,10 @@ module "cloud_run" {
   redis_url_secret_id = google_secret_manager_secret.redis_url.secret_id
   session_secret_id   = module.secrets.session_secret_id
   crypto_secret_id    = module.secrets.crypto_secret_id
+
+  // Only wired once the operator has added the token value and flipped the flag,
+  // so a plain `terraform apply` before then never injects a versionless secret.
+  usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
   frontend_base_url = var.frontend_base_url
   custom_domains    = var.custom_domains
