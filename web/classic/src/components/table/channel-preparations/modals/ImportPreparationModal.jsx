@@ -100,6 +100,17 @@ const ImportPreparationModal = ({ visible, onCancel, onSubmit }) => {
     () => parseBatchInput(inputText, nameSuffix, timestamp),
     [inputText, nameSuffix, timestamp],
   );
+  const totalBalance = useMemo(
+    () => parsed.entries.reduce((sum, entry) => sum + entry.balance, 0),
+    [parsed.entries],
+  );
+  const formattedTotalBalance = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        maximumFractionDigits: 6,
+      }).format(totalBalance),
+    [totalBalance],
+  );
   const progress =
     parsed.entries.length === 0
       ? 0
@@ -238,6 +249,22 @@ const ImportPreparationModal = ({ visible, onCancel, onSubmit }) => {
             {parsed.errors
               .map((error) => `#${error.line}: ${error.message}`)
               .join('；')}
+          </div>
+        ) : null}
+        {parsed.entries.length > 0 ? (
+          <div className='flex flex-wrap items-center gap-6 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700'>
+            <span>
+              {t('Key 数量')}{' '}
+              <span className='font-semibold text-gray-900'>
+                {parsed.entries.length}
+              </span>
+            </span>
+            <span>
+              {t('总额度')}{' '}
+              <span className='font-semibold text-gray-900'>
+                {formattedTotalBalance}
+              </span>
+            </span>
           </div>
         ) : null}
         <Progress

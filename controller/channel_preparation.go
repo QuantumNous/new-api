@@ -48,6 +48,18 @@ func parseOptionalIntQuery(c *gin.Context, name string) (*int, error) {
 	return &parsed, nil
 }
 
+func parseOptionalInt64Query(c *gin.Context, name string) (*int64, error) {
+	value := strings.TrimSpace(c.Query(name))
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
 func defaultChannelPreparationModels(channelType int) string {
 	if channelType == 0 {
 		channelType = constant.ChannelTypeAnthropic
@@ -110,20 +122,32 @@ func GetChannelPreparations(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	startTimestamp, err := parseOptionalInt64Query(c, "start_timestamp")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	endTimestamp, err := parseOptionalInt64Query(c, "end_timestamp")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if status == nil {
 		pendingStatus := model.ChannelPreparationStatusPending
 		status = &pendingStatus
 	}
 	opts := model.ChannelPreparationListOptions{
-		Page:     page,
-		PageSize: pageSize,
-		Keyword:  c.Query("keyword"),
-		Group:    c.Query("group"),
-		Type:     channelType,
-		Status:   status,
-		IDSort:   c.Query("id_sort") == "true" || c.Query("id_sort") == "1",
+		Page:           page,
+		PageSize:       pageSize,
+		Keyword:        c.Query("keyword"),
+		Group:          c.Query("group"),
+		Type:           channelType,
+		Status:         status,
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		IDSort:         c.Query("id_sort") == "true" || c.Query("id_sort") == "1",
 	}
-	preparations, total, statusCounts, typeCounts, err := model.GetChannelPreparations(opts)
+	preparations, total, stats, statusCounts, typeCounts, err := model.GetChannelPreparations(opts)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -133,6 +157,7 @@ func GetChannelPreparations(c *gin.Context) {
 		"total":         total,
 		"page":          opts.Page,
 		"page_size":     opts.PageSize,
+		"stats":         stats,
 		"status_counts": statusCounts,
 		"type_counts":   typeCounts,
 	})

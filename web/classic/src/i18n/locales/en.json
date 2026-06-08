@@ -3945,5 +3945,7 @@
   "导入到备货池": "Import to Prep Pool",
   "每行格式：余额<Tab>Key。导入后只进入备货池，不会创建正式渠道。": "Each line: balance<Tab>Key. Imported records enter the prep pool only and will not create live channels.",
   "名称后缀": "Name Suffix",
-  "不填则使用 Claude 默认模型": "Leave empty to use the default Claude models"
+  "不填则使用 Claude 默认模型": "Leave empty to use the default Claude models",
+  "Key 数量": "Key count",
+  "总余额": "Total balance"
 }

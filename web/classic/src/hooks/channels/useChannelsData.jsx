@@ -769,6 +769,41 @@ export const useChannelsData = () => {
     }
   };
 
+  const setChannelBalance = async (record, balance) => {
+    if (balance === undefined || balance === null || balance === '') {
+      showError(t('请输入新的剩余额度'));
+      return false;
+    }
+
+    const nextBalance = Number(balance);
+    if (!Number.isFinite(nextBalance)) {
+      showError(t('请输入新的剩余额度'));
+      return false;
+    }
+
+    try {
+      const res = await API.post(`/api/channel/balance/${record.id}`, {
+        balance: nextBalance,
+      });
+      const { success, message, balance: updatedBalance } = res.data;
+      if (success) {
+        updateChannelProperty(record.id, (channel) => {
+          channel.balance = updatedBalance;
+          channel.balance_updated_time = Date.now() / 1000;
+        });
+        showSuccess(
+          t('通道 ${name} 余额更新成功！').replace('${name}', record.name),
+        );
+        return true;
+      }
+      showError(message || t('保存失败'));
+      return false;
+    } catch (error) {
+      showError(error?.response?.data?.message || error?.message || error);
+      return false;
+    }
+  };
+
   const clearChannelUsedQuota = async (record) => {
     const res = await API.post(`/api/channel/used_quota/clear/${record.id}`);
     const { success, message } = res.data;
@@ -1239,6 +1274,7 @@ export const useChannelsData = () => {
     deleteAllDisabledChannels,
     updateAllChannelsBalance,
     updateChannelBalance,
+    setChannelBalance,
     clearChannelUsedQuota,
     fixChannelsAbilities,
     checkOllamaVersion,

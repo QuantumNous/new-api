@@ -82,18 +82,24 @@ type ChannelPreparationResponse struct {
 }
 
 type ChannelPreparationListOptions struct {
-	Page     int
-	PageSize int
-	Keyword  string
-	Group    string
-	Type     *int
-	Status   *int
-	IDSort   bool
+	Page           int
+	PageSize       int
+	Keyword        string
+	Group          string
+	Type           *int
+	Status         *int
+	StartTimestamp *int64
+	EndTimestamp   *int64
+	IDSort         bool
 }
 
 type ChannelPreparationCountRow struct {
 	Value int   `json:"value"`
 	Count int64 `json:"count"`
+}
+
+type ChannelPreparationListStats struct {
+	BalanceTotal float64 `json:"balance_total" gorm:"column:balance_total"`
 }
 
 func (p *ChannelPreparation) NormalizeForCreate() {
@@ -239,6 +245,12 @@ func applyChannelPreparationFilters(db *gorm.DB, opts ChannelPreparationListOpti
 	if includeStatus && opts.Status != nil {
 		db = db.Where("status = ?", *opts.Status)
 	}
+	if opts.StartTimestamp != nil {
+		db = db.Where("created_time >= ?", *opts.StartTimestamp)
+	}
+	if opts.EndTimestamp != nil {
+		db = db.Where("created_time <= ?", *opts.EndTimestamp)
+	}
 	return db
 }
 
@@ -251,7 +263,7 @@ func GetDistinctChannelPreparationGroups() ([]string, error) {
 	return groups, err
 }
 
-func GetChannelPreparations(opts ChannelPreparationListOptions) ([]ChannelPreparation, int64, []ChannelPreparationCountRow, []ChannelPreparationCountRow, error) {
+func GetChannelPreparations(opts ChannelPreparationListOptions) ([]ChannelPreparation, int64, ChannelPreparationListStats, []ChannelPreparationCountRow, []ChannelPreparationCountRow, error) {
 	if opts.Page <= 0 {
 		opts.Page = 1
 	}
@@ -265,7 +277,13 @@ func GetChannelPreparations(opts ChannelPreparationListOptions) ([]ChannelPrepar
 	base := applyChannelPreparationFilters(DB.Model(&ChannelPreparation{}), opts, true, true)
 	var total int64
 	if err := base.Count(&total).Error; err != nil {
-		return nil, 0, nil, nil, err
+		return nil, 0, ChannelPreparationListStats{}, nil, nil, err
+	}
+
+	var stats ChannelPreparationListStats
+	statsQuery := applyChannelPreparationFilters(DB.Model(&ChannelPreparation{}), opts, true, true)
+	if err := statsQuery.Select("COALESCE(SUM(balance), 0) as balance_total").Scan(&stats).Error; err != nil {
+		return nil, 0, ChannelPreparationListStats{}, nil, nil, err
 	}
 
 	var preparations []ChannelPreparation
@@ -275,20 +293,20 @@ func GetChannelPreparations(opts ChannelPreparationListOptions) ([]ChannelPrepar
 	}
 	err := base.Order(order).Limit(opts.PageSize).Offset((opts.Page - 1) * opts.PageSize).Find(&preparations).Error
 	if err != nil {
-		return nil, 0, nil, nil, err
+		return nil, 0, ChannelPreparationListStats{}, nil, nil, err
 	}
 
 	var statusCounts []ChannelPreparationCountRow
 	statusQuery := applyChannelPreparationFilters(DB.Model(&ChannelPreparation{}), opts, false, true)
 	if err := statusQuery.Select("status as value, count(*) as count").Group("status").Scan(&statusCounts).Error; err != nil {
-		return nil, 0, nil, nil, err
+		return nil, 0, ChannelPreparationListStats{}, nil, nil, err
 	}
 
 	var typeCounts []ChannelPreparationCountRow
 	typeQuery := applyChannelPreparationFilters(DB.Model(&ChannelPreparation{}), opts, true, false)
 	if err := typeQuery.Select("type as value, count(*) as count").Group("type").Scan(&typeCounts).Error; err != nil {
-		return nil, 0, nil, nil, err
+		return nil, 0, ChannelPreparationListStats{}, nil, nil, err
 	}
 
-	return preparations, total, statusCounts, typeCounts, nil
+	return preparations, total, stats, statusCounts, typeCounts, nil
 }

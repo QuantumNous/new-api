@@ -32,6 +32,8 @@ const ColumnSelectorModal = ({
   t,
   // Props needed for getChannelsColumns
   updateChannelBalance,
+  setChannelBalance,
+  clearChannelUsedQuota,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -52,6 +54,8 @@ const ColumnSelectorModal = ({
     t,
     COLUMN_KEYS,
     updateChannelBalance,
+    setChannelBalance,
+    clearChannelUsedQuota,
     manageChannel,
     manageTag,
     submitTagEdit,

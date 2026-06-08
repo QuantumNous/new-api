@@ -308,6 +308,7 @@ export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
   updateChannelBalance,
+  setChannelBalance,
   clearChannelUsedQuota,
   manageChannel,
   manageTag,
@@ -529,6 +530,34 @@ export const getChannelsColumns = ({
       dataIndex: 'expired_time',
       render: (text, record, index) => {
         if (record.children === undefined) {
+          const openBalanceEditModal = (event) => {
+            event?.stopPropagation?.();
+            let nextBalance = record.balance ?? 0;
+            Modal.confirm({
+              title: t('请输入新的剩余额度'),
+              content: (
+                <div className='pt-2'>
+                  <InputNumber
+                    className='w-full'
+                    defaultValue={record.balance ?? 0}
+                    placeholder={t('剩余额度')}
+                    onChange={(value) => {
+                      nextBalance = value;
+                    }}
+                  />
+                </div>
+              ),
+              okText: t('保存'),
+              cancelText: t('取消'),
+              onOk: async () => {
+                const ok = await setChannelBalance(record, nextBalance);
+                if (!ok) {
+                  return Promise.reject();
+                }
+              },
+            });
+          };
+
           return (
             <div>
               <Space spacing={1}>
@@ -559,6 +588,16 @@ export const getChannelsColumns = ({
                       : renderQuotaWithAmount(record.balance)}
                   </Tag>
                 </Tooltip>
+                {record.type !== 57 && (
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    theme='outline'
+                    onClick={openBalanceEditModal}
+                  >
+                    {t('编辑')}
+                  </Button>
+                )}
                 <Button
                   size='small'
                   type='tertiary'

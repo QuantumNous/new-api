@@ -32,6 +32,10 @@ type OpenAISubscriptionResponse struct {
 	AccessUntil        int64   `json:"access_until"`
 }
 
+type channelBalanceUpdateRequest struct {
+	Balance *float64 `json:"balance"`
+}
+
 type OpenAIUsageDailyCost struct {
 	Timestamp float64 `json:"timestamp"`
 	LineItems []struct {
@@ -470,6 +474,35 @@ func UpdateChannelBalance(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"balance": balance,
+	})
+}
+
+func SetChannelBalance(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var request channelBalanceUpdateRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if request.Balance == nil {
+		common.ApiErrorMsg(c, "剩余额度不能为空")
+		return
+	}
+	channel, err := model.GetChannelById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	channel.UpdateBalance(*request.Balance)
+	model.InitChannelCache()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"balance": *request.Balance,
 	})
 }
 

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, showError, showSuccess, showInfo } from '../../helpers';
+import {
+  API,
+  buildGroupOptions,
+  showError,
+  showSuccess,
+  showInfo,
+} from '../../helpers';
 
 export const PREPARATION_STATUS = {
   PENDING: 1,
@@ -11,6 +17,17 @@ export const PREPARATION_STATUS_LABELS = {
 };
 
 const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_GROUP = 'default';
+
+const toUnixTimestamp = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Math.floor(value.getTime() / 1000);
+  }
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return null;
+  return Math.floor(timestamp / 1000);
+};
 
 export function useChannelPreparationsData() {
   const { t } = useTranslation();
@@ -19,8 +36,15 @@ export function useChannelPreparationsData() {
   const [activePage, setActivePage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
+  const [preparationStats, setPreparationStats] = useState({
+    balance_total: 0,
+  });
+  const [groupOptions, setGroupOptions] = useState([
+    { label: DEFAULT_GROUP, value: DEFAULT_GROUP },
+  ]);
   const [keyword, setKeyword] = useState('');
   const [group, setGroup] = useState('');
+  const [dateRange, setDateRange] = useState([]);
   const [type, setType] = useState(undefined);
   const [status, setStatus] = useState(undefined);
   const [selectedPreparationKeys, setSelectedPreparationKeys] = useState([]);
@@ -39,6 +63,12 @@ export function useChannelPreparationsData() {
           keyword,
           group,
         };
+        if (Array.isArray(dateRange) && dateRange.length === 2) {
+          const startTimestamp = toUnixTimestamp(dateRange[0]);
+          const endTimestamp = toUnixTimestamp(dateRange[1]);
+          if (startTimestamp !== null) params.start_timestamp = startTimestamp;
+          if (endTimestamp !== null) params.end_timestamp = endTimestamp;
+        }
         if (type !== undefined && type !== null && type !== '')
           params.type = type;
         if (status !== undefined && status !== null && status !== '')
@@ -53,6 +83,7 @@ export function useChannelPreparationsData() {
         setSelectedPreparationKeys([]);
         setSelectedPreparations([]);
         setTotal(data?.total || 0);
+        setPreparationStats(data?.stats || { balance_total: 0 });
         setActivePage(data?.page || page);
         setPageSize(data?.page_size || size);
       } catch (error) {
@@ -61,7 +92,7 @@ export function useChannelPreparationsData() {
         setLoading(false);
       }
     },
-    [activePage, pageSize, keyword, group, type, status, t],
+    [activePage, pageSize, keyword, group, dateRange, type, status, t],
   );
 
   const refresh = useCallback(
@@ -72,6 +103,18 @@ export function useChannelPreparationsData() {
   useEffect(() => {
     loadPreparations(1, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    API.get('/api/group/', { skipErrorHandler: true })
+      .then((res) => {
+        if (res?.data?.success) {
+          setGroupOptions(buildGroupOptions(res.data.data, DEFAULT_GROUP));
+        }
+      })
+      .catch(() => {
+        setGroupOptions([{ label: DEFAULT_GROUP, value: DEFAULT_GROUP }]);
+      });
   }, []);
 
   const handleSearch = useCallback(() => {
@@ -220,10 +263,14 @@ export function useChannelPreparationsData() {
       activePage,
       pageSize,
       total,
+      preparationStats,
+      groupOptions,
       keyword,
       setKeyword,
       group,
       setGroup,
+      dateRange,
+      setDateRange,
       type,
       setType,
       status,
@@ -257,8 +304,11 @@ export function useChannelPreparationsData() {
       activePage,
       pageSize,
       total,
+      preparationStats,
+      groupOptions,
       keyword,
       group,
+      dateRange,
       type,
       status,
       selectedPreparationKeys,
