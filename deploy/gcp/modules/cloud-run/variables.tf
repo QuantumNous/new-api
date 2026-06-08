@@ -98,6 +98,12 @@ variable "crypto_secret_id" {
   description = "Secret Manager secret ID for CRYPTO_SECRET"
 }
 
+variable "usage_recon_token_secret_id" {
+  type        = string
+  description = "Secret Manager secret ID for BLOCKRUN_USAGE_SUMMARY_TOKEN (usage reconciliation endpoints). Empty string disables the env injection."
+  default     = ""
+}
+
 variable "frontend_base_url" {
   type        = string
   description = "Primary frontend URL used for OAuth callbacks and emails"
