@@ -47,7 +47,7 @@ func TestValidateHistoryLogDeleteTimestamp(t *testing.T) {
 }
 
 func TestValidateLogRetentionDaysOption(t *testing.T) {
-	for _, value := range []string{"0", "30", "3650"} {
+	for _, value := range []string{"0", "30", " 30 ", "3650"} {
 		require.NoError(t, validateLogRetentionDaysOption(value))
 	}
 
