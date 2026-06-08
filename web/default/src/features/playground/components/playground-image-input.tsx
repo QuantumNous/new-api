@@ -88,10 +88,10 @@ function FieldSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <label className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs'>
-      <span className='shrink-0'>{label}</span>
+    <label className='flex min-w-0 items-center gap-1.5 text-xs'>
+      <span className='text-muted-foreground shrink-0'>{label}</span>
       <NativeSelect
-        className={className ?? 'w-28 text-xs'}
+        className={`${className ?? 'w-28 text-xs'} text-foreground`}
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -116,9 +116,14 @@ export function PlaygroundImageInput({
 }: PlaygroundImageInputProps) {
   const { t } = useTranslation()
 
+  const hasPrompt = Boolean(prompt.trim())
+  const hasImageModels = models.length > 0
+  const isConfigDisabled = Boolean(disabled || isGenerating)
   const isModelSelectDisabled =
-    disabled || isModelLoading || models.length === 0
-  const isGroupSelectDisabled = disabled || groups.length === 0
+    isConfigDisabled || isModelLoading || !hasImageModels
+  const isGroupSelectDisabled = isConfigDisabled || groups.length === 0
+  const isSubmitDisabled =
+    Boolean(disabled || isGenerating) || !hasPrompt || !config.model
 
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || disabled || isGenerating) return
@@ -141,7 +146,7 @@ export function PlaygroundImageInput({
           autoCapitalize='off'
           spellCheck={false}
           className='min-h-24 px-5 md:text-base'
-          disabled={disabled || isGenerating}
+          disabled={isConfigDisabled || !hasImageModels}
           onChange={(event) => onPromptChange(event.target.value)}
           placeholder={t('Describe the image to generate')}
           value={prompt}
@@ -161,7 +166,7 @@ export function PlaygroundImageInput({
 
             <FieldSelect
               className='w-32 text-xs'
-              disabled={disabled || isGenerating}
+              disabled={isConfigDisabled || !hasImageModels}
               label={t('Size')}
               value={config.size}
               onChange={(value) => onConfigChange('size', value)}
@@ -175,7 +180,7 @@ export function PlaygroundImageInput({
 
             <FieldSelect
               className='w-24 text-xs'
-              disabled={disabled || isGenerating}
+              disabled={isConfigDisabled || !hasImageModels}
               label={t('Quality')}
               value={config.quality}
               onChange={(value) =>
@@ -194,7 +199,7 @@ export function PlaygroundImageInput({
 
             <FieldSelect
               className='w-16 text-xs'
-              disabled={disabled || isGenerating}
+              disabled={isConfigDisabled || !hasImageModels}
               label={t('Count')}
               value={String(config.n)}
               onChange={(value) =>
@@ -213,7 +218,7 @@ export function PlaygroundImageInput({
 
             <FieldSelect
               className='w-24 text-xs'
-              disabled={disabled || isGenerating}
+              disabled={isConfigDisabled || !hasImageModels}
               label={t('Format')}
               value={config.response_format}
               onChange={(value) =>
@@ -233,9 +238,7 @@ export function PlaygroundImageInput({
 
           <PromptInputButton
             className='text-foreground font-medium'
-            disabled={
-              disabled || isGenerating || !prompt.trim() || !config.model
-            }
+            disabled={isSubmitDisabled}
             type='submit'
             variant='secondary'
           >
