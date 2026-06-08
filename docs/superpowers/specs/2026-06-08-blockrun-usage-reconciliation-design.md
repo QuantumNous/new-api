@@ -44,7 +44,8 @@
 - 取值：**只认** `Authorization: Bearer <token>`（不支持 `?token=` 或自定义头兜底）。
 - 比较：`crypto/subtle.ConstantTimeCompare` 常数时间比较（防时序侧信道）。
 - 失败：env 未配置 → `503`；缺失/错误 token → `401`。错误体 `{"error":"..."}`（外部对账端点，不套 new-api 的 `{success,message}` i18n 体系）。
-- 落点：根级 `/usage` group 挂一道鉴权中间件，两接口共用；`router/main.go` 的 `SetRouter` 内 +1 行 `SetUsageReconciliationRouter(router)`（根 engine，与现有 `/api/usage/token` 不冲突）。
+- 限流：`/usage` group 在鉴权**之前**再挂 `middleware.GlobalAPIRateLimit()`（与整个 `/api` 同档，IP 维度，默认 180 次/180s）。放在 auth 前是为了让**未鉴权的暴力尝试也被限流**，并防止每请求一次的整窗 DB 扫描被放大成资源耗尽；该档位对周期性对账/分页消费方足够宽松。
+- 落点：根级 `/usage` group 挂限流 + 鉴权两道中间件，两接口共用；`router/main.go` 的 `SetRouter` 内 +1 行 `SetUsageReconciliationRouter(router)`（根 engine，与现有 `/api/usage/token` 不冲突）。
 
 ### 3.2 数据范围（两接口共用）
 - 遍历 `constant.ChannelTypeNames`，取名前缀 `blockrun`(忽略大小写) 的类型号 → 筛 `channels` 表得 `id` 集合（含 `id→{name}`）。
@@ -52,7 +53,7 @@
 
 ### 3.3 `GET /usage/summary`
 
-**入参**：`start`、`end`（ISO8601/RFC3339 UTC，必填，要求 `end>start`，否则 400）。
+**入参**：`start`、`end`（ISO8601/RFC3339 UTC，必填；要求 `end>start` 且区间 ≤ **31 天**，否则 400）。
 
 **响应**（成本仅 `actual_cost`；每个 cost 对象带 `currency`）：
 
@@ -148,12 +149,19 @@
 ## 5. 实现架构
 
 ### 5.1 不能照搬 SQL 聚合的原因
-- 受 **Rule 2** 约束（SQLite/MySQL/PG 全兼容）；缓存 token 在 `Other` JSON 文本里，**无可移植 SQL 对其 SUM/筛选**。
+- 受 **Rule 2** 约束（SQLite/MySQL/PG 全兼容）；缓存 token 在 `Other` JSON 文本里，**无可移植 SQL 对其 SUM/筛选** → summary 必须逐行读 `Other`。
 
 ### 5.2 做法
 - **共享**：token 守护、ISO 时间解析、BlockRun 渠道集合解析、`Other` 解析（缓存 token / upstream_model_name / stream_status）、成本换算（actual=Quota/500000）。
-- **summary**：一条 GORM 查询拉范围内全部行 → Go 侧逐行解析 `Other`、按 model_name / token_id 累加 `totals`/`by_model`/`by_api_key`。
-- **transactions**：GORM `Count` 取 total_count；`Order(created_at,id).Limit(page_size).Offset((page-1)*page_size)` 取当前页 → 逐行解析 `Other` 组装明细 + 分页元信息。
+- **summary**：GORM `Rows()` **流式扫描**范围内匹配行 → Go 侧逐行解析 `Other`、按 model_name / token_id 增量累加 `totals`/`by_model`/`by_api_key`（内存只与分组数有关，不随行数膨胀）。
+- **transactions**：GORM `Count` 取 total_count；`Order(created_at,id).Limit(page_size).Offset((page-1)*page_size)` 取当前页（≤500 行物化）→ 逐行解析 `Other` 组装明细 + 分页元信息。
+
+### 5.3 性能与索引（已评审）
+- **命中索引**：查询 `WHERE type AND channel_id IN(...) AND created_at∈[start,end) ORDER BY created_at,id` 由现有 **`idx_created_at_id (created_at,id)`** 服务——`created_at` 前导列限定时间窗范围扫描，`ORDER BY` 被该索引覆盖**无 filesort**；`type`/`channel_id` 为残余过滤。`Count` 同走该索引。
+- **不新增索引**（已评审）：理论最优是 `(channel_id, created_at)` 复合索引，但需在生产巨大且高频写入的 `logs` 表上 ALTER 加索引（成本/锁风险），**本期不加**；靠 `idx_created_at_id` + 时间窗 + 流式足够。后续若 profiling 显示时间窗内非 blockrun 行占比过高再评估。
+- **列裁剪**：summary 仅 `SELECT model_name, token_id, token_name, prompt_tokens, completion_tokens, quota, other`，跳过 content/ip/username/upstream_request_id 等大列。
+- **范围上限**：`end-start` > **31 天** → 400（防超长区间扫描/OOM）。
+- **主要 CPU 成本**：逐行 `Other` JSON 解析（day 级范围可接受；范围上限兜底）。深翻页 OFFSET 有丢弃成本，对账偶发可接受，必要时后续改 keyset。
 
 ---
 
@@ -161,10 +169,14 @@
 
 | 文件 | 内容 |
 |---|---|
-| `router/usage_reconciliation.go` | `SetUsageReconciliationRouter` + 静态 token 守护，注册 `/usage/summary`、`/usage/transactions` |
-| `controller/usage_reconciliation.go` | 两个 handler、共享 helper（token 校验、时间解析、渠道集合、Other 解析、成本换算）、DTO struct |
-| `controller/usage_reconciliation_test.go` | 认证、参数校验、summary 聚合、transactions 分页/字段、成本/缓存解析、范围过滤断言 |
+| `middleware/usage_recon_auth.go` | `UsageReconAuth()` 静态 Bearer token 守护 + bearer 解析 + env 常量（约定：放 middleware/） |
+| `model/usage_reconciliation.go` | 数据访问：`BlockRunChannelTypes`/`GetBlockRunChannels`、`StreamBlockRunUsageLogs`(Rows 流式)、`CountBlockRunUsageLogs`、`QueryBlockRunUsageLogsPaged` |
+| `controller/usage_reconciliation.go` | `GetUsageSummary`/`GetUsageTransactions` handler、DTO、Go 聚合、Other 解析、成本换算、时间/分页解析 |
+| `router/usage_reconciliation.go` | `SetUsageReconciliationRouter`：`/usage` group + `middleware.GlobalAPIRateLimit()`（auth 前）+ `middleware.UsageReconAuth()` + 两路由 |
 | `router/main.go` | `SetRouter` 内 +1 行 `SetUsageReconciliationRouter(router)` |
+| `middleware/usage_recon_auth_test.go` | 503/401/200（纯中间件，无 DB） |
+| `model/usage_reconciliation_test.go` | 渠道类型/集合、流式过滤、Count、分页排序（用 model 包既有 TestMain） |
+| `controller/usage_reconciliation_test.go` | 参数校验(含 31 天)、summary 聚合、transactions 字段/分页、成本/缓存解析（每测试自建内存 sqlite，不引入 controller 包 TestMain） |
 
 编辑现有符号前按 GitNexus 规则跑 `gitnexus_impact`（仅 `SetRouter` 一处新增调用，风险低）。
 
@@ -195,6 +207,10 @@
 | 9 | 分页 | `page` 默认 1；`page_size` 默认 100、上限 500；排序 `created_at,id` 升序 |
 | 10 | 精度限制 | `created_at` 秒精度(`.000Z`)、`duration_ms`=use_time×1000（秒级） |
 | 11 | `transaction_id` | `"txn_" + 日志id` |
+| 12 | 性能 | 流式扫描(`Rows()`)+列裁剪；命中 `idx_created_at_id`，无 filesort |
+| 13 | 索引 | **不加**新复合索引，靠现有 `idx_created_at_id` |
+| 14 | 范围上限 | `end-start` ≤ **31 天**，超出 400 |
+| 15 | 限流 | `/usage` group 在 auth 前挂 `GlobalAPIRateLimit()`（IP 维度，默认 180/180s），防暴力破解 token + DB 扫描放大 |
 
 ### 实现期需精确对齐
 - `api_key_id` 字符串格式（默认 `strconv.Itoa(token_id)`）。
