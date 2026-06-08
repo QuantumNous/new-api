@@ -633,13 +633,17 @@ func GetUsablePreferredChannelByAffinity(c *gin.Context, modelName string, using
 
 	preferred, err := model.CacheGetChannel(channelID)
 	if err != nil || preferred == nil {
-		DiscardChannelAffinityCacheForContext(c)
+		if !ShouldKeepChannelAffinityOnChannelDisabled() {
+			ClearCurrentChannelAffinityCache(c)
+		}
 		return nil, "", false
 	}
 
 	selectedGroup, ok := validateChannelAffinityHit(c, preferred, modelName, usingGroup)
 	if !ok {
-		DiscardChannelAffinityCacheForContext(c)
+		if !ShouldKeepChannelAffinityOnChannelDisabled() {
+			ClearCurrentChannelAffinityCache(c)
+		}
 		return nil, "", false
 	}
 
@@ -703,6 +707,38 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 		return false
 	}
 	return meta.SkipRetry
+}
+
+func ClearCurrentChannelAffinityCache(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok || cacheKey == "" {
+		return false
+	}
+
+	cache := getChannelAffinityCache()
+	deleted, err := cache.DeleteMany([]string{cacheKey})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete current failed: err=%v", err))
+		return false
+	}
+	c.Set(ginKeyChannelAffinitySkipRetry, false)
+	for _, ok := range deleted {
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func ShouldKeepChannelAffinityOnChannelDisabled() bool {
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil {
+		return false
+	}
+	return setting.KeepOnChannelDisabled
 }
 
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {
