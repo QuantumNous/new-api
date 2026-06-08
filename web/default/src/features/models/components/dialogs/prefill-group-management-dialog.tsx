@@ -409,8 +409,8 @@ export function PrefillGroupManagementDialog({
                                 {parsedItems.length > 6 && (
                                   <StatusBadge
                                     label={t('+{{count}} more', {
-                              count: parsedItems.length - 6,
-                            })}
+                                      count: parsedItems.length - 6,
+                                    })}
                                     variant='neutral'
                                     size='sm'
                                     copyable={false}

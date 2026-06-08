@@ -54,14 +54,16 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
-import { PAYMENT_TYPES } from '../../constants'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,
   getPaymentMethodName,
   formatTimestamp,
 } from '../../lib/billing'
-import { buildPaddleWalletCheckoutUrlWithOrder } from '../../lib/payment'
+import {
+  buildPaddleWalletCheckoutUrlWithOrder,
+  isPaddlePayment,
+} from '../../lib/payment'
 import type { TopupRecord } from '../../types'
 
 interface BillingHistoryDialogProps {
@@ -74,11 +76,9 @@ function isPendingPaddleRecord(record: TopupRecord): boolean {
     return false
   }
 
-  const paymentMethod = record.payment_method?.trim().toLowerCase()
-  const paymentProvider = record.payment_provider?.trim().toLowerCase()
   return (
-    paymentMethod === PAYMENT_TYPES.PADDLE ||
-    paymentProvider === PAYMENT_TYPES.PADDLE
+    isPaddlePayment(record.payment_method?.trim().toLowerCase() ?? '') ||
+    isPaddlePayment(record.payment_provider?.trim().toLowerCase() ?? '')
   )
 }
 
