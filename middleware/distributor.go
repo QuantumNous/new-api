@@ -125,8 +125,18 @@ func Distribute() func(c *gin.Context) {
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
 					}
-					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
-						service.ClearCurrentChannelAffinityCache(c)
+					if !affinityUsable {
+						// 亲和命中的渠道已被禁用时，按 fork 策略 fail-fast：不静默改路到其他渠道，
+						// 直接报错让用户联系管理员（与 controller/relay.go 重试逻辑使用的同一开关保持一致）。
+						if err == nil && preferred != nil && preferred.Status != common.ChannelStatusEnabled &&
+							service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
+							return
+						}
+						// 否则沿用上游行为：根据配置决定是否清除亲和粘性缓存，随后重新选路。
+						if !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+							service.ClearCurrentChannelAffinityCache(c)
+						}
 					}
 				}
 

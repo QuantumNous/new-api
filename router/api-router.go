@@ -185,7 +185,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
-		apiRouter.POST("/paddle/webhook", controller.PaddleWebhook)
+		apiRouter.POST("/paddle/webhook", anonymousRequestBodyLimit, controller.PaddleWebhook)
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
