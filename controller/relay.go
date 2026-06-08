@@ -339,6 +339,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}
+	if types.IsContextOverflowError(openaiErr) {
+		return false
+	}
 	if retryTimes <= 0 {
 		return false
 	}

@@ -77,6 +77,8 @@ const (
 	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
 	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
 	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
+	ErrorCodeContextTooLarge        ErrorCode = "context_too_large"
+	ErrorCodeContextLengthExceeded  ErrorCode = "context_length_exceeded"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -376,6 +378,25 @@ func IsSkipRetryError(err *NewAPIError) bool {
 	}
 
 	return err.skipRetry
+}
+
+// IsContextOverflowError reports client-side context limit errors from upstream.
+// Switching channels cannot fix oversized prompts, so these must not trigger retry.
+func IsContextOverflowError(err *NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	switch err.GetErrorCode() {
+	case ErrorCodeContextTooLarge, ErrorCodeContextLengthExceeded:
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "context_length_exceeded") ||
+		strings.Contains(msg, "context_too_large") ||
+		strings.Contains(msg, "context window") ||
+		strings.Contains(msg, "maximum context length") ||
+		strings.Contains(msg, "exceeds the context") ||
+		strings.Contains(msg, "input exceeds the context")
 }
 
 func ErrOptionWithSkipRetry() NewAPIErrorOptions {
