@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 	if err := db.AutoMigrate(
 		&Task{},
 		&User{},
+		&QuotaDebit{},
 		&Token{},
 		&Log{},
 		&Channel{},
@@ -58,6 +59,7 @@ func truncateTables(t *testing.T) {
 	t.Cleanup(func() {
 		DB.Exec("DELETE FROM tasks")
 		DB.Exec("DELETE FROM users")
+		DB.Exec("DELETE FROM quota_debits")
 		DB.Exec("DELETE FROM tokens")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")

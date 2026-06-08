@@ -1294,3 +1294,46 @@ func UpdateUserSetting(c *gin.Context) {
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
 }
+
+// DebitQuotaRequest is the body of POST /api/user/quota/debit.
+type DebitQuotaRequest struct {
+	UserId     int    `json:"user_id"`
+	Amount     int    `json:"amount"`
+	ExternalId string `json:"external_id"`
+}
+
+// DebitUserQuota atomically + idempotently debits a user's quota. Intended for
+// trusted service callers (e.g. taluna's quota→credits conversion). Admin-only.
+func DebitUserQuota(c *gin.Context) {
+	var req DebitQuotaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "code": "bad_request", "message": err.Error()})
+		return
+	}
+	if req.UserId <= 0 || req.Amount <= 0 || req.ExternalId == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "code": "bad_request", "message": "user_id, amount (>0) and external_id are required"})
+		return
+	}
+
+	res, err := model.DebitUserQuotaIdempotent(req.UserId, req.Amount, req.ExternalId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	if res.Code == "ok" {
+		adminInfo := map[string]interface{}{
+			"admin_id":       c.GetInt("id"),
+			"admin_username": c.GetString("username"),
+			"external_id":    req.ExternalId,
+		}
+		model.RecordLogWithAdminInfo(req.UserId, model.LogTypeManage,
+			fmt.Sprintf("服务端扣减用户额度 %s（external_id=%s）", logger.LogQuota(req.Amount), req.ExternalId), adminInfo)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": res.Code == "ok",
+		"code":    res.Code, // "ok" | "insufficient"
+		"data":    gin.H{"remaining_quota": res.RemainingQuota},
+	})
+}
