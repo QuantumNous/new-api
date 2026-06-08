@@ -1,0 +1,3 @@
+[submodule "privacy-filter"]
+	path = privacy-filter
+	url = https://github.com/funkpopo/privacy-filter.git
