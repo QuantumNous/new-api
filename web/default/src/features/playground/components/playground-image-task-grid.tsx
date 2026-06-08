@@ -107,6 +107,24 @@ interface ImagePreviewSelection {
   source: string
 }
 
+function ImageResultSlot({ children }: { children: React.ReactNode }) {
+  return (
+    <div className='flex aspect-square w-full items-center justify-center overflow-hidden rounded-md'>
+      {children}
+    </div>
+  )
+}
+
+function EmptyImageSlot() {
+  return (
+    <ImageResultSlot>
+      <div className='bg-muted text-muted-foreground flex size-full items-center justify-center'>
+        <ImageIcon className='size-8' />
+      </div>
+    </ImageResultSlot>
+  )
+}
+
 function ImagePreview({
   image,
   task,
@@ -123,11 +141,7 @@ function ImagePreview({
   const alt = t('Generated image {{index}}', { index: index + 1 })
 
   if (!source) {
-    return (
-      <div className='bg-muted text-muted-foreground flex aspect-square items-center justify-center rounded-md'>
-        <ImageIcon className='size-8' />
-      </div>
-    )
+    return <EmptyImageSlot />
   }
 
   return (
@@ -201,12 +215,16 @@ function TaskCard({
         {task.status === 'running' ? (
           <Skeleton className='aspect-square w-full rounded-md' />
         ) : task.status === 'error' || task.status === 'interrupted' ? (
-          <div className='border-border bg-muted/40 flex min-h-36 flex-col items-center justify-center rounded-md border border-dashed px-4 py-5 text-center'>
-            <AlertCircleIcon className='text-muted-foreground mb-2 size-7' />
-            <p className='text-muted-foreground line-clamp-3 text-xs leading-5'>
-              {task.error || t('Generation was interrupted')}
-            </p>
-          </div>
+          <ImageResultSlot>
+            <div className='border-border bg-muted/40 flex size-full flex-col items-center justify-center border border-dashed px-4 py-5 text-center'>
+              <AlertCircleIcon className='text-muted-foreground mb-2 size-7 shrink-0' />
+              <p className='text-muted-foreground line-clamp-4 max-w-full text-xs leading-5 break-words'>
+                {task.error || t('Generation was interrupted')}
+              </p>
+            </div>
+          </ImageResultSlot>
+        ) : images.length === 0 ? (
+          <EmptyImageSlot />
         ) : images.length === 1 ? (
           <ImagePreview
             image={images[0]}
@@ -227,12 +245,6 @@ function TaskCard({
             ))}
           </div>
         )}
-
-        {firstImage?.revised_prompt ? (
-          <p className='text-muted-foreground line-clamp-2 text-xs'>
-            {firstImage.revised_prompt}
-          </p>
-        ) : null}
       </CardContent>
 
       <CardFooter className='bg-muted/25 justify-between gap-2 border-t px-3 py-2'>
