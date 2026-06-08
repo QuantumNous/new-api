@@ -307,7 +307,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
               render={({ field }) => (
                 <SettingsSwitchItem>
                   <SettingsSwitchContent>
-                    <FormLabel>{t('Thinking Adapter')}</FormLabel>
+                    <FormLabel>{t('Thinking Suffix Adapter')}</FormLabel>
                     <FormDescription>
                       {t('Supports `-thinking`, `-thinking-')}
                       {'{{budget}}'}

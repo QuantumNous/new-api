@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
@@ -79,6 +80,22 @@ func TestStreamScannerHandler_NilInputs(t *testing.T) {
 
 	StreamScannerHandler(c, nil, info, func(data string, sr *StreamResult) {})
 	StreamScannerHandler(c, &http.Response{Body: io.NopCloser(strings.NewReader(""))}, info, nil)
+}
+
+func TestNewStreamScanner_AllowsLargeStreamLine(t *testing.T) {
+	oldBufferMB := constant.StreamScannerMaxBufferMB
+	constant.StreamScannerMaxBufferMB = 1
+	t.Cleanup(func() {
+		constant.StreamScannerMaxBufferMB = oldBufferMB
+	})
+
+	payload := strings.Repeat("x", 128<<10)
+	scanner := NewStreamScanner(strings.NewReader("data: " + payload + "\n"))
+	scanner.Split(bufio.ScanLines)
+
+	require.True(t, scanner.Scan())
+	assert.Equal(t, "data: "+payload, scanner.Text())
+	require.NoError(t, scanner.Err())
 }
 
 func TestStreamScannerHandler_EmptyBody(t *testing.T) {
@@ -625,8 +642,12 @@ func TestStreamScannerHandler_StreamStatus_PreInitialized(t *testing.T) {
 
 	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
 
+	// StreamScannerHandler 无条件新建 StreamStatus（见 stream_scanner.go），
+	// 以保证每次流式尝试只反映本次尝试的状态——这对重试场景是必要的，
+	// 否则上一次失败尝试的瞬时错误会泄漏进最终成功请求的日志。
+	// 因此预置的 StreamStatus 会被重置：EndReason 为本次的 Done，错误计数归零。
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
-	assert.Equal(t, 1, info.StreamStatus.TotalErrorCount())
+	assert.Equal(t, 0, info.StreamStatus.TotalErrorCount())
 }
 
 func TestStreamScannerHandler_PingInterleavesWithSlowUpstream(t *testing.T) {
