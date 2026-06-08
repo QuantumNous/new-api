@@ -2,7 +2,7 @@ import {
   Zap,
   Shield,
   Globe,
-  Code,
+  // Code,
   Gauge,
   DollarSign,
   Users,
@@ -109,32 +109,32 @@ export function Features(_props: FeaturesProps) {
         </div>
       ),
     },
-    {
-      id: 'developer',
-      num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Complete API documentation with multi-language SDK support'),
-      span: 'md:col-span-2',
-      icon: <Code className='size-4 text-amber-400' />,
-      visual: (
-        <div className='mt-4 flex items-center gap-3'>
-          <div className='flex -space-x-2'>
-            {['API', 'SDK', 'CLI', 'Docs'].map((n) => (
-              <div
-                key={n}
-                className='border-background from-muted to-muted/60 text-muted-foreground flex size-8 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
-              >
-                {n}
-              </div>
-            ))}
-          </div>
-          <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-            <Code className='size-3.5 text-blue-500' />
-            {t('OpenAI Compatible')}
-          </div>
-        </div>
-      ),
-    },
+    // {
+    //   id: 'developer',
+    //   num: '04',
+    //   title: t('Developer Friendly'),
+    //   desc: t('Complete API documentation with multi-language SDK support'),
+    //   span: 'md:col-span-2',
+    //   icon: <Code className='size-4 text-amber-400' />,
+    //   visual: (
+    //     <div className='mt-4 flex items-center gap-3'>
+    //       <div className='flex -space-x-2'>
+    //         {['API', 'SDK', 'CLI', 'Docs'].map((n) => (
+    //           <div
+    //             key={n}
+    //             className='border-background from-muted to-muted/60 text-muted-foreground flex size-8 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
+    //           >
+    //             {n}
+    //           </div>
+    //         ))}
+    //       </div>
+    //       <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
+    //         <Code className='size-3.5 text-blue-500' />
+    //         {t('OpenAI Compatible')}
+    //       </div>
+    //     </div>
+    //   ),
+    // },
   ]
 
   const additionalFeatures = [

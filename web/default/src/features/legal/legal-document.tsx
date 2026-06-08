@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { FileWarning } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+// import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
@@ -82,31 +82,31 @@ export function LegalDocument({
     )
   }
 
-  if (isUrl) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl py-12'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{title}</CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <p className='text-muted-foreground text-sm'>
-                {t(
-                  'The administrator configured an external link for this document.'
-                )}
-              </p>
-              <Button asChild>
-                <a href={rawContent} target='_blank' rel='noopener noreferrer'>
-                  {t('View document')}
-                </a>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </PublicLayout>
-    )
-  }
+  // if (isUrl) {
+  //   return (
+  //     <PublicLayout>
+  //       <div className='mx-auto max-w-2xl py-12'>
+  //         <Card>
+  //           <CardHeader>
+  //             <CardTitle>{title}</CardTitle>
+  //           </CardHeader>
+  //           <CardContent className='space-y-4'>
+  //             <p className='text-muted-foreground text-sm'>
+  //               {t(
+  //                 'The administrator configured an external link for this document.'
+  //               )}
+  //             </p>
+  //             <Button asChild>
+  //               <a href={rawContent} target='_blank' rel='noopener noreferrer'>
+  //                 {t('View document')}
+  //               </a>
+  //             </Button>
+  //           </CardContent>
+  //         </Card>
+  //       </div>
+  //     </PublicLayout>
+  //   )
+  // }
 
   return (
     <PublicLayout>

@@ -69,6 +69,8 @@ const sanitizeHtml = (html) => {
  * @param {string} emptyMessage - 空内容时的提示消息
  */
 const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
+  return null;
+  /* eslint-disable no-unreachable */
   const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);

@@ -123,7 +123,8 @@ export function PublicHeader(props: PublicHeaderProps) {
 
             {/* Desktop nav */}
             <div className='hidden items-center gap-0.5 sm:flex'>
-              {links.filter(link => t(link.title) !== '文档').map((link, i) => {
+              {links.map((link, i) => {
+              // {links.filter(link => t(link.title) !== '文档').map((link, i) => {
                 const isActive = pathname === link.href
                 if (link.external) {
                   return (

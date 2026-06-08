@@ -89,7 +89,7 @@ const FooterBar = () => {
                 </div>
               </div>
 
-              <div className='text-left'>
+              {/* <div className='text-left'>
                 <p className='!text-semi-color-text-0 font-semibold mb-5'>
                   {t('文档')}
                 </p>
@@ -119,7 +119,7 @@ const FooterBar = () => {
                     {t('API 文档')}
                   </a>
                 </div>
-              </div>
+              </div> */}
 
               <div className='text-left'>
                 <p className='!text-semi-color-text-0 font-semibold mb-5'>

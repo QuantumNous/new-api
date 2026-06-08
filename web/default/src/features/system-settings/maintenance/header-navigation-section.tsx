@@ -27,7 +27,7 @@ const headerNavSchema = z.object({
   console: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
-  docs: z.boolean(),
+  // docs: z.boolean(),
   about: z.boolean(),
 })
 
@@ -53,8 +53,8 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.pricing?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.pricing.requireAuth
       : Boolean(config.pricing.requireAuth),
-  docs:
-    config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
+  // docs:
+  //   config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
     config.about === undefined
       ? HEADER_NAV_DEFAULT.about
@@ -83,7 +83,7 @@ export function HeaderNavigationSection({
       ...config,
       home: values.home,
       console: values.console,
-      docs: values.docs,
+      // docs: values.docs,
       about: values.about,
       pricing: {
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
@@ -122,11 +122,11 @@ export function HeaderNavigationSection({
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
     },
-    {
-      key: 'docs',
-      title: t('Docs'),
-      description: t('Documentation or external knowledge base.'),
-    },
+    // {
+    //   key: 'docs',
+    //   title: t('Docs'),
+    //   description: t('Documentation or external knowledge base.'),
+    // },
     {
       key: 'about',
       title: t('About'),
