@@ -69,7 +69,7 @@ func TestBuildUserModelOptionsAddsGrokImageGenerationEndpointFromXAIChannel(t *t
 	require.NotContains(t, options[0].SupportedEndpointTypes, "openai-response")
 }
 
-func TestGetUserModelsWithEndpointTypesShowsGrokImageAsImageEndpoint(t *testing.T) {
+func TestGetUserModelsWithEndpointTypesShowsGrokImageFromOpenAICompatibleChannelAsImageEndpoint(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	model.InvalidatePricingCache()
 	require.NoError(t, db.Create(&model.User{
@@ -128,11 +128,11 @@ func TestNormalizeChannelTestEndpointUsesXAIImageGenerationForGrokImage(t *testi
 		normalizeChannelTestEndpoint(&model.Channel{Type: constant.ChannelTypeXai}, "grok-imagine-image-lite", ""),
 	)
 	require.Equal(t,
-		"",
+		"image-generation",
 		normalizeChannelTestEndpoint(&model.Channel{Type: constant.ChannelTypeOpenAI}, "grok-imagine-image-lite", ""),
 	)
 	require.Equal(t,
-		"",
+		"image-generation",
 		normalizeChannelTestEndpoint(&model.Channel{Type: constant.ChannelTypeOpenAI}, "grok-2-image-1212", ""),
 	)
 	require.Equal(t,

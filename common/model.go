@@ -1,10 +1,6 @@
 package common
 
-import (
-	"strings"
-
-	"github.com/QuantumNous/new-api/constant"
-)
+import "strings"
 
 var (
 	// OpenAIResponseOnlyModels is a list of models that are only available for OpenAI responses.
@@ -83,15 +79,12 @@ func IsChannelImageGenerationModel(channelType int, modelName string) bool {
 			return false
 		}
 	}
-	if IsXAIImageGenerationModel(modelName) {
-		return channelType == constant.ChannelTypeXai
-	}
 	for _, m := range ImageGenerationModels {
 		if matchesModelRule(modelName, m) {
 			return true
 		}
 	}
-	return false
+	return IsXAIImageGenerationModel(modelName)
 }
 
 func IsOpenAITextModel(modelName string) bool {

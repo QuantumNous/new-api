@@ -91,7 +91,7 @@ func TestImageGenerationEndpointRequiresChannelSpecificSupport(t *testing.T) {
 			name:        "grok imagine image on openai compatible channel",
 			channelType: constant.ChannelTypeOpenAI,
 			model:       "grok-imagine-image-lite",
-			want:        false,
+			want:        true,
 		},
 		{
 			name:        "grok imagine image on xai channel",
