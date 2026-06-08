@@ -3,11 +3,13 @@ package pollo
 import (
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -104,6 +106,89 @@ func TestCreditToOtherRatio_MatchesSettlement(t *testing.T) {
 	// sanity: 15 credit * $0.06 = $0.90 = 450000 quota
 	if math.Abs(settlement-450000) > 1 {
 		t.Fatalf("settlement=%.0f, want 450000 ($0.90)", settlement)
+	}
+}
+
+// P1: AdjustBillingOnComplete returns the absolute authoritative quota from the billing
+// snapshot (round(TotalTokens)*ModelRatio*GroupRatio) and a positive value, so the service
+// settler uses it (priority #1) and skips the OtherRatios-multiplying token path.
+func TestAdjustBillingOnComplete(t *testing.T) {
+	a := &TaskAdaptor{}
+	task := &model.Task{}
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelRatio: 300, GroupRatio: 1,
+		OtherRatios: map[string]float64{"pollo_credit": 0.00176}, // must be ignored here
+	}
+	// TotalTokens = round(4.4*100) = 440  ->  440*300*1 = 132000
+	got := a.AdjustBillingOnComplete(task, &relaycommon.TaskInfo{TotalTokens: 440})
+	if got != 132000 {
+		t.Fatalf("AdjustBillingOnComplete = %d, want 132000 (no OtherRatios applied)", got)
+	}
+	// matches the precharge formula (TestCreditToOtherRatio_MatchesSettlement) -> delta 0
+
+	// not ratio mode / no billing context -> 0 (let framework keep the hold)
+	if v := a.AdjustBillingOnComplete(&model.Task{}, &relaycommon.TaskInfo{TotalTokens: 440}); v != 0 {
+		t.Fatalf("no BillingContext should yield 0, got %d", v)
+	}
+	if v := a.AdjustBillingOnComplete(task, &relaycommon.TaskInfo{TotalTokens: 0}); v != 0 {
+		t.Fatalf("zero tokens should yield 0, got %d", v)
+	}
+}
+
+// P3: an error envelope ({"code":"NOT_FOUND"}) must fail, not be treated as queued.
+func TestParseTaskResult_ErrorEnvelope(t *testing.T) {
+	body := []byte(`{"message":"NOT_FOUND_ERROR","code":"NOT_FOUND"}`)
+	a := &TaskAdaptor{}
+	info, err := a.ParseTaskResult(body)
+	if err != nil {
+		t.Fatalf("ParseTaskResult failed: %v", err)
+	}
+	if info.Status != model.TaskStatusFailure {
+		t.Fatalf("status = %q, want failure (error envelope must not be queued)", info.Status)
+	}
+	if info.Reason == "" {
+		t.Fatalf("expected a failure reason from the error envelope")
+	}
+}
+
+// P2: with model mapping (origin seedance-2-0 -> upstream seedance-2-0-ref), the URL and
+// the request body must agree on the ref shape (ref endpoint + duration, not length).
+func TestModelMapping_URLAndBodyAgree(t *testing.T) {
+	info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+	info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0-ref"}
+
+	ep, ok := resolveEndpoint(info)
+	if !ok || !ep.isRef {
+		t.Fatalf("resolveEndpoint should pick the ref endpoint, got %+v ok=%v", ep, ok)
+	}
+
+	a := &TaskAdaptor{baseURL: defaultBaseURL}
+	url, err := a.BuildRequestURL(info)
+	if err != nil {
+		t.Fatalf("BuildRequestURL: %v", err)
+	}
+	if !strings.Contains(url, "/ref2video") {
+		t.Fatalf("URL = %q, want a /ref2video endpoint", url)
+	}
+
+	req := &relaycommon.TaskSubmitReq{
+		Prompt: "x", Duration: 5,
+		Metadata: map[string]interface{}{
+			"refs": []map[string]interface{}{{"type": "image", "name": "c", "image": "https://x/y.jpg", "order": 1}},
+		},
+	}
+	body, err := a.convertToRequestPayload(req, info)
+	if err != nil {
+		t.Fatalf("convertToRequestPayload: %v", err)
+	}
+	if body.Input.Duration != 5 {
+		t.Fatalf("ref body must set duration, got %d", body.Input.Duration)
+	}
+	if body.Input.Length != 0 {
+		t.Fatalf("ref body must NOT set length, got %d", body.Input.Length)
+	}
+	if len(body.Input.Refs) == 0 {
+		t.Fatalf("ref body must carry refs")
 	}
 }
 

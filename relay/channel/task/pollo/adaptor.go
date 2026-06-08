@@ -81,6 +81,20 @@ var modelEndpoints = map[string]endpoint{
 	"seedance-2-0-fast-ref": {path: "bytedance/seedance-2-0-fast/ref2video", isRef: true},
 }
 
+// resolveEndpoint picks the Pollo endpoint for a request, preferring the mapped
+// upstream model name (model mapping may rewrite it) and falling back to the origin
+// model name. Used consistently by URL building, payload shaping, validation and
+// billing so they never disagree on the request shape (ref vs non-ref).
+func resolveEndpoint(info *relaycommon.RelayInfo) (endpoint, bool) {
+	if ep, ok := modelEndpoints[info.UpstreamModelName]; ok {
+		return ep, true
+	}
+	if ep, ok := modelEndpoints[info.OriginModelName]; ok {
+		return ep, true
+	}
+	return endpoint{}, false
+}
+
 // ============================
 // Request / Response structures
 // ============================
@@ -178,6 +192,13 @@ func (r *polloStatusResponse) credit() float64 {
 	return r.Data.Credit
 }
 
+// failed reports whether the status envelope carries a non-success code, e.g.
+// {"code":"NOT_FOUND"} / {"code":"UNAUTHORIZED"} for an invalid/expired upstream
+// task or key. Such envelopes have no generations and must NOT be treated as queued.
+func (r *polloStatusResponse) failed() bool {
+	return r.Code != "" && r.Code != codeSuccess
+}
+
 // ============================
 // Adaptor implementation
 // ============================
@@ -199,7 +220,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
 		return err
 	}
-	if _, ok := modelEndpoints[info.OriginModelName]; !ok {
+	if _, ok := resolveEndpoint(info); !ok {
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("unsupported pollo model: %s", info.OriginModelName),
 			"invalid_model", http.StatusBadRequest)
@@ -208,13 +229,9 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	ep, ok := modelEndpoints[info.UpstreamModelName]
+	ep, ok := resolveEndpoint(info)
 	if !ok {
-		// fall back to origin model name (mapping is keyed on the seedance model id)
-		ep, ok = modelEndpoints[info.OriginModelName]
-		if !ok {
-			return "", fmt.Errorf("unsupported pollo model: %s", info.UpstreamModelName)
-		}
+		return "", fmt.Errorf("unsupported pollo model: %s", info.UpstreamModelName)
 	}
 	return fmt.Sprintf("%s/generation/%s", strings.TrimRight(a.baseURL, "/"), ep.path), nil
 }
@@ -307,8 +324,18 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		return nil, errors.Wrap(err, "failed to unmarshal response body")
 	}
 
-	gens := resp.gens()
 	taskInfo := &relaycommon.TaskInfo{}
+
+	// Error envelope (e.g. {"code":"NOT_FOUND"}) — invalid/expired upstream task or key.
+	// Must fail (and refund) instead of being mistaken for an empty/queued result.
+	if resp.failed() {
+		taskInfo.Status = model.TaskStatusFailure
+		taskInfo.Progress = taskcommon.ProgressComplete
+		taskInfo.Reason = taskcommon.DefaultString(resp.Message, resp.Code)
+		return taskInfo, nil
+	}
+
+	gens := resp.gens()
 	if len(gens) == 0 {
 		// No generation yet — treat as still queued.
 		taskInfo.Status = model.TaskStatusQueued
@@ -374,9 +401,9 @@ func (a *TaskAdaptor) GetChannelName() string {
 // ============================
 
 // EstimateBilling pre-charges the user with the precise credit quote from Pollo's free
-// /validate endpoint. If validate is unavailable it falls back to a rough local estimate;
-// either way the authoritative final charge is settled from the actual status credit at
-// completion (see ParseTaskResult + controller.UpdateVideoSingleTask).
+// /validate endpoint. If validate is unavailable it falls back to a rough local estimate.
+// The authoritative final charge is settled at completion by AdjustBillingOnComplete
+// (service.settleTaskBillingOnComplete, priority #1).
 //
 // Requires the model to be configured with a ModelRatio (按量计费). In fixed-price mode
 // there is no per-credit rate to settle against, so we leave the framework default hold.
@@ -400,6 +427,29 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 	return map[string]float64{otherRatioKey: ratio}
+}
+
+// AdjustBillingOnComplete returns the authoritative final quota for a completed task,
+// computed from the real Pollo credit (carried in taskResult.TotalTokens = round(credit*scale))
+// and the submit-time billing snapshot: quota = round(credit*scale) * ModelRatio * groupRatio.
+//
+// Returning a positive value makes service.settleTaskBillingOnComplete use this exact
+// amount (priority #1) and SKIP the token-recalc fallback. That fallback would otherwise
+// re-multiply the persisted OtherRatios — including the precharge-only "pollo_credit"
+// ratio — and double-count it (charging credit*scale*modelRatio*group*pollo_credit).
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if task == nil || taskResult == nil || taskResult.TotalTokens <= 0 {
+		return 0
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ModelRatio <= 0 {
+		return 0 // not ratio-mode credit billing; let the framework keep the pre-charge
+	}
+	groupRatio := bc.GroupRatio
+	if groupRatio <= 0 {
+		groupRatio = 1
+	}
+	return int(math.Round(float64(taskResult.TotalTokens) * bc.ModelRatio * groupRatio))
 }
 
 // creditToOtherRatio turns an absolute credit charge into the multiplier the framework
@@ -469,7 +519,7 @@ func (a *TaskAdaptor) fetchValidateCredit(c *gin.Context, info *relaycommon.Rela
 //	bytedance/seedance-2-0           -> {base}/generation/bytedance/seedance-2-0/validate
 //	bytedance/seedance-2-0/ref2video -> {base}/generation/bytedance/seedance-2-0/validate
 func (a *TaskAdaptor) validateURL(info *relaycommon.RelayInfo) (string, bool) {
-	ep, ok := modelEndpoints[info.OriginModelName]
+	ep, ok := resolveEndpoint(info)
 	if !ok {
 		return "", false
 	}
@@ -511,7 +561,10 @@ func (a *TaskAdaptor) estimateCreditLocal(c *gin.Context, info *relaycommon.Rela
 // ============================
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*polloRequest, error) {
-	ep := modelEndpoints[info.OriginModelName]
+	// Use the same resolved endpoint as the URL so the request body shape (ref vs
+	// non-ref: duration+refs vs length+image) always matches the endpoint we POST to,
+	// even when model mapping rewrites the upstream model.
+	ep, _ := resolveEndpoint(info)
 
 	input := polloInput{
 		Prompt:     req.Prompt,
