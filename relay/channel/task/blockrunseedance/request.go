@@ -21,7 +21,11 @@ type createRequest struct {
 	RealFaceAssetID string `json:"real_face_asset_id,omitempty"`
 	DurationSeconds *int   `json:"duration_seconds,omitempty"`
 	Resolution      string `json:"resolution,omitempty"`
+	AspectRatio     string `json:"aspect_ratio,omitempty"`
 	GenerateAudio   *bool  `json:"generate_audio,omitempty"`
+	Seed            *int   `json:"seed,omitempty"`
+	Watermark       *bool  `json:"watermark,omitempty"`
+	ReturnLastFrame *bool  `json:"return_last_frame,omitempty"`
 }
 
 // blockrunExtensions are non-official seedance fields a client may set to drive
@@ -39,7 +43,11 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 		Model:           upstreamModelID,
 		DurationSeconds: seed.Duration,
 		Resolution:      seed.Resolution,
+		AspectRatio:     seed.Ratio, // inbound seedance "ratio" -> upstream "aspect_ratio"
 		GenerateAudio:   seed.GenerateAudio,
+		Seed:            seed.Seed,
+		Watermark:       seed.Watermark,
+		ReturnLastFrame: seed.ReturnLastFrame,
 		RealFaceAssetID: ext.RealFaceAssetID,
 	}
 	// Image-to-video: first image_url wins (the gateway takes a single seed image).
@@ -54,8 +62,11 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 var supportedResolutions = map[string]bool{
 	"360p":  true,
 	"480p":  true,
+	"540p":  true,
 	"720p":  true,
 	"1080p": true,
+	"1k":    true,
+	"2k":    true,
 	"4k":    true,
 }
 
@@ -66,7 +77,7 @@ func validateResolution(r string) error {
 	if r == "" || supportedResolutions[strings.ToLower(r)] {
 		return nil
 	}
-	return fmt.Errorf("unsupported resolution %q; supported: 360p / 480p / 720p / 1080p / 4k", r)
+	return fmt.Errorf("unsupported resolution %q; supported: 360p / 480p / 540p / 720p / 1080p / 1K / 2K / 4K", r)
 }
 
 // validateSeedanceValues fails fast on value-domain violations so an upstream
@@ -112,18 +123,6 @@ func droppedSeedanceFields(r *dto.SeedanceVideoRequest) []string {
 	}
 	if r.Frames != nil {
 		dropped = append(dropped, "frames")
-	}
-	if r.Seed != nil {
-		dropped = append(dropped, "seed")
-	}
-	if r.Watermark != nil {
-		dropped = append(dropped, "watermark")
-	}
-	if r.Ratio != "" {
-		dropped = append(dropped, "ratio")
-	}
-	if r.ReturnLastFrame != nil {
-		dropped = append(dropped, "return_last_frame")
 	}
 	if r.CallbackURL != "" {
 		dropped = append(dropped, "callback_url")
