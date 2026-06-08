@@ -31,6 +31,7 @@ ENV GOEXPERIMENT=greenteagc
 WORKDIR /build
 
 ADD go.mod go.sum ./
+COPY privacy-filter/go.mod privacy-filter/go.sum ./privacy-filter/
 RUN go mod download
 
 COPY . .
