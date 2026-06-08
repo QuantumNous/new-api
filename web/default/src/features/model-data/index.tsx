@@ -777,7 +777,7 @@ export function ModelDataPage() {
                   模型价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  实际价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                  采购价&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
                   用户价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
