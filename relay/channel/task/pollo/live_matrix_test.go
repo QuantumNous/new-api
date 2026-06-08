@@ -195,3 +195,69 @@ func TestLiveParamMatrix(t *testing.T) {
 	}
 	t.Logf("matrix summary: %d passed, %d failed", pass, fail)
 }
+
+// liveValidate drives the new billing path's network piece: a.validateURL +
+// a.convertToRequestPayload + parse polloValidateResponse. /validate is FREE (no charge).
+func liveValidate(t *testing.T, a *TaskAdaptor, modelName string, req relaycommon.TaskSubmitReq) (float64, int) {
+	t.Helper()
+	info := infoFor(modelName)
+	url, ok := a.validateURL(info)
+	if !ok {
+		t.Fatalf("[%s] no validate url", modelName)
+	}
+	body, err := a.convertToRequestPayload(&req, info)
+	if err != nil {
+		t.Fatalf("[%s] convert: %v", modelName, err)
+	}
+	raw, _ := common.Marshal(body)
+
+	httpReq, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(raw))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", a.apiKey)
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		t.Fatalf("[%s] validate POST: %v", modelName, err)
+	}
+	b := readAll(t, resp)
+	var vr polloValidateResponse
+	_ = common.Unmarshal(b, &vr)
+	t.Logf("[%s] validate %s -> HTTP %d body=%s", modelName, url, resp.StatusCode, b)
+	return vr.credit(), resp.StatusCode
+}
+
+// TestLiveValidate confirms the free /validate endpoint returns a usable credit quote
+// for every model family — this is what EstimateBilling relies on for the pre-charge.
+func TestLiveValidate(t *testing.T) {
+	key := os.Getenv("POLLO_API_KEY")
+	if key == "" {
+		t.Skip("POLLO_API_KEY not set; skipping live test")
+	}
+	a := &TaskAdaptor{apiKey: key, baseURL: defaultBaseURL, ChannelType: 58}
+
+	cases := []struct {
+		name  string
+		model string
+		req   relaycommon.TaskSubmitReq
+	}{
+		{"std-480p-5s", "seedance-2-0", relaycommon.TaskSubmitReq{
+			Prompt: "a cat", Duration: 5,
+			Metadata: map[string]interface{}{"resolution": "480p", "aspectRatio": "16:9"}}},
+		{"fast-720p-5s", "seedance-2-0-fast", relaycommon.TaskSubmitReq{
+			Prompt: "a cat", Duration: 5,
+			Metadata: map[string]interface{}{"resolution": "720p", "aspectRatio": "16:9"}}},
+		{"ref-720p-5s", "seedance-2-0-ref", relaycommon.TaskSubmitReq{
+			Prompt: "a cat", Duration: 5,
+			Metadata: map[string]interface{}{"resolution": "720p", "aspectRatio": "16:9",
+				"refs": []map[string]interface{}{{"type": "image", "name": "c", "image": testImage, "order": 1}}}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			credit, status := liveValidate(t, a, tc.model, tc.req)
+			if status != http.StatusOK || credit <= 0 {
+				t.Errorf("validate failed: HTTP %d, credit=%v", status, credit)
+				return
+			}
+			t.Logf("✅ %s validate credit = %v", tc.model, credit)
+		})
+	}
+}

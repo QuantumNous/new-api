@@ -1,6 +1,7 @@
 package pollo
 
 import (
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 )
 
 func TestMain(m *testing.M) {
@@ -67,6 +69,52 @@ func TestParseTaskResult_Success(t *testing.T) {
 	}
 	if info.Url != "https://cdn.pollo.ai/out.mp4" {
 		t.Fatalf("url = %q", info.Url)
+	}
+	// credit 4.4 -> tokens ceil(4.4*100) = 440 for the generic billing pipeline
+	if info.TotalTokens != 440 || info.CompletionTokens != 440 {
+		t.Fatalf("tokens = (total=%d, completion=%d), want 440/440", info.TotalTokens, info.CompletionTokens)
+	}
+}
+
+// creditToOtherRatio must make the pre-charge equal the eventual token settlement:
+//
+//	base * ratio  ==  ceil(credit*scale) * ModelRatio * groupRatio
+func TestCreditToOtherRatio_MatchesSettlement(t *testing.T) {
+	const (
+		quotaPerUnit = 500000.0
+		modelRatio   = 300.0 // $0.06/credit, no markup: 0.06 * 500000 / 100
+		groupRatio   = 1.0
+		credit       = 15.0
+	)
+	// ratio-mode base quota = modelRatio/2 * QuotaPerUnit * groupRatio
+	base := int(modelRatio / 2 * quotaPerUnit * groupRatio)
+	pd := types.PriceData{
+		Quota:          base,
+		ModelRatio:     modelRatio,
+		GroupRatioInfo: types.GroupRatioInfo{GroupRatio: groupRatio},
+	}
+
+	ratio := creditToOtherRatio(credit, pd)
+	preCharge := float64(base) * ratio
+	settlement := math.Ceil(credit*creditTokenScale) * modelRatio * groupRatio
+
+	if math.Abs(preCharge-settlement) > 1 {
+		t.Fatalf("preCharge=%.0f settlement=%.0f (ratio=%g)", preCharge, settlement, ratio)
+	}
+	// sanity: 15 credit * $0.06 = $0.90 = 450000 quota
+	if math.Abs(settlement-450000) > 1 {
+		t.Fatalf("settlement=%.0f, want 450000 ($0.90)", settlement)
+	}
+}
+
+func TestParseValidateResponse(t *testing.T) {
+	body := []byte(`{"code":"SUCCESS","data":{"cost":15,"totalCost":15}}`)
+	var r polloValidateResponse
+	if err := common.Unmarshal(body, &r); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if r.credit() != 15 {
+		t.Fatalf("credit() = %v, want 15", r.credit())
 	}
 }
 

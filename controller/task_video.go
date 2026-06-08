@@ -154,7 +154,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 			// 获取模型名称
 			var taskData map[string]interface{}
 			if err := json.Unmarshal(task.Data, &taskData); err == nil {
-				if modelName, ok := taskData["model"].(string); ok && modelName != "" {
+				// 优先从上游响应体取 model；上游未回传时（如 Pollo）回退到提交时记录的原始模型名
+				modelName, _ := taskData["model"].(string)
+				if modelName == "" {
+					modelName = task.Properties.OriginModelName
+				}
+				if modelName != "" {
 					// 获取模型价格和倍率
 					modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
 					// 只有配置了倍率(非固定价格)时才按 token 重新计费
