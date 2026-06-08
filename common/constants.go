@@ -113,6 +113,9 @@ var DebugEnabled bool
 var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
+var LogRetentionDays = 30
+
+const MaxLogRetentionDays = 3650
 
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
