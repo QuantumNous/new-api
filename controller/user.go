@@ -235,7 +235,13 @@ func Register(c *gin.Context) {
 func GetAllUsers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	kycStatus, _ := strconv.Atoi(c.Query("kyc_status"))
-	users, total, err := model.GetAllUsers(pageInfo, kycStatus)
+	// -1 = no filter. Unlike kyc_status, status 0 (未认证) is a real filter value,
+	// so distinguish "param absent" (-1) from an explicit "0".
+	enterpriseStatus := -1
+	if v := c.Query("enterprise_status"); v != "" {
+		enterpriseStatus, _ = strconv.Atoi(v)
+	}
+	users, total, err := model.GetAllUsers(pageInfo, kycStatus, enterpriseStatus)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -252,8 +258,13 @@ func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
 	kycStatus, _ := strconv.Atoi(c.Query("kyc_status"))
+	// -1 = no filter (status 0 = 未认证 is a real value, distinct from "absent").
+	enterpriseStatus := -1
+	if v := c.Query("enterprise_status"); v != "" {
+		enterpriseStatus, _ = strconv.Atoi(v)
+	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), kycStatus)
+	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), kycStatus, enterpriseStatus)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -418,6 +429,7 @@ func GetSelf(c *gin.Context) {
 		"sidebar_modules":   userSetting.SidebarModules,
 		"permissions":       permissions,
 		"kyc_status":        user.KycStatus,
+		"enterprise_status": user.EnterpriseStatus,
 	}
 
 	c.JSON(http.StatusOK, gin.H{

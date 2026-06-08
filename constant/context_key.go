@@ -70,4 +70,9 @@ const (
 	// KYC related keys — written by TokenAuth → userCache.WriteContext (relay chain only)
 	ContextKeyUserRole      ContextKey = "user_role"
 	ContextKeyUserKYCStatus ContextKey = "user_kyc_status"
+
+	// Enterprise certification status — written alongside the KYC keys by
+	// userCache.WriteContext (relay chain). Used by KYCRequired to exempt
+	// enterprise-certified users from the forced KYC gate.
+	ContextKeyUserEnterpriseStatus ContextKey = "user_enterprise_status"
 )

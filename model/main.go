@@ -282,6 +282,8 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&UserKYC{},
 		&UserKYCImage{},
+		&UserEnterprise{},
+		&UserEnterpriseImage{},
 		&PerfMetric{},
 	)
 	if err != nil {
@@ -333,6 +335,8 @@ func migrateDBFast() error {
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&UserKYC{}, "UserKYC"},
 		{&UserKYCImage{}, "UserKYCImage"},
+		{&UserEnterprise{}, "UserEnterprise"},
+		{&UserEnterpriseImage{}, "UserEnterpriseImage"},
 		{&PerfMetric{}, "PerfMetric"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大

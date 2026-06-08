@@ -36,8 +36,12 @@ func KYCRequired() gin.HandlerFunc {
 			return
 		}
 
+		// Either a passed KYC OR a passed enterprise certification satisfies the
+		// forced-verification gate. An enterprise that completed B2B/legal-entity
+		// verification needn't also do individual KYC.
 		kycStatus := readUserKYCStatus(c)
-		if kycStatus != model.KYCStatusApproved {
+		entStatus := readUserEnterpriseStatus(c)
+		if kycStatus != model.KYCStatusApproved && entStatus != model.EnterpriseStatusApproved {
 			abortWithOpenAiMessage(c, http.StatusForbidden,
 				common.TranslateMessage(c, i18n.MsgKycRequired),
 				types.ErrorCodeKYCRequired)
@@ -78,4 +82,24 @@ func readUserKYCStatus(c *gin.Context) int {
 		return 0
 	}
 	return userCache.KycStatus
+}
+
+// readUserEnterpriseStatus mirrors readUserKYCStatus for the enterprise
+// certification status: prefer the TokenAuth-written context key, fall back to
+// a userCache lookup on the UserAuth path.
+func readUserEnterpriseStatus(c *gin.Context) int {
+	if v, ok := c.Get(string(constant.ContextKeyUserEnterpriseStatus)); ok {
+		if status, ok := v.(int); ok {
+			return status
+		}
+	}
+	userId := c.GetInt("id")
+	if userId <= 0 {
+		return 0
+	}
+	userCache, err := model.GetUserCache(userId)
+	if err != nil {
+		return 0
+	}
+	return userCache.EnterpriseStatus
 }

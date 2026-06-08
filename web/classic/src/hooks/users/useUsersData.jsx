@@ -48,6 +48,7 @@ export const useUsersData = () => {
     searchKeyword: '',
     searchGroup: '',
     searchKycStatus: '',
+    searchEnterpriseStatus: '',
   };
 
   // Form API reference
@@ -60,6 +61,7 @@ export const useUsersData = () => {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
       searchKycStatus: formValues.searchKycStatus || '',
+      searchEnterpriseStatus: formValues.searchEnterpriseStatus || '',
     };
   };
 
@@ -74,9 +76,10 @@ export const useUsersData = () => {
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
     setLoading(true);
-    const { searchKycStatus } = getFormValues();
+    const { searchKycStatus, searchEnterpriseStatus } = getFormValues();
     const kycParam = searchKycStatus !== '' ? `&kyc_status=${searchKycStatus}` : '';
-    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}${kycParam}`);
+    const entParam = searchEnterpriseStatus !== '' ? `&enterprise_status=${searchEnterpriseStatus}` : '';
+    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}${kycParam}${entParam}`);
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -96,24 +99,37 @@ export const useUsersData = () => {
     searchKeyword = null,
     searchGroup = null,
     searchKycStatus = null,
+    searchEnterpriseStatus = null,
   ) => {
     // If no parameters passed, get values from form
-    if (searchKeyword === null || searchGroup === null || searchKycStatus === null) {
+    if (
+      searchKeyword === null ||
+      searchGroup === null ||
+      searchKycStatus === null ||
+      searchEnterpriseStatus === null
+    ) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
       searchKycStatus = formValues.searchKycStatus;
+      searchEnterpriseStatus = formValues.searchEnterpriseStatus;
     }
 
-    if (searchKeyword === '' && searchGroup === '' && searchKycStatus === '') {
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchKycStatus === '' &&
+      searchEnterpriseStatus === ''
+    ) {
       // If keyword is blank, load files instead
       await loadUsers(startIdx, pageSize);
       return;
     }
     setSearching(true);
     const kycParam = searchKycStatus !== '' ? `&kyc_status=${searchKycStatus}` : '';
+    const entParam = searchEnterpriseStatus !== '' ? `&enterprise_status=${searchEnterpriseStatus}` : '';
     const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}${kycParam}&p=${startIdx}&page_size=${pageSize}`,
+      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}${kycParam}${entParam}&p=${startIdx}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -198,11 +214,11 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup, searchKycStatus } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchKycStatus === '') {
+    const { searchKeyword, searchGroup, searchKycStatus, searchEnterpriseStatus } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchKycStatus === '' && searchEnterpriseStatus === '') {
       loadUsers(page, pageSize).then();
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup, searchKycStatus).then();
+      searchUsers(page, pageSize, searchKeyword, searchGroup, searchKycStatus, searchEnterpriseStatus).then();
     }
   };
 
@@ -233,11 +249,11 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup, searchKycStatus } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchKycStatus === '') {
+    const { searchKeyword, searchGroup, searchKycStatus, searchEnterpriseStatus } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchKycStatus === '' && searchEnterpriseStatus === '') {
       await loadUsers(page, pageSize);
     } else {
-      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchKycStatus);
+      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchKycStatus, searchEnterpriseStatus);
     }
   };
 
