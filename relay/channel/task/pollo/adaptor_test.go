@@ -133,6 +133,17 @@ func TestAdjustBillingOnComplete(t *testing.T) {
 	if v := a.AdjustBillingOnComplete(task, &relaycommon.TaskInfo{TotalTokens: 0}); v != 0 {
 		t.Fatalf("zero tokens should yield 0, got %d", v)
 	}
+
+	// free group (GroupRatio==0): pre-charge was 0, so settlement must also be 0 —
+	// the zero ratio must NOT be coerced to 1 (regression for P2).
+	freeTask := &model.Task{}
+	freeTask.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelRatio: 300, GroupRatio: 0,
+		OtherRatios: map[string]float64{"pollo_credit": 0.00176},
+	}
+	if v := a.AdjustBillingOnComplete(freeTask, &relaycommon.TaskInfo{TotalTokens: 440}); v != 0 {
+		t.Fatalf("free group (GroupRatio=0) must settle to 0, got %d", v)
+	}
 }
 
 // P3: an error envelope ({"code":"NOT_FOUND"}) must fail, not be treated as queued.

@@ -450,9 +450,13 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *rela
 	if bc == nil || bc.ModelRatio <= 0 {
 		return 0 // not ratio-mode credit billing; let the framework keep the pre-charge
 	}
+	// Preserve an explicit zero group ratio: a task submitted from a free group
+	// (ratio 0) was pre-charged 0, so it must settle to 0 — never coerce 0 -> 1,
+	// which would charge the user for a free task. A negative ratio is an invalid
+	// snapshot, so we bail and let the framework keep the pre-charge.
 	groupRatio := bc.GroupRatio
-	if groupRatio <= 0 {
-		groupRatio = 1
+	if groupRatio < 0 {
+		return 0
 	}
 	return int(math.Round(float64(taskResult.TotalTokens) * bc.ModelRatio * groupRatio))
 }
