@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness Engineering · AI 时代的开发与发布 · flatkey-newapi 实战</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --border:#2a3340;
+    --txt:#e6edf3; --muted:#9aa7b4; --accent:#58a6ff; --accent2:#7ee787;
+    --warn:#f0b429; --danger:#ff7b72; --purple:#bc8cff; --pink:#ff9bce;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.7;font-size:16px;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{display:flex;max-width:1280px;margin:0 auto;gap:32px;padding:0 24px}
+  /* sidebar */
+  nav.toc{
+    position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;
+    width:230px;flex-shrink:0;padding:32px 0 64px;font-size:14px;
+  }
+  nav.toc .brand{font-weight:700;font-size:15px;color:var(--accent2);margin-bottom:4px}
+  nav.toc .sub{color:var(--muted);font-size:12px;margin-bottom:24px}
+  nav.toc a{display:block;color:var(--muted);padding:7px 12px;border-left:2px solid transparent;border-radius:0 6px 6px 0}
+  nav.toc a:hover{color:var(--txt);background:var(--panel);text-decoration:none}
+  nav.toc a.lv2{padding-left:26px;font-size:13px}
+  main{flex:1;min-width:0;padding:48px 0 120px;max-width:920px}
+  /* hero */
+  .hero{
+    background:radial-gradient(120% 140% at 0% 0%,#1d2a44 0%,#161b22 55%);
+    border:1px solid var(--border);border-radius:18px;padding:40px 44px;margin-bottom:48px;
+  }
+  .hero .kicker{color:var(--accent2);font-weight:600;letter-spacing:.12em;font-size:13px;text-transform:uppercase}
+  .hero h1{font-size:34px;margin:14px 0 12px;line-height:1.25}
+  .hero p{color:var(--muted);margin:0;max-width:680px}
+  .hero .meta{margin-top:24px;display:flex;gap:10px;flex-wrap:wrap}
+  .pill{background:#0d1117;border:1px solid var(--border);border-radius:999px;padding:5px 14px;font-size:13px;color:var(--muted)}
+  .pill b{color:var(--txt)}
+  /* sections */
+  section{margin-bottom:64px;scroll-margin-top:24px}
+  h2{font-size:25px;margin:0 0 6px;padding-bottom:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:var(--accent);color:#08111f;font-size:16px;font-weight:700;flex-shrink:0}
+  h3{font-size:18px;margin:34px 0 10px;color:var(--txt)}
+  h4{font-size:15px;margin:22px 0 8px;color:var(--accent2)}
+  p{margin:12px 0}
+  .lead{color:var(--muted);font-size:16px;margin-top:14px}
+  ul,ol{padding-left:22px}
+  li{margin:7px 0}
+  code{font-family:var(--mono);font-size:.88em;background:#0a0e14;border:1px solid var(--border);border-radius:5px;padding:1.5px 6px;color:var(--pink)}
+  pre{background:#0a0e14;border:1px solid var(--border);border-radius:12px;padding:18px 20px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:#c9d4e0}
+  pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+  .cmt{color:#5c6b7a}
+  .kw{color:var(--purple)}
+  .str{color:var(--accent2)}
+  /* cards */
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:880px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+  .card h4{margin-top:0}
+  .card .big{font-size:26px;font-weight:700;color:var(--accent)}
+  .card .lbl{color:var(--muted);font-size:13px}
+  /* callouts */
+  .note{border-left:4px solid var(--accent);background:#11202e;border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .warn{border-left:4px solid var(--warn);background:#251f10;border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .good{border-left:4px solid var(--accent2);background:#10241a;border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .danger{border-left:4px solid var(--danger);background:#2a1614;border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .note b,.warn b,.good b,.danger b{color:var(--txt)}
+  .tag{display:inline-block;font-size:11px;font-family:var(--mono);padding:2px 8px;border-radius:5px;margin-right:6px;vertical-align:middle}
+  .tag.auto{background:#163b2a;color:var(--accent2)}
+  .tag.manual{background:#3b2e10;color:var(--warn)}
+  /* pipeline */
+  .pipe{display:flex;flex-direction:column;gap:0;margin:24px 0}
+  .step{display:flex;gap:16px;align-items:flex-start;position:relative;padding-bottom:22px}
+  .step:not(:last-child)::before{content:"";position:absolute;left:17px;top:36px;bottom:-4px;width:2px;background:var(--border)}
+  .step .dot{flex-shrink:0;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--panel2);border:2px solid var(--border);z-index:1}
+  .step.a .dot{border-color:var(--accent2);color:var(--accent2)}
+  .step.m .dot{border-color:var(--warn);color:var(--warn)}
+  .step .body{flex:1;padding-top:4px}
+  .step .body .t{font-weight:600}
+  .step .body .d{color:var(--muted);font-size:14px}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--accent2);font-weight:600;background:var(--panel)}
+  td code{font-size:12px}
+  .ascii{font-family:var(--mono);font-size:12px;line-height:1.45;color:#9fb4c9;white-space:pre;overflow-x:auto;background:#0a0e14;border:1px solid var(--border);border-radius:12px;padding:18px}
+  .foot{margin-top:80px;padding-top:24px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+  .quote{font-size:18px;color:var(--txt);border-left:4px solid var(--purple);padding:6px 0 6px 20px;margin:24px 0;font-style:italic}
+  .memcard{background:linear-gradient(180deg,#161b22,#12161d);border:1px solid var(--border);border-radius:12px;padding:16px 18px;font-size:14px}
+  .memcard .mh{font-family:var(--mono);font-size:12px;color:var(--purple);margin-bottom:6px}
+  .memcard .mt{font-weight:600;margin-bottom:6px}
+  .memcard .md{color:var(--muted)}
+  /* harness layered stack */
+  .harness{display:flex;flex-direction:column;gap:10px;margin:22px 0}
+  .layer{display:flex;align-items:stretch;gap:0;border:1px solid var(--border);border-radius:11px;overflow:hidden;background:var(--panel)}
+  .layer .lk{flex-shrink:0;width:148px;display:flex;flex-direction:column;justify-content:center;padding:14px 16px;background:var(--panel2);border-right:1px solid var(--border)}
+  .layer .lk .en{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+  .layer .lk .cn{font-weight:700;font-size:15px;margin-top:2px}
+  .layer .lv{flex:1;padding:13px 18px;display:flex;flex-direction:column;justify-content:center;font-size:14px;color:var(--muted)}
+  .layer .lv b{color:var(--txt)}
+  .layer.c1 .lk{border-left:4px solid var(--accent)}
+  .layer.c2 .lk{border-left:4px solid var(--accent2)}
+  .layer.c3 .lk{border-left:4px solid var(--warn)}
+  .layer.c4 .lk{border-left:4px solid var(--purple)}
+  .layer.c5 .lk{border-left:4px solid var(--pink)}
+  @media(max-width:880px){.layer{flex-direction:column}.layer .lk{width:auto;border-right:none;border-bottom:1px solid var(--border)}}
+  /* one-liner ops showcase */
+  .say{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:16px 0}
+  .say .you{padding:12px 18px;background:#11202e;border-bottom:1px solid var(--border);font-size:15px}
+  .say .you b{color:var(--accent)}
+  .say .ai{padding:14px 18px}
+  .say .ai .lead2{color:var(--accent2);font-size:13px;font-weight:600;margin-bottom:8px}
+  .say pre{margin:0 0 10px}
+  .say .why{color:var(--muted);font-size:13px;margin:0}
+  .say .why b{color:var(--warn)}
+  @media(max-width:880px){.wrap{flex-direction:column;padding:0 16px}nav.toc{display:none}main{padding-top:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <div class="brand">AI 开发 × 发布</div>
+  <div class="sub">flatkey-newapi 实战 · 内部分享</div>
+  <a href="#intro">引言 · Harness 五层模型</a>
+  <a href="#flow">① 发布：AI 可驱动的流水线</a>
+  <a href="#gcp">② 基础设施：AI 可操作的云</a>
+  <a href="#ai">③ AI 驱动的高效开发</a>
+  <a href="#ai-claude" class="lv2">总入口：根 CLAUDE.md</a>
+  <a href="#ai-map" class="lv2">代码地图 · 规则</a>
+  <a href="#ai-agent" class="lv2">多智能体协作</a>
+  <a href="#ai-skill" class="lv2">业务有文档 · 操作有封装</a>
+  <a href="#map">◎ 业务地图 = 新人加速器</a>
+  <a href="#map-what" class="lv2">两层地图</a>
+  <a href="#map-day1" class="lv2">新人 Day1：0→产出</a>
+  <a href="#map-cli" class="lv2">CLI 让 AI 直接动手</a>
+  <a href="#map-oneliner" class="lv2">一句话运维实战</a>
+  <a href="#mem">④ 项目记忆的价值</a>
+  <a href="#mem-what" class="lv2">记忆长什么样</a>
+  <a href="#mem-onboard" class="lv2">新同事如何受益</a>
+  <a href="#mem-flatkey" class="lv2">第二案例 · flatkey</a>
+  <a href="#takeaway">收束 · Harness 全景</a>
+</nav>
+
+<main>
+
+  <div class="hero">
+    <div class="kicker">Harness Engineering · Internal Tech Share · 2026</div>
+    <h1>不是把活交给 AI，<br>而是为 AI 工程化它的工作环境</h1>
+    <p>本文以生产项目 <b>flatkey-newapi</b>（聚合 40+ 上游 AI 供应商的 API 网关，Go + React，跑在 GCP Cloud Run）为样本，论证一个观点：<b>AI 时代真正要做的工程，是 harness engineering</b>——围绕 agent 把"能读什么、能做什么、被什么约束、靠什么验证、如何沉淀"全部工程化。开发-发布提速、新人当天产出、运维一句话搞定，都是这套 harness 的<b>结果</b>，不是模型本身的魔法。</p>
+    <div class="meta">
+      <span class="pill"><b>Thesis</b> 模型是商品，harness 是护城河</span>
+      <span class="pill"><b>GCP</b> Cloud Run · Cloud SQL · Redis</span>
+      <span class="pill"><b>CI/CD</b> GitHub Actions + WIF</span>
+      <span class="pill"><b>月成本</b> ≈ $215–245</span>
+    </div>
+  </div>
+
+  <section id="intro">
+    <h2><span class="n">★</span>引言：把这一切叫做 Harness Engineering</h2>
+    <p class="quote">同一个模型，给它一个空仓库，它只能瞎猜；给它一套工程化的 harness，它能当天产出合规代码、一句话完成生产运维。<strong>差距不在模型，在 harness。</strong></p>
+    <p>"Harness"是 agent 运行所处的整个脚手架。<b>Harness engineering 就是有意识地去建造它</b>——而不是反复调 prompt。一套好的 harness 有五层，本文接下来每一节，都是在填其中一层：</p>
+
+    <div class="harness">
+      <div class="layer c1"><div class="lk"><div class="en">PERCEIVE</div><div class="cn">① 感知层</div></div><div class="lv"><b>让 agent 读得懂</b>：以根 <code>CLAUDE.md</code> 为总入口/目录 → 业务地图（GitNexus 4.2 万符号）、45 份按需加载的 AGENTS.md、核心业务 md、项目记忆 &nbsp;→&nbsp; §③ §◎ §④</div></div>
+      <div class="layer c2"><div class="lk"><div class="en">ACT</div><div class="cn">② 行动层</div></div><div class="lv"><b>让 agent 做得了</b>：CLI（<code>gcloud</code>/<code>gh</code>/<code>terraform</code>）、封装成 skill 的能力、CI workflow &nbsp;→&nbsp; §① §◎</div></div>
+      <div class="layer c3"><div class="lk"><div class="en">CONSTRAIN</div><div class="cn">③ 约束层</div></div><div class="lv"><b>让 agent 不犯错</b>：CLAUDE.md 硬规则、改前影响分析、写审分离、反 Slop 闸门、发布人工 Approve &nbsp;→&nbsp; §① §③</div></div>
+      <div class="layer c4"><div class="lk"><div class="en">VERIFY</div><div class="cn">④ 反馈层</div></div><div class="lv"><b>让 agent 知道对没对</b>：<code>go test</code>/<code>bun build</code>、健康检查 <code>/api/status</code>、金丝雀、verifier 证据 &nbsp;→&nbsp; §①</div></div>
+      <div class="layer c5"><div class="lk"><div class="en">REMEMBER</div><div class="cn">⑤ 记忆层</div></div><div class="lv"><b>让经验产生复利</b>：项目记忆文件、运维 playbook、踩坑写回 &nbsp;→&nbsp; §④</div></div>
+    </div>
+    <p class="lead">下面四节是这五层的展开；最后在 <a href="#takeaway">收束</a> 处把它们合回这张 harness 全景图。</p>
+  </section>
+
+  <!-- ===================== 1 ===================== -->
+  <section id="flow">
+    <h2><span class="n">1</span>发布：一条 AI 能亲手驱动的流水线</h2>
+    <p class="lead">这一节的重点不是流程多严谨，而是：<b>从开 PR 到上线再到回滚，每一步 AI 都能用 <code>gh</code> / <code>gcloud</code> 命令亲手驱动或查询</b>。人只在一个地方出现——发布前点一下 Approve。其余全自动、用户无感。</p>
+
+    <div class="pipe">
+      <div class="step a"><div class="dot">1</div><div class="body"><div class="t">合入 <code>main</code> <span class="tag auto">AUTO</span></div><div class="d">AI 开 PR → 过反-Slop 质量闸门 → 合并；之后整条链路自动接管</div></div></div>
+      <div class="step a"><div class="dot">2</div><div class="body"><div class="t">自动构建镜像 → Artifact Registry <span class="tag auto">AUTO</span></div><div class="d">WIF 短期令牌，无长期密钥；多 tag 可精确回溯</div></div></div>
+      <div class="step m"><div class="dot">★</div><div class="body"><div class="t">人工 Approve —— <b>唯一的人工闸门</b> <span class="tag manual">MANUAL</span></div><div class="d">挂在 GitHub <code>production</code> 环境，邮件通知 reviewer，网页点一下放行</div></div></div>
+      <div class="step a"><div class="dot">4</div><div class="body"><div class="t">新 revision 不接流量 → 健康检查 → 金丝雀 10% → 100% <span class="tag auto">AUTO</span></div><div class="d">老版本持续服务，出问题在 10% 阶段就发现，全程用户无感</div></div></div>
+    </div>
+
+    <div class="good"><b>这条链路 AI 全程命令行可驱动（人只保留 Approve）：</b>
+      <ul style="margin:8px 0 0">
+        <li><b>提交：</b><code>gh pr create</code> 开 PR；<code>gh run view --log-failed</code> 查 CI 为什么挂</li>
+        <li><b>发布：</b>合 main 即自动；<code>gh workflow run gcp-deploy</code> 也能手动触发（可指定已有镜像 tag 跳过构建）</li>
+        <li><b>确认：</b><code>gcloud run services describe</code> 看当前 revision 与流量分配，验证是否真生效</li>
+        <li><b>回滚：</b><code>gcloud run services update-traffic ...=100</code> 约 10 秒切回任意旧版（GitHub 上还有 GCP Rollback workflow 留痕）</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== 2 ===================== -->
+  <section id="gcp">
+    <h2><span class="n">2</span>基础设施：一朵 AI 能直接操作的云</h2>
+    <p class="lead">整套生产环境（Cloud Run + Cloud SQL + Redis + HTTPS LB + Secret Manager）<b>全部用 Terraform 代码描述</b>，一条 <code>terraform apply</code> 可从零重建；CI 用 WIF 短期令牌，<b>0 把密钥落地</b>。但分享的重点不是这套架构有多标准，而是：<b>这朵云 AI 能直接查、直接调、直接建</b>——不用点控制台、不用记资源名。</p>
+
+    <div class="grid g3">
+      <div class="card"><div class="lbl">月成本</div><div class="big">$215–245</div><div class="lbl">Run + SQL + Redis + LB</div></div>
+      <div class="card"><div class="lbl">机密泄露面</div><div class="big">0 keys</div><div class="lbl">WIF 短期令牌，无 SA JSON 落地</div></div>
+      <div class="card"><div class="lbl">环境可重建/回滚</div><div class="big">IaC</div><div class="lbl">Terraform 一键起，旧版永远回得去</div></div>
+    </div>
+
+    <div class="good"><b>AI 通过 CLI 直接操作这朵云：</b>
+      <ul style="margin:8px 0 0">
+        <li><b>查：</b><code>gcloud run services describe</code> 看流量 · <code>gcloud logging read</code> 拉日志 · <code>gcloud sql instances describe</code> 看库状态</li>
+        <li><b>调：</b><code>update --min-instances=N</code> 扩容 · <code>update-traffic</code> 切流量/回滚 · <code>--update-env-vars</code> 改配置</li>
+        <li><b>建：</b><code>terraform plan/apply</code> 加域名 / 升 HA / 加 secret，全部 IaC 走 PR review</li>
+      </ul>
+      新人不需要懂全部资源、不需要点 GCP 控制台——说一句话，AI 用 CLI 替你操作（实战见 <a href="#map-oneliner">§◎ 一句话运维</a>）。
+    </div>
+
+    <div class="warn"><b>而且 AI 操作时会自动规避坑（因为写进了项目记忆）：</b>Cloud Run 流量是 revision-pinned 的——<code>gcloud</code> 改完配置必须手动 <code>update-traffic</code> 否则不生效；部署 SA 最小权限导致 <code>terraform apply</code> 暂走不通 CI。这些都已沉淀为记忆，下一个人/agent 不会重踩（见 <a href="#mem">§④</a>）。</div>
+  </section>
+
+  <!-- ===================== 3 ===================== -->
+  <section id="ai">
+    <h2><span class="n">3</span>基于 AI 如何做到快速开发、发布上线</h2>
+    <p class="lead">AI 不是"写几行代码"那么简单——真正的杠杆在于<b>把整个仓库变成 AI 能精确导航、能安全改动、能自我验证的环境</b>。而这一切的起点，是一个文件。</p>
+
+    <h3 id="ai-claude">⓪ 一切的总入口：根 <code>CLAUDE.md</code></h3>
+    <p>会话启动时，<b>只有根 <code>CLAUDE.md</code> / <code>AGENTS.md</code> 会自动进入上下文</b>，其余 45 份子文档一个都不加载。所以这唯一被"常驻"的文件，决定了 agent 和新人对整个项目的<b>第一印象和导航能力</b>。它的设计哲学很关键：<b>它是一份"目录 / 路由表"，不是一本"全文手册"</b>。</p>
+
+    <div class="ascii">CLAUDE.md  ← 唯一常驻上下文（总入口 / 目录）
+│
+├─ 规则 Rule 0–8（硬约束，常驻）
+│     Rule 6 ─→ 读 pkg/billingexpr/expr.md      （计费表达式，按需）
+│     Rule 7 ─→ 读 deploy/gcp/docs/OPERATIONS.md （GCP 运维，按需）
+│     Rule 8 ─→ 读 relay/channel/task/AGENTS.md  （seedance SOP，按需）
+│
+└─ 模块级文档索引（45 份 AGENTS.md，全部"按需才读"）
+      controller/  service/  model/  router/  middleware/
+      relay/  relay/channel/  relay/channel/task/  …
+      setting/*  pkg/*  dto/  types/  oauth/  i18n/  web/*
+                    ▲
+        改哪个模块，才去 Read 哪一份 —— 不一次性全读</div>
+
+    <p>CLAUDE.md 里把这条"按需加载"明确写成了给 AI 的阅读规则：</p>
+    <div class="note" style="font-size:14px">
+      <b>禁止</b>一次性把全部 <code>AGENTS.md</code> 读入上下文（浪费 token）；<br>
+      <b>必须</b>在「准备改某模块代码前 / 需要了解其内部约定 / 跨模块协作 / 用户提问指向该目录」时，<b>才主动 Read 对应那一份</b>；<br>
+      <b>可省略</b>：若 Rule 1–8 已覆盖（如纯 JSON / 跨 DB / Bun 问题），不必再读子文件。
+    </div>
+
+    <div class="good"><b>为什么"目录式入口"是 harness 的精髓：</b>它让常驻上下文<b>极小且稳定</b>（一份索引 + 一批硬规则），同时让全部知识<b>可达且精确</b>（每条规则、每个模块都标好了"去哪读"）。新人 / agent 不必先吞下整个仓库，而是<b>读一个文件就拿到全局地图 + 行为准则</b>，再顺着指针即时加载需要的那一块。这就是感知层（Perceive）的路由器——<b>用最少的常驻 token，撬动最大的知识可达性</b>。</div>
+
+    <h3 id="ai-map">① 它索引的下一层：分层代码地图 + 显式规则</h3>
+    <p>仓库为每个主要模块维护一份 <code>AGENTS.md</code>（30+ 份），记录该目录的职责、关键文件、内部约定、测试方式。约定是<b>按需加载</b>——不一次性塞进上下文浪费 token，改哪个模块就读哪份。根 <code>CLAUDE.md</code> 还固化了一批硬规则：</p>
+    <table>
+      <tr><th>规则</th><th>内容</th><th>为什么</th></tr>
+      <tr><td>Rule 1</td><td>JSON 必须走 <code>common.Marshal/Unmarshal</code></td><td>一致性 + 未来可换更快的 JSON 库</td></tr>
+      <tr><td>Rule 2</td><td>SQLite / MySQL / PostgreSQL 三库同时兼容</td><td>用 GORM 抽象，禁单库专属语法</td></tr>
+      <tr><td>Rule 5</td><td>relay 请求 DTO 可选字段用指针 + omitempty</td><td>否则零值 <code>0/false</code> 会被静默丢弃</td></tr>
+      <tr><td>Rule 8</td><td>新 seedance 视频渠道照 SOP 走</td><td>统一入参契约 + 白标合规（详见 §4）</td></tr>
+    </table>
+    <div class="note">这些规则让 AI 和新人<b>第一次提交就符合规范</b>，而不是 review 时被打回。规则即护栏。</div>
+
+    <h3 id="ai-agent">② 多智能体协作 + 代码图谱 + 自我验证</h3>
+    <ul>
+      <li><b>代码图谱（GitNexus）：</b>4 万+ 符号、13 万+ 关系建索引。改任何函数前先跑影响分析（blast radius），HIGH/CRITICAL 风险会预警——<b>改之前就知道会牵动谁</b>，而不是上线后才发现。</li>
+      <li><b>专职 agent 分工：</b>探索、规划、执行、审查、验证分别由不同 agent 承担，关键约定是<b>"写"和"审"分属不同上下文</b>——不自我背书，由独立的 reviewer/verifier 把关。</li>
+      <li><b>证据优先：</b>声称"完成"前必须有验证证据（测试通过、健康检查 200）。</li>
+    </ul>
+    <div class="good"><b>真实战果：</b>在一次"对接 BlockRun seedance 渠道"的极限 review 中，AI 审查抓到一个隐蔽 bug——<code>relay_task.go</code> 在调 <code>DoResponse</code> 前就拦截了所有非 200 响应，导致上游返回 <b>202 Accepted</b> 的异步渠道<b>端到端不可用</b>，而且每次提交都白白扣费。修复方案（在 <code>DoRequest</code> 里把 202 归一成 200）当场沉淀为项目记忆 <code>task-adaptor-202-gate</code>，下一个接异步渠道的人直接受益。</div>
+
+    <h3>③ 把"发布"也交给机器</h3>
+    <p>§1 的整条流水线意味着：AI/开发者写完代码、本地验证、合 main，剩下构建-健康检查-金丝雀-放量全自动。人只在两处出现：<b>PR review 背书</b> 和 <b>一次发布 Approve</b>。开发到上线的周期被压到<b>天级甚至小时级</b>。</p>
+
+    <h3 id="ai-skill">④ 核心业务"有文档"，关键操作"被封装"</h3>
+    <p>效率的另一半来自两层资产化：<b>核心业务都配了一份"动手前必读"的 md 文档</b>，<b>高频/高危操作被封装成可重复执行的单元</b>（skill / workflow / playbook）。AI 和新人不靠口口相传，照着调用即可。</p>
+
+    <h4>核心业务 = 一份 md + 一条硬规则</h4>
+    <p>根 <code>CLAUDE.md</code> 把"读文档"写成了强制规则，每条规则直接指向一份核心业务文档：</p>
+    <table>
+      <tr><th>核心业务</th><th>必读文档</th><th>硬规则</th></tr>
+      <tr><td>计费表达式 / 动态定价</td><td><code>pkg/billingexpr/expr.md</code></td><td>Rule 6：动表达式系统前必读，讲清语言、架构、token 归一、版本化</td></tr>
+      <tr><td>GCP 基础设施操作</td><td><code>deploy/gcp/docs/OPERATIONS.md</code></td><td>Rule 7：跑任何 terraform/gcloud 前必读（state 位置、双认证、流量陷阱…）</td></tr>
+      <tr><td>新增 seedance 视频渠道</td><td><code>relay/channel/task/AGENTS.md</code> SOP + <code>docs/api/seedance-video-api.html</code></td><td>Rule 8：照 SOP 与 kuaizi 样板做，保证契约统一 + 白标合规</td></tr>
+    </table>
+    <div class="note">全仓库 <b>30+ 份 <code>AGENTS.md</code></b> 构成分层代码地图，外加 <code>expr.md</code> / 白标 API HTML / 三份 GCP 手册等专题文档——核心业务<b>没有一处"只在某人脑子里"</b>。</div>
+
+    <h4>关键操作 = 可调用的封装单元</h4>
+    <ul>
+      <li><b>代码智能封装成 skill：</b>GitNexus 把"探索架构 / 影响分析 / 调试 / 重构 / 重命名"封装成 6 个可直接调用的 skill（<code>gitnexus-exploring</code>、<code>gitnexus-impact-analysis</code>、<code>gitnexus-debugging</code>、<code>gitnexus-refactoring</code>…）。新人不用学一套工具，说"评估改这个函数的影响"即可触发。</li>
+      <li><b>发布/回滚封装成 workflow：</b><code>gcp-deploy.yml</code> / <code>gcp-rollback.yml</code> 就是"部署"和"回滚"两个操作的封装——参数化（指定 image_tag / revision）、可重复、带审批与审计，等价于一个"部署 skill"。</li>
+      <li><b>运维封装成 playbook：</b>轮换密钥、加域名、扩容、排障，全部在 <code>DEPLOYMENT.md</code> / <code>OPERATIONS.md</code> 里写成可照抄的步骤序列。</li>
+    </ul>
+    <div class="good"><b>"文档化 + 封装化"的复利：</b>业务有 md，新人知道"为什么这么设计"；操作有封装，新人不需要懂全部细节也能<b>安全地执行</b>。两者叠加，AI 能自动调用、新人能照单执行——这正是"快"的底层原因。</div>
+  </section>
+
+  <!-- ===================== business map ===================== -->
+  <section id="map">
+    <h2><span class="n">◎</span>业务地图：新人接手 + AI = 当天就能产出</h2>
+    <p class="lead">前面三节的能力最终都汇聚到一件事上——<b>业务地图</b>。它是让"陌生人当天写出符合规范的真实改动"成为可能的底座：AI 靠它精确定位，新人靠它跳过"摸几周代码"的阶段。</p>
+
+    <h3 id="map-what">两层地图，互为表里</h3>
+    <div class="grid g2">
+      <div class="card"><h4>① 结构地图 · GitNexus 代码图谱</h4><div class="lbl">把整个仓库建成可查询的知识图：函数/类/方法之间谁调谁、一个请求从入口到落库经过哪些步骤、改一个符号会牵动谁。机器可读、可做影响分析。</div></div>
+      <div class="card"><h4>② 语义地图 · 45 份 AGENTS.md</h4><div class="lbl">每个模块一份"人话说明书"：这个目录干什么、关键文件、内部约定、典型模式、怎么测。按需加载，不浪费上下文。</div></div>
+    </div>
+    <div class="grid g3" style="margin-top:16px">
+      <div class="card"><div class="lbl">已索引符号</div><div class="big">42,213</div><div class="lbl">函数 / 类 / 方法</div></div>
+      <div class="card"><div class="lbl">调用关系</div><div class="big">135,027</div><div class="lbl">谁依赖谁，可算 blast radius</div></div>
+      <div class="card"><div class="lbl">执行流</div><div class="big">300</div><div class="lbl">端到端业务流程，可逐步追踪</div></div>
+    </div>
+    <div class="note"><b>"地图"不是文档堆，而是导航系统：</b>问"视频任务渠道怎么走的"，直接返回按流程分组、按相关度排序的结果，而不用你 grep 几千个文件；要改某函数，先返回它的上游调用者、所属执行流、风险等级。</div>
+
+    <h3 id="map-day1">新人 Day 1：从 0 到产出一个真实改动</h3>
+    <p>以"接入一个新的 seedance 视频渠道"为例——一个对仓库零认知的新人，配合 AI 和业务地图，路径是这样的：</p>
+    <div class="pipe">
+      <div class="step a"><div class="dot">1</div><div class="body"><div class="t">问地图，不读代码</div><div class="d"><code>gitnexus_query("video task channel")</code> → 定位到视频任务的执行流和关键文件，几秒钟拿到"该看哪里"</div></div></div>
+      <div class="step a"><div class="dot">2</div><div class="body"><div class="t">读语义地图拿范式</div><div class="d">打开 <code>relay/channel/task/AGENTS.md</code> 的 SOP + 参考实现 <code>kuaizi/</code>——知道"只写私有映射、不改入参契约、必须白标"</div></div></div>
+      <div class="step a"><div class="dot">3</div><div class="body"><div class="t">改之前先算影响</div><div class="d"><code>gitnexus_impact({target, direction:"upstream"})</code> → 看清 blast radius，HIGH/CRITICAL 会预警，避免误伤</div></div></div>
+      <div class="step a"><div class="dot">4</div><div class="body"><div class="t">AI 抄样板写映射</div><div class="d">照 kuaizi 写 <code>build&lt;Channel&gt;CreateRequest</code> 映射 + 取值校验 + 注册，符合规则一次过</div></div></div>
+      <div class="step a"><div class="dot">5</div><div class="body"><div class="t">提交即上线</div><div class="d">PR → 反 Slop 守门 → 合 main → 自动 build → Approve → 金丝雀放量（见 §1）</div></div></div>
+    </div>
+    <div class="good"><b>结果：</b>新人不需要先"读懂整个系统"，只需要"在地图上找到自己那一块"。理解范围从"全仓库"收敛到"一个模块 + 一条执行流"，配合 AI 当天就能产出合规代码。</div>
+
+    <h3 id="map-cli">地图之外：CLI 让 AI 直接动手</h3>
+    <p>光看得懂还不够——业务地图解决"读"，<b>CLI 工具解决"做"</b>。AI 不只在编辑器里改代码，还能通过命令行直接操作云与仓库，把"查问题→改→验证→发布"连成闭环：</p>
+    <table>
+      <tr><th>CLI</th><th>AI 拿它做什么</th><th>例子</th></tr>
+      <tr><td><code>gcloud</code></td><td>查/操作 GCP：看活跃 revision、读 Cloud Run / SQL 日志、切流量回滚、改 env、查证书状态</td><td><code>gcloud run services describe</code> 看流量分配；<code>gcloud logging read</code> 定位 502；<code>update-traffic</code> 回滚</td></tr>
+      <tr><td><code>gh</code></td><td>查/操作 GitHub：看 PR 与 CI 状态、读失败日志、触发 workflow、查 run 历史</td><td><code>gh run view &lt;id&gt; --log-failed</code> 看构建为何挂；<code>gh run list</code> 查发布历史</td></tr>
+      <tr><td><code>terraform</code></td><td>基础设施变更：<code>plan</code> 看 diff、<code>apply</code> 落地（state 在 GCS）</td><td>加域名 / 升 HA / 加 secret，全部 IaC 走 PR review</td></tr>
+      <tr><td><code>bun</code> · <code>go</code></td><td>本地构建/测试/i18n 同步，产出验证证据</td><td><code>bun run build</code>、<code>go test</code>、<code>bun run i18n:sync</code></td></tr>
+    </table>
+    <div class="note"><b>读（地图）+ 做（CLI）+ 沉淀（记忆）三件套：</b>AI 用 GitNexus 看懂系统、用 <code>gcloud</code>/<code>gh</code> 直接排障与发布、把新发现写回项目记忆。一个排障到修复的回合，可以全程在对话里闭环完成——这正是"快"从感觉变成机制的地方。</div>
+    <div class="warn"><b>边界仍在人手里：</b>能用 CLI 直接操作生产，不等于放任。发布仍卡 <code>production</code> 人工 Approve、改生产前先看清影响、不可逆操作先确认——CLI 放大的是效率，不是越权。</div>
+
+    <h3 id="map-oneliner">一句话运维：你说人话，AI 跑对命令</h3>
+    <p>最能体现"记忆 + CLI"威力的，是日常运维。<b>你不需要记任何 gcloud 命令，也不需要知道有哪些坑</b>——因为项目记忆和手册里已经写好了。你说一句自然语言，AI 自动翻成正确的命令、还会主动补上那些"不看记忆就会漏"的隐性步骤。</p>
+
+    <div class="say">
+      <div class="you"><b>你：</b>查一下线上 flatkey-newapi 为什么有点 502</div>
+      <div class="ai">
+        <div class="lead2">AI 自动执行 ▾（依据 DEPLOYMENT.md 故障排查章节）</div>
+<pre><code>gcloud logging read <span class="str">"resource.type=cloud_run_revision AND \
+  resource.labels.service_name=newapi"</span> \
+  --limit=50 --order=desc</code></pre>
+        <p class="why">不用你提供 project / region / 服务名 / 过滤语法——<b>记忆里都有</b>，AI 直接拼好查询。</p>
+      </div>
+    </div>
+
+    <div class="say">
+      <div class="you"><b>你：</b>高峰快到了，把线上实例数先提到 5</div>
+      <div class="ai">
+        <div class="lead2">AI 自动执行 ▾（两步，关键在第二步）</div>
+<pre><code>gcloud run services update newapi --region=us-west1 --min-instances=5
+<span class="cmt"># ↓ 因为记忆 cloud-run-traffic-revision-pinned，AI 主动补这一步</span>
+gcloud run services update-traffic newapi --region=us-west1 \
+  --to-revisions=<span class="str">&lt;新建的-revision-name&gt;=100</span></code></pre>
+        <p class="why"><b>这就是记忆的价值：</b>不看记忆的人改完 <code>--min-instances</code> 就以为完事了——可 Cloud Run 流量是 revision-pinned 的，新 revision 不会自动接流量，扩容根本没生效。AI 因为记着这条坑，<b>自动补上 update-traffic</b>。</p>
+      </div>
+    </div>
+
+    <div class="say">
+      <div class="you"><b>你：</b>刚发的版本有问题，回滚到上一个</div>
+      <div class="ai">
+        <div class="lead2">AI 自动执行 ▾（约 10 秒生效）</div>
+<pre><code>gcloud run revisions list --service=newapi --region=us-west1 --limit=5
+gcloud run services update-traffic newapi --region=us-west1 \
+  --to-revisions=<span class="str">&lt;上一个-revision&gt;=100</span></code></pre>
+        <p class="why">先列出历史 revision 确认目标，再切流量——步骤顺序也来自手册，不会切错。</p>
+      </div>
+    </div>
+
+    <div class="good"><b>从"要记一堆命令"到"说一句话"：</b>查日志、扩缩容、看流量分配、回滚、查证书状态、轮换密钥……这些过去需要专人记忆、容易出错的运维操作，现在<b>沉淀在记忆与手册里 → AI 读取 → CLI 执行</b>。新人不必先成为 GCP 专家，也能安全地运维生产——而且 AI 比人更不会漏掉那些隐性步骤。</div>
+  </section>
+
+  <!-- ===================== 4 ===================== -->
+  <section id="mem">
+    <h2><span class="n">4</span>项目记忆的重要性：让新同事"几小时上手"</h2>
+    <p class="lead">代码告诉你"系统长什么样"，但很多关键知识<b>不在代码里</b>——为什么这么设计、踩过哪些坑、上线流程的隐性约定、某个渠道的对接范式。这些就是<b>项目记忆</b>。它们以两种形态沉淀：仓库里的 <code>AGENTS.md</code> / <code>docs/</code>，以及 AI 的持久化记忆文件。</p>
+
+    <h3 id="mem-what">记忆长什么样：四条真实记忆</h3>
+    <div class="grid g2">
+      <div class="memcard"><div class="mh">project · seedance-channel-onboarding-sop</div><div class="mt">新增 seedance 视频渠道 SOP</div><div class="md">对客户端只暴露一种通用入参（官方 <code>content[]</code> 格式），每个渠道只写自己的私有映射函数 + 白标。<b>kuaizi 是首个样板</b>，后续所有同类渠道照此抄——这就是"一次对接，约束后续全部"。</div></div>
+      <div class="memcard"><div class="mh">project · task-adaptor-202-gate</div><div class="mt">异步渠道的 202 闸门陷阱</div><div class="md">上游返回 202 的渠道会被 <code>relay_task.go</code> 当失败杀掉。任何新异步 TaskAdaptor 必须在 <code>DoRequest</code> 把 202 归一成 200。<b>一次踩坑，全员免疫。</b></div></div>
+      <div class="memcard"><div class="mh">reference · cloud-run-traffic-revision-pinned</div><div class="mt">流量是 revision-pinned 的</div><div class="md">gcloud 改完配置会建新 revision 但<b>不自动接流量</b>，必须手动 <code>update-traffic</code>。否则 <code>describe</code> 显示新值、实际老版本在跑——极易误判。</div></div>
+      <div class="memcard"><div class="mh">project · gcp-cloudrun-env-var-sources</div><div class="mt">环境变量有两个来源</div><div class="md">把 env 写进 Terraform 并合 main <b>并不会生效</b>——普通发布只推 <code>PADDLE_*</code> 那组、不跑 apply。改 env 要按"立即生效/永久留底/发布自动带上"三种目的选路径。</div></div>
+    </div>
+    <p>每条记忆都带 <b>Why</b>（为什么重要）和 <b>How to apply</b>（下次怎么用），并用 <code>[[双链]]</code> 互相关联，构成一张可检索的知识网。</p>
+
+    <h3 id="mem-onboard">为什么这对新同事是降维打击</h3>
+    <table>
+      <tr><th>场景</th><th>没有项目记忆</th><th>有项目记忆</th></tr>
+      <tr><td>接一个新视频渠道</td><td>读几千行 relay 代码，猜入参该怎么设计，可能发明出不一致的格式</td><td>读 SOP + 抄 kuaizi，半天搞定，天然白标合规</td></tr>
+      <tr><td>改 Cloud Run 一个开关</td><td>改了 TF 合 main，以为生效，其实没上线，排查半天</td><td>记忆直接告诉你走 gcloud + update-traffic</td></tr>
+      <tr><td>发布一个版本</td><td>不知道卡审批、不知道金丝雀、不敢点</td><td>照 DEPLOYMENT.md 三步走，回滚也有一条命令</td></tr>
+      <tr><td>线上 502 排查</td><td>从零摸日志命令、不知道健康检查机制</td><td>OPERATIONS / 故障排查章节按图索骥</td></tr>
+    </table>
+    <div class="good"><b>本质：</b>项目记忆把"只有原作者脑子里有"的隐性知识，变成<b>仓库里可检索、AI 可加载、新人可执行</b>的显性资产。换人、扩团队、交接，成本趋近于零。</div>
+
+    <h3 id="mem-flatkey">第二个典型案例：flatkey</h3>
+    <p>另一个生产项目 <code>flatkey</code>（sub2api 的二开 fork）把这套做到了极致——它的 <code>docs/</code> 目录本身就是一座<b>运维知识库</b>：</p>
+    <ul>
+      <li><b>部署/升级 playbook：</b><code>lb-upgrade-playbook.md</code>、<code>fleet-dashboard-deploy-playbook.md</code>、<code>cf-subdomain-vercel-playbook.md</code></li>
+      <li><b>线上排障：</b><code>errors.md</code>、<code>dogfood-log.md</code>、<code>morning-brief-*.md</code>（每日运行简报）</li>
+      <li><b>账号安全与调度：</b><code>fleet-account-safety-playbook.md</code>、<code>upstream-account-safety.md</code>、「账号调度策略」</li>
+      <li><b>新人 onboarding：</b><code>onboarding.md</code>、<code>sato-onboarding-guide.md</code>——直接照着就能接手</li>
+      <li><b>甚至已有多份 HTML 分享文档</b>（拓扑、架构 review、路由方案卡片），知识天生可传播</li>
+    </ul>
+    <p>再加上 AI 记忆里记着的硬知识，比如「macOS pkg 在指定机器打包签名；2026-05 因旧证书被吊销换成 Solvea AI Inc. 的 Developer ID」——这种"换证书"级别的运维细节，正是交接时最容易丢、丢了最致命的东西。</p>
+  </section>
+
+  <!-- ===================== takeaway ===================== -->
+  <section id="takeaway">
+    <h2><span class="n">✦</span>收束：Harness Engineering 全景</h2>
+    <p class="lead">把全文合回开篇那五层——每一层都有仓库里看得见摸得着的实物在支撑。这就是 harness engineering：不是抽象方法论，而是一堆可以今天就照着建的具体资产。</p>
+    <table>
+      <tr><th>Harness 层</th><th>解决什么</th><th>本项目里的实物</th></tr>
+      <tr><td><b>① 感知 Perceive</b></td><td>agent / 新人读得懂系统</td><td>GitNexus 图谱（4.2 万符号 / 13.5 万关系 / 300 执行流）· 45 份 <code>AGENTS.md</code> · <code>expr.md</code> 等核心业务文档 · 项目记忆</td></tr>
+      <tr><td><b>② 行动 Act</b></td><td>agent 能直接改与发</td><td><code>gcloud</code>/<code>gh</code>/<code>terraform</code>/<code>bun</code>/<code>go</code> CLI · GitNexus 6 个 skill · <code>gcp-deploy</code>/<code>gcp-rollback</code> workflow</td></tr>
+      <tr><td><b>③ 约束 Constrain</b></td><td>放大效率不放大风险</td><td><code>CLAUDE.md</code> Rule 0–8 · 改前 <code>gitnexus_impact</code> · 写审分离 · <code>pr-check</code> 反 Slop · <code>production</code> 人工 Approve</td></tr>
+      <tr><td><b>④ 反馈 Verify</b></td><td>声称"完成"前有证据</td><td><code>go test</code>/<code>bun build</code> · 健康检查 <code>/api/status</code> · 金丝雀 10%/3min · verifier 独立验收</td></tr>
+      <tr><td><b>⑤ 记忆 Remember</b></td><td>经验复利、换人零成本</td><td>项目记忆（流量陷阱 / 202 gate / env 双来源 / IAM gap）· 三份 GCP 手册 · flatkey <code>docs/</code> playbook 库</td></tr>
+    </table>
+    <div class="good"><b>飞轮：</b>感知层让 agent 看懂 → 行动层让它动手 → 约束层兜住边界 → 反馈层确认结果 → 记忆层把新经验写回感知层。<b>每跑一轮，harness 自己变得更强</b>，下一个人（或下一个 agent）起点更高。</div>
+    <p class="quote">AI 时代真正的护城河，不是"谁的模型更强"——模型大家都能调到。护城河是 <strong>harness engineering</strong>：谁把自己的业务、基础设施、运维知识工程化成 agent 能感知、能行动、有约束、可验证、会沉淀的环境，谁就能让"快速开发、快速上线、快速接手"从英雄主义变成系统的默认属性。</p>
+
+    <div class="foot">
+      素材来源：<code>.github/workflows/{gcp-deploy,gcp-rollback,release,pr-check}.yml</code> · <code>deploy/gcp/docs/{INFRASTRUCTURE,DEPLOYMENT,OPERATIONS}.md</code> · 根 <code>CLAUDE.md</code> 规则 0–8 · 项目 AI 记忆（seedance SOP / 202 gate / 流量 revision-pinned / env 双来源 / IAM gap）· flatkey <code>docs/</code> 运维知识库。<br>
+      面向公司内部分享 · 生成于 2026-06-08。
+    </div>
+  </section>
+
+</main>
+</div>
+</body>
+</html>
