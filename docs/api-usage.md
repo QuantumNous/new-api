@@ -2,7 +2,7 @@
 
 本文档面向合作方接入和 AI agent 自动调用，覆盖视频生成、图片生成、图像编辑、文本对话、模型列表、错误处理和价格参考。所有接口兼容 OpenAI API 格式，可直接使用 OpenAI SDK 或兼容客户端调用。
 
-> **最后验证：2026-06-07**。当前分支已合并 `origin/main` 最新代码并重新部署远端服务；`/api/status`、`/v1/models`、视频推荐模型、SiliconFlow 图片模型，以及 `gpt-image-2` ListenHub 优先路由和 xgapi 图片兜底均已通过远端真实接口验证。
+> **最后验证：2026-06-09**。当前分支已合并 `origin/main` 最新代码并重新部署远端服务；`/api/status`、`/v1/models`、视频推荐模型、SiliconFlow 图片模型，以及 `gpt-image-2` ListenHub 优先路由和 xgapi 图片兜底均已通过远端真实接口验证。
 
 ---
 
@@ -14,7 +14,7 @@
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
 | 兼容协议 | OpenAI API (Chat Completions, Models, Images, Video Generations) |
 | 内部测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
-| 测试 Key 额度 | 当前测试 Key 为无限额度（unlimited_quota）；生产 Key 以实际配置为准 |
+| 测试 Key 额度 | 当前测试 Key 为本服务侧无限额度（unlimited_quota）；生产 Key 以实际配置为准 |
 
 当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成视频全模型回归测试；2026-06-06 再次合并 upstream 最新代码、重新部署远端服务，并完成 SiliconFlow 图片模型实测。
 
@@ -25,6 +25,8 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 ```
 
 本文档保留的是本服务内部测试 Key，供联调和 AI agent 读取。生产 Key、上游供应商 Key 和个人 Key 不要写入代码、日志、Prompt 或截图。
+
+注意：上表的测试 Key 额度只表示本服务侧 token/user 钱包额度，不等于 ListenHub、xgapi、SiliconFlow 等上游供应商账号余额。若上游 channel 自身返回 credit/balance 不足，本服务会按模型能力表尝试切换到其它可用 channel。
 
 ---
 
@@ -43,7 +45,7 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 
 ---
 
-## 现有可用模型合集（2026-06-07）
+## 现有可用模型合集（2026-06-09）
 
 本节是给人和 AI agent 的快速索引。详细参数、轮询方式、错误处理和价格见后续章节。
 
@@ -53,7 +55,7 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 
 | 场景 | 上游推荐传参 | 内部处理 |
 |------|--------------|----------|
-| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 ListenHub 图片 channel，返回 `data[0].b64_json`；xgapi 保留为直出生图兜底 |
+| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 ListenHub 图片 channel；若 ListenHub 返回上游余额/额度不足等可切换错误，会自动重试 xgapi 直出生图兜底 |
 | `gpt-image-2` 带参考图 | `model: "gpt-image-2"` + `image` / `images` | 优先走 ListenHub 参考图接口；大体积 `data:image/...;base64,...` 参考图需压缩或改用 URL |
 | 历史图片别名 | `gpt-image-2(线路XF)` / `gr-image-2` / `nano-banana-pro` | 作为兼容别名映射到 xgapi 上游 `gpt-image-2` |
 | `grok-video-3` 视频 | `model: "grok-video-3"` | 走 LK888 视频 channel；`/v1/models` 已暴露该标准名 |
@@ -789,6 +791,8 @@ Authorization: Bearer <api-key>
 > **2026-06-07 ListenHub 专项复测**：按 ListenHub 文档格式直连 `https://api.marswave.ai/openapi/v1/images/generation`，`provider=openai`、`model=gpt-image-2`、`imageConfig.aspectRatio=1:1`、`imageConfig.imageSize=1K` 连续 10 次全部 HTTP 200，均返回 `candidates[].content.parts[].inlineData`，平均 21.41 秒。通过本服务统一入口强制 channel 12 复测 `gpt-image-2` 直接生图 10 次全部 HTTP 200，均返回标准 `data[0].b64_json`，平均 40.13 秒；再用 `image` data URI 参考图强制 channel 12 复测 3 次全部 HTTP 200，平均 24.48 秒。同期普通 `poc_key` 日志仍出现 channel 12 的 `413 request entity too large`，说明 ListenHub 对大请求体/大参考图需要控制输入体积；本轮小图和标准请求未复现 504。追加大参考图实测：`2048x2048` JPEG 约 3.33 MB（JSON 请求体约 4.44 MB）成功，耗时 82.19 秒；`4096x4096` JPEG 约 13.32 MB（JSON 请求体约 17.75 MB）返回 `413 request entity too large`，耗时 9.5 秒。
 >
 > **2026-06-07 ListenHub 优先级切换验证**：生产配置已调整为 ListenHub channel 12 priority `140`、xgapi channel 14 priority `130`。重启刷新 channel cache 后，普通入口 `model=gpt-image-2` 连续 10 次客户端请求全部 HTTP 200，均返回标准 `data[0].b64_json`，平均 25.08 秒；服务端成功日志均命中 channel 12。xgapi channel 14 仍保留在 `gpt-image-2` 能力表中，作为无参考图直出生图兜底。
+>
+> **2026-06-09 上游余额失败路由验证**：使用本文档内部测试 Key 真实调用 `POST /v1/images/generations`、`model=gpt-image-2`。ListenHub channel 12 先返回 `400 Insufficient credits for Image generation`；服务端识别为上游 channel 余额/额度类错误后自动重试 xgapi channel 14，最终客户端收到 HTTP 200，标准 Images 响应 `data[0].url`，耗时 131.86 秒。该测试说明文档 Key 本服务侧额度可用；本服务侧额度与上游供应商账号余额是两套独立额度。
 
 **SiliconFlow 图片平台：**
 

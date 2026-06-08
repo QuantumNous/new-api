@@ -340,6 +340,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
+	if isRetryableUpstreamQuotaError(openaiErr) {
+		return true
+	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
 		return false
@@ -351,6 +354,36 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+func isRetryableUpstreamQuotaError(openaiErr *types.NewAPIError) bool {
+	if openaiErr == nil || openaiErr.GetErrorCode() != types.ErrorCodeBadResponseStatusCode {
+		return false
+	}
+	switch openaiErr.StatusCode {
+	case http.StatusBadRequest, http.StatusPaymentRequired, http.StatusForbidden:
+	default:
+		return false
+	}
+
+	message := strings.ToLower(openaiErr.Error())
+	retryableKeywords := []string{
+		"insufficient credits",
+		"insufficient credit",
+		"insufficient balance",
+		"not enough credits",
+		"not enough credit",
+		"credit balance",
+		"quota exceeded",
+		"余额不足",
+		"额度不足",
+	}
+	for _, keyword := range retryableKeywords {
+		if strings.Contains(message, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
