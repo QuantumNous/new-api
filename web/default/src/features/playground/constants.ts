@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { PlaygroundConfig, ParameterEnabled } from './types'
+import type {
+  ImageGenerationConfig,
+  ParameterEnabled,
+  PlaygroundConfig,
+} from './types'
 
 // Message constants
 export const MESSAGE_ROLES = {
@@ -35,6 +39,7 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -65,10 +70,22 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
   seed: false,
 }
 
+export const DEFAULT_IMAGE_CONFIG: ImageGenerationConfig = {
+  model: 'gpt-image-1',
+  group: DEFAULT_GROUP,
+  size: '1024x1024',
+  quality: 'auto',
+  n: 1,
+  response_format: 'url',
+}
+
 // Storage keys
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
+  IMAGE_CONFIG: 'playground_image_config',
+  IMAGE_TASKS: 'playground_image_tasks',
   MESSAGES: 'playground_messages',
+  MODE: 'playground_mode',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
 } as const
 

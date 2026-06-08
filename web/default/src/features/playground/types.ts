@@ -106,6 +106,60 @@ export interface ChatCompletionResponse {
   }
 }
 
+export type PlaygroundMode = 'chat' | 'image'
+
+export interface ImageGenerationConfig {
+  model: string
+  group: string
+  size: string
+  quality: 'auto' | 'standard' | 'hd' | 'low' | 'medium' | 'high'
+  n: number
+  response_format: 'url' | 'b64_json'
+  output_format?: 'png' | 'jpeg' | 'webp'
+  output_compression?: number | null
+  moderation?: 'auto' | 'low'
+}
+
+export interface ImageGenerationRequest {
+  model: string
+  group?: string
+  prompt: string
+  size?: string
+  quality?: string
+  n?: number
+  response_format?: 'url' | 'b64_json'
+  output_format?: 'png' | 'jpeg' | 'webp'
+  output_compression?: number | null
+  moderation?: 'auto' | 'low'
+}
+
+export interface ImageGenerationResponse {
+  created?: number
+  data?: ImageResult[]
+  metadata?: unknown
+}
+
+export type ImageTaskStatus = 'running' | 'done' | 'error' | 'interrupted'
+
+export interface ImageResult {
+  url?: string
+  b64_json?: string
+  revised_prompt?: string
+}
+
+export interface ImageTask {
+  id: string
+  prompt: string
+  config: ImageGenerationConfig
+  status: ImageTaskStatus
+  images: ImageResult[]
+  rawImageUrls?: string[]
+  error?: string
+  errorCode?: string
+  createdAt: number
+  finishedAt?: number
+}
+
 // Configuration types
 export interface PlaygroundConfig {
   model: string
@@ -132,6 +186,8 @@ export interface ParameterEnabled {
 export interface ModelOption {
   label: string
   value: string
+  supported_endpoint_types?: string[]
+  supportedEndpointTypes?: string[]
 }
 
 export interface GroupOption {

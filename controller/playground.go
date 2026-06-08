@@ -1,9 +1,13 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -13,6 +17,14 @@ import (
 )
 
 func Playground(c *gin.Context) {
+	handlePlaygroundRelay(c, types.RelayFormatOpenAI)
+}
+
+func PlaygroundImageGeneration(c *gin.Context) {
+	handlePlaygroundRelay(c, types.RelayFormatOpenAIImage)
+}
+
+func handlePlaygroundRelay(c *gin.Context, relayFormat types.RelayFormat) {
 	var newAPIError *types.NewAPIError
 
 	defer func() {
@@ -29,7 +41,12 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
+	if err := stripPlaygroundInternalFields(c); err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
+
+	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, nil, nil)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
@@ -52,5 +69,52 @@ func Playground(c *gin.Context) {
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
 
-	Relay(c, types.RelayFormatOpenAI)
+	Relay(c, relayFormat)
+}
+
+func stripPlaygroundInternalFields(c *gin.Context) error {
+	if !strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
+		return nil
+	}
+
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return err
+	}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return err
+	}
+
+	var payload map[string]json.RawMessage
+	if err := common.Unmarshal(requestBody, &payload); err != nil {
+		return err
+	}
+	if _, exists := payload["group"]; !exists {
+		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+			return seekErr
+		}
+		c.Request.Body = io.NopCloser(storage)
+		return nil
+	}
+
+	delete(payload, "group")
+	sanitizedBody, err := common.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	sanitizedStorage, err := common.CreateBodyStorage(sanitizedBody)
+	if err != nil {
+		return err
+	}
+	if _, err := sanitizedStorage.Seek(0, io.SeekStart); err != nil {
+		_ = sanitizedStorage.Close()
+		return err
+	}
+
+	_ = storage.Close()
+	c.Set(common.KeyBodyStorage, sanitizedStorage)
+	c.Request.Body = io.NopCloser(sanitizedStorage)
+	c.Request.ContentLength = int64(len(sanitizedBody))
+	return nil
 }

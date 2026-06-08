@@ -17,8 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
+import type {
+  ImageGenerationConfig,
+  ImageTask,
+  Message,
+  ParameterEnabled,
+  PlaygroundConfig,
+  PlaygroundMode,
+} from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
+
+const MAX_IMAGE_TASKS = 20
+const MAX_PERSISTED_BASE64_IMAGES = 4
 
 /**
  * Load playground config from localStorage
@@ -118,12 +128,117 @@ export function saveMessages(messages: Message[]): void {
   }
 }
 
+export function loadPlaygroundMode(): PlaygroundMode {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.MODE)
+    if (saved === 'chat' || saved === 'image') return saved
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load playground mode:', error)
+  }
+  return 'chat'
+}
+
+export function savePlaygroundMode(mode: PlaygroundMode): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.MODE, mode)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save playground mode:', error)
+  }
+}
+
+export function loadImageConfig(): Partial<ImageGenerationConfig> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.IMAGE_CONFIG)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load image config:', error)
+  }
+  return {}
+}
+
+export function saveImageConfig(config: Partial<ImageGenerationConfig>): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.IMAGE_CONFIG, JSON.stringify(config))
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save image config:', error)
+  }
+}
+
+function sanitizeImageTasksForStorage(tasks: ImageTask[]): ImageTask[] {
+  let persistedBase64Count = 0
+
+  return tasks.slice(0, MAX_IMAGE_TASKS).map((task) => {
+    const interrupted =
+      task.status === 'running'
+        ? {
+            ...task,
+            status: 'interrupted' as const,
+            error: 'Generation was interrupted',
+            finishedAt: task.finishedAt ?? Date.now(),
+          }
+        : task
+
+    const images = interrupted.images.map((image) => {
+      if (!image.b64_json) return image
+      persistedBase64Count += 1
+      if (persistedBase64Count <= MAX_PERSISTED_BASE64_IMAGES) return image
+      return {
+        revised_prompt: image.revised_prompt,
+      }
+    })
+
+    return {
+      ...interrupted,
+      images,
+    }
+  })
+}
+
+export function loadImageTasks(): ImageTask[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.IMAGE_TASKS)
+    if (!saved) return []
+
+    const parsed: unknown = JSON.parse(saved)
+    if (!Array.isArray(parsed)) return []
+
+    const sanitized = sanitizeImageTasksForStorage(parsed as ImageTask[])
+    if (JSON.stringify(sanitized) !== saved) {
+      saveImageTasks(sanitized)
+    }
+    return sanitized
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load image tasks:', error)
+    return []
+  }
+}
+
+export function saveImageTasks(tasks: ImageTask[]): void {
+  try {
+    const sanitized = sanitizeImageTasksForStorage(tasks)
+    localStorage.setItem(STORAGE_KEYS.IMAGE_TASKS, JSON.stringify(sanitized))
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save image tasks:', error)
+  }
+}
+
 /**
  * Clear all playground data
  */
 export function clearPlaygroundData(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.CONFIG)
+    localStorage.removeItem(STORAGE_KEYS.IMAGE_CONFIG)
+    localStorage.removeItem(STORAGE_KEYS.IMAGE_TASKS)
+    localStorage.removeItem(STORAGE_KEYS.MODE)
     localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
     localStorage.removeItem(STORAGE_KEYS.MESSAGES)
   } catch (error) {

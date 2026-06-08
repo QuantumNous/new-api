@@ -17,18 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback } from 'react'
-import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../constants'
 import {
+  DEFAULT_CONFIG,
+  DEFAULT_IMAGE_CONFIG,
+  DEFAULT_PARAMETER_ENABLED,
+} from '../constants'
+import {
+  loadImageConfig,
+  loadImageTasks,
   loadConfig,
   saveConfig,
+  saveImageConfig,
+  saveImageTasks,
   loadParameterEnabled,
   saveParameterEnabled,
+  loadPlaygroundMode,
+  savePlaygroundMode,
   loadMessages,
   saveMessages,
 } from '../lib'
 import type {
+  ImageGenerationConfig,
+  ImageTask,
   Message,
   PlaygroundConfig,
+  PlaygroundMode,
   ParameterEnabled,
   ModelOption,
   GroupOption,
@@ -38,10 +51,19 @@ import type {
  * Main state management hook for playground
  */
 export function usePlaygroundState() {
+  const [mode, setModeState] = useState<PlaygroundMode>(() => {
+    return loadPlaygroundMode()
+  })
+
   // Load initial state from localStorage
   const [config, setConfig] = useState<PlaygroundConfig>(() => {
     const savedConfig = loadConfig()
     return { ...DEFAULT_CONFIG, ...savedConfig }
+  })
+
+  const [imageConfig, setImageConfig] = useState<ImageGenerationConfig>(() => {
+    const savedConfig = loadImageConfig()
+    return { ...DEFAULT_IMAGE_CONFIG, ...savedConfig }
   })
 
   const [parameterEnabled, setParameterEnabled] = useState<ParameterEnabled>(
@@ -55,8 +77,18 @@ export function usePlaygroundState() {
     return loadMessages() || []
   })
 
+  const [imageTasks, setImageTasks] = useState<ImageTask[]>(() => {
+    return loadImageTasks()
+  })
+
   const [models, setModels] = useState<ModelOption[]>([])
   const [groups, setGroups] = useState<GroupOption[]>([])
+
+  // Update config with automatic save
+  const setMode = useCallback((value: PlaygroundMode) => {
+    setModeState(value)
+    savePlaygroundMode(value)
+  }, [])
 
   // Update config with automatic save
   const updateConfig = useCallback(
@@ -64,6 +96,20 @@ export function usePlaygroundState() {
       setConfig((prev) => {
         const updated = { ...prev, [key]: value }
         saveConfig(updated)
+        return updated
+      })
+    },
+    []
+  )
+
+  const updateImageConfig = useCallback(
+    <K extends keyof ImageGenerationConfig>(
+      key: K,
+      value: ImageGenerationConfig[K]
+    ) => {
+      setImageConfig((prev) => {
+        const updated = { ...prev, [key]: value }
+        saveImageConfig(updated)
         return updated
       })
     },
@@ -95,6 +141,18 @@ export function usePlaygroundState() {
     []
   )
 
+  const updateImageTasks = useCallback(
+    (updater: ImageTask[] | ((prev: ImageTask[]) => ImageTask[])) => {
+      setImageTasks((prev) => {
+        const newTasks =
+          typeof updater === 'function' ? updater(prev) : updater
+        saveImageTasks(newTasks)
+        return newTasks
+      })
+    },
+    []
+  )
+
   // Clear all messages
   const clearMessages = useCallback(() => {
     updateMessages([])
@@ -103,16 +161,21 @@ export function usePlaygroundState() {
   // Reset config to defaults
   const resetConfig = useCallback(() => {
     setConfig(DEFAULT_CONFIG)
+    setImageConfig(DEFAULT_IMAGE_CONFIG)
     setParameterEnabled(DEFAULT_PARAMETER_ENABLED)
     saveConfig(DEFAULT_CONFIG)
+    saveImageConfig(DEFAULT_IMAGE_CONFIG)
     saveParameterEnabled(DEFAULT_PARAMETER_ENABLED)
   }, [])
 
   return {
     // State
+    mode,
     config,
+    imageConfig,
     parameterEnabled,
     messages,
+    imageTasks,
     models,
     groups,
 
@@ -121,9 +184,12 @@ export function usePlaygroundState() {
     setGroups,
 
     // Actions
+    setMode,
     updateConfig,
+    updateImageConfig,
     updateParameterEnabled,
     updateMessages,
+    updateImageTasks,
     clearMessages,
     resetConfig,
   }

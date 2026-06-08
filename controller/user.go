@@ -555,12 +555,43 @@ func GetUserModels(c *gin.Context) {
 			}
 		}
 	}
+	if c.Query("with_endpoint_types") == "true" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    buildUserModelOptions(models),
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    models,
 	})
 	return
+}
+
+func buildUserModelOptions(models []string) []dto.UserModelOption {
+	options := make([]dto.UserModelOption, 0, len(models))
+	for _, modelName := range models {
+		endpointTypes := model.GetModelSupportEndpointTypes(modelName)
+		endpoints := make([]string, 0, len(endpointTypes))
+		for _, endpointType := range endpointTypes {
+			endpoint := string(endpointType)
+			if endpoint != "" && !common.StringsContains(endpoints, endpoint) {
+				endpoints = append(endpoints, endpoint)
+			}
+		}
+		if common.IsImageGenerationModel(modelName) && !common.StringsContains(endpoints, string(constant.EndpointTypeImageGeneration)) {
+			endpoints = append([]string{string(constant.EndpointTypeImageGeneration)}, endpoints...)
+		}
+		options = append(options, dto.UserModelOption{
+			Label:                  modelName,
+			Value:                  modelName,
+			SupportedEndpointTypes: endpoints,
+		})
+	}
+	return options
 }
 
 func UpdateUser(c *gin.Context) {

@@ -21,6 +21,8 @@ import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
   ModelOption,
   GroupOption,
 } from './types'
@@ -37,21 +39,48 @@ export async function sendChatCompletion(
   return res.data
 }
 
+export async function sendImageGeneration(
+  payload: ImageGenerationRequest
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_GENERATIONS, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
 /**
  * Get user available models
  */
 export async function getUserModels(): Promise<ModelOption[]> {
-  const res = await api.get(API_ENDPOINTS.USER_MODELS)
+  const res = await api.get(API_ENDPOINTS.USER_MODELS, {
+    params: { with_endpoint_types: true },
+  })
   const { data } = res
 
   if (!data.success || !Array.isArray(data.data)) {
     return []
   }
 
-  return data.data.map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return data.data
+    .map((model: string | ModelOption): ModelOption | null => {
+      if (typeof model === 'string') {
+        return {
+          label: model,
+          value: model,
+        }
+      }
+
+      if (!model || typeof model.value !== 'string') return null
+
+      return {
+        label: model.label || model.value,
+        value: model.value,
+        supported_endpoint_types: model.supported_endpoint_types || [],
+        supportedEndpointTypes:
+          model.supportedEndpointTypes || model.supported_endpoint_types || [],
+      }
+    })
+    .filter(Boolean) as ModelOption[]
 }
 
 /**
