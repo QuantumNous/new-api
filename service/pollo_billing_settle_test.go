@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"net/http"
-	"path/filepath"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -31,15 +29,11 @@ func (f *fakeSettleAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.Ta
 // the persisted OtherRatios (e.g. the precharge-only "pollo_credit" ratio). If this
 // regresses, Pollo completion billing double-counts again.
 func TestSettleUsesAdjustAndSkipsOtherRatios(t *testing.T) {
-	common.SQLitePath = filepath.Join(t.TempDir(), "settle.db?_busy_timeout=30000")
-	common.IsMasterNode = true
-	common.RedisEnabled = false
-	if err := model.InitDB(); err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	if err := model.InitLogDB(); err != nil {
-		t.Fatalf("InitLogDB: %v", err)
-	}
+	// Reuse the package-wide in-memory DB from TestMain and clean up rows after the
+	// test (via truncate's t.Cleanup). Do NOT call model.InitDB() here — it would
+	// overwrite the shared global DB with a temp-file DB that disappears when t.TempDir()
+	// is removed, breaking every later test in the package with readonly/unique errors.
+	truncate(t)
 	// configure a ratio so the (wrong) token-recalc path WOULD run if step 1 didn't win
 	if err := ratio_setting.UpdateModelRatioByJSONString(`{"seedance-2-0-fast":300}`); err != nil {
 		t.Fatalf("set ratio: %v", err)

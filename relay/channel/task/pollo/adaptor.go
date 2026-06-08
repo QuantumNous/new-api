@@ -107,7 +107,9 @@ type polloInput struct {
 	AspectRatio string `json:"aspectRatio,omitempty"`
 	Length      int    `json:"length,omitempty"`   // non-ref: 4-15 seconds
 	Duration    int    `json:"duration,omitempty"` // ref:     4-15 seconds
-	Seed        int    `json:"seed,omitempty"`
+	// Pointer so an explicit metadata.seed:0 (deterministic seed) is preserved upstream;
+	// a non-pointer int+omitempty would drop the 0 and silently turn it into a random seed.
+	Seed *int `json:"seed,omitempty"`
 
 	GenerateAudio *bool `json:"generateAudio,omitempty"`
 	WebSearch     *bool `json:"webSearch,omitempty"` // non-ref only
@@ -176,7 +178,9 @@ type polloStatusResponse struct {
 		Credit      float64           `json:"credit"`
 		Generations []polloGeneration `json:"generations"`
 	} `json:"data"`
-	// flat fallback
+	// flat fallback (top-level credit + generations), kept symmetric so the flat shape
+	// settles from real usage instead of silently falling back to the estimate.
+	Credit      float64           `json:"credit"`
 	Generations []polloGeneration `json:"generations"`
 }
 
@@ -187,9 +191,13 @@ func (r *polloStatusResponse) gens() []polloGeneration {
 	return r.Generations
 }
 
-// credit returns the actual Pollo credit consumed by this task (authoritative charge).
+// credit returns the actual Pollo credit consumed by this task (authoritative charge),
+// preferring the nested shape and falling back to the flat top-level credit.
 func (r *polloStatusResponse) credit() float64 {
-	return r.Data.Credit
+	if r.Data.Credit > 0 {
+		return r.Data.Credit
+	}
+	return r.Credit
 }
 
 // failed reports whether the status envelope carries a non-success code, e.g.
@@ -217,15 +225,12 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
-		return err
-	}
-	if _, ok := resolveEndpoint(info); !ok {
-		return service.TaskErrorWrapperLocal(
-			fmt.Errorf("unsupported pollo model: %s", info.OriginModelName),
-			"invalid_model", http.StatusBadRequest)
-	}
-	return nil
+	// Do NOT resolve the endpoint here: this runs BEFORE ModelMappedHelper, so for a
+	// model-mapped channel (alias -> real model) UpstreamModelName is still the alias and
+	// resolveEndpoint would reject it. The endpoint is validated post-mapping in
+	// BuildRequestURL (and convertToRequestPayload/validateURL), which already error on an
+	// unknown model — keeping model mapping fully functional for this channel.
+	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -569,7 +574,8 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	input := polloInput{
 		Prompt:     req.Prompt,
 		Resolution: "720p",
-		Seed:       0,
+		// Seed left nil: absent => omitted (provider picks random); a client-supplied
+		// metadata.seed (including 0) is applied below by UnmarshalMetadata.
 	}
 
 	seconds := taskcommon.DefaultInt(req.Duration, 5)

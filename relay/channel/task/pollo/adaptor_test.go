@@ -218,6 +218,68 @@ func TestParseTaskResult_Failed(t *testing.T) {
 	}
 }
 
+// TestConvertPayload_ExplicitSeedZeroPreserved guards Rule 6: an explicit metadata.seed:0
+// (deterministic seed) must survive to the upstream body, not be dropped by omitempty.
+func TestConvertPayload_ExplicitSeedZeroPreserved(t *testing.T) {
+	a := &TaskAdaptor{baseURL: defaultBaseURL}
+	info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+	info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+	req := &relaycommon.TaskSubmitReq{
+		Prompt: "x", Duration: 5,
+		Metadata: map[string]interface{}{"seed": 0},
+	}
+	body, err := a.convertToRequestPayload(req, info)
+	if err != nil {
+		t.Fatalf("convertToRequestPayload: %v", err)
+	}
+	if body.Input.Seed == nil || *body.Input.Seed != 0 {
+		t.Fatalf("explicit seed:0 must be preserved, got %v", body.Input.Seed)
+	}
+	data, err := common.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"seed":0`) {
+		t.Fatalf("marshaled body must contain \"seed\":0, got %s", data)
+	}
+}
+
+// TestConvertPayload_SeedAbsentOmitted confirms an absent seed stays omitted (random upstream).
+func TestConvertPayload_SeedAbsentOmitted(t *testing.T) {
+	a := &TaskAdaptor{baseURL: defaultBaseURL}
+	info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+	info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+	req := &relaycommon.TaskSubmitReq{Prompt: "x", Duration: 5}
+	body, err := a.convertToRequestPayload(req, info)
+	if err != nil {
+		t.Fatalf("convertToRequestPayload: %v", err)
+	}
+	if body.Input.Seed != nil {
+		t.Fatalf("absent seed must stay nil, got %v", *body.Input.Seed)
+	}
+	if data, _ := common.Marshal(body); strings.Contains(string(data), `"seed"`) {
+		t.Fatalf("marshaled body must omit seed, got %s", data)
+	}
+}
+
+// TestParseTaskResult_FlatStatusCredit ensures the flat top-level {credit,generations}
+// status shape settles from real usage (credit -> TotalTokens), symmetric with gens().
+func TestParseTaskResult_FlatStatusCredit(t *testing.T) {
+	body := []byte(`{"code":"SUCCESS","credit":4.4,"generations":[{"id":"g","status":"succeed","url":"https://x/v.mp4","mediaType":"video"}]}`)
+	a := &TaskAdaptor{}
+	info, err := a.ParseTaskResult(body)
+	if err != nil {
+		t.Fatalf("ParseTaskResult failed: %v", err)
+	}
+	if info.Status != model.TaskStatusSuccess {
+		t.Fatalf("status = %q, want success", info.Status)
+	}
+	want := int(math.Round(4.4 * creditTokenScale))
+	if info.TotalTokens != want {
+		t.Fatalf("TotalTokens = %d, want %d (flat credit must settle from real usage)", info.TotalTokens, want)
+	}
+}
+
 // --- Live test against the real Pollo API ------------------------------------
 // Runs only when POLLO_API_KEY is set, e.g.:
 //   POLLO_API_KEY=pollo_xxx go test ./relay/channel/task/pollo/ -run TestLive -v
