@@ -48,11 +48,11 @@ type AliVideoInput struct {
 type AliVideoParameters struct {
 	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P（图生视频、首尾帧生视频）
 	Size         string `json:"size,omitempty"`          // 尺寸: 如 "832*480"（文生视频）
-	Duration     int    `json:"duration,omitempty"`      // 时长: 3-10秒
-	PromptExtend bool   `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
-	Watermark    bool   `json:"watermark,omitempty"`     // 是否添加水印
+	Duration     *int   `json:"duration,omitempty"`      // 时长: 3-10秒
+	PromptExtend *bool  `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
+	Watermark    *bool  `json:"watermark,omitempty"`     // 是否添加水印
 	Audio        *bool  `json:"audio,omitempty"`         // 是否添加音频（wan2.5）
-	Seed         int    `json:"seed,omitempty"`          // 随机数种子
+	Seed         *int   `json:"seed,omitempty"`          // 随机数种子
 }
 
 // AliVideoResponse 阿里通义万相响应
@@ -264,8 +264,7 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 			ImgURL: req.InputReference,
 		},
 		Parameters: &AliVideoParameters{
-			PromptExtend: true, // 默认开启智能改写
-			Watermark:    false,
+			PromptExtend: lo.ToPtr(true), // 默认开启智能改写
 		},
 	}
 
@@ -312,16 +311,16 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 
 	// 处理时长
 	if req.Duration > 0 {
-		aliReq.Parameters.Duration = req.Duration
+		aliReq.Parameters.Duration = lo.ToPtr(req.Duration)
 	} else if req.Seconds != "" {
 		seconds, err := strconv.Atoi(req.Seconds)
 		if err != nil {
 			return nil, errors.Wrap(err, "convert seconds to int failed")
 		} else {
-			aliReq.Parameters.Duration = seconds
+			aliReq.Parameters.Duration = lo.ToPtr(seconds)
 		}
 	} else {
-		aliReq.Parameters.Duration = 5 // 默认5秒
+		aliReq.Parameters.Duration = lo.ToPtr(5) // 默认5秒
 	}
 
 	// 从 metadata 中提取额外参数
@@ -357,7 +356,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	otherRatios := map[string]float64{
-		"seconds": float64(aliReq.Parameters.Duration),
+		"seconds": float64(lo.FromPtrOr(aliReq.Parameters.Duration, 0)),
 	}
 	ratios, err := ProcessAliOtherRatios(aliReq)
 	if err != nil {
