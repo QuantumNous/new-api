@@ -583,7 +583,7 @@ func buildUserModelOptions(models []string) []dto.UserModelOption {
 				endpoints = append(endpoints, endpoint)
 			}
 		}
-		if common.IsChannelImageGenerationModel(constant.ChannelTypeOpenAI, modelName) && !common.StringsContains(endpoints, string(constant.EndpointTypeImageGeneration)) {
+		if common.IsImageGenerationModel(modelName) && !common.StringsContains(endpoints, string(constant.EndpointTypeImageGeneration)) {
 			endpoints = append([]string{string(constant.EndpointTypeImageGeneration)}, endpoints...)
 		}
 		if len(endpoints) == 0 {

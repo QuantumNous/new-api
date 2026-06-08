@@ -26,11 +26,20 @@ func TestBuildUserModelOptionsAddsImageGenerationEndpointByModelRule(t *testing.
 		"gpt-4o-mini",
 	})
 
-	require.Len(t, options, 2)
+	require.Len(t, options, 6)
 	require.Equal(t, "gpt-image-1", options[0].Value)
 	require.Contains(t, options[0].SupportedEndpointTypes, "image-generation")
 	require.Equal(t, "gpt-image-2", options[1].Value)
 	require.Contains(t, options[1].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-image", options[2].Value)
+	require.Contains(t, options[2].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-image-lite", options[3].Value)
+	require.Contains(t, options[3].SupportedEndpointTypes, "image-generation")
+	require.NotContains(t, options[3].SupportedEndpointTypes, "openai")
+	require.Equal(t, "grok-imagine-image-pro", options[4].Value)
+	require.Contains(t, options[4].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-2-image-1212", options[5].Value)
+	require.Contains(t, options[5].SupportedEndpointTypes, "image-generation")
 }
 
 func TestBuildUserModelOptionsAddsGrokImageGenerationEndpointFromXAIChannel(t *testing.T) {
@@ -60,7 +69,7 @@ func TestBuildUserModelOptionsAddsGrokImageGenerationEndpointFromXAIChannel(t *t
 	require.NotContains(t, options[0].SupportedEndpointTypes, "openai-response")
 }
 
-func TestGetUserModelsWithEndpointTypesSkipsGrokImageFromOpenAIChannel(t *testing.T) {
+func TestGetUserModelsWithEndpointTypesShowsGrokImageAsImageEndpoint(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	model.InvalidatePricingCache()
 	require.NoError(t, db.Create(&model.User{
@@ -98,7 +107,11 @@ func TestGetUserModelsWithEndpointTypesSkipsGrokImageFromOpenAIChannel(t *testin
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.True(t, payload.Success)
-	require.Empty(t, payload.Data)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "grok-imagine-image-lite", payload.Data[0].Value)
+	require.Contains(t, payload.Data[0].SupportedEndpointTypes, "image-generation")
+	require.NotContains(t, payload.Data[0].SupportedEndpointTypes, "openai")
+	require.NotContains(t, payload.Data[0].SupportedEndpointTypes, "openai-response")
 }
 
 func TestIsImageGenerationModelExcludesGrokImageEdit(t *testing.T) {
