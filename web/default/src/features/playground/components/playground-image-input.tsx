@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2Icon, SendIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { NativeSelect } from '@/components/ui/native-select'
 import {
   PromptInput,
   PromptInputButton,
@@ -27,7 +28,6 @@ import {
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { ModelGroupSelector } from '@/components/model-group-selector'
-import { NativeSelect } from '@/components/ui/native-select'
 import type { GroupOption, ImageGenerationConfig, ModelOption } from '../types'
 
 interface PlaygroundImageInputProps {
@@ -76,20 +76,22 @@ function FieldSelect({
   label,
   value,
   disabled,
+  className,
   children,
   onChange,
 }: {
   label: string
   value: string
   disabled?: boolean
+  className?: string
   children: React.ReactNode
   onChange: (value: string) => void
 }) {
   return (
-    <label className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
+    <label className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs'>
       <span className='shrink-0'>{label}</span>
       <NativeSelect
-        className='h-8 w-28 text-xs'
+        className={className ?? 'w-28 text-xs'}
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -127,7 +129,7 @@ export function PlaygroundImageInput({
   return (
     <div className='grid shrink-0 gap-3 px-1 md:pb-4'>
       {!isModelLoading && models.length === 0 ? (
-        <p className='px-2 text-xs text-muted-foreground'>
+        <p className='text-muted-foreground px-2 text-xs'>
           {t('No image generation models available')}
         </p>
       ) : null}
@@ -158,6 +160,7 @@ export function PlaygroundImageInput({
             />
 
             <FieldSelect
+              className='w-32 text-xs'
               disabled={disabled || isGenerating}
               label={t('Size')}
               value={config.size}
@@ -171,6 +174,7 @@ export function PlaygroundImageInput({
             </FieldSelect>
 
             <FieldSelect
+              className='w-24 text-xs'
               disabled={disabled || isGenerating}
               label={t('Quality')}
               value={config.quality}
@@ -189,6 +193,7 @@ export function PlaygroundImageInput({
             </FieldSelect>
 
             <FieldSelect
+              className='w-16 text-xs'
               disabled={disabled || isGenerating}
               label={t('Count')}
               value={String(config.n)}
@@ -207,6 +212,7 @@ export function PlaygroundImageInput({
             </FieldSelect>
 
             <FieldSelect
+              className='w-24 text-xs'
               disabled={disabled || isGenerating}
               label={t('Format')}
               value={config.response_format}
