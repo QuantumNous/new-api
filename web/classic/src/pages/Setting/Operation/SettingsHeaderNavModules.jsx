@@ -178,11 +178,11 @@ export default function SettingsHeaderNavModules(props) {
       description: t('模型定价，需要登录访问'),
       hasSubConfig: true, // 标识该模块有子配置
     },
-    {
-      key: 'docs',
-      title: t('文档'),
-      description: t('系统文档和帮助信息'),
-    },
+    // {
+    //   key: 'docs',
+    //   title: t('文档'),
+    //   description: t('系统文档和帮助信息'),
+    // },
     {
       key: 'about',
       title: t('关于'),

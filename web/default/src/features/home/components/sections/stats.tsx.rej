@@ -1,0 +1,49 @@
+@@ -79,25 +79,27 @@
+     { end: 10, suffix: 'K+', label: t('active routes') },
+   ]
+ 
+-  return (
+-    <div className='border-border/50 bg-background/60 relative z-10 border-y backdrop-blur'>
+-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
+-        <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
+-          {stats.map((s) => (
+-            <div
+-              key={s.label}
+-              className='flex flex-col items-center rounded-lg px-3 py-2 text-center'
+-            >
+-              <span className='text-primary text-2xl font-bold tracking-tight md:text-3xl'>
+-                <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
+-              </span>
+-              <span className='text-muted-foreground mt-1.5 text-xs'>
+-                {s.label}
+-              </span>
+-            </div>
+-          ))}
+-        </div>
+-      </div>
+-    </div>
+-  )
++  // return (
++  //   <div className='border-border/50 bg-background/60 relative z-10 border-y backdrop-blur'>
++  //     <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
++  //       <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
++  //         {stats.map((s) => (
++  //           <div
++  //             key={s.label}
++  //             className='flex flex-col items-center rounded-lg px-3 py-2 text-center'
++  //           >
++  //             <span className='text-primary text-2xl font-bold tracking-tight md:text-3xl'>
++  //               <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
++  //             </span>
++  //             <span className='text-muted-foreground mt-1.5 text-xs'>
++  //               {s.label}
++  //             </span>
++  //           </div>
++  //         ))}
++  //       </div>
++  //     </div>
++  //   </div>
++  // )
++
++  return '';
+ }

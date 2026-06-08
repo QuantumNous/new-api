@@ -1,0 +1,173 @@
+diff --git a/web/classic/src/hooks/common/useNavigation.js b/web/classic/src/hooks/common/useNavigation.js
+index f7e61a20..c2a64b01 100644
+--- a/web/classic/src/hooks/common/useNavigation.js
++++ b/web/classic/src/hooks/common/useNavigation.js
+@@ -49,16 +49,16 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
+         itemKey: 'pricing',
+         to: '/pricing',
+       },
+-      ...(docsLink
+-        ? [
+-            {
+-              text: t('文档'),
+-              itemKey: 'docs',
+-              isExternal: true,
+-              externalLink: docsLink,
+-            },
+-          ]
+-        : []),
++      // ...(docsLink
++      //   ? [
++      //       {
++      //         text: t('文档'),
++      //         itemKey: 'docs',
++      //         isExternal: true,
++      //         externalLink: docsLink,
++      //       },
++      //     ]
++      //   : []),
+       {
+         text: t('关于'),
+         itemKey: 'about',
+diff --git a/web/classic/src/pages/Home/index.jsx b/web/classic/src/pages/Home/index.jsx
+index c153c1b3..0aa93b11 100644
+--- a/web/classic/src/pages/Home/index.jsx
++++ b/web/classic/src/pages/Home/index.jsx
+@@ -239,16 +239,17 @@ const Home = () => {
+                       {statusState.status.version}
+                     </Button>
+                   ) : (
+-                    docsLink && (
+-                      <Button
+-                        size={isMobile ? 'default' : 'large'}
+-                        className='flex items-center !rounded-3xl px-6 py-2'
+-                        icon={<IconFile />}
+-                        onClick={() => window.open(docsLink, '_blank')}
+-                      >
+-                        {t('文档')}
+-                      </Button>
+-                    )
++                    // docsLink && (
++                    //   <Button
++                    //     size={isMobile ? 'default' : 'large'}
++                    //     className='flex items-center !rounded-3xl px-6 py-2'
++                    //     icon={<IconFile />}
++                    //     onClick={() => window.open(docsLink, '_blank')}
++                    //   >
++                    //     {t('文档')}
++                    //   </Button>
++                    null
++                    // )
+                   )}
+                 </div>
+ 
+diff --git a/web/classic/src/pages/Setting/Operation/SettingsHeaderNavModules.jsx b/web/classic/src/pages/Setting/Operation/SettingsHeaderNavModules.jsx
+index 19943c1a..5c061ef2 100644
+--- a/web/classic/src/pages/Setting/Operation/SettingsHeaderNavModules.jsx
++++ b/web/classic/src/pages/Setting/Operation/SettingsHeaderNavModules.jsx
+@@ -178,11 +178,11 @@ export default function SettingsHeaderNavModules(props) {
+       description: t('模型定价，需要登录访问'),
+       hasSubConfig: true, // 标识该模块有子配置
+     },
+-    {
+-      key: 'docs',
+-      title: t('文档'),
+-      description: t('系统文档和帮助信息'),
+-    },
++    // {
++    //   key: 'docs',
++    //   title: t('文档'),
++    //   description: t('系统文档和帮助信息'),
++    // },
+     {
+       key: 'about',
+       title: t('关于'),
+diff --git a/web/default/src/components/layout/components/public-header.tsx b/web/default/src/components/layout/components/public-header.tsx
+index 476cddbd..f82b01ac 100644
+--- a/web/default/src/components/layout/components/public-header.tsx
++++ b/web/default/src/components/layout/components/public-header.tsx
+@@ -123,7 +123,7 @@ export function PublicHeader(props: PublicHeaderProps) {
+ 
+             {/* Desktop nav */}
+             <div className='hidden items-center gap-0.5 sm:flex'>
+-              {links.map((link, i) => {
++              {links.filter(link => t(link.title) !== '文档').map((link, i) => {
+                 const isActive = pathname === link.href
+                 if (link.external) {
+                   return (
+diff --git a/web/default/src/features/home/components/sections/stats.tsx b/web/default/src/features/home/components/sections/stats.tsx
+index 33e1b9d4..5bcd086d 100644
+--- a/web/default/src/features/home/components/sections/stats.tsx
++++ b/web/default/src/features/home/components/sections/stats.tsx
+@@ -79,25 +79,27 @@ export function Stats(_props: StatsProps) {
+     { end: 10, suffix: 'K+', label: t('active routes') },
+   ]
+ 
+-  return (
+-    <div className='border-border/50 bg-background/60 relative z-10 border-y backdrop-blur'>
+-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
+-        <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
+-          {stats.map((s) => (
+-            <div
+-              key={s.label}
+-              className='flex flex-col items-center rounded-lg px-3 py-2 text-center'
+-            >
+-              <span className='text-primary text-2xl font-bold tracking-tight md:text-3xl'>
+-                <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
+-              </span>
+-              <span className='text-muted-foreground mt-1.5 text-xs'>
+-                {s.label}
+-              </span>
+-            </div>
+-          ))}
+-        </div>
+-      </div>
+-    </div>
+-  )
++  // return (
++  //   <div className='border-border/50 bg-background/60 relative z-10 border-y backdrop-blur'>
++  //     <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
++  //       <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
++  //         {stats.map((s) => (
++  //           <div
++  //             key={s.label}
++  //             className='flex flex-col items-center rounded-lg px-3 py-2 text-center'
++  //           >
++  //             <span className='text-primary text-2xl font-bold tracking-tight md:text-3xl'>
++  //               <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
++  //             </span>
++  //             <span className='text-muted-foreground mt-1.5 text-xs'>
++  //               {s.label}
++  //             </span>
++  //           </div>
++  //         ))}
++  //       </div>
++  //     </div>
++  //   </div>
++  // )
++
++  return '';
+ }
+diff --git a/web/default/src/hooks/use-top-nav-links.ts b/web/default/src/hooks/use-top-nav-links.ts
+index dfbd8844..2db4b0c0 100644
+--- a/web/default/src/hooks/use-top-nav-links.ts
++++ b/web/default/src/hooks/use-top-nav-links.ts
+@@ -77,15 +77,15 @@ export function useTopNavLinks(): TopNavLink[] {
+   // Docs (supports external links)
+   if (modules?.docs !== false) {
+     if (docsLink) {
+-      links.push({ title: t('Docs'), href: docsLink, external: true })
++      // links.push({ title: t('Docs'), href: docsLink, external: true })
+     } else {
+-      links.push({ title: t('Docs'), href: '/docs' })
++      // links.push({ title: t('Docs'), href: '/docs' })
+     }
+   }
+ 
+   // About
+   if (modules?.about !== false) {
+-    links.push({ title: t('About'), href: '/about' })
++    // links.push({ title: t('About'), href: '/about' })
+   }
+ 
+   return links
