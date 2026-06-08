@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
-import { Code2, Eye } from 'lucide-react'
+import { Code2, Eye, RotateCcw, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,14 +31,16 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import {
   SettingsForm,
   SettingsSwitchContent,
   SettingsSwitchItem,
 } from '../components/settings-form-layout'
-import { SettingsPageActionsPortal } from '../components/settings-page-context'
-import { ModelRatioVisualEditor } from './model-ratio-visual-editor'
+import {
+  ModelRatioVisualEditor,
+  type ModelRatioVisualEditorHandle,
+} from './model-ratio-visual-editor'
 
 type ModelFormValues = {
   ModelPrice: string
@@ -56,14 +58,106 @@ type ModelFormValues = {
 
 type ModelRatioFormProps = {
   form: UseFormReturn<ModelFormValues>
+  savedValues: ModelFormValues
   onSave: (values: ModelFormValues) => Promise<void>
   onReset: () => void
   isSaving: boolean
   isResetting: boolean
 }
 
+type ModelJsonFieldName =
+  | 'ModelPrice'
+  | 'ModelRatio'
+  | 'CacheRatio'
+  | 'CreateCacheRatio'
+  | 'CompletionRatio'
+  | 'ImageRatio'
+  | 'AudioRatio'
+  | 'AudioCompletionRatio'
+
+const modelJsonFields: Array<{
+  name: ModelJsonFieldName
+  labelKey: string
+  descriptionKey: string
+}> = [
+  {
+    name: 'ModelPrice',
+    labelKey: 'Model fixed pricing',
+    descriptionKey:
+      'JSON map of model → USD cost per request. Takes precedence over ratio based billing.',
+  },
+  {
+    name: 'ModelRatio',
+    labelKey: 'Model ratio',
+    descriptionKey: 'JSON map of model → multiplier applied to quota billing.',
+  },
+  {
+    name: 'CacheRatio',
+    labelKey: 'Prompt cache ratio',
+    descriptionKey: 'Optional ratio used when upstream cache hits occur.',
+  },
+  {
+    name: 'CreateCacheRatio',
+    labelKey: 'Create cache ratio',
+    descriptionKey:
+      'Ratio applied when creating cache entries for supported models.',
+  },
+  {
+    name: 'CompletionRatio',
+    labelKey: 'Completion ratio',
+    descriptionKey:
+      'Applies to custom completion endpoints. JSON map of model → ratio.',
+  },
+  {
+    name: 'ImageRatio',
+    labelKey: 'Image ratio',
+    descriptionKey: 'Configure per-model ratio for image inputs or outputs.',
+  },
+  {
+    name: 'AudioRatio',
+    labelKey: 'Audio ratio',
+    descriptionKey:
+      'Ratio applied to audio inputs where supported by the upstream model.',
+  },
+  {
+    name: 'AudioCompletionRatio',
+    labelKey: 'Audio completion ratio',
+    descriptionKey: 'Ratio applied to audio completions for streaming models.',
+  },
+]
+
+function ModelJsonTextareaField(props: {
+  form: UseFormReturn<ModelFormValues>
+  name: ModelJsonFieldName
+  label: string
+  description: string
+}) {
+  return (
+    <FormField
+      control={props.form.control}
+      name={props.name}
+      render={({ field }) => (
+        <FormItem className='flex min-w-0 flex-col gap-2'>
+          <FormLabel>{props.label}</FormLabel>
+          <FormControl>
+            <JsonCodeEditor
+              value={field.value}
+              onChange={(value) => field.onChange(value)}
+            />
+          </FormControl>
+          <FormDescription className='text-xs leading-5'>
+            {props.description}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
 export const ModelRatioForm = memo(function ModelRatioForm({
   form,
+  savedValues,
   onSave,
   onReset,
   isSaving,
@@ -71,6 +165,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 }: ModelRatioFormProps) {
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
+  const visualEditorRef = useRef<ModelRatioVisualEditorHandle>(null)
 
   const handleFieldChange = useCallback(
     (field: keyof ModelFormValues, value: string) => {
@@ -86,9 +181,39 @@ export const ModelRatioForm = memo(function ModelRatioForm({
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
 
+  const handleSave = useCallback(async () => {
+    if (editMode === 'visual') {
+      const committed = await visualEditorRef.current?.commitOpenEditor()
+      if (committed === false) return
+    }
+
+    await form.handleSubmit(onSave)()
+  }, [editMode, form, onSave])
+
   return (
     <div className='space-y-6'>
-      <div className='flex justify-end'>
+      <div className='flex flex-wrap justify-end gap-2'>
+        <Button
+          type='button'
+          variant='destructive'
+          size='sm'
+          onClick={onReset}
+          disabled={isResetting}
+        >
+          <RotateCcw data-icon='inline-start' />
+          {t('Reset prices')}
+        </Button>
+        {editMode === 'json' && (
+          <Button
+            type='button'
+            size='sm'
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            <Save data-icon='inline-start' />
+            {isSaving ? t('Saving...') : t('Save model prices')}
+          </Button>
+        )}
         <Button variant='outline' size='sm' onClick={toggleEditMode}>
           {editMode === 'visual' ? (
             <>
@@ -105,28 +230,20 @@ export const ModelRatioForm = memo(function ModelRatioForm({
       </div>
 
       <Form {...form}>
-        <SettingsPageActionsPortal>
-          <Button
-            type='button'
-            variant='destructive'
-            size='sm'
-            onClick={onReset}
-            disabled={isResetting}
-          >
-            {t('Reset prices')}
-          </Button>
-          <Button
-            type='button'
-            size='sm'
-            onClick={form.handleSubmit(onSave)}
-            disabled={isSaving}
-          >
-            {isSaving ? t('Saving...') : t('Save model prices')}
-          </Button>
-        </SettingsPageActionsPortal>
         {editMode === 'visual' ? (
           <div className='space-y-6'>
             <ModelRatioVisualEditor
+              ref={visualEditorRef}
+              savedModelPrice={savedValues.ModelPrice}
+              savedModelRatio={savedValues.ModelRatio}
+              savedCacheRatio={savedValues.CacheRatio}
+              savedCreateCacheRatio={savedValues.CreateCacheRatio}
+              savedCompletionRatio={savedValues.CompletionRatio}
+              savedImageRatio={savedValues.ImageRatio}
+              savedAudioRatio={savedValues.AudioRatio}
+              savedAudioCompletionRatio={savedValues.AudioCompletionRatio}
+              savedBillingMode={savedValues.BillingMode}
+              savedBillingExpr={savedValues.BillingExpr}
               modelPrice={form.watch('ModelPrice')}
               modelRatio={form.watch('ModelRatio')}
               cacheRatio={form.watch('CacheRatio')}
@@ -137,6 +254,8 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               audioCompletionRatio={form.watch('AudioCompletionRatio')}
               billingMode={form.watch('BillingMode')}
               billingExpr={form.watch('BillingExpr')}
+              onSave={handleSave}
+              isSaving={isSaving}
               onChange={(field, value) => {
                 const fieldMap: Record<string, keyof ModelFormValues> = {
                   'billing_setting.billing_mode': 'BillingMode',
@@ -173,155 +292,17 @@ export const ModelRatioForm = memo(function ModelRatioForm({
           </div>
         ) : (
           <SettingsForm onSubmit={form.handleSubmit(onSave)}>
-            <FormField
-              control={form.control}
-              name='ModelPrice'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Model fixed pricing')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={8} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'JSON map of model → USD cost per request. Takes precedence over ratio based billing.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='ModelRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Model ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={8} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'JSON map of model → multiplier applied to quota billing.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='CacheRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Prompt cache ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={8} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t('Optional ratio used when upstream cache hits occur.')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='CreateCacheRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Create cache ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={8} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Ratio applied when creating cache entries for supported models.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='CompletionRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Completion ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={8} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Applies to custom completion endpoints. JSON map of model → ratio.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='ImageRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Image ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={6} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Configure per-model ratio for image inputs or outputs.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='AudioRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Audio ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={6} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Ratio applied to audio inputs where supported by the upstream model.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='AudioCompletionRatio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Audio completion ratio')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={6} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Ratio applied to audio completions for streaming models.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className='grid min-w-0 gap-x-5 gap-y-8 lg:grid-cols-2 2xl:grid-cols-3'>
+              {modelJsonFields.map((config) => (
+                <ModelJsonTextareaField
+                  key={config.name}
+                  form={form}
+                  name={config.name}
+                  label={t(config.labelKey)}
+                  description={t(config.descriptionKey)}
+                />
+              ))}
+            </div>
 
             <FormField
               control={form.control}
