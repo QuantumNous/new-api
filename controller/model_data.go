@@ -15,12 +15,12 @@ import (
 
 // DetectPoint is one entry in a per-channel history series for the model-data UI.
 type DetectPoint struct {
-	Status                  string     `json:"status"`               // 'pass' / 'suspicious' / 'notcomplete'
-	DetectTime              int64      `json:"detect_time"`          // unix seconds
+	Status                  string     `json:"status"`      // 'pass' / 'suspicious' / 'notcomplete'
+	DetectTime              int64      `json:"detect_time"` // unix seconds
 	Note                    string     `json:"note,omitempty"`
-	GroupName               string     `json:"group_name,omitempty"` // channel group at time of detection
+	GroupName               string     `json:"group_name,omitempty"`                // channel group at time of detection
 	FingerprintModelVersion string     `json:"fingerprint_model_version,omitempty"` // e.g. apimaster_fingerprint_cccli_v0.1
-	Top5                    []TopKItem `json:"top5,omitempty"`       // fingerprint top-5 predictions (only on fingerprint history points)
+	Top5                    []TopKItem `json:"top5,omitempty"`                      // fingerprint top-5 predictions (only on fingerprint history points)
 }
 
 // TopKItem is one prediction in the fingerprint top-5 list. Mirrors apimaster's
@@ -32,38 +32,41 @@ type TopKItem struct {
 }
 
 type ModelDataItem struct {
-	ChannelID                  int           `json:"channel_id"`
-	ChannelName                string        `json:"channel_name"`
-	KeyGroup                   string        `json:"key_group"`
+	ChannelID   int    `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	KeyGroup    string `json:"key_group"`
 	// Pricing fields: nil = no pricing row (upstream 401/404 / cookie-only auth / no endpoint).
 	// Frontend renders nil as "—".
-	ModelPrice                 *float64      `json:"model_price"`                   // base model price = input_price / group_ratio ($/1M); nil = unknown
-	GroupRatio                 *float64      `json:"group_ratio"`                   // upstream group multiplier (e.g. 1.05 for CC); nil = unknown
-	RechargeRate               float64       `json:"recharge_rate"`                 // platform recharge multiplier
-	InputPrice                 *float64      `json:"input_price"`                   // model_price × group_ratio ($/1M); nil = unknown
-	ActualPrice                *float64      `json:"actual_price"`                  // input_price × recharge_rate; nil = unknown
-	PricingSource              string        `json:"pricing_source"`                // "api" | "manual" | "" (no pricing data)
-	HubPrice                   *float64      `json:"hub_price"`                     // hub.romaapi.com listed input price ($/1M), matched by key_group; nil = no hub data / group mismatch
-	OutputPrice                *float64      `json:"output_price"`                  // raw upstream output price ($/1M); nil = unknown
-	ActualOutputPrice          *float64      `json:"actual_output_price"`           // output_price × recharge_rate; nil = unknown
-	CachePrice                 *float64      `json:"cache_price"`                   // cache-read price ($/1M); nil = unknown
-	ActualCachePrice           *float64      `json:"actual_cache_price"`            // cache_price × recharge_rate; nil = unknown
-	CacheCreationPrice         *float64      `json:"cache_creation_price"`          // cache-write price ($/1M); nil = unknown
-	ActualCacheCreationPrice   *float64      `json:"actual_cache_creation_price"`   // cache_creation_price × recharge_rate; nil = unknown
-	FingerprintHistory         []DetectPoint `json:"fingerprint_history"`           // last 24 fingerprint runs (newest first)
-	UptimeHistory              []DetectPoint `json:"uptime_history"`                // last 24 uptime probes (newest first)
-	LatencyMedianMs            float64       `json:"latency_median_ms"`             // median latency over uptime probes in modelDataLatencyWindowSec; 0 if no samples
-	Status                     int           `json:"status"`                        // 1 enabled / 2 manual-disabled / 3 auto-disabled (routing algorithm 0.1)
-	ConsecutiveFingerprintPass int           `json:"consecutive_fingerprint_pass"`  // recovery counter; only meaningful when status=3
-	ModelEnabled               bool          `json:"model_enabled"`                 // abilities.enabled for this (channel, model) — false = disabled for this model only
-	StatusReason               string        `json:"status_reason"`                 // why auto-disabled; empty when status != 3
-	StatusTime                 int64         `json:"status_time"`                   // unix ts of disable event; 0 if unknown
-	BaseURL                    string        `json:"base_url"`                      // channel base URL, used for analysis lookup
+	ModelPrice                 *float64      `json:"model_price"`                  // base model price = input_price / group_ratio ($/1M); nil = unknown
+	GroupRatio                 *float64      `json:"group_ratio"`                  // upstream group multiplier (e.g. 1.05 for CC); nil = unknown
+	RechargeRate               float64       `json:"recharge_rate"`                // platform recharge multiplier
+	InputPrice                 *float64      `json:"input_price"`                  // model_price × group_ratio ($/1M); nil = unknown
+	ActualPrice                *float64      `json:"actual_price"`                 // input_price × recharge_rate (采购价); nil = unknown
+	UserPrice                  *float64      `json:"user_price"`                   // actual_price × apimaster_price_ratio (用户最终价格); nil = unknown
+	ApimasterPriceRatio        float64       `json:"apimaster_price_ratio"`        // per-channel markup multiplier; 1.0 when unset
+	PricingSource              string        `json:"pricing_source"`               // "api" | "manual" | "" (no pricing data)
+	HubPrice                   *float64      `json:"hub_price"`                    // hub.romaapi.com listed input price ($/1M), matched by key_group; nil = no hub data / group mismatch
+	OutputPrice                *float64      `json:"output_price"`                 // raw upstream output price ($/1M); nil = unknown
+	ActualOutputPrice          *float64      `json:"actual_output_price"`          // output_price × recharge_rate (采购价); nil = unknown
+	ActualOutputUserPrice      *float64      `json:"actual_output_user_price"`     // actual_output_price × apimaster_price_ratio (用户最终价格); nil = unknown
+	CachePrice                 *float64      `json:"cache_price"`                  // cache-read price ($/1M); nil = unknown
+	ActualCachePrice           *float64      `json:"actual_cache_price"`           // cache_price × recharge_rate; nil = unknown
+	CacheCreationPrice         *float64      `json:"cache_creation_price"`         // cache-write price ($/1M); nil = unknown
+	ActualCacheCreationPrice   *float64      `json:"actual_cache_creation_price"`  // cache_creation_price × recharge_rate; nil = unknown
+	FingerprintHistory         []DetectPoint `json:"fingerprint_history"`          // last 24 fingerprint runs (newest first)
+	UptimeHistory              []DetectPoint `json:"uptime_history"`               // last 24 uptime probes (newest first)
+	LatencyMedianMs            float64       `json:"latency_median_ms"`            // median latency over uptime probes in modelDataLatencyWindowSec; 0 if no samples
+	Status                     int           `json:"status"`                       // 1 enabled / 2 manual-disabled / 3 auto-disabled (routing algorithm 0.1)
+	ConsecutiveFingerprintPass int           `json:"consecutive_fingerprint_pass"` // recovery counter; only meaningful when status=3
+	ModelEnabled               bool          `json:"model_enabled"`                // abilities.enabled for this (channel, model) — false = disabled for this model only
+	StatusReason               string        `json:"status_reason"`                // why auto-disabled; empty when status != 3
+	StatusTime                 int64         `json:"status_time"`                  // unix ts of disable event; 0 if unknown
+	BaseURL                    string        `json:"base_url"`                     // channel base URL, used for analysis lookup
 }
 
 const (
-	modelDataHistorySize       = 24
-	modelDataLatencyWindowSec  = 24 * 60 * 60 // 24h window for the latency median column
+	modelDataHistorySize      = 24
+	modelDataLatencyWindowSec = 24 * 60 * 60 // 24h window for the latency median column
 )
 
 // GetModelData returns channel pricing and detection stats for a given model.
@@ -84,6 +87,7 @@ func GetModelData(c *gin.Context) {
 		GroupRatio                 *float64 // upstream group multiplier; nil when no pricing row
 		PricingSource              *string
 		RechargeRate               *float64
+		ApimasterPriceRatio        float64 // per-channel markup; COALESCE'd to 1.0
 		Status                     int
 		ConsecutiveFingerprintPass int
 		ModelEnabled               bool    // abilities.enabled for this (channel, model)
@@ -112,7 +116,7 @@ func GetModelData(c *gin.Context) {
 	// (any non-NULL filter on the right table re-excludes the no-match rows).
 	var rows []row
 	model.DB.Table("channels c").
-		Select("c.id as channel_id, c.name as channel_name, c.base_url, c.setting, c.model_mapping, p.input_price, p.output_price, p.cache_price, p.cache_creation_price, p.group_ratio, p.pricing_source, c.recharge_rate, c.status, c.consecutive_fingerprint_pass, COALESCE(a.enabled, true) as model_enabled, c.other_info").
+		Select("c.id as channel_id, c.name as channel_name, c.base_url, c.setting, c.model_mapping, p.input_price, p.output_price, p.cache_price, p.cache_creation_price, p.group_ratio, p.pricing_source, c.recharge_rate, COALESCE(c.apimaster_price_ratio, 1.0) AS apimaster_price_ratio, c.status, c.consecutive_fingerprint_pass, COALESCE(a.enabled, true) as model_enabled, c.other_info").
 		Joins("LEFT JOIN channel_model_pricings p ON c.id = p.channel_id AND p.model_name IN ?", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		// Show all status (1/2/3) so the operator can act on auto-disabled ones from the table.
@@ -230,13 +234,23 @@ func GetModelData(c *gin.Context) {
 		// Pricing is nil when LEFT JOIN had no match (upstream /api/pricing
 		// 401/404 or cookie-only auth). Keep nil all the way to the API
 		// response so the frontend renders "—" rather than misleading "0".
+		// apimaster markup multiplier; nil/0 already coalesced to 1.0, guard anyway.
+		apimasterRatio := r.ApimasterPriceRatio
+		if apimasterRatio <= 0 {
+			apimasterRatio = 1.0
+		}
+
 		var inputPricePtr, outputPricePtr, actualPricePtr, actualOutPricePtr *float64
+		var userPricePtr, actualOutputUserPricePtr *float64
 		var modelPricePtr, groupRatioPtr *float64
 		if r.InputPrice != nil {
 			in := *r.InputPrice
 			inputPricePtr = &in
 			actualIn := in * rechargeRate
 			actualPricePtr = &actualIn
+			// user_price = 采购价 × apimaster_price_ratio
+			userIn := actualIn * apimasterRatio
+			userPricePtr = &userIn
 
 			// group_ratio stored per-row; default 1.0 for old rows without the column.
 			gr := 1.0
@@ -252,6 +266,9 @@ func GetModelData(c *gin.Context) {
 			outputPricePtr = &out
 			actualOut := out * rechargeRate
 			actualOutPricePtr = &actualOut
+			// output 用户最终价格 = 输出采购价 × apimaster_price_ratio
+			userOut := actualOut * apimasterRatio
+			actualOutputUserPricePtr = &userOut
 		}
 		var cachePricePtr, actualCachePricePtr *float64
 		if r.CachePrice != nil && *r.CachePrice > 0 {
@@ -308,9 +325,12 @@ func GetModelData(c *gin.Context) {
 			GroupRatio:                 groupRatioPtr,
 			InputPrice:                 inputPricePtr,
 			ActualPrice:                actualPricePtr,
+			UserPrice:                  userPricePtr,
+			ApimasterPriceRatio:        apimasterRatio,
 			HubPrice:                   hubPricePtr,
 			OutputPrice:                outputPricePtr,
 			ActualOutputPrice:          actualOutPricePtr,
+			ActualOutputUserPrice:      actualOutputUserPricePtr,
 			CachePrice:                 cachePricePtr,
 			ActualCachePrice:           actualCachePricePtr,
 			CacheCreationPrice:         cacheCreationPricePtr,
@@ -325,13 +345,18 @@ func GetModelData(c *gin.Context) {
 			ModelEnabled:               r.ModelEnabled,
 			StatusReason:               statusReason,
 			StatusTime:                 statusTime,
-			BaseURL:                    func() string { if r.BaseURL != nil { return *r.BaseURL }; return "" }(),
+			BaseURL: func() string {
+				if r.BaseURL != nil {
+					return *r.BaseURL
+				}
+				return ""
+			}(),
 		})
 	}
 
-	// Re-sort by actual price ascending; rows with nil/≤0 ActualPrice (no
+	// Re-sort by user price ascending; rows with nil/≤0 UserPrice (no
 	// pricing available) sink to the bottom so the table still leads with
-	// the cheapest *known-priced* row.
+	// the cheapest *known-priced* row. 与公开市场页一致按用户最终价格排序。
 	priceRank := func(p *float64) int {
 		if p == nil || *p <= 0 {
 			return 1
@@ -347,8 +372,8 @@ func GetModelData(c *gin.Context) {
 	for i := 1; i < len(items); i++ {
 		for j := i; j > 0; j-- {
 			a, b := items[j-1], items[j]
-			ra, rb := priceRank(a.ActualPrice), priceRank(b.ActualPrice)
-			if ra < rb || (ra == rb && priceVal(a.ActualPrice) <= priceVal(b.ActualPrice)) {
+			ra, rb := priceRank(a.UserPrice), priceRank(b.UserPrice)
+			if ra < rb || (ra == rb && priceVal(a.UserPrice) <= priceVal(b.UserPrice)) {
 				break
 			}
 			items[j], items[j-1] = b, a
@@ -405,20 +430,22 @@ func applyModelMappingPricingToRow(
 // PublicMarketplaceItem is the public-facing shape returned by GetPublicMarketplace.
 // It omits internal/admin fields (hub_price, model_price, group_ratio, pricing_source, etc.).
 type PublicMarketplaceItem struct {
-	ChannelID            int           `json:"channel_id"`
-	ChannelName          string        `json:"channel_name"`
-	KeyGroup             string        `json:"key_group"`
-	InputPrice           *float64      `json:"input_price"`
-	ActualPrice          *float64      `json:"actual_price"`
-	OutputPrice          *float64      `json:"output_price"`
-	ActualOutputPrice    *float64      `json:"actual_output_price"`
-	RechargeRate         float64       `json:"recharge_rate"`
-	OfficialInputPrice   *float64      `json:"official_input_price"`
-	OfficialOutputPrice  *float64      `json:"official_output_price"`
-	FingerprintHistory   []DetectPoint `json:"fingerprint_history"`
-	UptimeHistory        []DetectPoint `json:"uptime_history"`
-	LatencyMedianMs      float64       `json:"latency_median_ms"`
-	Status               int           `json:"status"`
+	ChannelID             int           `json:"channel_id"`
+	ChannelName           string        `json:"channel_name"`
+	KeyGroup              string        `json:"key_group"`
+	InputPrice            *float64      `json:"input_price"`
+	ActualPrice           *float64      `json:"actual_price"` // 采购价（内部参考），保留供折扣计算
+	UserPrice             *float64      `json:"user_price"`   // 用户最终价格 = actual_price × apimaster_price_ratio
+	OutputPrice           *float64      `json:"output_price"`
+	ActualOutputPrice     *float64      `json:"actual_output_price"`
+	ActualOutputUserPrice *float64      `json:"actual_output_user_price"` // 输出用户最终价格 = actual_output_price × apimaster_price_ratio
+	RechargeRate          float64       `json:"recharge_rate"`
+	OfficialInputPrice    *float64      `json:"official_input_price"`
+	OfficialOutputPrice   *float64      `json:"official_output_price"`
+	FingerprintHistory    []DetectPoint `json:"fingerprint_history"`
+	UptimeHistory         []DetectPoint `json:"uptime_history"`
+	LatencyMedianMs       float64       `json:"latency_median_ms"`
+	Status                int           `json:"status"`
 }
 
 // publicMarketplaceCache is a simple per-model TTL cache.
@@ -449,15 +476,16 @@ func GetPublicMarketplace(c *gin.Context) {
 	publicMarketplaceCache.Unlock()
 
 	type row struct {
-		ChannelID    int
-		ChannelName  string
-		Setting      *string
-		ModelMapping *string
-		InputPrice   *float64
-		OutputPrice  *float64
-		GroupRatio   *float64
-		RechargeRate *float64
-		Status       int
+		ChannelID           int
+		ChannelName         string
+		Setting             *string
+		ModelMapping        *string
+		InputPrice          *float64
+		OutputPrice         *float64
+		GroupRatio          *float64
+		RechargeRate        *float64
+		ApimasterPriceRatio float64
+		Status              int
 	}
 
 	candidates := service.ModelNameCandidates(modelName)
@@ -471,7 +499,7 @@ func GetPublicMarketplace(c *gin.Context) {
 
 	var rows []row
 	model.DB.Table("channels c").
-		Select("c.id as channel_id, c.name as channel_name, c.setting, c.model_mapping, p.input_price, p.output_price, p.group_ratio, c.recharge_rate, c.status").
+		Select("c.id as channel_id, c.name as channel_name, c.setting, c.model_mapping, p.input_price, p.output_price, p.group_ratio, c.recharge_rate, COALESCE(c.apimaster_price_ratio, 1.0) AS apimaster_price_ratio, c.status").
 		Joins("LEFT JOIN channel_model_pricings p ON c.id = p.channel_id AND p.model_name IN ?", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
@@ -586,39 +614,51 @@ func GetPublicMarketplace(c *gin.Context) {
 			latencies = h.Latencies
 		}
 
+		apimasterRatio := r.ApimasterPriceRatio
+		if apimasterRatio <= 0 {
+			apimasterRatio = 1.0
+		}
+
 		var inputPricePtr, outputPricePtr, actualPricePtr, actualOutPricePtr *float64
+		var userPricePtr, actualOutputUserPricePtr *float64
 		if r.InputPrice != nil {
 			in := *r.InputPrice
 			inputPricePtr = &in
 			actualIn := in * rechargeRate
 			actualPricePtr = &actualIn
+			userIn := actualIn * apimasterRatio
+			userPricePtr = &userIn
 		}
 		if r.OutputPrice != nil {
 			out := *r.OutputPrice
 			outputPricePtr = &out
 			actualOut := out * rechargeRate
 			actualOutPricePtr = &actualOut
+			userOut := actualOut * apimasterRatio
+			actualOutputUserPricePtr = &userOut
 		}
 
 		items = append(items, PublicMarketplaceItem{
-			ChannelID:           r.ChannelID,
-			ChannelName:         r.ChannelName,
-			KeyGroup:            modelDataExtractKeyGroup(r.Setting),
-			InputPrice:          inputPricePtr,
-			ActualPrice:         actualPricePtr,
-			OutputPrice:         outputPricePtr,
-			ActualOutputPrice:   actualOutPricePtr,
-			RechargeRate:        rechargeRate,
-			OfficialInputPrice:  officialInPtr,
-			OfficialOutputPrice: officialOutPtr,
-			FingerprintHistory:  fp,
-			UptimeHistory:       up,
-			LatencyMedianMs:     medianFloat64(latencies),
-			Status:              r.Status,
+			ChannelID:             r.ChannelID,
+			ChannelName:           r.ChannelName,
+			KeyGroup:              modelDataExtractKeyGroup(r.Setting),
+			InputPrice:            inputPricePtr,
+			ActualPrice:           actualPricePtr,
+			UserPrice:             userPricePtr,
+			OutputPrice:           outputPricePtr,
+			ActualOutputPrice:     actualOutPricePtr,
+			ActualOutputUserPrice: actualOutputUserPricePtr,
+			RechargeRate:          rechargeRate,
+			OfficialInputPrice:    officialInPtr,
+			OfficialOutputPrice:   officialOutPtr,
+			FingerprintHistory:    fp,
+			UptimeHistory:         up,
+			LatencyMedianMs:       medianFloat64(latencies),
+			Status:                r.Status,
 		})
 	}
 
-	// Sort by actual price ascending; nil/zero price sinks to bottom.
+	// Sort by user-facing price ascending; nil/zero price sinks to bottom.
 	priceRank := func(p *float64) int {
 		if p == nil || *p <= 0 {
 			return 1
@@ -634,8 +674,8 @@ func GetPublicMarketplace(c *gin.Context) {
 	for i := 1; i < len(items); i++ {
 		for j := i; j > 0; j-- {
 			a, b := items[j-1], items[j]
-			ra, rb := priceRank(a.ActualPrice), priceRank(b.ActualPrice)
-			if ra < rb || (ra == rb && priceVal(a.ActualPrice) <= priceVal(b.ActualPrice)) {
+			ra, rb := priceRank(a.UserPrice), priceRank(b.UserPrice)
+			if ra < rb || (ra == rb && priceVal(a.UserPrice) <= priceVal(b.UserPrice)) {
 				break
 			}
 			items[j], items[j-1] = b, a

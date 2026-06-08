@@ -24,11 +24,12 @@ type ChannelModelPriceRatios struct {
 // "cost price == sell price" routing 0.1 + step 4 billing model.
 func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRatios, bool) {
 	var ch struct {
-		ModelMapping *string
-		RechargeRate float64
+		ModelMapping        *string
+		RechargeRate        float64
+		ApimasterPriceRatio float64
 	}
 	_ = model.DB.Table("channels").
-		Select("model_mapping, COALESCE(recharge_rate, 1.0) AS recharge_rate").
+		Select("model_mapping, COALESCE(recharge_rate, 1.0) AS recharge_rate, COALESCE(apimaster_price_ratio, 1.0) AS apimaster_price_ratio").
 		Where("id = ?", channelID).
 		Scan(&ch).Error
 
@@ -57,8 +58,15 @@ func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRa
 	if rechargeRate <= 0 {
 		rechargeRate = 1.0
 	}
+	// apimaster markup multiplier; nil/0 already coalesced to 1.0, guard for safety.
+	// Applied to ModelRatio (input). Output/cache ride along automatically because
+	// their ratios are relative to input_price.
+	apimasterRatio := ch.ApimasterPriceRatio
+	if apimasterRatio <= 0 {
+		apimasterRatio = 1.0
+	}
 	priceData := ChannelModelPriceRatios{
-		ModelRatio:      row.InputPrice * rechargeRate / 2.0,
+		ModelRatio:      row.InputPrice * rechargeRate * apimasterRatio / 2.0,
 		CompletionRatio: 1.0,
 	}
 	if row.OutputPrice > 0 {

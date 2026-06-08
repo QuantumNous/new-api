@@ -540,6 +540,31 @@ function ModelPriceRatioField({ control }: { control: Control<ChannelFormValues>
   )
 }
 
+function ApimasterPriceRatioField({ control }: { control: Control<ChannelFormValues> }) {
+  const { t } = useTranslation()
+  const { field, fieldState } = useController({ control, name: 'apimaster_price_ratio' })
+
+  return (
+    <FormItem>
+      <FormLabel>{t('User Price Ratio')}</FormLabel>
+      <FormControl>
+        <Input
+          type='number'
+          step='0.01'
+          min='0'
+          placeholder='e.g. 1.0'
+          value={field.value ?? ''}
+          onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseFloat(parseFloat(e.target.value).toPrecision(10)))}
+        />
+      </FormControl>
+      <FormDescription>
+        {t('User final price = procurement price × this ratio. Leave blank or 1.0 for no markup. Affects actual billing and marketplace display.')}
+      </FormDescription>
+      {fieldState.error && <p className='text-destructive text-xs'>{fieldState.error.message}</p>}
+    </FormItem>
+  )
+}
+
 function CardHeading({ title, icon }: { title: string; icon?: ReactNode }) {
   return (
     <div className='flex items-center gap-2.5'>
@@ -2737,6 +2762,8 @@ export function ChannelMutateDrawer({
                 <RechargeRateField control={form.control} />
 
                 <ModelPriceRatioField control={form.control} />
+
+                <ApimasterPriceRatioField control={form.control} />
               </div>
 
               <Collapsible

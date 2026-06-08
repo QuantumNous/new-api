@@ -52,10 +52,13 @@ interface ModelDataItem {
   group_ratio: number | null       // upstream group multiplier
   recharge_rate: number            // platform recharge multiplier
   input_price: number | null       // model_price × group_ratio
-  actual_price: number | null           // input_price × recharge_rate
+  actual_price: number | null           // input_price × recharge_rate (采购价)
+  user_price: number | null             // actual_price × apimaster_price_ratio (用户最终价格)
+  apimaster_price_ratio: number         // per-channel markup; 1.0 when unset
   hub_price: number | null              // hub.romaapi.com listed price, matched by key_group
   output_price?: number | null
   actual_output_price?: number | null
+  actual_output_user_price?: number | null  // actual_output_price × apimaster_price_ratio
   cache_price?: number | null           // cache-read price before recharge
   actual_cache_price?: number | null    // cache_price × recharge_rate
   cache_creation_price?: number | null
@@ -431,16 +434,17 @@ export function ModelDataPage() {
       .then((res) => {
         if (res.data?.success) {
           const raw: ModelDataItem[] = res.data.data ?? []
-          // Sort: enabled (model_enabled+status=1) by actual_price asc,
-          // then disabled by actual_price asc, then no-price last.
+          // Sort: enabled (model_enabled+status=1) by user_price asc,
+          // then disabled by user_price asc, then no-price last.
+          // 与公开市场页一致，按用户最终价格排序。
           const sorted = [...raw].sort((a, b) => {
             const aOn = a.model_enabled !== false && a.status === 1
             const bOn = b.model_enabled !== false && b.status === 1
             if (aOn !== bOn) return aOn ? -1 : 1
-            const aP = a.actual_price != null && a.actual_price > 0
-            const bP = b.actual_price != null && b.actual_price > 0
+            const aP = a.user_price != null && a.user_price > 0
+            const bP = b.user_price != null && b.user_price > 0
             if (aP !== bP) return aP ? -1 : 1
-            return (a.actual_price ?? Infinity) - (b.actual_price ?? Infinity)
+            return (a.user_price ?? Infinity) - (b.user_price ?? Infinity)
           })
           setData(sorted)
         }
@@ -776,6 +780,9 @@ export function ModelDataPage() {
                   实际价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
+                  用户价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                </th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
                   hub&nbsp;价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟</th>
@@ -787,12 +794,12 @@ export function ModelDataPage() {
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={12} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={13} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={12} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={13} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
@@ -900,6 +907,12 @@ export function ModelDataPage() {
                         </TooltipContent>
                       </Tooltip>
                       </TooltipProvider>
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-700 ${dim}`}>
+                      {fmtPrice(item.user_price)}
+                      {item.apimaster_price_ratio != null && item.apimaster_price_ratio !== 1 && (
+                        <span className='ml-1 text-[10px] font-normal text-emerald-500'>×{item.apimaster_price_ratio.toFixed(2)}</span>
+                      )}
                     </td>
                     <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
                     <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
