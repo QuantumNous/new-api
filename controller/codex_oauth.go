@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -133,7 +134,7 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	code, state, err := parseCodexAuthorizationInput(req.Input)
 	if err != nil {
 		common.SysError("failed to parse codex authorization input: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析授权信息失败，请检查输入格式"})
+		common.ApiErrorI18n(c, i18n.MsgCodexAuthorizationParseFailed)
 		return
 	}
 	if strings.TrimSpace(code) == "" {
@@ -181,7 +182,7 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	tokenRes, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
 	if err != nil {
 		common.SysError("failed to exchange codex authorization code: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权码交换失败，请重试"})
+		common.ApiErrorI18n(c, i18n.MsgCodexAuthorizationExchangeFailed)
 		return
 	}
 
