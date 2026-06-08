@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -204,6 +205,14 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "LogRetentionDays" {
+		normalizedValue, _, err := normalizeLogRetentionDaysOptionValue(value)
+		if err != nil {
+			return err
+		}
+		value = normalizedValue
+	}
+
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -228,8 +237,20 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	normalizedValues := make(map[string]string, len(values))
+	for k, v := range values {
+		if k == "LogRetentionDays" {
+			normalizedValue, _, err := normalizeLogRetentionDaysOptionValue(v)
+			if err != nil {
+				return err
+			}
+			normalizedValues[k] = normalizedValue
+			continue
+		}
+		normalizedValues[k] = v
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		for k, v := range values {
+		for k, v := range normalizedValues {
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -244,7 +265,7 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range values {
+	for k, v := range normalizedValues {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
@@ -255,6 +276,17 @@ func UpdateOptionsBulk(values map[string]string) error {
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+
+	if key == "LogRetentionDays" {
+		normalizedValue, intValue, err := normalizeLogRetentionDaysOptionValue(value)
+		if err != nil {
+			return err
+		}
+		common.LogRetentionDays = intValue
+		common.OptionMap[key] = normalizedValue
+		return nil
+	}
+
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
@@ -549,12 +581,6 @@ func updateOptionMap(key string, value string) (err error) {
 	//	common.ChatLink2 = value
 	case "ChannelDisableThreshold":
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
-	case "LogRetentionDays":
-		intValue, err := strconv.Atoi(value)
-		if err == nil && intValue >= 0 && intValue <= common.MaxLogRetentionDays {
-			common.LogRetentionDays = intValue
-			common.OptionMap[key] = strconv.Itoa(intValue)
-		}
 	case "QuotaPerUnit":
 		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
 	case "SensitiveWords":
@@ -575,6 +601,18 @@ func updateOptionMap(key string, value string) (err error) {
 		// No additional in-memory variable to update.
 	}
 	return err
+}
+
+func normalizeLogRetentionDaysOptionValue(value string) (string, int, error) {
+	normalizedValue := strings.TrimSpace(value)
+	intValue, err := strconv.Atoi(normalizedValue)
+	if err != nil || intValue < 0 {
+		return "", 0, fmt.Errorf("LogRetentionDays must be a non-negative integer")
+	}
+	if intValue > common.MaxLogRetentionDays {
+		return "", 0, fmt.Errorf("LogRetentionDays must be less than or equal to %d", common.MaxLogRetentionDays)
+	}
+	return strconv.Itoa(intValue), intValue, nil
 }
 
 // handleConfigUpdate 处理分层配置更新，返回是否已处理

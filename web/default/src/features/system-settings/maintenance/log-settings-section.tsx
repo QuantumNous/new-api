@@ -71,6 +71,7 @@ type LogSettingsSectionProps = {
 }
 
 const HOURS_IN_DAY = 24
+const RETENTION_CLOCK_INTERVAL_MS = 60 * 1000
 
 const getDateHoursAgo = (hours: number) => {
   const date = new Date()
@@ -80,8 +81,8 @@ const getDateHoursAgo = (hours: number) => {
 
 const getDateDaysAgo = (days: number) => getDateHoursAgo(days * HOURS_IN_DAY)
 
-const getRetentionCutoffDate = (days: number) => {
-  const date = new Date()
+const getRetentionCutoffDate = (days: number, now: Date) => {
+  const date = new Date(now)
   if (days > 0) {
     date.setDate(date.getDate() - days)
   }
@@ -121,8 +122,17 @@ export function LogSettingsSection({
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
     getDateDaysAgo(30)
   )
+  const [currentTime, setCurrentTime] = useState(() => new Date())
   const [isCleaning, setIsCleaning] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setCurrentTime(new Date()),
+      RETENTION_CLOCK_INTERVAL_MS
+    )
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     form.reset({
@@ -136,9 +146,9 @@ export function LogSettingsSection({
     ? Math.min(Math.max(retentionDays, 0), MAX_LOG_RETENTION_DAYS)
     : defaultLogRetentionDays
 
-  const maxPurgeDate = useMemo(
-    () => getRetentionCutoffDate(boundedRetentionDays),
-    [boundedRetentionDays]
+  const maxPurgeDate = getRetentionCutoffDate(
+    boundedRetentionDays,
+    currentTime
   )
 
   useEffect(() => {
@@ -157,9 +167,9 @@ export function LogSettingsSection({
     return formatTimestampToDate(purgeDate.getTime(), 'milliseconds')
   }, [purgeDate])
 
-  const formattedMaxPurgeDate = useMemo(
-    () => formatTimestampToDate(maxPurgeDate.getTime(), 'milliseconds'),
-    [maxPurgeDate]
+  const formattedMaxPurgeDate = formatTimestampToDate(
+    maxPurgeDate.getTime(),
+    'milliseconds'
   )
 
   const isPurgeDateAllowed =
