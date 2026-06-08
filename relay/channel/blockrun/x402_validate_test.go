@@ -1,6 +1,7 @@
 package blockrun
 
 import (
+	"math/big"
 	"strings"
 	"testing"
 
@@ -114,6 +115,24 @@ func TestValidatePaymentOption_AtTimeoutBoundary(t *testing.T) {
 	opt.MaxTimeoutSeconds = 300 // exactly the cap → must be accepted
 	if err := validatePaymentOption(&opt); err != nil {
 		t.Fatalf("timeout at cap rejected: %v", err)
+	}
+}
+
+func TestValidatePaymentOptionWithCap_AllowsAboveOneUSDC(t *testing.T) {
+	opt := &blockrunSDK.PaymentOption{
+		Network:           expectedNetworkBase,
+		Asset:             expectedAssetUSDCBase,
+		PayTo:             "0x000000000000000000000000000000000000dEaD",
+		Amount:            "3000000", // 3 USDC
+		MaxTimeoutSeconds: 60,
+	}
+	// 默认 $1 上限必须拒绝
+	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC); err == nil {
+		t.Fatal("expected 3 USDC to be rejected under 1 USDC cap")
+	}
+	// $10 上限必须放行
+	if err := validatePaymentOptionWithCap(opt, big.NewInt(10_000_000)); err != nil {
+		t.Fatalf("expected 3 USDC allowed under 10 USDC cap, got %v", err)
 	}
 }
 

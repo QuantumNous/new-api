@@ -100,9 +100,52 @@ func SignX402Payment(resp *http.Response, privateKeyHex, resourceURLFallback str
 	return paymentB64, nil
 }
 
-// validatePaymentOption rejects any 402 advertisement outside our trust policy.
-// Centralised here so the rules are easy to audit and bypass-impossible.
+// SignX402PaymentWithLimits is SignX402Payment with a caller-supplied per-call
+// USDC cap (atomic units, 6 decimals). Video calls legitimately exceed the $1
+// chat cap, so the video channel passes a higher ceiling here while reusing the
+// exact same network/asset/window/payTo trust-boundary checks.
+func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFallback string, maxAmountAtomic *big.Int) (string, error) {
+	payReq, err := extractPaymentRequired(resp)
+	if err != nil {
+		return "", err
+	}
+	if len(payReq.Accepts) == 0 {
+		return "", fmt.Errorf("blockrun: 402 response has no payment options")
+	}
+	opt := payReq.Accepts[0]
+	if err := validatePaymentOptionWithCap(&opt, maxAmountAtomic); err != nil {
+		return "", err
+	}
+	privKey, err := parsePrivateKey(privateKeyHex)
+	if err != nil {
+		return "", err
+	}
+	resourceURL := payReq.Resource.URL
+	if resourceURL == "" {
+		resourceURL = resourceURLFallback
+	}
+	paymentB64, err := blockrunSDK.CreatePaymentPayload(
+		privKey, opt.PayTo, opt.Amount, opt.Network, resourceURL,
+		payReq.Resource.Description, opt.MaxTimeoutSeconds, opt.Extra, payReq.Extensions,
+	)
+	if err != nil {
+		return "", fmt.Errorf("blockrun: build x402 payload: %w", err)
+	}
+	return paymentB64, nil
+}
+
+// validatePaymentOption rejects any 402 advertisement outside our trust policy
+// using the default $1 chat cap. Centralised here so the rules are easy to audit
+// and bypass-impossible.
 func validatePaymentOption(opt *blockrunSDK.PaymentOption) error {
+	return validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC)
+}
+
+// validatePaymentOptionWithCap runs the same trust-boundary checks as
+// validatePaymentOption but against a caller-supplied amount cap, so higher-value
+// flows (e.g. video) can raise only the amount ceiling without weakening any of
+// the network/asset/window/payTo guard rails.
+func validatePaymentOptionWithCap(opt *blockrunSDK.PaymentOption, maxAmountAtomic *big.Int) error {
 	if opt.MaxTimeoutSeconds <= 0 || opt.MaxTimeoutSeconds > maxAuthorizationWindowSeconds {
 		return fmt.Errorf("blockrun: refusing %ds authorization window (cap %ds) — possible upstream tampering",
 			opt.MaxTimeoutSeconds, maxAuthorizationWindowSeconds)
@@ -116,10 +159,7 @@ func validatePaymentOption(opt *blockrunSDK.PaymentOption) error {
 	if !looksLikeEthAddress(opt.PayTo) {
 		return fmt.Errorf("blockrun: payTo %q is not a valid ethereum address", opt.PayTo)
 	}
-	if err := assertAmountWithinCap(opt.Amount, maxAmountAtomicUSDC); err != nil {
-		return err
-	}
-	return nil
+	return assertAmountWithinCap(opt.Amount, maxAmountAtomic)
 }
 
 func looksLikeEthAddress(addr string) bool {
