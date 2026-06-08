@@ -12,13 +12,15 @@ import (
 )
 
 func TestBuildUserModelOptionsAddsImageGenerationEndpointByModelRule(t *testing.T) {
-	options := buildUserModelOptions([]string{"gpt-image-1", "gpt-4o-mini"})
+	options := buildUserModelOptions([]string{"gpt-image-1", "gpt-image-2", "gpt-4o-mini"})
 
-	require.Len(t, options, 2)
+	require.Len(t, options, 3)
 	require.Equal(t, "gpt-image-1", options[0].Value)
 	require.Contains(t, options[0].SupportedEndpointTypes, "image-generation")
-	require.Equal(t, "gpt-4o-mini", options[1].Value)
-	require.NotContains(t, options[1].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "gpt-image-2", options[1].Value)
+	require.Contains(t, options[1].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "gpt-4o-mini", options[2].Value)
+	require.NotContains(t, options[2].SupportedEndpointTypes, "image-generation")
 }
 
 func TestGetUserModelsDefaultResponseRemainsStringArray(t *testing.T) {

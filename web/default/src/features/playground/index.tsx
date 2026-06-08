@@ -35,12 +35,15 @@ import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { ImageTask, Message as MessageType, ModelOption } from './types'
 
 function supportsImageGeneration(model: ModelOption): boolean {
-  const endpoints = model.supportedEndpointTypes || model.supported_endpoint_types
+  const endpoints =
+    model.supportedEndpointTypes || model.supported_endpoint_types
   return endpoints?.includes('image-generation') ?? false
 }
 
 export function Playground() {
   const { t } = useTranslation()
+  const modelLoadErrorMessage = t('Failed to load playground models')
+  const groupLoadErrorMessage = t('Failed to load playground groups')
   const {
     mode,
     config,
@@ -85,15 +88,13 @@ export function Playground() {
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ['playground-models'],
+    queryKey: ['playground-models', modelLoadErrorMessage],
     queryFn: async () => {
       try {
         return await getUserModels()
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : t('Failed to load playground models')
+          error instanceof Error ? error.message : modelLoadErrorMessage
         )
         return []
       }
@@ -102,15 +103,13 @@ export function Playground() {
 
   // Load groups
   const { data: groupsData } = useQuery({
-    queryKey: ['playground-groups'],
+    queryKey: ['playground-groups', groupLoadErrorMessage],
     queryFn: async () => {
       try {
         return await getUserGroups()
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : t('Failed to load playground groups')
+          error instanceof Error ? error.message : groupLoadErrorMessage
         )
         return []
       }
@@ -260,6 +259,10 @@ export function Playground() {
     retryTask(task)
   }
 
+  const handleDeleteImageTask = (taskId: string) => {
+    updateImageTasks((prev) => prev.filter((task) => task.id !== taskId))
+  }
+
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
       <div className='mx-auto flex w-full max-w-4xl items-center justify-between px-3 py-2'>
@@ -287,41 +290,44 @@ export function Playground() {
               tasks={imageTasks}
               onReusePrompt={handleReusePrompt}
               onRetryTask={handleRetryTask}
+              onDeleteTask={handleDeleteImageTask}
             />
           </div>
         )}
       </div>
 
       {/* Input area: center content and constrain to the same container width */}
-      <div className='mx-auto w-full max-w-4xl'>
-        {mode === 'chat' ? (
-          <PlaygroundInput
-            disabled={isGenerating}
-            groups={groups}
-            groupValue={config.group}
-            isGenerating={isGenerating}
-            isModelLoading={isLoadingModels}
-            modelValue={config.model}
-            models={models}
-            onGroupChange={(value) => updateConfig('group', value)}
-            onModelChange={(value) => updateConfig('model', value)}
-            onStop={stopGeneration}
-            onSubmit={handleSendMessage}
-          />
-        ) : (
-          <PlaygroundImageInput
-            config={imageConfig}
-            disabled={imageModels.length === 0}
-            groups={groups}
-            isGenerating={isGeneratingImage}
-            isModelLoading={isLoadingModels}
-            models={imageModels}
-            prompt={imagePrompt}
-            onConfigChange={updateImageConfig}
-            onPromptChange={setImagePrompt}
-            onSubmit={(prompt) => void generateImage(prompt)}
-          />
-        )}
+      <div className='border-border/60 bg-background/95 supports-[backdrop-filter]:bg-background/80 mx-auto w-full border-t px-3 py-3 shadow-[0_-8px_24px_-20px_rgb(0_0_0_/_0.35)] backdrop-blur'>
+        <div className='mx-auto w-full max-w-4xl'>
+          {mode === 'chat' ? (
+            <PlaygroundInput
+              disabled={isGenerating}
+              groups={groups}
+              groupValue={config.group}
+              isGenerating={isGenerating}
+              isModelLoading={isLoadingModels}
+              modelValue={config.model}
+              models={models}
+              onGroupChange={(value) => updateConfig('group', value)}
+              onModelChange={(value) => updateConfig('model', value)}
+              onStop={stopGeneration}
+              onSubmit={handleSendMessage}
+            />
+          ) : (
+            <PlaygroundImageInput
+              config={imageConfig}
+              disabled={imageModels.length === 0}
+              groups={groups}
+              isGenerating={isGeneratingImage}
+              isModelLoading={isLoadingModels}
+              models={imageModels}
+              prompt={imagePrompt}
+              onConfigChange={updateImageConfig}
+              onPromptChange={setImagePrompt}
+              onSubmit={(prompt) => void generateImage(prompt)}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

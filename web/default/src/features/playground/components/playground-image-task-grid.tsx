@@ -16,22 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import {
+  AlertCircleIcon,
   CopyIcon,
   DownloadIcon,
   ImageIcon,
   RefreshCwIcon,
   RotateCcwIcon,
+  Trash2Icon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
@@ -46,15 +50,18 @@ interface PlaygroundImageTaskGridProps {
   tasks: ImageTask[]
   onReusePrompt: (prompt: string) => void
   onRetryTask: (task: ImageTask) => void
+  onDeleteTask: (taskId: string) => void
 }
 
 function IconButton({
   label,
+  className,
   disabled,
   children,
   onClick,
 }: {
   label: string
+  className?: string
   disabled?: boolean
   children: React.ReactNode
   onClick: () => void
@@ -65,6 +72,7 @@ function IconButton({
         render={
           <Button
             aria-label={label}
+            className={className}
             disabled={disabled}
             size='icon-sm'
             type='button'
@@ -94,33 +102,48 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   link.remove()
 }
 
+interface ImagePreviewSelection {
+  alt: string
+  source: string
+}
+
 function ImagePreview({
   image,
   task,
   index,
+  onOpen,
 }: {
   image: ImageResult
   task: ImageTask
   index: number
+  onOpen: (preview: ImagePreviewSelection) => void
 }) {
   const { t } = useTranslation()
   const source = getImageSource(image, task.config)
+  const alt = t('Generated image {{index}}', { index: index + 1 })
 
   if (!source) {
     return (
-      <div className='bg-muted flex aspect-square items-center justify-center rounded-lg text-muted-foreground'>
+      <div className='bg-muted text-muted-foreground flex aspect-square items-center justify-center rounded-md'>
         <ImageIcon className='size-8' />
       </div>
     )
   }
 
   return (
-    <img
-      alt={t('Generated image {{index}}', { index: index + 1 })}
-      className='aspect-square w-full rounded-lg object-cover'
-      loading='lazy'
-      src={source}
-    />
+    <button
+      aria-label={alt}
+      className='group focus-visible:ring-ring/50 relative block aspect-square w-full overflow-hidden rounded-md outline-none focus-visible:ring-3'
+      type='button'
+      onClick={() => onOpen({ alt, source })}
+    >
+      <img
+        alt={alt}
+        className='size-full object-cover transition-transform duration-150 group-hover:scale-[1.02]'
+        loading='lazy'
+        src={source}
+      />
+    </button>
   )
 }
 
@@ -128,10 +151,14 @@ function TaskCard({
   task,
   onReusePrompt,
   onRetryTask,
+  onDeleteTask,
+  onPreviewImage,
 }: {
   task: ImageTask
   onReusePrompt: (prompt: string) => void
   onRetryTask: (task: ImageTask) => void
+  onDeleteTask: (taskId: string) => void
+  onPreviewImage: (preview: ImagePreviewSelection) => void
 }) {
   const { t } = useTranslation()
   const images = task.images.filter(isImageResultRenderable)
@@ -158,28 +185,35 @@ function TaskCard({
   }
 
   return (
-    <Card className='rounded-lg py-3' size='sm'>
-      <CardHeader className='gap-2 px-3'>
+    <Card className='overflow-hidden rounded-lg py-0' size='sm'>
+      <CardHeader className='gap-2 px-3 py-3'>
         <div className='flex items-start justify-between gap-2'>
-          <p className='line-clamp-2 min-h-10 text-sm font-medium leading-5'>
+          <p className='line-clamp-2 text-sm leading-5 font-medium'>
             {task.prompt}
           </p>
-          <span className='shrink-0 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground'>
+          <span className='bg-muted text-muted-foreground shrink-0 rounded-md px-2 py-1 text-xs'>
             {task.config.size}
           </span>
         </div>
       </CardHeader>
 
-      <CardContent className='space-y-3 px-3'>
+      <CardContent className='space-y-3 px-3 pb-3'>
         {task.status === 'running' ? (
-          <Skeleton className='aspect-square w-full rounded-lg' />
+          <Skeleton className='aspect-square w-full rounded-md' />
         ) : task.status === 'error' || task.status === 'interrupted' ? (
-          <div className='border-border bg-muted/40 flex aspect-square flex-col items-center justify-center rounded-lg border p-4 text-center'>
-            <ImageIcon className='mb-2 size-8 text-muted-foreground' />
-            <p className='line-clamp-4 text-xs text-muted-foreground'>
+          <div className='border-border bg-muted/40 flex min-h-36 flex-col items-center justify-center rounded-md border border-dashed px-4 py-5 text-center'>
+            <AlertCircleIcon className='text-muted-foreground mb-2 size-7' />
+            <p className='text-muted-foreground line-clamp-3 text-xs leading-5'>
               {task.error || t('Generation was interrupted')}
             </p>
           </div>
+        ) : images.length === 1 ? (
+          <ImagePreview
+            image={images[0]}
+            index={0}
+            task={task}
+            onOpen={onPreviewImage}
+          />
         ) : (
           <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
             {images.map((image, index) => (
@@ -188,20 +222,21 @@ function TaskCard({
                 index={index}
                 key={`${task.id}-${index}`}
                 task={task}
+                onOpen={onPreviewImage}
               />
             ))}
           </div>
         )}
 
         {firstImage?.revised_prompt ? (
-          <p className='line-clamp-2 text-xs text-muted-foreground'>
+          <p className='text-muted-foreground line-clamp-2 text-xs'>
             {firstImage.revised_prompt}
           </p>
         ) : null}
       </CardContent>
 
-      <CardFooter className='justify-between gap-2 rounded-b-lg px-3 py-2'>
-        <span className='truncate text-xs text-muted-foreground'>
+      <CardFooter className='bg-muted/25 justify-between gap-2 border-t px-3 py-2'>
+        <span className='text-muted-foreground truncate text-xs'>
           {task.status === 'running'
             ? t('Generating')
             : task.status === 'done'
@@ -232,6 +267,13 @@ function TaskCard({
           <IconButton label={t('Retry')} onClick={() => onRetryTask(task)}>
             <RefreshCwIcon className='size-4' />
           </IconButton>
+          <IconButton
+            className='text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20'
+            label={t('Delete')}
+            onClick={() => onDeleteTask(task.id)}
+          >
+            <Trash2Icon className='size-4' />
+          </IconButton>
         </div>
       </CardFooter>
     </Card>
@@ -242,13 +284,15 @@ export function PlaygroundImageTaskGrid({
   tasks,
   onReusePrompt,
   onRetryTask,
+  onDeleteTask,
 }: PlaygroundImageTaskGridProps) {
   const { t } = useTranslation()
+  const [preview, setPreview] = useState<ImagePreviewSelection | null>(null)
 
   if (tasks.length === 0) {
     return (
       <div className='flex flex-1 items-center justify-center px-4 py-10'>
-        <div className='text-center text-muted-foreground'>
+        <div className='text-muted-foreground text-center'>
           <ImageIcon className='mx-auto mb-3 size-9' />
           <p className='text-sm'>{t('No generated images yet')}</p>
         </div>
@@ -258,16 +302,44 @@ export function PlaygroundImageTaskGrid({
 
   return (
     <TooltipProvider delay={300}>
-      <div className='grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3'>
-        {tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onReusePrompt={onReusePrompt}
-            onRetryTask={onRetryTask}
-          />
-        ))}
-      </div>
+      <>
+        <div className='mx-auto grid w-full max-w-7xl grid-cols-1 items-start gap-4 p-4 pb-28 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'>
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onReusePrompt={onReusePrompt}
+              onRetryTask={onRetryTask}
+              onDeleteTask={onDeleteTask}
+              onPreviewImage={setPreview}
+            />
+          ))}
+        </div>
+
+        <Dialog
+          open={Boolean(preview)}
+          onOpenChange={(open) => {
+            if (!open) setPreview(null)
+          }}
+        >
+          <DialogContent className='bg-background/95 w-auto max-w-[calc(100vw-1rem)] p-2 sm:max-w-[min(92vw,90rem)]'>
+            <DialogHeader className='sr-only'>
+              <DialogTitle>
+                {preview?.alt || t('Generated image {{index}}', { index: 1 })}
+              </DialogTitle>
+            </DialogHeader>
+            <div className='flex max-h-[85vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-lg bg-black/90'>
+              {preview ? (
+                <img
+                  alt={preview.alt}
+                  className='max-h-[85vh] max-w-[90vw] object-contain'
+                  src={preview.source}
+                />
+              ) : null}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     </TooltipProvider>
   )
 }
