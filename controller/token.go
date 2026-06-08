@@ -225,6 +225,9 @@ func AddToken(c *gin.Context) {
 		SimplePurpose:      token.SimplePurpose,
 		SimpleBrand:        token.SimpleBrand,
 		SimplePriceTier:    token.SimplePriceTier,
+		RpmLimit:           token.RpmLimit,
+		TpmLimit:           token.TpmLimit,
+		MonthlyLimit:       token.MonthlyLimit,
 	}
 	// Simple-mode: derive ModelLimits from the purpose/tier whitelist so the
 	// distribution middleware enforces it automatically. Frontend never sends
@@ -323,6 +326,9 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.SimplePurpose = token.SimplePurpose
 		cleanToken.SimpleBrand = token.SimpleBrand
 		cleanToken.SimplePriceTier = token.SimplePriceTier
+		cleanToken.RpmLimit = token.RpmLimit
+		cleanToken.TpmLimit = token.TpmLimit
+		cleanToken.MonthlyLimit = token.MonthlyLimit
 		// Re-derive ModelLimits when Simple-mode bindings change. Frontend
 		// owns model_limits in Advanced mode (passes empty SimplePurpose), so
 		// we only override when SimplePurpose is set.
