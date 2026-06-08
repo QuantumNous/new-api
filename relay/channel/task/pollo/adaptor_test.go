@@ -281,13 +281,18 @@ func TestParseTaskResult_FlatStatusCredit(t *testing.T) {
 }
 
 // --- Live test against the real Pollo API ------------------------------------
-// Runs only when POLLO_API_KEY is set, e.g.:
-//   POLLO_API_KEY=pollo_xxx go test ./relay/channel/task/pollo/ -run TestLive -v
+// Submits real, billable jobs. Requires BOTH the API key and an explicit
+// opt-in flag so a plain `go test ./...` (with only the key exported) never
+// spends credits, e.g.:
+//   POLLO_API_KEY=pollo_xxx POLLO_LIVE_TEST=1 go test ./relay/channel/task/pollo/ -run TestLive -v
 
 func TestLiveSubmitAndPoll(t *testing.T) {
 	key := os.Getenv("POLLO_API_KEY")
 	if key == "" {
 		t.Skip("POLLO_API_KEY not set; skipping live test")
+	}
+	if os.Getenv("POLLO_LIVE_TEST") != "1" {
+		t.Skip("POLLO_LIVE_TEST!=1; skipping test that submits real (paid) Pollo jobs")
 	}
 
 	a := &TaskAdaptor{apiKey: key, baseURL: defaultBaseURL, ChannelType: 58}

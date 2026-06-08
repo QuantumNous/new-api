@@ -63,6 +63,9 @@ func TestLiveParamMatrix(t *testing.T) {
 	if key == "" {
 		t.Skip("POLLO_API_KEY not set; skipping live test")
 	}
+	if os.Getenv("POLLO_LIVE_TEST") != "1" {
+		t.Skip("POLLO_LIVE_TEST!=1; skipping test that submits real (paid) Pollo jobs")
+	}
 	a := &TaskAdaptor{apiKey: key, baseURL: defaultBaseURL, ChannelType: 58}
 
 	cases := []struct {
