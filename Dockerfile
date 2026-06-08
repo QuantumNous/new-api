@@ -48,8 +48,8 @@ RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
-ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian
-ARG APT_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian
+ARG APT_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 
 RUN set -eux; \
     files="$(find /etc/apt -type f \( -name '*.sources' -o -name 'sources.list' \))"; \
