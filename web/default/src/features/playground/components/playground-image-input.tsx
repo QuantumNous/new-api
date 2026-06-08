@@ -72,6 +72,9 @@ const responseFormatOptions: ImageGenerationConfig['response_format'][] = [
   'b64_json',
 ]
 
+const controlClassName =
+  'h-8 rounded-lg border-border bg-background text-xs font-medium text-foreground shadow-none hover:bg-accent hover:text-foreground'
+
 function FieldSelect({
   label,
   value,
@@ -156,8 +159,10 @@ export function PlaygroundImageInput({
         />
 
         <PromptInputFooter className='flex-col items-stretch gap-2 p-2.5 sm:flex-row sm:items-center sm:justify-between'>
-          <PromptInputTools className='flex-wrap'>
+          <PromptInputTools className='flex-wrap gap-2'>
             <ModelGroupSelector
+              className='gap-2'
+              triggerClassName={controlClassName}
               selectedModel={config.model}
               models={models}
               onModelChange={(value) => onConfigChange('model', value)}
@@ -168,7 +173,7 @@ export function PlaygroundImageInput({
             />
 
             <FieldSelect
-              className='w-32 text-xs'
+              className={`${controlClassName} w-32`}
               disabled={isConfigDisabled || !hasImageModels}
               label={t('Size')}
               value={config.size}
@@ -182,7 +187,7 @@ export function PlaygroundImageInput({
             </FieldSelect>
 
             <FieldSelect
-              className='w-24 text-xs'
+              className={`${controlClassName} w-24`}
               disabled={isConfigDisabled || !hasImageModels}
               label={t('Quality')}
               value={config.quality}
@@ -201,7 +206,7 @@ export function PlaygroundImageInput({
             </FieldSelect>
 
             <FieldSelect
-              className='w-16 text-xs'
+              className={`${controlClassName} w-16`}
               disabled={isConfigDisabled || !hasImageModels}
               label={t('Count')}
               value={String(config.n)}
@@ -220,7 +225,7 @@ export function PlaygroundImageInput({
             </FieldSelect>
 
             <FieldSelect
-              className='w-24 text-xs'
+              className={`${controlClassName} w-24`}
               disabled={isConfigDisabled || !hasImageModels}
               label={t('Format')}
               value={config.response_format}
