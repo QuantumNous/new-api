@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -211,6 +212,13 @@ func GetModelData(c *gin.Context) {
 	// Best-effort: if the hub is unreachable, hub_price stays nil for every row.
 	hubPricing, _ := service.GetHubPricing(c.Request.Context())
 
+	// 用户真实付的价 = 采购价 × apimaster_price_ratio × 用户分组倍率（default=1.05，含 5% 服务费）。
+	// 与 service/quota.go 结算时乘的 group_ratio 一致，使展示价 == 实际扣费价。
+	defaultGroupRatio := ratio_setting.GetGroupRatio("default")
+	if defaultGroupRatio <= 0 {
+		defaultGroupRatio = 1.0
+	}
+
 	items := make([]ModelDataItem, 0, len(rows))
 	for _, r := range rows {
 		rechargeRate := 1.0
@@ -248,8 +256,8 @@ func GetModelData(c *gin.Context) {
 			inputPricePtr = &in
 			actualIn := in * rechargeRate
 			actualPricePtr = &actualIn
-			// user_price = 采购价 × apimaster_price_ratio
-			userIn := actualIn * apimasterRatio
+			// user_price = 采购价 × apimaster_price_ratio × 用户分组倍率(含服务费) = 用户真实付的价
+			userIn := actualIn * apimasterRatio * defaultGroupRatio
 			userPricePtr = &userIn
 
 			// group_ratio stored per-row; default 1.0 for old rows without the column.
@@ -266,8 +274,8 @@ func GetModelData(c *gin.Context) {
 			outputPricePtr = &out
 			actualOut := out * rechargeRate
 			actualOutPricePtr = &actualOut
-			// output 用户最终价格 = 输出采购价 × apimaster_price_ratio
-			userOut := actualOut * apimasterRatio
+			// output 用户最终价格 = 输出采购价 × apimaster_price_ratio × 用户分组倍率(含服务费)
+			userOut := actualOut * apimasterRatio * defaultGroupRatio
 			actualOutputUserPricePtr = &userOut
 		}
 		var cachePricePtr, actualCachePricePtr *float64
@@ -594,6 +602,12 @@ func GetPublicMarketplace(c *gin.Context) {
 		}
 	}
 
+	// 用户真实付的价含 default 分组倍率（5% 服务费），与计费结算一致。
+	defaultGroupRatio := ratio_setting.GetGroupRatio("default")
+	if defaultGroupRatio <= 0 {
+		defaultGroupRatio = 1.0
+	}
+
 	items := make([]PublicMarketplaceItem, 0, len(rows))
 	for _, r := range rows {
 		rechargeRate := 1.0
@@ -626,7 +640,7 @@ func GetPublicMarketplace(c *gin.Context) {
 			inputPricePtr = &in
 			actualIn := in * rechargeRate
 			actualPricePtr = &actualIn
-			userIn := actualIn * apimasterRatio
+			userIn := actualIn * apimasterRatio * defaultGroupRatio
 			userPricePtr = &userIn
 		}
 		if r.OutputPrice != nil {
@@ -634,7 +648,7 @@ func GetPublicMarketplace(c *gin.Context) {
 			outputPricePtr = &out
 			actualOut := out * rechargeRate
 			actualOutPricePtr = &actualOut
-			userOut := actualOut * apimasterRatio
+			userOut := actualOut * apimasterRatio * defaultGroupRatio
 			actualOutputUserPricePtr = &userOut
 		}
 
