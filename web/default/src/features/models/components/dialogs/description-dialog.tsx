@@ -17,14 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Dialog } from '@/components/dialog'
 
 type DescriptionDialogProps = {
   open: boolean
@@ -41,21 +35,22 @@ export function DescriptionDialog({
 }: DescriptionDialogProps) {
   const { t } = useTranslation()
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-2xl'>
-        <DialogHeader>
-          <DialogTitle>{modelName}</DialogTitle>
-          <DialogDescription>{t('Model Description')}</DialogDescription>
-        </DialogHeader>
-
-        <ScrollArea className='max-h-96'>
-          <div className='space-y-2 pr-4'>
-            <p className='text-foreground text-sm leading-relaxed break-words whitespace-pre-wrap'>
-              {description}
-            </p>
-          </div>
-        </ScrollArea>
-      </DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={modelName}
+      description={t('Model Description')}
+      contentClassName='max-w-2xl'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+    >
+      <ScrollArea className='max-h-96'>
+        <div className='space-y-2 pr-4'>
+          <p className='text-foreground text-sm leading-relaxed break-words whitespace-pre-wrap'>
+            {description}
+          </p>
+        </div>
+      </ScrollArea>
     </Dialog>
   )
 }
