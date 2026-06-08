@@ -22,8 +22,13 @@ import (
 )
 
 func GetTopUpInfo(c *gin.Context) {
+	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
+	if !complianceConfirmed {
+		payMethods = []map[string]string{}
+	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if isStripeTopUpEnabled() {
@@ -44,6 +49,27 @@ func GetTopUpInfo(c *gin.Context) {
 				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
 			}
 			payMethods = append(payMethods, stripeMethod)
+		}
+	}
+
+	// Waffo Pancake displayed above the legacy Waffo gateway.
+	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
+	if enableWaffoPancake {
+		hasWaffoPancake := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodWaffoPancake {
+				hasWaffoPancake = true
+				break
+			}
+		}
+
+		if !hasWaffoPancake {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Waffo Pancake",
+				"type":      model.PaymentMethodWaffoPancake,
+				"color":     "rgba(var(--semi-orange-5), 1)",
+				"min_topup": strconv.Itoa(setting.WaffoPancakeMinTopUp),
+			})
 		}
 	}
 
@@ -69,32 +95,15 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
-	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
-	if enableWaffoPancake {
-		hasWaffoPancake := false
-		for _, method := range payMethods {
-			if method["type"] == model.PaymentMethodWaffoPancake {
-				hasWaffoPancake = true
-				break
-			}
-		}
-
-		if !hasWaffoPancake {
-			payMethods = append(payMethods, map[string]string{
-				"name":      "Waffo Pancake",
-				"type":      model.PaymentMethodWaffoPancake,
-				"color":     "rgba(var(--semi-orange-5), 1)",
-				"min_topup": strconv.Itoa(setting.WaffoPancakeMinTopUp),
-			})
-		}
-	}
-
 	data := gin.H{
-		"enable_online_topup":        isEpayTopUpEnabled(),
-		"enable_stripe_topup":        isStripeTopUpEnabled(),
-		"enable_creem_topup":         isCreemTopUpEnabled(),
-		"enable_waffo_topup":         enableWaffo,
-		"enable_waffo_pancake_topup": enableWaffoPancake,
+		"enable_online_topup":              isEpayTopUpEnabled(),
+		"enable_stripe_topup":              isStripeTopUpEnabled(),
+		"enable_creem_topup":               isCreemTopUpEnabled(),
+		"enable_waffo_topup":               enableWaffo,
+		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_redemption":                complianceConfirmed,
+		"payment_compliance_confirmed":     complianceConfirmed,
+		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()

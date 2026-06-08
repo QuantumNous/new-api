@@ -21,6 +21,7 @@ import type { ModelSettings } from '../types'
 import {
   MODELS_DEFAULT_SECTION,
   getModelsSectionContent,
+  getModelsSectionMeta,
 } from './section-registry.tsx'
 
 const defaultModelSettings: ModelSettings = {
@@ -63,6 +64,7 @@ const defaultModelSettings: ModelSettings = {
   'group_ratio_setting.group_special_usable_group': '{}',
   'channel_affinity_setting.enabled': false,
   'channel_affinity_setting.switch_on_success': true,
+  'channel_affinity_setting.keep_on_channel_disabled': false,
   'channel_affinity_setting.max_entries': 100000,
   'channel_affinity_setting.default_ttl_seconds': 3600,
   'channel_affinity_setting.rules': '[]',
@@ -77,6 +79,7 @@ export function ModelSettings() {
       defaultSettings={defaultModelSettings}
       defaultSection={MODELS_DEFAULT_SECTION}
       getSectionContent={getModelsSectionContent}
+      getSectionMeta={getModelsSectionMeta}
     />
   )
 }

@@ -310,18 +310,20 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 
 	}
-	if strings.HasPrefix(info.UpstreamModelName, "o") || strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+	isOModel := dto.IsOpenAIReasoningOModel(info.UpstreamModelName)
+	isGPT5Model := dto.IsOpenAIGPT5Model(info.UpstreamModelName)
+	if isOModel || isGPT5Model {
 		if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
 			request.MaxTokens = nil
 		}
 
-		if strings.HasPrefix(info.UpstreamModelName, "o") {
+		if isOModel {
 			request.Temperature = nil
 		}
 
 		// gpt-5系列模型适配 归零不再支持的参数
-		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+		if isGPT5Model {
 			request.Temperature = nil
 			request.TopP = nil
 			request.LogProbs = nil
@@ -377,7 +379,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 
 		// 打印类似 curl 命令格式的信息
-		logger.LogDebug(c.Request.Context(), fmt.Sprintf("--form 'model=\"%s\"'", request.Model))
+		logger.LogDebug(c.Request.Context(), "--form 'model=\"%s\"'", request.Model)
 
 		// 遍历表单字段并打印输出
 		for key, values := range formData.Value {
@@ -386,7 +388,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 			}
 			for _, value := range values {
 				writer.WriteField(key, value)
-				logger.LogDebug(c.Request.Context(), fmt.Sprintf("--form '%s=\"%s\"'", key, value))
+				logger.LogDebug(c.Request.Context(), "--form '%s=\"%s\"'", key, value)
 			}
 		}
 
@@ -398,8 +400,8 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 		// 使用 formData 中的第一个文件
 		fileHeader := fileHeaders[0]
-		logger.LogDebug(c.Request.Context(), fmt.Sprintf("--form 'file=@\"%s\"' (size: %d bytes, content-type: %s)",
-			fileHeader.Filename, fileHeader.Size, fileHeader.Header.Get("Content-Type")))
+		logger.LogDebug(c.Request.Context(), "--form 'file=@\"%s\"' (size: %d bytes, content-type: %s)",
+			fileHeader.Filename, fileHeader.Size, fileHeader.Header.Get("Content-Type"))
 
 		file, err := fileHeader.Open()
 		if err != nil {
@@ -418,7 +420,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		// 关闭 multipart 编写器以设置分界线
 		writer.Close()
 		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-		logger.LogDebug(c.Request.Context(), fmt.Sprintf("--header 'Content-Type: %s'", writer.FormDataContentType()))
+		logger.LogDebug(c.Request.Context(), "--header 'Content-Type: %s'", writer.FormDataContentType())
 		return &requestBody, nil
 	}
 }

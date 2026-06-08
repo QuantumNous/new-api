@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/samber/hot"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -159,8 +160,11 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
-	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
-	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	AllowBalancePay *bool `json:"allow_balance_pay" gorm:"default:true"`
+
+	StripePriceId         string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	CreemProductId        string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	WaffoPancakeProductId string `json:"waffo_pancake_product_id" gorm:"type:varchar(128);default:''"`
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
@@ -189,6 +193,12 @@ func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
 func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 	p.UpdatedAt = common.GetTimestamp()
 	return nil
+}
+
+func (p *SubscriptionPlan) NormalizeDefaults() {
+	if p.AllowBalancePay == nil {
+		p.AllowBalancePay = common.GetPointer(true)
+	}
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -358,6 +368,7 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	key := subscriptionPlanCacheKey(id)
 	if key != "" {
 		if cached, found, err := getSubscriptionPlanCache().Get(key); err == nil && found {
+			cached.NormalizeDefaults()
 			return &cached, nil
 		}
 	}
@@ -369,6 +380,7 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if err := query.Where("id = ?", id).First(&plan).Error; err != nil {
 		return nil, err
 	}
+	plan.NormalizeDefaults()
 	_ = getSubscriptionPlanCache().SetWithTTL(key, plan, subscriptionPlanCacheTTL())
 	return &plan, nil
 }
@@ -662,6 +674,109 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
 	}
 	return "", nil
+}
+
+func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
+	if priceAmount <= 0 {
+		return 0, nil
+	}
+	if common.QuotaPerUnit <= 0 {
+		return 0, errors.New("额度单位配置错误")
+	}
+	quota := decimal.NewFromFloat(priceAmount).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Ceil().
+		IntPart()
+	return int(quota), nil
+}
+
+// PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
+func PurchaseSubscriptionWithBalance(userId int, planId int) error {
+	if userId <= 0 || planId <= 0 {
+		return errors.New("invalid userId or planId")
+	}
+
+	var logPlanTitle string
+	var logMoney float64
+	var chargedQuota int
+	var upgradeGroup string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := getSubscriptionPlanByIdTx(tx, planId)
+		if err != nil {
+			return err
+		}
+		if !plan.Enabled {
+			return errors.New("套餐未启用")
+		}
+		if plan.PriceAmount < 0 {
+			return errors.New("套餐价格不能为负数")
+		}
+		if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
+			return errors.New("该套餐不允许使用余额兑换")
+		}
+
+		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
+		if err != nil {
+			return err
+		}
+
+		var user User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+		if requiredQuota > 0 && user.Quota < requiredQuota {
+			return errors.New("余额不足")
+		}
+		if requiredQuota > 0 {
+			if err := tx.Model(&User{}).Where("id = ?", userId).
+				Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
+				return err
+			}
+		}
+
+		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
+			return err
+		}
+
+		now := common.GetTimestamp()
+		tradeNo := fmt.Sprintf("SUBBALUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano())
+		order := &SubscriptionOrder{
+			UserId:          userId,
+			PlanId:          plan.Id,
+			Money:           plan.PriceAmount,
+			TradeNo:         tradeNo,
+			PaymentMethod:   PaymentMethodBalance,
+			PaymentProvider: PaymentProviderBalance,
+			Status:          common.TopUpStatusSuccess,
+			CreateTime:      now,
+			CompleteTime:    now,
+			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
+		}
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+
+		logPlanTitle = plan.Title
+		logMoney = plan.PriceAmount
+		chargedQuota = requiredQuota
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if chargedQuota > 0 {
+		if err := cacheDecrUserQuota(userId, int64(chargedQuota)); err != nil {
+			common.SysLog("failed to decrease user quota cache after subscription balance purchase: " + err.Error())
+		}
+	}
+	if upgradeGroup != "" {
+		_ = UpdateUserGroupCache(userId, upgradeGroup)
+	}
+	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
+	RecordLog(userId, LogTypeTopup, msg)
+	return nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.

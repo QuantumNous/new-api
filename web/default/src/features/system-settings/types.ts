@@ -39,6 +39,17 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type ConfirmPaymentComplianceResponse = {
+  success: boolean
+  message: string
+  data?: {
+    confirmed: boolean
+    terms_version: string
+    confirmed_at: number
+    confirmed_by: number
+  }
+}
+
 export type DeleteLogsResponse = {
   success: boolean
   message: string
@@ -165,6 +176,7 @@ export type ModelSettings = {
   'group_ratio_setting.group_special_usable_group': string
   'channel_affinity_setting.enabled': boolean
   'channel_affinity_setting.switch_on_success': boolean
+  'channel_affinity_setting.keep_on_channel_disabled': boolean
   'channel_affinity_setting.max_entries': number
   'channel_affinity_setting.default_ttl_seconds': number
   'channel_affinity_setting.rules': string
@@ -215,6 +227,11 @@ export type BillingSettings = {
   PayMethods: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
+  'payment_setting.compliance_confirmed': boolean
+  'payment_setting.compliance_terms_version': string
+  'payment_setting.compliance_confirmed_at': number
+  'payment_setting.compliance_confirmed_by': number
+  'payment_setting.compliance_confirmed_ip': string
   StripeApiSecret: string
   StripeWebhookSecret: string
   StripePriceId: string
@@ -240,18 +257,13 @@ export type BillingSettings = {
   WaffoNotifyUrl: string
   WaffoReturnUrl: string
   WaffoPayMethods: string
-  WaffoPancakeEnabled: boolean
-  WaffoPancakeSandbox: boolean
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
-  WaffoPancakeWebhookPublicKey: string
-  WaffoPancakeWebhookTestKey: string
+  WaffoPancakeReturnURL: string
+  // Bound by the operator through the catalog flow in the admin Pancake
+  // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
-  WaffoPancakeReturnURL: string
-  WaffoPancakeCurrency: string
-  WaffoPancakeUnitPrice: number
-  WaffoPancakeMinTopUp: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

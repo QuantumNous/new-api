@@ -36,14 +36,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -53,7 +45,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -62,6 +53,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Dialog } from '@/components/dialog'
+import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -96,6 +89,8 @@ const createUptimeKumaSchema = (t: (key: string) => string) =>
   })
 
 type UptimeKumaFormValues = z.infer<ReturnType<typeof createUptimeKumaSchema>>
+
+const UPTIME_KUMA_FORM_ID = 'uptime-kuma-form'
 
 export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
   const { t } = useTranslation()
@@ -247,12 +242,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
   }
 
   return (
-    <SettingsSection
-      title={t('Uptime Kuma')}
-      description={t(
-        'Expose grouped Uptime Kuma status pages directly on the dashboard'
-      )}
-    >
+    <SettingsSection title={t('Uptime Kuma')}>
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -280,12 +270,12 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>
-              {t('Enabled')}
-            </span>
-            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
-          </div>
+          <SettingsSwitchField
+            checked={isEnabled}
+            onCheckedChange={handleToggleEnabled}
+            label={t('Enabled')}
+            className='border-b-0 py-0'
+          />
         </div>
 
         <div className='rounded-md border'>
@@ -364,96 +354,100 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
         </div>
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingGroup
-                ? t('Edit Uptime Kuma Group')
-                : t('Add Uptime Kuma Group')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Configure monitoring status page groups for the dashboard')}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className='space-y-4'
+      <Dialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        title={
+          editingGroup
+            ? t('Edit Uptime Kuma Group')
+            : t('Add Uptime Kuma Group')
+        }
+        description={t(
+          'Configure monitoring status page groups for the dashboard'
+        )}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setShowDialog(false)}
             >
-              <FormField
-                control={form.control}
-                name='categoryName'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Category Name')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('e.g., Core APIs, OpenAI, Claude')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Display name for this monitoring group (max 50 characters)'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='url'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Uptime Kuma URL')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('https://status.example.com')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Base URL of your Uptime Kuma instance')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='slug'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Status Page Slug')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('my-status')} {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {t('The slug is appended to the URL:')} {'{url}'}
-                      {t('/status/')}
-                      {'{slug}'}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setShowDialog(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit'>
-                  {editingGroup ? t('Update') : t('Add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
+              {t('Cancel')}
+            </Button>
+            <Button type='submit' form={UPTIME_KUMA_FORM_ID}>
+              {editingGroup ? t('Update') : t('Add')}
+            </Button>
+          </>
+        }
+      >
+        <Form {...form}>
+          <form
+            id={UPTIME_KUMA_FORM_ID}
+            onSubmit={form.handleSubmit(handleSubmitForm)}
+            className='space-y-4'
+          >
+            <FormField
+              control={form.control}
+              name='categoryName'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Category Name')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('e.g., Core APIs, OpenAI, Claude')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Display name for this monitoring group (max 50 characters)'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Uptime Kuma URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('https://status.example.com')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Base URL of your Uptime Kuma instance')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='slug'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Status Page Slug')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t('my-status')} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t('The slug is appended to the URL:')} {'{url}'}
+                    {t('/status/')}
+                    {'{slug}'}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
