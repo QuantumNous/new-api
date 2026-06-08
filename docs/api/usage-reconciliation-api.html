@@ -128,7 +128,7 @@
     <tr><td>时间</td><td>入参 <code>start</code> / <code>end</code> 为 RFC3339（UTC）；区间 <code>end &gt; start</code> 且 <strong>≤ 31 天</strong></td></tr>
     <tr><td>幂等</td><td>纯只读 <code>GET</code>，可安全重试</td></tr>
   </table>
-  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://new-api.app.flatkey.ai</code>。</p>
+  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://router.flatkey.ai</code>。</p>
 
   <h2 id="auth">2. 认证</h2>
   <p>两个接口都需在请求头携带<strong>静态共享令牌</strong>（与上游账户无关，仅鉴权、不区分用户）：</p>
@@ -372,7 +372,7 @@
   <h2 id="example">9. 完整示例（汇总 + 遍历明细）</h2>
   <pre><code>#!/usr/bin/env bash
 set -euo pipefail
-BASE="https://new-api.app.flatkey.ai"
+BASE="https://router.flatkey.ai"
 TOKEN="&lt;token&gt;"
 START="2026-06-01T00:00:00Z"
 END="2026-06-08T00:00:00Z"
