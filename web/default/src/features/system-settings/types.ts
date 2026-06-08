@@ -306,6 +306,8 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'privacy_filter_setting.enabled': boolean
+  'privacy_filter_setting.gitleaks_toml': string
 }
 
 export type SecuritySettings = {

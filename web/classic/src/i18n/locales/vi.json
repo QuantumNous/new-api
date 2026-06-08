@@ -4215,6 +4215,13 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Gitleaks TOML 路径": "Đường dẫn TOML Gitleaks",
+    "保存隐私过滤器设置": "Lưu cài đặt bộ lọc quyền riêng tư",
+    "启用隐私过滤器": "Bật bộ lọc quyền riêng tư",
+    "在请求转发到上游之前，对中继请求中的密钥和个人数据进行脱敏": "Ẩn khóa bí mật và dữ liệu cá nhân trong các yêu cầu relay trước khi gửi lên upstream",
+    "留空将使用内置备用规则。Docker中请填写容器内路径，而不是宿主机路径": "Để trống để dùng bộ quy tắc dự phòng tích hợp. Trong Docker, hãy dùng đường dẫn trong container thay vì đường dẫn trên máy chủ",
+    "留空将使用内置备用规则。Docker 中请填写容器内路径，而不是宿主机路径": "Để trống để dùng bộ quy tắc dự phòng tích hợp. Trong Docker, hãy dùng đường dẫn trong container thay vì đường dẫn trên máy chủ",
+    "隐私过滤器": "Bộ lọc quyền riêng tư"
   }
 }

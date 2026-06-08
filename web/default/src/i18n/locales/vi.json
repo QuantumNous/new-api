@@ -4536,6 +4536,12 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Enable privacy filter": "Bật bộ lọc quyền riêng tư",
+    "Gitleaks TOML path": "Đường dẫn TOML Gitleaks",
+    "Leave empty to use the built-in fallback rules. In Docker, use a container path rather than a host path.": "Để trống để dùng bộ quy tắc dự phòng tích hợp. Trong Docker, hãy dùng đường dẫn trong container thay vì đường dẫn trên máy chủ.",
+    "Privacy Filter": "Bộ lọc quyền riêng tư",
+    "Redact secrets and personal data in relay requests before they are sent upstream.": "Ẩn khóa bí mật và dữ liệu cá nhân trong các yêu cầu relay trước khi gửi lên upstream.",
+    "Save privacy filter settings": "Lưu cài đặt bộ lọc quyền riêng tư"
   }
 }

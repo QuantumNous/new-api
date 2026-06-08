@@ -3681,6 +3681,13 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Gitleaks TOML 路径": "Chemin TOML Gitleaks",
+    "保存隐私过滤器设置": "Enregistrer les paramètres du filtre de confidentialité",
+    "启用隐私过滤器": "Activer le filtre de confidentialité",
+    "在请求转发到上游之前，对中继请求中的密钥和个人数据进行脱敏": "Masque les secrets et les données personnelles dans les requêtes relayées avant leur envoi en amont",
+    "留空将使用内置备用规则。Docker中请填写容器内路径，而不是宿主机路径": "Laissez vide pour utiliser les règles de secours intégrées. Dans Docker, utilisez un chemin du conteneur plutôt qu’un chemin de l’hôte",
+    "留空将使用内置备用规则。Docker 中请填写容器内路径，而不是宿主机路径": "Laissez vide pour utiliser les règles de secours intégrées. Dans Docker, utilisez un chemin du conteneur plutôt qu’un chemin de l’hôte",
+    "隐私过滤器": "Filtre de confidentialité"
   }
 }

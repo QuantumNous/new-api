@@ -4536,6 +4536,12 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Enable privacy filter": "Включить фильтр конфиденциальности",
+    "Gitleaks TOML path": "Путь к TOML Gitleaks",
+    "Leave empty to use the built-in fallback rules. In Docker, use a container path rather than a host path.": "Оставьте пустым, чтобы использовать встроенные резервные правила. В Docker указывайте путь внутри контейнера, а не путь на хосте.",
+    "Privacy Filter": "Фильтр конфиденциальности",
+    "Redact secrets and personal data in relay requests before they are sent upstream.": "Маскирует секреты и персональные данные в relay-запросах перед отправкой вышестоящему провайдеру.",
+    "Save privacy filter settings": "Сохранить настройки фильтра конфиденциальности"
   }
 }

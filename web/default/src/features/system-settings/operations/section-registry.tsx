@@ -25,6 +25,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { PrivacyFilterSection } from './privacy-filter-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -100,6 +101,20 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+      />
+    ),
+  },
+  {
+    id: 'privacy-filter',
+    titleKey: 'Privacy Filter',
+    build: (settings: OperationsSettings) => (
+      <PrivacyFilterSection
+        defaultValues={{
+          'privacy_filter_setting.enabled':
+            settings['privacy_filter_setting.enabled'],
+          'privacy_filter_setting.gitleaks_toml':
+            settings['privacy_filter_setting.gitleaks_toml'],
+        }}
       />
     ),
   },

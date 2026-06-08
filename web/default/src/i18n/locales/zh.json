@@ -4536,6 +4536,12 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Enable privacy filter": "启用隐私过滤器",
+    "Gitleaks TOML path": "Gitleaks TOML 路径",
+    "Leave empty to use the built-in fallback rules. In Docker, use a container path rather than a host path.": "留空将使用内置备用规则。Docker 中请填写容器内路径，而不是宿主机路径。",
+    "Privacy Filter": "隐私过滤器",
+    "Redact secrets and personal data in relay requests before they are sent upstream.": "在请求转发到上游之前，对中继请求中的密钥和个人数据进行脱敏。",
+    "Save privacy filter settings": "保存隐私过滤器设置"
   }
 }
