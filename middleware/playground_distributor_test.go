@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/gin-gonic/gin"
@@ -76,5 +77,49 @@ func TestApplyPlaygroundGroupOverrideRejectsUnavailableGroup(t *testing.T) {
 	_, err := applyPlaygroundGroupOverride(c, "default")
 	if err != errPlaygroundGroupAccessDenied {
 		t.Fatalf("applyPlaygroundGroupOverride error = %v, want errPlaygroundGroupAccessDenied", err)
+	}
+}
+
+func TestImageGenerationEndpointRequiresChannelSpecificSupport(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		model       string
+		want        bool
+	}{
+		{
+			name:        "grok imagine image on openai compatible channel",
+			channelType: constant.ChannelTypeOpenAI,
+			model:       "grok-imagine-image-lite",
+			want:        false,
+		},
+		{
+			name:        "grok imagine image on xai channel",
+			channelType: constant.ChannelTypeXai,
+			model:       "grok-imagine-image-lite",
+			want:        true,
+		},
+		{
+			name:        "gpt image remains available on openai compatible channel",
+			channelType: constant.ChannelTypeOpenAI,
+			model:       "gpt-image-2",
+			want:        true,
+		},
+		{
+			name:        "grok imagine edit is excluded on xai channel",
+			channelType: constant.ChannelTypeXai,
+			model:       "grok-imagine-image-edit",
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			channel := &model.Channel{Type: tt.channelType}
+			got := isChannelUsableForEndpoint(channel, constant.EndpointTypeImageGeneration, tt.model)
+			if got != tt.want {
+				t.Fatalf("isChannelUsableForEndpoint(type=%d, model=%q) = %v, want %v", tt.channelType, tt.model, got, tt.want)
+			}
+		})
 	}
 }

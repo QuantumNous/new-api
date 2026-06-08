@@ -36,6 +36,30 @@ func isPlaygroundRelayRequest(path string) bool {
 		strings.HasPrefix(path, "/pg/images/generations")
 }
 
+func relayEndpointType(path string) constant.EndpointType {
+	switch relayconstant.Path2RelayMode(path) {
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return constant.EndpointTypeImageGeneration
+	default:
+		return ""
+	}
+}
+
+func isChannelUsableForEndpoint(channel *model.Channel, endpointType constant.EndpointType, modelName string) bool {
+	if channel == nil {
+		return false
+	}
+	if endpointType == "" {
+		return true
+	}
+	switch endpointType {
+	case constant.EndpointTypeImageGeneration:
+		return common.IsChannelImageGenerationModel(channel.Type, modelName)
+	default:
+		return true
+	}
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -58,6 +82,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if !isChannelUsableForEndpoint(channel, relayEndpointType(c.Request.URL.Path), modelRequest.Model) {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": common.GetContextKeyString(c, constant.ContextKeyUsingGroup), "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 				return
 			}
 		} else {
@@ -90,6 +118,7 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				endpointType := relayEndpointType(c.Request.URL.Path)
 				usingGroup, err = applyPlaygroundGroupOverride(c, usingGroup)
 				if err != nil {
 					if errors.Is(err, errPlaygroundGroupAccessDenied) {
@@ -103,7 +132,7 @@ func Distribute() func(c *gin.Context) {
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled && isChannelUsableForEndpoint(preferred, endpointType, modelRequest.Model) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
@@ -131,10 +160,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:          c,
+						ModelName:    modelRequest.Model,
+						TokenGroup:   usingGroup,
+						Retry:        common.GetPointer(0),
+						EndpointType: endpointType,
 					})
 					if err != nil {
 						showGroup := usingGroup

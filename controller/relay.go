@@ -184,6 +184,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		ModelName:  relayInfo.OriginModelName,
 		Retry:      common.GetPointer(0),
 	}
+	if relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations || relayInfo.RelayMode == relayconstant.RelayModeImagesEdits {
+		retryParam.EndpointType = constant.EndpointTypeImageGeneration
+	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 

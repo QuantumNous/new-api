@@ -556,6 +556,7 @@ func GetUserModels(c *gin.Context) {
 		}
 	}
 	if c.Query("with_endpoint_types") == "true" {
+		model.GetPricing()
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
@@ -582,8 +583,11 @@ func buildUserModelOptions(models []string) []dto.UserModelOption {
 				endpoints = append(endpoints, endpoint)
 			}
 		}
-		if common.IsImageGenerationModel(modelName) && !common.StringsContains(endpoints, string(constant.EndpointTypeImageGeneration)) {
+		if common.IsChannelImageGenerationModel(constant.ChannelTypeOpenAI, modelName) && !common.StringsContains(endpoints, string(constant.EndpointTypeImageGeneration)) {
 			endpoints = append([]string{string(constant.EndpointTypeImageGeneration)}, endpoints...)
+		}
+		if len(endpoints) == 0 {
+			continue
 		}
 		options = append(options, dto.UserModelOption{
 			Label:                  modelName,

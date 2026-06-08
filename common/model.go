@@ -1,6 +1,10 @@
 package common
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+)
 
 var (
 	// OpenAIResponseOnlyModels is a list of models that are only available for OpenAI responses.
@@ -13,11 +17,13 @@ var (
 		"dall-e-3",
 		"dall-e-2",
 		"prefix:gpt-image-",
-		"prefix:grok-imagine-image",
-		"prefix:grok-2-image-",
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+	}
+	XAIImageGenerationModels = []string{
+		"prefix:grok-imagine-image",
+		"prefix:grok-2-image-",
 	}
 	ImageGenerationExcludedModels = []string{
 		"prefix:grok-imagine-image-edit",
@@ -46,6 +52,39 @@ func IsImageGenerationModel(modelName string) bool {
 		if matchesModelRule(modelName, m) {
 			return false
 		}
+	}
+	for _, m := range ImageGenerationModels {
+		if matchesModelRule(modelName, m) {
+			return true
+		}
+	}
+	return IsXAIImageGenerationModel(modelName)
+}
+
+func IsXAIImageGenerationModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range ImageGenerationExcludedModels {
+		if matchesModelRule(modelName, m) {
+			return false
+		}
+	}
+	for _, m := range XAIImageGenerationModels {
+		if matchesModelRule(modelName, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsChannelImageGenerationModel(channelType int, modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range ImageGenerationExcludedModels {
+		if matchesModelRule(modelName, m) {
+			return false
+		}
+	}
+	if IsXAIImageGenerationModel(modelName) {
+		return channelType == constant.ChannelTypeXai
 	}
 	for _, m := range ImageGenerationModels {
 		if matchesModelRule(modelName, m) {
