@@ -124,14 +124,17 @@ func ResolvePricingViaModelMapping(channelID int, modelMapping *string, canonica
 	return LookupChannelPricingRow(channelID, []string{target})
 }
 
-// ChannelActualPricesResolved returns procurement prices (× recharge_rate) for billing logs.
+// ChannelActualPricesResolved returns the user-facing unit price
+// (采购价 × apimaster_price_ratio = input_price × recharge_rate × apimaster_ratio)
+// for billing logs. NOT raw procurement cost — matches Model Data「用户价格」.
 func ChannelActualPricesResolved(channelID int, modelName string) (*model.ChannelActualPrices, error) {
 	var ch struct {
-		ModelMapping *string
-		RechargeRate *float64
+		ModelMapping        *string
+		RechargeRate        *float64
+		ApimasterPriceRatio *float64
 	}
 	if err := model.DB.Table("channels").
-		Select("model_mapping, recharge_rate").
+		Select("model_mapping, recharge_rate, apimaster_price_ratio").
 		Where("id = ?", channelID).
 		Scan(&ch).Error; err != nil {
 		return nil, err
@@ -145,10 +148,15 @@ func ChannelActualPricesResolved(channelID int, modelName string) (*model.Channe
 	if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
 		rechargeRate = *ch.RechargeRate
 	}
+	apimasterRatio := 1.0
+	if ch.ApimasterPriceRatio != nil && *ch.ApimasterPriceRatio > 0 {
+		apimasterRatio = *ch.ApimasterPriceRatio
+	}
+	mult := rechargeRate * apimasterRatio
 	return &model.ChannelActualPrices{
-		InputPrice:         row.InputPrice * rechargeRate,
-		OutputPrice:        row.OutputPrice * rechargeRate,
-		CachePrice:         row.CachePrice * rechargeRate,
-		CacheCreationPrice: row.CacheCreationPrice * rechargeRate,
+		InputPrice:         row.InputPrice * mult,
+		OutputPrice:        row.OutputPrice * mult,
+		CachePrice:         row.CachePrice * mult,
+		CacheCreationPrice: row.CacheCreationPrice * mult,
 	}, nil
 }

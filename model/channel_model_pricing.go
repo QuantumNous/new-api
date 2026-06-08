@@ -35,10 +35,10 @@ func GetChannelModelPricing(channelId int, modelName string) (*ChannelModelPrici
 	return &p, nil
 }
 
-// ChannelActualPrices holds the four user-facing prices
-// (input_price × recharge_rate × apimaster_price_ratio) for a channel+model,
-// ready to be stored in the consume log's other JSON. This is the user price
-// (采购价 × apimaster_ratio), NOT the raw procurement cost.
+// ChannelActualPrices holds four per-(channel,model) unit prices for the
+// consume log's other JSON. The exact multiplier depends on the caller:
+// service.ChannelActualPricesResolved applies recharge_rate × apimaster_ratio
+// (user price); the helper below applies recharge_rate only (procurement cost).
 type ChannelActualPrices struct {
 	InputPrice         float64
 	OutputPrice        float64
@@ -46,38 +46,30 @@ type ChannelActualPrices struct {
 	CacheCreationPrice float64
 }
 
-// GetChannelActualPrices looks up channel_model_pricings and the channel's
-// recharge_rate + apimaster_price_ratio, returning prices already multiplied
-// by both (= 采购价 × apimaster_ratio, the user-facing unit price).
-// Returns nil, nil when no pricing row exists.
+// GetChannelActualPrices returns procurement cost (× recharge_rate only).
+// NOTE: the billing log path uses service.ChannelActualPricesResolved instead,
+// which also multiplies by apimaster_price_ratio. This helper is kept for
+// callers that want raw procurement cost. Returns nil, nil when no row exists.
 func GetChannelActualPrices(channelId int, modelName string) (*ChannelActualPrices, error) {
 	p, err := GetChannelModelPricing(channelId, modelName)
 	if err != nil || p == nil {
 		return nil, err
 	}
 
-	// Fetch recharge_rate + apimaster_price_ratio from channels table
+	// Fetch recharge_rate from channels table
 	var rechargeRate float64 = 1.0
-	var apimasterRatio float64 = 1.0
 	var ch struct {
-		RechargeRate        *float64 `gorm:"column:recharge_rate"`
-		ApimasterPriceRatio *float64 `gorm:"column:apimaster_price_ratio"`
+		RechargeRate *float64 `gorm:"column:recharge_rate"`
 	}
-	if err2 := DB.Table("channels").Select("recharge_rate, apimaster_price_ratio").Where("id = ?", channelId).Scan(&ch).Error; err2 == nil {
-		if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
-			rechargeRate = *ch.RechargeRate
-		}
-		if ch.ApimasterPriceRatio != nil && *ch.ApimasterPriceRatio > 0 {
-			apimasterRatio = *ch.ApimasterPriceRatio
-		}
+	if err2 := DB.Table("channels").Select("recharge_rate").Where("id = ?", channelId).Scan(&ch).Error; err2 == nil && ch.RechargeRate != nil && *ch.RechargeRate > 0 {
+		rechargeRate = *ch.RechargeRate
 	}
 
-	mult := rechargeRate * apimasterRatio
 	return &ChannelActualPrices{
-		InputPrice:         p.InputPrice * mult,
-		OutputPrice:        p.OutputPrice * mult,
-		CachePrice:         p.CachePrice * mult,
-		CacheCreationPrice: p.CacheCreationPrice * mult,
+		InputPrice:         p.InputPrice * rechargeRate,
+		OutputPrice:        p.OutputPrice * rechargeRate,
+		CachePrice:         p.CachePrice * rechargeRate,
+		CacheCreationPrice: p.CacheCreationPrice * rechargeRate,
 	}, nil
 }
 
