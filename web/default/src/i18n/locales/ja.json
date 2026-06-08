@@ -4571,6 +4571,7 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "The selected channel does not have access to this image model, or the upstream does not support image generation for it": "選択したチャネルにはこの画像モデルへのアクセス権がないか、アップストリームがこのモデルでの画像生成をサポートしていません"
   }
 }

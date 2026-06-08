@@ -19,6 +19,9 @@ var (
 		"flux-",
 		"flux.1-",
 	}
+	ImageGenerationExcludedModels = []string{
+		"prefix:grok-imagine-image-edit",
+	}
 	OpenAITextModels = []string{
 		"gpt-",
 		"o1",
@@ -39,11 +42,13 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 
 func IsImageGenerationModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
-	for _, m := range ImageGenerationModels {
-		if strings.Contains(modelName, m) {
-			return true
+	for _, m := range ImageGenerationExcludedModels {
+		if matchesModelRule(modelName, m) {
+			return false
 		}
-		if strings.HasPrefix(m, "prefix:") && strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+	}
+	for _, m := range ImageGenerationModels {
+		if matchesModelRule(modelName, m) {
 			return true
 		}
 	}
@@ -58,4 +63,11 @@ func IsOpenAITextModel(modelName string) bool {
 		}
 	}
 	return false
+}
+
+func matchesModelRule(modelName string, rule string) bool {
+	if strings.HasPrefix(rule, "prefix:") {
+		return strings.HasPrefix(modelName, strings.TrimPrefix(rule, "prefix:"))
+	}
+	return strings.Contains(modelName, rule)
 }

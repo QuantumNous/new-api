@@ -4571,6 +4571,7 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "The selected channel does not have access to this image model, or the upstream does not support image generation for it": "所选渠道没有该生图模型的访问权限，或上游不支持使用该模型生图"
   }
 }

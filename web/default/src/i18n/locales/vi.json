@@ -4571,6 +4571,7 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "The selected channel does not have access to this image model, or the upstream does not support image generation for it": "Kênh đã chọn không có quyền truy cập mô hình tạo ảnh này hoặc upstream không hỗ trợ tạo ảnh bằng mô hình đó"
   }
 }

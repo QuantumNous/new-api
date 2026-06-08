@@ -33,7 +33,10 @@ interface UseImageGenerationHandlerOptions {
   ) => void
 }
 
-function getImageGenerationError(error: unknown): {
+function getImageGenerationError(
+  error: unknown,
+  forbiddenMessage: string
+): {
   message: string
   code?: string
 } {
@@ -50,12 +53,27 @@ function getImageGenerationError(error: unknown): {
     message?: string
   }
 
+  const upstreamMessage =
+    err?.response?.data?.error?.message ||
+    err?.response?.data?.message ||
+    err?.message ||
+    ''
+  const normalizedMessage = upstreamMessage.toLowerCase()
+  const isForbiddenUpstream =
+    normalizedMessage.includes('forbidden') ||
+    normalizedMessage.includes('access denied') ||
+    normalizedMessage.includes('access forbidden')
+
+  if (isForbiddenUpstream) {
+    return {
+      message: forbiddenMessage,
+      code: err?.response?.data?.error?.code || undefined,
+    }
+  }
+
   return {
     message:
-      err?.response?.data?.error?.message ||
-      err?.response?.data?.message ||
-      err?.message ||
-      ERROR_MESSAGES.API_REQUEST_ERROR,
+      upstreamMessage || ERROR_MESSAGES.API_REQUEST_ERROR,
     code: err?.response?.data?.error?.code || undefined,
   }
 }
@@ -135,7 +153,10 @@ export function useImageGenerationHandler({
           finishedAt: Date.now(),
         }))
       } catch (error: unknown) {
-        const parsed = getImageGenerationError(error)
+        const parsed = getImageGenerationError(
+          error,
+          t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
+        )
         toast.error(parsed.message)
         updateTask(taskId, (current) => ({
           ...current,

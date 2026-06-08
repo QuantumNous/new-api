@@ -16,27 +16,40 @@ func TestBuildUserModelOptionsAddsImageGenerationEndpointByModelRule(t *testing.
 		"gpt-image-1",
 		"gpt-image-2",
 		"grok-imagine-image",
+		"grok-imagine-image-lite",
 		"grok-imagine-image-pro",
 		"grok-2-image-1212",
+		"grok-imagine-image-edit",
 		"grok-imagine-video",
 		"gpt-4o-mini",
 	})
 
-	require.Len(t, options, 7)
+	require.Len(t, options, 9)
 	require.Equal(t, "gpt-image-1", options[0].Value)
 	require.Contains(t, options[0].SupportedEndpointTypes, "image-generation")
 	require.Equal(t, "gpt-image-2", options[1].Value)
 	require.Contains(t, options[1].SupportedEndpointTypes, "image-generation")
 	require.Equal(t, "grok-imagine-image", options[2].Value)
 	require.Contains(t, options[2].SupportedEndpointTypes, "image-generation")
-	require.Equal(t, "grok-imagine-image-pro", options[3].Value)
+	require.Equal(t, "grok-imagine-image-lite", options[3].Value)
 	require.Contains(t, options[3].SupportedEndpointTypes, "image-generation")
-	require.Equal(t, "grok-2-image-1212", options[4].Value)
+	require.Equal(t, "grok-imagine-image-pro", options[4].Value)
 	require.Contains(t, options[4].SupportedEndpointTypes, "image-generation")
-	require.Equal(t, "grok-imagine-video", options[5].Value)
-	require.NotContains(t, options[5].SupportedEndpointTypes, "image-generation")
-	require.Equal(t, "gpt-4o-mini", options[6].Value)
+	require.Equal(t, "grok-2-image-1212", options[5].Value)
+	require.Contains(t, options[5].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-image-edit", options[6].Value)
 	require.NotContains(t, options[6].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-video", options[7].Value)
+	require.NotContains(t, options[7].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "gpt-4o-mini", options[8].Value)
+	require.NotContains(t, options[8].SupportedEndpointTypes, "image-generation")
+}
+
+func TestIsImageGenerationModelExcludesGrokImageEdit(t *testing.T) {
+	require.True(t, common.IsImageGenerationModel("grok-imagine-image-lite"))
+	require.True(t, common.IsImageGenerationModel("grok-imagine-image-pro"))
+	require.False(t, common.IsImageGenerationModel("grok-imagine-image-edit"))
+	require.False(t, common.IsImageGenerationModel("grok-imagine-video"))
 }
 
 func TestGetUserModelsDefaultResponseRemainsStringArray(t *testing.T) {

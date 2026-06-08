@@ -298,7 +298,7 @@ export function Playground() {
 
       {/* Input area: center content and constrain to the same container width */}
       <div className='border-border/60 bg-background/95 supports-[backdrop-filter]:bg-background/80 mx-auto w-full border-t px-3 py-3 shadow-[0_-8px_24px_-20px_rgb(0_0_0_/_0.35)] backdrop-blur'>
-        <div className='mx-auto w-full max-w-4xl'>
+        <div className='mx-auto w-full max-w-5xl'>
           {mode === 'chat' ? (
             <PlaygroundInput
               disabled={isGenerating}
