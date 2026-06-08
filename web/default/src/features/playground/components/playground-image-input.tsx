@@ -139,7 +139,10 @@ export function PlaygroundImageInput({
         </p>
       ) : null}
 
-      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
+      <PromptInput
+        groupClassName='rounded-xl has-disabled:opacity-100'
+        onSubmit={handleSubmit}
+      >
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
