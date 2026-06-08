@@ -98,6 +98,17 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":            0.125,
 	"gpt-5-nano":                       0.025,
 	"gpt-5-nano-2025-08-07":            0.025,
+	// gpt-5.4 / gpt-5.5 (also available on Amazon Bedrock as openai.gpt-5.4 / openai.gpt-5.5)
+	"gpt-5.4":               1.25, // $2.5 / 1M tokens
+	"gpt-5.4-2026-03-05":    1.25, // $2.5 / 1M tokens
+	"gpt-5.4-nano":          0.1,  // $0.2 / 1M tokens
+	"gpt-5.5":               2.5,  // $5 / 1M tokens
+	"gpt-5.5-2026-04-23":    2.5,  // $5 / 1M tokens
+	"gpt-5.5-chat-latest":   2.5,  // $5 / 1M tokens
+	// Amazon Bedrock model IDs (openai. prefix) - same pricing as OpenAI first-party
+	"openai.gpt-5.4":        1.25, // $2.5 / 1M tokens
+	"openai.gpt-5.4-nano":   0.1,  // $0.2 / 1M tokens
+	"openai.gpt-5.5":        2.5,  // $5 / 1M tokens
 	//"gpt-3.5-turbo-0301":           0.75, //deprecated
 	"gpt-3.5-turbo":          0.25,
 	"gpt-3.5-turbo-0613":     0.75,
@@ -343,6 +354,12 @@ var defaultCompletionRatio = map[string]float64{
 	"gpt-4o-gizmo-*": 3,
 	"gpt-4-all":      2,
 	"gpt-image-1":    8,
+	// Amazon Bedrock model IDs (openai. prefix). The hardcoded completion-ratio
+	// matcher keys off the "gpt-" prefix, so the "openai." prefixed Bedrock model
+	// IDs fall through to this map. Values mirror the first-party gpt-5.x ratios.
+	"openai.gpt-5.4":      6,    // output $15 / input $2.5
+	"openai.gpt-5.4-nano": 6.25, // output $1.25 / input $0.2
+	"openai.gpt-5.5":      6,    // output $30 / input $5
 }
 
 // InitRatioSettings initializes all model related settings maps

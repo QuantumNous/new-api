@@ -319,6 +319,7 @@ func (info *RelayInfo) ToString() string {
 // 定义支持流式选项的通道类型
 var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeOpenAI:      true,
+	constant.ChannelTypeBedrockOpenAI: true,
 	constant.ChannelTypeAnthropic:   true,
 	constant.ChannelTypeAws:         true,
 	constant.ChannelTypeGemini:      true,

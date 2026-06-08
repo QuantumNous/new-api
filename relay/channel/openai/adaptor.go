@@ -658,6 +658,8 @@ func (a *Adaptor) GetModelList() []string {
 		return xinference.ModelList
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ModelList
+	case constant.ChannelTypeBedrockOpenAI:
+		return BedrockOpenAIModelList
 	default:
 		return ModelList
 	}
@@ -675,6 +677,8 @@ func (a *Adaptor) GetChannelName() string {
 		return xinference.ChannelName
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ChannelName
+	case constant.ChannelTypeBedrockOpenAI:
+		return BedrockOpenAIChannelName
 	default:
 		return ChannelName
 	}

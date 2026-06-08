@@ -134,6 +134,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'openai',
+    defaultBaseUrl: 'https://bedrock-mantle.us-east-2.api.aws/openai',
+    hints: {
+      baseUrl:
+        'Bedrock mantle endpoint, e.g. https://bedrock-mantle.us-east-2.api.aws/openai (no trailing /v1)',
+      key: 'Amazon Bedrock API key',
+      models: 'openai.gpt-5.5,openai.gpt-5.4',
+    },
+  },
 }
 
 /**
