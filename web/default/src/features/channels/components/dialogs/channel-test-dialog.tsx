@@ -28,18 +28,11 @@ import {
 } from '@tanstack/react-table'
 import { Check, Copy, Info, Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -74,6 +67,13 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
+import { Dialog } from '@/components/dialog'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
 import { formatResponseTime, handleTestChannel } from '../../lib'
 import { useChannels } from '../channels-provider'
@@ -302,11 +302,12 @@ export function ChannelTestDialog({
   }, [])
 
   const testSingleModel = useCallback(
-    async (model: string) => {
+    async (model: string, silent = false): Promise<TestResult | undefined> => {
       if (!currentRow) return
 
       markModelTesting(model, true)
       updateTestResult(model, { status: 'testing' })
+      let finalResult: TestResult | undefined
 
       try {
         await handleTestChannel(
@@ -315,24 +316,28 @@ export function ChannelTestDialog({
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: isStreamTest || undefined,
+            silent,
           },
           (success, responseTime, error, errorCode) => {
-            updateTestResult(model, {
+            finalResult = {
               status: success ? 'success' : 'error',
               responseTime,
               error,
               errorCode,
-            })
+            }
+            updateTestResult(model, finalResult)
           }
         )
       } catch (error: unknown) {
-        updateTestResult(model, {
+        finalResult = {
           status: 'error',
           error: error instanceof Error ? error.message : t('Test failed'),
-        })
+        }
+        updateTestResult(model, finalResult)
       } finally {
         markModelTesting(model, false)
       }
+      return finalResult
     },
     [
       currentRow,
@@ -350,15 +355,41 @@ export function ChannelTestDialog({
 
       setIsBatchTesting(true)
       try {
-        await Promise.allSettled(
-          modelsToTest.map((modelName) => testSingleModel(modelName))
+        const settled = await Promise.allSettled(
+          modelsToTest.map((modelName) => testSingleModel(modelName, true))
         )
+        const results = settled
+          .map((result) =>
+            result.status === 'fulfilled' ? result.value : undefined
+          )
+          .filter((result): result is TestResult => Boolean(result))
+        const successCount = results.filter(
+          (result) => result.status === 'success'
+        ).length
+        const failedCount = modelsToTest.length - successCount
+        if (failedCount > 0) {
+          toast.error(
+            t(
+              'Batch test completed: {{success}} succeeded, {{failed}} failed',
+              {
+                success: successCount,
+                failed: failedCount,
+              }
+            )
+          )
+        } else {
+          toast.success(
+            t('Batch test completed: {{count}} succeeded', {
+              count: successCount,
+            })
+          )
+        }
       } finally {
         setIsBatchTesting(false)
         setRowSelection({})
       }
     },
-    [testSingleModel]
+    [t, testSingleModel]
   )
 
   const handleClose = () => {
@@ -491,179 +522,184 @@ export function ChannelTestDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className='max-h-[90vh] overflow-hidden sm:max-w-3xl'>
-          <DialogHeader>
-            <DialogTitle>{t('Test Channel Connection')}</DialogTitle>
-            <DialogDescription>
-              {t('Test connectivity for:')} <strong>{currentRow.name}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
-            <div className='grid gap-4 md:grid-cols-2'>
-              <div className='grid gap-2'>
-                <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
-                <Select
-                  items={[
-                    ...endpointTypeOptions.map((option) => {
-                      const itemValue = option.value
-                      return { value: itemValue, label: t(option.label) }
-                    }),
-                  ]}
-                  value={endpointType}
-                  onValueChange={(v) => v !== null && setEndpointType(v)}
-                >
-                  <SelectTrigger id='endpoint-type'>
-                    <SelectValue placeholder={t('Auto detect (default)')} />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {endpointTypeOptions.map((option) => {
-                        const itemValue = option.value
-                        return (
-                          <SelectItem key={itemValue} value={itemValue}>
-                            {t(option.label)}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Override the endpoint used for testing. Leave empty to auto detect.'
-                  )}
-                </p>
-              </div>
-              <div className='grid gap-2'>
-                <Label htmlFor='stream-toggle'>{t('Stream Mode')}</Label>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    id='stream-toggle'
-                    checked={isStreamTest}
-                    onCheckedChange={setIsStreamTest}
-                    disabled={streamDisabled}
-                  />
-                  <span className='text-sm'>
-                    {isStreamTest ? t('Enabled') : t('Disabled')}
-                  </span>
-                </div>
-                <p className='text-muted-foreground text-xs'>
-                  {t('Enable streaming mode for the test request.')}
-                </p>
-              </div>
-            </div>
-
-            <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
-              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                <div>
-                  <p className='text-sm font-medium'>{t('Channel models')}</p>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Select models to run batch tests.')}
-                  </p>
-                </div>
-                <Input
-                  placeholder={t('Filter models...')}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='sm:w-64'
-                />
-              </div>
-
-              <div className='space-y-3'>
-                <div
-                  className='overflow-hidden rounded-md border'
-                  role='region'
-                  aria-label={t('Channel models')}
-                >
-                  <div className='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'>
-                    <Table className='w-max min-w-full table-auto'>
-                      <colgroup>
-                        <col className='w-10 min-w-10' />
-                        <col className='w-auto' />
-                        <col className='w-70' />
-                        <col className='w-24 sm:w-28' />
-                      </colgroup>
-                      <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                          <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => (
-                              <TableHead
-                                key={header.id}
-                                className={getTestTableColumnClass(
-                                  header.column.id
-                                )}
-                              >
-                                {header.isPlaceholder
-                                  ? null
-                                  : flexRender(
-                                      header.column.columnDef.header,
-                                      header.getContext()
-                                    )}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableHeader>
-                      <TableBody>
-                        {table.getRowModel().rows.length ? (
-                          table.getRowModel().rows.map((row) => (
-                            <TableRow
-                              key={row.id}
-                              data-state={
-                                row.getIsSelected() ? 'selected' : undefined
-                              }
-                            >
-                              {row.getVisibleCells().map((cell) => (
-                                <TableCell
-                                  key={cell.id}
-                                  className={getTestTableColumnClass(
-                                    cell.column.id
-                                  )}
-                                >
-                                  {flexRender(
-                                    cell.column.columnDef.cell,
-                                    cell.getContext()
-                                  )}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell
-                              colSpan={table.getVisibleLeafColumns().length}
-                              className='text-muted-foreground h-16 text-center text-sm'
-                            >
-                              {models.length
-                                ? 'No models matched your search.'
-                                : 'This channel has no configured models.'}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-
-                <DataTablePagination table={table} />
-              </div>
-
-              <TestModelsBulkActions
-                table={table}
-                disabled={isAnyTesting}
-                onTestSelected={handleBatchTest}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
+      <Dialog
+        open={open}
+        onOpenChange={handleClose}
+        title={t('Test Channel Connection')}
+        description={
+          <>
+            {t('Test connectivity for:')}
+            <strong>{currentRow.name}</strong>
+          </>
+        }
+        contentClassName='max-h-[90vh] overflow-hidden sm:max-w-3xl'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button variant='outline' onClick={handleClose}>
               {t('Close')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <div className='grid gap-2'>
+              <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
+              <Select
+                items={[
+                  ...endpointTypeOptions.map((option) => {
+                    const itemValue = option.value
+                    return { value: itemValue, label: t(option.label) }
+                  }),
+                ]}
+                value={endpointType}
+                onValueChange={(v) => v !== null && setEndpointType(v)}
+              >
+                <SelectTrigger id='endpoint-type'>
+                  <SelectValue placeholder={t('Auto detect (default)')} />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {endpointTypeOptions.map((option) => {
+                      const itemValue = option.value
+                      return (
+                        <SelectItem key={itemValue} value={itemValue}>
+                          {t(option.label)}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Override the endpoint used for testing. Leave empty to auto detect.'
+                )}
+              </p>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='stream-toggle'>{t('Stream Mode')}</Label>
+              <div className='flex items-center gap-2'>
+                <Switch
+                  id='stream-toggle'
+                  checked={isStreamTest}
+                  onCheckedChange={setIsStreamTest}
+                  disabled={streamDisabled}
+                />
+                <span className='text-sm'>
+                  {isStreamTest ? t('Enabled') : t('Disabled')}
+                </span>
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                {t('Enable streaming mode for the test request.')}
+              </p>
+            </div>
+          </div>
+
+          <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                <p className='text-sm font-medium'>{t('Channel models')}</p>
+                <p className='text-muted-foreground text-xs'>
+                  {t('Select models to run batch tests.')}
+                </p>
+              </div>
+              <Input
+                placeholder={t('Filter models...')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='sm:w-64'
+              />
+            </div>
+
+            <div className='space-y-3'>
+              <div
+                className='overflow-hidden rounded-md border'
+                role='region'
+                aria-label={t('Channel models')}
+              >
+                <div className='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'>
+                  <Table className='w-max min-w-full table-auto'>
+                    <colgroup>
+                      <col className='w-10 min-w-10' />
+                      <col className='w-auto' />
+                      <col className='w-70' />
+                      <col className='w-24 sm:w-28' />
+                    </colgroup>
+                    <TableHeader>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead
+                              key={header.id}
+                              className={getTestTableColumnClass(
+                                header.column.id
+                              )}
+                            >
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {table.getRowModel().rows.length ? (
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            data-state={
+                              row.getIsSelected() ? 'selected' : undefined
+                            }
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell
+                                key={cell.id}
+                                className={getTestTableColumnClass(
+                                  cell.column.id
+                                )}
+                              >
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={table.getVisibleLeafColumns().length}
+                            className='text-muted-foreground h-16 text-center text-sm'
+                          >
+                            {models.length
+                              ? 'No models matched your search.'
+                              : 'This channel has no configured models.'}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <DataTablePagination table={table} />
+            </div>
+
+            <TestModelsBulkActions
+              table={table}
+              disabled={isAnyTesting}
+              onTestSelected={handleBatchTest}
+            />
+          </div>
+        </div>
       </Dialog>
       <FailureDetailsSheet
         details={failureDetails}
@@ -801,19 +837,19 @@ function FailureDetailsSheet({
         side={isMobile ? 'bottom' : 'right'}
         className={
           isMobile
-            ? 'max-h-[85dvh] gap-0 overflow-hidden rounded-t-xl p-0'
-            : 'h-dvh w-full gap-0 overflow-hidden p-0 sm:max-w-lg'
+            ? sideDrawerContentClassName('h-auto max-h-[85dvh] rounded-t-xl')
+            : sideDrawerContentClassName('sm:max-w-lg')
         }
       >
         {details && (
           <>
-            <SheetHeader className='border-b px-4 py-3 text-start sm:px-5 sm:py-4'>
+            <SheetHeader className={sideDrawerHeaderClassName('sm:px-5')}>
               <SheetTitle className='pr-10'>{t('Details')}</SheetTitle>
               <SheetDescription className='pr-10 wrap-break-word'>
                 {details.model}
               </SheetDescription>
             </SheetHeader>
-            <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4'>
+            <div className={sideDrawerFormClassName('gap-4 sm:px-5')}>
               <section className='space-y-1'>
                 <div className='text-muted-foreground text-xs font-medium'>
                   {t('Model')}
@@ -837,7 +873,7 @@ function FailureDetailsSheet({
                 </pre>
               </section>
             </div>
-            <SheetFooter className='border-t px-4 py-3 sm:flex-row sm:justify-end sm:px-5'>
+            <SheetFooter className={sideDrawerFooterClassName('sm:px-5')}>
               <Button
                 variant='outline'
                 className='w-full sm:w-auto'

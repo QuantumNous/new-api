@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CopyButton } from '@/components/copy-button'
+import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
 import { PublicLayout } from '@/components/layout'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
@@ -267,8 +268,9 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
 function ModelHeader(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
-  const vendorIcon = model.vendor_icon
-    ? getLobeIcon(model.vendor_icon, 20)
+  const modelIconKey = model.icon || model.vendor_icon
+  const modelIcon = modelIconKey
+    ? getLobeIcon(modelIconKey, 20)
     : null
   const description = model.description || model.vendor_description || null
   const tags = parseTags(model.tags)
@@ -280,7 +282,7 @@ function ModelHeader(props: { model: PricingModel }) {
   return (
     <header className='pb-4'>
       <div className='flex items-center gap-2.5'>
-        {vendorIcon}
+        {modelIcon}
         <h1 className='font-mono text-xl font-bold tracking-tight sm:text-2xl'>
           {model.model_name}
         </h1>
@@ -735,7 +737,7 @@ function GroupPricingSection(props: {
 
                         return (
                           <TableRow key={`${group}-${tier.label || tierIndex}`}>
-                            <TableCell className='text-muted-foreground py-2.5 text-xs'>
+                            <TableCell className='text-muted-foreground py-2.5'>
                               {tier.label || t('Default')}
                             </TableCell>
                             {priceFields.map((fieldEntry) => {
@@ -808,7 +810,7 @@ function GroupPricingSection(props: {
                   <TableCell className='py-2.5'>
                     <GroupBadge group={group} size='sm' />
                   </TableCell>
-                  <TableCell className='text-muted-foreground py-2.5 font-mono text-xs'>
+                  <TableCell className='text-muted-foreground py-2.5 font-mono'>
                     {ratio}x
                   </TableCell>
                   {isTokenBased ? (
@@ -1006,7 +1008,9 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side='right'
-        className='flex h-dvh w-full overflow-hidden p-0 sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl 2xl:max-w-5xl'
+        className={sideDrawerContentClassName(
+          'sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl 2xl:max-w-5xl'
+        )}
       >
         <SheetHeader className='sr-only'>
           <SheetTitle>{props.model.model_name}</SheetTitle>

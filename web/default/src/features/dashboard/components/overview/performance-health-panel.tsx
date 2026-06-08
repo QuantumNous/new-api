@@ -82,9 +82,17 @@ export function PerformanceHealthPanel() {
   const summary = useMemo(() => {
     return {
       avgLatencyMs: Math.round(
-        simpleAverage(models, 'avg_latency_ms', (v) => Number.isFinite(v) && v > 0)
+        simpleAverage(
+          models,
+          'avg_latency_ms',
+          (v) => Number.isFinite(v) && v > 0
+        )
       ),
-      avgTps: simpleAverage(models, 'avg_tps', (v) => Number.isFinite(v) && v > 0),
+      avgTps: simpleAverage(
+        models,
+        'avg_tps',
+        (v) => Number.isFinite(v) && v > 0
+      ),
       successRate: simpleAverage(models, 'success_rate', Number.isFinite),
     }
   }, [models])
@@ -96,7 +104,10 @@ export function PerformanceHealthPanel() {
   return (
     <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
       <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
-        <HeartPulse className='text-muted-foreground/60 size-4 shrink-0' aria-hidden='true' />
+        <HeartPulse
+          className='text-muted-foreground/60 size-4 shrink-0'
+          aria-hidden='true'
+        />
         <h3 className='text-sm font-semibold'>{t('Performance health')}</h3>
         <span className='text-muted-foreground ml-auto text-xs'>
           {t('Performance metrics for the last 24 hours')}
@@ -132,38 +143,43 @@ export function PerformanceHealthPanel() {
               <Skeleton key={i} className='h-5 w-full rounded' />
             ))}
           </div>
-        ) : hasData && (
-          <div>
-            <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
-              {t('Top models by traffic')}
-            </span>
-            <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
-              {topModels.map((model) => (
-                <div
-                  key={model.model_name}
-                  className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
-                >
-                  <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
-                    {model.model_name}
-                  </span>
-                  <span className='inline-flex shrink-0 items-center gap-1'>
-                    <span
-                      className={cn('size-1.5 rounded-full', rateDotClass(model.success_rate))}
-                      aria-hidden='true'
-                    />
-                    <span
-                      className={cn(
-                        'font-mono text-[11px] font-semibold tabular-nums',
-                        rateTextClass(model.success_rate)
-                      )}
-                    >
-                      {formatUptimePct(model.success_rate)}
+        ) : (
+          hasData && (
+            <div>
+              <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
+                {t('Top models by traffic')}
+              </span>
+              <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
+                {topModels.map((model) => (
+                  <div
+                    key={model.model_name}
+                    className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
+                  >
+                    <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
+                      {model.model_name}
                     </span>
-                  </span>
-                </div>
-              ))}
+                    <span className='inline-flex shrink-0 items-center gap-1'>
+                      <span
+                        className={cn(
+                          'size-1.5 rounded-full',
+                          rateDotClass(model.success_rate)
+                        )}
+                        aria-hidden='true'
+                      />
+                      <span
+                        className={cn(
+                          'font-mono text-[11px] font-semibold tabular-nums',
+                          rateTextClass(model.success_rate)
+                        )}
+                      >
+                        {formatUptimePct(model.success_rate)}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )
         )}
       </div>
     </section>
