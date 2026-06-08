@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -544,7 +545,7 @@ func (a *TaskAdaptor) estimateCreditLocal(c *gin.Context, info *relaycommon.Rela
 	if err != nil {
 		return 0
 	}
-	seconds := float64(taskcommon.DefaultInt(req.Duration, 5))
+	seconds := float64(resolveSeconds(&req))
 
 	resolution := "720p"
 	if r, ok := req.Metadata["resolution"].(string); ok && r != "" {
@@ -569,6 +570,20 @@ func (a *TaskAdaptor) estimateCreditLocal(c *gin.Context, info *relaycommon.Rela
 // helpers
 // ============================
 
+// resolveSeconds resolves the requested video duration with Seconds-first precedence,
+// mirroring the canonical pattern in relay/common/relay_utils.go:136-139 and every sibling
+// video adaptor. OpenAI-compatible clients send the duration in the string `seconds` field
+// (dto.OpenAIVideo.Seconds), which the JSON submit path captures into req.Seconds but never
+// folds into req.Duration (that fold only happens on the multipart path). Without this,
+// taskcommon.DefaultInt(req.Duration, 5) silently builds and prices a 5s clip for an
+// 8/10/15-second `seconds` request.
+func resolveSeconds(req *relaycommon.TaskSubmitReq) int {
+	if s, err := strconv.Atoi(strings.TrimSpace(req.Seconds)); err == nil && s > 0 {
+		return s
+	}
+	return taskcommon.DefaultInt(req.Duration, 5)
+}
+
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*polloRequest, error) {
 	// Use the same resolved endpoint as the URL so the request body shape (ref vs
 	// non-ref: duration+refs vs length+image) always matches the endpoint we POST to,
@@ -582,7 +597,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		// metadata.seed (including 0) is applied below by UnmarshalMetadata.
 	}
 
-	seconds := taskcommon.DefaultInt(req.Duration, 5)
+	seconds := resolveSeconds(req)
 	if ep.isRef {
 		input.Duration = seconds
 	} else {

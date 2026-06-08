@@ -273,6 +273,46 @@ func TestConvertPayload_SeedAbsentOmitted(t *testing.T) {
 	}
 }
 
+// TestResolveSeconds_PrecedenceAndPayload guards the Seconds-first/Duration-fallback
+// precedence: an OpenAI-compatible `seconds` request (req.Seconds, no req.Duration) must
+// build the requested duration upstream, not silently default to 5s.
+func TestResolveSeconds_PrecedenceAndPayload(t *testing.T) {
+	cases := []struct {
+		name     string
+		seconds  string
+		duration int
+		want     int
+	}{
+		{"seconds-only", "8", 0, 8},          // OpenAI `seconds` field, no duration
+		{"seconds-wins-over-duration", "10", 5, 10}, // explicit seconds takes precedence
+		{"duration-fallback", "", 6, 6},      // no seconds -> use duration
+		{"invalid-seconds-falls-back", "abc", 7, 7}, // unparsable -> duration
+		{"both-empty-default-5", "", 0, 5},   // nothing provided -> default 5
+		{"zero-seconds-falls-back", "0", 4, 4}, // seconds==0 is not a valid duration
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &relaycommon.TaskSubmitReq{Prompt: "x", Seconds: tc.seconds, Duration: tc.duration}
+			if got := resolveSeconds(req); got != tc.want {
+				t.Fatalf("resolveSeconds(seconds=%q,duration=%d) = %d, want %d", tc.seconds, tc.duration, got, tc.want)
+			}
+		})
+	}
+
+	// End-to-end through the payload builder: a non-ref model must set Length from `seconds`.
+	a := &TaskAdaptor{baseURL: defaultBaseURL}
+	info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+	info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+	req := &relaycommon.TaskSubmitReq{Prompt: "x", Seconds: "8"}
+	body, err := a.convertToRequestPayload(req, info)
+	if err != nil {
+		t.Fatalf("convertToRequestPayload: %v", err)
+	}
+	if body.Input.Length != 8 {
+		t.Fatalf("non-ref body must honor seconds=8 -> length, got %d", body.Input.Length)
+	}
+}
+
 // TestParseTaskResult_FlatStatusCredit ensures the flat top-level {credit,generations}
 // status shape settles from real usage (credit -> TotalTokens), symmetric with gens().
 func TestParseTaskResult_FlatStatusCredit(t *testing.T) {
