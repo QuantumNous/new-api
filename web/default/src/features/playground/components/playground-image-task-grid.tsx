@@ -107,21 +107,14 @@ interface ImagePreviewSelection {
   source: string
 }
 
-function ImageResultSlot({ children }: { children: React.ReactNode }) {
-  return (
-    <div className='flex aspect-square w-full items-center justify-center overflow-hidden rounded-md'>
-      {children}
-    </div>
-  )
-}
+const imageResultClassName =
+  'flex aspect-square w-full items-center justify-center overflow-hidden rounded-md'
 
 function EmptyImageSlot() {
   return (
-    <ImageResultSlot>
-      <div className='bg-muted text-muted-foreground flex size-full items-center justify-center'>
-        <ImageIcon className='size-8' />
-      </div>
-    </ImageResultSlot>
+    <div className={`${imageResultClassName} bg-muted text-muted-foreground`}>
+      <ImageIcon className='size-8' />
+    </div>
   )
 }
 
@@ -147,7 +140,7 @@ function ImagePreview({
   return (
     <button
       aria-label={alt}
-      className='group focus-visible:ring-ring/50 relative block aspect-square w-full overflow-hidden rounded-md outline-none focus-visible:ring-3'
+      className={`group focus-visible:ring-ring/50 ${imageResultClassName} outline-none focus-visible:ring-3`}
       type='button'
       onClick={() => onOpen({ alt, source })}
     >
@@ -215,14 +208,14 @@ function TaskCard({
         {task.status === 'running' ? (
           <Skeleton className='aspect-square w-full rounded-md' />
         ) : task.status === 'error' || task.status === 'interrupted' ? (
-          <ImageResultSlot>
-            <div className='border-border bg-muted/40 flex size-full flex-col items-center justify-center border border-dashed px-4 py-5 text-center'>
-              <AlertCircleIcon className='text-muted-foreground mb-2 size-7 shrink-0' />
-              <p className='text-muted-foreground line-clamp-4 max-w-full text-xs leading-5 break-words'>
-                {task.error || t('Generation was interrupted')}
-              </p>
-            </div>
-          </ImageResultSlot>
+          <div
+            className={`${imageResultClassName} border-border bg-muted/40 flex-col border border-dashed px-4 py-5 text-center`}
+          >
+            <AlertCircleIcon className='text-muted-foreground mb-2 size-7 shrink-0' />
+            <p className='text-muted-foreground line-clamp-4 max-w-full text-xs leading-5 break-words'>
+              {task.error || t('Generation was interrupted')}
+            </p>
+          </div>
         ) : images.length === 0 ? (
           <EmptyImageSlot />
         ) : images.length === 1 ? (
