@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # setting
 
@@ -16,6 +16,8 @@
 | `midjourney.go` | Midjourney 渠道专属配置 |
 | `payment_creem.go` | Creem 支付集成配置 |
 | `payment_stripe.go` | Stripe 支付集成配置 |
+| `payment_paddle.go` | Paddle 支付集成配置（全局变量 + `ApplyPaddleEnvOverrides`/`EffectivePaddleSandbox`/`ValidatePaddleOption`） |
+| `payment_paddle_test.go` | Paddle 配置单元测试（env override、sandbox 判定、格式校验） |
 | `payment_waffo.go` | Waffo 支付集成配置 |
 | `payment_waffo_pancake.go` | Waffo Pancake 支付集成配置 |
 | `rate_limit.go` | 全局限流参数 |
@@ -51,6 +53,8 @@
 - `setting/config/config_test.go` 覆盖序列化/反序列化；修改 `config/config.go` 后必须运行 `go test ./setting/config/...`。
 - `setting/model_setting/claude_test.go` 覆盖 Claude 模型配置；修改 claude.go 后运行 `go test ./setting/model_setting/...`。
 - `setting/operation_setting/status_code_ranges_test.go` 覆盖状态码范围；修改后运行 `go test ./setting/operation_setting/...`。
+- `setting/operation_setting/monitor_setting_test.go` 覆盖 DingTalk 告警字段与渠道类型过滤；修改 monitor_setting.go 后运行 `go test ./setting/operation_setting/...`。
+- `setting/payment_paddle_test.go` 覆盖 Paddle env override、sandbox 判定、格式校验；修改 payment_paddle.go 后运行 `go test ./setting/...`。
 
 ### Common Patterns
 

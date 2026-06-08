@@ -166,7 +166,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 
 #### 共享与类型
 - `common/AGENTS.md` — 共享工具（JSON / DB flags / Redis / crypto / env），Rule 1 核心实现
-- `dto/AGENTS.md` — 请求/响应结构体（重点：Rule 6 指针零值）
+- `dto/AGENTS.md` — 请求/响应结构体（重点：Rule 5 指针零值）
 - `constant/AGENTS.md` — 枚举常量与 context key
 - `types/AGENTS.md` — relay 格式、错误体系（NewAPIError）
 

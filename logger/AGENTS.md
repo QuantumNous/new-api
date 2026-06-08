@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # logger
 
@@ -11,18 +11,20 @@
 
 | File | Description |
 |------|-------------|
-| `logger.go` | 日志初始化（`SetupLogger()`）、日志文件滚动、`GetCurrentLogPath()`、各级别日志写入函数 |
+| `logger.go` | 日志初始化（`SetupLogger()`）、日志文件滚动、`GetCurrentLogPath()`、各级别日志写入函数（`LogInfo`/`LogWarn`/`LogError`/`LogDebug`）、`LogJson`（仅供测试）、`LogQuota`/`FormatQuota` 额度格式化工具 |
 
 ## For AI Agents
 
 ### Working In This Directory
 
 - `SetupLogger()` 在启动时由主程序调用，依赖 `common.LogDir` 命令行参数；若 `LogDir` 为空则只输出到标准输出。
-- 日志文件路径通过 `GetCurrentLogPath()` 获取（加读锁保护并发访问）。
+- 日志文件路径通过 `GetCurrentLogPath()` 获取（加读锁 `currentLogPathMu` 保护并发访问）。
 - 日志写入使用 `bytedance/gopkg/util/gopool` 异步执行，避免阻塞请求处理。
-- `maxLogCount = 1000000`：单文件最多 100 万条日志，超出后自动滚动。
-- 此包仅负责文件写入基础设施；具体日志调用（`common.SysLog`、`common.SysError`）在 `common/` 包中定义，`common` 内部会调用此包的写入函数。
-- 不要在此包中引入业务逻辑依赖（已依赖 `operation_setting` 作为唯一例外，用于读取日志级别开关）。
+- `maxLogCount = 1000000`：单文件最多 100 万条日志，超出后自动滚动到新文件。
+- 日志级别常量为包内私有（`loggerINFO`、`loggerWarn`、`loggerError`、`loggerDebug`），对外暴露的是函数而非常量。
+- `LogJson` 标注为 "only for test"，不要在生产代码路径中调用。
+- 此包仅负责文件写入基础设施；上层调用（`common.SysLog`、`common.SysError`）在 `common/` 包中定义，`common` 内部调用此包的写入函数。
+- 不要在此包中引入业务逻辑依赖（已依赖 `operation_setting` 作为唯一例外，用于读取 Debug 日志级别开关）。
 
 ### Testing Requirements
 
@@ -37,6 +39,12 @@ logger.SetupLogger()
 
 // 获取当前日志文件路径（用于日志下载接口）
 path := logger.GetCurrentLogPath()
+
+// 各级别日志调用（ctx 携带 request_id 等字段）
+logger.LogInfo(ctx, "message")
+logger.LogWarn(ctx, "message")
+logger.LogError(ctx, "message")
+logger.LogDebug(ctx, "template %s", arg)
 ```
 
 ## Dependencies
@@ -44,7 +52,7 @@ path := logger.GetCurrentLogPath()
 ### Internal
 
 - `common/` — `LogDir` 配置、工具函数
-- `setting/operation_setting/` — 日志级别开关（如 Debug 日志是否启用）
+- `setting/operation_setting/` — 日志级别开关（Debug 日志是否启用）
 
 ### External
 

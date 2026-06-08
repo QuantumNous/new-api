@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # web
 
@@ -9,21 +9,21 @@
 ## Subdirectories
 | Directory | Purpose |
 |-----------|---------|
-| `default/` | 默认主题：React 19 + Rsbuild + Base UI + Tailwind CSS，由 Bun 管理依赖（详细规范见 `default/AGENTS.md`） |
-| `classic/` | 经典主题：React 18 + Vite + Semi Design（@douyinfe/semi-ui），保留旧版界面与既有用户习惯（见 `classic/AGENTS.md`） |
+| `default/` | 默认主题：React 19 + Rsbuild 2.x + Base UI + Tailwind CSS 4.x，由 Bun 管理依赖（详细规范见 `default/AGENTS.md`） |
+| `classic/` | 经典主题：React 19 + Rsbuild 2.x + Semi Design（@douyinfe/semi-ui），保留旧版界面与既有用户习惯（见 `classic/AGENTS.md`） |
 
 ## For AI Agents
 
 ### Working In This Directory
 - 修改前端代码前先确认目标主题：`default/` 与 `classic/` 是两套**独立**实现，不共享组件与样式，**禁止跨主题复用文件**。
 - 两套主题的国际化系统都基于 i18next，但文案文件互相独立；新增文案需在对应主题的 `src/i18n/locales/` 下补全。
-- 任何文案、品牌与元数据涉及 **new-api / QuantumNous** 标识时，遵守根 `AGENTS.md` 的 Rule 5：不得删改。
 - 后端 Go 代码不应直接依赖前端目录中的源文件，仅消费其构建产物（`dist/`）。
+- 两套主题均已迁移到 **Rsbuild**（`@rsbuild/core` 2.x）作为构建工具，`classic/` 已不再使用 Vite。
 
 ### Testing Requirements
 - 进入对应子目录（`web/default/` 或 `web/classic/`）后再执行该主题约定的脚本：
   - `default/`：`bun install`、`bun run dev`、`bun run build`、`bun run typecheck`（Rule 3 优先使用 Bun）
-  - `classic/`：参考其 `package.json` 中的脚本
+  - `classic/`：`bun install`、`bun run dev`、`bun run build`（参考其 `package.json`）
 - UI 改动请在浏览器中走一遍主路径，避免只依赖 typecheck 与 lint。
 
 ### Common Patterns
