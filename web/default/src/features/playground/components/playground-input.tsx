@@ -75,6 +75,9 @@ const suggestions = [
   { icon: null, text: 'More' },
 ]
 
+const controlClassName =
+  'h-8 rounded-lg border-border bg-background text-xs font-medium text-foreground shadow-none hover:bg-accent hover:text-foreground'
+
 export function PlaygroundInput({
   onSubmit,
   onStop,
@@ -113,7 +116,10 @@ export function PlaygroundInput({
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
-      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
+      <PromptInput
+        groupClassName='rounded-xl has-disabled:opacity-100'
+        onSubmit={handleSubmit}
+      >
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
@@ -132,7 +138,7 @@ export function PlaygroundInput({
               <DropdownMenuTrigger
                 render={
                   <PromptInputButton
-                    className='border font-medium'
+                    className={controlClassName}
                     disabled={disabled}
                     variant='outline'
                   />
@@ -171,7 +177,7 @@ export function PlaygroundInput({
             </DropdownMenu>
 
             <PromptInputButton
-              className='border font-medium'
+              className={controlClassName}
               disabled={disabled}
               onClick={() => toast.info(t('Search feature in development'))}
               variant='outline'
@@ -190,12 +196,13 @@ export function PlaygroundInput({
               selectedGroup={groupValue}
               groups={groups}
               onGroupChange={onGroupChange}
+              triggerClassName={controlClassName}
               disabled={isModelSelectDisabled || isGroupSelectDisabled}
             />
 
             {isGenerating && onStop ? (
               <PromptInputButton
-                className='text-foreground font-medium'
+                className={controlClassName}
                 onClick={onStop}
                 variant='secondary'
               >
@@ -205,7 +212,7 @@ export function PlaygroundInput({
               </PromptInputButton>
             ) : (
               <PromptInputButton
-                className='text-foreground font-medium'
+                className={controlClassName}
                 disabled={disabled || !text.trim()}
                 type='submit'
                 variant='secondary'
