@@ -12,15 +12,31 @@ import (
 )
 
 func TestBuildUserModelOptionsAddsImageGenerationEndpointByModelRule(t *testing.T) {
-	options := buildUserModelOptions([]string{"gpt-image-1", "gpt-image-2", "gpt-4o-mini"})
+	options := buildUserModelOptions([]string{
+		"gpt-image-1",
+		"gpt-image-2",
+		"grok-imagine-image",
+		"grok-imagine-image-pro",
+		"grok-2-image-1212",
+		"grok-imagine-video",
+		"gpt-4o-mini",
+	})
 
-	require.Len(t, options, 3)
+	require.Len(t, options, 7)
 	require.Equal(t, "gpt-image-1", options[0].Value)
 	require.Contains(t, options[0].SupportedEndpointTypes, "image-generation")
 	require.Equal(t, "gpt-image-2", options[1].Value)
 	require.Contains(t, options[1].SupportedEndpointTypes, "image-generation")
-	require.Equal(t, "gpt-4o-mini", options[2].Value)
-	require.NotContains(t, options[2].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-image", options[2].Value)
+	require.Contains(t, options[2].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-image-pro", options[3].Value)
+	require.Contains(t, options[3].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-2-image-1212", options[4].Value)
+	require.Contains(t, options[4].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "grok-imagine-video", options[5].Value)
+	require.NotContains(t, options[5].SupportedEndpointTypes, "image-generation")
+	require.Equal(t, "gpt-4o-mini", options[6].Value)
+	require.NotContains(t, options[6].SupportedEndpointTypes, "image-generation")
 }
 
 func TestGetUserModelsDefaultResponseRemainsStringArray(t *testing.T) {
