@@ -1,10 +1,10 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # billingexpr
 
 ## Purpose
-**在修改此目录任何文件之前，必须先阅读 [`expr.md`](./expr.md)（Rule 7）。**
+**在修改此目录任何文件之前，必须先阅读 [`expr.md`](./expr.md)（Rule 6）。**
 
 基于表达式语言的动态计费引擎。一条表达式字符串完整定义一个模型的计费规则——输入/输出 token 定价、缓存分级、图片/音频差异化、时间折扣、上下文长度分级——均由单一表达式驱动，无隐式规则。
 
@@ -13,7 +13,7 @@
 ## Key Files
 | File | Description |
 |------|-------------|
-| **`expr.md`** | **最重要的入口文档**（Rule 7）。完整描述表达式语言、变量体系、内置函数、token 归一化、配额换算、版本控制等所有设计细节。修改代码前必读 |
+| **`expr.md`** | **最重要的入口文档**（Rule 6）。完整描述表达式语言、变量体系、内置函数、token 归一化、配额换算、版本控制等所有设计细节。修改代码前必读 |
 | `types.go` | 核心类型：`TokenParams`（所有 token 维度）、`BillingSnapshot`（预消费时冻结的计费快照）、`TieredResult`（结算结果）、`TraceResult`（tier 函数副作用捕获）、`ExprHashString` |
 | `compile.go` | 表达式编译与缓存：将表达式字符串编译为可执行程序，内置 AST introspection 推断 token 自动排除集合 |
 | `run.go` | 表达式运行时求值：构造求值环境（变量绑定、内置函数注入），执行编译后程序，返回 cost |
@@ -24,7 +24,7 @@
 ## For AI Agents
 
 ### Working In This Directory
-- **Rule 7 强制**：任何修改前必须阅读 `expr.md`，确保改动符合文档描述的设计哲学和架构约束。
+- **Rule 6 强制**：任何修改前必须阅读 `expr.md`，确保改动符合文档描述的设计哲学和架构约束。
 - 表达式变量（`p`、`c`、`len`、`cr`、`cc`、`cc1h`、`img`、`img_o`、`ai`、`ao`）的语义和自动排除机制在 `expr.md` 中有详细说明，修改时严格遵循。
 - `BillingSnapshot` 是预消费阶段序列化保存的状态，字段变更需考虑向后兼容性（已存储的快照需能正常反序列化）。
 - `compile.go` 的 AST introspection 负责推断哪些 token 子类别被单独定价，从而决定 `p`/`c` 的自动排除范围——这是整个引擎的核心机制，修改须谨慎。

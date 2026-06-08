@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # deploy/gcp
 
@@ -7,7 +7,7 @@
 
 GCP（Google Cloud Platform）基础设施的 Terraform IaC 代码，部署项目 `vocai-gemini-prod`。基础设施包括：Cloud Run（应用服务）、Cloud SQL（PostgreSQL 数据库）、Memorystore（Redis 缓存）、Artifact Registry（容器镜像仓库）、Cloud Load Balancing（HTTPS 负载均衡）、Cloud Monitoring（监控告警）、GitHub WIF（Workload Identity Federation，CI/CD 无密钥认证）。
 
-> **在执行任何 terraform 或 gcloud 命令前，必须先阅读 `docs/OPERATIONS.md`（CLAUDE.md Rule 8）。**
+> **在执行任何 terraform 或 gcloud 命令前，必须先阅读 `docs/OPERATIONS.md`（CLAUDE.md Rule 7）。**
 
 ## Key Files
 

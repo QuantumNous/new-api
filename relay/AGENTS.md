@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # relay
 
@@ -49,7 +49,7 @@ relay 是整个网关的核心中继子系统，负责将客户端的 AI API 请
 
 - **Rule 1**：所有 JSON 序列化/反序列化必须通过 `common.Marshal` / `common.Unmarshal`（见 `CLAUDE.md` Rule 1），不得直接调用 `encoding/json`。
 - **Rule 4**：新增 provider 适配器后，若该 provider 支持 `stream_options`，必须将其 `ChannelType` 加入 `relay/common/relay_info.go` 的 `streamSupportedChannels` map。
-- **Rule 6**：上游 DTO 中的可选标量字段必须使用指针类型 + `omitempty`，避免零值被静默丢弃。
+- **Rule 5**：上游 DTO 中的可选标量字段必须使用指针类型 + `omitempty`，避免零值被静默丢弃。
 - 新增 provider 时，在 `relay_adaptor.go` 的 `GetAdaptor` 或 `GetTaskAdaptor` switch 中注册对应的 `Adaptor` 实现。
 - handler 文件只做流程编排（构建 RelayInfo、调用适配器、处理计费），业务逻辑下沉到 `channel/` 适配器或 `service/`。
 

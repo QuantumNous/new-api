@@ -1,12 +1,12 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # dto
 
 ## Purpose
 数据传输对象（DTO）层，定义客户端与服务端之间、服务端与上游 AI 提供商之间的请求/响应结构体。涵盖 OpenAI 兼容格式、Claude、Gemini、Embedding、Rerank、图片、音频、视频、实时对话、任务等多种 API 类型。
 
-**关键约束（Rule 6）**：可选标量字段必须使用指针类型（`*int`、`*float64`、`*bool`）配合 `omitempty`，以区分"字段缺失"和"字段显式设为零值"两种语义，避免零值在 marshal 时被丢弃导致上游行为异常。
+**关键约束（Rule 5）**：可选标量字段必须使用指针类型（`*int`、`*float64`、`*bool`）配合 `omitempty`，以区分"字段缺失"和"字段显式设为零值"两种语义，避免零值在 marshal 时被丢弃导致上游行为异常。
 
 ## Key Files
 | File | Description |
@@ -27,6 +27,7 @@
 | `task.go` | 异步任务通用结构体 |
 | `suno.go` | Suno 音乐生成请求/响应结构体 |
 | `video.go` | 通用视频任务结构体 |
+| `video_seedance.go` | **Seedance 视频生成 DTO**：`SeedanceVideoRequest`（统一 provider-neutral 入站格式，含多模态 `content[]`；可选标量字段均为指针类型符合 Rule 5）、`SeedanceContentItem`、`SeedanceURLObject`、`SeedanceMedia`；内容类型常量（`SeedanceContentText/Image/Video/Audio`）和媒体角色常量（`SeedanceRoleFirstFrame/LastFrame/ReferenceImage/Video/Audio`）；Helper 方法 `PromptText()`、`Images()`、`Videos()`、`Audios()`、`HasFirstLastFrame()`、`Validate()` |
 | `channel_settings.go` | 渠道设置相关 DTO |
 | `user_settings.go` | 用户设置 DTO |
 | `notify.go` | 通知推送 DTO |
@@ -41,15 +42,17 @@
 ## For AI Agents
 
 ### Working In This Directory
-- **Rule 6 强制**：新增可选请求参数时，必须使用指针类型 + `omitempty`（如 `Temperature *float64 \`json:"temperature,omitempty"\``），不得使用非指针标量，否则零值会在 marshal 时被静默丢弃，影响上游行为。
+- **Rule 5 强制**：新增可选请求参数时，必须使用指针类型 + `omitempty`（如 `Temperature *float64 \`json:"temperature,omitempty"\``），不得使用非指针标量，否则零值会在 marshal 时被静默丢弃，影响上游行为。
 - **Rule 1**：DTO 文件中若有自定义 `MarshalJSON`/`UnmarshalJSON`，内部调用必须走 `common.Marshal`/`common.Unmarshal`。
 - 修改 `GeneralOpenAIRequest` 时注意其被 relay 层广泛引用，字段名变更会影响所有 provider adapter。
 - 新增字段若无对应引用，必须使用 `json.RawMessage` 类型并加 `omitempty`（参见 `openai_request.go` 中的注释规范）。
+- **Seedance 渠道共享入站格式**：所有 seedance 系渠道（kuaizi、doubao video、blockrun seedance 等）统一使用 `SeedanceVideoRequest` 作为客户端入站格式，各渠道 adapter 只负责将其转换为各自的上游 wire format，不得发明新的 per-channel 入站格式。详见 `relay/channel/task/AGENTS.md` 的 SOP。
 
 ### Testing Requirements
 - `gemini_generation_config_test.go`：Gemini 生成配置序列化测试。
 - `gemini_isstream_test.go`：Gemini 流式标志解析测试。
-- `openai_request_zero_value_test.go`：**零值指针序列化测试**，验证 Rule 6 合规性。修改任何请求 DTO 后必须运行。
+- `openai_request_zero_value_test.go`：**零值指针序列化测试**，验证 Rule 5 合规性。修改任何请求 DTO 后必须运行。
+- `video_seedance_test.go`：`SeedanceVideoRequest` 的 JSON 解析（含 explicit-false 指针语义）、`PromptText`/`Images`/`Videos`/`Audios`/`HasFirstLastFrame` helper 方法、`Validate` 边界条件测试。修改 `video_seedance.go` 后必须运行。
 - 运行命令：`go test ./dto/...`
 
 ### Common Patterns
