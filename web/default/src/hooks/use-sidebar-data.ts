@@ -90,7 +90,7 @@ export function useSidebarData(): SidebarData {
             icon: Key,
           },
           {
-            title: t('在线使用'),
+            title: t('Online Usage'),
             url: '/playground',
             configUrls: ['/dashboard/overview'],
             icon: Play,
@@ -119,7 +119,7 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
-            title: t('推广有礼'),
+            title: t('Affiliate'),
             url: '/affiliate',
             icon: Gift,
           },
