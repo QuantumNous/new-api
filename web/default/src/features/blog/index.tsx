@@ -16,22 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight, BookOpen, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Footer } from '@/components/layout/components/footer'
-import { PublicLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PublicLayout } from '@/components/layout'
+import { Footer } from '@/components/layout/components/footer'
 import { getBlogList, getBlogPost } from './api'
 import { BlogArticle } from './components/blog-article'
 import { BlogCard } from './components/blog-card'
 import { BlogPagination } from './components/blog-pagination'
 import { BlogSearch } from './components/blog-search'
+import { BlogSeo } from './components/blog-seo'
 import { BLOG_CATEGORIES, BLOG_PAGE_SIZE, getBlogCategory } from './constants'
 import { formatBlogDate } from './lib/format'
 
@@ -138,14 +138,16 @@ function BlogCTA() {
 
   return (
     <section className='bg-foreground text-background mt-20 rounded-lg px-6 py-12 text-center sm:px-10'>
-      <h2 className='text-2xl font-semibold'>{t('Build faster with one AI gateway.')}</h2>
+      <h2 className='text-2xl font-semibold'>
+        {t('Build faster with one AI gateway.')}
+      </h2>
       <p className='text-background/75 mx-auto mt-3 max-w-2xl text-sm leading-6'>
         {t(
           'Use Flatkey AI to manage models, keys, billing, and observability from one API platform.'
         )}
       </p>
       <Button
-        className='mt-7 bg-background text-foreground hover:bg-background/90'
+        className='bg-background text-foreground hover:bg-background/90 mt-7'
         render={<Link to='/sign-up' />}
       >
         {t('Get started')}
@@ -181,6 +183,14 @@ export function BlogListPage(props: BlogListPageProps) {
 
   return (
     <PublicLayout showMainContainer={false}>
+      <BlogSeo
+        title={t('Flatkey AI Blog')}
+        description={t(
+          'Insights, product notes, and implementation guides for teams building on AI APIs.'
+        )}
+        path='/blog'
+        type='blog'
+      />
       <main>
         <BlogHero
           title={t('Flatkey AI Blog')}
@@ -223,10 +233,15 @@ export function BlogCategoryPage(props: BlogCategoryPageProps) {
   const page = normalizePage(props.search.page)
   const query = props.search.q?.trim()
   const category = getBlogCategory(props.slug)
-  const categoryIds = category ? [category.id] : []
+  const categoryId = category?.id
   const result = useQuery({
-    queryKey: ['blog-category', props.slug, page, query],
-    queryFn: () => getBlogList({ page, q: query, categoryIds }),
+    queryKey: ['blog-category', props.slug, categoryId, page, query],
+    queryFn: () =>
+      getBlogList({
+        page,
+        q: query,
+        categoryIds: categoryId ? [categoryId] : [],
+      }),
     enabled: !!category,
   })
   const data = result.data?.data
@@ -242,6 +257,13 @@ export function BlogCategoryPage(props: BlogCategoryPageProps) {
 
   return (
     <PublicLayout showMainContainer={false}>
+      <BlogSeo
+        title={`${category.name} Blog`}
+        description={category.description}
+        path={`/blog/category/${props.slug}`}
+        type='category'
+        categoryName={category.name}
+      />
       <main>
         <BlogHero
           title={category.name}
@@ -310,6 +332,15 @@ export function BlogPostPage(props: BlogPostPageProps) {
 
   return (
     <PublicLayout showMainContainer={false}>
+      {post && (
+        <BlogSeo
+          title={post.title}
+          description={post.summary}
+          path={`/blog/${post.slug}`}
+          type='article'
+          post={post}
+        />
+      )}
       <main>
         {postQuery.isLoading && (
           <div className='flex min-h-[70vh] items-center justify-center'>
@@ -366,7 +397,11 @@ export function BlogPostPage(props: BlogPostPageProps) {
                   </h2>
                   <div className='mt-7 grid gap-5 sm:grid-cols-3'>
                     {related.map((item) => (
-                      <BlogCard key={item.id || item.slug} post={item} compact />
+                      <BlogCard
+                        key={item.id || item.slug}
+                        post={item}
+                        compact
+                      />
                     ))}
                   </div>
                 </div>

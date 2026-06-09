@@ -27,6 +27,7 @@ import zhCNTranslation from './locales/zh-CN.json';
 import zhTWTranslation from './locales/zh-TW.json';
 import ruTranslation from './locales/ru.json';
 import jaTranslation from './locales/ja.json';
+import ptTranslation from './locales/pt.json';
 import viTranslation from './locales/vi.json';
 import { supportedLanguages } from './language';
 
@@ -41,6 +42,7 @@ i18n
       'zh-CN': zhCNTranslation,
       'zh-TW': zhTWTranslation,
       fr: frTranslation,
+      pt: ptTranslation,
       ru: ruTranslation,
       ja: jaTranslation,
       vi: viTranslation,

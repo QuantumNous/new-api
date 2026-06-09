@@ -52,6 +52,12 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
             Français
           </Dropdown.Item>
           <Dropdown.Item
+            onClick={() => onLanguageChange('pt')}
+            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'pt' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
+          >
+            Português
+          </Dropdown.Item>
+          <Dropdown.Item
             onClick={() => onLanguageChange('ja')}
             className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'ja' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
           >

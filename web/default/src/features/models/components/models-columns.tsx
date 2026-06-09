@@ -20,6 +20,10 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import {
+  getModelAvailabilityConfig,
+  type ModelAvailabilityStatus,
+} from '@/lib/model-availability'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -67,6 +71,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
   const NAME_RULE_CONFIG = getNameRuleConfig(t)
   const MODEL_STATUS_CONFIG = getModelStatusConfig(t)
   const QUOTA_TYPE_CONFIG = getQuotaTypeConfig(t)
+  const MODEL_AVAILABILITY_CONFIG = getModelAvailabilityConfig(t)
 
   const vendorMap: Record<number, Vendor> = {}
   vendors.forEach((v) => {
@@ -243,6 +248,68 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return false
       },
       size: 120,
+      enableSorting: false,
+    },
+
+    // Availability column
+    {
+      accessorKey: 'availability_status',
+      meta: { label: t('Availability'), mobileHidden: true },
+      header: t('Availability'),
+      cell: ({ row }) => {
+        const model = row.original
+        const status = model.availability_status
+        if (!status) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+
+        const config =
+          MODEL_AVAILABILITY_CONFIG[status as ModelAvailabilityStatus] ||
+          MODEL_AVAILABILITY_CONFIG.unknown_failure
+
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger render={<div />}>
+                <StatusBadge
+                  label={config.label}
+                  variant={config.variant}
+                  size='sm'
+                  copyable={false}
+                />
+              </TooltipTrigger>
+              <TooltipContent side='top' className='max-w-[360px] p-2'>
+                <div className='space-y-1 text-xs'>
+                  <div className='font-medium'>{config.description}</div>
+                  {model.availability_reason && (
+                    <div className='text-muted-foreground'>
+                      {model.availability_reason}
+                    </div>
+                  )}
+                  {model.availability_last_error && (
+                    <div className='text-muted-foreground line-clamp-3 break-words'>
+                      {model.availability_last_error}
+                    </div>
+                  )}
+                  {model.availability_detected_at ? (
+                    <div className='text-muted-foreground'>
+                      {t('Detected at')}:{' '}
+                      {formatTimestampToDate(model.availability_detected_at)}
+                    </div>
+                  ) : null}
+                  {model.availability_checked_at ? (
+                    <div className='text-muted-foreground'>
+                      {t('Last checked')}:{' '}
+                      {formatTimestampToDate(model.availability_checked_at)}
+                    </div>
+                  ) : null}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      size: 150,
       enableSorting: false,
     },
 

@@ -22,6 +22,7 @@ export const supportedLanguages = [
   'zh-TW',
   'en',
   'fr',
+  'pt',
   'ru',
   'ja',
   'vi',

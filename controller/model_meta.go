@@ -184,10 +184,12 @@ func enrichModels(models []*model.Model) {
 
 	// 2) 批量查询精确模型的绑定渠道
 	channelsByModel, _ := model.GetBoundChannelsByModelsMap(exactNames)
+	availabilityByModel, _ := model.GetModelAvailabilityStateMap(exactNames)
 
 	// 3) 精确模型：端点从缓存、渠道批量映射、分组/计费类型从缓存
 	for name, indices := range exactIdx {
 		chs := channelsByModel[name]
+		availability, hasAvailability := availabilityByModel[name]
 		for _, idx := range indices {
 			mm := models[idx]
 			if mm.Endpoints == "" {
@@ -199,6 +201,9 @@ func enrichModels(models []*model.Model) {
 			mm.BoundChannels = chs
 			mm.EnableGroups = model.GetModelEnableGroups(mm.ModelName)
 			mm.QuotaTypes = model.GetModelQuotaTypes(mm.ModelName)
+			if hasAvailability {
+				model.ApplyAvailabilityStateToModel(mm, availability)
+			}
 		}
 	}
 
