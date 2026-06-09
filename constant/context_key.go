@@ -66,4 +66,9 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// ContextKeyTaskVideoHasInput marks that a video-generation task request contains
+	// video input, threaded from the adaptor's EstimateBilling into the persisted
+	// TaskBillingContext so settlement can recompute price by actual output resolution.
+	ContextKeyTaskVideoHasInput ContextKey = "task_video_has_input"
 )

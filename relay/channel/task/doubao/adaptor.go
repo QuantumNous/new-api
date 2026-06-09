@@ -140,10 +140,52 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 	resolution := resolutionFromMetadata(req.Metadata)
 	hasVideo := hasVideoInMetadata(req.Metadata)
-	if ratio, ok := GetVideoBillingRatio(info.OriginModelName, resolution, hasVideo); ok && ratio != 1.0 {
+	ratio, ok := GetVideoBillingRatio(info.OriginModelName, resolution, hasVideo)
+	if !ok {
+		return nil
+	}
+	// 透传"是否含视频输入"（请求侧事实）到 BillingContext，
+	// 结算时配合上游实际输出分辨率精确重算价格。
+	c.Set(string(constant.ContextKeyTaskVideoHasInput), hasVideo)
+	if ratio != 1.0 {
 		return map[string]float64{"video_input": ratio}
 	}
 	return nil
+}
+
+// AdjustBillingOnComplete 在任务完成时，用上游"实际输出分辨率"重算 video_input 倍率，
+// 使结算严格按真实出片分辨率计费（而非提交时请求的分辨率，规避 --rs 旁路等不一致）。
+// "是否含视频输入"是请求侧事实，取自冻结的 BillingContext.HasVideoInput。
+// 返回 0：不直接给出最终额度，而是修正 BillingContext 后交由通用 token 重算结算，
+// 以复用其差额结算与日志记录逻辑；同时写入分辨率/token 供日志「计费过程」展示。
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if task == nil || taskResult == nil {
+		return 0
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil {
+		return 0
+	}
+	// 上游未返回分辨率时不覆盖，保留提交时按请求分辨率冻结的倍率
+	actualResolution := taskResult.Resolution
+	if actualResolution == "" {
+		return 0
+	}
+	ratio, ok := GetVideoBillingRatio(bc.OriginModelName, actualResolution, bc.HasVideoInput)
+	if !ok {
+		return 0
+	}
+	if bc.OtherRatios == nil {
+		bc.OtherRatios = map[string]float64{}
+	}
+	if ratio == 1.0 {
+		delete(bc.OtherRatios, "video_input")
+	} else {
+		bc.OtherRatios["video_input"] = ratio
+	}
+	bc.Resolution = actualResolution
+	bc.TotalTokens = taskResult.TotalTokens
+	return 0
 }
 
 // resolutionFromMetadata 从请求 metadata 读取输出分辨率（如 "480p"/"720p"/"1080p"）。
@@ -340,6 +382,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
+		// 记录上游实际生成的输出分辨率，用于结算时按真实分辨率计费
+		taskResult.Resolution = resTask.Resolution
 	case "failed":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"

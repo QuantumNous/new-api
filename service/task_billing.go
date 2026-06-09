@@ -130,6 +130,12 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+		if bc.Resolution != "" {
+			other["resolution"] = bc.Resolution
+		}
+		if bc.TotalTokens > 0 {
+			other["total_tokens"] = bc.TotalTokens
+		}
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {

@@ -1638,7 +1638,38 @@ export function renderTaskBillingProcess(other, content) {
 }
 
 export function renderTaskRefundProcess(other, quota, content) {
-  const lines = [`${i18next.t('退款')}：${renderQuota(quota, 6)}`];
+  const lines = [];
+
+  // 计费明细：分辨率 / 单价 / token / 折扣，公式 = 基准单价 × token × 折扣（× 分组）
+  const modelRatio = Number(other?.model_ratio) || 0;
+  const groupRatio = Number(other?.group_ratio) || 1;
+  const discount = Number(other?.video_input) || 1; // 分辨率档乘子（otherMultiplier）
+  const tokens = Number(other?.total_tokens) || 0;
+  const resolution = other?.resolution;
+
+  if (resolution) {
+    lines.push(`${i18next.t('分辨率')}：${resolution}`);
+  }
+  if (modelRatio > 0 && tokens > 0) {
+    const { symbol, rate } = getCurrencyConfig();
+    const baseUnit = `${symbol}${formatBillingDisplayPrice(modelRatio * 2, rate, 2)}`; // 基准单价 /1M token
+    lines.push(`${i18next.t('单价')}：${baseUnit} / 1M token`);
+    lines.push(`${i18next.t('token')}：${tokens.toLocaleString()}`);
+    if (discount !== 1) {
+      lines.push(`${i18next.t('分辨率折扣')}：× ${discount.toFixed(4)}`);
+    }
+    let formula = `${baseUnit}/1M × ${tokens.toLocaleString()} × ${discount.toFixed(4)}`;
+    if (groupRatio !== 1) {
+      formula += ` × ${groupRatio}(${i18next.t('分组')})`;
+    }
+    if (other?.actual_quota != null) {
+      formula += ` = ${renderQuota(other.actual_quota, 6)}`;
+    }
+    lines.push(`${i18next.t('计算')}：${formula}`);
+  }
+
+  // 对账行
+  lines.push(`${i18next.t('退款')}：${renderQuota(quota, 6)}`);
   if (other?.pre_consumed_quota != null && other?.actual_quota != null) {
     lines.push(
         `${i18next.t('预扣')} ${renderQuota(other.pre_consumed_quota, 6)} → ${i18next.t('实际扣费')} ${renderQuota(other.actual_quota, 6)}`,

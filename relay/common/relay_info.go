@@ -773,6 +773,7 @@ type TaskInfo struct {
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	Resolution       string `json:"resolution,omitempty"`        // 上游实际生成的输出分辨率，用于按真实分辨率结算
 }
 
 func FailTaskInfo(reason string) *TaskInfo {
