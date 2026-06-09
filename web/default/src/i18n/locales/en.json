@@ -4834,6 +4834,14 @@
     "Unknown channel type #{{id}}": "Unknown channel type #{{id}}",
     "Unknown channel types are preserved from saved settings.": "Unknown channel types are preserved from saved settings.",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "When selected, scheduled tests only include these channel types unless they are excluded.",
-    "Waffo": "Waffo"
+    "Waffo": "Waffo",
+    "Get free API key": "Get free API key",
+    "Go to the Console": "Go to the Console",
+    "Permanently 20–40% cheaper": "Permanently 20–40% cheaper",
+    "One API key for everything": "One API key for everything",
+    "Zero vendor lock-in": "Zero vendor lock-in",
+    "Usage analytics & cost control": "Usage analytics & cost control",
+    "Enterprise-grade privacy": "Enterprise-grade privacy",
+    "One unified invoice for all providers": "One unified invoice for all providers"
   }
 }

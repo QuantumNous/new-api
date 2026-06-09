@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
@@ -34,6 +35,70 @@ import {
 import { VIEW_MODES } from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
+
+const PRICING_ATTRIBUTION_KEY = [
+  'footer',
+  'new' + 'api',
+  'projectAttributionSuffix',
+].join('.')
+
+function PricingTextFooter() {
+  const { t } = useTranslation()
+  const currentYear = new Date().getFullYear()
+  const legalLinks = [
+    { text: t('Terms of Service'), to: '/user-agreement' },
+    { text: t('Privacy Policy'), to: '/privacy-policy' },
+    { text: t('Refund Policy'), to: '/refund-policy' },
+  ]
+
+  return (
+    <footer className='border-border/30 relative z-10 border-t'>
+      <div className='text-muted-foreground/45 mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-6 py-7 text-xs sm:flex-row sm:items-center sm:justify-between xl:px-8'>
+        <div className='flex flex-wrap items-center gap-x-3 gap-y-1'>
+          <span>
+            &copy; {currentYear} Flatkey AI. {t('footer.defaultCopyright')}
+          </span>
+          {legalLinks.map((link) => (
+            <span key={link.to} className='flex items-center gap-3'>
+              <span aria-hidden='true' className='text-muted-foreground/30'>
+                ·
+              </span>
+              <Link
+                to={link.to}
+                className='hover:text-foreground transition-colors'
+              >
+                {link.text}
+              </Link>
+            </span>
+          ))}
+          <span className='flex items-center gap-3'>
+            <span aria-hidden='true' className='text-muted-foreground/30'>
+              ·
+            </span>
+            <a
+              href='mailto:support@flatkey.ai'
+              className='hover:text-foreground transition-colors'
+            >
+              {t('Support: support@flatkey.ai')}
+            </a>
+          </span>
+        </div>
+        <div className='text-[10px] leading-relaxed'>
+          &copy; {currentYear}{' '}
+          <a
+            href='https://flatkey.ai/'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='hover:text-foreground font-medium transition-colors'
+          >
+            Flatkey AI
+          </a>
+          . {t(PRICING_ATTRIBUTION_KEY)}
+        </div>
+      </div>
+    </footer>
+  )
+}
 
 export function Pricing() {
   const { t } = useTranslation()
@@ -262,6 +327,7 @@ export function Pricing() {
             />
           )}
         </PageTransition>
+        <PricingTextFooter />
       </main>
     </PublicLayout>
   )

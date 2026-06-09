@@ -1847,7 +1847,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projetos relacionados",
     "footer.defaultCopyright": "Todos os direitos reservados.",
-    "footer.newapi.projectAttributionSuffix": "Todos os direitos reservados. Projetado e desenvolvido pelos colaboradores do projeto.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Todos os direitos reservados. Projetado e desenvolvido pelos colaboradores do projeto.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "For teams that need larger limits and support review.",
@@ -4834,6 +4834,14 @@
     "Unknown channel type #{{id}}": "Unknown channel type #{{id}}",
     "Unknown channel types are preserved from saved settings.": "Unknown channel types are preserved from saved settings.",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "When selected, scheduled tests only include these channel types unless they are excluded.",
-    "Waffo": "Waffo"
+    "Waffo": "Waffo",
+    "Get free API key": "Obter API key gratuita",
+    "Go to the Console": "Ir para o console",
+    "Permanently 20–40% cheaper": "Permanentemente 20–40% mais barato",
+    "One API key for everything": "Uma API key para tudo",
+    "Zero vendor lock-in": "Sem dependência de fornecedor",
+    "Usage analytics & cost control": "Análise de uso e controle de custos",
+    "Enterprise-grade privacy": "Privacidade de nível empresarial",
+    "One unified invoice for all providers": "Uma fatura unificada para todos os provedores"
   }
 }

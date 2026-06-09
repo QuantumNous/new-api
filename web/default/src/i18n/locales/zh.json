@@ -4834,6 +4834,14 @@
     "Unknown channel type #{{id}}": "未知渠道类型 #{{id}}",
     "Unknown channel types are preserved from saved settings.": "未知渠道类型来自已保存设置，将会被保留。",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "选择后，定时检测只检测这些渠道类型，除非它们同时在不需要检测列表中。",
-    "Waffo": "Waffo"
+    "Waffo": "Waffo",
+    "Get free API key": "获取免费 API Key",
+    "Go to the Console": "前往控制台",
+    "Permanently 20–40% cheaper": "长期便宜 20–40%",
+    "One API key for everything": "一个 API Key 调用全部模型",
+    "Zero vendor lock-in": "零供应商锁定",
+    "Usage analytics & cost control": "用量分析与成本控制",
+    "Enterprise-grade privacy": "企业级隐私保护",
+    "One unified invoice for all providers": "所有服务商统一开票"
   }
 }
