@@ -22,12 +22,6 @@ import { Download, Loader2, RefreshCcw, Terminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -36,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Dialog } from '@/components/dialog'
 import { getDeploymentLogs, listDeploymentContainers } from '../../api'
 
 interface ViewLogsDialogProps {
@@ -142,180 +137,180 @@ export function ViewLogsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex h-[calc(100dvh-2rem)] flex-col max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:h-[80vh] sm:max-w-4xl'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <Terminal className='h-5 w-5' />
-            {t('Deployment logs')}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className='mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
-          <div className='text-muted-foreground text-sm'>
-            {t('Deployment ID')}: {deploymentId}
-          </div>
-          <div className='grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center'>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => {
-                refetchContainers()
-                refetchLogs()
-              }}
-              disabled={isFetchingLogs || isFetchingContainers}
-            >
-              {isFetchingLogs || isFetchingContainers ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-              ) : (
-                <RefreshCcw className='mr-2 h-4 w-4' />
-              )}
-              {t('Refresh')}
-            </Button>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={handleDownload}
-              disabled={!logsText.trim()}
-            >
-              <Download className='mr-2 h-4 w-4' />
-              {t('Download')}
-            </Button>
-            <div className='col-span-2 flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 sm:col-span-1'>
-              <span className='text-xs'>{t('Auto refresh')}</span>
-              <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
-            </div>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        <>
+          <Terminal className='h-5 w-5' />
+          {t('Deployment logs')}
+        </>
+      }
+      contentClassName='flex h-[calc(100dvh-2rem)] flex-col max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:h-[80vh] sm:max-w-4xl'
+      titleClassName='flex items-center gap-2'
+      contentHeight='min(72vh, 720px)'
+      bodyClassName='space-y-4'
+    >
+      <div className='mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
+        <div className='text-muted-foreground text-sm'>
+          {t('Deployment ID')}: {deploymentId}
+        </div>
+        <div className='grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => {
+              refetchContainers()
+              refetchLogs()
+            }}
+            disabled={isFetchingLogs || isFetchingContainers}
+          >
+            {isFetchingLogs || isFetchingContainers ? (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            ) : (
+              <RefreshCcw className='mr-2 h-4 w-4' />
+            )}
+            {t('Refresh')}
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleDownload}
+            disabled={!logsText.trim()}
+          >
+            <Download className='mr-2 h-4 w-4' />
+            {t('Download')}
+          </Button>
+          <div className='col-span-2 flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 sm:col-span-1'>
+            <span className='text-xs'>{t('Auto refresh')}</span>
+            <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
           </div>
         </div>
-
-        <div className='mb-3 grid gap-2 sm:grid-cols-2 sm:gap-3'>
-          <div className='space-y-1'>
-            <div className='text-muted-foreground text-xs'>
-              {t('Container')}
-            </div>
-            <Select
-              items={[
-                ...containers.flatMap((c) => {
+      </div>
+      <div className='mb-3 grid gap-2 sm:grid-cols-2 sm:gap-3'>
+        <div className='space-y-1'>
+          <div className='text-muted-foreground text-xs'>{t('Container')}</div>
+          <Select
+            items={[
+              ...containers.flatMap((c) => {
+                const id = c?.container_id
+                if (typeof id !== 'string' || !id) return []
+                const status =
+                  typeof c?.status === 'string' && c.status
+                    ? ` (${c.status})`
+                    : ''
+                return [
+                  {
+                    value: id,
+                    label: (
+                      <>
+                        {id}
+                        {status}
+                      </>
+                    ),
+                  },
+                ]
+              }),
+            ]}
+            value={containerId}
+            onValueChange={(v) => v !== null && setContainerId(v)}
+            disabled={isLoadingContainers || containers.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  isLoadingContainers
+                    ? t('Loading...')
+                    : containers.length === 0
+                      ? t('No containers')
+                      : t('Select')
+                }
+              />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {containers.map((c) => {
                   const id = c?.container_id
-                  if (typeof id !== 'string' || !id) return []
+                  if (typeof id !== 'string' || !id) return null
                   const status =
                     typeof c?.status === 'string' && c.status
                       ? ` (${c.status})`
                       : ''
-                  return [
-                    {
-                      value: id,
-                      label: (
-                        <>
-                          {id}
-                          {status}
-                        </>
-                      ),
-                    },
-                  ]
-                }),
-              ]}
-              value={containerId}
-              onValueChange={(v) => v !== null && setContainerId(v)}
-              disabled={isLoadingContainers || containers.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    isLoadingContainers
-                      ? t('Loading...')
-                      : containers.length === 0
-                        ? t('No containers')
-                        : t('Select')
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}>
-                <SelectGroup>
-                  {containers.map((c) => {
-                    const id = c?.container_id
-                    if (typeof id !== 'string' || !id) return null
-                    const status =
-                      typeof c?.status === 'string' && c.status
-                        ? ` (${c.status})`
-                        : ''
-                    return (
-                      <SelectItem key={id} value={id}>
-                        {id}
-                        {status}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className='space-y-1'>
-            <div className='text-muted-foreground text-xs'>{t('Stream')}</div>
-            <Select
-              items={[
-                { value: 'stdout', label: 'stdout' },
-                { value: 'stderr', label: 'stderr' },
-                { value: 'all', label: 'all' },
-              ]}
-              value={stream}
-              onValueChange={(v) => {
-                if (v === 'stderr' || v === 'all' || v === 'stdout') {
-                  setStream(v)
-                } else {
-                  setStream('stdout')
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t('Select')} />
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}>
-                <SelectGroup>
-                  <SelectItem value='stdout'>stdout</SelectItem>
-                  <SelectItem value='stderr'>stderr</SelectItem>
-                  <SelectItem value='all'>all</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+                  return (
+                    <SelectItem key={id} value={id}>
+                      {id}
+                      {status}
+                    </SelectItem>
+                  )
+                })}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
-
-        <div
-          ref={scrollRef}
-          className='flex-1 overflow-auto rounded-md border bg-black p-3 sm:p-4'
-          onScroll={(e) => {
-            const target = e.target as HTMLDivElement
-            const isAtBottom =
-              target.scrollHeight - target.scrollTop - target.clientHeight < 50
-            setAutoScroll(isAtBottom)
-          }}
-        >
-          {isLoadingContainers || isLoadingLogs ? (
-            <div className='flex items-center justify-center py-8'>
-              <Loader2 className='h-6 w-6 animate-spin text-gray-400' />
-            </div>
-          ) : containers.length === 0 ? (
-            <div className='py-8 text-center text-gray-400'>
-              {t('No containers')}
-            </div>
-          ) : !containerId ? (
-            <div className='py-8 text-center text-gray-400'>
-              {t('Please select a container')}
-            </div>
-          ) : !logsText.trim() ? (
-            <div className='py-8 text-center text-gray-400'>{t('No logs')}</div>
-          ) : (
-            <div className='font-mono text-sm'>
-              {logLines.map((line, idx) => (
-                <div key={idx} className='whitespace-pre-wrap text-gray-200'>
-                  {line}
-                </div>
-              ))}
-            </div>
-          )}
+        <div className='space-y-1'>
+          <div className='text-muted-foreground text-xs'>{t('Stream')}</div>
+          <Select
+            items={[
+              { value: 'stdout', label: 'stdout' },
+              { value: 'stderr', label: 'stderr' },
+              { value: 'all', label: 'all' },
+            ]}
+            value={stream}
+            onValueChange={(v) => {
+              if (v === 'stderr' || v === 'all' || v === 'stdout') {
+                setStream(v)
+              } else {
+                setStream('stdout')
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={t('Select')} />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                <SelectItem value='stdout'>stdout</SelectItem>
+                <SelectItem value='stderr'>stderr</SelectItem>
+                <SelectItem value='all'>all</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
-      </DialogContent>
+      </div>
+      <div
+        ref={scrollRef}
+        className='flex-1 overflow-auto rounded-md border bg-black p-3 sm:p-4'
+        onScroll={(e) => {
+          const target = e.target as HTMLDivElement
+          const isAtBottom =
+            target.scrollHeight - target.scrollTop - target.clientHeight < 50
+          setAutoScroll(isAtBottom)
+        }}
+      >
+        {isLoadingContainers || isLoadingLogs ? (
+          <div className='flex items-center justify-center py-8'>
+            <Loader2 className='h-6 w-6 animate-spin text-gray-400' />
+          </div>
+        ) : containers.length === 0 ? (
+          <div className='py-8 text-center text-gray-400'>
+            {t('No containers')}
+          </div>
+        ) : !containerId ? (
+          <div className='py-8 text-center text-gray-400'>
+            {t('Please select a container')}
+          </div>
+        ) : !logsText.trim() ? (
+          <div className='py-8 text-center text-gray-400'>{t('No logs')}</div>
+        ) : (
+          <div className='font-mono text-sm'>
+            {logLines.map((line, idx) => (
+              <div key={idx} className='whitespace-pre-wrap text-gray-200'>
+                {line}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </Dialog>
   )
 }
