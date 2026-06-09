@@ -125,9 +125,9 @@ curl http://localhost:3000/v1/chat/completions \
 
 New API works with any OpenAI-compatible provider. First-class support for:
 
-- **OpenAI** — GPT-4o, GPT-4.1, o3, o4-mini, GPT-5
-- **Anthropic** — Claude Sonnet 4, Claude Opus 4, Claude Haiku
-- **Google** — Gemini 3.0 Pro, Gemini 2.5 Flash
+- **OpenAI** — GPT-4o, GPT-4.1, o3, o4-mini
+- **Anthropic** — Claude Sonnet 4, Claude Opus 4.5, Claude Haiku 3.5
+- **Google** — Gemini 3.0 Pro, Gemini 2.5 Flash, Gemini 3.0 Flash
 - **DeepSeek** — DeepSeek V4, DeepSeek R1
 - **Qwen (Alibaba)** — Qwen 3.7 Max, Qwen 3.6 Flash
 - **Meta** — Llama 4, Llama 3.3
