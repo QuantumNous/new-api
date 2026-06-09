@@ -24,16 +24,9 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { syncUpstream, previewUpstreamDiff } from '../../api'
 import { getSyncLocaleOptions, getSyncSourceOptions } from '../../constants'
@@ -125,117 +118,16 @@ export function SyncWizardDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className='flex max-h-[90vh] w-full flex-col gap-4 p-4 sm:max-w-2xl sm:p-6'
-        initialFocus={!isMobile}
-      >
-        <DialogHeader className='flex-shrink-0 text-start'>
-          <DialogTitle>{t('Sync Upstream Models')}</DialogTitle>
-          <DialogDescription>
-            {t('Synchronize models and vendors from an upstream source')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto'>
-          <div className='space-y-3'>
-            <div>
-              <Label className='text-base'>{t('Select Sync Source')}</Label>
-              <p className='text-muted-foreground text-sm'>
-                {t('Choose where to fetch upstream metadata.')}
-              </p>
-            </div>
-            <RadioGroup
-              value={source}
-              onValueChange={(value) => {
-                const selected = SYNC_SOURCE_OPTIONS.find(
-                  (option) => option.value === value
-                )
-                if (!selected || selected.disabled) return
-                setSource(selected.value)
-              }}
-              className='grid gap-3 md:grid-cols-2'
-            >
-              {SYNC_SOURCE_OPTIONS.map((option) => {
-                const isActive = source === option.value
-                const isDisabled = option.disabled
-                return (
-                  <Label
-                    key={option.value}
-                    htmlFor={`sync-source-${option.value}`}
-                    className={cn(
-                      'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-all',
-                      isActive && 'border-primary ring-primary ring-1',
-                      isDisabled
-                        ? 'cursor-not-allowed opacity-60'
-                        : 'hover:border-primary/60 cursor-pointer'
-                    )}
-                  >
-                    <div className='flex items-start gap-3'>
-                      <RadioGroupItem
-                        value={option.value}
-                        id={`sync-source-${option.value}`}
-                        disabled={isDisabled}
-                      />
-                      <div className='space-y-1'>
-                        <div className='flex items-center gap-2'>
-                          <span className='font-medium'>{option.label}</span>
-                          {option.value === 'official' && (
-                            <StatusBadge
-                              label='Default'
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          )}
-                        </div>
-                        <p className='text-muted-foreground text-sm'>
-                          {option.description}
-                        </p>
-                      </div>
-                    </div>
-                  </Label>
-                )
-              })}
-            </RadioGroup>
-          </div>
-
-          <div className='space-y-2'>
-            <Label className='text-base'>{t('Select Language')}</Label>
-            <RadioGroup
-              value={locale}
-              onValueChange={(v) => setLocale(v as SyncLocale)}
-              className='grid gap-3 sm:grid-cols-3'
-            >
-              {SYNC_LOCALE_OPTIONS.map((option) => (
-                <div
-                  key={option.value}
-                  className='flex items-center space-x-2 rounded-lg border p-3'
-                >
-                  <RadioGroupItem
-                    value={option.value}
-                    id={`locale-${option.value}`}
-                  />
-                  <Label
-                    htmlFor={`locale-${option.value}`}
-                    className='cursor-pointer font-normal'
-                  >
-                    {option.label}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-
-          <div className='bg-muted/50 rounded-lg border p-4'>
-            <p className='text-muted-foreground text-sm'>
-              {t(
-                'The sync will fetch missing models and vendors from the selected source. Existing records are updated only when you approve conflicts.'
-              )}
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter className='flex-shrink-0 gap-2 sm:justify-end'>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Sync Upstream Models')}
+      description={t('Synchronize models and vendors from an upstream source')}
+      initialFocus={!isMobile}
+      contentHeight='auto'
+      bodyClassName='flex flex-col gap-6'
+      footer={
+        <>
           <Button
             variant='outline'
             onClick={() => onOpenChange(false)}
@@ -246,10 +138,106 @@ export function SyncWizardDialog({
           <Button onClick={handleSync} disabled={isSyncing}>
             {isSyncing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             <RefreshCw className='mr-2 h-4 w-4' />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            {isSyncing ? t('Syncing...') : t('Sync Now')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-3'>
+        <div>
+          <Label className='text-base'>{t('Select Sync Source')}</Label>
+          <p className='text-muted-foreground text-sm'>
+            {t('Choose where to fetch upstream metadata.')}
+          </p>
+        </div>
+        <RadioGroup
+          value={source}
+          onValueChange={(value) => {
+            const selected = SYNC_SOURCE_OPTIONS.find(
+              (option) => option.value === value
+            )
+            if (!selected || selected.disabled) return
+            setSource(selected.value)
+          }}
+          className='grid gap-3 md:grid-cols-2'
+        >
+          {SYNC_SOURCE_OPTIONS.map((option) => {
+            const isActive = source === option.value
+            const isDisabled = option.disabled
+            return (
+              <Label
+                key={option.value}
+                htmlFor={`sync-source-${option.value}`}
+                className={cn(
+                  'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-all',
+                  isActive && 'border-primary ring-primary ring-1',
+                  isDisabled
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'hover:border-primary/60 cursor-pointer'
+                )}
+              >
+                <div className='flex items-start gap-3'>
+                  <RadioGroupItem
+                    value={option.value}
+                    id={`sync-source-${option.value}`}
+                    disabled={isDisabled}
+                  />
+                  <div className='space-y-1'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-medium'>{option.label}</span>
+                      {option.value === 'official' && (
+                        <StatusBadge
+                          label='Default'
+                          variant='neutral'
+                          copyable={false}
+                        />
+                      )}
+                    </div>
+                    <p className='text-muted-foreground text-sm'>
+                      {option.description}
+                    </p>
+                  </div>
+                </div>
+              </Label>
+            )
+          })}
+        </RadioGroup>
+      </div>
+
+      <div className='space-y-2'>
+        <Label className='text-base'>{t('Select Language')}</Label>
+        <RadioGroup
+          value={locale}
+          onValueChange={(v) => setLocale(v as SyncLocale)}
+          className='grid gap-3 sm:grid-cols-3'
+        >
+          {SYNC_LOCALE_OPTIONS.map((option) => (
+            <div
+              key={option.value}
+              className='flex items-center space-x-2 rounded-lg border p-3'
+            >
+              <RadioGroupItem
+                value={option.value}
+                id={`locale-${option.value}`}
+              />
+              <Label
+                htmlFor={`locale-${option.value}`}
+                className='cursor-pointer font-normal'
+              >
+                {option.label}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+
+      <div className='bg-muted/50 rounded-lg border p-4'>
+        <p className='text-muted-foreground text-sm'>
+          {t(
+            'The sync will fetch missing models and vendors from the selected source. Existing records are updated only when you approve conflicts.'
+          )}
+        </p>
+      </div>
     </Dialog>
   )
 }

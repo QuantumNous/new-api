@@ -24,17 +24,10 @@ import { toast } from 'sonner'
 import { setup2FA, enable2FA } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CopyButton } from '@/components/copy-button'
+import { Dialog } from '@/components/dialog'
 import type { TwoFASetupData } from '../../types'
 
 // ============================================================================
@@ -136,123 +129,23 @@ export function TwoFASetupDialog({
   }, [open, setupData, initializing, handleSetup])
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
-        <DialogHeader>
-          <DialogTitle>{t('Setup Two-Factor Authentication')}</DialogTitle>
-          <DialogDescription>
-            {t('Step')} {step + 1} {t('of 3:')} {stepLabels[step]}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='space-y-4 py-4'>
-          {initializing ? (
-            <div className='flex flex-col items-center justify-center gap-3 py-8'>
-              <div className='border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent' />
-              <div className='text-muted-foreground text-sm'>
-                {t('Setting up 2FA...')}
-              </div>
-            </div>
-          ) : !setupData ? (
-            <div className='flex justify-center py-8'>
-              <div className='text-muted-foreground'>
-                {t('Failed to load setup data')}
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Step 0: QR Code */}
-              {step === 0 && (
-                <div className='space-y-4'>
-                  <p className='text-muted-foreground text-sm'>
-                    {t(
-                      'Scan this QR code with your authenticator app (Google Authenticator, Microsoft Authenticator, etc.)'
-                    )}
-                  </p>
-                  <div className='flex justify-center rounded-lg bg-white p-4'>
-                    <QRCodeSVG value={setupData.qr_code_data} size={200} />
-                  </div>
-                  <div className='bg-muted rounded-lg p-3'>
-                    <div className='flex items-center justify-between'>
-                      <div>
-                        <p className='text-muted-foreground text-xs'>
-                          {t('Or enter this key manually:')}
-                        </p>
-                        <code className='font-mono text-sm'>
-                          {setupData.secret}
-                        </code>
-                      </div>
-                      <CopyButton
-                        value={setupData.secret}
-                        variant='ghost'
-                        tooltip={t('Copy secret key')}
-                        aria-label={t('Copy secret key')}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 1: Backup Codes */}
-              {step === 1 && (
-                <div className='space-y-4'>
-                  <Alert>
-                    <AlertDescription>
-                      {t(
-                        'Save these backup codes in a safe place. Each code can only be used once.'
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                  <div className='rounded-lg border p-4'>
-                    <div className='grid grid-cols-2 gap-2'>
-                      {setupData.backup_codes.map((code, index) => (
-                        <div
-                          key={index}
-                          className='bg-muted rounded-md p-2 text-center font-mono text-sm'
-                        >
-                          {code}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <CopyButton
-                    value={setupData.backup_codes.join('\n')}
-                    variant='outline'
-                    size='default'
-                    className='w-full'
-                    iconClassName='mr-2 size-4'
-                    tooltip={t('Copy all backup codes')}
-                    aria-label={t('Copy all backup codes')}
-                  >
-                    {t('Copy All Codes')}
-                  </CopyButton>
-                </div>
-              )}
-
-              {/* Step 2: Verify */}
-              {step === 2 && (
-                <div className='space-y-4'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='code'>{t('Verification Code')}</Label>
-                    <Input
-                      id='code'
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      placeholder={t('Enter 6-digit code')}
-                      maxLength={6}
-                      disabled={loading}
-                    />
-                    <p className='text-muted-foreground text-xs'>
-                      {t('Enter the 6-digit code from your authenticator app')}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={t('Setup Two-Factor Authentication')}
+      description={
+        <>
+          {t('Step')}
+          {step + 1}
+          {t('of 3:')}
+          {stepLabels[step]}
+        </>
+      }
+      contentClassName='sm:max-w-lg'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           {step > 0 && (
             <Button
               variant='outline'
@@ -278,8 +171,115 @@ export function TwoFASetupDialog({
               {loading ? t('Enabling...') : t('Enable 2FA')}
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-4 py-4'>
+        {initializing ? (
+          <div className='flex flex-col items-center justify-center gap-3 py-8'>
+            <div className='border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent' />
+            <div className='text-muted-foreground text-sm'>
+              {t('Setting up 2FA...')}
+            </div>
+          </div>
+        ) : !setupData ? (
+          <div className='flex justify-center py-8'>
+            <div className='text-muted-foreground'>
+              {t('Failed to load setup data')}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Step 0: QR Code */}
+            {step === 0 && (
+              <div className='space-y-4'>
+                <p className='text-muted-foreground text-sm'>
+                  {t(
+                    'Scan this QR code with your authenticator app (Google Authenticator, Microsoft Authenticator, etc.)'
+                  )}
+                </p>
+                <div className='flex justify-center rounded-lg bg-white p-4'>
+                  <QRCodeSVG value={setupData.qr_code_data} size={200} />
+                </div>
+                <div className='bg-muted rounded-lg p-3'>
+                  <div className='flex items-center justify-between'>
+                    <div>
+                      <p className='text-muted-foreground text-xs'>
+                        {t('Or enter this key manually:')}
+                      </p>
+                      <code className='font-mono text-sm'>
+                        {setupData.secret}
+                      </code>
+                    </div>
+                    <CopyButton
+                      value={setupData.secret}
+                      variant='ghost'
+                      tooltip={t('Copy secret key')}
+                      aria-label={t('Copy secret key')}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: Backup Codes */}
+            {step === 1 && (
+              <div className='space-y-4'>
+                <Alert>
+                  <AlertDescription>
+                    {t(
+                      'Save these backup codes in a safe place. Each code can only be used once.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+                <div className='rounded-lg border p-4'>
+                  <div className='grid grid-cols-2 gap-2'>
+                    {setupData.backup_codes.map((code, index) => (
+                      <div
+                        key={index}
+                        className='bg-muted rounded-md p-2 text-center font-mono text-sm'
+                      >
+                        {code}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <CopyButton
+                  value={setupData.backup_codes.join('\n')}
+                  variant='outline'
+                  size='default'
+                  className='w-full'
+                  iconClassName='mr-2 size-4'
+                  tooltip={t('Copy all backup codes')}
+                  aria-label={t('Copy all backup codes')}
+                >
+                  {t('Copy All Codes')}
+                </CopyButton>
+              </div>
+            )}
+
+            {/* Step 2: Verify */}
+            {step === 2 && (
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='code'>{t('Verification Code')}</Label>
+                  <Input
+                    id='code'
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder={t('Enter 6-digit code')}
+                    maxLength={6}
+                    disabled={loading}
+                  />
+                  <p className='text-muted-foreground text-xs'>
+                    {t('Enter the 6-digit code from your authenticator app')}
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </Dialog>
   )
 }

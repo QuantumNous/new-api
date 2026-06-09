@@ -20,17 +20,10 @@ import { useEffect } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CopyButton } from '@/components/copy-button'
+import { Dialog } from '@/components/dialog'
 import { useAccessToken } from '../../hooks'
 
 // ============================================================================
@@ -57,45 +50,18 @@ export function AccessTokenDialog({
   }, [open, token, generate])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-md'>
-        <DialogHeader>
-          <DialogTitle>{t('Access Token')}</DialogTitle>
-          <DialogDescription>
-            {t(
-              "Your system access token for API authentication. Keep it secure and don't share it with others."
-            )}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='my-6 space-y-4'>
-          <div className='space-y-2'>
-            <Label htmlFor='token'>{t('Token')}</Label>
-            <div className='flex gap-2'>
-              <Input
-                id='token'
-                type='text'
-                value={token}
-                readOnly
-                className='font-mono text-xs'
-                placeholder={t('Click "Generate" to create a token')}
-              />
-              <CopyButton
-                value={token}
-                variant='outline'
-                className='size-9'
-                iconClassName='size-4'
-                tooltip={t('Copy token')}
-                aria-label={t('Copy token')}
-              />
-            </div>
-            <p className='text-muted-foreground text-xs'>
-              {t('Use this token for API authentication')}
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Access Token')}
+      description={t(
+        "Your system access token for API authentication. Keep it secure and don't share it with others."
+      )}
+      contentClassName='sm:max-w-md'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button
             type='button'
             variant='outline'
@@ -116,8 +82,35 @@ export function AccessTokenDialog({
             )}
             {generating ? t('Generating...') : t('Regenerate')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='my-6 space-y-4'>
+        <div className='space-y-2'>
+          <Label htmlFor='token'>{t('Token')}</Label>
+          <div className='flex gap-2'>
+            <Input
+              id='token'
+              type='text'
+              value={token}
+              readOnly
+              className='font-mono text-xs'
+              placeholder={t('Click "Generate" to create a token')}
+            />
+            <CopyButton
+              value={token}
+              variant='outline'
+              className='size-9'
+              iconClassName='size-4'
+              tooltip={t('Copy token')}
+              aria-label={t('Copy token')}
+            />
+          </div>
+          <p className='text-muted-foreground text-xs'>
+            {t('Use this token for API authentication')}
+          </p>
+        </div>
+      </div>
     </Dialog>
   )
 }

@@ -40,6 +40,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -522,7 +523,7 @@ function PriceField({ label, hint, value, onChange }: PriceFieldProps) {
       <Label className='text-muted-foreground text-xs'>{label}</Label>
       <DraftNumberInput
         min={0}
-        step={0.01}
+        step={0.000001}
         value={Number.isFinite(value) ? value : 0}
         onValueChange={onChange}
         className='h-8 w-full'
@@ -1276,7 +1277,7 @@ function RuleGroupCard({
         <Label className='text-xs'>{t('Multiplier')}</Label>
         <DraftNumberInput
           min={0}
-          step={0.01}
+          step={0.000001}
           value={group.multiplier}
           onValueChange={(value) =>
             onChange({ ...group, multiplier: String(value) })
@@ -1309,9 +1310,7 @@ function PresetSection({ applyPreset }: PresetSectionProps) {
   return (
     <div className='space-y-2'>
       <div className='flex items-center gap-2'>
-        <span className='text-muted-foreground text-xs'>
-          {t('Preset templates')}
-        </span>
+        <span className='text-sm font-medium'>{t('Preset templates')}</span>
         {hasMore && (
           <Button
             variant='ghost'
@@ -1770,35 +1769,37 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   }, [])
 
   return (
-    <div className='space-y-4'>
-      <div className='flex items-center justify-between gap-2'>
-        <Label className='text-xs'>{t('Editor mode')}</Label>
-        <Select
-          items={[
-            { value: 'visual', label: t('Visual editor') },
-            { value: 'raw', label: t('Expression editor') },
-          ]}
-          value={editorMode}
-          onValueChange={(value) => handleModeChange(value as EditorMode)}
-        >
-          <SelectTrigger className='w-44' size='sm'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent alignItemWithTrigger={false}>
-            <SelectGroup>
-              <SelectItem value='visual'>{t('Visual editor')}</SelectItem>
-              <SelectItem value='raw'>{t('Expression editor')}</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+    <div className='space-y-5'>
+      <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'>
+        <Field className='gap-2'>
+          <FieldLabel>{t('Editor mode')}</FieldLabel>
+          <Select
+            items={[
+              { value: 'visual', label: t('Visual editor') },
+              { value: 'raw', label: t('Expression editor') },
+            ]}
+            value={editorMode}
+            onValueChange={(value) => handleModeChange(value as EditorMode)}
+          >
+            <SelectTrigger className='w-full sm:w-56' size='sm'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                <SelectItem value='visual'>{t('Visual editor')}</SelectItem>
+                <SelectItem value='raw'>{t('Expression editor')}</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
+        {editorMode === 'raw' && (
+          <div className='sm:pb-0.5'>
+            <LlmPromptHelper modelName={modelName} />
+          </div>
+        )}
       </div>
 
-      <div className='flex flex-wrap items-start gap-x-4 gap-y-1'>
-        <div className='flex-1'>
-          <PresetSection applyPreset={applyPreset} />
-        </div>
-        {editorMode === 'raw' && <LlmPromptHelper modelName={modelName} />}
-      </div>
+      <PresetSection applyPreset={applyPreset} />
 
       <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
         {editorMode === 'visual' ? (

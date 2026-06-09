@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -40,7 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../../components/settings-page-context'
@@ -79,6 +79,43 @@ function RuleBadgeList(props: { items: string[] }) {
         />
       )}
     />
+  )
+}
+
+function ChannelAffinityConfirmDialog(props: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: ReactNode
+  desc: ReactNode
+  handleConfirm: () => void
+  destructive?: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={props.title}
+      contentClassName='sm:max-w-md'
+      contentHeight='auto'
+      bodyClassName='flex items-start'
+      footer={
+        <>
+          <Button variant='outline' onClick={() => props.onOpenChange(false)}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            variant={props.destructive ? 'destructive' : 'default'}
+            onClick={props.handleConfirm}
+          >
+            {t('Continue')}
+          </Button>
+        </>
+      }
+    >
+      <div className='text-muted-foreground text-sm'>{props.desc}</div>
+    </Dialog>
   )
 }
 
@@ -641,7 +678,7 @@ export function ChannelAffinitySection(props: Props) {
         templateKey={ruleTemplateKey}
       />
 
-      <ConfirmDialog
+      <ChannelAffinityConfirmDialog
         open={clearAllDialogOpen}
         onOpenChange={setClearAllDialogOpen}
         title={t('Confirm clearing all channel affinity cache')}
@@ -653,7 +690,7 @@ export function ChannelAffinitySection(props: Props) {
       />
 
       {clearRuleName !== null && (
-        <ConfirmDialog
+        <ChannelAffinityConfirmDialog
           open
           onOpenChange={(v) => !v && setClearRuleName(null)}
           title={t('Confirm clearing cache for this rule')}
@@ -663,7 +700,7 @@ export function ChannelAffinitySection(props: Props) {
         />
       )}
 
-      <ConfirmDialog
+      <ChannelAffinityConfirmDialog
         open={fillTemplateDialogOpen}
         onOpenChange={setFillTemplateDialogOpen}
         title={t('Fill Codex CLI / Claude CLI Templates')}

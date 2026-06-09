@@ -37,14 +37,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -70,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
@@ -97,6 +90,8 @@ const createApiInfoSchema = (t: (key: string) => string) =>
   })
 
 type ApiInfoFormValues = z.infer<ReturnType<typeof createApiInfoSchema>>
+
+const API_INFO_FORM_ID = 'api-info-form'
 
 const colorOptions = [
   { value: 'blue', label: 'Blue' },
@@ -408,133 +403,133 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         </div>
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingApiInfo ? t('Edit API Shortcut') : t('Add API Shortcut')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Configure API documentation links for the dashboard')}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className='space-y-4'
+      <Dialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        title={editingApiInfo ? t('Edit API Shortcut') : t('Add API Shortcut')}
+        description={t('Configure API documentation links for the dashboard')}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setShowDialog(false)}
             >
-              <FormField
-                control={form.control}
-                name='url'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('API URL')}</FormLabel>
+              {t('Cancel')}
+            </Button>
+            <Button type='submit' form={API_INFO_FORM_ID}>
+              {editingApiInfo ? t('Update') : t('Add')}
+            </Button>
+          </>
+        }
+      >
+        <Form {...form}>
+          <form
+            id={API_INFO_FORM_ID}
+            onSubmit={form.handleSubmit(handleSubmitForm)}
+            className='space-y-4'
+          >
+            <FormField
+              control={form.control}
+              name='url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('API URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('https://api.example.com')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='route'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Route Description')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t('e.g., CN2 GIA')} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='description'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Description')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t(
+                        'e.g., Recommended for China Mainland Users'
+                      )}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='color'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Badge Color')}</FormLabel>
+                  <Select
+                    items={[
+                      ...colorOptions.map((option) => ({
+                        value: option.value,
+                        label: (
+                          <div className='flex items-center gap-2'>
+                            <div
+                              className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
+                            />
+                            {option.label}
+                          </div>
+                        ),
+                      })),
+                    ]}
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
                     <FormControl>
-                      <Input
-                        placeholder={t('https://api.example.com')}
-                        {...field}
-                      />
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('Select a color')} />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='route'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Route Description')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('e.g., CN2 GIA')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='description'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Description')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t(
-                          'e.g., Recommended for China Mainland Users'
-                        )}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='color'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Badge Color')}</FormLabel>
-                    <Select
-                      items={[
-                        ...colorOptions.map((option) => ({
-                          value: option.value,
-                          label: (
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {colorOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
                             <div className='flex items-center gap-2'>
                               <div
                                 className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
                               />
                               {option.label}
                             </div>
-                          ),
-                        })),
-                      ]}
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('Select a color')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {colorOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className='flex items-center gap-2'>
-                                <div
-                                  className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
-                                />
-                                {option.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      {t('Visual indicator color for the API card')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setShowDialog(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit'>
-                  {editingApiInfo ? t('Update') : t('Add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {t('Visual indicator color for the API card')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -25,14 +25,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -43,6 +35,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog } from '@/components/dialog'
 import { createVendor, updateVendor } from '../../api'
 import { vendorsQueryKeys, modelsQueryKeys } from '../../lib'
 import { vendorFormSchema, type Vendor } from '../../types'
@@ -52,6 +45,8 @@ type VendorMutateDialogProps = {
   onOpenChange: (open: boolean) => void
   currentVendor?: Vendor | null
 }
+
+const VENDOR_MUTATE_FORM_ID = 'vendor-mutate-form'
 
 export function VendorMutateDialog({
   open,
@@ -118,98 +113,107 @@ export function VendorMutateDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? t('Edit Vendor') : t('Create Vendor')}
-          </DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? t('Update vendor information for {{name}}', {
-                  name: currentVendor?.name,
-                })
-              : t('Add a new vendor to the system')}
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEdit ? t('Edit Vendor') : t('Create Vendor')}
+      description={
+        isEdit
+          ? t('Update vendor information for {{name}}', {
+              name: currentVendor?.name,
+            })
+          : t('Add a new vendor to the system')
+      }
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            disabled={isSaving}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button
+            type='submit'
+            form={VENDOR_MUTATE_FORM_ID}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            ) : null}
+            {isSaving ? t('Saving...') : isEdit ? t('Update') : t('Create')}
+          </Button>
+        </>
+      }
+    >
+      <Form {...form}>
+        <form
+          id={VENDOR_MUTATE_FORM_ID}
+          onSubmit={form.handleSubmit(onSubmit)}
+          className='space-y-4'
+        >
+          <FormField
+            control={form.control}
+            name='name'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Vendor Name *')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t('OpenAI, Anthropic, etc.')}
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('The unique name for this vendor')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
-            <FormField
-              control={form.control}
-              name='name'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Vendor Name *')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('OpenAI, Anthropic, etc.')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('The unique name for this vendor')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <FormField
+            control={form.control}
+            name='description'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Description')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder={t('Describe this vendor...')}
+                    rows={3}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-            <FormField
-              control={form.control}
-              name='description'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Description')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder={t('Describe this vendor...')}
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='icon'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Icon')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('OpenAI, Anthropic, Google, etc.')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('@lobehub/icons key name')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => onOpenChange(false)}
-                disabled={isSaving}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button type='submit' disabled={isSaving}>
-                {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {isSaving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
+          <FormField
+            control={form.control}
+            name='icon'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Icon')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t('OpenAI, Anthropic, Google, etc.')}
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('@lobehub/icons key name')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </form>
+      </Form>
     </Dialog>
   )
 }

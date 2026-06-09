@@ -32,12 +32,6 @@ import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
@@ -45,6 +39,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { Dialog } from '@/components/dialog'
 import { Turnstile } from '@/components/turnstile'
 import { getCheckinStatus, performCheckin } from '../api'
 import type { CheckinRecord } from '../types'
@@ -253,27 +248,26 @@ export function CheckinCalendarCard({
             setTurnstileWidgetKey((v) => v + 1)
           }
         }}
+        title={t('Security Check')}
+        contentClassName='sm:max-w-md'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
       >
-        <DialogContent className='sm:max-w-md'>
-          <DialogHeader>
-            <DialogTitle>{t('Security Check')}</DialogTitle>
-          </DialogHeader>
-          <div className='text-muted-foreground text-sm'>
-            {t('Please complete the security check to continue.')}
-          </div>
-          <div className='flex justify-center py-4'>
-            <Turnstile
-              key={turnstileWidgetKey}
-              siteKey={turnstileSiteKey}
-              onVerify={(token) => {
-                doCheckin(token)
-              }}
-              onExpire={() => {
-                setTurnstileWidgetKey((v) => v + 1)
-              }}
-            />
-          </div>
-        </DialogContent>
+        <div className='text-muted-foreground text-sm'>
+          {t('Please complete the security check to continue.')}
+        </div>
+        <div className='flex justify-center py-4'>
+          <Turnstile
+            key={turnstileWidgetKey}
+            siteKey={turnstileSiteKey}
+            onVerify={(token) => {
+              doCheckin(token)
+            }}
+            onExpire={() => {
+              setTurnstileWidgetKey((v) => v + 1)
+            }}
+          />
+        </div>
       </Dialog>
 
       <div className='bg-card overflow-hidden rounded-2xl border'>
