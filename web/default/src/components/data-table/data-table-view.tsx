@@ -193,7 +193,7 @@ function SplitHeaderTableView<TData>({
           className='[scrollbar-gutter:stable] overflow-hidden'
         >
           <Table className={props.tableClassName}>
-            {renderColgroup(props.colgroup)}
+            {props.colgroup}
             <DataTableHeader
               table={props.table}
               applyHeaderSize={props.applyHeaderSize}
@@ -211,17 +211,13 @@ function SplitHeaderTableView<TData>({
           )}
         >
           <Table className={props.tableClassName}>
-            {renderColgroup(props.colgroup)}
+            {props.colgroup}
             {renderTableBody(props, rows, colSpan, getColumnClassName)}
           </Table>
         </div>
       </div>
     </div>
   )
-}
-
-function renderColgroup(colgroup: React.ReactNode) {
-  return colgroup
 }
 
 function renderTableBody<TData>(
@@ -232,50 +228,79 @@ function renderTableBody<TData>(
 ) {
   return (
     <TableBody className={props.tableBodyClassName}>
-      {props.isLoading ? (
-        <TableSkeleton
-          table={props.table}
-          keyPrefix={props.skeletonKeyPrefix}
-          rowHeight={props.skeletonRowHeight}
-        />
-      ) : rows.length === 0 ? (
-        props.emptyContent ? (
-          <TableRow>
-            <TableCell colSpan={colSpan} className={props.emptyCellClassName}>
-              {props.emptyContent}
-            </TableCell>
-          </TableRow>
-        ) : (
-          <TableEmpty
-            colSpan={colSpan}
-            title={props.emptyTitle}
-            description={props.emptyDescription}
-            icon={props.emptyIcon}
-          >
-            {props.emptyAction}
-          </TableEmpty>
-        )
-      ) : (
-        rows.map((row) =>
-          props.renderRow ? (
-            props.renderRow(row, {
-              getCellClassName: (columnId, className) =>
-                cn(getColumnClassName(columnId, 'cell'), className),
-            })
-          ) : (
-            <DataTableRow
-              key={row.id}
-              row={row}
-              className={cn(
-                props.tableBodyRowClassName,
-                props.getRowClassName?.(row)
-              )}
-              getColumnClassName={getColumnClassName}
-            />
-          )
-        )
-      )}
+      {renderTableBodyContent(props, rows, colSpan, getColumnClassName)}
     </TableBody>
+  )
+}
+
+function renderTableBodyContent<TData>(
+  props: DataTableViewProps<TData>,
+  rows: Row<TData>[],
+  colSpan: number,
+  getColumnClassName: DataTableColumnClassName
+) {
+  if (props.isLoading) {
+    return (
+      <TableSkeleton
+        table={props.table}
+        keyPrefix={props.skeletonKeyPrefix}
+        rowHeight={props.skeletonRowHeight}
+      />
+    )
+  }
+
+  if (rows.length === 0) {
+    return renderEmptyState(props, colSpan)
+  }
+
+  return rows.map((row) =>
+    props.renderRow
+      ? props.renderRow(row, {
+          getCellClassName: (columnId, className) =>
+            cn(getColumnClassName(columnId, 'cell'), className),
+        })
+      : renderDefaultRow(props, row, getColumnClassName)
+  )
+}
+
+function renderEmptyState<TData>(
+  props: DataTableViewProps<TData>,
+  colSpan: number
+) {
+  if (props.emptyContent) {
+    return (
+      <TableRow>
+        <TableCell colSpan={colSpan} className={props.emptyCellClassName}>
+          {props.emptyContent}
+        </TableCell>
+      </TableRow>
+    )
+  }
+
+  return (
+    <TableEmpty
+      colSpan={colSpan}
+      title={props.emptyTitle}
+      description={props.emptyDescription}
+      icon={props.emptyIcon}
+    >
+      {props.emptyAction}
+    </TableEmpty>
+  )
+}
+
+function renderDefaultRow<TData>(
+  props: DataTableViewProps<TData>,
+  row: Row<TData>,
+  getColumnClassName: DataTableColumnClassName
+) {
+  return (
+    <DataTableRow
+      key={row.id}
+      row={row}
+      className={cn(props.tableBodyRowClassName, props.getRowClassName?.(row))}
+      getColumnClassName={getColumnClassName}
+    />
   )
 }
 

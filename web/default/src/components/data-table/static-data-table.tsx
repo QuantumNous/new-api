@@ -73,29 +73,12 @@ export function StaticDataTable<TData = unknown>({
   tableProps,
 }: StaticDataTableProps<TData>) {
   const rows = data
-    ? data.map((row, index) => {
-        const key = getRowKey?.(row, index) ?? index
-
-        if (renderRow) {
-          return <React.Fragment key={key}>{renderRow(row, index)}</React.Fragment>
-        }
-
-        return (
-          <TableRow key={key} className={getRowClassName?.(row, index)}>
-            {columns?.map((column) => {
-              const cellClassName =
-                typeof column.cellClassName === 'function'
-                  ? column.cellClassName(row, index)
-                  : column.cellClassName
-
-              return (
-                <TableCell key={column.id} className={cellClassName}>
-                  {column.cell?.(row, index)}
-                </TableCell>
-              )
-            })}
-          </TableRow>
-        )
+    ? renderStaticDataRows({
+        data,
+        columns,
+        getRowKey,
+        getRowClassName,
+        renderRow,
       })
     : children
   const isEmpty = empty ?? (data !== undefined && data.length === 0)
@@ -138,6 +121,48 @@ export function StaticDataTable<TData = unknown>({
       </Table>
     </div>
   )
+}
+
+function renderStaticDataRows<TData>({
+  data,
+  columns,
+  getRowKey,
+  getRowClassName,
+  renderRow,
+}: Pick<
+  StaticDataTableProps<TData>,
+  'data' | 'columns' | 'getRowKey' | 'getRowClassName' | 'renderRow'
+>) {
+  return data?.map((row, index) => {
+    const key = getRowKey?.(row, index) ?? index
+
+    if (renderRow) {
+      return <React.Fragment key={key}>{renderRow(row, index)}</React.Fragment>
+    }
+
+    return (
+      <TableRow key={key} className={getRowClassName?.(row, index)}>
+        {columns?.map((column) => (
+          <TableCell
+            key={column.id}
+            className={getStaticCellClassName(column, row, index)}
+          >
+            {column.cell?.(row, index)}
+          </TableCell>
+        ))}
+      </TableRow>
+    )
+  })
+}
+
+function getStaticCellClassName<TData>(
+  column: StaticDataTableColumn<TData>,
+  row: TData,
+  index: number
+) {
+  return typeof column.cellClassName === 'function'
+    ? column.cellClassName(row, index)
+    : column.cellClassName
 }
 
 type StaticDataTableEmptyRowProps = {

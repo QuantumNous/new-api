@@ -39,6 +39,8 @@ type DataTablePaginationProps<TData> = {
   table: Table<TData>
 }
 
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100] as const
+
 export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
@@ -68,12 +70,10 @@ export function DataTablePagination<TData>({
             {t('Rows per page')}
           </p>
           <Select
-            items={[
-              ...[10, 20, 30, 40, 50, 100].map((pageSize) => ({
-                value: `${pageSize}`,
-                label: pageSize,
-              })),
-            ]}
+            items={PAGE_SIZE_OPTIONS.map((pageSize) => ({
+              value: `${pageSize}`,
+              label: pageSize,
+            }))}
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value))
@@ -84,7 +84,7 @@ export function DataTablePagination<TData>({
             </SelectTrigger>
             <SelectContent side='top' alignItemWithTrigger={false}>
               <SelectGroup>
-                {[10, 20, 30, 40, 50, 100].map((pageSize) => (
+                {PAGE_SIZE_OPTIONS.map((pageSize) => (
                   <SelectItem key={pageSize} value={`${pageSize}`}>
                     {pageSize}
                   </SelectItem>
@@ -129,9 +129,7 @@ export function DataTablePagination<TData>({
                       ? 'font-semibold'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
-                  onClick={() =>
-                    table.setPageIndex((pageNumber as number) - 1)
-                  }
+                  onClick={() => table.setPageIndex((pageNumber as number) - 1)}
                 >
                   <span className='sr-only'>Go to page {pageNumber}</span>
                   {pageNumber}
