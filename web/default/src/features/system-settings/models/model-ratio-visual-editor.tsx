@@ -664,7 +664,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
               table={table}
               containerClassName='min-h-0 flex-1 rounded-md'
               tableContainerClassName='h-full'
-              tableClassName='min-w-[760px] table-fixed sm:min-w-full'
+              tableClassName='min-w-[852px] table-fixed'
               tableHeaderClassName='[&_tr]:border-b-0'
               splitHeaderScrollClassName='h-full'
               bodyContainerClassName='[scrollbar-gutter:stable]'
@@ -678,10 +678,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
               ]}
               colgroup={
                 <colgroup>
-                  <col className='w-8' />
-                  <col className='w-[280px] sm:w-[38%]' />
-                  <col className='w-[150px] sm:w-[18%]' />
-                  <col className='w-[260px] sm:w-[32%]' />
+                  <col className='w-9' />
+                  <col className='w-[300px]' />
+                  <col className='w-[120px]' />
+                  <col className='w-[300px]' />
                   <col className='w-24' />
                 </colgroup>
               }
