@@ -42,14 +42,31 @@ import (
 const defaultBaseURL = "https://pollo.ai/api/platform"
 
 const (
-	// creditTokenScale converts a Pollo credit into the integer "token" unit that the
-	// generic video-billing pipeline (controller.UpdateVideoSingleTask) settles on:
-	//   TotalTokens = ceil(credit * creditTokenScale)
-	// The admin configures the model's ModelRatio (按量计费) so that the settlement
-	//   quota = TotalTokens * ModelRatio * groupRatio
-	// equals the intended charge. For "$X per credit, no markup":
-	//   ModelRatio = X * QuotaPerUnit / creditTokenScale   (e.g. $0.06 -> 0.06*500000/100 = 300)
+	// creditTokenScale converts a Pollo credit into the integer "token" unit carried
+	// through the generic video-billing pipeline (controller.UpdateVideoSingleTask):
+	//   TotalTokens = round(credit * creditTokenScale)
+	// This is only a transport/display unit for the credit. The actual charge is settled
+	// against settleModelRatio (below) — NOT the admin-configured "display" ModelRatio.
 	creditTokenScale = 100.0
+
+	// settleModelRatio is the ratio Pollo billing actually settles against, intentionally
+	// DECOUPLED from the per-model "display" ModelRatio configured in the admin panel:
+	//
+	//   model-square price (shown to users) = displayModelRatio * 2          ($/M)
+	//   actual charge                        = round(credit*creditTokenScale) * settleModelRatio * groupRatio
+	//                                        = credit * (creditTokenScale*settleModelRatio) * groupRatio
+	//                                        = credit * 30000 * groupRatio
+	//                                        => $0.06 / credit   (30000 / QuotaPerUnit, QuotaPerUnit=500000)
+	//
+	// This lets the model square show dreamina-aligned prices — seedance-2-0 at 7.7$/M
+	// (display ModelRatio 3.85) and seedance-2-0-fast at 5.6$/M (display ModelRatio 2.8) —
+	// while the per-credit charge stays at the original $0.06/credit for BOTH models,
+	// regardless of the display ratio.
+	//
+	// IMPORTANT: because of this decoupling, changing a model's admin ModelRatio only
+	// moves its displayed price, never the charge. To actually re-price Pollo, change
+	// settleModelRatio here (300 == $0.06/credit; e.g. -30% => 300*0.769 ≈ 230.7).
+	settleModelRatio = 300.0
 
 	// otherRatioKey labels the pre-charge multiplier injected by EstimateBilling.
 	otherRatioKey = "pollo_credit"
@@ -451,8 +468,10 @@ func (a *TaskAdaptor) GetChannelName() string {
 // The authoritative final charge is settled at completion by AdjustBillingOnComplete
 // (service.settleTaskBillingOnComplete, priority #1).
 //
-// Requires the model to be configured with a ModelRatio (按量计费). In fixed-price mode
-// there is no per-credit rate to settle against, so we leave the framework default hold.
+// Requires the model to have a (display) ModelRatio configured — it gates 按量计费 mode.
+// In fixed-price mode there is no per-credit rate to settle against, so we leave the
+// framework default hold. The rate actually charged is the fixed settleModelRatio, not
+// the display ModelRatio (see creditToOtherRatio / settleModelRatio).
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	if info.PriceData.UsePrice || info.PriceData.ModelRatio <= 0 || info.PriceData.Quota <= 0 {
 		return nil
@@ -477,12 +496,14 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 
 // AdjustBillingOnComplete returns the authoritative final quota for a completed task,
 // computed from the real Pollo credit (carried in taskResult.TotalTokens = round(credit*scale))
-// and the submit-time billing snapshot: quota = round(credit*scale) * ModelRatio * groupRatio.
+// and the fixed settleModelRatio: quota = round(credit*scale) * settleModelRatio * groupRatio.
+// It deliberately uses settleModelRatio, NOT the snapshot's display ModelRatio, so the
+// charge stays decoupled from the model-square price (see settleModelRatio doc).
 //
 // Returning a positive value makes service.settleTaskBillingOnComplete use this exact
 // amount (priority #1) and SKIP the token-recalc fallback. That fallback would otherwise
 // re-multiply the persisted OtherRatios — including the precharge-only "pollo_credit"
-// ratio — and double-count it (charging credit*scale*modelRatio*group*pollo_credit).
+// ratio — and double-count it (charging credit*scale*settleModelRatio*group*pollo_credit).
 func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
 	if task == nil || taskResult == nil || taskResult.TotalTokens <= 0 {
 		return 0
@@ -499,19 +520,20 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *rela
 	if groupRatio < 0 {
 		return 0
 	}
-	return int(math.Round(float64(taskResult.TotalTokens) * bc.ModelRatio * groupRatio))
+	return int(math.Round(float64(taskResult.TotalTokens) * settleModelRatio * groupRatio))
 }
 
 // creditToOtherRatio turns an absolute credit charge into the multiplier the framework
 // applies to the (ratio-mode) base quota, so the pre-charge equals the eventual token
-// settlement: ceil(credit*scale) * ModelRatio * groupRatio. Derived from the live base
-// quota (not the /2 constant) so it stays correct if the framework changes.
+// settlement: round(credit*scale) * settleModelRatio * groupRatio. Uses settleModelRatio
+// (not pd.ModelRatio) so the pre-charge matches the decoupled final charge. Derived from
+// the live base quota (not the /2 constant) so it stays correct if the framework changes.
 func creditToOtherRatio(credit float64, pd types.PriceData) float64 {
 	base := float64(pd.Quota)
 	if base <= 0 {
 		return 0
 	}
-	desired := credit * creditTokenScale * pd.ModelRatio * pd.GroupRatioInfo.GroupRatio
+	desired := credit * creditTokenScale * settleModelRatio * pd.GroupRatioInfo.GroupRatio
 	return desired / base
 }
 

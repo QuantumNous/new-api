@@ -146,6 +146,25 @@ func TestAdjustBillingOnComplete(t *testing.T) {
 	}
 }
 
+// The charge settles against the fixed settleModelRatio, NOT the admin "display" ModelRatio.
+// A model shown at 7.7$/M (display ratio 3.85) or 5.6$/M (2.8) must still settle at the
+// original $0.06/credit, i.e. round(credit*scale)*settleModelRatio*groupRatio — unchanged
+// no matter what display ratio the snapshot carries.
+func TestAdjustBillingOnComplete_DecoupledFromDisplayRatio(t *testing.T) {
+	a := &TaskAdaptor{}
+	// 4.4 credit -> TotalTokens 440 -> 440 * settleModelRatio(300) * 1 = 132000 quota = $0.264
+	for _, displayRatio := range []float64{3.85, 2.8, 1, 0.5, 999} {
+		task := &model.Task{}
+		task.PrivateData.BillingContext = &model.TaskBillingContext{
+			ModelRatio: displayRatio, GroupRatio: 1,
+		}
+		got := a.AdjustBillingOnComplete(task, &relaycommon.TaskInfo{TotalTokens: 440})
+		if got != 132000 {
+			t.Fatalf("displayRatio=%g: charge=%d, want 132000 (settle must use settleModelRatio, not display ratio)", displayRatio, got)
+		}
+	}
+}
+
 // P3: an error envelope ({"code":"NOT_FOUND"}) must fail, not be treated as queued.
 func TestParseTaskResult_ErrorEnvelope(t *testing.T) {
 	body := []byte(`{"message":"NOT_FOUND_ERROR","code":"NOT_FOUND"}`)
