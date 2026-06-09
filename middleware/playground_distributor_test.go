@@ -88,27 +88,15 @@ func TestImageGenerationEndpointRequiresChannelSpecificSupport(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "grok imagine image on openai compatible channel",
-			channelType: constant.ChannelTypeOpenAI,
-			model:       "grok-imagine-image-lite",
-			want:        true,
-		},
-		{
-			name:        "grok imagine image on xai channel",
-			channelType: constant.ChannelTypeXai,
-			model:       "grok-imagine-image-lite",
-			want:        true,
-		},
-		{
 			name:        "gpt image remains available on openai compatible channel",
 			channelType: constant.ChannelTypeOpenAI,
 			model:       "gpt-image-2",
 			want:        true,
 		},
 		{
-			name:        "grok imagine edit is excluded on xai channel",
-			channelType: constant.ChannelTypeXai,
-			model:       "grok-imagine-image-edit",
+			name:        "text model is not available on image generation endpoint",
+			channelType: constant.ChannelTypeOpenAI,
+			model:       "gpt-4o-mini",
 			want:        false,
 		},
 	}

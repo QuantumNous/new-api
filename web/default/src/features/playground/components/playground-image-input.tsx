@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2Icon, SendIcon } from 'lucide-react'
+import { SendIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NativeSelect } from '@/components/ui/native-select'
 import {
@@ -28,13 +28,16 @@ import {
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { ModelGroupSelector } from '@/components/model-group-selector'
+import {
+  MAX_IMAGE_GENERATION_COUNT,
+  normalizeImageGenerationCount,
+} from '../lib'
 import type { GroupOption, ImageGenerationConfig, ModelOption } from '../types'
 
 interface PlaygroundImageInputProps {
   config: ImageGenerationConfig
   disabled?: boolean
   groups: GroupOption[]
-  isGenerating?: boolean
   isModelLoading?: boolean
   models: ModelOption[]
   prompt: string
@@ -109,7 +112,6 @@ export function PlaygroundImageInput({
   config,
   disabled,
   groups,
-  isGenerating,
   isModelLoading = false,
   models,
   prompt,
@@ -121,15 +123,19 @@ export function PlaygroundImageInput({
 
   const hasPrompt = Boolean(prompt.trim())
   const hasImageModels = models.length > 0
-  const isConfigDisabled = Boolean(disabled || isGenerating)
+  const countValue = normalizeImageGenerationCount(config.n)
+  const countOptions = Array.from(
+    { length: MAX_IMAGE_GENERATION_COUNT },
+    (_, index) => index + 1
+  )
+  const isConfigDisabled = Boolean(disabled)
   const isModelSelectDisabled =
     isConfigDisabled || isModelLoading || !hasImageModels
   const isGroupSelectDisabled = isConfigDisabled || groups.length === 0
-  const isSubmitDisabled =
-    Boolean(disabled || isGenerating) || !hasPrompt || !config.model
+  const isSubmitDisabled = Boolean(disabled) || !hasPrompt || !config.model
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || disabled || isGenerating) return
+    if (!message.text?.trim() || disabled) return
     onSubmit(message.text)
     onPromptChange('')
   }
@@ -209,15 +215,17 @@ export function PlaygroundImageInput({
               className={`${controlClassName} w-16`}
               disabled={isConfigDisabled || !hasImageModels}
               label={t('Count')}
-              value={String(config.n)}
+              value={String(countValue)}
               onChange={(value) =>
                 onConfigChange(
                   'n',
-                  Math.min(4, Math.max(1, Number.parseInt(value, 10) || 1))
+                  normalizeImageGenerationCount(
+                    Number.parseInt(value, 10) || 1
+                  )
                 )
               }
             >
-              {[1, 2, 3, 4].map((count) => (
+              {countOptions.map((count) => (
                 <option key={count} value={count}>
                   {count}
                 </option>
@@ -250,17 +258,9 @@ export function PlaygroundImageInput({
             type='submit'
             variant='secondary'
           >
-            {isGenerating ? (
-              <Loader2Icon className='animate-spin' size={16} />
-            ) : (
-              <SendIcon size={16} />
-            )}
-            <span className='hidden sm:inline'>
-              {isGenerating ? t('Generating') : t('Generate')}
-            </span>
-            <span className='sr-only sm:hidden'>
-              {isGenerating ? t('Generating') : t('Generate')}
-            </span>
+            <SendIcon size={16} />
+            <span className='hidden sm:inline'>{t('Generate')}</span>
+            <span className='sr-only sm:hidden'>{t('Generate')}</span>
           </PromptInputButton>
         </PromptInputFooter>
       </PromptInput>

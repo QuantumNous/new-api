@@ -174,29 +174,41 @@ function sanitizeImageTasksForStorage(tasks: ImageTask[]): ImageTask[] {
   let persistedBase64Count = 0
 
   return tasks.slice(0, MAX_IMAGE_TASKS).map((task) => {
-    const interrupted =
+    const status =
+      task.status === 'running' ? ('interrupted' as const) : task.status
+    const error =
       task.status === 'running'
-        ? {
-            ...task,
-            status: 'interrupted' as const,
-            error: 'Generation was interrupted',
-            finishedAt: task.finishedAt ?? Date.now(),
-          }
-        : task
+        ? 'Generation was interrupted'
+        : task.error
+    const finishedAt =
+      task.status === 'running'
+        ? task.finishedAt ?? Date.now()
+        : task.finishedAt
 
-    const images = interrupted.images.map((image) => {
-      if (!image.b64_json) return image
+    let image = task.image
+    if (image?.b64_json) {
       persistedBase64Count += 1
-      if (persistedBase64Count <= MAX_PERSISTED_BASE64_IMAGES) return image
-      return {
-        revised_prompt: image.revised_prompt,
+      if (persistedBase64Count > MAX_PERSISTED_BASE64_IMAGES) {
+        image = {
+          revised_prompt: image.revised_prompt,
+        }
       }
-    })
-
-    return {
-      ...interrupted,
-      images,
     }
+
+    const sanitized: ImageTask = {
+      id: task.id,
+      prompt: task.prompt,
+      config: task.config,
+      status,
+      createdAt: task.createdAt,
+    }
+
+    if (image) sanitized.image = image
+    if (error) sanitized.error = error
+    if (task.errorCode) sanitized.errorCode = task.errorCode
+    if (finishedAt) sanitized.finishedAt = finishedAt
+
+    return sanitized
   })
 }
 

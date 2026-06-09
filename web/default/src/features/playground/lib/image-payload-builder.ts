@@ -31,7 +31,7 @@ export function buildImageGenerationPayload(
     prompt: prompt.trim(),
     size: config.size,
     quality: config.quality,
-    n: config.n,
+    n: 1,
     response_format: config.response_format,
   }
 

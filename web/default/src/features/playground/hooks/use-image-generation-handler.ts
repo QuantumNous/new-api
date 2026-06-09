@@ -16,18 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { nanoid } from 'nanoid'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { sendImageGeneration } from '../api'
 import { ERROR_MESSAGES } from '../constants'
-import { buildImageGenerationPayload, getRawImageUrls } from '../lib'
+import {
+  buildImageGenerationPayload,
+  normalizeImageGenerationCount,
+} from '../lib'
 import type { ImageGenerationConfig, ImageResult, ImageTask } from '../types'
 
 interface UseImageGenerationHandlerOptions {
   config: ImageGenerationConfig
-  tasks: ImageTask[]
   onTasksUpdate: (
     updater: ImageTask[] | ((prev: ImageTask[]) => ImageTask[])
   ) => void
@@ -80,15 +82,9 @@ function getImageGenerationError(
 
 export function useImageGenerationHandler({
   config,
-  tasks,
   onTasksUpdate,
 }: UseImageGenerationHandlerOptions) {
   const { t } = useTranslation()
-
-  const isGenerating = useMemo(
-    () => tasks.some((task) => task.status === 'running'),
-    [tasks]
-  )
 
   const updateTask = useCallback(
     (taskId: string, updater: (task: ImageTask) => ImageTask) => {
@@ -102,7 +98,12 @@ export function useImageGenerationHandler({
   const generateImage = useCallback(
     async (prompt: string, overrideConfig?: ImageGenerationConfig) => {
       const trimmedPrompt = prompt.trim()
-      const effectiveConfig = overrideConfig ?? config
+      const sourceConfig = overrideConfig ?? config
+      const requestedCount = normalizeImageGenerationCount(sourceConfig.n)
+      const effectiveConfig = {
+        ...sourceConfig,
+        n: requestedCount,
+      }
 
       if (!trimmedPrompt) {
         toast.error(t('Please enter an image prompt'))
@@ -114,60 +115,73 @@ export function useImageGenerationHandler({
         return
       }
 
-      if (isGenerating) {
-        toast.error(t('Please wait for the current image generation to finish'))
-        return
-      }
+      const nextTasks: ImageTask[] = Array.from(
+        { length: requestedCount },
+        () => ({
+          id: nanoid(),
+          prompt: trimmedPrompt,
+          config: {
+            ...effectiveConfig,
+            n: 1,
+          },
+          status: 'running',
+          createdAt: Date.now(),
+        })
+      )
 
-      const taskId = nanoid()
-      const task: ImageTask = {
-        id: taskId,
-        prompt: trimmedPrompt,
-        config: effectiveConfig,
-        status: 'running',
-        images: [],
-        createdAt: Date.now(),
-      }
+      onTasksUpdate((prev) => [...nextTasks, ...prev])
 
-      onTasksUpdate((prev) => [task, ...prev])
+      const results = await Promise.allSettled(
+        nextTasks.map(async (task) => {
+          try {
+            const response = await sendImageGeneration(
+              buildImageGenerationPayload(trimmedPrompt, task.config)
+            )
+            const images = (response.data || []).filter(
+              (image): image is ImageResult =>
+                Boolean(image.url || image.b64_json)
+            )
+            const image = images[0]
+            if (!image) {
+              throw new Error(t('API did not return image data'))
+            }
 
-      try {
-        const payload = buildImageGenerationPayload(
-          trimmedPrompt,
-          effectiveConfig
-        )
-        const response = await sendImageGeneration(payload)
-        const images = (response.data || []).filter(
-          (image): image is ImageResult => Boolean(image.url || image.b64_json)
-        )
+            updateTask(task.id, (current) => ({
+              ...current,
+              status: 'done',
+              image,
+              finishedAt: Date.now(),
+            }))
+          } catch (error: unknown) {
+            const parsed = getImageGenerationError(
+              error,
+              t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
+            )
+            updateTask(task.id, (current) => ({
+              ...current,
+              status: 'error',
+              error: parsed.message,
+              errorCode: parsed.code,
+              finishedAt: Date.now(),
+            }))
+            throw parsed
+          }
+        })
+      )
 
-        if (images.length === 0) {
-          throw new Error(t('API did not return image data'))
-        }
-
-        updateTask(taskId, (current) => ({
-          ...current,
-          status: 'done',
-          images,
-          rawImageUrls: getRawImageUrls(images),
-          finishedAt: Date.now(),
-        }))
-      } catch (error: unknown) {
+      const failures = results.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === 'rejected'
+      )
+      if (failures.length === nextTasks.length) {
         const parsed = getImageGenerationError(
-          error,
+          failures[0]?.reason,
           t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
         )
         toast.error(parsed.message)
-        updateTask(taskId, (current) => ({
-          ...current,
-          status: 'error',
-          error: parsed.message,
-          errorCode: parsed.code,
-          finishedAt: Date.now(),
-        }))
       }
     },
-    [config, isGenerating, onTasksUpdate, t, updateTask]
+    [config, onTasksUpdate, t, updateTask]
   )
 
   const retryTask = useCallback(
@@ -180,6 +194,5 @@ export function useImageGenerationHandler({
   return {
     generateImage,
     retryTask,
-    isGenerating,
   }
 }

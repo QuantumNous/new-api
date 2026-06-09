@@ -36,10 +36,6 @@ export function normalizeBase64Image(
   return `data:image/${format};base64,${trimmed}`
 }
 
-export function getRawImageUrls(images: ImageResult[]): string[] {
-  return images.map((image) => image.url).filter(Boolean) as string[]
-}
-
 export function isImageResultRenderable(image: ImageResult): boolean {
   return Boolean(image.url || image.b64_json)
 }
