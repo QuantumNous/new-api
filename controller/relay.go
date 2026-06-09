@@ -122,6 +122,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	if unsupported, state := model.IsModelOfficiallyUnsupported(relayInfo.OriginModelName); unsupported {
+		newAPIError = newModelOfficiallyUnsupportedError(relayInfo.OriginModelName, state)
+		return
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -245,6 +249,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func newModelOfficiallyUnsupportedError(modelName string, state *model.ModelAvailabilityState) *types.NewAPIError {
+	message := fmt.Sprintf("当前模型 %s 已不再被上游官方支持，暂时无法调用。请切换到官方仍支持的新模型，或联系管理员更新模型映射/替代模型。", modelName)
+	if state != nil && strings.TrimSpace(state.Reason) != "" {
+		message = fmt.Sprintf("%s 检测说明：%s", message, strings.TrimSpace(state.Reason))
+	}
+	return types.NewOpenAIError(
+		errors.New(message),
+		types.ErrorCodeModelOfficiallyUnsupported,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+		types.ErrOptionWithNoRecordErrorLog(),
+	)
 }
 
 var upgrader = websocket.Upgrader{

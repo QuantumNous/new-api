@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 // ----------------------------------------------------------------------------
 // Pricing Types
 // ----------------------------------------------------------------------------
+import type { ModelAvailabilityStatus } from '@/lib/model-availability'
 
 export type PricingVendor = {
   id: number
@@ -56,6 +57,10 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  availability_status?: ModelAvailabilityStatus
+  availability_reason?: string
+  availability_detected_at?: number
+  availability_checked_at?: number
   /**
    * Optional model metadata fields. These are not yet returned by the backend
    * and are populated client-side from {@link inferModelMetadata}.

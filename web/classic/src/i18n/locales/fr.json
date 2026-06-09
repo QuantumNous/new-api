@@ -4026,6 +4026,7 @@
     "上传文件": "Upload file",
     "内存:": "Memory:",
     "正在加载，请稍候...": "Loading, please wait...",
-    "测试版": "Beta"
+    "测试版": "Beta",
+    "不自动处理思考后缀的模型列表": "Modèles qui ne traitent pas automatiquement les suffixes de raisonnement"
   }
 }

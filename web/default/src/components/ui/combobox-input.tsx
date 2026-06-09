@@ -37,6 +37,7 @@ interface ComboboxInputProps {
   className?: string
   id?: string
   allowCustomValue?: boolean
+  openOnFocus?: boolean
 }
 
 export function ComboboxInput({
@@ -48,6 +49,7 @@ export function ComboboxInput({
   className,
   id,
   allowCustomValue = false,
+  openOnFocus = true,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -177,6 +179,11 @@ export function ComboboxInput({
         }}
         onFocus={() => {
           setSearchValue(allowCustomValue && !selectedOption ? value : '')
+          if (openOnFocus) {
+            setOpen(true)
+          }
+        }}
+        onMouseDown={() => {
           setOpen(true)
         }}
         onKeyDown={handleKeyDown}
