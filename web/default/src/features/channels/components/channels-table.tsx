@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo, useEffect } from 'react'
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  type ChangeEvent,
+  type CompositionEvent,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -124,12 +131,18 @@ export function ChannelsTable() {
     (columnFilters.find((f) => f.id === 'model')?.value as string) || ''
 
   // Local state for immediate input feedback
+  const isModelFilterComposingRef = useRef(false)
   const [modelFilterInput, setModelFilterInput] = useState(modelFilterFromUrl)
-  const debouncedModelFilter = useDebounce(modelFilterInput, 500)
+  const [modelFilterPendingValue, setModelFilterPendingValue] =
+    useState(modelFilterFromUrl)
+  const debouncedModelFilter = useDebounce(modelFilterPendingValue, 500)
 
   // Sync local input with URL when URL changes (e.g., from back/forward navigation)
   useEffect(() => {
-    setModelFilterInput(modelFilterFromUrl)
+    if (!isModelFilterComposingRef.current) {
+      setModelFilterInput(modelFilterFromUrl)
+    }
+    setModelFilterPendingValue(modelFilterFromUrl)
   }, [modelFilterFromUrl])
 
   // Update URL when debounced value changes
@@ -143,6 +156,28 @@ export function ChannelsTable() {
       })
     }
   }, [debouncedModelFilter, modelFilterFromUrl, onColumnFiltersChange])
+
+  const handleModelFilterChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+    setModelFilterInput(value)
+
+    if (!isModelFilterComposingRef.current) {
+      setModelFilterPendingValue(value)
+    }
+  }
+
+  const handleModelFilterCompositionStart = () => {
+    isModelFilterComposingRef.current = true
+  }
+
+  const handleModelFilterCompositionEnd = (
+    event: CompositionEvent<HTMLInputElement>
+  ) => {
+    isModelFilterComposingRef.current = false
+    const value = event.currentTarget.value
+    setModelFilterInput(value)
+    setModelFilterPendingValue(value)
+  }
 
   const modelFilter = modelFilterFromUrl
 
@@ -385,11 +420,19 @@ export function ChannelsTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
+        searchDebounceMs: 500,
+        onReset: () => {
+          isModelFilterComposingRef.current = false
+          setModelFilterInput('')
+          setModelFilterPendingValue('')
+        },
         additionalSearch: (
           <Input
             placeholder={t('Filter by model...')}
             value={modelFilterInput}
-            onChange={(e) => setModelFilterInput(e.target.value)}
+            onChange={handleModelFilterChange}
+            onCompositionStart={handleModelFilterCompositionStart}
+            onCompositionEnd={handleModelFilterCompositionEnd}
             className='w-full sm:w-[150px] lg:w-[180px]'
           />
         ),
