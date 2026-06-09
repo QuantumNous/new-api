@@ -1,14 +1,17 @@
 package blockrun
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -175,6 +178,242 @@ func TestConvertGeminiRequest_Unsupported(t *testing.T) {
 	}
 	if out != nil {
 		t.Fatalf("expected nil result on unsupported gemini request, got %v", out)
+	}
+}
+
+// TestConvertImageRequest_GenerationsPassthrough asserts text-to-image
+// (RelayModeImagesGenerations) is an OpenAI-compatible JSON passthrough: the
+// request is returned for marshalling to BlockRun's /v1/images/generations.
+func TestConvertImageRequest_GenerationsPassthrough(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesGenerations,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "a cat"}
+
+	out, err := a.ConvertImageRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out == nil {
+		t.Fatalf("expected non-nil converted request")
+	}
+}
+
+// TestConvertImageRequest_MissingModelRejected asserts a request without a model
+// is rejected (BlockRun image endpoints require an explicit model ID).
+func TestConvertImageRequest_MissingModelRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesGenerations,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	if _, err := a.ConvertImageRequest(c, info, dto.ImageRequest{Prompt: "x"}); err == nil {
+		t.Fatalf("expected error for missing model, got nil")
+	}
+}
+
+// TestConvertImageRequest_EditSingleImage asserts img2img with a single source
+// image preserves the `image` base64 data URI string AND is a FULL passthrough:
+// extra client fields (quality, response_format, size) survive to the upstream
+// image2image body.
+func TestConvertImageRequest_EditSingleImage(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{
+		Model:          "openai/gpt-image-2",
+		Prompt:         "make the sky purple",
+		Image:          json.RawMessage(`"data:image/png;base64,AAAA"`),
+		Quality:        "hd",
+		ResponseFormat: "b64_json",
+		Size:           "1024x1024",
+	}
+
+	out, err := a.ConvertImageRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := out.(dto.ImageRequest)
+	if !ok {
+		t.Fatalf("expected dto.ImageRequest (full passthrough), got %T", out)
+	}
+	if got.Model != "openai/gpt-image-2" || got.Prompt != "make the sky purple" {
+		t.Fatalf("model/prompt not preserved: %+v", got)
+	}
+	if common.GetJsonType(got.Image) != "string" {
+		t.Fatalf("single source image must remain a string, got type %q", common.GetJsonType(got.Image))
+	}
+	// Full passthrough: previously-dropped fields must now survive.
+	if got.Quality != "hd" {
+		t.Fatalf("quality dropped: %q", got.Quality)
+	}
+	if got.ResponseFormat != "b64_json" {
+		t.Fatalf("response_format dropped: %q", got.ResponseFormat)
+	}
+	if got.Size != "1024x1024" {
+		t.Fatalf("size dropped: %q", got.Size)
+	}
+}
+
+// TestConvertImageRequest_EditMultiImageFusion asserts multi-image fusion keeps
+// the array under `image` (BlockRun accepts an array for fusion).
+func TestConvertImageRequest_EditMultiImageFusion(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{
+		Model:  "google/nano-banana",
+		Prompt: "place the logo on the shirt",
+		Image:  json.RawMessage(`["data:image/png;base64,AAAA","data:image/png;base64,BBBB"]`),
+	}
+
+	out, err := a.ConvertImageRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := out.(dto.ImageRequest)
+	if !ok {
+		t.Fatalf("expected dto.ImageRequest (full passthrough), got %T", out)
+	}
+	if common.GetJsonType(got.Image) != "array" {
+		t.Fatalf("multi-image fusion must remain an array, got type %q", common.GetJsonType(got.Image))
+	}
+}
+
+// TestConvertImageRequest_EditMaskWithMultiImageRejected asserts the BlockRun
+// constraint that `mask` cannot be combined with multiple source images.
+func TestConvertImageRequest_EditMaskWithMultiImageRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{
+		Model:  "openai/gpt-image-2",
+		Prompt: "edit",
+		Image:  json.RawMessage(`["data:image/png;base64,AAAA","data:image/png;base64,BBBB"]`),
+		Mask:   json.RawMessage(`"data:image/png;base64,MMMM"`),
+	}
+	_, err := a.ConvertImageRequest(c, info, in)
+	if err == nil {
+		t.Fatalf("expected error: mask cannot combine with multiple images")
+	}
+	if !strings.Contains(err.Error(), "mask") {
+		t.Fatalf("error should mention mask, got %v", err)
+	}
+}
+
+// TestConvertImageRequest_EditMissingImageRejected asserts an edit request with
+// no source image is rejected with an image2img-specific error (not the old
+// blanket "image not supported").
+func TestConvertImageRequest_EditMissingImageRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit"}
+	_, err := a.ConvertImageRequest(c, info, in)
+	if err == nil {
+		t.Fatalf("expected error for missing source image, got nil")
+	}
+	if !strings.Contains(err.Error(), "base64") {
+		t.Fatalf("error should explain base64 image requirement, got %v", err)
+	}
+}
+
+// TestConvertImageRequest_EditNullImageRejected asserts an explicit JSON null
+// `image` is rejected (json.RawMessage("null") has len 4 so a raw byte-length
+// check would wrongly accept it and pay the upstream for an imageless request).
+func TestConvertImageRequest_EditNullImageRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit", Image: json.RawMessage(`null`)}
+	if _, err := a.ConvertImageRequest(c, info, in); err == nil {
+		t.Fatalf("expected error for explicit null image, got nil")
+	}
+}
+
+// TestConvertImageRequest_EditEmptyStringImageRejected asserts an empty-string
+// `image` ("") is rejected (len 2, but it carries no usable data URI).
+func TestConvertImageRequest_EditEmptyStringImageRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit", Image: json.RawMessage(`""`)}
+	if _, err := a.ConvertImageRequest(c, info, in); err == nil {
+		t.Fatalf("expected error for empty-string image, got nil")
+	}
+}
+
+// TestConvertImageRequest_EditMaskNullWithArrayAllowed asserts that an explicit
+// JSON null `mask` is treated as absent, so it does NOT trip the mask+multi-image
+// exclusivity guard for a legitimate maskless array (fusion) request.
+func TestConvertImageRequest_EditMaskNullWithArrayAllowed(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.ImageRequest{
+		Model:  "google/nano-banana",
+		Prompt: "fuse",
+		Image:  json.RawMessage(`["data:image/png;base64,AAAA","data:image/png;base64,BBBB"]`),
+		Mask:   json.RawMessage(`null`),
+	}
+	if _, err := a.ConvertImageRequest(c, info, in); err != nil {
+		t.Fatalf("null mask must be treated as absent (no rejection), got %v", err)
+	}
+}
+
+// TestSetupRequestHeader_ImageForcesJSON asserts that for image relay modes the
+// outbound Content-Type is forced to application/json — the edits body is always
+// JSON, so a multipart inbound Content-Type must NOT be copied through verbatim.
+func TestSetupRequestHeader_ImageForcesJSON(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/images/edits", map[string]string{
+		"Content-Type": "multipart/form-data; boundary=xyz",
+	})
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeImagesEdits,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	h := http.Header{}
+	if err := a.SetupRequestHeader(c, &h, info); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := h.Get("Content-Type"); got != "application/json" {
+		t.Fatalf("image edits outbound Content-Type = %q, want application/json", got)
 	}
 }
 

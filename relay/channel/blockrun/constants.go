@@ -62,4 +62,16 @@ var ModelList = []string{
 	"nvidia/llama-4-maverick",
 	"nvidia/mistral-small-4-119b",
 	"nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+	// Image generation (/v1/images/generations) and image2image edit/fusion
+	// (/v1/images/image2image). Edit-capable: gpt-image-1, gpt-image-2,
+	// nano-banana, nano-banana-pro.
+	"openai/gpt-image-2",
+	"openai/gpt-image-1",
+	"openai/dall-e-3",
+	"google/nano-banana",
+	"google/nano-banana-pro",
+	"black-forest/flux-1.1-pro",
+	"xai/grok-imagine-image",
+	"xai/grok-imagine-image-pro",
+	"zai/cogview-4",
 }
