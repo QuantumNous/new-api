@@ -170,10 +170,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       )}
       skeletonKeyPrefix='usage-log-skeleton'
       tableClassName={cn(
-        'overflow-x-auto',
         '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
       )}
-      tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
       mobile={
         <UsageLogsMobileList
           table={table}

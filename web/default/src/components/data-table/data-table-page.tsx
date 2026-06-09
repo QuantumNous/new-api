@@ -193,13 +193,20 @@ export type DataTablePageProps<TData> = {
   className?: string
 
   /**
+   * Make the desktop table consume the available page height and scroll inside
+   * the table body while keeping the header fixed. Defaults to `true`.
+   */
+  fixedHeight?: boolean
+
+  /**
    * Desktop table container className (the bordered scroll wrapper).
    */
   tableClassName?: string
 
   /**
    * Desktop `<TableHeader>` className override.
-   * Useful for sticky headers (`'sticky top-0 z-10 bg-muted/30'`) on long lists.
+   * Use for header color/spacing overrides. Fixed-height pages keep the header
+   * outside the scrollable body automatically.
    */
   tableHeaderClassName?: string
 }
@@ -235,7 +242,14 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
 
   return (
     <>
-      <div className={cn('space-y-2.5 sm:space-y-3', props.className)}>
+      <div
+        className={cn(
+          props.fixedHeight !== false
+            ? 'flex h-full min-h-0 flex-col gap-2.5 sm:gap-3'
+            : 'space-y-2.5 sm:space-y-3',
+          props.className
+        )}
+      >
         {toolbarNode}
         {mobileNode}
         {desktopNode}
@@ -280,7 +294,6 @@ function renderMobile<TData>(
   showMobile: boolean
 ): React.ReactNode {
   if (!showMobile) return null
-  if (props.mobile !== undefined) return props.mobile
 
   const ownGetRowClassName = props.getRowClassName
   const mobileGetRowClassName =
@@ -288,8 +301,7 @@ function renderMobile<TData>(
     (ownGetRowClassName
       ? (row: Row<TData>) => ownGetRowClassName(row, { isMobile: true })
       : undefined)
-
-  return (
+  const mobileContent = props.mobile ?? (
     <MobileCardList
       table={props.table}
       isLoading={props.isLoading}
@@ -299,6 +311,8 @@ function renderMobile<TData>(
       getRowClassName={mobileGetRowClassName}
     />
   )
+
+  return <div className='min-h-0 flex-1 overflow-y-auto'>{mobileContent}</div>
 }
 
 function renderDesktop<TData>(
@@ -309,6 +323,7 @@ function renderDesktop<TData>(
 
   const rows = props.table.getRowModel().rows
   const isFetchingOnly = props.isFetching && !props.isLoading
+  const fixedHeight = props.fixedHeight !== false
 
   return (
     <DataTableView
@@ -322,10 +337,16 @@ function renderDesktop<TData>(
       skeletonKeyPrefix={props.skeletonKeyPrefix}
       renderRow={props.renderRow}
       applyHeaderSize={props.applyHeaderSize}
-      tableHeaderClassName={props.tableHeaderClassName}
+      splitHeader={fixedHeight}
+      tableContainerClassName={fixedHeight ? 'h-full min-h-0' : undefined}
+      tableHeaderClassName={cn(
+        fixedHeight && 'bg-muted/30',
+        props.tableHeaderClassName
+      )}
       getColumnClassName={props.getColumnClassName}
       pinnedColumns={props.pinnedColumns}
       containerClassName={cn(
+        fixedHeight && 'min-h-0 flex-1',
         'transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
