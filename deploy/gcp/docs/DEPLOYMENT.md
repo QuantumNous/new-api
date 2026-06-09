@@ -235,6 +235,36 @@ echo -n "<sk-live-...>" | gcloud secrets versions add newapi-stripe-secret-key -
 
 写入后再去 `modules/cloud-run/main.tf` 加 env 注入，`terraform apply`。
 
+### 用量对账 token（`BLOCKRUN_USAGE_SUMMARY_TOKEN`）
+
+blockrun 渠道用量对账接口 `/usage/summary`、`/usage/transactions` 的静态 Bearer 密钥。TF 已建空 secret `newapi-blockrun-usage-summary-token` 并授权 runtime SA 读取；Cloud Run 的注入由开关 `enable_usage_recon_token`（默认 `false`）控制——`false` 时任何 `terraform apply` 都只创建空 secret、不会把无版本的 secret 接进 revision。
+
+**顺序硬约束：先写值，再激活（翻 `true`）。** 否则 secret 无版本，Cloud Run revision 会起不来。
+
+```bash
+# ① 生成并写入值（对线上零影响；token 仅存密钥库，勿入库）
+TOKEN=$(openssl rand -hex 32)
+cd deploy/gcp/envs/prod && terraform init
+terraform apply \
+  -target=google_secret_manager_secret.blockrun_usage_summary_token \
+  -target=module.service_accounts
+printf '%s' "$TOKEN" | gcloud secrets versions add newapi-blockrun-usage-summary-token \
+  --project=vocai-gemini-prod --data-file=-
+
+# ② 待功能镜像上线后，激活 env 注入
+terraform apply -var='enable_usage_recon_token=true'
+#   若因 revision 锁定报 409（见 OPERATIONS.md「Env vars」），改用 gcloud 兜底：
+gcloud run services update newapi --region=us-west1 --project=vocai-gemini-prod \
+  --update-secrets=BLOCKRUN_USAGE_SUMMARY_TOKEN=newapi-blockrun-usage-summary-token:latest
+gcloud run services update-traffic newapi --region=us-west1 --project=vocai-gemini-prod \
+  --to-revisions=<新revision>=100
+terraform apply -refresh-only
+
+# ③ 验证（无 token→401；未写值/未注入→503）
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://new-api.app.flatkey.ai/usage/summary?start=2026-06-01T00:00:00Z&end=2026-06-08T00:00:00Z" | jq .
+```
+
 ## 故障排查
 
 ### 1. WIF 401/403（GitHub Actions Auth 步骤失败）

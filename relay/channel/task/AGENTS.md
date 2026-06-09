@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # relay/channel/task
 
@@ -25,6 +25,8 @@ task 目录是所有**异步任务类 provider** 适配器的容器。与同步 
 | Directory | Purpose |
 |-----------|---------|
 | `ali/` | 阿里云异步任务（通义视频等），`adaptor.go` + `constants.go` |
+| `blockrunseedance/` | BlockRun x402-paid Seedance 视频（seedance 系）；x402 双程签名鉴权（无 API Key，钱包私钥存 channel Key）；上游 submit 返回 202，**DoRequest 内 `normalizeAcceptedStatus` 将其归一为 200**（202-gate 模式，见下方说明）；poll_url 作为上游 task_id 存储；结果走 `/v1/videos/{task_id}/content` 代理 |
+| `blockrunvideo/` | BlockRun 代理视频（OpenAI-style video 格式，通过 BlockRun 中间层转发）；`adaptor.go` + `constants.go` + `request.go` |
 | `doubao/` | 豆包视频（火山引擎），对应 `ChannelTypeDoubaoVideo` / `ChannelTypeVolcEngine` |
 | `gemini/` | Google Gemini 异步任务（Veo 视频生成等） |
 | `hailuo/` | 海螺 / MiniMax 视频，`adaptor.go` + `constants.go` + `models.go` |
@@ -53,10 +55,11 @@ task 目录是所有**异步任务类 provider** 适配器的容器。与同步 
 ### Working In This Directory
 
 - **Rule 1**：所有 JSON 操作必须通过 `common.Marshal` / `common.Unmarshal`（`CLAUDE.md` Rule 1）。
-- **Rule 6**：上游请求 DTO 的可选字段用指针 + `omitempty`，防止零值被静默丢弃（`CLAUDE.md` Rule 6）。
-- **白标渠道**：`kuaizi` 等白标渠道的结果 URL 不得直接返回给客户端，必须经由代理，使用 `taskcommon.ShouldWhitelabelPlatform` 判断，`ScrubBrandedText` 脱敏错误信息。
+- **Rule 5**：上游请求 DTO 的可选字段用指针 + `omitempty`，防止零值被静默丢弃（`CLAUDE.md` Rule 5）。
+- **白标渠道**：`kuaizi`、`blockrunseedance` 等白标渠道的结果 URL 不得直接返回给客户端，必须经由代理，使用 `taskcommon.ShouldWhitelabelPlatform` 判断，`ScrubBrandedText` 脱敏错误信息。
 - **计费预扣**：异步任务必须在提交前锁定全额（`info.ForcePreConsume = true`），因为请求返回后任务仍在运行。
 - **任务 ID 隔离**：`info.PublicTaskID` 是暴露给客户端的 `task_xxxx` 格式 ID，不得将上游真实 ID 直接返回。
+- **202-gate（HTTP 202 归一化）**：`relay/relay_task.go` 的通用编排器在 `DoRequest` 返回非 200 响应时直接拒绝（不会调用 `DoResponse`）。若上游 submit 返回 202 Accepted（如 `blockrunseedance`），**必须在 `DoRequest` 内部将其归一化为 200**（即 `resp.StatusCode = http.StatusOK`），以确保 `DoResponse` 能正常运行并存储 task_id/poll_url。归一化函数命名惯例：`normalizeAcceptedStatus(resp)`，在返回前调用。相同策略同样适用于 poll 阶段：若 `FetchTask` 返回的 202 不归一化，`ParseTaskResult` 将永远收不到数据。
 
 ### 添加新异步任务 Provider 的步骤
 

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # setting/console_setting
 

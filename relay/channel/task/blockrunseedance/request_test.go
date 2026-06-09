@@ -33,6 +33,31 @@ func TestBuildCreateRequest_TextToVideo(t *testing.T) {
 	}
 }
 
+// Newly-forwarded upstream-supported params: ratio -> aspect_ratio, seed,
+// watermark, return_last_frame must all be carried onto the gateway body.
+func TestBuildCreateRequest_ForwardsUpstreamParams(t *testing.T) {
+	seed := &dto.SeedanceVideoRequest{
+		Content:         []dto.SeedanceContentItem{{Type: dto.SeedanceContentText, Text: "a neon city"}},
+		Ratio:           "16:9",
+		Seed:            ptrInt(42),
+		Watermark:       ptrBool(false),
+		ReturnLastFrame: ptrBool(true),
+	}
+	body := buildBlockrunSeedanceCreateRequest(seed, blockrunExtensions{}, "bytedance/seedance-2.0")
+	if body.AspectRatio != "16:9" {
+		t.Fatalf("ratio should map to aspect_ratio: %q", body.AspectRatio)
+	}
+	if body.Seed == nil || *body.Seed != 42 {
+		t.Fatalf("seed should be forwarded: %+v", body.Seed)
+	}
+	if body.Watermark == nil || *body.Watermark != false {
+		t.Fatalf("watermark should be forwarded (explicit false): %+v", body.Watermark)
+	}
+	if body.ReturnLastFrame == nil || *body.ReturnLastFrame != true {
+		t.Fatalf("return_last_frame should be forwarded: %+v", body.ReturnLastFrame)
+	}
+}
+
 func TestBuildCreateRequest_ImageToVideoAndAsset(t *testing.T) {
 	seed := &dto.SeedanceVideoRequest{
 		Content: []dto.SeedanceContentItem{
@@ -164,7 +189,8 @@ func TestValidateSeedanceValues_AcceptsSupported(t *testing.T) {
 }
 
 func TestValidateResolution(t *testing.T) {
-	for _, r := range []string{"", "360p", "480p", "720p", "1080p", "4k", "4K", "720P"} {
+	// Widened allowlist incl. 540p/1K/2K, case-insensitive.
+	for _, r := range []string{"", "360p", "480p", "540p", "720p", "1080p", "1k", "1K", "2k", "2K", "4k", "4K", "720P", "540P"} {
 		if err := validateResolution(r); err != nil {
 			t.Fatalf("validateResolution(%q) should pass: %v", r, err)
 		}
@@ -172,6 +198,35 @@ func TestValidateResolution(t *testing.T) {
 	for _, r := range []string{"999p", "8k", "foo"} {
 		if err := validateResolution(r); err == nil {
 			t.Fatalf("validateResolution(%q) should fail", r)
+		}
+	}
+}
+
+// droppedSeedanceFields must no longer report the now-forwarded params
+// (ratio/seed/watermark/return_last_frame) but must still report the officially
+// unsupported ones (camera_fixed/frames/callback_url).
+func TestDroppedSeedanceFields(t *testing.T) {
+	r := &dto.SeedanceVideoRequest{
+		Ratio:           "16:9",
+		Seed:            ptrInt(7),
+		Watermark:       ptrBool(true),
+		ReturnLastFrame: ptrBool(true),
+		CameraFixed:     ptrBool(true),
+		Frames:          ptrInt(120),
+		CallbackURL:     "https://example/cb",
+	}
+	dropped := droppedSeedanceFields(r)
+	got := strings.Join(dropped, ",")
+	for _, forwarded := range []string{"ratio", "seed", "watermark", "return_last_frame"} {
+		for _, d := range dropped {
+			if d == forwarded {
+				t.Fatalf("%q is forwarded now and must not be reported as dropped: %v", forwarded, dropped)
+			}
+		}
+	}
+	for _, unsupported := range []string{"camera_fixed", "frames", "callback_url"} {
+		if !strings.Contains(got, unsupported) {
+			t.Fatalf("%q is unsupported and must be reported as dropped: %v", unsupported, dropped)
 		}
 	}
 }

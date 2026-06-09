@@ -31,3 +31,9 @@ frontend_base_url = "https://new-api.app.flatkey.ai"
 
 // Set this to receive uptime failure alerts. Leave empty to skip the alert policy.
 alert_email = ""
+
+// Usage reconciliation token (BLOCKRUN_USAGE_SUMMARY_TOKEN) is wired into Cloud Run.
+// The secret value (newapi-blockrun-usage-summary-token) was added and the env was
+// injected on the live service on 2026-06-08, so the desired state must keep it on —
+// otherwise a future `terraform apply` would strip the env. Keep this true.
+enable_usage_recon_token = true

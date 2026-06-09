@@ -53,7 +53,10 @@ i18n
       escapeValue: false, // not needed for react as it escapes by default
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      // 'querystring' first so ?lng=ja / ?lng=pt from Google Ads landing URLs
+      // force the locale regardless of browser language; result cached to localStorage.
+      order: ['querystring', 'localStorage', 'navigator'],
+      lookupQuerystring: 'lng',
       caches: ['localStorage'],
     },
   })

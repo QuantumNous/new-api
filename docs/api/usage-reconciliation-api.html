@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BlockRun 渠道用量对账 API · 使用文档</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #6ea8fe;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --code-bg: #0c0e13;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.7; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #141822, #0f1115);
+    padding: 48px 0 36px;
+  }
+  header.hero .wrap { padding-bottom: 0; }
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 12px;
+    color: var(--accent); border: 1px solid #2d3d5e; background: #14213a;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 14px;
+  }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0; max-width: 70ch; }
+  h2 {
+    font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 16px; margin: 28px 0 10px; color: #cdd4e0; }
+  h4 { font-size: 14px; margin: 18px 0 8px; color: #b6bdca; }
+  p { margin: 10px 0; }
+  code {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: #d9e0ec;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 14px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: #cfe3ff; }
+  .method {
+    font-family: var(--mono); font-weight: 700; font-size: 12px;
+    padding: 2px 8px; border-radius: 5px; margin-right: 8px; vertical-align: middle;
+  }
+  .post { background: #14321f; color: var(--green); border: 1px solid #1f5234; }
+  .get  { background: #102a3f; color: var(--accent); border: 1px solid #1d4368; }
+  .path { font-family: var(--mono); font-size: 14px; color: #e6e9ef; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: #cdd4e0; font-weight: 600; }
+  td code { white-space: nowrap; }
+  .req { color: var(--red); font-weight: 700; }
+  .opt { color: var(--muted); }
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel);
+  }
+  .callout.info { border-left-color: var(--accent); }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout.ok   { border-left-color: var(--green); }
+  .callout p:first-child { margin-top: 0; } .callout p:last-child { margin-bottom: 0; }
+  .pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .s-ok   { color: var(--green); }
+  .s-err  { color: var(--red); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin: 24px 0; }
+  .toc ul { margin: 6px 0; padding-left: 20px; columns: 2; }
+  .toc li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  footer { border-top: 1px solid var(--border); margin-top: 64px; padding-top: 20px; color: var(--muted); font-size: 13px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">用量对账 API</span>
+    <h1>BlockRun 渠道用量对账 API</h1>
+    <p class="sub">按时间窗拉取 BlockRun 系渠道下各模型 / 各 API Key 的 token 消耗与折后成本，用于对账。提供两个只读接口：<code>/usage/summary</code>（聚合汇总）与 <code>/usage/transactions</code>（逐条明细，分页）。</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="toc">
+    <strong>目录</strong>
+    <ul>
+      <li><a href="#overview">1. 概览</a></li>
+      <li><a href="#auth">2. 认证</a></li>
+      <li><a href="#endpoints">3. 接口一览</a></li>
+      <li><a href="#common">4. 公共参数（时间窗）</a></li>
+      <li><a href="#summary">5. 用量汇总</a></li>
+      <li><a href="#transactions">6. 用量明细（分页）</a></li>
+      <li><a href="#fields">7. 字段语义与计费口径</a></li>
+      <li><a href="#errors">8. 错误与限流</a></li>
+      <li><a href="#example">9. 完整示例</a></li>
+    </ul>
+  </div>
+
+  <h2 id="overview">1. 概览</h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>用途</td><td>BlockRun 系渠道（渠道类型名前缀 <code>blockrun</code>，大小写不敏感）消耗对账</td></tr>
+    <tr><td>接口</td><td><code>GET /usage/summary</code>（聚合）、<code>GET /usage/transactions</code>（明细，分页）</td></tr>
+    <tr><td>口径</td><td>仅统计成功计费日志（消耗类）；token 含输入 / 输出 / 缓存读 / 缓存写；成本为<strong>折后实收</strong></td></tr>
+    <tr><td>币种</td><td>恒为 <code>USD</code>；金额为定点 10 位小数的<strong>字符串</strong></td></tr>
+    <tr><td>时间</td><td>入参 <code>start</code> / <code>end</code> 为 RFC3339（UTC）；区间 <code>end &gt; start</code> 且 <strong>≤ 31 天</strong></td></tr>
+    <tr><td>幂等</td><td>纯只读 <code>GET</code>，可安全重试</td></tr>
+  </table>
+  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://router.flatkey.ai</code>。</p>
+
+  <h2 id="auth">2. 认证</h2>
+  <p>两个接口都需在请求头携带<strong>静态共享令牌</strong>（与上游账户无关，仅鉴权、不区分用户）：</p>
+  <pre><code>Authorization: Bearer &lt;token&gt;</code></pre>
+  <div class="callout info">
+    <p>只接受 <code>Authorization: Bearer</code> 形式（<strong>不支持</strong> <code>?token=</code> 查询参数或自定义请求头）。<code>Bearer</code> 方案名大小写不敏感。令牌由服务方通过安全渠道下发。</p>
+  </div>
+  <div class="callout warn">
+    <p>令牌缺失或错误 → <code>401</code>；服务端未配置令牌 → <code>503</code>。请妥善保管令牌，勿写入前端代码 / 公开仓库。</p>
+  </div>
+
+  <h2 id="endpoints">3. 接口一览</h2>
+  <table>
+    <tr><th>方法 &amp; 路径</th><th>说明</th><th>鉴权</th></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/usage/summary</span></td><td>时间窗内的聚合用量（总计 + 按模型 + 按 API Key）</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/usage/transactions</span></td><td>时间窗内的逐条用量明细（分页）</td><td>Bearer</td></tr>
+  </table>
+
+  <h2 id="common">4. 公共参数（时间窗）</h2>
+  <p>两个接口共用以下查询参数：</p>
+  <table>
+    <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>start</code></td><td>string</td><td class="req">必填</td><td>起始时间，RFC3339（UTC），如 <code>2026-06-01T00:00:00Z</code>。<strong>含</strong>该时刻</td></tr>
+    <tr><td><code>end</code></td><td>string</td><td class="req">必填</td><td>结束时间，RFC3339（UTC）。<strong>不含</strong>该时刻；须 <code>end &gt; start</code></td></tr>
+  </table>
+  <div class="callout warn">
+    <p>区间长度 <code>end - start</code> 须 <strong>≤ 31 天</strong>，否则返回 <code>400</code>。需要更长周期请分段拉取。</p>
+  </div>
+
+  <h2 id="summary">5. 用量汇总</h2>
+  <p><span class="method get">GET</span><span class="path">{BASE}/usage/summary</span></p>
+  <p>返回该时间窗内 BlockRun 系渠道的<strong>聚合</strong>用量：总计 <code>totals</code>、按模型 <code>by_model</code>、按 API Key <code>by_api_key</code>。三处都使用同一套指标对象（见下）。</p>
+
+  <h3>请求示例</h3>
+  <pre><code>curl -G "{BASE}/usage/summary" \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  --data-urlencode "start=2026-06-01T00:00:00Z" \
+  --data-urlencode "end=2026-06-08T00:00:00Z"</code></pre>
+
+  <h3>响应字段</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>provider</code></td><td>string</td><td>固定 <code>"flatkey-newapi"</code></td></tr>
+    <tr><td><code>period</code></td><td>object</td><td><code>{ start, end, timezone }</code>，回显查询窗口，<code>timezone</code> 恒为 <code>"UTC"</code></td></tr>
+    <tr><td><code>totals</code></td><td>object（指标）</td><td>全窗口总计，见「指标对象」</td></tr>
+    <tr><td><code>by_api_key</code></td><td>array</td><td>按 API Key 拆分；每项 = <code>api_key_id</code> + <code>api_key_name</code> + 指标对象；按 <code>requests</code> 降序</td></tr>
+    <tr><td><code>by_model</code></td><td>array</td><td>按模型拆分；每项 = <code>model</code> + 指标对象；按 <code>requests</code> 降序</td></tr>
+    <tr><td><code>generated_at</code></td><td>string</td><td>响应生成时刻，RFC3339（UTC）</td></tr>
+  </table>
+
+  <h4>指标对象（<code>totals</code> / <code>by_model[]</code> / <code>by_api_key[]</code> 共用）</h4>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>requests</code></td><td>int</td><td>请求数（计费日志条数）</td></tr>
+    <tr><td><code>input_tokens</code></td><td>int</td><td>输入 token</td></tr>
+    <tr><td><code>output_tokens</code></td><td>int</td><td>输出 token</td></tr>
+    <tr><td><code>cache_read_tokens</code></td><td>int</td><td>缓存读 token</td></tr>
+    <tr><td><code>cache_creation_tokens</code></td><td>int</td><td>缓存写 token（含 5m/1h 合计）</td></tr>
+    <tr><td><code>total_tokens</code></td><td>int</td><td>= input + output + cache_read + cache_creation</td></tr>
+    <tr><td><code>actual_cost</code></td><td>string</td><td>折后实收成本（USD），定点 10 位小数。详见第 7 节</td></tr>
+    <tr><td><code>currency</code></td><td>string</td><td>恒为 <code>"USD"</code></td></tr>
+  </table>
+
+  <h3>响应示例</h3>
+  <pre><code>{
+  "provider": "flatkey-newapi",
+  "period": { "start": "2026-06-01T00:00:00Z", "end": "2026-06-08T00:00:00Z", "timezone": "UTC" },
+  "totals": {
+    "requests": 128430,
+    "input_tokens": 38209114,
+    "output_tokens": 1043992,
+    "cache_read_tokens": 9120350,
+    "cache_creation_tokens": 0,
+    "total_tokens": 48373456,
+    "actual_cost": "612.4031500000",
+    "currency": "USD"
+  },
+  "by_api_key": [
+    {
+      "api_key_id": "41",
+      "api_key_name": "prod-openai",
+      "requests": 90211,
+      "input_tokens": 27110430,
+      "output_tokens": 701233,
+      "cache_read_tokens": 6500120,
+      "cache_creation_tokens": 0,
+      "total_tokens": 34311783,
+      "actual_cost": "441.2087600000",
+      "currency": "USD"
+    }
+  ],
+  "by_model": [
+    {
+      "model": "gpt-4o",
+      "requests": 90211,
+      "input_tokens": 27110430,
+      "output_tokens": 701233,
+      "cache_read_tokens": 6500120,
+      "cache_creation_tokens": 0,
+      "total_tokens": 34311783,
+      "actual_cost": "441.2087600000",
+      "currency": "USD"
+    },
+    {
+      "model": "claude-haiku-4-5",
+      "requests": 38219,
+      "input_tokens": 11098684,
+      "output_tokens": 342759,
+      "cache_read_tokens": 2620230,
+      "cache_creation_tokens": 0,
+      "total_tokens": 14061673,
+      "actual_cost": "171.1943900000",
+      "currency": "USD"
+    }
+  ],
+  "generated_at": "2026-06-08T10:15:03Z"
+}</code></pre>
+  <div class="callout info">
+    <p><strong>对账校验：</strong><code>sum(by_model[].requests) == totals.requests</code>，<code>sum(by_api_key[].requests) == totals.requests</code>，各 token 字段同理；<code>sum(by_model[].actual_cost) ≈ totals.actual_cost</code>（10 位小数内一致）。</p>
+  </div>
+
+  <h2 id="transactions">6. 用量明细（分页）</h2>
+  <p><span class="method get">GET</span><span class="path">{BASE}/usage/transactions</span></p>
+  <p>返回时间窗内的<strong>逐条</strong>用量明细，按 <code>created_at, id</code> 升序，分页返回。</p>
+
+  <h3>额外参数</h3>
+  <table>
+    <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>page</code></td><td>int</td><td class="opt">可选</td><td>页码，从 <code>1</code> 起；默认 <code>1</code>。非法值回落为默认</td></tr>
+    <tr><td><code>page_size</code></td><td>int</td><td class="opt">可选</td><td>每页条数，默认 <code>100</code>，<strong>上限 500</strong>（超出按 500 处理）</td></tr>
+  </table>
+  <p class="muted">外加第 4 节的 <code>start</code> / <code>end</code>。</p>
+
+  <h3>请求示例</h3>
+  <pre><code>curl -G "{BASE}/usage/transactions" \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  --data-urlencode "start=2026-06-08T00:00:00Z" \
+  --data-urlencode "end=2026-06-08T01:00:00Z" \
+  --data-urlencode "page=1" \
+  --data-urlencode "page_size=100"</code></pre>
+
+  <h3>响应字段</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>transactions</code></td><td>array</td><td>本页明细，见「明细元素」</td></tr>
+    <tr><td><code>pagination</code></td><td>object</td><td><code>{ page, page_size, total_pages, total_count, has_more }</code></td></tr>
+    <tr><td><code>generated_at</code></td><td>string</td><td>响应生成时刻，RFC3339（UTC）</td></tr>
+  </table>
+
+  <h4>明细元素 <code>transactions[]</code></h4>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>transaction_id</code></td><td>string</td><td>明细 ID，<code>"txn_" + 日志 id</code></td></tr>
+    <tr><td><code>request_id</code></td><td>string</td><td>请求 ID</td></tr>
+    <tr><td><code>api_key_id</code></td><td>string</td><td>API Key ID</td></tr>
+    <tr><td><code>api_key_name</code></td><td>string</td><td>API Key 名称</td></tr>
+    <tr><td><code>model</code></td><td>string</td><td>实际上游模型名（缺省时同 <code>requested_model</code>）</td></tr>
+    <tr><td><code>requested_model</code></td><td>string</td><td>客户端请求的模型名</td></tr>
+    <tr><td><code>created_at</code></td><td>string</td><td>发生时刻，毫秒 UTC（<code>...000Z</code>）</td></tr>
+    <tr><td><code>input_tokens</code></td><td>int</td><td>输入 token</td></tr>
+    <tr><td><code>output_tokens</code></td><td>int</td><td>输出 token</td></tr>
+    <tr><td><code>cache_read_tokens</code></td><td>int</td><td>缓存读 token</td></tr>
+    <tr><td><code>cache_creation_tokens</code></td><td>int</td><td>缓存写 token</td></tr>
+    <tr><td><code>total_tokens</code></td><td>int</td><td>= input + output + cache_read + cache_creation</td></tr>
+    <tr><td><code>actual_cost</code></td><td>string</td><td>折后实收成本（USD），定点 10 位小数</td></tr>
+    <tr><td><code>currency</code></td><td>string</td><td>恒为 <code>"USD"</code></td></tr>
+    <tr><td><code>status</code></td><td>string</td><td><code>"success"</code> 或 <code>"error"</code></td></tr>
+    <tr><td><code>duration_ms</code></td><td>int</td><td>处理耗时（毫秒，秒级精度）</td></tr>
+    <tr><td><code>metadata</code></td><td>object</td><td><code>{ channel_id, channel_name }</code>（渠道维度）</td></tr>
+  </table>
+
+  <h4>分页对象 <code>pagination</code></h4>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>page</code></td><td>int</td><td>当前页码</td></tr>
+    <tr><td><code>page_size</code></td><td>int</td><td>每页条数（已应用 500 上限）</td></tr>
+    <tr><td><code>total_pages</code></td><td>int</td><td>= ceil(total_count / page_size)</td></tr>
+    <tr><td><code>total_count</code></td><td>int</td><td>命中总条数</td></tr>
+    <tr><td><code>has_more</code></td><td>bool</td><td>是否还有下一页</td></tr>
+  </table>
+
+  <h3>响应示例</h3>
+  <pre><code>{
+  "transactions": [
+    {
+      "transaction_id": "txn_1062313",
+      "request_id": "20260608090006a1b2c3d4",
+      "api_key_id": "41",
+      "api_key_name": "prod-openai",
+      "model": "gpt-4o",
+      "requested_model": "gpt-4o-br",
+      "created_at": "2026-06-08T09:00:10.000Z",
+      "input_tokens": 1404,
+      "output_tokens": 90,
+      "cache_read_tokens": 0,
+      "cache_creation_tokens": 0,
+      "total_tokens": 1494,
+      "actual_cost": "0.0298800000",
+      "currency": "USD",
+      "status": "success",
+      "duration_ms": 3000,
+      "metadata": { "channel_id": 35, "channel_name": "blockRun-openai" }
+    }
+  ],
+  "pagination": { "page": 1, "page_size": 100, "total_pages": 1285, "total_count": 128430, "has_more": true },
+  "generated_at": "2026-06-08T10:15:05Z"
+}</code></pre>
+  <div class="callout info">
+    <p>遍历全部明细：从 <code>page=1</code> 起，<code>has_more == true</code> 则取下一页，直到 <code>false</code>。同一时间窗内 <code>total_count</code> / <code>total_pages</code> 稳定。</p>
+  </div>
+
+  <h2 id="fields">7. 字段语义与计费口径</h2>
+  <table>
+    <tr><th>主题</th><th>说明</th></tr>
+    <tr><td><code>actual_cost</code></td><td><strong>折后实收</strong>成本（USD），= 内部额度 Quota / 500000，定点 10 位小数字符串。按字符串解析为十进制再求和，避免浮点误差</td></tr>
+    <tr><td>无 <code>total_cost</code></td><td>响应<strong>不包含</strong> <code>total_cost</code>（折前官价）字段 —— 该口径此处无法取得，刻意不返回、也不以实收值伪充</td></tr>
+    <tr><td>缓存 token</td><td><code>cache_read_tokens</code> = 缓存命中读取；<code>cache_creation_tokens</code> = 写入缓存（含 5m / 1h 合计）</td></tr>
+    <tr><td><code>model</code> vs <code>requested_model</code></td><td><code>requested_model</code> 为客户端请求名；<code>model</code> 为实际上游模型名，二者可能不同（如别名 / 路由）</td></tr>
+    <tr><td><code>status</code></td><td><code>success</code> 为默认；流式响应标记为错误时为 <code>error</code></td></tr>
+    <tr><td><code>duration_ms</code></td><td>处理耗时，毫秒；源为秒级，故为 1000 的整数倍</td></tr>
+    <tr><td><code>created_at</code></td><td>明细时间为毫秒 UTC（<code>...000Z</code>）；<code>period</code> / <code>generated_at</code> 为秒级 RFC3339</td></tr>
+    <tr><td><code>metadata</code></td><td>仅含 <code>channel_id</code> / <code>channel_name</code>（渠道维度），不暴露上游主机、内部链路等信息</td></tr>
+    <tr><td>数据范围</td><td>仅统计 BlockRun 系渠道的消耗类计费日志；汇总不做渠道维度拆分（渠道信息见明细的 <code>metadata</code>）</td></tr>
+    <tr><td>排序</td><td><code>by_model</code> / <code>by_api_key</code> 按 <code>requests</code> 降序；<code>transactions</code> 按 <code>created_at, id</code> 升序</td></tr>
+  </table>
+
+  <h2 id="errors">8. 错误与限流</h2>
+  <p>错误响应体为简单 JSON：</p>
+  <pre><code>{ "error": "..." }</code></pre>
+  <table>
+    <tr><th>状态码</th><th>场景</th></tr>
+    <tr><td><code>400</code></td><td><code>start</code> / <code>end</code> 缺失或非 RFC3339；<code>end ≤ start</code>；区间 &gt; 31 天</td></tr>
+    <tr><td><code>401</code></td><td>缺少 / 错误的 <code>Authorization: Bearer</code> 令牌</td></tr>
+    <tr><td><code>429</code></td><td>触发限流（按客户端 IP）。降低频率后重试</td></tr>
+    <tr><td><code>503</code></td><td>服务端未配置令牌（运维未就绪）</td></tr>
+  </table>
+  <div class="callout info">
+    <p><code>page</code> / <code>page_size</code> 的非法值不会报错：会回落为默认（<code>page=1</code>、<code>page_size=100</code>），<code>page_size</code> 超过 500 按 500 处理。</p>
+  </div>
+
+  <h2 id="example">9. 完整示例（汇总 + 遍历明细）</h2>
+  <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+BASE="https://router.flatkey.ai"
+TOKEN="&lt;token&gt;"
+START="2026-06-01T00:00:00Z"
+END="2026-06-08T00:00:00Z"
+
+# 1) 汇总
+curl -sS -G "$BASE/usage/summary" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode "start=$START" \
+  --data-urlencode "end=$END" | jq .
+
+# 2) 遍历全部明细（按 has_more 翻页）
+page=1
+while :; do
+  resp=$(curl -sS -G "$BASE/usage/transactions" \
+    -H "Authorization: Bearer $TOKEN" \
+    --data-urlencode "start=$START" \
+    --data-urlencode "end=$END" \
+    --data-urlencode "page=$page" \
+    --data-urlencode "page_size=500")
+  echo "$resp" | jq -c '.transactions[]'
+  more=$(echo "$resp" | jq -r '.pagination.has_more')
+  [ "$more" = "true" ] || break
+  page=$((page + 1))
+done</code></pre>
+
+  <footer>
+    BlockRun 渠道用量对账 API · 接口使用文档。金额为折后实收（USD），区间 ≤ 31 天，仅 BlockRun 系渠道。
+  </footer>
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # relay/common
 
@@ -15,9 +15,10 @@ relay/common 是贯穿整个 relay 子系统的共享基础层，提供请求上
 | `relay_utils.go` | 工具函数：`GetFullRequestURL`（处理 Cloudflare Gateway URL 前缀）；`GetAPIVersion`；任务请求验证（`ValidateBasicTaskRequest`、`ValidateMultipartDirect`）；`GetTaskRequest` / `storeTaskRequest`；请求字段过滤（`RemoveDisabledFields`、`RemoveGeminiDisabledFields`） |
 | `relay_info_test.go` | `RelayInfo` 相关单元测试 |
 | `billing.go` | `BillingSettler` 接口定义（`Settle` / `Refund` / `NeedsRefund` / `GetPreConsumedQuota` / `Reserve`），由 `service.BillingSession` 实现，存储在 `RelayInfo.Billing` 避免循环引用 |
+| `outbound_body.go` | `NewOutboundJSONBody(data []byte)`：将已序列化的上游请求体封装为 `BodyStorage`；当 payload 超阈值时落盘临时文件降低堆内存压力，调用方需 defer `closer.Close()`；返回的 `size` 应设置到 `http.Request.ContentLength` |
 | `override.go` | 参数覆盖（param override）逻辑 |
 | `override_test.go` | 参数覆盖单元测试 |
-| `request_conversion.go` | 请求格式转换链辅助（`RequestConversionChain` 管理） |
+| `request_conversion.go` | 请求格式转换链辅助：`GuessRelayFormatFromRequest`（从请求体推断 RelayFormat）、`AppendRequestConversionFromRequest`（追加转换链节点），供 `RelayInfo.InitRequestConversionChain` / `AppendRequestConversion` 的工厂路径调用 |
 | `stream_status.go` | `StreamStatus` 结构体：流式处理的终止原因（`StreamEndReason`）、错误收集（`StreamErrorEntry`）、线程安全的状态记录 |
 | `stream_status_test.go` | StreamStatus 单元测试 |
 

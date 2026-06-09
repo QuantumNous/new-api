@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # setting/perf_metrics_setting
 
@@ -13,14 +13,14 @@
 
 | File | Description |
 |------|-------------|
-| `config.go` | `PerfMetricsSetting` 结构体、默认值、`GlobalConfig` 注册、桶时间秒数和刷新间隔 getter |
+| `config.go` | `PerfMetricsSetting` 结构体、默认值（`Enabled=true`、`FlushInterval=5`、`BucketTime="hour"`、`RetentionDays=0`）、`GlobalConfig` 注册、`GetSetting()`、`GetBucketSeconds()`、`GetFlushIntervalMinutes()` |
 
 ## For AI Agents
 
 ### Working In This Directory
 
 - 注册键为 `perf_metrics_setting`，DB 键如 `perf_metrics_setting.enabled`。
-- `BucketTime` 取值：`"minute"`（60s）、`"5min"`（300s）、`"hour"`（3600s，默认）；`GetBucketSeconds()` 将字符串转换为秒数整型。
+- `BucketTime` 取值：`"minute"`（60s）、`"5min"`（300s）、`"hour"`（3600s，默认）；`GetBucketSeconds()` 返回 `int64`，将字符串转换为对应秒数，未知值也默认 3600。
 - `FlushInterval` 单位为分钟，`GetFlushIntervalMinutes()` 保证最小值为 1。
 - `RetentionDays` 为 0 表示永久保留。
 - 修改时间桶逻辑须同步更新指标写入层的聚合 SQL。
@@ -35,7 +35,7 @@
 ```go
 cfg := perf_metrics_setting.GetSetting()
 if cfg.Enabled {
-    bucket := perf_metrics_setting.GetBucketSeconds()  // e.g. 3600
+    bucket := perf_metrics_setting.GetBucketSeconds()       // int64, e.g. 3600
     interval := perf_metrics_setting.GetFlushIntervalMinutes() // e.g. 5
 }
 ```

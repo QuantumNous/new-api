@@ -208,7 +208,7 @@ export default function SettingGlobalModel(props) {
             <Row>
               <Col span={24}>
                 <Form.TextArea
-                  label={t('禁用思考处理的模型列表')}
+                  label={t('不自动处理思考后缀的模型列表')}
                   field={'global.thinking_model_blacklist'}
                   placeholder={t('例如：') + '\n' + thinkingExample}
                   rows={4}

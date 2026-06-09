@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # relay/helper
 
@@ -22,6 +22,7 @@ relay/helper 是 relay 层的工具函数库，提供三类能力：
 | `stream_result.go` | `StreamResult`：单次 SSE 块回调的结果对象，提供 `Error`（软错误）、`Stop`（致命停止）、`Done`（正常结束）、`IsStopped` 方法 |
 | `stream_scanner.go` | `StreamScannerHandler`：统一的 SSE 扫描循环，接收 `dataHandler` 回调逐行处理；`StreamScanner`：基于 `bufio.Scanner` 的行读取器 |
 | `stream_scanner_test.go` | 流扫描器单元测试 |
+| `price_test.go` | `ModelPriceHelper` 阶梯计费单元测试（`TestModelPriceHelperTieredUsesPreloadedRequestInput`） |
 | `valid_request.go` | 请求合法性校验辅助 |
 | `model_mapped.go` | 模型名称映射辅助 |
 
@@ -34,7 +35,7 @@ relay/helper 是 relay 层的工具函数库，提供三类能力：
 ### Working In This Directory
 
 - **Rule 1**：`common.go` 中 `ObjectData` 和 `ClaudeData` 均通过 `common.Marshal` 序列化，新增写出函数保持一致。
-- **Rule 7**：修改 `price.go` 中阶梯计费逻辑前，必须先读取 `pkg/billingexpr/expr.md`（`CLAUDE.md` Rule 7）。
+- **Rule 6**：修改 `price.go` 中阶梯计费逻辑前，必须先读取 `pkg/billingexpr/expr.md`（`CLAUDE.md` Rule 6）。
 - `ModelPriceHelper` 和 `ModelPriceHelperPerCall` 会修改 `info.PriceData`，调用后不要再手动覆盖该字段。
 - `SetEventStreamHeaders` 是幂等的（通过 `event_stream_headers_set` context key 防重复），SSE handler 中只需调用一次，无需手动判断。
 - `FlushWriter` 内置 panic recover，调用方无需额外处理 flush panic。
@@ -47,7 +48,7 @@ relay/helper 是 relay 层的工具函数库，提供三类能力：
 ### Common Patterns
 
 - **SSE 写出模式**：`SetEventStreamHeaders(c)` → 循环调用 `StringData(c, chunk)` → `Done(c)`。
-- **流扫描模式**：`StreamScannerHandler(c, resp.Body, info, func(data []byte, result *StreamResult) { ... })` — 回调中用 `result.Error(err)` 记录软错误，`result.Stop(err)` 终止扫描，`result.Done()` 标记正常结束。
+- **流扫描模式**：`StreamScannerHandler(c, resp, info, func(data string, result *StreamResult) { ... })` — 第二参数为 `*http.Response`（非 `resp.Body`），回调接收已去除 `data: ` 前缀的行字符串；用 `result.Error(err)` 记录软错误，`result.Stop(err)` 终止扫描，`result.Done()` 标记正常结束。
 - **计费调用顺序**：在 handler 开始时调用 `ModelPriceHelper` 预扣 → 请求完成后由 `BillingSettler.Settle(actualQuota)` 结算，出错时 `BillingSettler.Refund(c)` 退款。
 - **WebSocket 写出**：`WssObject(c, ws, obj)` 序列化并写出，`WssError(c, ws, openaiError)` 写出标准 error 事件格式。
 

@@ -42,14 +42,6 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Combobox } from '@/components/ui/combobox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -60,6 +52,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Dialog } from '@/components/dialog'
 import { safeJsonParse } from '../utils/json-parser'
 
 type GroupRatioVisualEditorProps = {
@@ -783,25 +776,15 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       />
 
       {/* Auto Group Dialog */}
-      <Dialog open={autoGroupDialogOpen} onOpenChange={setAutoGroupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Add auto group')}</DialogTitle>
-            <DialogDescription>
-              {t('Add a group identifier to the auto assignment list.')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4 py-4'>
-            <div className='space-y-2'>
-              <Label>{t('Group identifier')}</Label>
-              <Input
-                value={autoGroupInput}
-                onChange={(e) => setAutoGroupInput(e.target.value)}
-                placeholder={t('default')}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+      <Dialog
+        open={autoGroupDialogOpen}
+        onOpenChange={setAutoGroupDialogOpen}
+        title={t('Add auto group')}
+        description={t('Add a group identifier to the auto assignment list.')}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => setAutoGroupDialogOpen(false)}
@@ -809,34 +792,33 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               {t('Cancel')}
             </Button>
             <Button onClick={handleAutoGroupSave}>{t('Add')}</Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('Group identifier')}</Label>
+            <Input
+              value={autoGroupInput}
+              onChange={(e) => setAutoGroupInput(e.target.value)}
+              placeholder={t('default')}
+            />
+          </div>
+        </div>
       </Dialog>
 
       {/* User Group Dialog */}
-      <Dialog open={userGroupDialogOpen} onOpenChange={setUserGroupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Add user group')}</DialogTitle>
-            <DialogDescription>
-              {t('Select an existing user group to configure ratio overrides.')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4 py-4'>
-            <div className='space-y-2'>
-              <Label>{t('User group name')}</Label>
-              <Combobox
-                options={availableUserGroupOptions}
-                value={userGroupInput}
-                onValueChange={(value) => setUserGroupInput(value ?? '')}
-                placeholder={t('Select a group')}
-                emptyText={t('No available user groups')}
-                allowCustomValue={false}
-                openOnFocus={false}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+      <Dialog
+        open={userGroupDialogOpen}
+        onOpenChange={setUserGroupDialogOpen}
+        title={t('Add user group')}
+        description={t(
+          'Select an existing user group to configure ratio overrides.'
+        )}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => setUserGroupDialogOpen(false)}
@@ -852,8 +834,23 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
             >
               {t('Add')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('User group name')}</Label>
+            <Combobox
+              options={availableUserGroupOptions}
+              value={userGroupInput}
+              onValueChange={(value) => setUserGroupInput(value ?? '')}
+              placeholder={t('Select a group')}
+              emptyText={t('No available user groups')}
+              allowCustomValue={false}
+              openOnFocus={false}
+            />
+          </div>
+        </div>
       </Dialog>
 
       {/* Group Override Dialog */}
@@ -1159,76 +1156,77 @@ function SimpleGroupDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {editData
-              ? t('Edit {{title}}', { title })
-              : t('Add {{title}}', { title })}
-          </DialogTitle>
-          <DialogDescription>
-            {t('Configure the ratio for this group.')}
-          </DialogDescription>
-        </DialogHeader>
-        <form ref={formRef} onSubmit={handleSubmit}>
-          <div className='space-y-4 py-4'>
-            <div className='space-y-2'>
-              <Label>{t('Group name')}</Label>
-              <Input
-                name='group-name'
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('default')}
-                disabled={!!editData}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>{t('Ratio')}</Label>
-              <Input
-                name='ratio'
-                value={value}
-                onChange={(e) => {
-                  const val = e.target.value
-                  if (val === '' || Number.isFinite(Number(val))) {
-                    setValue(val)
-                  }
-                }}
-                placeholder='1.0'
-              />
-              {trimmedValue !== '' && !isValidRatio(ratioValue) && (
-                <p className='text-destructive text-xs'>
-                  {t('Ratio must be a non-negative number.')}
-                </p>
-              )}
-            </div>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        editData
+          ? t('Edit {{title}}', { title })
+          : t('Add {{title}}', { title })
+      }
+      description={t('Configure the ratio for this group.')}
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+          >
+            {t('Cancel')}
+          </Button>
+          <button
+            type='button'
+            className={buttonVariants()}
+            onPointerDown={(event) => {
+              event.preventDefault()
+              handleSaveFromForm(formRef.current)
+            }}
+            onClick={(event) => {
+              if (event.detail !== 0) return
+              event.preventDefault()
+              handleSaveFromForm(formRef.current)
+            }}
+          >
+            {editData ? t('Update') : t('Add')}
+          </button>
+        </>
+      }
+    >
+      <form ref={formRef} onSubmit={handleSubmit}>
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('Group name')}</Label>
+            <Input
+              name='group-name'
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('default')}
+              disabled={!!editData}
+            />
           </div>
-          <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => onOpenChange(false)}
-            >
-              {t('Cancel')}
-            </Button>
-            <button
-              type='button'
-              className={buttonVariants()}
-              onPointerDown={(event) => {
-                event.preventDefault()
-                handleSaveFromForm(formRef.current)
+          <div className='space-y-2'>
+            <Label>{t('Ratio')}</Label>
+            <Input
+              name='ratio'
+              value={value}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === '' || Number.isFinite(Number(val))) {
+                  setValue(val)
+                }
               }}
-              onClick={(event) => {
-                if (event.detail !== 0) return
-                event.preventDefault()
-                handleSaveFromForm(formRef.current)
-              }}
-            >
-              {editData ? t('Update') : t('Add')}
-            </button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+              placeholder='1.0'
+            />
+            {trimmedValue !== '' && !isValidRatio(ratioValue) && (
+              <p className='text-destructive text-xs'>
+                {t('Ratio must be a non-negative number.')}
+              </p>
+            )}
+          </div>
+        </div>
+      </form>
     </Dialog>
   )
 }
@@ -1306,82 +1304,83 @@ function GroupOverrideDialog({
     (editData !== null || !existingTargetGroups.includes(targetGroup.trim()))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {editData ? t('Edit ratio override') : t('Add ratio override')}
-          </DialogTitle>
-          <DialogDescription>
-            {userGroup
-              ? t(
-                  'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
-                  { userGroup }
-                )
-              : t(
-                  'Configure a custom ratio for when users use a specific token group.'
-                )}
-          </DialogDescription>
-        </DialogHeader>
-        <div className='space-y-4 py-4'>
-          <div className='space-y-2'>
-            <Label>{t('Target group')}</Label>
-            {editData ? (
-              <Input value={targetGroup} disabled />
-            ) : (
-              <Combobox
-                options={availableTargetGroupOptions}
-                value={targetGroup}
-                onValueChange={(value) => setTargetGroup(value ?? '')}
-                placeholder={t('Select a group')}
-                emptyText={t('No available target groups')}
-                allowCustomValue={false}
-                openOnFocus={false}
-              />
-            )}
-            <p className='text-muted-foreground text-xs'>
-              {t('The token group that will have a custom ratio')}
-            </p>
-            {editData && !targetGroupSet.has(targetGroup.trim()) && (
-              <p className='text-destructive text-xs'>
-                {t('Target group must exist in pricing groups.')}
-              </p>
-            )}
-          </div>
-          <div className='space-y-2'>
-            <Label>{t('Ratio')}</Label>
-            <Input
-              value={ratio}
-              onChange={(e) => {
-                const val = e.target.value
-                if (val === '' || Number.isFinite(Number(val))) {
-                  setRatio(val)
-                }
-              }}
-              placeholder='0.9'
-            />
-            {ratio.trim() !== '' && !isValidRatio(ratioValue) && (
-              <p className='text-destructive text-xs'>
-                {t('Ratio must be a non-negative number.')}
-              </p>
-            )}
-            <p className='text-muted-foreground text-xs'>
-              {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
-                userGroup: userGroup || t('this user group'),
-                targetGroup: targetGroup || t('this token group'),
-              })}
-            </p>
-          </div>
-        </div>
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editData ? t('Edit ratio override') : t('Add ratio override')}
+      description={
+        userGroup
+          ? t(
+              'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
+              { userGroup }
+            )
+          : t(
+              'Configure a custom ratio for when users use a specific token group.'
+            )
+      }
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
           <Button onClick={handleSave} disabled={!canSave}>
             {editData ? t('Update') : t('Add')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-4 py-4'>
+        <div className='space-y-2'>
+          <Label>{t('Target group')}</Label>
+          {editData ? (
+            <Input value={targetGroup} disabled />
+          ) : (
+            <Combobox
+              options={availableTargetGroupOptions}
+              value={targetGroup}
+              onValueChange={(value) => setTargetGroup(value ?? '')}
+              placeholder={t('Select a group')}
+              emptyText={t('No available target groups')}
+              allowCustomValue={false}
+              openOnFocus={false}
+            />
+          )}
+          <p className='text-muted-foreground text-xs'>
+            {t('The token group that will have a custom ratio')}
+          </p>
+          {editData && !targetGroupSet.has(targetGroup.trim()) && (
+            <p className='text-destructive text-xs'>
+              {t('Target group must exist in pricing groups.')}
+            </p>
+          )}
+        </div>
+        <div className='space-y-2'>
+          <Label>{t('Ratio')}</Label>
+          <Input
+            value={ratio}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val === '' || Number.isFinite(Number(val))) {
+                setRatio(val)
+              }
+            }}
+            placeholder='0.9'
+          />
+          {ratio.trim() !== '' && !isValidRatio(ratioValue) && (
+            <p className='text-destructive text-xs'>
+              {t('Ratio must be a non-negative number.')}
+            </p>
+          )}
+          <p className='text-muted-foreground text-xs'>
+            {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
+              userGroup: userGroup || t('this user group'),
+              targetGroup: targetGroup || t('this token group'),
+            })}
+          </p>
+        </div>
+      </div>
     </Dialog>
   )
 }

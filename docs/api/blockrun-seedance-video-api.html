@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Seedance 视频生成 API · 使用文档</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #6ea8fe;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --code-bg: #0c0e13;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.7; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #141822, #0f1115);
+    padding: 48px 0 36px;
+  }
+  header.hero .wrap { padding-bottom: 0; }
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 12px;
+    color: var(--accent); border: 1px solid #2d3d5e; background: #14213a;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 14px;
+  }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0; max-width: 70ch; }
+  h2 {
+    font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 16px; margin: 28px 0 10px; color: #cdd4e0; }
+  h4 { font-size: 14px; margin: 18px 0 8px; color: #b6bdca; }
+  p { margin: 10px 0; }
+  code {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: #d9e0ec;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 14px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: #cfe3ff; }
+  .method {
+    font-family: var(--mono); font-weight: 700; font-size: 12px;
+    padding: 2px 8px; border-radius: 5px; margin-right: 8px; vertical-align: middle;
+  }
+  .post { background: #14321f; color: var(--green); border: 1px solid #1f5234; }
+  .get  { background: #102a3f; color: var(--accent); border: 1px solid #1d4368; }
+  .path { font-family: var(--mono); font-size: 14px; color: #e6e9ef; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: #cdd4e0; font-weight: 600; }
+  td code { white-space: nowrap; }
+  .req { color: var(--red); font-weight: 700; }
+  .opt { color: var(--muted); }
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel);
+  }
+  .callout.info { border-left-color: var(--accent); }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout.ok   { border-left-color: var(--green); }
+  .callout.no   { border-left-color: var(--red); }
+  .callout p:first-child { margin-top: 0; } .callout p:last-child { margin-bottom: 0; }
+  .pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .s-queued { color: var(--muted); }
+  .s-prog   { color: var(--accent); }
+  .s-done   { color: var(--green); }
+  .s-fail   { color: var(--red); }
+  /* capability badges */
+  .b { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .b-ok { color: var(--green); background: #0f2a1a; border: 1px solid #1f5234; }
+  .b-no { color: var(--red);   background: #2a1414; border: 1px solid #5a2630; }
+  .b-ig { color: var(--amber); background: #2a2310; border: 1px solid #5a4a1f; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin: 24px 0; }
+  .toc ul { margin: 6px 0; padding-left: 20px; columns: 2; }
+  .toc li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  footer { border-top: 1px solid var(--border); margin-top: 64px; padding-top: 20px; color: var(--muted); font-size: 13px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">异步视频生成 API · 精简档</span>
+    <h1>Seedance 视频生成 API</h1>
+    <p class="sub">调用视频生成接口生成视频（文生 / 单图图生 / 角色一致）。请求体与主流 Seedance 视频 API 一致，采用「提交任务 → 轮询状态 → 取回视频」的异步模型；视频经本服务代理返回，可直接嵌入页面。<strong>本档对应的服务为精简能力档，部分高级参数与输入模式不可用——以下逐项标注。</strong></p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="toc">
+    <strong>目录</strong>
+    <ul>
+      <li><a href="#caps">1. 能力总览（支持 / 不支持）</a></li>
+      <li><a href="#overview">2. 概览</a></li>
+      <li><a href="#auth">3. 认证</a></li>
+      <li><a href="#endpoints">4. 接口一览</a></li>
+      <li><a href="#create">5. 创建视频任务</a></li>
+      <li><a href="#unsupported">6. 不可用参数与功能</a></li>
+      <li><a href="#poll">7. 查询任务状态</a></li>
+      <li><a href="#download">8. 获取视频</a></li>
+      <li><a href="#status">9. 状态值</a></li>
+      <li><a href="#errors">10. 错误</a></li>
+      <li><a href="#example">11. 完整示例</a></li>
+    </ul>
+  </div>
+
+  <h2 id="caps">1. 能力总览（支持 / 不支持）</h2>
+  <p>本服务在标准 Seedance <code>content[]</code> 协议基础上，仅开放下列能力。<strong>「不支持」项在提交时即报错（提前失败，不扣费）；「忽略」项可正常提交但参数不生效。</strong></p>
+  <table>
+    <tr><th>能力 / 参数</th><th>状态</th><th>说明</th></tr>
+    <tr><td>文生视频（text）</td><td><span class="b b-ok">✅ 支持</span></td><td>纯提示词生成</td></tr>
+    <tr><td>单图图生视频（<code>image_url</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>仅 <strong>1 张</strong>参考图（参考图模式）</td></tr>
+    <tr><td>角色 / 真人一致（<code>real_face_asset_id</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>透传已有 <code>ta_</code> 资产；仅 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>；与图片输入互斥</td></tr>
+    <tr><td>分辨率（<code>resolution</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td><code>360p</code> / <code>480p</code> / <code>540p</code> / <code>720p</code> / <code>1080p</code> / <code>1K</code> / <code>2K</code> / <code>4K</code></td></tr>
+    <tr><td>时长（<code>duration</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>秒；默认 5，最大 10；不传由模型决定</td></tr>
+    <tr><td>同步音频（<code>generate_audio</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>是否生成同步音频</td></tr>
+    <tr><td>画面比例（<code>aspect_ratio</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>客户端字段名 <code>ratio</code>，值 <code>adaptive</code> / <code>16:9</code> / <code>9:16</code> / <code>1:1</code> / <code>4:3</code> / <code>3:4</code> / <code>21:9</code> / <code>9:21</code></td></tr>
+    <tr><td>随机种子（<code>seed</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>固定种子可复现结果</td></tr>
+    <tr><td>水印（<code>watermark</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>是否添加水印</td></tr>
+    <tr><td>返回尾帧（<code>return_last_frame</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>返回尾帧静帧</td></tr>
+    <tr><td>首帧 / 尾帧（<code>first_frame</code> / <code>last_frame</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错</td></tr>
+    <tr><td>多张参考图（&gt; 1）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错（仅允许单图）</td></tr>
+    <tr><td>参考视频（<code>video_url</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错</td></tr>
+    <tr><td>参考音频（<code>audio_url</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错</td></tr>
+    <tr><td>角色 / 真人<strong>登记</strong>（生成 <code>ta_</code> 资产）</td><td><span class="b b-no">❌ 暂不提供</span></td><td>本服务不含登记接口；<code>ta_</code> 资产需线下预先获取后透传</td></tr>
+    <tr><td>画质超分（<code>super_resolution_config</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>不生效，亦无独立超分子任务</td></tr>
+    <tr><td>联网增强（<code>web_search</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>—</td></tr>
+    <tr><td><code>camera_fixed</code> / <code>frames</code> / <code>callback_url</code> / <code>input_type</code></td><td><span class="b b-ig">⚠️ 忽略</span></td><td>为兼容而接受，但传入不生效</td></tr>
+    <tr><td>token 用量（<code>usage</code>）</td><td><span class="b b-no">❌ 不返回</span></td><td>本服务按次计费，结果中<strong>不含</strong> <code>usage</code> 字段</td></tr>
+  </table>
+
+  <h2 id="overview">2. 概览</h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>可用模型</td><td><code>seedance-2.0</code>、<code>seedance-2.0-fast</code>、<code>seedance-1.5-pro</code>（以你的服务实际开放的模型名为准）</td></tr>
+    <tr><td>调用模式</td><td>异步：创建任务 → 轮询 → 取视频</td></tr>
+    <tr><td>能力</td><td>文生视频、<strong>单图</strong>图生视频、角色 / 真人一致（透传 <code>ta_</code> 资产）</td></tr>
+    <tr><td>请求格式</td><td>多模态 <code>content[]</code> 数组（与主流 Seedance API 一致，便于无缝迁移）</td></tr>
+    <tr><td>结果交付</td><td>视频经本服务代理地址返回，可直接下载或嵌入</td></tr>
+    <tr><td class="muted">不含</td><td class="muted">参考视频 / 参考音频 / 首尾帧 / 多图 / 画质超分 / 联网增强 / 登记接口（详见第 1、6 节）</td></tr>
+  </table>
+  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://your-api-host</code>。</p>
+
+  <h2 id="auth">3. 认证</h2>
+  <p>除「获取视频」接口外，所有请求需在请求头携带访问令牌：</p>
+  <pre><code>Authorization: Bearer sk-xxxxxxxxxxxxxxxx</code></pre>
+  <div class="callout info">
+    <p><strong>例外：</strong>「获取视频」接口 <code>GET {BASE}/v1/videos/{task_id}/content</code> 为<strong>匿名</strong>接口，无需令牌 —— 不可猜的 <code>task_id</code> 本身即访问凭证，可直接用于 <code>&lt;video src&gt;</code> 嵌入。</p>
+  </div>
+
+  <h2 id="endpoints">4. 接口一览</h2>
+  <table>
+    <tr><th>方法 &amp; 路径</th><th>说明</th><th>鉴权</th></tr>
+    <tr><td><span class="method post">POST</span><span class="path">/v1/videos</span></td><td>创建视频生成任务</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}</span></td><td>查询任务状态 / 结果</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}/content</span></td><td>取回视频二进制（代理下载）</td><td>匿名</td></tr>
+  </table>
+  <div class="callout info">
+    <p>另有一组等价接口 <code>POST /v1/video/generations</code> 与 <code>GET /v1/video/generations/{task_id}</code>，<strong>创建行为完全相同</strong>，仅查询响应为服务私有格式。<strong>推荐使用上方 <code>/v1/videos</code> 这套</strong>（标准结构）。</p>
+  </div>
+
+  <h2 id="create">5. 创建视频任务</h2>
+  <p><span class="method post">POST</span><span class="path">{BASE}/v1/videos</span></p>
+
+  <h3>请求参数（JSON Body）</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>必填</th><th>状态</th><th>说明</th></tr>
+    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td><span class="b b-ok">✅</span></td><td><code>seedance-2.0</code> / <code>seedance-2.0-fast</code> / <code>seedance-1.5-pro</code>（以服务开放的名称为准）</td></tr>
+    <tr><td><code>content</code></td><td>array</td><td class="req">必填</td><td><span class="b b-ok">✅</span></td><td>多模态输入数组，见下「content 元素」。至少含一条文本，或一张图片</td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td><code>360p</code> / <code>480p</code> / <code>540p</code> / <code>720p</code> / <code>1080p</code> / <code>1K</code> / <code>2K</code> / <code>4K</code>（大小写不敏感）。其他值<strong>提交报错</strong></td></tr>
+    <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>时长（秒）；默认 5，最大 10；不传由模型决定</td></tr>
+    <tr><td><code>generate_audio</code></td><td>bool</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>是否生成同步音频</td></tr>
+    <tr><td><code>real_face_asset_id</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>顶层字段。角色 / 真人一致资产（<code>ta_</code> 前缀）。<strong>仅</strong> <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>；与图片输入<strong>互斥</strong>；资产需线下预先持有（本服务不提供登记）</td></tr>
+    <tr><td><code>ratio</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>画面比例（映射到上游 <code>aspect_ratio</code>）。值 <code>adaptive</code> / <code>16:9</code> / <code>9:16</code> / <code>1:1</code> / <code>4:3</code> / <code>3:4</code> / <code>21:9</code> / <code>9:21</code></td></tr>
+    <tr><td><code>seed</code></td><td>int</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>随机种子；固定后可复现结果</td></tr>
+    <tr><td><code>watermark</code></td><td>bool</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>是否添加水印</td></tr>
+    <tr><td><code>return_last_frame</code></td><td>bool</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>是否返回尾帧静帧</td></tr>
+    <tr><td><code>camera_fixed</code> / <code>frames</code> / <code>callback_url</code> / <code>input_type</code> / <code>web_search</code> / <code>super_resolution_config</code></td><td>—</td><td class="opt">可选</td><td><span class="b b-no">❌/⚠️</span></td><td>不支持 / 忽略，详见<a href="#unsupported">第 6 节</a></td></tr>
+  </table>
+
+  <h4>content 元素</h4>
+  <table>
+    <tr><th>type</th><th>状态</th><th>附带字段 / role</th><th>说明</th></tr>
+    <tr><td><code>text</code></td><td><span class="b b-ok">✅ 支持</span></td><td><code>text</code>（string）</td><td>文本提示词（可有多条，按顺序拼接）</td></tr>
+    <tr><td><code>image_url</code></td><td><span class="b b-ok">✅ 支持</span></td><td><code>image_url.url</code>；role 仅 <code>reference_image</code> 或省略</td><td><strong>最多 1 张</strong>。多张 / 带 <code>first_frame</code> / <code>last_frame</code> 角色将<strong>提交报错</strong></td></tr>
+    <tr><td><code>video_url</code></td><td><span class="b b-no">❌ 不支持</span></td><td>—</td><td>含此项即<strong>提交报错</strong>：「video input is not supported」</td></tr>
+    <tr><td><code>audio_url</code></td><td><span class="b b-no">❌ 不支持</span></td><td>—</td><td>含此项即<strong>提交报错</strong>：「audio input is not supported」</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <p><strong>输入模式：</strong>本服务仅支持「文生」与「单张参考图」两种。<strong>不支持</strong>首尾帧（first/last frame）、多图、参考视频、参考音频；传入这些会在提交阶段直接报错（提前失败，不扣费）。</p>
+  </div>
+
+  <h3>请求示例（文生视频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感，镜头缓慢推近" }
+    ],
+    "resolution": "1080p",
+    "duration": 5
+  }'</code></pre>
+
+  <h3>请求示例（单图图生视频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "content": [
+      { "type": "text", "text": "镜头缓缓推进，光影流动" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/ref.jpg" }, "role": "reference_image" }
+    ],
+    "resolution": "720p",
+    "duration": 5
+  }'</code></pre>
+
+  <h3>请求示例（角色 / 真人一致 · 透传 ta_ 资产）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "real_face_asset_id": "ta_xxxxxxxx",
+    "content": [
+      { "type": "text", "text": "她在柔和的影棚灯光下微笑挥手" }
+    ],
+    "resolution": "1080p",
+    "duration": 5
+  }'</code></pre>
+  <div class="callout info">
+    <p><code>real_face_asset_id</code> 是<strong>顶层</strong>字段（与 <code>model</code> / <code>content</code> 同级），不放在 <code>content[]</code> 内。仅 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code> 接受；不能与图片输入同时使用。</p>
+  </div>
+
+  <h3>响应</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "task_id": "task_3f9a...e2",
+  "object": "video",
+  "model": "seedance-2.0",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1780306574
+}</code></pre>
+  <div class="callout info">
+    <p><code>id</code> / <code>task_id</code> 是公开任务 ID（<code>task_</code> 前缀 + 随机串），后续轮询和取视频都用它。</p>
+  </div>
+
+  <h2 id="unsupported">6. 不可用参数与功能（重点）</h2>
+
+  <h3>❌ 不支持 —— 提交阶段直接报错（提前失败，不扣费）</h3>
+  <table>
+    <tr><th>参数 / 功能</th><th>报错信息</th><th>替代方案</th></tr>
+    <tr><td>参考视频 <code>content[].video_url</code></td><td><code>video input is not supported by this channel</code></td><td>无（本服务不做视频到视频）</td></tr>
+    <tr><td>参考音频 <code>content[].audio_url</code></td><td><code>audio input is not supported by this channel</code></td><td>无</td></tr>
+    <tr><td>多张参考图（<code>image_url</code> &gt; 1）</td><td><code>only a single seed image is supported</code></td><td>仅保留 1 张</td></tr>
+    <tr><td>首帧 / 尾帧 role（<code>first_frame</code> / <code>last_frame</code>）</td><td><code>first_frame/last_frame image roles are not supported</code></td><td>改用单张 <code>reference_image</code></td></tr>
+    <tr><td>不支持的 <code>resolution</code></td><td><code>unsupported resolution ...</code></td><td>用 360p/480p/540p/720p/1080p/1K/2K/4K</td></tr>
+    <tr><td><code>real_face_asset_id</code> 用于 <code>seedance-1.5-pro</code></td><td><code>real_face_asset_id is only supported on seedance-2.0 / seedance-2.0-fast</code></td><td>换 2.0 / 2.0-fast</td></tr>
+    <tr><td><code>real_face_asset_id</code> 与图片同时传</td><td><code>image input and real_face_asset_id are mutually exclusive</code></td><td>二选一</td></tr>
+    <tr><td><code>real_face_asset_id</code> 格式错误</td><td><code>real_face_asset_id must start with 'ta_'</code></td><td>使用合法 <code>ta_</code> 资产</td></tr>
+  </table>
+
+  <h3>❌ 暂不提供 —— 角色 / 真人登记</h3>
+  <div class="callout no">
+    <p>本服务<strong>不包含</strong>「登记」类接口（即生成 <code>ta_</code> 资产的发起 / 状态 / 定稿流程）。如需角色或真人一致能力，请<strong>线下预先获取</strong> <code>ta_</code> 资产，再在创建请求里通过 <code>real_face_asset_id</code> 透传。该能力后续版本可能补充。</p>
+  </div>
+
+  <h3>⚠️ 忽略 —— 可提交但不生效</h3>
+  <table>
+    <tr><th>参数</th><th>行为</th></tr>
+    <tr><td><code>camera_fixed</code> / <code>frames</code> / <code>callback_url</code> / <code>input_type</code></td><td>为兼容标准 Seedance 协议而接受，传入<strong>无效果</strong></td></tr>
+    <tr><td><code>web_search</code> / <code>super_resolution_config</code></td><td>不生效（无联网增强、无画质超分子任务）</td></tr>
+  </table>
+
+  <h3>❌ 不返回 —— token 用量</h3>
+  <div class="callout no">
+    <p>本服务按<strong>调用次数</strong>计费，查询结果中<strong>不含</strong> <code>usage</code> 字段。请勿依赖 <code>usage.total_tokens</code> 做计量。</p>
+  </div>
+
+  <h2 id="poll">7. 查询任务状态</h2>
+  <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}</span></p>
+  <pre><code>curl {BASE}/v1/videos/task_3f9a...e2 \
+  -H "Authorization: Bearer sk-xxxx"</code></pre>
+
+  <h3>排队 / 进行中</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "object": "video",
+  "status": "in_progress",
+  "progress": 30,
+  "model": "seedance-2.0",
+  "created_at": 1780306574
+}</code></pre>
+
+  <h3>完成</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "object": "video",
+  "status": "completed",
+  "progress": 100,
+  "model": "seedance-2.0",
+  "metadata": {
+    "url": "{BASE}/v1/videos/task_3f9a...e2/content"
+  },
+  "created_at": 1780306574,
+  "completed_at": 1780306750
+}</code></pre>
+  <div class="callout ok">
+    <p>完成后，视频地址在 <code>metadata.url</code> —— 它是<strong>本服务的代理地址</strong>，直接 GET 即可拿到视频（见第 8 节）。<span class="muted">注：本服务不返回 <code>usage</code>。</span></p>
+  </div>
+
+  <h3>失败</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "object": "video",
+  "status": "failed",
+  "error": { "message": "..." }
+}</code></pre>
+  <div class="callout info"><p>任务失败不计费（已预扣的额度自动退还）。错误信息已做脱敏处理。</p></div>
+
+  <h2 id="download">8. 获取视频</h2>
+  <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}/content</span> · <span class="pill">匿名</span></p>
+  <p>任务成功后，直接 GET 该地址即可流式返回 <code>video/mp4</code> 二进制。无需鉴权，可直接嵌入页面：</p>
+  <pre><code># 下载到本地
+curl -L "{BASE}/v1/videos/task_3f9a...e2/content" -o output.mp4
+
+# 或在 HTML 中直接嵌入
+&lt;video src="{BASE}/v1/videos/task_3f9a...e2/content" controls&gt;&lt;/video&gt;</code></pre>
+  <div class="callout warn"><p>仅当任务状态为 <code>completed</code> 时可取；未完成会返回错误。该接口按客户端 IP 限流。</p></div>
+
+  <h2 id="status">9. 状态值</h2>
+  <table>
+    <tr><th>status</th><th>含义</th></tr>
+    <tr><td><span class="pill s-queued">queued</span></td><td>排队中</td></tr>
+    <tr><td><span class="pill s-prog">in_progress</span></td><td>生成中（<code>progress</code> 0–100）</td></tr>
+    <tr><td><span class="pill s-done">completed</span></td><td>已完成，视频在 <code>metadata.url</code></td></tr>
+    <tr><td><span class="pill s-fail">failed</span></td><td>失败，详情在 <code>error.message</code>；已退款</td></tr>
+  </table>
+
+  <h2 id="errors">10. 错误</h2>
+  <p>任务级失败体现在查询响应的 <code>error</code> 字段（见第 7 节）。请求 / 提交阶段的错误走标准错误体：</p>
+  <pre><code>{ "error": { "message": "...", "type": "...", "code": "..." } }</code></pre>
+  <table>
+    <tr><th>典型场景</th><th>说明</th></tr>
+    <tr><td><code>content</code> 为空</td><td>提交被拒：需至少包含一条文本，或一张图片</td></tr>
+    <tr><td>不支持的输入</td><td>传入参考视频 / 参考音频 / 多图 / 首尾帧 —— 见<a href="#unsupported">第 6 节</a>，提交阶段即报错</td></tr>
+    <tr><td>模型不可用</td><td>传入了服务未开放的 <code>model</code></td></tr>
+    <tr><td>额度不足</td><td>任务不会创建</td></tr>
+    <tr><td>服务暂时不可用</td><td>通常可稍后重试</td></tr>
+  </table>
+
+  <h2 id="example">11. 完整示例（创建 → 轮询 → 下载）</h2>
+  <pre><code>#!/usr/bin/env bash
+BASE="https://your-api-host"
+TOKEN="sk-xxxxxxxxxxxxxxxx"
+
+# 1) 创建任务
+RESP=$(curl -sS "$BASE/v1/videos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感" }
+    ],
+    "resolution": "1080p",
+    "duration": 5
+  }')
+TASK_ID=$(echo "$RESP" | jq -r '.id')
+echo "task: $TASK_ID"
+
+# 2) 轮询直到完成或失败
+while true; do
+  Q=$(curl -sS "$BASE/v1/videos/$TASK_ID" \
+        -H "Authorization: Bearer $TOKEN")
+  STATUS=$(echo "$Q" | jq -r '.status')
+  echo "status: $STATUS"
+  [ "$STATUS" = "completed" ] && break
+  if [ "$STATUS" = "failed" ]; then
+    echo "failed: $(echo "$Q" | jq -r '.error.message')"; exit 1
+  fi
+  sleep 5
+done
+
+# 3) 取回视频（匿名，直接用 metadata.url）
+URL=$(echo "$Q" | jq -r '.metadata.url')
+curl -L "$URL" -o output.mp4
+echo "saved -> output.mp4"</code></pre>
+
+  <footer>
+    Seedance 视频生成 API · 接口使用文档（精简能力档）。不支持 / 忽略项见第 1、6 节。
+  </footer>
+</div>
+</body>
+</html>
