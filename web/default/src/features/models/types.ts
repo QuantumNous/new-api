@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
+import type { ModelAvailabilityStatus } from '@/lib/model-availability'
 
 // ============================================================================
 // Model Types
@@ -52,6 +53,14 @@ export interface Model {
   quota_types?: number[]
   matched_models?: string[]
   matched_count?: number
+  availability_status?: ModelAvailabilityStatus
+  availability_reason_type?: string
+  availability_reason?: string
+  availability_last_error?: string
+  availability_detected_at?: number
+  availability_checked_at?: number
+  availability_last_success_at?: number
+  availability_consecutive_failures?: number
 }
 
 /**

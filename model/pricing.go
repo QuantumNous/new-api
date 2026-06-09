@@ -36,6 +36,10 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	AvailabilityStatus     string                  `json:"availability_status,omitempty"`
+	AvailabilityReason     string                  `json:"availability_reason,omitempty"`
+	AvailabilityDetectedAt int64                   `json:"availability_detected_at,omitempty"`
+	AvailabilityCheckedAt  int64                   `json:"availability_checked_at,omitempty"`
 }
 
 type PricingVendor struct {
@@ -199,6 +203,12 @@ func updatePricing() {
 		groups.Add(ability.Group)
 	}
 
+	modelNames := make([]string, 0, len(modelGroupsMap))
+	for modelName := range modelGroupsMap {
+		modelNames = append(modelNames, modelName)
+	}
+	availabilityByModel, _ := GetModelAvailabilityStateMap(modelNames)
+
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
 	modelSupportEndpointsStr := make(map[string][]string)
 
@@ -291,6 +301,12 @@ func updatePricing() {
 			ModelName:              model,
 			EnableGroup:            groups.Items(),
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
+		}
+		if state, ok := availabilityByModel[model]; ok {
+			pricing.AvailabilityStatus = state.Status
+			pricing.AvailabilityReason = state.Reason
+			pricing.AvailabilityDetectedAt = state.FirstDetectedAt
+			pricing.AvailabilityCheckedAt = state.LastCheckedAt
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）

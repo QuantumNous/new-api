@@ -4858,6 +4858,22 @@
     "Zero vendor lock-in": "Zero vendor lock-in",
     "Usage analytics & cost control": "Usage analytics & cost control",
     "Enterprise-grade privacy": "Enterprise-grade privacy",
-    "One unified invoice for all providers": "One unified invoice for all providers"
+    "One unified invoice for all providers": "One unified invoice for all providers",
+    "{{count}} model(s)": "{{count}} model(s)",
+    "Select an existing user group to configure ratio overrides.": "Select an existing user group to configure ratio overrides.",
+    "No available user groups": "No available user groups",
+    "Ratio must be a non-negative number.": "Ratio must be a non-negative number.",
+    "No available target groups": "No available target groups",
+    "Target group must exist in pricing groups.": "Target group must exist in pricing groups.",
+    "Availability": "Availability",
+    "Model is currently available": "Model is currently available",
+    "Temporary failure": "Temporary failure",
+    "Temporary upstream failure": "Temporary upstream failure",
+    "Officially unsupported": "Officially unsupported",
+    "Upstream no longer supports this model": "Upstream no longer supports this model",
+    "Unknown failure": "Unknown failure",
+    "Availability check failed for an unknown reason": "Availability check failed for an unknown reason",
+    "Detected at": "Detected at",
+    "Last checked": "Last checked"
   }
 }

@@ -4858,6 +4858,22 @@
     "Zero vendor lock-in": "零供应商锁定",
     "Usage analytics & cost control": "用量分析与成本控制",
     "Enterprise-grade privacy": "企业级隐私保护",
-    "One unified invoice for all providers": "所有服务商统一开票"
+    "One unified invoice for all providers": "所有服务商统一开票",
+    "{{count}} model(s)": "{{count}} 个模型",
+    "Select an existing user group to configure ratio overrides.": "选择一个已有用户分组来配置倍率覆盖。",
+    "No available user groups": "没有可用的用户分组",
+    "Ratio must be a non-negative number.": "倍率必须是非负数。",
+    "No available target groups": "没有可用的目标分组",
+    "Target group must exist in pricing groups.": "目标分组必须存在于定价分组中。",
+    "Availability": "可用性",
+    "Model is currently available": "模型当前可用",
+    "Temporary failure": "临时故障",
+    "Temporary upstream failure": "上游临时故障",
+    "Officially unsupported": "官方不再支持",
+    "Upstream no longer supports this model": "上游已不再支持此模型",
+    "Unknown failure": "未知故障",
+    "Availability check failed for an unknown reason": "可用性检测失败，原因暂不明确",
+    "Detected at": "发现时间",
+    "Last checked": "上次检测"
   }
 }

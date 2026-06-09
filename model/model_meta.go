@@ -42,6 +42,29 @@ type Model struct {
 
 	MatchedModels []string `json:"matched_models,omitempty" gorm:"-"`
 	MatchedCount  int      `json:"matched_count,omitempty" gorm:"-"`
+
+	AvailabilityStatus              string `json:"availability_status,omitempty" gorm:"-"`
+	AvailabilityReasonType          string `json:"availability_reason_type,omitempty" gorm:"-"`
+	AvailabilityReason              string `json:"availability_reason,omitempty" gorm:"-"`
+	AvailabilityLastError           string `json:"availability_last_error,omitempty" gorm:"-"`
+	AvailabilityDetectedAt          int64  `json:"availability_detected_at,omitempty" gorm:"-"`
+	AvailabilityCheckedAt           int64  `json:"availability_checked_at,omitempty" gorm:"-"`
+	AvailabilityLastSuccessAt       int64  `json:"availability_last_success_at,omitempty" gorm:"-"`
+	AvailabilityConsecutiveFailures int    `json:"availability_consecutive_failures,omitempty" gorm:"-"`
+}
+
+func ApplyAvailabilityStateToModel(m *Model, state ModelAvailabilityState) {
+	if m == nil {
+		return
+	}
+	m.AvailabilityStatus = state.Status
+	m.AvailabilityReasonType = state.ReasonType
+	m.AvailabilityReason = state.Reason
+	m.AvailabilityLastError = state.LastError
+	m.AvailabilityDetectedAt = state.FirstDetectedAt
+	m.AvailabilityCheckedAt = state.LastCheckedAt
+	m.AvailabilityLastSuccessAt = state.LastSuccessAt
+	m.AvailabilityConsecutiveFailures = state.ConsecutiveFailures
 }
 
 func (mi *Model) Insert() error {
