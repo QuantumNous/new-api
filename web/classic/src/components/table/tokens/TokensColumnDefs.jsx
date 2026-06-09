@@ -22,7 +22,6 @@ import {
   Button,
   Dropdown,
   Space,
-  SplitButtonGroup,
   Tag,
   AvatarGroup,
   Avatar,
@@ -383,32 +382,21 @@ const renderOperations = (
 
   return (
     <Space wrap>
-      <SplitButtonGroup
-        className='overflow-hidden'
-        aria-label={t('项目操作按钮组')}
-      >
+      <Dropdown trigger='click' position='bottomRight' menu={chatsArray}>
         <Button
           size='small'
           type='tertiary'
+          icon={<IconTreeTriangleDown />}
+          iconPosition='right'
           onClick={() => {
             if (chatsArray.length === 0) {
               showError(t('请联系管理员配置聊天链接'));
-            } else {
-              const first = chatsArray[0];
-              onOpenLink(first.name, first.value, record);
             }
           }}
         >
-          {t('聊天')}
+          {t('聊天（导出到）')}
         </Button>
-        <Dropdown trigger='click' position='bottomRight' menu={chatsArray}>
-          <Button
-            type='tertiary'
-            icon={<IconTreeTriangleDown />}
-            size='small'
-          ></Button>
-        </Dropdown>
-      </SplitButtonGroup>
+      </Dropdown>
 
       {record.status === 1 ? (
         <Button
