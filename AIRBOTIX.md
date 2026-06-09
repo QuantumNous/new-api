@@ -23,7 +23,7 @@ We minimise core changes to keep upstream cherry-picking sustainable. All Airbot
 | `internal/policy/` | Decision engine — `DecisionFor(kidsMode, profile) → Decision` (6 boolean flags) | ✅ Done — wired via `relay/airbotix_policy.go` |
 | `internal/kids/` | Hard constraints: model whitelist, metadata strip, OpenAI ZDR, child-safe system prompt | ✅ Done — wired via `relay/airbotix_policy.go` |
 | `internal/smart_router_client/` | HTTP client for the smart-router sidecar, with circuit breaker and graceful degradation | ✅ Done — wired via `middleware/smart_router.go` |
-| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher with retry policy | ✅ Code + tests done — **NOT yet wired into relay path (Phase 2 in PLAN.md)** |
+| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher with retry policy | ✅ Wired into relay completion path (DR-25 / Phase 2) via `service/airbotix_billing.go` |
 | `relay/airbotix_policy.go` + test | Stitches policy + kids enforcement into OpenAI / Claude / Gemini / Responses request shapes | ✅ Wired, 20+ unit tests |
 | `relay/compatible_handler.go` | **Bug fix (2026-06-07)**: policy check moved BEFORE `ModelMappedHelper` so kids whitelist uses client-requested model name, not channel-remapped name. | ✅ Fixed (PR open) — ⚠️ same fix still needed in claude/responses/gemini handlers |
 | `middleware/smart_router.go` | Detects `deeprouter-auto` virtual model, calls smart_router_client, rewrites model name | ✅ Wired |
@@ -35,7 +35,8 @@ We minimise core changes to keep upstream cherry-picking sustainable. All Airbot
 
 | Ticket | Title | Status | Notes |
 |--------|-------|--------|-------|
-| DR-6 | `internal/billing` webhook dispatcher | ✅ Done | Code + tests. Not wired (Phase 2). |
+| DR-6 | `internal/billing` webhook dispatcher | ✅ Done | Code + tests. |
+| DR-25 | Billing relay completion hook + token accounting | ✅ Done | Schema (started_at/finished_at/routed_from/policy_violations), wiring via service/airbotix_billing.go, 7+17+6 tests. |
 | DR-7 | `internal/kids` hard constraints | ✅ Done | Whitelist, ZDR, metadata strip, child-safe prompt. |
 | DR-8 | `internal/policy` decision engine | ✅ Done | `DecisionFor()` pure function + tests. |
 | DR-9 | e2e: same endpoint, different key → different policy | 🟡 PR open | chat completions path fixed + verified. claude/responses/gemini handlers still have ordering bug. |
@@ -76,7 +77,7 @@ Phase status snapshot (see `PLAN.md` for full breakdown):
 
 - ✅ Phase 0 — Foundation: fork + 4 leaf packages + CI green
 - 🟡 Phase 1 — Tenant management (Week 3-4): admin UI fields for the 4 User columns
-- 🟡 Phase 2 — Relay wiring: hook `internal/billing/` into completion path
+- ✅ Phase 2 — Relay wiring: `internal/billing/` wired via `service/airbotix_billing.go` (DR-25)
 - ⏳ Phase 3–6 — Multi-provider hardening, content moderation, JR Academy migration, prod launch
 
 ## Tenants (V0)
@@ -92,7 +93,7 @@ Phase status snapshot (see `PLAN.md` for full breakdown):
 1. OpenAI-compatible `/v1/chat/completions`, `/v1/messages`, image/embeddings — all with cross-protocol conversion
 2. `kids_mode` hard constraints (see DeepRouter PRD §6.4-pre) — code in `internal/kids/` + `internal/policy/`, wired via `relay/airbotix_policy.go`
 3. Multi-key Provider Pool with token bucket (Anthropic Tier RPM workaround — DeepRouter PRD §5.5, §6.5)
-4. Billing webhook with HMAC signature + retry + dead letter queue — code in `internal/billing/`, wiring pending
+4. Billing webhook with HMAC signature + retry + dead letter queue — ✅ code in `internal/billing/`, wired via `service/airbotix_billing.go` (DR-25)
 5. Atomic per-tenant quota check
 
 ## Upstream sync
