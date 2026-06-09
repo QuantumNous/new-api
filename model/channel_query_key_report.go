@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +17,11 @@ const (
 	QueryKeyReportStatusNotFound    = "not_found"
 	QueryKeyReportStatusFound       = "found"
 	QueryKeyReportStatusOverBrushed = "over_brushed"
+)
+
+const (
+	QueryKeyReportSourceChannel     = "channel"
+	QueryKeyReportSourcePreparation = "preparation"
 )
 
 type QueryKeyReport struct {
@@ -49,6 +55,7 @@ type QueryKeyReportItem struct {
 
 type QueryKeyReportChannel struct {
 	Id                 int     `json:"id"`
+	Source             string  `json:"source"`
 	Name               string  `json:"name"`
 	Type               int     `json:"type"`
 	Status             int     `json:"status"`
@@ -97,6 +104,106 @@ type queryKeyReportSharedTotal struct {
 	overBrushAmount float64
 }
 
+type queryKeyReportChannelRecord struct {
+	source             string
+	id                 int
+	key                string
+	name               string
+	channelType        int
+	status             int
+	group              string
+	models             string
+	tag                *string
+	usedQuota          int64
+	balance            float64
+	balanceUpdatedTime int64
+	isMultiKey         bool
+}
+
+func applyQueryKeyReportRecord(accumulators map[string]*queryKeyReportItemAccumulator, nonSharedTotals map[string]*queryKeyReportNonSharedTotal, sharedTotals map[string]queryKeyReportSharedTotal, record queryKeyReportChannelRecord) {
+	parsedKeys := parseQueryKeyReportChannelKeys(record.key)
+	if len(parsedKeys) == 0 {
+		return
+	}
+
+	matchedKeys := make([]string, 0)
+	for _, parsedKey := range parsedKeys {
+		if _, ok := accumulators[parsedKey]; ok {
+			matchedKeys = append(matchedKeys, parsedKey)
+		}
+	}
+	if len(matchedKeys) == 0 {
+		return
+	}
+
+	matchedKeyCount := len(matchedKeys)
+	usedAmount := quotaToAmount(record.usedQuota)
+	matchedUsedQuota := record.usedQuota * int64(matchedKeyCount)
+	matchedUsedAmount := usedAmount * float64(matchedKeyCount)
+	originalAmount := record.balance
+	isMultiKeyChannel := record.isMultiKey || len(parsedKeys) > 1
+	sharedOriginal := matchedKeyCount > 1
+	currentAmount := originalAmount - usedAmount
+	overBrushAmount := maxFloat(0, usedAmount-originalAmount)
+	if sharedOriginal {
+		currentAmount = originalAmount - matchedUsedAmount
+		overBrushAmount = maxFloat(0, matchedUsedAmount-originalAmount)
+		sharedTotals[record.source+":"+strconv.Itoa(record.id)] = queryKeyReportSharedTotal{
+			usedQuota:       matchedUsedQuota,
+			usedAmount:      matchedUsedAmount,
+			originalAmount:  originalAmount,
+			overBrushAmount: overBrushAmount,
+		}
+	}
+
+	detail := QueryKeyReportChannel{
+		Id:                 record.id,
+		Source:             record.source,
+		Name:               record.name,
+		Type:               record.channelType,
+		Status:             record.status,
+		Group:              record.group,
+		Models:             record.models,
+		Tag:                record.tag,
+		IsMultiKey:         isMultiKeyChannel,
+		MatchedKeyCount:    matchedKeyCount,
+		UsedQuota:          record.usedQuota,
+		UsedAmount:         usedAmount,
+		MatchedUsedQuota:   matchedUsedQuota,
+		MatchedUsedAmount:  matchedUsedAmount,
+		OriginalAmount:     originalAmount,
+		CurrentAmount:      currentAmount,
+		OverBrushAmount:    overBrushAmount,
+		BalanceUpdatedTime: record.balanceUpdatedTime,
+	}
+
+	for _, matchedKey := range matchedKeys {
+		acc := accumulators[matchedKey]
+		acc.usedQuota += record.usedQuota
+		acc.usedAmount += usedAmount
+		acc.originalAmount = maxFloat(acc.originalAmount, originalAmount)
+		acc.channels = append(acc.channels, detail)
+		if isMultiKeyChannel {
+			acc.originalAmountShared = true
+		}
+		if sharedOriginal {
+			acc.usesSharedMatchedUsage = true
+			acc.sharedMatchedUsedAmount += matchedUsedAmount
+			acc.overBrushAmount += overBrushAmount
+			continue
+		}
+
+		total := nonSharedTotals[matchedKey]
+		if total == nil {
+			total = &queryKeyReportNonSharedTotal{}
+			nonSharedTotals[matchedKey] = total
+		}
+		total.usedQuota += record.usedQuota
+		total.usedAmount += usedAmount
+		total.originalAmount = maxFloat(total.originalAmount, originalAmount)
+	}
+}
+
 func BuildChannelQueryKeyReport(keys []string) (*QueryKeyReport, error) {
 	records, totalInput := normalizeQueryKeyReportInput(keys)
 	if len(records) == 0 {
@@ -112,100 +219,62 @@ func BuildChannelQueryKeyReport(keys []string) (*QueryKeyReport, error) {
 	}
 
 	nonSharedTotals := make(map[string]*queryKeyReportNonSharedTotal)
-	sharedTotals := make(map[int]queryKeyReportSharedTotal)
+	sharedTotals := make(map[string]queryKeyReportSharedTotal)
 
-	query := DB.Model(&Channel{}).
+	channelQuery := DB.Model(&Channel{}).
 		Select("id, " + commonKeyCol + ", name, type, status, " + commonGroupCol + ", models, tag, used_quota, balance, balance_updated_time, channel_info")
 
-	result := query.FindInBatches(&[]Channel{}, 500, func(tx *gorm.DB, batch int) error {
+	channelResult := channelQuery.FindInBatches(&[]Channel{}, 500, func(tx *gorm.DB, batch int) error {
 		channels := tx.Statement.Dest.(*[]Channel)
 		for i := range *channels {
 			channel := &(*channels)[i]
-			parsedKeys := parseQueryKeyReportChannelKeys(channel.Key)
-			if len(parsedKeys) == 0 {
-				continue
-			}
-
-			matchedKeys := make([]string, 0)
-			for _, parsedKey := range parsedKeys {
-				if _, ok := accumulators[parsedKey]; ok {
-					matchedKeys = append(matchedKeys, parsedKey)
-				}
-			}
-			if len(matchedKeys) == 0 {
-				continue
-			}
-
-			matchedKeyCount := len(matchedKeys)
-			usedAmount := quotaToAmount(channel.UsedQuota)
-			matchedUsedQuota := channel.UsedQuota * int64(matchedKeyCount)
-			matchedUsedAmount := usedAmount * float64(matchedKeyCount)
-			originalAmount := channel.Balance
-			isMultiKeyChannel := channel.ChannelInfo.IsMultiKey || len(parsedKeys) > 1
-			sharedOriginal := matchedKeyCount > 1
-			currentAmount := originalAmount - usedAmount
-			overBrushAmount := maxFloat(0, usedAmount-originalAmount)
-			if sharedOriginal {
-				currentAmount = originalAmount - matchedUsedAmount
-				overBrushAmount = maxFloat(0, matchedUsedAmount-originalAmount)
-				sharedTotals[channel.Id] = queryKeyReportSharedTotal{
-					usedQuota:       matchedUsedQuota,
-					usedAmount:      matchedUsedAmount,
-					originalAmount:  originalAmount,
-					overBrushAmount: overBrushAmount,
-				}
-			}
-
-			detail := QueryKeyReportChannel{
-				Id:                 channel.Id,
-				Name:               channel.Name,
-				Type:               channel.Type,
-				Status:             channel.Status,
-				Group:              channel.Group,
-				Models:             channel.Models,
-				Tag:                channel.Tag,
-				IsMultiKey:         isMultiKeyChannel,
-				MatchedKeyCount:    matchedKeyCount,
-				UsedQuota:          channel.UsedQuota,
-				UsedAmount:         usedAmount,
-				MatchedUsedQuota:   matchedUsedQuota,
-				MatchedUsedAmount:  matchedUsedAmount,
-				OriginalAmount:     originalAmount,
-				CurrentAmount:      currentAmount,
-				OverBrushAmount:    overBrushAmount,
-				BalanceUpdatedTime: channel.BalanceUpdatedTime,
-			}
-
-			for _, matchedKey := range matchedKeys {
-				acc := accumulators[matchedKey]
-				acc.usedQuota += channel.UsedQuota
-				acc.usedAmount += usedAmount
-				acc.originalAmount = maxFloat(acc.originalAmount, originalAmount)
-				acc.channels = append(acc.channels, detail)
-				if isMultiKeyChannel {
-					acc.originalAmountShared = true
-				}
-				if sharedOriginal {
-					acc.usesSharedMatchedUsage = true
-					acc.sharedMatchedUsedAmount += matchedUsedAmount
-					acc.overBrushAmount += overBrushAmount
-					continue
-				}
-
-				total := nonSharedTotals[matchedKey]
-				if total == nil {
-					total = &queryKeyReportNonSharedTotal{}
-					nonSharedTotals[matchedKey] = total
-				}
-				total.usedQuota += channel.UsedQuota
-				total.usedAmount += usedAmount
-				total.originalAmount = maxFloat(total.originalAmount, originalAmount)
-			}
+			applyQueryKeyReportRecord(accumulators, nonSharedTotals, sharedTotals, queryKeyReportChannelRecord{
+				source:             QueryKeyReportSourceChannel,
+				id:                 channel.Id,
+				key:                channel.Key,
+				name:               channel.Name,
+				channelType:        channel.Type,
+				status:             channel.Status,
+				group:              channel.Group,
+				models:             channel.Models,
+				tag:                channel.Tag,
+				usedQuota:          channel.UsedQuota,
+				balance:            channel.Balance,
+				balanceUpdatedTime: channel.BalanceUpdatedTime,
+				isMultiKey:         channel.ChannelInfo.IsMultiKey,
+			})
 		}
 		return nil
 	})
-	if result.Error != nil {
-		return nil, result.Error
+	if channelResult.Error != nil {
+		return nil, channelResult.Error
+	}
+
+	preparationQuery := DB.Model(&ChannelPreparation{}).
+		Select("id, " + commonKeyCol + ", name, type, status, " + commonGroupCol + ", models, tag, balance, updated_time")
+
+	preparationResult := preparationQuery.FindInBatches(&[]ChannelPreparation{}, 500, func(tx *gorm.DB, batch int) error {
+		preparations := tx.Statement.Dest.(*[]ChannelPreparation)
+		for i := range *preparations {
+			preparation := &(*preparations)[i]
+			applyQueryKeyReportRecord(accumulators, nonSharedTotals, sharedTotals, queryKeyReportChannelRecord{
+				source:             QueryKeyReportSourcePreparation,
+				id:                 preparation.Id,
+				key:                preparation.Key,
+				name:               preparation.Name,
+				channelType:        preparation.Type,
+				status:             preparation.Status,
+				group:              preparation.Group,
+				models:             preparation.Models,
+				tag:                preparation.Tag,
+				balance:            preparation.Balance,
+				balanceUpdatedTime: preparation.UpdatedTime,
+			})
+		}
+		return nil
+	})
+	if preparationResult.Error != nil {
+		return nil, preparationResult.Error
 	}
 
 	report := &QueryKeyReport{

@@ -58,6 +58,11 @@ const STATUS_CONFIG = {
   over_brushed: { color: 'red', label: '已超刷' },
 };
 
+const SOURCE_CONFIG = {
+  channel: { color: 'green', label: '正式渠道' },
+  preparation: { color: 'blue', label: '备货池' },
+};
+
 const BUCKETS = [
   { key: 'all', label: '全部' },
   { key: 'found', label: '已找到' },
@@ -123,6 +128,9 @@ const channelTypeLabel = (type) => {
 
 const getStatusConfig = (status) =>
   STATUS_CONFIG[status] || STATUS_CONFIG.not_found;
+
+const getSourceConfig = (source) =>
+  SOURCE_CONFIG[source || 'channel'] || SOURCE_CONFIG.channel;
 
 const MetricCard = ({ title, value, color }) => (
   <Card className='!rounded-xl' bodyStyle={{ padding: 16 }}>
@@ -206,17 +214,21 @@ const QueryKeyPage = () => {
       title: t('渠道'),
       dataIndex: 'name',
       width: 300,
-      render: (name, record) => (
-        <div className='flex items-center gap-2'>
-          {getChannelIcon(record.type)}
-          <span>#{record.id}</span>
-          <Text strong>{name || '-'}</Text>
-          {record.is_multi_key ? <Tag color='blue'>{t('多密钥')}</Tag> : null}
-          {record.matched_key_count > 1 ? (
-            <Tag color='orange'>{t('共享原始额度')}</Tag>
-          ) : null}
-        </div>
-      ),
+      render: (name, record) => {
+        const sourceConfig = getSourceConfig(record.source);
+        return (
+          <div className='flex items-center gap-2'>
+            {getChannelIcon(record.type)}
+            <span>#{record.id}</span>
+            <Tag color={sourceConfig.color}>{t(sourceConfig.label)}</Tag>
+            <Text strong>{name || '-'}</Text>
+            {record.is_multi_key ? <Tag color='blue'>{t('多密钥')}</Tag> : null}
+            {record.matched_key_count > 1 ? (
+              <Tag color='orange'>{t('共享原始额度')}</Tag>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       title: t('类型'),
@@ -228,12 +240,16 @@ const QueryKeyPage = () => {
       title: t('状态'),
       dataIndex: 'status',
       width: 110,
-      render: (status) =>
-        status === 1 ? (
+      render: (status, record) => {
+        if (record.source === 'preparation') {
+          return <Tag color='blue'>{t('待晋升')}</Tag>;
+        }
+        return status === 1 ? (
           <Tag color='green'>{t('已启用')}</Tag>
         ) : (
           <Tag color='grey'>{t('已禁用')}</Tag>
-        ),
+        );
+      },
     },
     {
       title: t('分组'),
@@ -389,14 +405,16 @@ const QueryKeyPage = () => {
           type='info'
           closeIcon={null}
           description={t(
-            '渠道明细不包含任何原始密钥；原始额度展示的是实际渠道余额，多密钥命中时可能为共享余额。',
+            '渠道/备货池明细不包含任何原始密钥；原始额度展示的是实际渠道余额，多密钥命中时可能为共享余额。',
           )}
           style={{ marginBottom: 12 }}
         />
         <Table
           columns={channelColumns}
           dataSource={channels}
-          rowKey={(channel) => `${record.key}-${channel.id}`}
+          rowKey={(channel) =>
+            `${record.key}-${channel.source || 'channel'}-${channel.id}`
+          }
           pagination={false}
           size='small'
           scroll={{ x: 1900 }}
