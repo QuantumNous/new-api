@@ -28,11 +28,12 @@ type ChannelAffinityRule struct {
 }
 
 type ChannelAffinitySetting struct {
-	Enabled           bool                  `json:"enabled"`
-	SwitchOnSuccess   bool                  `json:"switch_on_success"`
-	MaxEntries        int                   `json:"max_entries"`
-	DefaultTTLSeconds int                   `json:"default_ttl_seconds"`
-	Rules             []ChannelAffinityRule `json:"rules"`
+	Enabled               bool                  `json:"enabled"`
+	SwitchOnSuccess       bool                  `json:"switch_on_success"`
+	KeepOnChannelDisabled bool                  `json:"keep_on_channel_disabled"`
+	MaxEntries            int                   `json:"max_entries"`
+	DefaultTTLSeconds     int                   `json:"default_ttl_seconds"`
+	Rules                 []ChannelAffinityRule `json:"rules"`
 }
 
 var codexCliPassThroughHeaders = []string{
@@ -74,10 +75,11 @@ func buildPassHeaderTemplate(headers []string) map[string]interface{} {
 }
 
 var channelAffinitySetting = ChannelAffinitySetting{
-	Enabled:           true,
-	SwitchOnSuccess:   true,
-	MaxEntries:        100_000,
-	DefaultTTLSeconds: 3600,
+	Enabled:               true,
+	SwitchOnSuccess:       true,
+	KeepOnChannelDisabled: false,
+	MaxEntries:            100_000,
+	DefaultTTLSeconds:     3600,
 	Rules: []ChannelAffinityRule{
 		{
 			Name:       "codex cli trace",
