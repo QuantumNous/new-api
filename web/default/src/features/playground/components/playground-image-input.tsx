@@ -28,6 +28,10 @@ import {
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { ModelGroupSelector } from '@/components/model-group-selector'
+import {
+  MAX_IMAGE_GENERATION_COUNT,
+  normalizeImageGenerationCount,
+} from '../lib'
 import type { GroupOption, ImageGenerationConfig, ModelOption } from '../types'
 
 interface PlaygroundImageInputProps {
@@ -121,6 +125,11 @@ export function PlaygroundImageInput({
 
   const hasPrompt = Boolean(prompt.trim())
   const hasImageModels = models.length > 0
+  const countValue = normalizeImageGenerationCount(config.n)
+  const countOptions = Array.from(
+    { length: MAX_IMAGE_GENERATION_COUNT },
+    (_, index) => index + 1
+  )
   const isConfigDisabled = Boolean(disabled || isGenerating)
   const isModelSelectDisabled =
     isConfigDisabled || isModelLoading || !hasImageModels
@@ -209,15 +218,17 @@ export function PlaygroundImageInput({
               className={`${controlClassName} w-16`}
               disabled={isConfigDisabled || !hasImageModels}
               label={t('Count')}
-              value={String(config.n)}
+              value={String(countValue)}
               onChange={(value) =>
                 onConfigChange(
                   'n',
-                  Math.min(4, Math.max(1, Number.parseInt(value, 10) || 1))
+                  normalizeImageGenerationCount(
+                    Number.parseInt(value, 10) || 1
+                  )
                 )
               }
             >
-              {[1, 2, 3, 4].map((count) => (
+              {countOptions.map((count) => (
                 <option key={count} value={count}>
                   {count}
                 </option>

@@ -16,10 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './message-utils'
-export * from './payload-builder'
-export * from './image-generation-capabilities'
-export * from './image-payload-builder'
-export * from './image-result-utils'
-export * from './storage'
-export * from './message-styles'
+export const MAX_IMAGE_GENERATION_COUNT = 4
+
+export function normalizeImageGenerationCount(count: number): number {
+  return Math.min(
+    MAX_IMAGE_GENERATION_COUNT,
+    Math.max(1, Number.isFinite(count) ? count : 1)
+  )
+}
+
+export function shouldSplitImageGenerationRequests(model: string): boolean {
+  const normalized = model.trim().toLowerCase()
+  return (
+    normalized === 'gpt-image-2' ||
+    normalized === 'codex-gpt-image-2' ||
+    normalized.endsWith('-gpt-image-2')
+  )
+}

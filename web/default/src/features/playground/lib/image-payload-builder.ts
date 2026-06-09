@@ -20,10 +20,15 @@ import type {
   ImageGenerationConfig,
   ImageGenerationRequest,
 } from '../types'
+import {
+  normalizeImageGenerationCount,
+  shouldSplitImageGenerationRequests,
+} from './image-generation-capabilities'
 
 export function buildImageGenerationPayload(
   prompt: string,
-  config: ImageGenerationConfig
+  config: ImageGenerationConfig,
+  count = config.n
 ): ImageGenerationRequest {
   const payload: ImageGenerationRequest = {
     model: config.model,
@@ -31,7 +36,7 @@ export function buildImageGenerationPayload(
     prompt: prompt.trim(),
     size: config.size,
     quality: config.quality,
-    n: config.n,
+    n: normalizeImageGenerationCount(count),
     response_format: config.response_format,
   }
 
@@ -49,4 +54,18 @@ export function buildImageGenerationPayload(
   }
 
   return payload
+}
+
+export function buildImageGenerationPayloads(
+  prompt: string,
+  config: ImageGenerationConfig
+): ImageGenerationRequest[] {
+  const count = normalizeImageGenerationCount(config.n)
+  if (shouldSplitImageGenerationRequests(config.model) && count > 1) {
+    return Array.from({ length: count }, () =>
+      buildImageGenerationPayload(prompt, config, 1)
+    )
+  }
+
+  return [buildImageGenerationPayload(prompt, config, count)]
 }

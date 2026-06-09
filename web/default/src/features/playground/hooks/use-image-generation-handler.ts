@@ -22,7 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { sendImageGeneration } from '../api'
 import { ERROR_MESSAGES } from '../constants'
-import { buildImageGenerationPayload, getRawImageUrls } from '../lib'
+import {
+  buildImageGenerationPayloads,
+  getRawImageUrls,
+  normalizeImageGenerationCount,
+} from '../lib'
 import type { ImageGenerationConfig, ImageResult, ImageTask } from '../types'
 
 interface UseImageGenerationHandlerOptions {
@@ -102,7 +106,11 @@ export function useImageGenerationHandler({
   const generateImage = useCallback(
     async (prompt: string, overrideConfig?: ImageGenerationConfig) => {
       const trimmedPrompt = prompt.trim()
-      const effectiveConfig = overrideConfig ?? config
+      const sourceConfig = overrideConfig ?? config
+      const effectiveConfig = {
+        ...sourceConfig,
+        n: normalizeImageGenerationCount(sourceConfig.n),
+      }
 
       if (!trimmedPrompt) {
         toast.error(t('Please enter an image prompt'))
@@ -132,17 +140,37 @@ export function useImageGenerationHandler({
       onTasksUpdate((prev) => [task, ...prev])
 
       try {
-        const payload = buildImageGenerationPayload(
+        const payloads = buildImageGenerationPayloads(
           trimmedPrompt,
           effectiveConfig
         )
-        const response = await sendImageGeneration(payload)
-        const images = (response.data || []).filter(
-          (image): image is ImageResult => Boolean(image.url || image.b64_json)
+
+        const results = await Promise.allSettled(
+          payloads.map(async (payload) => {
+            const response = await sendImageGeneration(payload)
+            const images = (response.data || []).filter(
+              (image): image is ImageResult =>
+                Boolean(image.url || image.b64_json)
+            )
+            if (images.length === 0) {
+              throw new Error(t('API did not return image data'))
+            }
+            return images
+          })
+        )
+
+        const images = results.flatMap((result) =>
+          result.status === 'fulfilled' ? result.value : []
+        )
+        const firstError = results.find(
+          (result): result is PromiseRejectedResult =>
+            result.status === 'rejected'
         )
 
         if (images.length === 0) {
-          throw new Error(t('API did not return image data'))
+          throw (
+            firstError?.reason ?? new Error(t('API did not return image data'))
+          )
         }
 
         updateTask(taskId, (current) => ({
@@ -150,6 +178,13 @@ export function useImageGenerationHandler({
           status: 'done',
           images,
           rawImageUrls: getRawImageUrls(images),
+          error:
+            firstError !== undefined
+              ? getImageGenerationError(
+                  firstError.reason,
+                  t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
+                ).message
+              : undefined,
           finishedAt: Date.now(),
         }))
       } catch (error: unknown) {
