@@ -134,6 +134,11 @@ var RetryTimes = 0
 var KYCEnabled = false
 var KYCMaxSubmitCount = 5
 
+// EnterpriseMaxSubmitCount caps how many times a user may re-submit an
+// enterprise certification on the same active record (anti retry-spam). There
+// is no force/enable switch — the enterprise card is always shown.
+var EnterpriseMaxSubmitCount = 5
+
 //var RootUserEmail = ""
 
 var IsMasterNode bool

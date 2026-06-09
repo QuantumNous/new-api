@@ -132,6 +132,12 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/kyc", controller.SubmitKYC)
 				selfRoute.PUT("/kyc", controller.UpdateKYC)
 				selfRoute.DELETE("/kyc", controller.DeleteKYC)
+
+				// Enterprise certification routes
+				selfRoute.GET("/enterprise", controller.GetEnterpriseStatus)
+				selfRoute.POST("/enterprise", controller.SubmitEnterprise)
+				selfRoute.PUT("/enterprise", controller.UpdateEnterprise)
+				selfRoute.DELETE("/enterprise", controller.DeleteEnterprise)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -163,6 +169,15 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.PUT("/kyc/admin/:id/reset", controller.AdminResetKYC)
 				adminRoute.GET("/kyc/admin/:id/reveal", controller.AdminRevealKYC)
 				adminRoute.GET("/kyc/admin/:id/images", controller.AdminGetKYCImages)
+
+				// Enterprise admin routes — by-user/:user_id before /:id routes
+				adminRoute.GET("/enterprise/admin", controller.AdminGetEnterpriseList)
+				adminRoute.GET("/enterprise/admin/by-user/:user_id", controller.AdminGetEnterpriseByUser)
+				adminRoute.PUT("/enterprise/admin/:id/approve", controller.AdminApproveEnterprise)
+				adminRoute.PUT("/enterprise/admin/:id/reject", controller.AdminRejectEnterprise)
+				adminRoute.PUT("/enterprise/admin/:id/reset", controller.AdminResetEnterprise)
+				adminRoute.GET("/enterprise/admin/:id/reveal", controller.AdminRevealEnterprise)
+				adminRoute.GET("/enterprise/admin/:id/images", controller.AdminGetEnterpriseImages)
 			}
 		}
 

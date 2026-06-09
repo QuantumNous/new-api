@@ -52,6 +52,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     redemption: true,
     user: true,
     kyc: true,
+    enterprise: true,
     subscription: true,
     reconcile: true,
     setting: true,

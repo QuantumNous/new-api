@@ -26,9 +26,10 @@ type User struct {
 	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
-	Role             int            `json:"role" gorm:"type:int;default:1"`        // admin, common
-	Status           int            `json:"status" gorm:"type:int;default:1"`      // enabled, disabled
-	KycStatus        int            `json:"kyc_status" gorm:"type:int;default:0;column:kyc_status"` // 0=未认证 1=审核中 2=已通过 3=已拒绝
+	Role             int            `json:"role" gorm:"type:int;default:1"`                                       // admin, common
+	Status           int            `json:"status" gorm:"type:int;default:1"`                                     // enabled, disabled
+	KycStatus        int            `json:"kyc_status" gorm:"type:int;default:0;column:kyc_status"`               // 0=未认证 1=审核中 2=已通过 3=已拒绝
+	EnterpriseStatus int            `json:"enterprise_status" gorm:"type:int;default:0;column:enterprise_status"` // 0=未认证 1=审核中 2=已通过 3=已拒绝
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
@@ -57,15 +58,16 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:        user.Id,
-		Group:     user.Group,
-		Quota:     user.Quota,
-		Status:    user.Status,
-		Username:  user.Username,
-		Setting:   user.Setting,
-		Email:     user.Email,
-		Role:      user.Role,
-		KycStatus: user.KycStatus,
+		Id:               user.Id,
+		Group:            user.Group,
+		Quota:            user.Quota,
+		Status:           user.Status,
+		Username:         user.Username,
+		Setting:          user.Setting,
+		Email:            user.Email,
+		Role:             user.Role,
+		KycStatus:        user.KycStatus,
+		EnterpriseStatus: user.EnterpriseStatus,
 	}
 	return cache
 }
@@ -193,7 +195,7 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
-func GetAllUsers(pageInfo *common.PageInfo, kycStatus int) (users []*User, total int64, err error) {
+func GetAllUsers(pageInfo *common.PageInfo, kycStatus int, enterpriseStatus int) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -208,6 +210,11 @@ func GetAllUsers(pageInfo *common.PageInfo, kycStatus int) (users []*User, total
 	baseQuery := tx.Unscoped().Model(&User{})
 	if kycStatus != 0 {
 		baseQuery = baseQuery.Where("kyc_status = ?", kycStatus)
+	}
+	// enterpriseStatus uses -1 as the "no filter" sentinel so an explicit 0
+	// (未认证) can be queried; values >= 0 are real filters.
+	if enterpriseStatus >= 0 {
+		baseQuery = baseQuery.Where("enterprise_status = ?", enterpriseStatus)
 	}
 
 	// Get total count within transaction
@@ -232,7 +239,7 @@ func GetAllUsers(pageInfo *common.PageInfo, kycStatus int) (users []*User, total
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, startIdx int, num int, kycStatus int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, startIdx int, num int, kycStatus int, enterpriseStatus int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -279,6 +286,10 @@ func SearchUsers(keyword string, group string, startIdx int, num int, kycStatus 
 
 	if kycStatus != 0 {
 		query = query.Where("kyc_status = ?", kycStatus)
+	}
+	// -1 = no filter; >= 0 (including 0 = 未认证) is a real filter.
+	if enterpriseStatus >= 0 {
+		query = query.Where("enterprise_status = ?", enterpriseStatus)
 	}
 
 	// 获取总数
@@ -346,6 +357,15 @@ func HardDeleteUserById(id int) error {
 		_ = DeleteKYCImagesByKYCId(kyc.Id)
 	}
 	DB.Unscoped().Where("user_id = ?", id).Delete(&UserKYC{})
+
+	// Same hard-delete cascade for enterprise certification records + images.
+	var enterprises []UserEnterprise
+	DB.Unscoped().Where("user_id = ?", id).Find(&enterprises)
+	for _, ent := range enterprises {
+		_ = DeleteEnterpriseImagesByEnterpriseId(ent.Id)
+	}
+	DB.Unscoped().Where("user_id = ?", id).Delete(&UserEnterprise{})
+
 	return DB.Unscoped().Delete(&User{}, "id = ?", id).Error
 }
 
@@ -602,6 +622,11 @@ func (user *User) Delete() error {
 		_ = SoftDeleteKYCImagesByKYCId(kyc.Id)
 	}
 	_ = DB.Where("user_id = ?", user.Id).Delete(&UserKYC{}).Error
+	// Same soft-delete cascade for enterprise certification.
+	if ent, err := GetEnterpriseByUserId(user.Id); err == nil {
+		_ = SoftDeleteEnterpriseImagesByEnterpriseId(ent.Id)
+	}
+	_ = DB.Where("user_id = ?", user.Id).Delete(&UserEnterprise{}).Error
 	if err := DB.Delete(user).Error; err != nil {
 		return err
 	}

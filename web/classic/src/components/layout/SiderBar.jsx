@@ -51,6 +51,7 @@ const routerMap = {
   playground: '/console/playground',
   personal: '/console/personal',
   kyc: '/console/kyc',
+  enterprise: '/console/enterprise',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -195,6 +196,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('实名认证'),
         itemKey: 'kyc',
         to: '/kyc',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('企业认证'),
+        itemKey: 'enterprise',
+        to: '/enterprise',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

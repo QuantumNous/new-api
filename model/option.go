@@ -172,6 +172,7 @@ func InitOptionMap() {
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
 	common.OptionMap["KYCEnabled"] = strconv.FormatBool(common.KYCEnabled)
 	common.OptionMap["KYCMaxSubmitCount"] = strconv.Itoa(common.KYCMaxSubmitCount)
+	common.OptionMap["EnterpriseMaxSubmitCount"] = strconv.Itoa(common.EnterpriseMaxSubmitCount)
 	common.OptionMap["ReconcileUploadMaxFileBytes"] = strconv.FormatInt(common.ReconcileUploadMaxFileBytes, 10)
 	common.OptionMap["ReconcileUploadMaxLogRangeDays"] = strconv.Itoa(common.ReconcileUploadMaxLogRangeDays)
 	common.OptionMap["ReconcileDriftOkPct"] = strconv.FormatFloat(common.ReconcileDriftOkPct, 'f', -1, 64)
@@ -576,6 +577,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "KYCMaxSubmitCount":
 		common.KYCMaxSubmitCount, _ = strconv.Atoi(value)
+	case "EnterpriseMaxSubmitCount":
+		common.EnterpriseMaxSubmitCount, _ = strconv.Atoi(value)
 	case "ReconcileUploadMaxFileBytes":
 		common.ReconcileUploadMaxFileBytes, _ = strconv.ParseInt(value, 10, 64)
 	case "ReconcileUploadMaxLogRangeDays":
