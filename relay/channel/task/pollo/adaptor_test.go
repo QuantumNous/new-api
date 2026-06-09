@@ -264,6 +264,103 @@ func TestRequestShape_RefVsStandard(t *testing.T) {
 	})
 }
 
+// TestConvertPayload_DoubaoContentRoles verifies the Doubao-compatible metadata.content[]
+// path: image_url items are bucketed by role into Pollo shapes — first_frame/absent ->
+// input.image, last_frame -> input.imageTail, reference_image -> input.refs[] (routing to
+// /ref2video with auto ref1/ref2 names + a required aspectRatio). Mirrors the real Doubao
+// content contract so one client request drives both channels.
+func TestConvertPayload_DoubaoContentRoles(t *testing.T) {
+	mk := func(t *testing.T, meta map[string]any) (*polloRequest, *TaskAdaptor) {
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		req := &relaycommon.TaskSubmitReq{Prompt: "x", Seconds: "5", Metadata: meta}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		return body, a
+	}
+	img := func(url, role string) map[string]any {
+		m := map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}
+		if role != "" {
+			m["role"] = role
+		}
+		return m
+	}
+
+	t.Run("reference_image -> refs + ref2video shape", func(t *testing.T) {
+		body, a := mk(t, map[string]any{"content": []any{
+			img("https://x/a.jpg", "reference_image"),
+			img("https://x/b.jpg", "reference_image"),
+		}})
+		if !a.isRef {
+			t.Fatal("reference_image must set ref mode")
+		}
+		if len(body.Input.Refs) != 2 {
+			t.Fatalf("want 2 refs, got %d", len(body.Input.Refs))
+		}
+		r0, ok := body.Input.Refs[0].(polloRef)
+		if !ok || r0.Type != "image" || r0.Name != "ref1" || r0.Image != "https://x/a.jpg" || r0.Order != 1 {
+			t.Fatalf("ref0 = %+v (ok=%v)", body.Input.Refs[0], ok)
+		}
+		if r1, _ := body.Input.Refs[1].(polloRef); r1.Name != "ref2" || r1.Order != 2 {
+			t.Fatalf("ref1 = %+v", body.Input.Refs[1])
+		}
+		if body.Input.Duration != 5 || body.Input.Length != 0 {
+			t.Fatalf("ref body duration=%d length=%d", body.Input.Duration, body.Input.Length)
+		}
+		if body.Input.Image != "" || body.Input.ImageTail != "" {
+			t.Fatalf("ref2video must not carry image/imageTail, got %q/%q", body.Input.Image, body.Input.ImageTail)
+		}
+		if body.Input.AspectRatio != "16:9" {
+			t.Fatalf("ref2video must default aspectRatio, got %q", body.Input.AspectRatio)
+		}
+	})
+
+	t.Run("first_frame + last_frame -> i2v image/imageTail", func(t *testing.T) {
+		body, a := mk(t, map[string]any{"content": []any{
+			img("https://x/first.jpg", "first_frame"),
+			img("https://x/last.jpg", "last_frame"),
+		}})
+		if a.isRef {
+			t.Fatal("frames must NOT set ref mode")
+		}
+		if body.Input.Image != "https://x/first.jpg" || body.Input.ImageTail != "https://x/last.jpg" {
+			t.Fatalf("image=%q imageTail=%q", body.Input.Image, body.Input.ImageTail)
+		}
+		if body.Input.Length != 5 || body.Input.Duration != 0 {
+			t.Fatalf("i2v length=%d duration=%d", body.Input.Length, body.Input.Duration)
+		}
+	})
+
+	t.Run("absent role -> first frame", func(t *testing.T) {
+		body, a := mk(t, map[string]any{"content": []any{img("https://x/c.jpg", "")}})
+		if a.isRef || body.Input.Image != "https://x/c.jpg" {
+			t.Fatalf("absent role -> first-frame i2v, isRef=%v image=%q", a.isRef, body.Input.Image)
+		}
+	})
+
+	t.Run("ratio alias -> aspectRatio", func(t *testing.T) {
+		body, _ := mk(t, map[string]any{
+			"ratio":   "9:16",
+			"content": []any{img("https://x/a.jpg", "reference_image")},
+		})
+		if body.Input.AspectRatio != "9:16" {
+			t.Fatalf("ratio alias must map to aspectRatio, got %q", body.Input.AspectRatio)
+		}
+	})
+
+	t.Run("bare string image_url tolerated", func(t *testing.T) {
+		body, _ := mk(t, map[string]any{"content": []any{
+			map[string]any{"type": "image_url", "image_url": "https://x/s.jpg", "role": "first_frame"},
+		}})
+		if body.Input.Image != "https://x/s.jpg" {
+			t.Fatalf("bare-string image_url must be read, got %q", body.Input.Image)
+		}
+	})
+}
+
 func TestParseValidateResponse(t *testing.T) {
 	body := []byte(`{"code":"SUCCESS","data":{"cost":15,"totalCost":15}}`)
 	var r polloValidateResponse

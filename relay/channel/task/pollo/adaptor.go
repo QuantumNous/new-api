@@ -173,6 +173,17 @@ type polloRequest struct {
 	ClientSource string     `json:"clientSource,omitempty"`
 }
 
+// polloRef is one entry of Pollo's ref2video `refs` array. Pollo REQUIRES type/name/image/
+// order (verified live against the real API: a missing `name` returns HTTP 400 with a Zod
+// "Required" error). We only emit the single-image ref shape (type:"image"); Pollo's
+// subject/video/audio ref variants are not produced from the Doubao-style content[] mapping.
+type polloRef struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Image string `json:"image"`
+	Order int    `json:"order"`
+}
+
 // codeSuccess is the value of the "code" field on a successful Pollo response.
 const codeSuccess = "SUCCESS"
 
@@ -646,11 +657,6 @@ func resolveSeconds(req *relaycommon.TaskSubmitReq) int {
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*polloRequest, error) {
-	// Detect the request shape (ref2video vs t2v/i2v) from the payload, not the model
-	// name, and remember it so BuildRequestURL targets the matching endpoint. The shape
-	// is independent of model mapping — both base models support both shapes.
-	a.isRef = isRefRequest(req)
-
 	input := polloInput{
 		Prompt:     req.Prompt,
 		Resolution: "720p",
@@ -658,21 +664,164 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		// metadata.seed (including 0) is applied below by UnmarshalMetadata.
 	}
 
-	seconds := resolveSeconds(req)
-	if a.isRef {
-		input.Duration = seconds
-	} else {
-		input.Length = seconds
-		input.Image = req.Image
-	}
-
-	// Overlay any provider-specific fields supplied via metadata
-	// (refs, aspectRatio, resolution, generateAudio, webSearch, videoNum, imageMeta, seed, imageTail...).
+	// 1) Overlay pollo-native fields from metadata (resolution, aspectRatio, length, duration,
+	//    seed, generateAudio, webSearch, videoNum, refs, imageMeta, image, imageTail...). This
+	//    preserves the original pollo-native request shape; the Doubao-style content[] inputs
+	//    below take precedence over anything overlaid here.
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, &input); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
+	// 2) Doubao-compatible image inputs: parse metadata.content[] image_url items by role so a
+	//    single client request works on both the Doubao and Pollo channels. Roles map to Pollo
+	//    shapes as: first_frame|absent -> input.image, last_frame -> input.imageTail,
+	//    reference_image -> input.refs[] (which routes to /ref2video). Mirrors the Doubao
+	//    adaptor's content[] contract (see doubao/adaptor.go convertToRequestPayload).
+	imgs := extractRoleImages(req.Metadata)
+	// Top-level images[]/image (no role) fall back to the first frame, matching Doubao's
+	// req.Images handling.
+	if imgs.firstFrame == "" {
+		if req.Image != "" {
+			imgs.firstFrame = req.Image
+		} else if len(req.Images) > 0 {
+			imgs.firstFrame = req.Images[0]
+		}
+	}
+	if imgs.firstFrame != "" {
+		input.Image = imgs.firstFrame
+	}
+	if imgs.lastFrame != "" {
+		input.ImageTail = imgs.lastFrame
+	}
+	if len(imgs.references) > 0 {
+		// Build Pollo's ref schema {type:"image", name, image, order}. name is REQUIRED by
+		// Pollo (verified live: omitting it => HTTP 400), so auto-assign ref1/ref2/...; order
+		// is 1-based. Overrides any metadata.refs overlaid in step 1 so content[] wins.
+		refs := make([]any, 0, len(imgs.references))
+		for i, url := range imgs.references {
+			refs = append(refs, polloRef{
+				Type:  "image",
+				Name:  fmt.Sprintf("ref%d", i+1),
+				Image: url,
+				Order: i + 1,
+			})
+		}
+		input.Refs = refs
+	}
+
+	// 3) Reference mode iff we ended up with refs (from content[] reference_image OR a
+	//    pollo-native metadata.refs). BuildRequestURL keys off a.isRef to pick /ref2video.
+	a.isRef = len(input.Refs) > 0
+
+	// 4) Duration field differs by endpoint: ref2video uses input.duration, t2v/i2v uses
+	//    input.length. Seconds-first precedence (resolveSeconds).
+	seconds := resolveSeconds(req)
+	if a.isRef {
+		input.Duration = seconds
+		input.Length = 0
+		// ref2video carries refs only — no first/last-frame image fields.
+		input.Image = ""
+		input.ImageTail = ""
+		// aspectRatio is REQUIRED by Pollo's ref2video schema (verified live). Accept Doubao's
+		// `ratio` alias and fall back to a default so a Doubao-style request (which omits the
+		// pollo-native aspectRatio) is not rejected upstream.
+		if input.AspectRatio == "" {
+			if r, ok := metaString(req.Metadata, "ratio"); ok {
+				input.AspectRatio = r
+			} else {
+				input.AspectRatio = "16:9"
+			}
+		}
+	} else {
+		input.Length = seconds
+		input.Duration = 0
+		// Accept Doubao's `ratio` alias for the i2v/t2v shape too (optional here).
+		if input.AspectRatio == "" {
+			if r, ok := metaString(req.Metadata, "ratio"); ok {
+				input.AspectRatio = r
+			}
+		}
+	}
+
 	return &polloRequest{Input: input}, nil
+}
+
+// roleImages holds Doubao-style content[] images bucketed by role.
+type roleImages struct {
+	firstFrame string
+	lastFrame  string
+	references []string
+}
+
+// extractRoleImages parses Doubao-style metadata.content[] image_url items, bucketing each by
+// its role: "last_frame" -> tail frame, "reference_image" -> reference list, anything else
+// (incl. "first_frame" / absent) -> first frame. Mirrors the Doubao content contract so the
+// same client request drives both channels. Non-image_url items (video_url/audio_url/text) are
+// ignored — the Pollo seedance models here only consume image references.
+func extractRoleImages(metadata map[string]any) roleImages {
+	var ri roleImages
+	if metadata == nil {
+		return ri
+	}
+	raw, ok := metadata["content"]
+	if !ok {
+		return ri
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return ri
+	}
+	for _, it := range items {
+		m, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		if t, _ := m["type"].(string); t != "image_url" {
+			continue
+		}
+		url := imageURLFromItem(m)
+		if url == "" {
+			continue
+		}
+		switch role, _ := m["role"].(string); role {
+		case "last_frame":
+			if ri.lastFrame == "" {
+				ri.lastFrame = url
+			}
+		case "reference_image":
+			ri.references = append(ri.references, url)
+		default: // "first_frame" or absent
+			if ri.firstFrame == "" {
+				ri.firstFrame = url
+			}
+		}
+	}
+	return ri
+}
+
+// imageURLFromItem pulls the URL out of a content item's image_url field, tolerating both the
+// canonical object form {"image_url":{"url":"..."}} and a bare string {"image_url":"..."}.
+func imageURLFromItem(m map[string]any) string {
+	switch v := m["image_url"].(type) {
+	case map[string]any:
+		s, _ := v["url"].(string)
+		return s
+	case string:
+		return v
+	default:
+		return ""
+	}
+}
+
+// metaString returns a non-empty string value for key in metadata.
+func metaString(metadata map[string]any, key string) (string, bool) {
+	if metadata == nil {
+		return "", false
+	}
+	if s, ok := metadata[key].(string); ok && s != "" {
+		return s, true
+	}
+	return "", false
 }
 
 // ConvertToOpenAIVideo renders a stored task into the OpenAI video API response shape.
