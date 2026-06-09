@@ -177,6 +177,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
   const table = useReactTable({
     data,
     columns,
+    rowCount: totalCount,
     pageCount: resolvedPageCount,
     state: {
       sorting,
