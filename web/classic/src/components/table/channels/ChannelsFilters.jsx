@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useMemo } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch, IconUpload } from '@douyinfe/semi-icons';
-import { renderQuota, renderQuotaWithAmount } from '../../../helpers';
+import { renderQuotaWithAmount } from '../../../helpers';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -39,24 +39,21 @@ const ChannelsFilters = ({
   setShowBatchImport,
   t,
 }) => {
-  const formattedStats = useMemo(
-    () => ({
-      usedBalanceZero: renderQuota(
-        Number(channelStats?.used_quota_balance_zero) || 0,
-      ),
-      usedBalanceNonzero: renderQuota(
-        Number(channelStats?.used_quota_balance_nonzero) || 0,
-      ),
-      balanceTotal: renderQuotaWithAmount(
-        Number(channelStats?.balance_total) || 0,
-      ),
-    }),
-    [
-      channelStats?.used_quota_balance_zero,
-      channelStats?.used_quota_balance_nonzero,
-      channelStats?.balance_total,
-    ],
-  );
+  const formattedStats = useMemo(() => {
+    const totalAmount = Number(channelStats?.balance_total) || 0;
+    const usedQuota = Number(channelStats?.used_quota_balance_nonzero) || 0;
+    const quotaPerUnit = Number(localStorage.getItem('quota_per_unit')) || 0;
+    const usedAmount = quotaPerUnit > 0 ? usedQuota / quotaPerUnit : 0;
+    const remainingAmount = totalAmount - usedAmount;
+
+    return {
+      totalAmount: renderQuotaWithAmount(totalAmount),
+      remainingAmount: renderQuotaWithAmount(remainingAmount),
+    };
+  }, [
+    channelStats?.used_quota_balance_nonzero,
+    channelStats?.balance_total,
+  ]);
 
   return (
     <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
@@ -186,21 +183,15 @@ const ChannelsFilters = ({
           </Button>
           <div className='flex flex-wrap items-center justify-end gap-1 text-xs text-gray-600 w-full md:w-auto'>
             <span className='rounded bg-gray-50 px-2 py-1 whitespace-nowrap'>
-              {t('已用额度')}({t('剩余额度')}=0){' '}
+              {t('总额度')}{' '}
               <span className='font-semibold text-gray-900'>
-                {formattedStats.usedBalanceZero}
+                {formattedStats.totalAmount}
               </span>
             </span>
             <span className='rounded bg-gray-50 px-2 py-1 whitespace-nowrap'>
-              {t('已用额度')}({t('剩余额度')}≠0){' '}
+              {t('剩余额度')}{' '}
               <span className='font-semibold text-gray-900'>
-                {formattedStats.usedBalanceNonzero}
-              </span>
-            </span>
-            <span className='rounded bg-gray-50 px-2 py-1 whitespace-nowrap'>
-              {t('总余额')}{' '}
-              <span className='font-semibold text-gray-900'>
-                {formattedStats.balanceTotal}
+                {formattedStats.remainingAmount}
               </span>
             </span>
           </div>

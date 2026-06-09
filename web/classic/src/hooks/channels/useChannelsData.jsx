@@ -53,7 +53,6 @@ export const useChannelsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [channelCount, setChannelCount] = useState(0);
   const [channelStats, setChannelStats] = useState({
-    used_quota_balance_zero: 0,
     used_quota_balance_nonzero: 0,
     balance_total: 0,
   });
@@ -382,8 +381,8 @@ export const useChannelsData = () => {
         } = data;
         updateTypeCounts(type_counts);
         setChannelStats({
-          used_quota_balance_zero: stats?.used_quota_balance_zero || 0,
-          used_quota_balance_nonzero: stats?.used_quota_balance_nonzero || 0,
+          used_quota_balance_nonzero:
+            stats?.used_quota_balance_nonzero || 0,
           balance_total: stats?.balance_total || 0,
         });
         setChannelFormat(items, tagMode);
