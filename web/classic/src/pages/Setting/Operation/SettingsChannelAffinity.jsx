@@ -62,6 +62,8 @@ import ParamOverrideEditorModal from '../../../components/table/channels/modals/
 
 const KEY_ENABLED = 'channel_affinity_setting.enabled';
 const KEY_SWITCH_ON_SUCCESS = 'channel_affinity_setting.switch_on_success';
+const KEY_KEEP_ON_CHANNEL_DISABLED =
+  'channel_affinity_setting.keep_on_channel_disabled';
 const KEY_MAX_ENTRIES = 'channel_affinity_setting.max_entries';
 const KEY_DEFAULT_TTL = 'channel_affinity_setting.default_ttl_seconds';
 const KEY_RULES = 'channel_affinity_setting.rules';
@@ -241,6 +243,7 @@ export default function SettingsChannelAffinity(props) {
   const [inputs, setInputs] = useState({
     [KEY_ENABLED]: false,
     [KEY_SWITCH_ON_SUCCESS]: true,
+    [KEY_KEEP_ON_CHANNEL_DISABLED]: false,
     [KEY_MAX_ENTRIES]: 100000,
     [KEY_DEFAULT_TTL]: 3600,
     [KEY_RULES]: '[]',
@@ -858,6 +861,7 @@ export default function SettingsChannelAffinity(props) {
         ![
           KEY_ENABLED,
           KEY_SWITCH_ON_SUCCESS,
+          KEY_KEEP_ON_CHANNEL_DISABLED,
           KEY_MAX_ENTRIES,
           KEY_DEFAULT_TTL,
           KEY_RULES,
@@ -867,6 +871,8 @@ export default function SettingsChannelAffinity(props) {
       if (key === KEY_ENABLED)
         currentInputs[key] = toBoolean(props.options[key]);
       else if (key === KEY_SWITCH_ON_SUCCESS)
+        currentInputs[key] = toBoolean(props.options[key]);
+      else if (key === KEY_KEEP_ON_CHANNEL_DISABLED)
         currentInputs[key] = toBoolean(props.options[key]);
       else if (key === KEY_MAX_ENTRIES)
         currentInputs[key] = Number(props.options[key] || 0) || 0;
@@ -1000,6 +1006,25 @@ export default function SettingsChannelAffinity(props) {
                 <Text type='tertiary' size='small'>
                   {t(
                     '如果亲和到的渠道失败，重试到其他渠道成功后，将亲和更新到成功的渠道。',
+                  )}
+                </Text>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={KEY_KEEP_ON_CHANNEL_DISABLED}
+                  label={t('渠道禁用后保留亲和')}
+                  checkedText='|'
+                  uncheckedText='O'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      [KEY_KEEP_ON_CHANNEL_DISABLED]: value,
+                    })
+                  }
+                />
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '开启后，亲和到的渠道被禁用，或不再适用于当前分组/模型时，仍保留这条亲和；关闭时会删除并重新选择渠道。',
                   )}
                 </Text>
               </Col>

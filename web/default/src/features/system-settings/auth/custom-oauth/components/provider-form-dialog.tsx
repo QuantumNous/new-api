@@ -22,14 +22,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -50,6 +42,12 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog } from '@/components/dialog'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../../../components/settings-form-layout'
 import {
   useCreateProvider,
   useUpdateProvider,
@@ -68,6 +66,8 @@ type ProviderFormDialogProps = {
   onOpenChange: (open: boolean) => void
   provider?: CustomOAuthProvider | null
 }
+
+const PROVIDER_FORM_ID = 'custom-oauth-provider-form'
 
 export function ProviderFormDialog(props: ProviderFormDialogProps) {
   const { t } = useTranslation()
@@ -169,100 +169,97 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
   const isPending = createProvider.isPending || updateProvider.isPending
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? t('Edit OAuth Provider') : t('Add OAuth Provider')}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? t('Update the configuration for this custom OAuth provider.')
-              : t(
-                  'Configure a new custom OAuth provider for user authentication.'
-                )}
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={isEditing ? t('Edit OAuth Provider') : t('Add OAuth Provider')}
+      description={
+        isEditing
+          ? t('Update the configuration for this custom OAuth provider.')
+          : t('Configure a new custom OAuth provider for user authentication.')
+      }
+      contentClassName='max-h-[85vh] overflow-y-auto sm:max-w-2xl'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => props.onOpenChange(false)}
+            disabled={isPending}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button type='submit' form={PROVIDER_FORM_ID} disabled={isPending}>
+            {isPending
+              ? t('Saving...')
+              : isEditing
+                ? t('Update Provider')
+                : t('Create Provider')}
+          </Button>
+        </>
+      }
+    >
+      <Form {...form}>
+        <SettingsForm
+          id={PROVIDER_FORM_ID}
+          onSubmit={form.handleSubmit(onSubmit)}
+        >
+          {/* Preset Selector (only for creating) */}
+          {!isEditing && <PresetSelector form={form} />}
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-            {/* Preset Selector (only for creating) */}
-            {!isEditing && <PresetSelector form={form} />}
+          {/* Basic Info */}
+          <div className='space-y-4'>
+            <h4 className='text-sm font-medium'>{t('Basic Info')}</h4>
 
-            {/* Basic Info */}
-            <div className='space-y-4'>
-              <h4 className='text-sm font-medium'>{t('Basic Info')}</h4>
+            <FormField
+              control={form.control}
+              name='enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enabled')}</FormLabel>
+                    <FormDescription>
+                      {t('Allow users to sign in with this provider')}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
 
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
               <FormField
                 control={form.control}
-                name='enabled'
+                name='name'
                 render={({ field }) => (
-                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>
-                        {t('Enabled')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t('Allow users to sign in with this provider')}
-                      </FormDescription>
-                    </div>
+                  <FormItem>
+                    <FormLabel>{t('Provider Name')}</FormLabel>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      <Input placeholder={t('e.g. My GitLab')} {...field} />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <FormField
-                  control={form.control}
-                  name='name'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Provider Name')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('e.g. My GitLab')} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='slug'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Slug')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('e.g. my-gitlab')} {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        {t('Used in URLs and API routes')}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
               <FormField
                 control={form.control}
-                name='icon'
+                name='slug'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Icon')}</FormLabel>
+                    <FormLabel>{t('Slug')}</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder={t('Icon identifier (e.g. github, gitlab)')}
-                        {...field}
-                      />
+                      <Input placeholder={t('e.g. my-gitlab')} {...field} />
                     </FormControl>
                     <FormDescription>
-                      {t('Optional icon identifier for the login button')}
+                      {t('Used in URLs and API routes')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -270,341 +267,341 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
               />
             </div>
 
-            <Separator />
+            <FormField
+              control={form.control}
+              name='icon'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Icon')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('Icon identifier (e.g. github, gitlab)')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Optional icon identifier for the login button')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-            {/* Credentials */}
-            <div className='space-y-4'>
-              <h4 className='text-sm font-medium'>{t('Credentials')}</h4>
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <FormField
-                  control={form.control}
-                  name='client_id'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Client ID')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t('OAuth Client ID')}
-                          autoComplete='off'
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          <Separator />
 
-                <FormField
-                  control={form.control}
-                  name='client_secret'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Client Secret')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type='password'
-                          placeholder={t('OAuth Client Secret')}
-                          autoComplete='new-password'
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+          {/* Credentials */}
+          <div className='space-y-4'>
+            <h4 className='text-sm font-medium'>{t('Credentials')}</h4>
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='client_id'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Client ID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('OAuth Client ID')}
+                        autoComplete='off'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
-                name='auth_style'
+                name='client_secret'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Auth Style')}</FormLabel>
-                    <Select
-                      items={[
-                        ...AUTH_STYLE_OPTIONS.map((option) => ({
-                          value: String(option.value),
-                          label: t(option.labelKey),
-                        })),
-                      ]}
-                      value={String(field.value)}
-                      onValueChange={(val) => field.onChange(Number(val))}
-                    >
-                      <FormControl>
-                        <SelectTrigger className='w-full'>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {AUTH_STYLE_OPTIONS.map((option) => (
-                            <SelectItem
-                              key={option.value}
-                              value={String(option.value)}
-                            >
-                              {t(option.labelKey)}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      {t(
-                        'How client credentials are sent to the token endpoint'
+                    <FormLabel>{t('Client Secret')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('OAuth Client Secret')}
+                        autoComplete='new-password'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='auth_style'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Auth Style')}</FormLabel>
+                  <Select
+                    items={[
+                      ...AUTH_STYLE_OPTIONS.map((option) => ({
+                        value: String(option.value),
+                        label: t(option.labelKey),
+                      })),
+                    ]}
+                    value={String(field.value)}
+                    onValueChange={(val) => field.onChange(Number(val))}
+                  >
+                    <FormControl>
+                      <SelectTrigger className='w-full'>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {AUTH_STYLE_OPTIONS.map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            value={String(option.value)}
+                          >
+                            {t(option.labelKey)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {t('How client credentials are sent to the token endpoint')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Endpoints */}
+          <div className='space-y-4'>
+            <div className='flex items-center justify-between'>
+              <h4 className='text-sm font-medium'>{t('Endpoints')}</h4>
+              <DiscoveryButton form={form} />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='well_known'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Well-Known URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t(
+                        'https://provider.com/.well-known/openid-configuration'
                       )}
-                    </FormDescription>
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'OIDC discovery URL. Click "Auto-discover" to fetch endpoints automatically.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='authorization_endpoint'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Authorization Endpoint')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://provider.com/oauth/authorize'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='token_endpoint'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Endpoint')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://provider.com/oauth/token'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='user_info_endpoint'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('User Info Endpoint')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://provider.com/api/user'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='scopes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Scopes')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('e.g. openid profile email')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Space-separated OAuth scopes')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Field Mapping */}
+          <div className='space-y-4'>
+            <h4 className='text-sm font-medium'>{t('Field Mapping')}</h4>
+            <FormDescription>
+              {t(
+                'Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).'
+              )}
+            </FormDescription>
+
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='user_id_field'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('User ID Field')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='id' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='username_field'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Username Field')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='login' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='display_name_field'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Display Name Field')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='name' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='email_field'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Email Field')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='email' {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+          </div>
 
-            <Separator />
+          <Separator />
 
-            {/* Endpoints */}
-            <div className='space-y-4'>
-              <div className='flex items-center justify-between'>
-                <h4 className='text-sm font-medium'>{t('Endpoints')}</h4>
-                <DiscoveryButton form={form} />
-              </div>
+          {/* Advanced */}
+          <div className='space-y-4'>
+            <h4 className='text-sm font-medium'>{t('Advanced')}</h4>
 
-              <FormField
-                control={form.control}
-                name='well_known'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Well-Known URL')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t(
-                          'https://provider.com/.well-known/openid-configuration'
-                        )}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'OIDC discovery URL. Click "Auto-discover" to fetch endpoints automatically.'
+            <FormField
+              control={form.control}
+              name='access_policy'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Access Policy (JSON)')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder={t(
+                        'Optional JSON policy to restrict access based on user info fields'
                       )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      className='min-h-[80px] font-mono text-xs'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON-based access control rules. Leave empty to allow all users.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name='authorization_endpoint'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Authorization Endpoint')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='https://provider.com/oauth/authorize'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='token_endpoint'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Token Endpoint')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='https://provider.com/oauth/token'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='user_info_endpoint'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('User Info Endpoint')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='https://provider.com/api/user'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='scopes'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Scopes')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('e.g. openid profile email')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Space-separated OAuth scopes')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <Separator />
-
-            {/* Field Mapping */}
-            <div className='space-y-4'>
-              <h4 className='text-sm font-medium'>{t('Field Mapping')}</h4>
-              <FormDescription>
-                {t(
-                  'Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).'
-                )}
-              </FormDescription>
-
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <FormField
-                  control={form.control}
-                  name='user_id_field'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('User ID Field')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder='id' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='username_field'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Username Field')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder='login' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='display_name_field'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Display Name Field')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder='name' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='email_field'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Email Field')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder='email' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Advanced */}
-            <div className='space-y-4'>
-              <h4 className='text-sm font-medium'>{t('Advanced')}</h4>
-
-              <FormField
-                control={form.control}
-                name='access_policy'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Access Policy (JSON)')}</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder={t(
-                          'Optional JSON policy to restrict access based on user info fields'
-                        )}
-                        className='min-h-[80px] font-mono text-xs'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'JSON-based access control rules. Leave empty to allow all users.'
+            <FormField
+              control={form.control}
+              name='access_denied_message'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Access Denied Message')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t(
+                        'Custom message shown when access is denied'
                       )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='access_denied_message'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Access Denied Message')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t(
-                          'Custom message shown when access is denied'
-                        )}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => props.onOpenChange(false)}
-                disabled={isPending}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button type='submit' disabled={isPending}>
-                {isPending
-                  ? t('Saving...')
-                  : isEditing
-                    ? t('Update Provider')
-                    : t('Create Provider')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </SettingsForm>
+      </Form>
     </Dialog>
   )
 }
