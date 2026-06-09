@@ -136,6 +136,36 @@ func TestValidatePaymentOptionWithCap_AllowsAboveOneUSDC(t *testing.T) {
 	}
 }
 
+// TestValidatePaymentOptionWithCaps_ImageWindow asserts the synchronous image
+// path can accept BlockRun's longer 600s authorization window via a raised
+// per-call window cap, while the default chat cap (300s) still rejects it and
+// anything beyond the image cap is still refused.
+func TestValidatePaymentOptionWithCaps_ImageWindow(t *testing.T) {
+	opt := validOption()
+	opt.MaxTimeoutSeconds = 600 // BlockRun's image endpoint window
+
+	// Default 300s cap (chat) must still reject it.
+	if err := validatePaymentOption(&opt); err == nil {
+		t.Fatal("expected 600s window rejected under default 300s cap")
+	}
+
+	// Image cap (900s) must allow it.
+	if err := validatePaymentOptionWithCaps(&opt, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds); err != nil {
+		t.Fatalf("expected 600s window allowed under image cap, got %v", err)
+	}
+
+	// Beyond the image cap is still refused (no unbounded widening).
+	opt.MaxTimeoutSeconds = maxImageAuthorizationWindowSeconds + 1
+	if err := validatePaymentOptionWithCaps(&opt, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds); err == nil {
+		t.Fatalf("expected %ds window rejected under %ds image cap", maxImageAuthorizationWindowSeconds+1, maxImageAuthorizationWindowSeconds)
+	}
+
+	// The image window cap must cover BlockRun's observed 600s.
+	if maxImageAuthorizationWindowSeconds < 600 {
+		t.Fatalf("image window cap %ds is below BlockRun's 600s window", maxImageAuthorizationWindowSeconds)
+	}
+}
+
 func TestLooksLikeEthAddress(t *testing.T) {
 	good := []string{
 		"0x0000000000000000000000000000000000000000",
