@@ -8,13 +8,14 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	usageReconProvider      = "flatkey-newapi"
+	usageReconProvider      = "flatkey"
 	usageReconCurrency      = "USD"
 	usageReconMaxRange      = 31 * 24 * time.Hour
 	usageTxnDefaultPageSize = 100
@@ -62,23 +63,24 @@ type usageSummaryResponse struct {
 }
 
 type usageTransaction struct {
-	TransactionID       string                 `json:"transaction_id"`
-	RequestID           string                 `json:"request_id"`
-	APIKeyID            string                 `json:"api_key_id"`
-	APIKeyName          string                 `json:"api_key_name"`
-	Model               string                 `json:"model"`
-	RequestedModel      string                 `json:"requested_model"`
-	CreatedAt           string                 `json:"created_at"`
-	InputTokens         int64                  `json:"input_tokens"`
-	OutputTokens        int64                  `json:"output_tokens"`
-	CacheReadTokens     int64                  `json:"cache_read_tokens"`
-	CacheCreationTokens int64                  `json:"cache_creation_tokens"`
-	TotalTokens         int64                  `json:"total_tokens"`
-	ActualCost          string                 `json:"actual_cost"`
-	Currency            string                 `json:"currency"`
-	Status              string                 `json:"status"`
-	DurationMs          int64                  `json:"duration_ms"`
-	Metadata            map[string]interface{} `json:"metadata"`
+	SourceID            string `json:"source_id"`
+	RequestID           string `json:"request_id"`
+	APIKeyID            string `json:"api_key_id"`
+	APIKeyName          string `json:"api_key_name"`
+	ChannelID           string `json:"channel_id"`
+	ChannelName         string `json:"channel_name"`
+	Model               string `json:"model"`
+	RequestedModel      string `json:"requested_model"`
+	CreatedAt           string `json:"created_at"`
+	InputTokens         int64  `json:"input_tokens"`
+	OutputTokens        int64  `json:"output_tokens"`
+	CacheReadTokens     int64  `json:"cache_read_tokens"`
+	CacheCreationTokens int64  `json:"cache_creation_tokens"`
+	TotalTokens         int64  `json:"total_tokens"`
+	ActualCost          string `json:"actual_cost"`
+	Currency            string `json:"currency"`
+	Status              string `json:"status"`
+	DurationMs          int64  `json:"duration_ms"`
 }
 
 type usagePagination struct {
@@ -90,15 +92,83 @@ type usagePagination struct {
 }
 
 type usageTransactionsResponse struct {
+	Provider     string             `json:"provider"`
+	Period       string             `json:"period"`
+	Start        string             `json:"start"`
+	End          string             `json:"end"`
 	Transactions []usageTransaction `json:"transactions"`
 	Pagination   usagePagination    `json:"pagination"`
 	GeneratedAt  string             `json:"generated_at"`
+}
+
+type usageModelPrice struct {
+	Model                   string `json:"model"`
+	ChannelID               string `json:"channel_id"`
+	ChannelName             string `json:"channel_name"`
+	PricingMode             string `json:"pricing_mode"`
+	InputPriceUSDPer1M      string `json:"input_price_usd_per_1m,omitempty"`
+	OutputPriceUSDPer1M     string `json:"output_price_usd_per_1m,omitempty"`
+	CacheReadPriceUSDPer1M  string `json:"cache_read_price_usd_per_1m,omitempty"`
+	CacheWritePriceUSDPer1M string `json:"cache_write_price_usd_per_1m,omitempty"`
+	RequestPriceUSD         string `json:"request_price_usd,omitempty"`
+	Currency                string `json:"currency"`
+}
+
+type usageModelsResponse struct {
+	Provider    string            `json:"provider"`
+	Models      []usageModelPrice `json:"models"`
+	GeneratedAt string            `json:"generated_at"`
+}
+
+type usageValidationByModel struct {
+	Model       string `json:"model"`
+	ChannelID   string `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	Requests    int64  `json:"requests"`
+	ActualCost  string `json:"actual_cost"`
+}
+
+type usageValidationByChannel struct {
+	ChannelID   string `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	Requests    int64  `json:"requests"`
+	ActualCost  string `json:"actual_cost"`
+}
+
+type usageValidationResponse struct {
+	Provider    string                     `json:"provider"`
+	Period      string                     `json:"period"`
+	Start       string                     `json:"start"`
+	End         string                     `json:"end"`
+	Totals      usageMetrics               `json:"totals"`
+	ByModel     []usageValidationByModel   `json:"by_model"`
+	ByChannel   []usageValidationByChannel `json:"by_channel"`
+	GeneratedAt string                     `json:"generated_at"`
 }
 
 // ---- shared helpers ----
 
 func quotaToUSD(quota int64) string {
 	return decimal.NewFromInt(quota).Div(decimal.NewFromFloat(common.QuotaPerUnit)).StringFixed(10)
+}
+
+func priceToUSD(price float64) string {
+	return decimal.NewFromFloat(price).StringFixed(10)
+}
+
+func ratioPricePer1MTokensUSD(ratio float64) string {
+	return decimal.NewFromFloat(ratio).Mul(decimal.NewFromInt(2)).StringFixed(10)
+}
+
+func usageFormatTime(t time.Time) string {
+	return t.UTC().Format(usageReconMsLayout)
+}
+
+func usagePeriodLabel(c *gin.Context) string {
+	if period := c.Query("period"); period != "" {
+		return period
+	}
+	return "day"
 }
 
 func parseUsageOther(s string) map[string]interface{} {
@@ -188,6 +258,38 @@ func blockRunChannelIDs(channels map[int]model.BlockRunChannel) []int {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+func buildUsageModelPrice(modelName string, ch model.BlockRunChannel) usageModelPrice {
+	out := usageModelPrice{
+		Model:       modelName,
+		ChannelID:   strconv.Itoa(ch.Id),
+		ChannelName: ch.Name,
+		PricingMode: "MIXED",
+		Currency:    usageReconCurrency,
+	}
+
+	if modelPrice, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+		out.PricingMode = "REQUEST"
+		out.RequestPriceUSD = priceToUSD(modelPrice)
+		return out
+	}
+
+	modelRatio, ok := ratio_setting.GetModelRatioCopy()[ratio_setting.FormatMatchingModelName(modelName)]
+	if !ok {
+		return out
+	}
+	completionRatio := ratio_setting.GetCompletionRatio(modelName)
+	out.PricingMode = "TOKEN"
+	out.InputPriceUSDPer1M = ratioPricePer1MTokensUSD(modelRatio)
+	out.OutputPriceUSDPer1M = ratioPricePer1MTokensUSD(modelRatio * completionRatio)
+	if cacheRatio, ok := ratio_setting.GetCacheRatio(modelName); ok {
+		out.CacheReadPriceUSDPer1M = ratioPricePer1MTokensUSD(modelRatio * cacheRatio)
+	}
+	if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(modelName); ok {
+		out.CacheWritePriceUSDPer1M = ratioPricePer1MTokensUSD(modelRatio * createCacheRatio)
+	}
+	return out
 }
 
 // ---- aggregation ----
@@ -302,9 +404,112 @@ func buildUsageByAPIKey(m map[int]*usageAccum, names map[int]string) []usageByAP
 	return out
 }
 
+type usageModelChannelKey struct {
+	Model     string
+	ChannelID int
+}
+
+func buildUsageValidationByModel(m map[usageModelChannelKey]*usageAccum, channels map[int]model.BlockRunChannel) []usageValidationByModel {
+	out := make([]usageValidationByModel, 0, len(m))
+	for key, acc := range m {
+		ch := channels[key.ChannelID]
+		out = append(out, usageValidationByModel{
+			Model:       key.Model,
+			ChannelID:   strconv.Itoa(key.ChannelID),
+			ChannelName: ch.Name,
+			Requests:    acc.requests,
+			ActualCost:  quotaToUSD(acc.quota),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Requests != out[j].Requests {
+			return out[i].Requests > out[j].Requests
+		}
+		if out[i].Model != out[j].Model {
+			return out[i].Model < out[j].Model
+		}
+		return out[i].ChannelID < out[j].ChannelID
+	})
+	return out
+}
+
+func buildUsageValidationByChannel(m map[int]*usageAccum, channels map[int]model.BlockRunChannel) []usageValidationByChannel {
+	out := make([]usageValidationByChannel, 0, len(m))
+	for id, acc := range m {
+		ch := channels[id]
+		out = append(out, usageValidationByChannel{
+			ChannelID:   strconv.Itoa(id),
+			ChannelName: ch.Name,
+			Requests:    acc.requests,
+			ActualCost:  quotaToUSD(acc.quota),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Requests != out[j].Requests {
+			return out[i].Requests > out[j].Requests
+		}
+		return out[i].ChannelID < out[j].ChannelID
+	})
+	return out
+}
+
+// GetUsageValidation serves GET /usage/validation.
+func GetUsageValidation(c *gin.Context) {
+	startUnix, endUnix, startT, endT, ok := parseUsageTimeRange(c)
+	if !ok {
+		return
+	}
+	channels, err := model.GetBlockRunChannels()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query channels failed"})
+		return
+	}
+	ids := blockRunChannelIDs(channels)
+
+	totals := &usageAccum{}
+	byModel := map[usageModelChannelKey]*usageAccum{}
+	byChannel := map[int]*usageAccum{}
+
+	err = model.StreamBlockRunUsageLogs(ids, startUnix, endUnix, func(log *model.Log) error {
+		other := parseUsageOther(log.Other)
+		cacheRead := usageOtherInt(other, "cache_tokens")
+		cacheCreate := usageOtherInt(other, "cache_creation_tokens")
+		q := int64(log.Quota)
+
+		totals.add(log.PromptTokens, log.CompletionTokens, cacheRead, cacheCreate, q)
+
+		key := usageModelChannelKey{Model: usageResolveModel(log, other), ChannelID: log.ChannelId}
+		if byModel[key] == nil {
+			byModel[key] = &usageAccum{}
+		}
+		byModel[key].add(log.PromptTokens, log.CompletionTokens, cacheRead, cacheCreate, q)
+
+		if byChannel[log.ChannelId] == nil {
+			byChannel[log.ChannelId] = &usageAccum{}
+		}
+		byChannel[log.ChannelId].add(log.PromptTokens, log.CompletionTokens, cacheRead, cacheCreate, q)
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query usage failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, usageValidationResponse{
+		Provider:    usageReconProvider,
+		Period:      usagePeriodLabel(c),
+		Start:       usageFormatTime(startT),
+		End:         usageFormatTime(endT),
+		Totals:      totals.metrics(),
+		ByModel:     buildUsageValidationByModel(byModel, channels),
+		ByChannel:   buildUsageValidationByChannel(byChannel, channels),
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
 // GetUsageTransactions serves GET /usage/transactions.
 func GetUsageTransactions(c *gin.Context) {
-	startUnix, endUnix, _, _, ok := parseUsageTimeRange(c)
+	startUnix, endUnix, startT, endT, ok := parseUsageTimeRange(c)
 	if !ok {
 		return
 	}
@@ -339,10 +544,12 @@ func GetUsageTransactions(c *gin.Context) {
 		cacheCreate := usageOtherInt(other, "cache_creation_tokens")
 		ch := channels[log.ChannelId]
 		txns = append(txns, usageTransaction{
-			TransactionID:       "txn_" + strconv.Itoa(log.Id),
+			SourceID:            strconv.Itoa(log.Id),
 			RequestID:           log.RequestId,
 			APIKeyID:            strconv.Itoa(log.TokenId),
 			APIKeyName:          log.TokenName,
+			ChannelID:           strconv.Itoa(log.ChannelId),
+			ChannelName:         ch.Name,
 			Model:               usageResolveModel(log, other),
 			RequestedModel:      log.ModelName,
 			CreatedAt:           time.Unix(log.CreatedAt, 0).UTC().Format(usageReconMsLayout),
@@ -355,7 +562,6 @@ func GetUsageTransactions(c *gin.Context) {
 			Currency:            usageReconCurrency,
 			Status:              usageResolveStatus(other),
 			DurationMs:          int64(log.UseTime) * 1000,
-			Metadata:            map[string]interface{}{"channel_id": log.ChannelId, "channel_name": ch.Name},
 		})
 	}
 
@@ -364,6 +570,10 @@ func GetUsageTransactions(c *gin.Context) {
 		totalPages = (total + int64(pageSize) - 1) / int64(pageSize)
 	}
 	c.JSON(http.StatusOK, usageTransactionsResponse{
+		Provider:     usageReconProvider,
+		Period:       usagePeriodLabel(c),
+		Start:        usageFormatTime(startT),
+		End:          usageFormatTime(endT),
 		Transactions: txns,
 		Pagination: usagePagination{
 			Page:       page,
@@ -372,7 +582,39 @@ func GetUsageTransactions(c *gin.Context) {
 			TotalCount: total,
 			HasMore:    int64(page)*int64(pageSize) < total,
 		},
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
+// GetUsageModels serves GET /usage/models.
+func GetUsageModels(c *gin.Context) {
+	modelChannels, err := model.GetBlockRunEnabledModelChannels()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query models failed"})
+		return
+	}
+
+	modelNames := make([]string, 0, len(modelChannels))
+	for modelName := range modelChannels {
+		modelNames = append(modelNames, modelName)
+	}
+	sort.Strings(modelNames)
+
+	items := make([]usageModelPrice, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		channels := modelChannels[modelName]
+		sort.Slice(channels, func(i, j int) bool {
+			return channels[i].Id < channels[j].Id
+		})
+		for _, ch := range channels {
+			items = append(items, buildUsageModelPrice(modelName, ch))
+		}
+	}
+
+	c.JSON(http.StatusOK, usageModelsResponse{
+		Provider:    usageReconProvider,
+		Models:      items,
+		GeneratedAt: usageFormatTime(time.Now()),
 	})
 }
 
