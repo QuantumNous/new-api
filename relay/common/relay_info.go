@@ -854,6 +854,18 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		}
 	}
 
+	// 自定义参数过滤：移除管理员配置的参数列表
+	if len(channelOtherSettings.FilteredParams) > 0 {
+		for _, param := range channelOtherSettings.FilteredParams {
+			param = strings.TrimSpace(param)
+			if param != "" {
+				if _, exists := data[param]; exists {
+					delete(data, param)
+				}
+			}
+		}
+	}
+
 	jsonDataAfter, err := common.Marshal(data)
 	if err != nil {
 		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
@@ -873,12 +885,28 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		"stream_options.include_obfuscation",
 	)
 
-	return (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
+	hasBuiltinRemovable := (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
 		(!channelOtherSettings.AllowInferenceGeo && values[1].Exists()) ||
 		(!channelOtherSettings.AllowSpeed && values[2].Exists()) ||
 		(channelOtherSettings.DisableStore && values[3].Exists()) ||
 		(!channelOtherSettings.AllowSafetyIdentifier && values[4].Exists()) ||
 		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists())
+
+	if hasBuiltinRemovable {
+		return true
+	}
+
+	// 检查是否有自定义过滤参数存在于请求中
+	if len(channelOtherSettings.FilteredParams) > 0 {
+		for _, param := range channelOtherSettings.FilteredParams {
+			param = strings.TrimSpace(param)
+			if param != "" && gjson.GetBytes(jsonData, param).Exists() {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

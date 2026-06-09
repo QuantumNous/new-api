@@ -195,6 +195,7 @@ export const channelFormSchema = z
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+    filtered_params: z.string().optional(), // Custom filtered parameters (comma-separated)
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -313,6 +314,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  filtered_params: '',
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -367,6 +369,7 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let filteredParams = ''
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -385,6 +388,9 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      filteredParams = Array.isArray(parsed.filtered_params)
+        ? parsed.filtered_params.join(',')
+        : ''
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -440,6 +446,7 @@ export function transformChannelToFormDefaults(
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     allow_safety_identifier: allowSafetyIdentifier,
+    filtered_params: filteredParams,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
@@ -539,6 +546,25 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
+  }
+
+  // Custom filtered parameters (for OpenAI type 1 and Anthropic type 14)
+  if (formData.type === 1 || formData.type === 14) {
+    const filteredParamsArray = Array.from(
+      new Set(
+        String(formData.filtered_params || '')
+          .split(',')
+          .map((param) => param.trim())
+          .filter(Boolean)
+      )
+    )
+    if (filteredParamsArray.length > 0) {
+      settingsObj.filtered_params = filteredParamsArray
+    } else if ('filtered_params' in settingsObj) {
+      delete settingsObj.filtered_params
+    }
+  } else if ('filtered_params' in settingsObj) {
+    delete settingsObj.filtered_params
   }
 
   // Upstream model update settings (for model-fetchable channel types)

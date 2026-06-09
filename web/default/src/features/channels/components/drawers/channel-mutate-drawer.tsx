@@ -3105,6 +3105,37 @@ export function ChannelMutateDrawer({
                               </>
                             )}
                           </div>
+
+                          {/* Custom Filtered Parameters - for OpenAI and Anthropic */}
+                          {(currentType === 1 || currentType === 14) && (
+                            <div className='space-y-3 px-4 py-4'>
+                              <FormField
+                                control={form.control}
+                                name='filtered_params'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Custom Filtered Parameters')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder={t(
+                                          'Enter parameter names separated by commas, e.g.: temperature, style, top_p'
+                                        )}
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Specify request parameters to filter out before forwarding to upstream. Multiple parameters separated by commas.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
