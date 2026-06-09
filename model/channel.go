@@ -66,8 +66,22 @@ type Channel struct {
 	// cost tracking
 	RechargeRate *float64 `json:"recharge_rate" gorm:"column:recharge_rate"` // USD cost per 1 USDT of upstream credit
 
+	// apimaster price multiplier: user_price = actual_price × apimaster_price_ratio.
+	// nil / 0 / negative are all treated as 1.0 (no markup). Stored as a direct
+	// column for fast access in the billing path (ChannelModelPriceData).
+	ApimasterPriceRatio *float64 `json:"apimaster_price_ratio" gorm:"column:apimaster_price_ratio"`
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+}
+
+// GetApimasterPriceRatio returns the markup multiplier applied on top of the
+// procurement price. nil / non-positive values fall back to 1.0 (no markup).
+func (channel *Channel) GetApimasterPriceRatio() float64 {
+	if channel.ApimasterPriceRatio == nil || *channel.ApimasterPriceRatio <= 0 {
+		return 1.0
+	}
+	return *channel.ApimasterPriceRatio
 }
 
 type ChannelInfo struct {

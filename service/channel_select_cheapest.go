@@ -71,10 +71,11 @@ var ErrNoCheapestChannel = errors.New("no enabled channel for cheapest routing")
 
 func selectCheapestByPricingCandidates(modelName string, candidates []string, bannedIDs []int) (channelID int, actualPrice float64, ok bool) {
 	type row struct {
-		ChannelID   int
-		InputPrice  float64
-		RechargeRate float64
-		Priority    int64
+		ChannelID           int
+		InputPrice          float64
+		RechargeRate        float64
+		ApimasterPriceRatio float64
+		Priority            int64
 	}
 	var picked row
 
@@ -84,8 +85,10 @@ func selectCheapestByPricingCandidates(modelName string, candidates []string, ba
 	}
 	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, candidates)
 
+	// Order by USER price (采购价 × apimaster_price_ratio), not raw procurement cost,
+	// so routing picks the channel cheapest *for the user*.
 	q := model.DB.Table("channels c").
-		Select("c.id AS channel_id, p.input_price, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.priority, 0) AS priority").
+		Select("c.id AS channel_id, p.input_price, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.apimaster_price_ratio, 1) AS apimaster_price_ratio, COALESCE(c.priority, 0) AS priority").
 		Joins("JOIN channel_model_pricings p ON c.id = p.channel_id").
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
@@ -93,7 +96,7 @@ func selectCheapestByPricingCandidates(modelName string, candidates []string, ba
 		Where(modelsMatchClause, modelsMatchArgs...).
 		Where("COALESCE(a.enabled, true) = true").
 		Where("p.input_price > 0").
-		Order("(p.input_price * COALESCE(c.recharge_rate, 1)) ASC, c.priority DESC").
+		Order("(p.input_price * COALESCE(c.recharge_rate, 1) * COALESCE(c.apimaster_price_ratio, 1)) ASC, c.priority DESC").
 		Limit(1)
 	if len(bannedIDs) > 0 {
 		q = q.Where("c.id NOT IN ?", bannedIDs)
@@ -101,17 +104,26 @@ func selectCheapestByPricingCandidates(modelName string, candidates []string, ba
 	if err := q.Scan(&picked).Error; err != nil || picked.ChannelID == 0 {
 		return 0, 0, false
 	}
-	return picked.ChannelID, picked.InputPrice * picked.RechargeRate, true
+	rr := picked.RechargeRate
+	if rr <= 0 {
+		rr = 1.0
+	}
+	apimasterRatio := picked.ApimasterPriceRatio
+	if apimasterRatio <= 0 {
+		apimasterRatio = 1.0
+	}
+	return picked.ChannelID, picked.InputPrice * rr * apimasterRatio, true
 }
 
 // selectCheapestByModelMapping considers channels that map canonical → upstream
 // model name in channel_model_pricings (per-channel model_mapping only).
 func selectCheapestByModelMapping(modelName string, bannedIDs []int) (channelID int, actualPrice float64, ok bool) {
 	type chRow struct {
-		ID             int
-		ModelMapping   *string
-		RechargeRate   float64
-		Priority       int64
+		ID                  int
+		ModelMapping        *string
+		RechargeRate        float64
+		ApimasterPriceRatio float64
+		Priority            int64
 	}
 	modelsCol := "c.models"
 	if common.UsingPostgreSQL {
@@ -120,7 +132,7 @@ func selectCheapestByModelMapping(modelName string, bannedIDs []int) (channelID 
 	var channels []chRow
 	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, ModelNameCandidates(modelName))
 	q := model.DB.Table("channels c").
-		Select("c.id, c.model_mapping, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.priority, 0) AS priority").
+		Select("c.id, c.model_mapping, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.apimaster_price_ratio, 1) AS apimaster_price_ratio, COALESCE(c.priority, 0) AS priority").
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
 		Where("c.model_mapping IS NOT NULL AND c.model_mapping != '' AND c.model_mapping != '{}'").
@@ -149,7 +161,12 @@ func selectCheapestByModelMapping(modelName string, bannedIDs []int) (channelID 
 		if rr <= 0 {
 			rr = 1.0
 		}
-		actual := pr.InputPrice * rr
+		apimasterRatio := ch.ApimasterPriceRatio
+		if apimasterRatio <= 0 {
+			apimasterRatio = 1.0
+		}
+		// USER price = 采购价 × apimaster_price_ratio
+		actual := pr.InputPrice * rr * apimasterRatio
 		if actual < bestPrice || (actual == bestPrice && ch.Priority > bestPriority) {
 			bestPrice = actual
 			bestID = ch.ID

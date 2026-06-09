@@ -8,17 +8,17 @@ import (
 )
 
 type ChannelModelPricing struct {
-	Id          int64   `json:"id"           gorm:"primaryKey;autoIncrement"`
-	ChannelId   int     `json:"channel_id"   gorm:"uniqueIndex:idx_ch_model;not null"`
-	ModelName   string  `json:"model_name"   gorm:"size:256;uniqueIndex:idx_ch_model;not null"`
-	InputPrice  float64 `json:"input_price"`            // USD per 1M input tokens = model_ratio × group_ratio × 2
-	OutputPrice float64 `json:"output_price"`           // USD per 1M output tokens
-	CachePrice        float64 `json:"cache_price"`        // USD per 1M cache-read tokens
+	Id                 int64   `json:"id"           gorm:"primaryKey;autoIncrement"`
+	ChannelId          int     `json:"channel_id"   gorm:"uniqueIndex:idx_ch_model;not null"`
+	ModelName          string  `json:"model_name"   gorm:"size:256;uniqueIndex:idx_ch_model;not null"`
+	InputPrice         float64 `json:"input_price"`          // USD per 1M input tokens = model_ratio × group_ratio × 2
+	OutputPrice        float64 `json:"output_price"`         // USD per 1M output tokens
+	CachePrice         float64 `json:"cache_price"`          // USD per 1M cache-read tokens
 	CacheCreationPrice float64 `json:"cache_creation_price"` // USD per 1M cache-write tokens
-	GroupRatio    float64 `json:"group_ratio"    gorm:"default:1"`
-	Currency      string  `json:"currency"       gorm:"size:8;default:'USD'"`
-	PricingSource string  `json:"pricing_source" gorm:"size:16;default:'api'"` // "api" | "manual"
-	FetchedAt     int64   `json:"fetched_at"`
+	GroupRatio         float64 `json:"group_ratio"    gorm:"default:1"`
+	Currency           string  `json:"currency"       gorm:"size:8;default:'USD'"`
+	PricingSource      string  `json:"pricing_source" gorm:"size:16;default:'api'"` // "api" | "manual"
+	FetchedAt          int64   `json:"fetched_at"`
 }
 
 // GetChannelModelPricing returns the pricing row for a given channel+model.
@@ -35,8 +35,10 @@ func GetChannelModelPricing(channelId int, modelName string) (*ChannelModelPrici
 	return &p, nil
 }
 
-// ChannelActualPrices holds the four actual prices (input_price × recharge_rate)
-// for a channel+model, ready to be stored in the consume log's other JSON.
+// ChannelActualPrices holds four per-(channel,model) unit prices for the
+// consume log's other JSON. The exact multiplier depends on the caller:
+// service.ChannelActualPricesResolved applies recharge_rate × apimaster_ratio
+// (user price); the helper below applies recharge_rate only (procurement cost).
 type ChannelActualPrices struct {
 	InputPrice         float64
 	OutputPrice        float64
@@ -44,9 +46,10 @@ type ChannelActualPrices struct {
 	CacheCreationPrice float64
 }
 
-// GetChannelActualPrices looks up channel_model_pricings and the channel's
-// recharge_rate, returning prices already multiplied by recharge_rate.
-// Returns nil, nil when no pricing row exists.
+// GetChannelActualPrices returns procurement cost (× recharge_rate only).
+// NOTE: the billing log path uses service.ChannelActualPricesResolved instead,
+// which also multiplies by apimaster_price_ratio. This helper is kept for
+// callers that want raw procurement cost. Returns nil, nil when no row exists.
 func GetChannelActualPrices(channelId int, modelName string) (*ChannelActualPrices, error) {
 	p, err := GetChannelModelPricing(channelId, modelName)
 	if err != nil || p == nil {

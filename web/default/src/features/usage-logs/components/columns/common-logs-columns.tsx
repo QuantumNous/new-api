@@ -191,13 +191,13 @@ function buildDetailSegments(
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
       })
     } else if (other.ch_input_price != null && other.ch_input_price > 0) {
-      // Actual channel procurement price archived at billing time
+      // User-facing unit price (采购价 × apimaster_ratio) archived at billing time
       const baseEntries = [formatPriceCompact(other.ch_input_price)]
       if (other.ch_output_price != null && other.ch_output_price > 0) {
         baseEntries.push(formatPriceCompact(other.ch_output_price))
       }
       segments.push({
-        text: `采购 · ${formatPriceList(baseEntries, true)}`,
+        text: formatPriceList(baseEntries, true),
       })
       if (hasAnyCacheTokens(other)) {
         const cacheEntries = [
