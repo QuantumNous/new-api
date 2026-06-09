@@ -93,6 +93,30 @@ terraform destroy -var project_id=rezonaai -var region=us-east1 -var name_prefix
 
 应用初始化流程仍由 `new-api` 自己完成。首次打开 Cloud Run URL 后，按页面引导完成初始化；如果系统自动创建默认 root 账号，请登录后立即修改默认密码。
 
+## 可选：给客户服务创建独立 LB
+
+如果某个客户需要自定义域名和 Google-managed certificate，可以给已部署的 Cloud Run `web` 服务创建单后端 Global External HTTPS Load Balancer：
+
+```bash
+PROJECT_ID=rezonaai \
+REGION=us-east1 \
+DOMAIN=ex1.taluna.ai \
+RUN_SERVICE=tln-special-1-new-api-web \
+RESOURCE_PREFIX=tln-special-1-ex1 \
+infra/gcp-b2b-new-api/provision-lb.sh
+```
+
+脚本会创建：
+
+- Global IP
+- managed SSL certificate
+- serverless NEG
+- backend service
+- HTTPS URL map / target proxy / forwarding rule
+- HTTP 80 → HTTPS 443 redirect
+
+完成后把 `DOMAIN` 的 DNS A 记录指向脚本输出的 `LB IP`。证书会在 DNS 指向 LB IP 后自动从 `PROVISIONING` 变为 `ACTIVE`。
+
 ## 故障处理
 
 如果 Terraform 报 `oauth2: "invalid_grant" "reauth related error (invalid_rapt)"`，说明 Terraform 使用的 Application Default Credentials 已过期或需要重新认证。重新登录：
