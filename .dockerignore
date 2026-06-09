@@ -12,4 +12,10 @@ docs
 /web/default/dist
 /web/classic/node_modules
 /web/classic/dist
+infra/gcp-b2b-new-api/.terraform
+infra/gcp-b2b-new-api/terraform.tfstate
+infra/gcp-b2b-new-api/terraform.tfstate.backup
+infra/gcp-b2b-new-api/terraform.tfstate.d
+infra/gcp-b2b-new-api/*.tfvars
+infra/gcp-b2b-new-api/*.tfvars.json
 !THIRD-PARTY-LICENSES.md
