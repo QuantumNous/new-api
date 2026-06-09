@@ -127,12 +127,33 @@ func TestValidatePaymentOptionWithCap_AllowsAboveOneUSDC(t *testing.T) {
 		MaxTimeoutSeconds: 60,
 	}
 	// 默认 $1 上限必须拒绝
-	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC); err == nil {
+	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, maxAuthorizationWindowSeconds); err == nil {
 		t.Fatal("expected 3 USDC to be rejected under 1 USDC cap")
 	}
 	// $10 上限必须放行
-	if err := validatePaymentOptionWithCap(opt, big.NewInt(10_000_000)); err != nil {
+	if err := validatePaymentOptionWithCap(opt, big.NewInt(10_000_000), maxAuthorizationWindowSeconds); err != nil {
 		t.Fatalf("expected 3 USDC allowed under 10 USDC cap, got %v", err)
+	}
+}
+
+// TestValidatePaymentOptionWithCap_WindowCap mirrors the production finding: the
+// async video gateway advertises a 600s authorization window, which the 300s chat
+// cap rejects but a higher video cap must accept.
+func TestValidatePaymentOptionWithCap_WindowCap(t *testing.T) {
+	opt := &blockrunSDK.PaymentOption{
+		Network:           expectedNetworkBase,
+		Asset:             expectedAssetUSDCBase,
+		PayTo:             "0x000000000000000000000000000000000000dEaD",
+		Amount:            "500000", // 0.5 USDC
+		MaxTimeoutSeconds: 600,      // upstream video window observed in production
+	}
+	// 300s chat window must reject a 600s authorization.
+	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, maxAuthorizationWindowSeconds); err == nil {
+		t.Fatal("expected 600s window to be rejected under the 300s chat cap")
+	}
+	// A higher (video) window cap must accept it.
+	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, 1200); err != nil {
+		t.Fatalf("expected 600s window allowed under the 1200s video cap, got %v", err)
 	}
 }
 

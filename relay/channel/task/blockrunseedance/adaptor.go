@@ -154,7 +154,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	defer func() { _, _ = io.Copy(io.Discard, first.Body); _ = first.Body.Close() }()
 
 	fullURL := a.baseURL + videoGenerationsPath
-	sig, err := blockrunchat.SignX402PaymentWithLimits(first, a.apiKey, fullURL, big.NewInt(maxAmountAtomicUSDCVideo))
+	sig, err := blockrunchat.SignX402PaymentWithLimits(first, a.apiKey, fullURL, big.NewInt(maxAmountAtomicUSDCVideo), maxAuthorizationWindowSecondsVideo)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 	// 402 on poll: sign and retry once.
 	defer func() { _, _ = io.Copy(io.Discard, resp.Body); _ = resp.Body.Close() }()
-	sig, err := blockrunchat.SignX402PaymentWithLimits(resp, key, pollURL, big.NewInt(maxAmountAtomicUSDCVideo))
+	sig, err := blockrunchat.SignX402PaymentWithLimits(resp, key, pollURL, big.NewInt(maxAmountAtomicUSDCVideo), maxAuthorizationWindowSecondsVideo)
 	if err != nil {
 		return nil, err
 	}

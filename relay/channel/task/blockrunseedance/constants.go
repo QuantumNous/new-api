@@ -8,6 +8,14 @@ const ChannelName = "blockrun-seedance"
 // = $3); $10 is a generous ceiling that still refuses an obviously-malicious 402.
 const maxAmountAtomicUSDCVideo = 10_000_000
 
+// maxAuthorizationWindowSecondsVideo caps the x402 authorization window for video.
+// Unlike chat (settles immediately, 300s cap), the async submit→poll flow settles
+// only at the completion poll, so the gateway advertises a longer validBefore
+// window — observed 600s in production. 1200s (20 min) accommodates that with
+// headroom while keeping the standing-transfer-order window bounded; the $10
+// amount cap remains the primary drain protection.
+const maxAuthorizationWindowSecondsVideo = 1200
+
 // ModelList 是对客户端暴露的伪模型名（白标，绝不暴露上游 bytedance/blockrun）。
 var ModelList = []string{
 	"seedance-2.0",

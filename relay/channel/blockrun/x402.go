@@ -100,11 +100,13 @@ func SignX402Payment(resp *http.Response, privateKeyHex, resourceURLFallback str
 	return paymentB64, nil
 }
 
-// SignX402PaymentWithLimits is SignX402Payment with a caller-supplied per-call
-// USDC cap (atomic units, 6 decimals). Video calls legitimately exceed the $1
-// chat cap, so the video channel passes a higher ceiling here while reusing the
-// exact same network/asset/window/payTo trust-boundary checks.
-func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFallback string, maxAmountAtomic *big.Int) (string, error) {
+// SignX402PaymentWithLimits is SignX402Payment with caller-supplied per-call
+// USDC and authorization-window caps. Video calls legitimately exceed both the
+// $1 chat amount cap and the 300s chat window cap (the async submit→poll flow
+// settles only at the completion poll, so the upstream advertises a longer
+// authorization window — observed 600s), so the video channel passes higher
+// ceilings here while reusing the exact same network/asset/payTo trust checks.
+func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFallback string, maxAmountAtomic *big.Int, maxWindowSeconds int) (string, error) {
 	payReq, err := extractPaymentRequired(resp)
 	if err != nil {
 		return "", err
@@ -113,7 +115,7 @@ func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFa
 		return "", fmt.Errorf("blockrun: 402 response has no payment options")
 	}
 	opt := payReq.Accepts[0]
-	if err := validatePaymentOptionWithCap(&opt, maxAmountAtomic); err != nil {
+	if err := validatePaymentOptionWithCap(&opt, maxAmountAtomic, maxWindowSeconds); err != nil {
 		return "", err
 	}
 	privKey, err := parsePrivateKey(privateKeyHex)
@@ -138,17 +140,17 @@ func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFa
 // using the default $1 chat cap. Centralised here so the rules are easy to audit
 // and bypass-impossible.
 func validatePaymentOption(opt *blockrunSDK.PaymentOption) error {
-	return validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC)
+	return validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, maxAuthorizationWindowSeconds)
 }
 
 // validatePaymentOptionWithCap runs the same trust-boundary checks as
-// validatePaymentOption but against a caller-supplied amount cap, so higher-value
-// flows (e.g. video) can raise only the amount ceiling without weakening any of
-// the network/asset/window/payTo guard rails.
-func validatePaymentOptionWithCap(opt *blockrunSDK.PaymentOption, maxAmountAtomic *big.Int) error {
-	if opt.MaxTimeoutSeconds <= 0 || opt.MaxTimeoutSeconds > maxAuthorizationWindowSeconds {
+// validatePaymentOption but against caller-supplied amount and authorization-
+// window caps, so higher-value / longer-lived flows (e.g. async video) can raise
+// only those two ceilings without weakening the network/asset/payTo guard rails.
+func validatePaymentOptionWithCap(opt *blockrunSDK.PaymentOption, maxAmountAtomic *big.Int, maxWindowSeconds int) error {
+	if opt.MaxTimeoutSeconds <= 0 || opt.MaxTimeoutSeconds > maxWindowSeconds {
 		return fmt.Errorf("blockrun: refusing %ds authorization window (cap %ds) — possible upstream tampering",
-			opt.MaxTimeoutSeconds, maxAuthorizationWindowSeconds)
+			opt.MaxTimeoutSeconds, maxWindowSeconds)
 	}
 	if opt.Network != expectedNetworkBase && opt.Network != expectedNetworkBaseSepoli {
 		return fmt.Errorf("blockrun: unexpected network %q (allowed: %s, %s)", opt.Network, expectedNetworkBase, expectedNetworkBaseSepoli)
