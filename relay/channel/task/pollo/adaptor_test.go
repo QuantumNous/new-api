@@ -162,45 +162,87 @@ func TestParseTaskResult_ErrorEnvelope(t *testing.T) {
 	}
 }
 
-// P2: with model mapping (origin seedance-2-0 -> upstream seedance-2-0-ref), the URL and
-// the request body must agree on the ref shape (ref endpoint + duration, not length).
-func TestModelMapping_URLAndBodyAgree(t *testing.T) {
-	info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
-	info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0-ref"}
+// The request shape is detected from the payload, not the model name (mirroring
+// Doubao's single-model design). A single model serves both shapes:
+//   - metadata.refs present  -> /ref2video endpoint + input.duration + refs (no length)
+//   - metadata.refs absent    -> base endpoint + input.length + optional image (no duration)
+// BuildRequestURL must agree with the body that convertToRequestPayload produced,
+// since convertToRequestPayload (run first via BuildRequestBody) sets a.isRef.
+func TestRequestShape_RefVsStandard(t *testing.T) {
+	t.Run("refs-present -> ref2video shape", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
 
-	ep, ok := resolveEndpoint(info)
-	if !ok || !ep.isRef {
-		t.Fatalf("resolveEndpoint should pick the ref endpoint, got %+v ok=%v", ep, ok)
-	}
+		req := &relaycommon.TaskSubmitReq{
+			Prompt: "x", Duration: 5,
+			Metadata: map[string]interface{}{
+				"refs": []map[string]interface{}{{"type": "image", "name": "c", "image": "https://x/y.jpg", "order": 1}},
+			},
+		}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		if body.Input.Duration != 5 {
+			t.Fatalf("ref body must set duration, got %d", body.Input.Duration)
+		}
+		if body.Input.Length != 0 {
+			t.Fatalf("ref body must NOT set length, got %d", body.Input.Length)
+		}
+		if len(body.Input.Refs) == 0 {
+			t.Fatalf("ref body must carry refs")
+		}
 
-	a := &TaskAdaptor{baseURL: defaultBaseURL}
-	url, err := a.BuildRequestURL(info)
-	if err != nil {
-		t.Fatalf("BuildRequestURL: %v", err)
-	}
-	if !strings.Contains(url, "/ref2video") {
-		t.Fatalf("URL = %q, want a /ref2video endpoint", url)
-	}
+		// URL is resolved after the body (a.isRef now set), so it must hit /ref2video.
+		url, err := a.BuildRequestURL(info)
+		if err != nil {
+			t.Fatalf("BuildRequestURL: %v", err)
+		}
+		if !strings.Contains(url, "/ref2video") {
+			t.Fatalf("URL = %q, want a /ref2video endpoint", url)
+		}
+	})
 
-	req := &relaycommon.TaskSubmitReq{
-		Prompt: "x", Duration: 5,
-		Metadata: map[string]interface{}{
-			"refs": []map[string]interface{}{{"type": "image", "name": "c", "image": "https://x/y.jpg", "order": 1}},
-		},
-	}
-	body, err := a.convertToRequestPayload(req, info)
-	if err != nil {
-		t.Fatalf("convertToRequestPayload: %v", err)
-	}
-	if body.Input.Duration != 5 {
-		t.Fatalf("ref body must set duration, got %d", body.Input.Duration)
-	}
-	if body.Input.Length != 0 {
-		t.Fatalf("ref body must NOT set length, got %d", body.Input.Length)
-	}
-	if len(body.Input.Refs) == 0 {
-		t.Fatalf("ref body must carry refs")
-	}
+	t.Run("no-refs -> standard shape", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
+
+		req := &relaycommon.TaskSubmitReq{Prompt: "x", Duration: 5, Image: "https://x/y.jpg"}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		if body.Input.Length != 5 {
+			t.Fatalf("standard body must set length, got %d", body.Input.Length)
+		}
+		if body.Input.Duration != 0 {
+			t.Fatalf("standard body must NOT set duration, got %d", body.Input.Duration)
+		}
+		if body.Input.Image != "https://x/y.jpg" {
+			t.Fatalf("standard body must carry the i2v image, got %q", body.Input.Image)
+		}
+
+		url, err := a.BuildRequestURL(info)
+		if err != nil {
+			t.Fatalf("BuildRequestURL: %v", err)
+		}
+		if strings.Contains(url, "/ref2video") {
+			t.Fatalf("URL = %q, want the base (non-ref) endpoint", url)
+		}
+	})
+
+	// An empty refs array is not a ref request — it stays standard.
+	t.Run("empty-refs -> standard shape", func(t *testing.T) {
+		req := &relaycommon.TaskSubmitReq{
+			Prompt:   "x",
+			Metadata: map[string]interface{}{"refs": []map[string]interface{}{}},
+		}
+		if isRefRequest(req) {
+			t.Fatalf("empty refs[] must not be treated as a ref request")
+		}
+	})
 }
 
 func TestParseValidateResponse(t *testing.T) {

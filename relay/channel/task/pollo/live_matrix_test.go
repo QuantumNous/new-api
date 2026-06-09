@@ -119,8 +119,9 @@ func TestLiveParamMatrix(t *testing.T) {
 			expectAccept: true,
 		},
 		{
+			// refs in metadata => merged model auto-routes to the /ref2video endpoint.
 			name:  "ref/ref2video/image-ref",
-			model: "seedance-2-0-ref",
+			model: "seedance-2-0",
 			req: relaycommon.TaskSubmitReq{
 				Prompt:   "the character waves hello",
 				Duration: 5,
@@ -136,7 +137,7 @@ func TestLiveParamMatrix(t *testing.T) {
 		},
 		{
 			name:  "fast-ref/ref2video/image-ref",
-			model: "seedance-2-0-fast-ref",
+			model: "seedance-2-0-fast",
 			req: relaycommon.TaskSubmitReq{
 				Prompt:   "the character jumps with joy",
 				Duration: 5,
@@ -161,12 +162,6 @@ func TestLiveParamMatrix(t *testing.T) {
 				Prompt:   "x",
 				Metadata: map[string]interface{}{"resolution": "1080p"},
 			},
-			expectAccept: false,
-		},
-		{
-			name:         "ERR/ref/missing-refs",
-			model:        "seedance-2-0-ref",
-			req:          relaycommon.TaskSubmitReq{Prompt: "no refs provided", Duration: 5, Metadata: map[string]interface{}{"resolution": "720p"}},
 			expectAccept: false,
 		},
 		{
@@ -251,7 +246,7 @@ func TestLiveValidate(t *testing.T) {
 		{"fast-720p-5s", "seedance-2-0-fast", relaycommon.TaskSubmitReq{
 			Prompt: "a cat", Duration: 5,
 			Metadata: map[string]interface{}{"resolution": "720p", "aspectRatio": "16:9"}}},
-		{"ref-720p-5s", "seedance-2-0-ref", relaycommon.TaskSubmitReq{
+		{"ref-720p-5s", "seedance-2-0", relaycommon.TaskSubmitReq{
 			Prompt: "a cat", Duration: 5,
 			Metadata: map[string]interface{}{"resolution": "720p", "aspectRatio": "16:9",
 				"refs": []map[string]interface{}{{"type": "image", "name": "c", "image": testImage, "order": 1}}}}},
