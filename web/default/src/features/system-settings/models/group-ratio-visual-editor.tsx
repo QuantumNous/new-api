@@ -16,10 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo, useEffect, useCallback, memo } from 'react'
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  memo,
+  useRef,
+  type FormEvent,
+} from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -33,14 +41,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -51,6 +52,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Dialog } from '@/components/dialog'
 import { safeJsonParse } from '../utils/json-parser'
 
 type GroupRatioVisualEditorProps = {
@@ -80,6 +82,11 @@ type GroupOverride = {
   ratio: number
 }
 
+type GroupOption = {
+  value: string
+  label: string
+}
+
 const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
 const sectionHeaderClassName = 'border-b bg-muted/20'
@@ -93,6 +100,34 @@ function createGroupPricingId() {
 function normalizeRatio(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 1
+}
+
+function isValidRatio(value: number): boolean {
+  return Number.isFinite(value) && value >= 0
+}
+
+function parseObjectKeys(source: string, context: string): string[] {
+  const map = safeJsonParse<Record<string, unknown>>(source, {
+    fallback: {},
+    context,
+  })
+  const names = new Set<string>()
+
+  for (const name of Object.keys(map)) {
+    const trimmedName = name.trim()
+    if (trimmedName) {
+      names.add(trimmedName)
+    }
+  }
+
+  return Array.from(names)
+}
+
+function buildOptions(names: string[]): GroupOption[] {
+  return names.map((name) => ({
+    value: name,
+    label: name,
+  }))
 }
 
 function buildGroupPricingRows(
@@ -230,6 +265,50 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
     }))
   }, [groupGroupRatio])
 
+  const targetGroupNames = useMemo(() => {
+    return parseObjectKeys(groupRatio, 'group ratios')
+  }, [groupRatio])
+
+  const targetGroupSet = useMemo(() => {
+    return new Set(targetGroupNames)
+  }, [targetGroupNames])
+
+  const targetGroupOptions = useMemo(() => {
+    return buildOptions(targetGroupNames)
+  }, [targetGroupNames])
+
+  const configuredUserGroupSet = useMemo(() => {
+    return new Set(groupGroupRatioList.map((item) => item.userGroup))
+  }, [groupGroupRatioList])
+
+  const userGroupCandidateNames = useMemo(() => {
+    const names = new Set<string>()
+
+    for (const name of parseObjectKeys(topupGroupRatio, 'topup group ratios')) {
+      names.add(name)
+    }
+    for (const item of groupGroupRatioList) {
+      const trimmedName = item.userGroup.trim()
+      if (trimmedName) {
+        names.add(trimmedName)
+      }
+    }
+
+    return Array.from(names)
+  }, [groupGroupRatioList, topupGroupRatio])
+
+  const userGroupCandidateSet = useMemo(() => {
+    return new Set(userGroupCandidateNames)
+  }, [userGroupCandidateNames])
+
+  const availableUserGroupOptions = useMemo(() => {
+    return buildOptions(
+      userGroupCandidateNames.filter(
+        (name) => !configuredUserGroupSet.has(name)
+      )
+    )
+  }, [configuredUserGroupSet, userGroupCandidateNames])
+
   // Simple group handlers (for groupRatio and topupGroupRatio)
   const handleSimpleAdd = (type: 'groupRatio' | 'topupGroupRatio') => {
     setSimpleDialogType(type)
@@ -318,7 +397,14 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   }
 
   const handleUserGroupSave = () => {
-    if (!userGroupInput.trim()) return
+    const userGroup = userGroupInput.trim()
+    if (
+      !userGroup ||
+      !userGroupCandidateSet.has(userGroup) ||
+      configuredUserGroupSet.has(userGroup)
+    ) {
+      return
+    }
 
     const map = safeJsonParse<Record<string, Record<string, number>>>(
       groupGroupRatio,
@@ -328,8 +414,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       }
     )
 
-    if (!map[userGroupInput.trim()]) {
-      map[userGroupInput.trim()] = {}
+    if (!map[userGroup]) {
+      map[userGroup] = {}
     }
 
     onChange('GroupGroupRatio', JSON.stringify(map, null, 2))
@@ -366,6 +452,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
     oldTargetGroup?: string
   ) => {
     if (!groupOverrideUserGroup) return
+    if (!targetGroupSet.has(targetGroup) || !isValidRatio(ratio)) return
 
     const map = safeJsonParse<Record<string, Record<string, number>>>(
       groupGroupRatio,
@@ -499,7 +586,11 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
-            <Button onClick={handleUserGroupAdd} size='sm'>
+            <Button
+              onClick={handleUserGroupAdd}
+              size='sm'
+              disabled={availableUserGroupOptions.length === 0}
+            >
               <Plus className='mr-2 h-4 w-4' />
               {t('Add user group')}
             </Button>
@@ -528,6 +619,14 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                           <Button
                             variant='ghost'
                             size='sm'
+                            disabled={
+                              targetGroupNames.filter(
+                                (name) =>
+                                  !userGroupData.overrides.some(
+                                    (override) => override.targetGroup === name
+                                  )
+                              ).length === 0
+                            }
                             onClick={() =>
                               handleOverrideAdd(userGroupData.userGroup)
                             }
@@ -677,25 +776,15 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       />
 
       {/* Auto Group Dialog */}
-      <Dialog open={autoGroupDialogOpen} onOpenChange={setAutoGroupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Add auto group')}</DialogTitle>
-            <DialogDescription>
-              {t('Add a group identifier to the auto assignment list.')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4 py-4'>
-            <div className='space-y-2'>
-              <Label>{t('Group identifier')}</Label>
-              <Input
-                value={autoGroupInput}
-                onChange={(e) => setAutoGroupInput(e.target.value)}
-                placeholder={t('default')}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+      <Dialog
+        open={autoGroupDialogOpen}
+        onOpenChange={setAutoGroupDialogOpen}
+        title={t('Add auto group')}
+        description={t('Add a group identifier to the auto assignment list.')}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => setAutoGroupDialogOpen(false)}
@@ -703,39 +792,65 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               {t('Cancel')}
             </Button>
             <Button onClick={handleAutoGroupSave}>{t('Add')}</Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('Group identifier')}</Label>
+            <Input
+              value={autoGroupInput}
+              onChange={(e) => setAutoGroupInput(e.target.value)}
+              placeholder={t('default')}
+            />
+          </div>
+        </div>
       </Dialog>
 
       {/* User Group Dialog */}
-      <Dialog open={userGroupDialogOpen} onOpenChange={setUserGroupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Add user group')}</DialogTitle>
-            <DialogDescription>
-              {t('Create a new user group to configure ratio overrides for.')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4 py-4'>
-            <div className='space-y-2'>
-              <Label>{t('User group name')}</Label>
-              <Input
-                value={userGroupInput}
-                onChange={(e) => setUserGroupInput(e.target.value)}
-                placeholder={t('vip')}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+      <Dialog
+        open={userGroupDialogOpen}
+        onOpenChange={setUserGroupDialogOpen}
+        title={t('Add user group')}
+        description={t(
+          'Select an existing user group to configure ratio overrides.'
+        )}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => setUserGroupDialogOpen(false)}
             >
               {t('Cancel')}
             </Button>
-            <Button onClick={handleUserGroupSave}>{t('Add')}</Button>
-          </DialogFooter>
-        </DialogContent>
+            <Button
+              onClick={handleUserGroupSave}
+              disabled={
+                !userGroupCandidateSet.has(userGroupInput) ||
+                configuredUserGroupSet.has(userGroupInput)
+              }
+            >
+              {t('Add')}
+            </Button>
+          </>
+        }
+      >
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('User group name')}</Label>
+            <Combobox
+              options={availableUserGroupOptions}
+              value={userGroupInput}
+              onValueChange={(value) => setUserGroupInput(value ?? '')}
+              placeholder={t('Select a group')}
+              emptyText={t('No available user groups')}
+              allowCustomValue={false}
+              openOnFocus={false}
+            />
+          </div>
+        </div>
       </Dialog>
 
       {/* Group Override Dialog */}
@@ -745,6 +860,12 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         onSave={handleOverrideSave}
         editData={groupOverrideEditData}
         userGroup={groupOverrideUserGroup}
+        targetGroupOptions={targetGroupOptions}
+        existingTargetGroups={
+          groupGroupRatioList
+            .find((item) => item.userGroup === groupOverrideUserGroup)
+            ?.overrides.map((override) => override.targetGroup) ?? []
+        }
       />
     </div>
   )
@@ -994,6 +1115,7 @@ function SimpleGroupDialog({
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [value, setValue] = useState('')
+  const formRef = useRef<HTMLFormElement>(null)
 
   const title = type === 'groupRatio' ? t('group ratio') : t('top-up ratio')
 
@@ -1008,30 +1130,76 @@ function SimpleGroupDialog({
     setValue(editData?.value ?? '')
   }, [editData, open])
 
-  const handleSave = () => {
-    if (!name.trim() || !value.trim()) return
-    onSave(name.trim(), value.trim())
+  const trimmedName = name.trim()
+  const trimmedValue = value.trim()
+  const ratioValue = Number(trimmedValue)
+
+  const handleSave = (nextName = trimmedName, nextValue = trimmedValue) => {
+    const parsedRatio = Number(nextValue)
+    if (!nextName || !nextValue || !isValidRatio(parsedRatio)) return
+    onSave(nextName, String(parsedRatio))
     setName('')
     setValue('')
   }
 
+  const handleSaveFromForm = (form: HTMLFormElement | null) => {
+    if (!form) return
+    const formData = new FormData(form)
+    const nextName = String(formData.get('group-name') ?? '').trim()
+    const nextValue = String(formData.get('ratio') ?? '').trim()
+    handleSave(nextName, nextValue)
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    handleSaveFromForm(event.currentTarget)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {editData
-              ? t('Edit {{title}}', { title })
-              : t('Add {{title}}', { title })}
-          </DialogTitle>
-          <DialogDescription>
-            {t('Configure the ratio for this group.')}
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        editData
+          ? t('Edit {{title}}', { title })
+          : t('Add {{title}}', { title })
+      }
+      description={t('Configure the ratio for this group.')}
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+          >
+            {t('Cancel')}
+          </Button>
+          <button
+            type='button'
+            className={buttonVariants()}
+            onPointerDown={(event) => {
+              event.preventDefault()
+              handleSaveFromForm(formRef.current)
+            }}
+            onClick={(event) => {
+              if (event.detail !== 0) return
+              event.preventDefault()
+              handleSaveFromForm(formRef.current)
+            }}
+          >
+            {editData ? t('Update') : t('Add')}
+          </button>
+        </>
+      }
+    >
+      <form ref={formRef} onSubmit={handleSubmit}>
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
             <Label>{t('Group name')}</Label>
             <Input
+              name='group-name'
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('default')}
@@ -1041,26 +1209,24 @@ function SimpleGroupDialog({
           <div className='space-y-2'>
             <Label>{t('Ratio')}</Label>
             <Input
+              name='ratio'
               value={value}
               onChange={(e) => {
                 const val = e.target.value
-                if (val === '' || !isNaN(parseFloat(val))) {
+                if (val === '' || Number.isFinite(Number(val))) {
                   setValue(val)
                 }
               }}
               placeholder='1.0'
             />
+            {trimmedValue !== '' && !isValidRatio(ratioValue) && (
+              <p className='text-destructive text-xs'>
+                {t('Ratio must be a non-negative number.')}
+              </p>
+            )}
           </div>
         </div>
-        <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
-            {t('Cancel')}
-          </Button>
-          <Button onClick={handleSave}>
-            {editData ? t('Update') : t('Add')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </form>
     </Dialog>
   )
 }
@@ -1072,6 +1238,8 @@ type GroupOverrideDialogProps = {
   onSave: (targetGroup: string, ratio: number, oldTargetGroup?: string) => void
   editData: GroupOverride | null
   userGroup: string | null
+  targetGroupOptions: GroupOption[]
+  existingTargetGroups: string[]
 }
 
 function GroupOverrideDialog({
@@ -1080,10 +1248,25 @@ function GroupOverrideDialog({
   onSave,
   editData,
   userGroup,
+  targetGroupOptions,
+  existingTargetGroups,
 }: GroupOverrideDialogProps) {
   const { t } = useTranslation()
   const [targetGroup, setTargetGroup] = useState('')
   const [ratio, setRatio] = useState('')
+  const targetGroupSet = useMemo(() => {
+    return new Set(targetGroupOptions.map((option) => option.value))
+  }, [targetGroupOptions])
+  const availableTargetGroupOptions = useMemo(() => {
+    if (editData) {
+      return targetGroupOptions
+    }
+
+    const configuredTargets = new Set(existingTargetGroups)
+    return targetGroupOptions.filter(
+      (option) => !configuredTargets.has(option.value)
+    )
+  }, [editData, existingTargetGroups, targetGroupOptions])
 
   useEffect(() => {
     if (!open) {
@@ -1097,75 +1280,107 @@ function GroupOverrideDialog({
   }, [editData, open])
 
   const handleSave = () => {
-    if (!targetGroup.trim() || !ratio.trim()) return
-    const parsedRatio = parseFloat(ratio)
-    if (isNaN(parsedRatio)) return
+    const nextTargetGroup = targetGroup.trim()
+    const parsedRatio = Number(ratio)
+    if (
+      !nextTargetGroup ||
+      !targetGroupSet.has(nextTargetGroup) ||
+      !isValidRatio(parsedRatio)
+    ) {
+      return
+    }
+    if (!editData && existingTargetGroups.includes(nextTargetGroup)) return
 
-    onSave(targetGroup.trim(), parsedRatio, editData?.targetGroup)
+    onSave(nextTargetGroup, parsedRatio, editData?.targetGroup)
     setTargetGroup('')
     setRatio('')
   }
 
+  const ratioValue = Number(ratio)
+  const canSave =
+    targetGroupSet.has(targetGroup.trim()) &&
+    ratio.trim() !== '' &&
+    isValidRatio(ratioValue) &&
+    (editData !== null || !existingTargetGroups.includes(targetGroup.trim()))
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {editData ? t('Edit ratio override') : t('Add ratio override')}
-          </DialogTitle>
-          <DialogDescription>
-            {userGroup
-              ? t(
-                  'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
-                  { userGroup }
-                )
-              : t(
-                  'Configure a custom ratio for when users use a specific token group.'
-                )}
-          </DialogDescription>
-        </DialogHeader>
-        <div className='space-y-4 py-4'>
-          <div className='space-y-2'>
-            <Label>{t('Target group')}</Label>
-            <Input
-              value={targetGroup}
-              onChange={(e) => setTargetGroup(e.target.value)}
-              placeholder={t('edit_this')}
-              disabled={!!editData}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('The token group that will have a custom ratio')}
-            </p>
-          </div>
-          <div className='space-y-2'>
-            <Label>{t('Ratio')}</Label>
-            <Input
-              value={ratio}
-              onChange={(e) => {
-                const val = e.target.value
-                if (val === '' || !isNaN(parseFloat(val))) {
-                  setRatio(val)
-                }
-              }}
-              placeholder='0.9'
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
-                userGroup: userGroup || t('this user group'),
-                targetGroup: targetGroup || t('this token group'),
-              })}
-            </p>
-          </div>
-        </div>
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editData ? t('Edit ratio override') : t('Add ratio override')}
+      description={
+        userGroup
+          ? t(
+              'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
+              { userGroup }
+            )
+          : t(
+              'Configure a custom ratio for when users use a specific token group.'
+            )
+      }
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={!canSave}>
             {editData ? t('Update') : t('Add')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-4 py-4'>
+        <div className='space-y-2'>
+          <Label>{t('Target group')}</Label>
+          {editData ? (
+            <Input value={targetGroup} disabled />
+          ) : (
+            <Combobox
+              options={availableTargetGroupOptions}
+              value={targetGroup}
+              onValueChange={(value) => setTargetGroup(value ?? '')}
+              placeholder={t('Select a group')}
+              emptyText={t('No available target groups')}
+              allowCustomValue={false}
+              openOnFocus={false}
+            />
+          )}
+          <p className='text-muted-foreground text-xs'>
+            {t('The token group that will have a custom ratio')}
+          </p>
+          {editData && !targetGroupSet.has(targetGroup.trim()) && (
+            <p className='text-destructive text-xs'>
+              {t('Target group must exist in pricing groups.')}
+            </p>
+          )}
+        </div>
+        <div className='space-y-2'>
+          <Label>{t('Ratio')}</Label>
+          <Input
+            value={ratio}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val === '' || Number.isFinite(Number(val))) {
+                setRatio(val)
+              }
+            }}
+            placeholder='0.9'
+          />
+          {ratio.trim() !== '' && !isValidRatio(ratioValue) && (
+            <p className='text-destructive text-xs'>
+              {t('Ratio must be a non-negative number.')}
+            </p>
+          )}
+          <p className='text-muted-foreground text-xs'>
+            {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
+              userGroup: userGroup || t('this user group'),
+              targetGroup: targetGroup || t('this token group'),
+            })}
+          </p>
+        </div>
+      </div>
     </Dialog>
   )
 }

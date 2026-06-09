@@ -7,14 +7,26 @@
       "extrasCount": 0,
       "untranslatedCount": 0
     },
-    "fr": {
-      "file": "fr.json",
+    "es": {
+      "file": "es.json",
       "missingCount": 0,
       "extrasCount": 0,
       "untranslatedCount": 0
     },
+    "fr": {
+      "file": "fr.json",
+      "missingCount": 0,
+      "extrasCount": 0,
+      "untranslatedCount": 6
+    },
     "ja": {
       "file": "ja.json",
+      "missingCount": 0,
+      "extrasCount": 0,
+      "untranslatedCount": 35
+    },
+    "pt": {
+      "file": "pt.json",
       "missingCount": 0,
       "extrasCount": 0,
       "untranslatedCount": 0
@@ -23,19 +35,19 @@
       "file": "ru.json",
       "missingCount": 0,
       "extrasCount": 0,
-      "untranslatedCount": 0
+      "untranslatedCount": 35
     },
     "vi": {
       "file": "vi.json",
       "missingCount": 0,
       "extrasCount": 0,
-      "untranslatedCount": 0
+      "untranslatedCount": 6
     },
     "zh": {
       "file": "zh.json",
       "missingCount": 0,
       "extrasCount": 0,
-      "untranslatedCount": 0
+      "untranslatedCount": 1
     }
   }
 }

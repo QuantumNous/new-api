@@ -22,14 +22,8 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Dialog } from '@/components/dialog'
 import { checkClusterNameAvailability, updateDeploymentName } from '../../api'
 import { deploymentsQueryKeys } from '../../lib'
 
@@ -111,27 +105,16 @@ export function RenameDeploymentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
-        <DialogHeader>
-          <DialogTitle>{t('Rename deployment')}</DialogTitle>
-        </DialogHeader>
-
-        <div className='space-y-2'>
-          <div className='text-muted-foreground text-sm'>
-            {t('Deployment ID')}:{' '}
-            <span className='font-mono'>{deploymentId}</span>
-          </div>
-          <Input
-            placeholder={t('Enter a new name')}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete='off'
-          />
-          <div className='text-muted-foreground text-xs'>{helper}</div>
-        </div>
-
-        <DialogFooter className='mt-4'>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Rename deployment')}
+      contentClassName='sm:max-w-lg'
+      footerClassName='mt-4'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
@@ -141,8 +124,22 @@ export function RenameDeploymentDialog({
             ) : null}
             {t('Rename')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-2'>
+        <div className='text-muted-foreground text-sm'>
+          {t('Deployment ID')}:{' '}
+          <span className='font-mono'>{deploymentId}</span>
+        </div>
+        <Input
+          placeholder={t('Enter a new name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete='off'
+        />
+        <div className='text-muted-foreground text-xs'>{helper}</div>
+      </div>
     </Dialog>
   )
 }

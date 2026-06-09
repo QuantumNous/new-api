@@ -122,6 +122,12 @@ resource "google_cloud_run_v2_service" "main" {
         name  = "STREAMING_TIMEOUT"
         value = "300"
       }
+      // Record upstream error responses to the error_log table (controller/relay.go).
+      // Defaults to false in code, so it must be set explicitly here.
+      env {
+        name  = "ERROR_LOG_ENABLED"
+        value = "true"
+      }
       env {
         name  = "FRONTEND_BASE_URL"
         value = var.frontend_base_url
@@ -182,6 +188,22 @@ resource "google_cloud_run_v2_service" "main" {
           secret_key_ref {
             secret  = var.crypto_secret_id
             version = "latest"
+          }
+        }
+      }
+
+      // Usage reconciliation static token — only injected when a secret id is
+      // supplied (gated by var.enable_usage_recon_token in envs/prod). The secret
+      // version MUST exist before this is wired, or the revision won't start.
+      dynamic "env" {
+        for_each = var.usage_recon_token_secret_id != "" ? [1] : []
+        content {
+          name = "BLOCKRUN_USAGE_SUMMARY_TOKEN"
+          value_source {
+            secret_key_ref {
+              secret  = var.usage_recon_token_secret_id
+              version = "latest"
+            }
           }
         }
       }

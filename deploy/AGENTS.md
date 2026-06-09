@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # deploy
 
@@ -15,13 +15,13 @@
 
 | Directory | Purpose |
 |-----------|---------|
-| `gcp/` | GCP 基础设施 Terraform 代码（Cloud Run、Cloud SQL、Memorystore、负载均衡、监控等），包含 `modules/`（可复用模块）和 `envs/`（环境实例）|
+| `gcp/` | GCP 基础设施 Terraform 代码（Cloud Run、Cloud SQL、Memorystore、负载均衡、监控等），包含 `modules/`（可复用模块）和 `envs/prod/`（prod 环境实例）|
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- 在对 `deploy/gcp/` 执行任何 `terraform`、`gcloud` 命令前，**必须先阅读** `deploy/gcp/docs/OPERATIONS.md`（CLAUDE.md Rule 8）。
+- 在对 `deploy/gcp/` 执行任何 `terraform`、`gcloud` 命令前，**必须先阅读** `deploy/gcp/docs/OPERATIONS.md`（CLAUDE.md Rule 7）。
 - 目录结构遵循 Terraform 模块化约定：`modules/` 定义可复用组件，`envs/prod/` 组合各模块形成完整的 prod 环境。
 
 ### Testing Requirements

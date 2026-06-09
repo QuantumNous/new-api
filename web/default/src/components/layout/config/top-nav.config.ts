@@ -24,7 +24,11 @@ import { type TopNavLink } from '../types'
  * In practice, navigation links are dynamically fetched from backend.
  * Priority: Backend dynamic links > Provided navLinks > defaultTopNavLinks
  *
- * This is intentionally empty to encourage backend configuration.
- * If you need fallback links, add them here.
+ * If backend configuration is unavailable, keep public product routes discoverable.
  */
-export const defaultTopNavLinks: TopNavLink[] = []
+export const defaultTopNavLinks: TopNavLink[] = [
+  {
+    title: 'Blog',
+    href: '/blog',
+  },
+]

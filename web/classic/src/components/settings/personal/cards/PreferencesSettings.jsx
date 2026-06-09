@@ -31,6 +31,7 @@ const languageOptions = [
 	{ value: "zh-TW", label: "繁體中文" },
 	{ value: "en", label: "English" },
 	{ value: 'fr', label: 'Français'},
+	{ value: "pt", label: "Português" },
 	{ value: 'ru', label: 'Русский'},
 	{ value: 'ja', label: '日本語'},
 	{ value: "vi", label: "Tiếng Việt" },

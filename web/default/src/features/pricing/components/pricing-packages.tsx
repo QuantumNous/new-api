@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import {
+  ArrowRight,
   Ban,
   Boxes,
   CheckCircle2,
@@ -26,16 +28,29 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/ui/button'
 import { FlatkeyTallyEmbed } from './flatkey-tally-embed'
 
 export function PricingPackages() {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
+  const ctaTarget = user ? '/dashboard' : '/sign-up'
+  const ctaLabel = user ? t('Go to the Console') : t('Get free API key')
   const topModelNames = [
     'GPT-5.1',
     'Claude Opus 4.7',
     'Gemini 3.5 Flash',
     'DeepSeek V4',
     t('More'),
+  ]
+  const sellingPoints = [
+    t('Permanently 20–40% cheaper'),
+    t('One API key for everything'),
+    t('Zero vendor lock-in'),
+    t('Usage analytics & cost control'),
+    t('Enterprise-grade privacy'),
+    t('One unified invoice for all providers'),
   ]
   const pricingHighlights = [
     {
@@ -106,6 +121,11 @@ export function PricingPackages() {
             <span className='text-4xl font-bold tracking-tight'>$10</span>
             <span className='text-muted-foreground pb-1 text-sm'>
               {t('starting package')}
+              {t('，')}
+              {t('Pay as you go with the balance you add.').replace(
+                /[.。]$/,
+                ''
+              )}
             </span>
           </div>
 
@@ -116,10 +136,6 @@ export function PricingPackages() {
             </p>
             <p className='flex gap-2 leading-6'>
               <CheckCircle2 className='mt-0.5 size-4 shrink-0 text-violet-600 dark:text-violet-200' />
-              <span>{t('Pay as you go with the balance you add.')}</span>
-            </p>
-            <p className='flex gap-2 leading-6'>
-              <CheckCircle2 className='mt-0.5 size-4 shrink-0 text-violet-600 dark:text-violet-200' />
               <span>
                 {t(
                   'Usage is charged by model input, output, and cache-hit token prices.'
@@ -127,6 +143,23 @@ export function PricingPackages() {
               </span>
             </p>
           </div>
+
+          <div className='mt-5 space-y-3 text-sm'>
+            {sellingPoints.map((point) => (
+              <p key={point} className='flex gap-2 leading-6'>
+                <CheckCircle2 className='mt-0.5 size-4 shrink-0 text-violet-600 dark:text-violet-200' />
+                <span>{point}</span>
+              </p>
+            ))}
+          </div>
+
+          <Button
+            className='mt-6 w-full justify-center sm:w-auto'
+            render={<Link to={ctaTarget} />}
+          >
+            {ctaLabel}
+            <ArrowRight className='ml-2 size-4' aria-hidden='true' />
+          </Button>
         </article>
 
         <article className='rounded-2xl border border-violet-500/14 bg-white/66 p-5 dark:border-violet-300/12 dark:bg-white/[0.035]'>
@@ -136,7 +169,9 @@ export function PricingPackages() {
                 {t('Enterprise teams')}
               </p>
               <h3 className='mt-2 text-base font-semibold tracking-tight'>
-                {t('Contact sales for higher monthly usage and greater discounts.')}
+                {t(
+                  'Contact sales for higher monthly usage and greater discounts.'
+                )}
               </h3>
             </div>
             <a

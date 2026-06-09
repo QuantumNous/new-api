@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
+import { ensureGtagLoaded } from '@/lib/analytics/gtag'
 import {
   CTA,
   Features,
@@ -37,6 +39,10 @@ export function Home() {
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
   const { content, isLoaded, isUrl } = useHomePageContent()
+
+  useEffect(() => {
+    void ensureGtagLoaded()
+  }, [])
 
   if (!isLoaded) {
     return (

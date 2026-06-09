@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # common
 
@@ -52,6 +52,7 @@
 | `gin.go` | Gin 框架相关工具（读取 body、设置响应等） |
 | `rate-limit.go` | 内存级别限流工具（基于 `limiter/` 子包的 Redis 限流另见子目录） |
 | `body_storage.go` | 请求 body 的临时存储与复用 |
+| `request_body_limit.go` | `GetAnonymousRequestBodyLimitBytes()` — 匿名请求 body 大小上限（默认 512 KB，由 `constant.AnonymousRequestBodyLimitKB` 覆盖） |
 
 ### 配额 & 计费
 | File | Description |
@@ -96,7 +97,7 @@
 ## Subdirectories
 | Directory | Purpose |
 |-----------|---------|
-| `limiter/` | 基于 Redis + Lua 脚本的令牌桶限流器，单例模式，供 middleware 使用 |
+| `limiter/` | 基于 Redis + Lua 脚本的令牌桶限流器，单例模式，供 middleware 使用（见 `limiter/AGENTS.md`） |
 
 ## For AI Agents
 
@@ -111,6 +112,7 @@
 - `redis_pubsub_test.go`：Redis Pub/Sub 单元测试，需要 Redis 实例。
 - `url_validator_test.go`：URL 校验单元测试。
 - `replica_id_test.go`：副本 ID 生成单元测试。
+- `endpoint_type_test.go`：`GetEndpointTypesByChannelType` 单元测试，验证视频类渠道（Sora、BlockRunVideo、BlockRunSeedance）能正确解析到 `EndpointTypeOpenAIVideo`；新增视频渠道时须同步添加测试用例。
 - 运行命令：`go test ./common/...`
 
 ### Common Patterns

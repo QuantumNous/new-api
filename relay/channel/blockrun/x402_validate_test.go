@@ -127,33 +127,42 @@ func TestValidatePaymentOptionWithCap_AllowsAboveOneUSDC(t *testing.T) {
 		MaxTimeoutSeconds: 60,
 	}
 	// 默认 $1 上限必须拒绝
-	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, maxAuthorizationWindowSeconds); err == nil {
+	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC); err == nil {
 		t.Fatal("expected 3 USDC to be rejected under 1 USDC cap")
 	}
 	// $10 上限必须放行
-	if err := validatePaymentOptionWithCap(opt, big.NewInt(10_000_000), maxAuthorizationWindowSeconds); err != nil {
+	if err := validatePaymentOptionWithCap(opt, big.NewInt(10_000_000)); err != nil {
 		t.Fatalf("expected 3 USDC allowed under 10 USDC cap, got %v", err)
 	}
 }
 
-// TestValidatePaymentOptionWithCap_WindowCap mirrors the production finding: the
-// async video gateway advertises a 600s authorization window, which the 300s chat
-// cap rejects but a higher video cap must accept.
-func TestValidatePaymentOptionWithCap_WindowCap(t *testing.T) {
-	opt := &blockrunSDK.PaymentOption{
-		Network:           expectedNetworkBase,
-		Asset:             expectedAssetUSDCBase,
-		PayTo:             "0x000000000000000000000000000000000000dEaD",
-		Amount:            "500000", // 0.5 USDC
-		MaxTimeoutSeconds: 600,      // upstream video window observed in production
+// TestValidatePaymentOptionWithCaps_ImageWindow asserts the synchronous image
+// path can accept BlockRun's longer 600s authorization window via a raised
+// per-call window cap, while the default chat cap (300s) still rejects it and
+// anything beyond the image cap is still refused.
+func TestValidatePaymentOptionWithCaps_ImageWindow(t *testing.T) {
+	opt := validOption()
+	opt.MaxTimeoutSeconds = 600 // BlockRun's image endpoint window
+
+	// Default 300s cap (chat) must still reject it.
+	if err := validatePaymentOption(&opt); err == nil {
+		t.Fatal("expected 600s window rejected under default 300s cap")
 	}
-	// 300s chat window must reject a 600s authorization.
-	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, maxAuthorizationWindowSeconds); err == nil {
-		t.Fatal("expected 600s window to be rejected under the 300s chat cap")
+
+	// Image cap (900s) must allow it.
+	if err := validatePaymentOptionWithCaps(&opt, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds); err != nil {
+		t.Fatalf("expected 600s window allowed under image cap, got %v", err)
 	}
-	// A higher (video) window cap must accept it.
-	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC, 1200); err != nil {
-		t.Fatalf("expected 600s window allowed under the 1200s video cap, got %v", err)
+
+	// Beyond the image cap is still refused (no unbounded widening).
+	opt.MaxTimeoutSeconds = maxImageAuthorizationWindowSeconds + 1
+	if err := validatePaymentOptionWithCaps(&opt, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds); err == nil {
+		t.Fatalf("expected %ds window rejected under %ds image cap", maxImageAuthorizationWindowSeconds+1, maxImageAuthorizationWindowSeconds)
+	}
+
+	// The image window cap must cover BlockRun's observed 600s.
+	if maxImageAuthorizationWindowSeconds < 600 {
+		t.Fatalf("image window cap %ds is below BlockRun's 600s window", maxImageAuthorizationWindowSeconds)
 	}
 }
 

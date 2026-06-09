@@ -69,6 +69,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          build-args: |
+            VITE_GADS_CONVERSION_ID=${{ vars.VITE_GADS_CONVERSION_ID }}
+            VITE_GADS_SIGNUP_SEND_TO=${{ vars.VITE_GADS_SIGNUP_SEND_TO }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:main-latest

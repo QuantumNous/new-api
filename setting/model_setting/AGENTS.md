@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # setting/model_setting
 
@@ -28,8 +28,9 @@
 ### Working In This Directory
 
 - `global.go` 中的 `GlobalSettings` 注册键为 `global`，DB 键如 `global.pass_through_request_enabled`。
-- `ChatCompletionsToResponsesPolicy` 控制是否将 `/v1/chat/completions` 请求透明转换为 Responses API 格式，可按渠道 ID、渠道类型、模型名 pattern 过滤。
-- `ThinkingModelBlacklist` 列表中的模型不会被自动启用 extended thinking，即使请求中携带相关参数。
+- `ChatCompletionsToResponsesPolicy` 控制是否将 `/v1/chat/completions` 请求透明转换为 Responses API 格式；`IsChannelEnabled(channelID, channelType)` 按渠道 ID、渠道类型过滤；`ModelPatterns` 字段预留但当前不参与 `IsChannelEnabled` 判断。
+- `ThinkingModelBlacklist` 列表中的模型不会被自动启用 extended thinking，即使请求中携带相关参数。默认包含 `"moonshotai/kimi-k2-thinking"` 和 `"kimi-k2-thinking"`。
+- `ShouldPreserveThinkingSuffix(modelName)` 是对黑名单的封装，精确匹配（trim 后）模型名，用于判断是否保留 thinking 相关后缀而不做剥离处理。
 - 各厂商专属配置（claude/gemini/grok/qwen）各自注册不同的 GlobalConfig 键，命名约定为 `<vendor>_setting`。
 - 新增厂商配置时，遵循现有文件结构：定义结构体 → 声明默认值 → `init()` 注册 → 提供 getter。
 
@@ -41,13 +42,13 @@
 ### Common Patterns
 
 ```go
-// 检查模型是否在 thinking 黑名单
-settings := model_setting.GetGlobalSettings()
-if slices.Contains(settings.ThinkingModelBlacklist, modelName) {
-    // 跳过 thinking 参数注入
+// 检查模型是否应保留 thinking 后缀（黑名单精确匹配）
+if model_setting.ShouldPreserveThinkingSuffix(modelName) {
+    // 跳过 thinking 参数注入 / 保留后缀不剥离
 }
 
 // 判断是否需要 C2R 转换
+settings := model_setting.GetGlobalSettings()
 if settings.ChatCompletionsToResponsesPolicy.IsChannelEnabled(channelID, channelType) {
     // 执行转换
 }

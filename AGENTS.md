@@ -1,3 +1,4 @@
+<!-- Generated: 2026-06-08 | Updated: 2026-06-08 -->
 # AGENTS.md — Project Conventions for new-api
 
 ## Overview
@@ -18,6 +19,9 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 Layered architecture: Router -> Controller -> Service -> Model
 
 ```
+main.go        — Main server entrypoint (HTTP server bootstrap, embedded frontend assets)
+cmd/           — Auxiliary standalone binaries (not part of the main HTTP server)
+  cmd/blockrun_balance/ — CLI: query ETH/USDC balance on Base chain from a private key
 router/        — HTTP routing (API, relay, dashboard, web)
 controller/    — Request handlers
 service/       — Business logic
@@ -166,7 +170,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 
 #### 共享与类型
 - `common/AGENTS.md` — 共享工具（JSON / DB flags / Redis / crypto / env），Rule 1 核心实现
-- `dto/AGENTS.md` — 请求/响应结构体（重点：Rule 6 指针零值）
+- `dto/AGENTS.md` — 请求/响应结构体（重点：Rule 5 指针零值）
 - `constant/AGENTS.md` — 枚举常量与 context key
 - `types/AGENTS.md` — relay 格式、错误体系（NewAPIError）
 
@@ -203,6 +207,10 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 #### 国际化与认证
 - `oauth/AGENTS.md` — OAuth provider 实现
 - `i18n/AGENTS.md` — 后端 go-i18n（与前端 i18next 完全独立）
+
+#### 辅助二进制工具 cmd/
+- `cmd/AGENTS.md` — Go 辅助命令入口总览
+- `cmd/blockrun_balance/AGENTS.md` — Base 链 ETH/USDC 余额查询 CLI
 
 #### 部署与文档
 - `deploy/AGENTS.md` — 部署目录总览

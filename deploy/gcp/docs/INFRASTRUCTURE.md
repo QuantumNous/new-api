@@ -75,7 +75,9 @@
 | VPC 接入 | Direct VPC Egress（子网 `newapi-subnet-us-west1`，egress=`PRIVATE_RANGES_ONLY`） |
 | Health probe | `tcp_socket :3000` + `http_get /api/status :3000` |
 
-容器环境变量见 `deploy/gcp/modules/cloud-run/main.tf`。敏感值（`SQL_DSN`、`REDIS_CONN_STRING`、`SESSION_SECRET`、`CRYPTO_SECRET`）通过 `value_source.secret_key_ref` 从 Secret Manager 注入，**Terraform state 里看不到明文**。
+容器环境变量见 `deploy/gcp/modules/cloud-run/main.tf`。敏感值（`SQL_DSN`、`REDIS_CONN_STRING`、`SESSION_SECRET`、`CRYPTO_SECRET`、`BLOCKRUN_USAGE_SUMMARY_TOKEN`）通过 `value_source.secret_key_ref` 从 Secret Manager 注入，**Terraform state 里看不到明文**。
+
+> `BLOCKRUN_USAGE_SUMMARY_TOKEN`（用量对账接口 `/usage/summary`、`/usage/transactions` 的静态 Bearer 鉴权）由开关 `enable_usage_recon_token`（`envs/prod/terraform.tfvars`，**当前 true**）控制是否注入；密钥为 `newapi-blockrun-usage-summary-token`。运维细节与雷区见 `OPERATIONS.md`「Usage reconciliation token」。
 
 镜像由 CI/CD 滚动更新；Terraform 的 `lifecycle.ignore_changes` 包含 `template[0].containers[0].image`，所以 `terraform apply` 不会回滚到 placeholder。
 

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
 
 # constant
 
@@ -9,9 +9,9 @@
 ## Key Files
 | File | Description |
 |------|-------------|
-| `channel.go` | 渠道类型常量（`ChannelTypeOpenAI=1`、`ChannelTypeAnthropic=14` 等，共 50+ 类型），新增渠道时在此追加 |
-| `api_type.go` | API 类型枚举（`APITypeOpenAI`、`APITypeAnthropic` 等，iota 递增），决定 relay 层选择哪个 adapter |
-| `context_key.go` | `ContextKey` 类型及所有 Gin Context 键名（token、channel、user、group 等维度），避免硬编码字符串 |
+| `channel.go` | 渠道类型常量（`ChannelTypeOpenAI=1`、`ChannelTypeAnthropic=14` 等，60+ 具名类型；`ChannelTypeDummy` 为哨兵），另有 `ChannelTypeBlockRun=100`、`ChannelTypeBlockRunVideo=101`、`ChannelTypeBlockRunSeedance=102` 等非连续编号；新增渠道在此追加 |
+| `api_type.go` | API 类型枚举（`APITypeOpenAI`、`APITypeAnthropic` 等，iota 递增，`APITypeDummy` 为哨兵），决定 relay 层选择哪个 adapter |
+| `context_key.go` | `ContextKey` 类型及所有 Gin Context 键名（token、channel、user、group、auto-group 等维度），避免硬编码字符串 |
 | `cache_key.go` | Redis 缓存键名常量 |
 | `endpoint_type.go` | Endpoint 类型常量 |
 | `env.go` | 环境变量名称常量 |
@@ -27,7 +27,8 @@
 ## For AI Agents
 
 ### Working In This Directory
-- **新增渠道**：必须同时在 `channel.go` 追加 `ChannelTypeXxx` 常量（在 `ChannelTypeDummy` 之前）、在 `api_type.go` 追加 `APITypeXxx`（在 `APITypeDummy` 之前），并在 relay 层注册对应 adapter。
+- **新增渠道**：必须同时在 `channel.go` 追加 `ChannelTypeXxx` 常量（在 `ChannelTypeDummy` 之前，或使用 100+ 非连续段）、在 `api_type.go` 追加 `APITypeXxx`（在 `APITypeDummy` 之前），并在 relay 层注册对应 adapter。
+- **非连续编号段**：`ChannelTypeBlockRun` 系列使用 100–102，与主序列（0–65）不连续；新增渠道时注意不与现有值冲突，`ChannelTypeNames` map 也需同步。
 - **Context 键**：所有 Gin Context 的 `c.Set`/`c.Get` 调用必须使用 `constant.ContextKeyXxx` 常量，不得硬编码字符串。
 - 此包是纯常量包，禁止引入任何业务逻辑或外部依赖。
 - `ChannelTypeDummy` 和 `APITypeDummy` 是哨兵值（用于计数），新增条目必须插入其之前。
@@ -37,7 +38,7 @@
 - 变更后运行全量编译验证无引用错误：`go build ./...`
 
 ### Common Patterns
-- 渠道类型使用具名整型常量，不使用 iota（避免顺序依赖）。
+- 渠道类型使用具名整型常量，不使用 iota（避免顺序依赖，允许非连续编号）。
 - API 类型使用 iota，新增时追加到 `APITypeDummy` 之前。
 - Context 键使用 `type ContextKey string` 强类型，避免与其他包的字符串键冲突。
 

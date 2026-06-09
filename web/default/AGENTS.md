@@ -1,8 +1,46 @@
 <!-- Parent: ../AGENTS.md -->
+<!-- Generated: 2026-01-28 | Updated: 2026-06-08 -->
 
-# 前端开发规范
+# 前端开发规范（web/default）
 
-本文档定义前端项目的开发规范与最佳实践，供开发与 AI 助手共同遵循。具体依赖与脚本以 `package.json` 为准。
+本文档定义默认主题前端项目的开发规范与最佳实践，供开发与 AI 助手共同遵循。具体依赖与脚本以 `package.json` 为准。
+
+## Purpose
+默认主题前端：React 19 + TypeScript + Rsbuild 2.x + Base UI + Tailwind CSS 4.x 的新版管理界面。长期演进方向，功能持续迭代。包管理器为 Bun（CLAUDE.md Rule 3）。
+
+## Key Files
+| File | Description |
+|------|-------------|
+| `package.json` | 依赖清单与脚本（React 19、Base UI、TanStack Router/Query/Table、i18next 等） |
+| `rsbuild.config.ts` | Rsbuild 2.x 构建配置，环境变量前缀 `VITE_` |
+| `tsconfig.app.json` | TypeScript 应用编译配置（target ES2020，moduleResolution Bundler） |
+| `tsconfig.json` | TypeScript 根配置（引用 app + node） |
+| `eslint.config.js` | ESLint 10.x flat config |
+| `postcss.config.mjs` | PostCSS 配置（Tailwind CSS 4.x） |
+| `knip.config.ts` | Knip 未使用导出/依赖检查配置 |
+| `components.json` | shadcn/ui 组件配置 |
+| `index.html` | SPA 入口 HTML |
+| `src/main.tsx` | React 渲染入口 |
+| `src/routeTree.gen.ts` | TanStack Router 自动生成路由树（勿手动编辑） |
+| `src/i18n/config.ts` | i18next 初始化配置 |
+| `src/i18n/static-keys.ts` | 非 `t()` 字面量扫描用的静态 i18n key 登记 |
+| `scripts/sync-i18n.mjs` | i18n 翻译同步脚本（`bun run i18n:sync`） |
+| `scripts/add-copyright.mjs` | 版权头检查/添加脚本（`bun run copyright`） |
+
+## Subdirectories
+| Directory | Purpose |
+|-----------|---------|
+| `src/features/` | 功能模块（about / auth / channels / chat / dashboard / errors / home / keys / legal / models / performance-metrics / playground / pricing / profile / rankings / redemption-codes / setup / subscriptions / system-settings / usage-logs / users / wallet 等） |
+| `src/routes/` | TanStack Router 文件路由（`__root.tsx`、`_authenticated/`、`(auth)/`、`(errors)/` 等） |
+| `src/components/` | 通用 UI 组件（data-table / layout / brand / ui / ai-elements 等） |
+| `src/stores/` | Zustand stores（auth-store / notification-store / system-config-store） |
+| `src/i18n/locales/` | i18next 翻译文件（en / zh / fr / ru / ja / vi / es / pt） |
+| `src/hooks/` | 通用自定义 Hooks |
+| `src/lib/` | 通用工具函数与类型 |
+| `src/styles/` | 全局样式（Tailwind CSS 4.x 入口） |
+| `src/config/` | 应用级配置（如 fonts.ts） |
+| `src/assets/` | 静态资源 |
+| `public/` | 不经构建处理的静态资源 |
 
 ---
 
@@ -12,17 +50,25 @@
 
 | 类别     | 技术 |
 |----------|------|
-| 包管理   | Bun |
-| 框架     | React 19、TypeScript |
-| 数据与请求 | @tanstack/react-query、axios、Zustand |
-| 路由     | @tanstack/react-router |
-| 表格与列表 | @tanstack/react-table、@tanstack/react-virtual |
-| 国际化   | i18next、react-i18next、i18next-browser-languagedetector |
-| 日期     | Day.js |
-| UI 与样式 | Base UI、Hugeicons、Tailwind CSS、clsx / class-variance-authority |
-| 表单     | React Hook Form、Zod |
-| 图表     | @visactor/vchart、@visactor/react-vchart |
-| 工具     | qrcode.react、prettier、eslint、vitest（可选）|
+| 包管理   | Bun（Rule 3） |
+| 构建     | Rsbuild 2.x（`@rsbuild/core`）、`@rsbuild/plugin-react` |
+| 框架     | React 19、TypeScript 6.x |
+| 数据获取 | @tanstack/react-query 5.x |
+| 路由     | @tanstack/react-router 1.x（文件路由，`createFileRoute`） |
+| 表格与列表 | @tanstack/react-table 8.x、@tanstack/react-virtual 3.x |
+| 状态管理 | Zustand 5.x |
+| 国际化   | i18next 26.x、react-i18next 17.x、i18next-browser-languagedetector |
+| HTTP 请求 | axios（项目统一实例） |
+| AI SDK   | `ai` 6.x（Vercel AI SDK） |
+| 日期     | Day.js、date-fns 4.x |
+| UI 与样式 | Base UI（`@base-ui/react`）、Hugeicons（`@hugeicons/react`）、Lucide React、Tailwind CSS 4.x、clsx / class-variance-authority / tailwind-merge |
+| 动画     | motion 12.x |
+| 表单     | React Hook Form 7.x、Zod 4.x、`@hookform/resolvers` |
+| 图表     | @visactor/vchart 2.x / @visactor/react-vchart 2.x、Recharts 3.x |
+| Markdown | react-markdown、remark-gfm、rehype-raw、shiki（代码高亮）、streamdown（流式渲染） |
+| 通知     | sonner 2.x |
+| 其他工具 | qrcode.react、react-day-picker、react-resizable-panels、vaul、cmdk、nanoid、next-themes、tokenlens |
+| 开发工具 | prettier、eslint 10.x、knip、shadcn 4.x |
 
 优先选用成熟、维护良好的开源库；仅在现有库无法满足或需特殊适配时自行实现，并评估可维护性与通用性。
 
@@ -65,6 +111,7 @@
   - 即使父组件已使用 `useTranslation()`，子组件仍应自行使用，以保证独立性。
 - **专有名词**：品牌、产品、技术术语等可保留英文（如 API、React、TypeScript）；若有约定俗成的译法则使用翻译。
 - **翻译键**：使用有层级、语义清晰的键名，如 `dashboard.overview.title`，并保持命名一致。
+- **支持语言**：en（基准）、zh、fr、ru、ja、vi、es、pt，文件位于 `src/i18n/locales/{lang}.json`；新增文案时需同步所有语言文件（可用 `bun run i18n:sync` 辅助）。
 
 - **枚举与文案（常量中的 i18n）**  
   各 feature 的 `constants.ts` 中常出现「枚举/状态 + 展示文案」或「成功/错误消息」，须统一约定以免遗漏 i18n、用法混乱：  
@@ -155,9 +202,10 @@
 
 ### 3.16 构建与部署
 
-- 使用 Rsbuild，配置见 `rsbuild.config.ts`；脚本以 `package.json` 为准（如 `bun run dev`、`bun run build`、`bun run typecheck`、`bun run lint`、`bun run format`），包管理见 [3.15 依赖管理](#315-依赖管理)。
-- 代码分割与懒加载策略见 [3.4 性能](#34-性能)；资源使用合适格式与压缩，环境变量用 `.env` 且以 `VITE_` 前缀，不在代码中硬编码。
-- **发布前**：执行 typecheck、lint、format 检查，完成生产构建并检查产物体积与环境变量配置。
+- 使用 Rsbuild 2.x，配置见 `rsbuild.config.ts`；脚本以 `package.json` 为准（`bun run dev`、`bun run build`、`bun run build:check`、`bun run typecheck`、`bun run lint`、`bun run format`、`bun run knip`），包管理见 [3.15 依赖管理](#315-依赖管理)。
+- 代码分割与懒加载策略见 [3.4 性能](#34-性能)；资源使用合适格式与压缩，环境变量用 `.env` 且以 `VITE_` 前缀（Rsbuild `loadEnv` 配置的前缀），不在代码中硬编码。
+- **发布前**：执行 typecheck（`bun run typecheck`）、lint、format 检查，完成生产构建（`bun run build:check` = tsc + rsbuild）并检查产物体积与环境变量配置。
+- 版权头检查：`bun run copyright:check`，修复：`bun run copyright`。未使用导出检查：`bun run knip`。
 
 ---
 
@@ -175,3 +223,4 @@
 - **2026-01-28**：补充状态管理、API、表单、路由、错误处理、样式、文件组织、可访问性、安全、测试、依赖与构建部署规范。
 - **2026-01-29**：重组文档结构，合并重复内容，明确主次与交叉引用。
 - **2026-01-31**：在 3.2 中补充「类型检查」要求：改动 TS/TSX 后须执行 typecheck 并修复至无错。
+- **2026-06-08**：添加 Generated/Updated 头、Purpose/Key Files/Subdirectories 结构化块；更新技术栈表（Rsbuild 2.x、Tailwind CSS 4.x、TypeScript 6.x、新增 ai/recharts/date-fns/motion/streamdown/sonner/lucide-react 等依赖）；在 3.1 中补充支持语言（es/pt）；修正 3.16 构建脚本（build:check、copyright、knip）与 VITE_ 前缀说明。
