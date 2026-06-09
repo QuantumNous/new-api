@@ -54,6 +54,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import type { StatusVariant } from '@/components/status-badge'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,
@@ -84,6 +85,31 @@ function isPendingPaddleRecord(record: TopupRecord): boolean {
 
 function getPaddleGatewayTradeNo(record: TopupRecord): string {
   return record.gateway_trade_no?.trim() || ''
+}
+
+function getInvoiceStatusLabel(status?: string): string {
+  switch (status) {
+    case 'paid':
+      return 'Invoiced'
+    case 'failed':
+      return 'Invoice failed'
+    case 'expired':
+      return 'Invoice expired'
+    case 'pending':
+      return 'Invoice pending'
+    default:
+      return 'Invoice requested'
+  }
+}
+
+function getInvoiceStatusVariant(status?: string): StatusVariant {
+  if (status === 'paid') {
+    return 'success'
+  }
+  if (status === 'failed' || status === 'expired') {
+    return 'danger'
+  }
+  return 'neutral'
 }
 
 export function BillingHistoryDialog({
@@ -221,9 +247,15 @@ export function BillingHistoryDialog({
                   const canReopenPaddleCheckout =
                     isPendingPaddleRecord(record) &&
                     getPaddleGatewayTradeNo(record) !== ''
+                  const invoice = record.invoice
+                  const hasInvoice = invoice?.invoice_requested === true
+                  const invoiceUrl = invoice?.stripe_invoice_url?.trim()
+                  const invoicePdf = invoice?.stripe_invoice_pdf?.trim()
                   const showActions =
                     canReopenPaddleCheckout ||
-                    (isAdmin && record.status === 'pending')
+                    (isAdmin && record.status === 'pending') ||
+                    !!invoiceUrl ||
+                    !!invoicePdf
                   return (
                     <div
                       key={record.id}
@@ -301,9 +333,81 @@ export function BillingHistoryDialog({
                         </div>
                       </div>
 
+                      {hasInvoice && (
+                        <div className='bg-muted/20 mt-3 rounded-md border p-3'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <StatusBadge
+                              label={t(
+                                getInvoiceStatusLabel(invoice?.invoice_status)
+                              )}
+                              variant={getInvoiceStatusVariant(
+                                invoice?.invoice_status
+                              )}
+                              size='sm'
+                              copyable={false}
+                            />
+                            {invoice?.stripe_invoice_number && (
+                              <span className='text-muted-foreground text-xs'>
+                                {invoice.stripe_invoice_number}
+                              </span>
+                            )}
+                          </div>
+                          <div className='mt-2 grid gap-2 text-xs sm:grid-cols-2'>
+                            <div>
+                              <span className='text-muted-foreground'>
+                                {t('Company name')}:
+                              </span>{' '}
+                              <span className='font-medium'>
+                                {invoice?.company_name || '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className='text-muted-foreground'>
+                                {t('Billing email')}:
+                              </span>{' '}
+                              <span className='font-medium'>
+                                {invoice?.billing_email || '-'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Actions */}
                       {showActions && (
                         <div className='mt-4 flex flex-wrap justify-end gap-2'>
+                          {invoiceUrl && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              render={
+                                <a
+                                  href={invoiceUrl}
+                                  target='_blank'
+                                  rel='noopener noreferrer'
+                                />
+                              }
+                            >
+                              <ExternalLink className='mr-1.5 h-3.5 w-3.5' />
+                              {t('View invoice')}
+                            </Button>
+                          )}
+                          {invoicePdf && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              render={
+                                <a
+                                  href={invoicePdf}
+                                  target='_blank'
+                                  rel='noopener noreferrer'
+                                />
+                              }
+                            >
+                              <ExternalLink className='mr-1.5 h-3.5 w-3.5' />
+                              {t('Invoice PDF')}
+                            </Button>
+                          )}
                           {canReopenPaddleCheckout && (
                             <Button
                               size='sm'

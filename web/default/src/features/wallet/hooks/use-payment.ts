@@ -37,7 +37,11 @@ import {
   buildPaddleWalletCheckoutUrlWithOrder,
   rememberPaddleCheckoutUrlFallback,
 } from '../lib'
-import type { ApiResponse, PaddlePaymentResponse } from '../types'
+import type {
+  ApiResponse,
+  PaddlePaymentResponse,
+  PaymentOptions,
+} from '../types'
 
 // ============================================================================
 // Payment Hook
@@ -181,7 +185,11 @@ export function usePayment() {
 
   // Process payment
   const processPayment = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (
+      topupAmount: number,
+      paymentType: string,
+      options?: PaymentOptions
+    ) => {
       let keepProcessing = false
 
       try {
@@ -191,12 +199,20 @@ export function usePayment() {
         const isPaddle = isPaddlePayment(paymentType)
         const amount = Math.floor(topupAmount)
 
+        const stripeRequest = {
+          amount,
+          payment_method: 'stripe',
+          ...getStripeRedirectUrls(),
+          ...(options?.invoiceRequested && options.invoiceProfile
+            ? {
+                invoice_requested: true,
+                invoice_profile: options.invoiceProfile,
+              }
+            : {}),
+        }
+
         const response = isStripe
-          ? await requestStripePayment({
-              amount,
-              payment_method: 'stripe',
-              ...getStripeRedirectUrls(),
-            })
+          ? await requestStripePayment(stripeRequest)
           : isPaddle
             ? await requestPaddlePayment({ amount })
             : await requestPayment({

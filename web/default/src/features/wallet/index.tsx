@@ -58,6 +58,7 @@ import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
 import type {
   UserWalletData,
   PaymentMethod,
+  PaymentOptions,
   PresetAmount,
   CreemProduct,
 } from './types'
@@ -96,6 +97,8 @@ export function Wallet(props: WalletProps) {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>()
+  const [selectedPaymentOptions, setSelectedPaymentOptions] =
+    useState<PaymentOptions>()
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
@@ -489,8 +492,12 @@ export function Wallet(props: WalletProps) {
   }
 
   // Handle payment method selection
-  const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+  const handlePaymentMethodSelect = async (
+    method: PaymentMethod,
+    options?: PaymentOptions
+  ) => {
     setSelectedPaymentMethod(method)
+    setSelectedPaymentOptions(options)
     setPaymentLoading(method.type)
 
     try {
@@ -515,10 +522,15 @@ export function Wallet(props: WalletProps) {
     const isPancake = isWaffoPancakePayment(selectedPaymentMethod.type)
     const success = isPancake
       ? await processWaffoPancakePayment(topupAmount)
-      : await processPayment(topupAmount, selectedPaymentMethod.type)
+      : await processPayment(
+          topupAmount,
+          selectedPaymentMethod.type,
+          selectedPaymentOptions
+        )
 
     if (success) {
       setConfirmDialogOpen(false)
+      setSelectedPaymentOptions(undefined)
       await fetchUser()
     }
   }

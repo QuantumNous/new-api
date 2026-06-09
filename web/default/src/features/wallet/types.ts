@@ -69,6 +69,7 @@ export type PaddlePaymentResponse = ApiResponse<
   | string
 >
 export type PaddleTopUpStatusResponse = ApiResponse<PaddleTopUpStatus>
+export type InvoiceProfileResponse = ApiResponse<InvoiceProfile | null>
 
 export interface PaddleTopUpStatus {
   order_id: string
@@ -78,6 +79,40 @@ export interface PaddleTopUpStatus {
   money: number
   create_time: number
   complete_time?: number
+}
+
+export interface InvoiceProfile {
+  company_name: string
+  billing_email: string
+  tax_id_type?: string
+  tax_id?: string
+  country: string
+  state?: string
+  city?: string
+  address_line1: string
+  address_line2?: string
+  postal_code?: string
+  phone?: string
+}
+
+export interface PaymentInvoice {
+  invoice_requested: boolean
+  company_name?: string
+  billing_email?: string
+  tax_id_type?: string
+  tax_id?: string
+  country?: string
+  state?: string
+  city?: string
+  address_line1?: string
+  address_line2?: string
+  postal_code?: string
+  phone?: string
+  stripe_invoice_id?: string
+  stripe_invoice_number?: string
+  stripe_invoice_url?: string
+  stripe_invoice_pdf?: string
+  invoice_status?: string
 }
 
 /**
@@ -216,6 +251,15 @@ export interface PaymentRequest {
   success_url?: string
   /** Optional redirect URL after cancelled hosted checkout */
   cancel_url?: string
+  /** Whether Stripe should create a company invoice */
+  invoice_requested?: boolean
+  /** Company invoice profile snapshot */
+  invoice_profile?: InvoiceProfile
+}
+
+export interface PaymentOptions {
+  invoiceRequested?: boolean
+  invoiceProfile?: InvoiceProfile
 }
 
 /**
@@ -317,6 +361,8 @@ export interface TopupRecord {
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  /** Optional invoice snapshot for this order */
+  invoice?: PaymentInvoice
 }
 
 /**

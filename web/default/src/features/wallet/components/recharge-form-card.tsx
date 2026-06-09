@@ -19,11 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { getInvoiceProfile, isApiSuccess } from '../api'
 import {
   formatCurrency,
   getDiscountLabel,
@@ -43,10 +46,12 @@ import {
 } from '../lib'
 import type {
   PaymentMethod,
+  PaymentOptions,
   PresetAmount,
   TopupInfo,
   CreemProduct,
   WaffoPayMethod,
+  InvoiceProfile,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
 
@@ -59,7 +64,10 @@ interface RechargeFormCardProps {
   onTopupAmountChange: (amount: number) => void
   paymentAmount: number
   calculating: boolean
-  onPaymentMethodSelect: (method: PaymentMethod) => void
+  onPaymentMethodSelect: (
+    method: PaymentMethod,
+    options?: PaymentOptions
+  ) => void
   paymentLoading: string | null
   redemptionCode: string
   onRedemptionCodeChange: (code: string) => void
@@ -78,6 +86,47 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+}
+
+const EMPTY_INVOICE_PROFILE: InvoiceProfile = {
+  company_name: '',
+  billing_email: '',
+  tax_id_type: '',
+  tax_id: '',
+  country: '',
+  state: '',
+  city: '',
+  address_line1: '',
+  address_line2: '',
+  postal_code: '',
+  phone: '',
+}
+
+function normalizeInvoiceProfile(profile: InvoiceProfile): InvoiceProfile {
+  return {
+    company_name: profile.company_name.trim(),
+    billing_email: profile.billing_email.trim(),
+    tax_id_type: profile.tax_id_type?.trim(),
+    tax_id: profile.tax_id?.trim(),
+    country: profile.country.trim().toUpperCase(),
+    state: profile.state?.trim(),
+    city: profile.city?.trim(),
+    address_line1: profile.address_line1.trim(),
+    address_line2: profile.address_line2?.trim(),
+    postal_code: profile.postal_code?.trim(),
+    phone: profile.phone?.trim(),
+  }
+}
+
+function validateInvoiceProfile(profile: InvoiceProfile): string | null {
+  const normalized = normalizeInvoiceProfile(profile)
+  if (!normalized.company_name) return 'Company name is required'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.billing_email)) {
+    return 'Billing email is invalid'
+  }
+  if (!normalized.country) return 'Country is required'
+  if (!normalized.address_line1) return 'Address is required'
+  return null
 }
 
 export function RechargeFormCard({
@@ -111,6 +160,10 @@ export function RechargeFormCard({
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
+  const [invoiceRequested, setInvoiceRequested] = useState(false)
+  const [invoiceProfile, setInvoiceProfile] = useState<InvoiceProfile>(
+    EMPTY_INVOICE_PROFILE
+  )
   const showLocalCurrencyBreakdown = false
   const formatUsdAmount = (amount: number) => `$${formatNumber(amount)} USD`
   const showUsdPaymentBreakdown = true
@@ -118,6 +171,25 @@ export function RechargeFormCard({
   useEffect(() => {
     setLocalAmount(topupAmount.toString())
   }, [topupAmount])
+
+  useEffect(() => {
+    let cancelled = false
+    getInvoiceProfile()
+      .then((response) => {
+        if (!cancelled && isApiSuccess(response) && response.data) {
+          setInvoiceProfile({
+            ...EMPTY_INVOICE_PROFILE,
+            ...response.data,
+          })
+        }
+      })
+      .catch(() => {
+        // Keep the invoice form empty if the optional profile endpoint fails.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleAmountChange = (value: string) => {
     setLocalAmount(value)
@@ -140,6 +212,35 @@ export function RechargeFormCard({
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const hasStripePaymentMethod =
+    topupInfo?.enable_stripe_topup ||
+    topupInfo?.pay_methods?.some((method) => method.type === 'stripe')
+
+  const updateInvoiceField = (field: keyof InvoiceProfile, value: string) => {
+    setInvoiceProfile((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handlePaymentClick = (method: PaymentMethod) => {
+    if (method.type !== 'stripe' || !invoiceRequested) {
+      onPaymentMethodSelect(method)
+      return
+    }
+
+    const normalized = normalizeInvoiceProfile(invoiceProfile)
+    const validationMessage = validateInvoiceProfile(normalized)
+    if (validationMessage) {
+      toast.error(t(validationMessage))
+      return
+    }
+
+    onPaymentMethodSelect(method, {
+      invoiceRequested: true,
+      invoiceProfile: normalized,
+    })
+  }
 
   if (loading) {
     return (
@@ -354,7 +455,7 @@ export function RechargeFormCard({
                         <Button
                           key={method.type}
                           variant='outline'
-                          onClick={() => onPaymentMethodSelect(method)}
+                          onClick={() => handlePaymentClick(method)}
                           disabled={disabled || !!paymentLoading}
                           className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
                         >
@@ -398,6 +499,123 @@ export function RechargeFormCard({
                   </Alert>
                 )}
               </div>
+
+              {hasStripePaymentMethod && (
+                <div className='space-y-3 rounded-lg border p-3 sm:p-4'>
+                  <div className='flex items-center gap-2'>
+                    <Checkbox
+                      id='stripe-invoice-requested'
+                      checked={invoiceRequested}
+                      onCheckedChange={(checked) =>
+                        setInvoiceRequested(checked === true)
+                      }
+                    />
+                    <Label
+                      htmlFor='stripe-invoice-requested'
+                      className='text-sm font-medium'
+                    >
+                      {t('Need company invoice')}
+                    </Label>
+                  </div>
+
+                  {invoiceRequested && (
+                    <div className='grid gap-3 sm:grid-cols-2'>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='invoice-company-name'>
+                          {t('Company name')}
+                        </Label>
+                        <Input
+                          id='invoice-company-name'
+                          value={invoiceProfile.company_name}
+                          onChange={(event) =>
+                            updateInvoiceField(
+                              'company_name',
+                              event.target.value
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='invoice-billing-email'>
+                          {t('Billing email')}
+                        </Label>
+                        <Input
+                          id='invoice-billing-email'
+                          type='email'
+                          value={invoiceProfile.billing_email}
+                          onChange={(event) =>
+                            updateInvoiceField(
+                              'billing_email',
+                              event.target.value
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='invoice-country'>{t('Country')}</Label>
+                        <Input
+                          id='invoice-country'
+                          value={invoiceProfile.country}
+                          onChange={(event) =>
+                            updateInvoiceField('country', event.target.value)
+                          }
+                          placeholder='US'
+                        />
+                      </div>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='invoice-tax-id'>{t('Tax ID')}</Label>
+                        <Input
+                          id='invoice-tax-id'
+                          value={invoiceProfile.tax_id || ''}
+                          onChange={(event) =>
+                            updateInvoiceField('tax_id', event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1.5 sm:col-span-2'>
+                        <Label htmlFor='invoice-address-line1'>
+                          {t('Address')}
+                        </Label>
+                        <Input
+                          id='invoice-address-line1'
+                          value={invoiceProfile.address_line1}
+                          onChange={(event) =>
+                            updateInvoiceField(
+                              'address_line1',
+                              event.target.value
+                            )
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='invoice-city'>{t('City')}</Label>
+                        <Input
+                          id='invoice-city'
+                          value={invoiceProfile.city || ''}
+                          onChange={(event) =>
+                            updateInvoiceField('city', event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='invoice-postal-code'>
+                          {t('Postal code')}
+                        </Label>
+                        <Input
+                          id='invoice-postal-code'
+                          value={invoiceProfile.postal_code || ''}
+                          onChange={(event) =>
+                            updateInvoiceField(
+                              'postal_code',
+                              event.target.value
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {enableWaffoTopup &&
                 hasWaffoPaymentMethods &&

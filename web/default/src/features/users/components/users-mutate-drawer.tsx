@@ -62,7 +62,14 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
-import { createUser, updateUser, getUser, getGroups } from '../api'
+import {
+  createUser,
+  updateUser,
+  getUser,
+  getGroups,
+  getUserInvoiceProfile,
+  updateUserInvoiceProfile,
+} from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   userFormSchema,
@@ -71,7 +78,7 @@ import {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from '../lib'
-import { type User } from '../types'
+import { type User, type UserInvoiceProfile } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -79,6 +86,51 @@ type UsersMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: User
+}
+
+const EMPTY_INVOICE_PROFILE: UserInvoiceProfile = {
+  company_name: '',
+  billing_email: '',
+  tax_id_type: '',
+  tax_id: '',
+  country: '',
+  state: '',
+  city: '',
+  address_line1: '',
+  address_line2: '',
+  postal_code: '',
+  phone: '',
+}
+
+function normalizeInvoiceProfile(
+  profile: UserInvoiceProfile
+): UserInvoiceProfile {
+  return {
+    company_name: profile.company_name.trim(),
+    billing_email: profile.billing_email.trim(),
+    tax_id_type: profile.tax_id_type?.trim(),
+    tax_id: profile.tax_id?.trim(),
+    country: profile.country.trim().toUpperCase(),
+    state: profile.state?.trim(),
+    city: profile.city?.trim(),
+    address_line1: profile.address_line1.trim(),
+    address_line2: profile.address_line2?.trim(),
+    postal_code: profile.postal_code?.trim(),
+    phone: profile.phone?.trim(),
+  }
+}
+
+function getInvoiceProfileValidationError(
+  profile: UserInvoiceProfile
+): string | null {
+  const normalized = normalizeInvoiceProfile(profile)
+  if (!normalized.company_name) return 'Company name is required'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.billing_email)) {
+    return 'Billing email is invalid'
+  }
+  if (!normalized.country) return 'Country is required'
+  if (!normalized.address_line1) return 'Address is required'
+  return null
 }
 
 export function UsersMutateDrawer({
@@ -91,6 +143,10 @@ export function UsersMutateDrawer({
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [invoiceProfile, setInvoiceProfile] = useState<UserInvoiceProfile>(
+    EMPTY_INVOICE_PROFILE
+  )
+  const [invoiceSaving, setInvoiceSaving] = useState(false)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -115,9 +171,18 @@ export function UsersMutateDrawer({
           form.reset(transformUserToFormDefaults(result.data))
         }
       })
+      getUserInvoiceProfile(currentRow.id).then((result) => {
+        if (result.success) {
+          setInvoiceProfile({
+            ...EMPTY_INVOICE_PROFILE,
+            ...(result.data || {}),
+          })
+        }
+      })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(USER_FORM_DEFAULT_VALUES)
+      setInvoiceProfile(EMPTY_INVOICE_PROFILE)
     }
   }, [open, isUpdate, currentRow, form])
 
@@ -176,6 +241,45 @@ export function UsersMutateDrawer({
       form.reset(transformUserToFormDefaults(result.data))
     }
     triggerRefresh()
+  }
+
+  const updateInvoiceField = (
+    field: keyof UserInvoiceProfile,
+    value: string
+  ) => {
+    setInvoiceProfile((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleSaveInvoiceProfile = async () => {
+    if (!currentRow) return
+
+    const normalized = normalizeInvoiceProfile(invoiceProfile)
+    const validationError = getInvoiceProfileValidationError(normalized)
+    if (validationError) {
+      toast.error(t(validationError))
+      return
+    }
+
+    setInvoiceSaving(true)
+    try {
+      const result = await updateUserInvoiceProfile(currentRow.id, normalized)
+      if (result.success && result.data) {
+        setInvoiceProfile({
+          ...EMPTY_INVOICE_PROFILE,
+          ...result.data,
+        })
+        toast.success(t('Invoice profile saved'))
+      } else {
+        toast.error(result.message || t('Failed to save invoice profile'))
+      }
+    } catch (_error) {
+      toast.error(t('Failed to save invoice profile'))
+    } finally {
+      setInvoiceSaving(false)
+    }
   }
 
   return (
@@ -414,6 +518,118 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+                </SideDrawerSection>
+              )}
+
+              {isUpdate && (
+                <SideDrawerSection>
+                  <div className='flex items-center justify-between gap-2'>
+                    <h3 className='text-sm font-medium'>
+                      {t('Invoice Profile')}
+                    </h3>
+                    <Button
+                      type='button'
+                      size='sm'
+                      variant='outline'
+                      onClick={handleSaveInvoiceProfile}
+                      disabled={invoiceSaving}
+                    >
+                      {invoiceSaving ? t('Saving...') : t('Save invoice')}
+                    </Button>
+                  </div>
+
+                  <div className='grid gap-3 sm:grid-cols-2'>
+                    <div className='space-y-1.5'>
+                      <Label htmlFor='admin-invoice-company'>
+                        {t('Company name')}
+                      </Label>
+                      <Input
+                        id='admin-invoice-company'
+                        value={invoiceProfile.company_name}
+                        onChange={(event) =>
+                          updateInvoiceField('company_name', event.target.value)
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label htmlFor='admin-invoice-email'>
+                        {t('Billing email')}
+                      </Label>
+                      <Input
+                        id='admin-invoice-email'
+                        type='email'
+                        value={invoiceProfile.billing_email}
+                        onChange={(event) =>
+                          updateInvoiceField(
+                            'billing_email',
+                            event.target.value
+                          )
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label htmlFor='admin-invoice-country'>
+                        {t('Country')}
+                      </Label>
+                      <Input
+                        id='admin-invoice-country'
+                        value={invoiceProfile.country}
+                        onChange={(event) =>
+                          updateInvoiceField('country', event.target.value)
+                        }
+                        placeholder='US'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label htmlFor='admin-invoice-tax-id'>
+                        {t('Tax ID')}
+                      </Label>
+                      <Input
+                        id='admin-invoice-tax-id'
+                        value={invoiceProfile.tax_id || ''}
+                        onChange={(event) =>
+                          updateInvoiceField('tax_id', event.target.value)
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5 sm:col-span-2'>
+                      <Label htmlFor='admin-invoice-address'>
+                        {t('Address')}
+                      </Label>
+                      <Input
+                        id='admin-invoice-address'
+                        value={invoiceProfile.address_line1}
+                        onChange={(event) =>
+                          updateInvoiceField(
+                            'address_line1',
+                            event.target.value
+                          )
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label htmlFor='admin-invoice-city'>{t('City')}</Label>
+                      <Input
+                        id='admin-invoice-city'
+                        value={invoiceProfile.city || ''}
+                        onChange={(event) =>
+                          updateInvoiceField('city', event.target.value)
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label htmlFor='admin-invoice-postal-code'>
+                        {t('Postal code')}
+                      </Label>
+                      <Input
+                        id='admin-invoice-postal-code'
+                        value={invoiceProfile.postal_code || ''}
+                        onChange={(event) =>
+                          updateInvoiceField('postal_code', event.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
                 </SideDrawerSection>
               )}
 
