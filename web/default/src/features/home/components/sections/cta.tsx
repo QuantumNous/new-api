@@ -21,6 +21,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { AnimateInView } from '@/components/animate-in-view'
+import { buildAttributionHref } from '@/lib/analytics/attribution'
 
 interface CTAProps {
   className?: string
@@ -29,6 +30,7 @@ interface CTAProps {
 
 export function CTA(props: CTAProps) {
   const { t } = useTranslation()
+  const signUpHref = buildAttributionHref('/sign-up')
 
   if (props.isAuthenticated) {
     return null
@@ -67,7 +69,7 @@ export function CTA(props: CTAProps) {
         <div className='mt-8 flex items-center justify-center gap-3'>
           <Button
             className='group rounded-lg bg-violet-600 text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500'
-            render={<Link to='/sign-up' />}
+            render={<a href={signUpHref} />}
           >
             {t('Get a key')}
             <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
