@@ -1070,15 +1070,19 @@ const Playground = () => {
         const abortController = new AbortController();
         imageAbortControllerRef.current = abortController;
 
-        const createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
+        // 单独处理，因为访问改接口cloudflare有两分钟的超时
+        const createResponse = await fetch(
+          'http://104.225.153.184:3000' + API_ENDPOINTS.IMAGE_GENERATIONS,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'New-Api-User': getUserIdFromLocalStorage(),
+            },
+            signal: abortController.signal,
+            body: JSON.stringify(payload),
           },
-          signal: abortController.signal,
-          body: JSON.stringify(payload),
-        });
+        );
 
         const createData = await createResponse.json();
         imageAbortControllerRef.current = null;
