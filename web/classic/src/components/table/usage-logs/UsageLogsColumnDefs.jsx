@@ -428,9 +428,17 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   const other = getLogOther(record.other);
 
   if (record.type === 6) {
-    return {
-      segments: [{ text: t('异步任务退款'), tone: 'primary' }],
-    };
+    const segments = [
+      { text: t('异步任务退款'), tone: 'primary' },
+      { text: `${t('退款')}：${renderQuota(record.quota, 6)}`, tone: 'secondary' },
+    ];
+    if (other?.pre_consumed_quota != null && other?.actual_quota != null) {
+      segments.push({
+        text: `${t('预扣')} ${renderQuota(other.pre_consumed_quota, 6)} → ${t('实际扣费')} ${renderQuota(other.actual_quota, 6)}`,
+        tone: 'secondary',
+      });
+    }
+    return { segments };
   }
 
   if (other == null || record.type !== 2) {
