@@ -21,6 +21,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+type ChannelListStats struct {
+	UsedQuotaBalanceZero    float64 `json:"used_quota_balance_zero" gorm:"column:used_quota_balance_zero"`
+	UsedQuotaBalanceNonzero float64 `json:"used_quota_balance_nonzero" gorm:"column:used_quota_balance_nonzero"`
+	BalanceTotal            float64 `json:"balance_total" gorm:"column:balance_total"`
+}
+
 type Channel struct {
 	Id                 int     `json:"id"`
 	Type               int     `json:"type" gorm:"default:0"`
@@ -374,6 +380,32 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 		err = order.Apply(DB).Limit(num).Offset(startIdx).Omit("key").Find(&channels).Error
 	}
 	return channels, err
+}
+
+func CalculateChannelListStats(channels []*Channel) ChannelListStats {
+	stats := ChannelListStats{}
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		stats.BalanceTotal += channel.Balance
+		if channel.Balance == 0 {
+			stats.UsedQuotaBalanceZero += float64(channel.UsedQuota)
+		} else {
+			stats.UsedQuotaBalanceNonzero += float64(channel.UsedQuota)
+		}
+	}
+	return stats
+}
+
+func GetChannelListStats(query *gorm.DB) (ChannelListStats, error) {
+	stats := ChannelListStats{}
+	err := query.Select(`
+		COALESCE(SUM(CASE WHEN balance = 0 THEN used_quota ELSE 0 END), 0) AS used_quota_balance_zero,
+		COALESCE(SUM(CASE WHEN balance <> 0 THEN used_quota ELSE 0 END), 0) AS used_quota_balance_nonzero,
+		COALESCE(SUM(balance), 0) AS balance_total
+	`).Scan(&stats).Error
+	return stats, err
 }
 
 func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {

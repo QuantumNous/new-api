@@ -52,6 +52,11 @@ export const useChannelsData = () => {
   const [searching, setSearching] = useState(false);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [channelCount, setChannelCount] = useState(0);
+  const [channelStats, setChannelStats] = useState({
+    used_quota_balance_zero: 0,
+    used_quota_balance_nonzero: 0,
+    balance_total: 0,
+  });
   const [groupOptions, setGroupOptions] = useState([]);
 
   // UI states
@@ -369,8 +374,18 @@ export const useChannelsData = () => {
 
       const { success, message, data } = res.data;
       if (success) {
-        const { items = [], total = 0, type_counts = {} } = data;
+        const {
+          items = [],
+          total = 0,
+          stats = {},
+          type_counts = {},
+        } = data;
         updateTypeCounts(type_counts);
+        setChannelStats({
+          used_quota_balance_zero: stats?.used_quota_balance_zero || 0,
+          used_quota_balance_nonzero: stats?.used_quota_balance_nonzero || 0,
+          balance_total: stats?.balance_total || 0,
+        });
         setChannelFormat(items, tagMode);
         setChannelCount(total);
         setActivePage(page);
@@ -761,6 +776,7 @@ export const useChannelsData = () => {
         channel.balance = balance;
         channel.balance_updated_time = Date.now() / 1000;
       });
+      await refresh();
       showInfo(
         t('通道 ${name} 余额更新成功！').replace('${name}', record.name),
       );
@@ -791,6 +807,7 @@ export const useChannelsData = () => {
           channel.balance = updatedBalance;
           channel.balance_updated_time = Date.now() / 1000;
         });
+        await refresh();
         showSuccess(
           t('通道 ${name} 余额更新成功！').replace('${name}', record.name),
         );
@@ -808,13 +825,10 @@ export const useChannelsData = () => {
     const res = await API.post(`/api/channel/used_quota/clear/${record.id}`);
     const { success, message } = res.data;
     if (success) {
-      if (enableTagMode) {
-        await refresh();
-      } else {
-        updateChannelProperty(record.id, (channel) => {
-          channel.used_quota = 0;
-        });
-      }
+      updateChannelProperty(record.id, (channel) => {
+        channel.used_quota = 0;
+      });
+      await refresh();
       showSuccess(t('已用额度已清空'));
     } else {
       showError(message || t('清空已用额度失败'));
@@ -1180,6 +1194,7 @@ export const useChannelsData = () => {
     activePage,
     pageSize,
     channelCount,
+    channelStats,
     groupOptions,
     idSort,
     enableTagMode,

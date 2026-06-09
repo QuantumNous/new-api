@@ -102,6 +102,12 @@ func GetAllChannels(c *gin.Context) {
 	}
 
 	var total int64
+	stats, err := model.GetChannelListStats(buildChannelListQuery(groupFilter, statusFilter, typeFilter))
+	if err != nil {
+		common.SysError("failed to calculate channel stats: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道统计失败，请稍后重试"})
+		return
+	}
 
 	if enableTagMode {
 		tags, err := model.GetPaginatedChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
@@ -173,6 +179,7 @@ func GetAllChannels(c *gin.Context) {
 		"total":       total,
 		"page":        pageInfo.GetPage(),
 		"page_size":   pageInfo.GetPageSize(),
+		"stats":       stats,
 		"type_counts": typeCounts,
 	})
 	return
@@ -478,6 +485,8 @@ func SearchChannels(c *gin.Context) {
 		channelData = filtered
 	}
 
+	stats := model.CalculateChannelListStats(channelData)
+
 	page, _ := strconv.Atoi(c.DefaultQuery("p", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
@@ -509,6 +518,7 @@ func SearchChannels(c *gin.Context) {
 		"data": gin.H{
 			"items":       pagedData,
 			"total":       total,
+			"stats":       stats,
 			"type_counts": typeCounts,
 		},
 	})

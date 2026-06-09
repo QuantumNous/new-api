@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch, IconUpload } from '@douyinfe/semi-icons';
+import { renderQuota, renderQuotaWithAmount } from '../../../helpers';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -32,11 +33,31 @@ const ChannelsFilters = ({
   enableTagMode,
   formApi,
   groupOptions,
+  channelStats,
   loading,
   searching,
   setShowBatchImport,
   t,
 }) => {
+  const formattedStats = useMemo(
+    () => ({
+      usedBalanceZero: renderQuota(
+        Number(channelStats?.used_quota_balance_zero) || 0,
+      ),
+      usedBalanceNonzero: renderQuota(
+        Number(channelStats?.used_quota_balance_nonzero) || 0,
+      ),
+      balanceTotal: renderQuotaWithAmount(
+        Number(channelStats?.balance_total) || 0,
+      ),
+    }),
+    [
+      channelStats?.used_quota_balance_zero,
+      channelStats?.used_quota_balance_nonzero,
+      channelStats?.balance_total,
+    ],
+  );
+
   return (
     <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
       <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
@@ -163,6 +184,26 @@ const ChannelsFilters = ({
           >
             {t('重置')}
           </Button>
+          <div className='flex flex-wrap items-center justify-end gap-1 text-xs text-gray-600 w-full md:w-auto'>
+            <span className='rounded bg-gray-50 px-2 py-1 whitespace-nowrap'>
+              {t('已用额度')}({t('剩余额度')}=0){' '}
+              <span className='font-semibold text-gray-900'>
+                {formattedStats.usedBalanceZero}
+              </span>
+            </span>
+            <span className='rounded bg-gray-50 px-2 py-1 whitespace-nowrap'>
+              {t('已用额度')}({t('剩余额度')}≠0){' '}
+              <span className='font-semibold text-gray-900'>
+                {formattedStats.usedBalanceNonzero}
+              </span>
+            </span>
+            <span className='rounded bg-gray-50 px-2 py-1 whitespace-nowrap'>
+              {t('总余额')}{' '}
+              <span className='font-semibold text-gray-900'>
+                {formattedStats.balanceTotal}
+              </span>
+            </span>
+          </div>
         </Form>
       </div>
     </div>
