@@ -71,7 +71,7 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-  const isFixedLayout = isConsoleRoute || location.pathname === '/pricing';
+  const isFixedLayout = isConsoleRoute || location.pathname === '/pricing' || location.pathname === '/rankings';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {

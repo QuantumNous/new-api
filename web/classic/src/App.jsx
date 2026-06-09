@@ -53,6 +53,7 @@ import SetupCheck from './components/layout/SetupCheck';
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
+const Rankings = lazy(() => import('./pages/Rankings'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
@@ -85,6 +86,20 @@ function App() {
       }
     }
     return false; // 默认不需要登录
+  }, [statusState?.status?.HeaderNavModules]);
+
+  const rankingsRequireAuth = useMemo(() => {
+    const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+    if (headerNavModulesConfig) {
+      try {
+        const modules = JSON.parse(headerNavModulesConfig);
+        if (typeof modules.rankings === 'boolean') return false;
+        return modules.rankings?.requireAuth === true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }, [statusState?.status?.HeaderNavModules]);
 
   return (
@@ -330,6 +345,22 @@ function App() {
             ) : (
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Pricing />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path='/rankings'
+          element={
+            rankingsRequireAuth ? (
+              <PrivateRoute>
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Rankings />
+                </Suspense>
+              </PrivateRoute>
+            ) : (
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Rankings />
               </Suspense>
             )
           }
