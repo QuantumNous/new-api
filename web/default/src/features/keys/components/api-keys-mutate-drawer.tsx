@@ -733,6 +733,83 @@ export function ApiKeysMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {isAdmin && (
+                <div className='grid grid-cols-3 gap-3'>
+                  <FormField
+                    control={form.control}
+                    name='rpm_limit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('RPM Limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min='0'
+                            placeholder='0'
+                            onChange={(e) =>
+                              field.onChange(parseInt(e.target.value, 10) || 0)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription className='text-xs'>
+                          {t('Req/min (0 = ∞)')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='tpm_limit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('TPM Limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min='0'
+                            placeholder='0'
+                            onChange={(e) =>
+                              field.onChange(parseInt(e.target.value, 10) || 0)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription className='text-xs'>
+                          {t('Tokens/min (0 = ∞)')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='monthly_limit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Monthly Limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min='0'
+                            placeholder='0'
+                            onChange={(e) =>
+                              field.onChange(parseInt(e.target.value, 10) || 0)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription className='text-xs'>
+                          {t('Req/month (0 = ∞)')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </ApiKeyFormSection>
 
             <ApiKeyFormSection
