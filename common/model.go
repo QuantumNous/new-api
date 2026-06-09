@@ -17,13 +17,6 @@ var (
 		"flux-",
 		"flux.1-",
 	}
-	XAIImageGenerationModels = []string{
-		"prefix:grok-imagine-image",
-		"prefix:grok-2-image-",
-	}
-	ImageGenerationExcludedModels = []string{
-		"prefix:grok-imagine-image-edit",
-	}
 	OpenAITextModels = []string{
 		"gpt-",
 		"o1",
@@ -44,27 +37,7 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 
 func IsImageGenerationModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
-	for _, m := range ImageGenerationExcludedModels {
-		if matchesModelRule(modelName, m) {
-			return false
-		}
-	}
 	for _, m := range ImageGenerationModels {
-		if matchesModelRule(modelName, m) {
-			return true
-		}
-	}
-	return IsXAIImageGenerationModel(modelName)
-}
-
-func IsXAIImageGenerationModel(modelName string) bool {
-	modelName = strings.ToLower(modelName)
-	for _, m := range ImageGenerationExcludedModels {
-		if matchesModelRule(modelName, m) {
-			return false
-		}
-	}
-	for _, m := range XAIImageGenerationModels {
 		if matchesModelRule(modelName, m) {
 			return true
 		}
@@ -74,17 +47,12 @@ func IsXAIImageGenerationModel(modelName string) bool {
 
 func IsChannelImageGenerationModel(channelType int, modelName string) bool {
 	modelName = strings.ToLower(modelName)
-	for _, m := range ImageGenerationExcludedModels {
-		if matchesModelRule(modelName, m) {
-			return false
-		}
-	}
 	for _, m := range ImageGenerationModels {
 		if matchesModelRule(modelName, m) {
 			return true
 		}
 	}
-	return IsXAIImageGenerationModel(modelName)
+	return false
 }
 
 func IsOpenAITextModel(modelName string) bool {

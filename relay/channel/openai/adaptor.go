@@ -40,15 +40,6 @@ type Adaptor struct {
 	ResponseFormat string
 }
 
-type grokImageRequest struct {
-	Model          string `json:"model"`
-	Prompt         string `json:"prompt" binding:"required"`
-	N              int    `json:"n,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
-	AspectRatio    string `json:"aspect_ratio,omitempty"`
-	Resolution     string `json:"resolution,omitempty"`
-}
-
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
 	// 使用 service.GeminiToOpenAIRequest 转换请求格式
 	openaiRequest, err := service.GeminiToOpenAIRequest(request, info)
@@ -435,11 +426,6 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if strings.HasPrefix(strings.ToLower(request.Model), "grok-imagine-image") ||
-		strings.HasPrefix(strings.ToLower(info.UpstreamModelName), "grok-imagine-image") {
-		return convertGrokImageRequest(request), nil
-	}
-
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
@@ -567,61 +553,6 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	default:
 		return request, nil
-	}
-}
-
-func convertGrokImageRequest(request dto.ImageRequest) grokImageRequest {
-	grokRequest := grokImageRequest{
-		Model:          request.Model,
-		Prompt:         request.Prompt,
-		N:              int(lo.FromPtrOr(request.N, uint(1))),
-		ResponseFormat: request.ResponseFormat,
-	}
-
-	size := strings.TrimSpace(request.Size)
-	if isGrokImageAspectRatio(size) {
-		grokRequest.AspectRatio = size
-	} else if aspectRatio := grokImageAspectRatioFromSize(size); aspectRatio != "" {
-		grokRequest.AspectRatio = aspectRatio
-	} else if isGrokImageResolution(size) {
-		grokRequest.Resolution = size
-	}
-
-	return grokRequest
-}
-
-func isGrokImageAspectRatio(size string) bool {
-	switch size {
-	case "auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2", "19.5:9", "9:19.5", "20:9", "9:20":
-		return true
-	default:
-		return false
-	}
-}
-
-func isGrokImageResolution(size string) bool {
-	switch size {
-	case "1k", "2k":
-		return true
-	default:
-		return false
-	}
-}
-
-func grokImageAspectRatioFromSize(size string) string {
-	switch size {
-	case "1024x1024":
-		return "1:1"
-	case "1024x1536":
-		return "2:3"
-	case "1536x1024":
-		return "3:2"
-	case "1024x1792":
-		return "9:16"
-	case "1792x1024":
-		return "16:9"
-	default:
-		return ""
 	}
 }
 

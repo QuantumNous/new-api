@@ -7,9 +7,6 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	if IsChannelImageGenerationModel(channelType, modelName) {
 		return []constant.EndpointType{constant.EndpointTypeImageGeneration}
 	}
-	if IsXAIImageGenerationModel(modelName) {
-		return nil
-	}
 
 	var endpointTypes []constant.EndpointType
 	switch channelType {
