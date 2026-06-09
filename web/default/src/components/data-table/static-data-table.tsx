@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { Table, TableCell, TableRow } from '@/components/ui/table'
-import { TableEmpty } from './table-empty'
 
 export const staticDataTableClassNames = {
   container: 'overflow-hidden rounded-md border',
@@ -55,7 +54,10 @@ type StaticDataTableProps = {
   className?: string
   tableClassName?: string
   containerProps?: Omit<React.ComponentProps<'div'>, 'className' | 'children'>
-  tableProps?: Omit<React.ComponentProps<typeof Table>, 'className' | 'children'>
+  tableProps?: Omit<
+    React.ComponentProps<typeof Table>,
+    'className' | 'children'
+  >
 }
 
 export function StaticDataTable({
@@ -99,32 +101,3 @@ export function StaticDataTableEmptyRow({
     </TableRow>
   )
 }
-
-type StaticDataTableEmptyStateProps = {
-  colSpan: number
-  title?: string
-  description?: string
-  icon?: React.ReactNode
-  children?: React.ReactNode
-}
-
-export function StaticDataTableEmptyState({
-  colSpan,
-  title,
-  description,
-  icon,
-  children,
-}: StaticDataTableEmptyStateProps) {
-  return (
-    <TableEmpty
-      colSpan={colSpan}
-      title={title}
-      description={description}
-      icon={icon}
-    >
-      {children}
-    </TableEmpty>
-  )
-}
-
-export type StaticDataTableElement = React.ComponentProps<typeof Table>

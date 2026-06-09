@@ -318,11 +318,13 @@ function getPinnedColumnClassName(
       ? 'bg-background z-30'
       : 'bg-background z-10 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
-    kind === 'header' ? pinnedColumn.headerClassName : pinnedColumn.cellClassName
+    kind === 'header'
+      ? pinnedColumn.headerClassName
+      : pinnedColumn.cellClassName
   )
 }
 
-export function DataTableHeader<TData>({
+function DataTableHeader<TData>({
   table,
   applyHeaderSize,
   className,

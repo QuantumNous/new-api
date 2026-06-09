@@ -24,7 +24,7 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table/pagination'
+import { DataTablePagination } from '@/components/data-table'
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'

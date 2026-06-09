@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DataTableView, useDataTable } from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table/pagination'
+import { DataTablePagination } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import type { UpstreamChannel } from '../types'

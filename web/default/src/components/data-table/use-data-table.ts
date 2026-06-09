@@ -23,7 +23,6 @@ import {
   type ExpandedState,
   type OnChangeFn,
   type PaginationState,
-  type Row,
   type RowSelectionState,
   type SortingState,
   type TableOptions,
@@ -81,7 +80,7 @@ type DataTableRowModelOptions = {
   withExpandedRowModel?: boolean
 }
 
-export type UseDataTableOptions<TData> = DataTableFeatureOptions<TData> &
+type UseDataTableOptions<TData> = DataTableFeatureOptions<TData> &
   DataTableStateOptions &
   DataTableRowModelOptions & {
     data: TData[]
@@ -239,5 +238,3 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     onPaginationChange,
   }
 }
-
-export type DataTableRowSelectionPredicate<TData> = (row: Row<TData>) => boolean

@@ -58,7 +58,7 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table/pagination'
+import { DataTablePagination } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import {
   sideDrawerContentClassName,
