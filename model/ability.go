@@ -143,6 +143,49 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	return &channel, err
 }
 
+func GetChannelWithFilter(group string, model string, retry int, filter func(*Channel) bool) (*Channel, error) {
+	if filter == nil {
+		return GetChannel(group, model, retry)
+	}
+
+	channelQuery, err := getChannelQuery(group, model, retry)
+	if err != nil {
+		return nil, err
+	}
+
+	var abilities []Ability
+	if err := channelQuery.Order("weight DESC").Find(&abilities).Error; err != nil {
+		return nil, err
+	}
+
+	var candidates []Channel
+	for _, ability := range abilities {
+		var channel Channel
+		if err := DB.First(&channel, "id = ?", ability.ChannelId).Error; err != nil {
+			return nil, err
+		}
+		if filter(&channel) {
+			candidates = append(candidates, channel)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	weightSum := 0
+	for _, channel := range candidates {
+		weightSum += channel.GetWeight() + 10
+	}
+	weight := common.GetRandomInt(weightSum)
+	for i := range candidates {
+		weight -= candidates[i].GetWeight() + 10
+		if weight <= 0 {
+			return &candidates[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")

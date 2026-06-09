@@ -191,6 +191,82 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	return nil, errors.New("channel not found")
 }
 
+func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, filter func(*Channel) bool) (*Channel, error) {
+	if filter == nil {
+		return GetRandomSatisfiedChannel(group, model, retry)
+	}
+	if !common.MemoryCacheEnabled {
+		return GetChannelWithFilter(group, model, retry, filter)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channels := group2model2channels[group][model]
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		channels = group2model2channels[group][normalizedModel]
+	}
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, channelId := range channels {
+		channel, ok := channelsIDM[channelId]
+		if !ok {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
+		}
+		if filter(channel) {
+			uniquePriorities[int(channel.GetPriority())] = true
+		}
+	}
+	if len(uniquePriorities) == 0 {
+		return nil, nil
+	}
+
+	var sortedUniquePriorities []int
+	for priority := range uniquePriorities {
+		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+	if retry >= len(uniquePriorities) {
+		retry = len(uniquePriorities) - 1
+	}
+	targetPriority := int64(sortedUniquePriorities[retry])
+
+	var sumWeight int
+	var targetChannels []*Channel
+	for _, channelId := range channels {
+		channel := channelsIDM[channelId]
+		if channel.GetPriority() == targetPriority && filter(channel) {
+			sumWeight += channel.GetWeight()
+			targetChannels = append(targetChannels, channel)
+		}
+	}
+	if len(targetChannels) == 0 {
+		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+
+	smoothingFactor := 1
+	smoothingAdjustment := 0
+	if sumWeight == 0 {
+		sumWeight = len(targetChannels) * 100
+		smoothingAdjustment = 100
+	} else if sumWeight/len(targetChannels) < 10 {
+		smoothingFactor = 100
+	}
+
+	randomWeight := rand.Intn(sumWeight * smoothingFactor)
+	for _, channel := range targetChannels {
+		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		if randomWeight < 0 {
+			return channel, nil
+		}
+	}
+	return nil, errors.New("channel not found")
+}
+
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)

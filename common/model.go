@@ -12,10 +12,17 @@ var (
 	ImageGenerationModels = []string{
 		"dall-e-3",
 		"dall-e-2",
-		"gpt-image-1",
+		"prefix:gpt-image-",
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+	}
+	XAIImageGenerationModels = []string{
+		"prefix:grok-imagine-image",
+		"prefix:grok-2-image-",
+	}
+	ImageGenerationExcludedModels = []string{
+		"prefix:grok-imagine-image-edit",
 	}
 	OpenAITextModels = []string{
 		"gpt-",
@@ -37,15 +44,47 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 
 func IsImageGenerationModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
+	for _, m := range ImageGenerationExcludedModels {
+		if matchesModelRule(modelName, m) {
+			return false
+		}
+	}
 	for _, m := range ImageGenerationModels {
-		if strings.Contains(modelName, m) {
+		if matchesModelRule(modelName, m) {
 			return true
 		}
-		if strings.HasPrefix(m, "prefix:") && strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+	}
+	return IsXAIImageGenerationModel(modelName)
+}
+
+func IsXAIImageGenerationModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range ImageGenerationExcludedModels {
+		if matchesModelRule(modelName, m) {
+			return false
+		}
+	}
+	for _, m := range XAIImageGenerationModels {
+		if matchesModelRule(modelName, m) {
 			return true
 		}
 	}
 	return false
+}
+
+func IsChannelImageGenerationModel(channelType int, modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range ImageGenerationExcludedModels {
+		if matchesModelRule(modelName, m) {
+			return false
+		}
+	}
+	for _, m := range ImageGenerationModels {
+		if matchesModelRule(modelName, m) {
+			return true
+		}
+	}
+	return IsXAIImageGenerationModel(modelName)
 }
 
 func IsOpenAITextModel(modelName string) bool {
@@ -56,4 +95,11 @@ func IsOpenAITextModel(modelName string) bool {
 		}
 	}
 	return false
+}
+
+func matchesModelRule(modelName string, rule string) bool {
+	if strings.HasPrefix(rule, "prefix:") {
+		return strings.HasPrefix(modelName, strings.TrimPrefix(rule, "prefix:"))
+	}
+	return strings.Contains(modelName, rule)
 }

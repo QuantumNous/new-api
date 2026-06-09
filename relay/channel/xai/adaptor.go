@@ -38,13 +38,62 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return ConvertImageRequest(request), nil
+}
+
+func ConvertImageRequest(request dto.ImageRequest) ImageRequest {
 	xaiRequest := ImageRequest{
 		Model:          request.Model,
 		Prompt:         request.Prompt,
 		N:              int(lo.FromPtrOr(request.N, uint(1))),
 		ResponseFormat: request.ResponseFormat,
 	}
-	return xaiRequest, nil
+
+	size := strings.TrimSpace(request.Size)
+	if isXAIAspectRatio(size) {
+		xaiRequest.AspectRatio = size
+	} else if aspectRatio := xaiAspectRatioFromSize(size); aspectRatio != "" {
+		xaiRequest.AspectRatio = aspectRatio
+	} else if isXAIResolution(size) {
+		xaiRequest.Resolution = size
+	}
+
+	return xaiRequest
+}
+
+func isXAIAspectRatio(size string) bool {
+	switch size {
+	case "auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2", "19.5:9", "9:19.5", "20:9", "9:20":
+		return true
+	default:
+		return false
+	}
+}
+
+func isXAIResolution(size string) bool {
+	switch size {
+	case "1k", "2k":
+		return true
+	default:
+		return false
+	}
+}
+
+func xaiAspectRatioFromSize(size string) string {
+	switch size {
+	case "1024x1024":
+		return "1:1"
+	case "1024x1536":
+		return "2:3"
+	case "1536x1024":
+		return "3:2"
+	case "1024x1792":
+		return "9:16"
+	case "1792x1024":
+		return "16:9"
+	default:
+		return ""
+	}
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {

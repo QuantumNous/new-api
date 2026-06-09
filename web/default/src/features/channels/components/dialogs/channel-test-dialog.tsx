@@ -560,7 +560,10 @@ export function ChannelTestDialog({
                 <SelectTrigger id='endpoint-type'>
                   <SelectValue placeholder={t('Auto detect (default)')} />
                 </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  className='w-[min(34rem,calc(100vw-2rem))] min-w-(--anchor-width)'
+                >
                   <SelectGroup>
                     {endpointTypeOptions.map((option) => {
                       const itemValue = option.value

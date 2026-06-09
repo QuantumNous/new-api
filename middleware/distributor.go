@@ -29,6 +29,37 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+var errPlaygroundGroupAccessDenied = errors.New("playground group access denied")
+
+func isPlaygroundRelayRequest(path string) bool {
+	return strings.HasPrefix(path, "/pg/chat/completions") ||
+		strings.HasPrefix(path, "/pg/images/generations")
+}
+
+func relayEndpointType(path string) constant.EndpointType {
+	switch relayconstant.Path2RelayMode(path) {
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return constant.EndpointTypeImageGeneration
+	default:
+		return ""
+	}
+}
+
+func isChannelUsableForEndpoint(channel *model.Channel, endpointType constant.EndpointType, modelName string) bool {
+	if channel == nil {
+		return false
+	}
+	if endpointType == "" {
+		return true
+	}
+	switch endpointType {
+	case constant.EndpointTypeImageGeneration:
+		return common.IsChannelImageGenerationModel(channel.Type, modelName)
+	default:
+		return true
+	}
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -51,6 +82,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if !isChannelUsableForEndpoint(channel, relayEndpointType(c.Request.URL.Path), modelRequest.Model) {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": common.GetContextKeyString(c, constant.ContextKeyUsingGroup), "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 				return
 			}
 		} else {
@@ -83,28 +118,21 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-					playgroundRequest := &dto.PlayGroundRequest{}
-					err = common.UnmarshalBodyReusable(c, playgroundRequest)
-					if err != nil {
-						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
+				endpointType := relayEndpointType(c.Request.URL.Path)
+				usingGroup, err = applyPlaygroundGroupOverride(c, usingGroup)
+				if err != nil {
+					if errors.Is(err, errPlaygroundGroupAccessDenied) {
+						abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 						return
 					}
-					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
-							return
-						}
-						usingGroup = playgroundRequest.Group
-						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
-					}
+					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
+					return
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled && isChannelUsableForEndpoint(preferred, endpointType, modelRequest.Model) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
@@ -132,10 +160,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:          c,
+						ModelName:    modelRequest.Model,
+						TokenGroup:   usingGroup,
+						Retry:        common.GetPointer(0),
+						EndpointType: endpointType,
 					})
 					if err != nil {
 						showGroup := usingGroup
@@ -165,6 +194,30 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func applyPlaygroundGroupOverride(c *gin.Context, usingGroup string) (string, error) {
+	if !isPlaygroundRelayRequest(c.Request.URL.Path) {
+		return usingGroup, nil
+	}
+
+	playgroundRequest := &dto.PlayGroundRequest{}
+	if err := common.UnmarshalBodyReusable(c, playgroundRequest); err != nil {
+		return usingGroup, err
+	}
+	if playgroundRequest.Group == "" {
+		return usingGroup, nil
+	}
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	if userGroup == "" {
+		userGroup = usingGroup
+	}
+	if !service.GroupInUserUsableGroups(userGroup, playgroundRequest.Group) && playgroundRequest.Group != userGroup {
+		return usingGroup, errPlaygroundGroupAccessDenied
+	}
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, playgroundRequest.Group)
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, playgroundRequest.Group)
+	return playgroundRequest.Group, nil
 }
 
 // getModelFromRequest 从请求中读取模型信息
@@ -382,8 +435,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("relay_mode", relayMode)
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-		// playground chat completions
+	if isPlaygroundRelayRequest(c.Request.URL.Path) {
+		// playground relay requests
 		req, err := getModelFromRequest(c)
 		if err != nil {
 			return nil, false, err
