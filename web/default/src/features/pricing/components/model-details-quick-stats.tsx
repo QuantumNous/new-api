@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   CalendarClock,
-  FileText,
+  Cpu,
   Layers,
   Maximize2,
   Sparkles,
@@ -30,8 +30,6 @@ import {
   formatYearMonth,
   type ModelMetadata,
 } from '../lib/model-metadata'
-import type { Modality } from '../types'
-import { ModalityIcons } from './model-details-modalities'
 
 type QuickStatsProps = {
   metadata: ModelMetadata
@@ -50,16 +48,20 @@ function buildStats(
   t: (key: string) => string
 ): Stat[] {
   const stats: Stat[] = [
-    {
-      key: 'context',
-      icon: Layers,
-      label: t('Context'),
-      value: formatTokenCount(metadata.context_length),
-      hint: t('Maximum input window'),
-    },
+    ...(metadata.context_length
+      ? [
+          {
+            key: 'context',
+            icon: Layers,
+            label: t('Context'),
+            value: formatTokenCount(metadata.context_length),
+            hint: t('Maximum input window'),
+          },
+        ]
+      : []),
   ]
 
-  if (metadata.max_output_tokens > 0) {
+  if (metadata.max_output_tokens && metadata.max_output_tokens > 0) {
     stats.push({
       key: 'max-output',
       icon: Maximize2,
@@ -69,17 +71,14 @@ function buildStats(
     })
   }
 
-  stats.push({
-    key: 'modalities',
-    icon: FileText,
-    label: t('Modalities'),
-    value: (
-      <ModalityFlow
-        input={metadata.input_modalities}
-        output={metadata.output_modalities}
-      />
-    ),
-  })
+  if (metadata.parameter_count) {
+    stats.push({
+      key: 'parameters',
+      icon: Cpu,
+      label: t('Parameters'),
+      value: metadata.parameter_count,
+    })
+  }
 
   if (metadata.knowledge_cutoff) {
     stats.push({
@@ -102,19 +101,10 @@ function buildStats(
   return stats
 }
 
-function ModalityFlow(props: { input: Modality[]; output: Modality[] }) {
-  return (
-    <span className='inline-flex items-center gap-1 align-middle'>
-      <ModalityIcons modalities={props.input} className='size-3.5' />
-      <span className='text-muted-foreground/40'>→</span>
-      <ModalityIcons modalities={props.output} className='size-3.5' />
-    </span>
-  )
-}
-
 export function ModelDetailsQuickStats(props: QuickStatsProps) {
   const { t } = useTranslation()
   const stats = buildStats(props.metadata, t)
+  if (stats.length === 0) return null
 
   return (
     <div className='bg-muted/20 grid grid-cols-2 gap-px overflow-hidden rounded-lg border @md/details:grid-cols-3 @2xl/details:grid-cols-5'>

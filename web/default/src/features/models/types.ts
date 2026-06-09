@@ -41,6 +41,13 @@ export interface Model {
   tags?: string
   vendor_id?: number
   endpoints?: string
+  context_length?: number
+  max_output_tokens?: number
+  knowledge_cutoff?: string
+  release_date?: string
+  parameter_count?: string
+  input_modalities?: string
+  output_modalities?: string
   status: number
   sync_official: number
   created_time: number
@@ -235,6 +242,13 @@ export const modelFormSchema = z.object({
   tags: z.array(z.string()).default([]),
   vendor_id: z.number().optional(),
   endpoints: z.string().default(''),
+  context_length: z.number().optional(),
+  max_output_tokens: z.number().optional(),
+  knowledge_cutoff: z.string().default(''),
+  release_date: z.string().default(''),
+  parameter_count: z.string().default(''),
+  input_modalities: z.string().default(''),
+  output_modalities: z.string().default(''),
   name_rule: z.number().min(0).max(3).default(0),
   status: z.boolean().default(true),
   sync_official: z.boolean().default(true),
