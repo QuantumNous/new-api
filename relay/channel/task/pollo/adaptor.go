@@ -28,8 +28,16 @@ import (
 // Docs: https://docs.pollo.ai/m/seedance/seedance-2-0
 //
 // Auth:   header "x-api-key: <key>"
-// Submit: POST {base}/generation/bytedance/<endpoint>           -> {taskId, status}
+// Submit: POST {base}/generation/bytedance/<model>[/ref2video]  -> {taskId, status}
 // Status: GET  {base}/generation/{taskId}/status               -> {taskId, credit, generations:[{status,url,...}]}
+//
+// Like Doubao (relay/channel/task/doubao), a single model name covers both the
+// reference-image (ref2video) and the plain text/image-to-video shapes. The
+// upstream behaves differently per shape, but the client picks the shape by what
+// it sends — supplying a non-empty metadata.refs[] switches the request to the
+// /ref2video endpoint (input.duration + refs); otherwise it is a standard t2v/i2v
+// request (input.length + optional image). The decision is made at request time
+// from the payload, never from a separate "-ref" model name.
 
 const defaultBaseURL = "https://pollo.ai/api/platform"
 
@@ -68,32 +76,53 @@ func (r *polloValidateResponse) credit() float64 {
 	return r.Data.Cost
 }
 
-// endpoint maps a user-facing model name to its Pollo submit path and request shape.
-// Non-ref models use input.length + optional image; ref models use input.duration + required refs[].
-type endpoint struct {
-	path  string // appended to {base}/generation/
-	isRef bool
+// refEndpointSuffix is appended to a model's base path for reference-image generation.
+const refEndpointSuffix = "/ref2video"
+
+// modelBasePaths maps a user-facing model name to its Pollo upstream base path.
+// There is intentionally NO separate "-ref" model: whether a request hits the
+// base path or the /ref2video variant is decided at request time from the payload
+// (see isRefRequest), mirroring Doubao's single-model design.
+var modelBasePaths = map[string]string{
+	"seedance-2-0":      "bytedance/seedance-2-0",
+	"seedance-2-0-fast": "bytedance/seedance-2-0-fast",
 }
 
-var modelEndpoints = map[string]endpoint{
-	"seedance-2-0":          {path: "bytedance/seedance-2-0", isRef: false},
-	"seedance-2-0-fast":     {path: "bytedance/seedance-2-0-fast", isRef: false},
-	"seedance-2-0-ref":      {path: "bytedance/seedance-2-0/ref2video", isRef: true},
-	"seedance-2-0-fast-ref": {path: "bytedance/seedance-2-0-fast/ref2video", isRef: true},
-}
-
-// resolveEndpoint picks the Pollo endpoint for a request, preferring the mapped
+// resolveBasePath picks the Pollo base path for a request, preferring the mapped
 // upstream model name (model mapping may rewrite it) and falling back to the origin
 // model name. Used consistently by URL building, payload shaping, validation and
-// billing so they never disagree on the request shape (ref vs non-ref).
-func resolveEndpoint(info *relaycommon.RelayInfo) (endpoint, bool) {
-	if ep, ok := modelEndpoints[info.UpstreamModelName]; ok {
-		return ep, true
+// billing so they never disagree on the model.
+func resolveBasePath(info *relaycommon.RelayInfo) (string, bool) {
+	if p, ok := modelBasePaths[info.UpstreamModelName]; ok {
+		return p, true
 	}
-	if ep, ok := modelEndpoints[info.OriginModelName]; ok {
-		return ep, true
+	if p, ok := modelBasePaths[info.OriginModelName]; ok {
+		return p, true
 	}
-	return endpoint{}, false
+	return "", false
+}
+
+// isRefRequest reports whether a submit request carries reference images and must
+// therefore use the /ref2video endpoint (input.duration + refs[]) instead of the
+// standard t2v/i2v shape (input.length + optional image). Mirrors Doubao's
+// hasVideoInMetadata: the request shape is detected from metadata, never from the
+// model name. The signal is a non-empty metadata.refs array.
+func isRefRequest(req *relaycommon.TaskSubmitReq) bool {
+	if req == nil || req.Metadata == nil {
+		return false
+	}
+	refs, ok := req.Metadata["refs"]
+	if !ok {
+		return false
+	}
+	switch v := refs.(type) {
+	case []any:
+		return len(v) > 0
+	case []map[string]any:
+		return len(v) > 0
+	default:
+		return false
+	}
 }
 
 // ============================
@@ -217,6 +246,13 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// isRef records whether the current request resolved to the /ref2video shape.
+	// It is set by convertToRequestPayload (called from BuildRequestBody) and read
+	// by BuildRequestURL. This is safe because the adaptor is instantiated per
+	// request and BuildRequestBody always runs before BuildRequestURL in the submit
+	// flow (relay_task.go), so the two never disagree on ref vs non-ref.
+	isRef bool
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -226,20 +262,24 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	// Do NOT resolve the endpoint here: this runs BEFORE ModelMappedHelper, so for a
+	// Do NOT resolve the base path here: this runs BEFORE ModelMappedHelper, so for a
 	// model-mapped channel (alias -> real model) UpstreamModelName is still the alias and
-	// resolveEndpoint would reject it. The endpoint is validated post-mapping in
-	// BuildRequestURL (and convertToRequestPayload/validateURL), which already error on an
-	// unknown model — keeping model mapping fully functional for this channel.
+	// resolveBasePath would reject it. The model is validated post-mapping in
+	// BuildRequestURL (and validateURL), which already error on an unknown model —
+	// keeping model mapping fully functional for this channel.
 	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	ep, ok := resolveEndpoint(info)
+	base, ok := resolveBasePath(info)
 	if !ok {
 		return "", fmt.Errorf("unsupported pollo model: %s", info.UpstreamModelName)
 	}
-	return fmt.Sprintf("%s/generation/%s", strings.TrimRight(a.baseURL, "/"), ep.path), nil
+	path := base
+	if a.isRef {
+		path += refEndpointSuffix
+	}
+	return fmt.Sprintf("%s/generation/%s", strings.TrimRight(a.baseURL, "/"), path), nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
@@ -391,8 +431,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	models := make([]string, 0, len(modelEndpoints))
-	for m := range modelEndpoints {
+	models := make([]string, 0, len(modelBasePaths))
+	for m := range modelBasePaths {
 		models = append(models, m)
 	}
 	return models
@@ -524,17 +564,16 @@ func (a *TaskAdaptor) fetchValidateCredit(c *gin.Context, info *relaycommon.Rela
 	return credit, credit > 0
 }
 
-// validateURL derives the free price-estimate endpoint for the model.
+// validateURL derives the free price-estimate endpoint for the model. Both the
+// standard and the ref2video shapes price against the same base /validate endpoint:
 //
-//	bytedance/seedance-2-0           -> {base}/generation/bytedance/seedance-2-0/validate
-//	bytedance/seedance-2-0/ref2video -> {base}/generation/bytedance/seedance-2-0/validate
+//	seedance-2-0 (t2v/i2v or ref2video) -> {base}/generation/bytedance/seedance-2-0/validate
 func (a *TaskAdaptor) validateURL(info *relaycommon.RelayInfo) (string, bool) {
-	ep, ok := resolveEndpoint(info)
+	base, ok := resolveBasePath(info)
 	if !ok {
 		return "", false
 	}
-	p := strings.TrimSuffix(ep.path, "/ref2video")
-	return fmt.Sprintf("%s/generation/%s/validate", strings.TrimRight(a.baseURL, "/"), p), true
+	return fmt.Sprintf("%s/generation/%s/validate", strings.TrimRight(a.baseURL, "/"), base), true
 }
 
 // estimateCreditLocal is a rough fallback used ONLY when /validate is unavailable.
@@ -585,10 +624,10 @@ func resolveSeconds(req *relaycommon.TaskSubmitReq) int {
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*polloRequest, error) {
-	// Use the same resolved endpoint as the URL so the request body shape (ref vs
-	// non-ref: duration+refs vs length+image) always matches the endpoint we POST to,
-	// even when model mapping rewrites the upstream model.
-	ep, _ := resolveEndpoint(info)
+	// Detect the request shape (ref2video vs t2v/i2v) from the payload, not the model
+	// name, and remember it so BuildRequestURL targets the matching endpoint. The shape
+	// is independent of model mapping — both base models support both shapes.
+	a.isRef = isRefRequest(req)
 
 	input := polloInput{
 		Prompt:     req.Prompt,
@@ -598,7 +637,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	}
 
 	seconds := resolveSeconds(req)
-	if ep.isRef {
+	if a.isRef {
 		input.Duration = seconds
 	} else {
 		input.Length = seconds
