@@ -361,6 +361,47 @@ func TestConvertPayload_DoubaoContentRoles(t *testing.T) {
 	})
 }
 
+// TestResolveSeconds_MetadataDuration covers Doubao-style clients that carry the duration only
+// in metadata.duration (no top-level seconds/duration). Top-level fields still take precedence.
+func TestResolveSeconds_MetadataDuration(t *testing.T) {
+	build := func(t *testing.T, req *relaycommon.TaskSubmitReq) *polloRequest {
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		return body
+	}
+
+	t.Run("metadata.duration (float64 from JSON) -> i2v length", func(t *testing.T) {
+		body := build(t, &relaycommon.TaskSubmitReq{Prompt: "x", Image: "https://x/a.jpg",
+			Metadata: map[string]any{"duration": float64(8)}})
+		if body.Input.Length != 8 {
+			t.Fatalf("metadata.duration=8 must drive length, got %d", body.Input.Length)
+		}
+	})
+
+	t.Run("metadata.duration -> ref2video duration", func(t *testing.T) {
+		body := build(t, &relaycommon.TaskSubmitReq{Prompt: "x",
+			Metadata: map[string]any{"duration": float64(10), "content": []any{
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://x/a.jpg"}, "role": "reference_image"},
+			}}})
+		if body.Input.Duration != 10 {
+			t.Fatalf("metadata.duration=10 must drive ref duration, got %d", body.Input.Duration)
+		}
+	})
+
+	t.Run("top-level seconds beats metadata.duration", func(t *testing.T) {
+		body := build(t, &relaycommon.TaskSubmitReq{Prompt: "x", Seconds: "6", Image: "https://x/a.jpg",
+			Metadata: map[string]any{"duration": float64(8)}})
+		if body.Input.Length != 6 {
+			t.Fatalf("top-level seconds must win, got length=%d", body.Input.Length)
+		}
+	})
+}
+
 func TestParseValidateResponse(t *testing.T) {
 	body := []byte(`{"code":"SUCCESS","data":{"cost":15,"totalCost":15}}`)
 	var r polloValidateResponse

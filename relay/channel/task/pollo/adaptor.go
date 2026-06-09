@@ -653,6 +653,14 @@ func resolveSeconds(req *relaycommon.TaskSubmitReq) int {
 	if s, err := strconv.Atoi(strings.TrimSpace(req.Seconds)); err == nil && s > 0 {
 		return s
 	}
+	if req.Duration > 0 {
+		return req.Duration
+	}
+	// Doubao-style clients may carry the duration only in metadata.duration (the same key
+	// Doubao reads). Honor it before the default; top-level seconds/duration above still win.
+	if d, ok := metaInt(req.Metadata, "duration"); ok && d > 0 {
+		return d
+	}
 	return taskcommon.DefaultInt(req.Duration, 5)
 }
 
@@ -822,6 +830,27 @@ func metaString(metadata map[string]any, key string) (string, bool) {
 		return s, true
 	}
 	return "", false
+}
+
+// metaInt returns an int metadata value, tolerating JSON's float64 numbers, native ints, and
+// numeric strings.
+func metaInt(metadata map[string]any, key string) (int, bool) {
+	if metadata == nil {
+		return 0, false
+	}
+	switch v := metadata[key].(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case string:
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 // ConvertToOpenAIVideo renders a stored task into the OpenAI video API response shape.
