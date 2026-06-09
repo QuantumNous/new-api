@@ -17,7 +17,9 @@ func TestSetUsageReconciliationRouter(t *testing.T) {
 
 	want := map[string]string{
 		"/usage/summary":      http.MethodGet,
+		"/usage/validation":   http.MethodGet,
 		"/usage/transactions": http.MethodGet,
+		"/usage/models":       http.MethodGet,
 	}
 	got := map[string]string{}
 	for _, ri := range engine.Routes() {

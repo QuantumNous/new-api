@@ -12,6 +12,9 @@ func resetUsageTables(t *testing.T) {
 	if err := DB.Exec("DELETE FROM channels").Error; err != nil {
 		t.Fatalf("clean channels: %v", err)
 	}
+	if err := DB.Exec("DELETE FROM abilities").Error; err != nil {
+		t.Fatalf("clean abilities: %v", err)
+	}
 }
 
 func mustCreateUsage(t *testing.T, v interface{}) {
@@ -103,5 +106,38 @@ func TestQueryAndCountBlockRunUsageLogs(t *testing.T) {
 	}
 	if len(paged) != 1 || paged[0].ModelName != "m1" {
 		t.Fatalf("paged page1 = %v", paged)
+	}
+}
+
+func TestGetBlockRunEnabledModelChannels(t *testing.T) {
+	resetUsageTables(t)
+	mustCreateUsage(t, &Channel{Id: 34, Type: 100, Name: "blockRun-llm", Key: "k1"})
+	mustCreateUsage(t, &Channel{Id: 35, Type: 102, Name: "blockRun-seedance", Key: "k2"})
+	mustCreateUsage(t, &Channel{Id: 99, Type: 1, Name: "plain-openai", Key: "k3"})
+
+	mustCreateUsage(t, &Ability{Group: "default", Model: "anthropic/claude-haiku-4.5", ChannelId: 34, Enabled: true})
+	mustCreateUsage(t, &Ability{Group: "vip", Model: "anthropic/claude-haiku-4.5", ChannelId: 34, Enabled: true})
+	mustCreateUsage(t, &Ability{Group: "default", Model: "seedance-2.0", ChannelId: 35, Enabled: true})
+	mustCreateUsage(t, &Ability{Group: "default", Model: "disabled-blockrun", ChannelId: 34, Enabled: false})
+	mustCreateUsage(t, &Ability{Group: "default", Model: "gpt-4o", ChannelId: 99, Enabled: true})
+
+	got, err := GetBlockRunEnabledModelChannels()
+	if err != nil {
+		t.Fatalf("GetBlockRunEnabledModelChannels: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("want 2 blockrun models, got %d: %#v", len(got), got)
+	}
+	if len(got["anthropic/claude-haiku-4.5"]) != 1 || got["anthropic/claude-haiku-4.5"][0].Id != 34 {
+		t.Fatalf("claude channels = %#v", got["anthropic/claude-haiku-4.5"])
+	}
+	if len(got["seedance-2.0"]) != 1 || got["seedance-2.0"][0].Type != 102 {
+		t.Fatalf("seedance channels = %#v", got["seedance-2.0"])
+	}
+	if _, ok := got["gpt-4o"]; ok {
+		t.Fatalf("non-blockrun channel model must be excluded: %#v", got)
+	}
+	if _, ok := got["disabled-blockrun"]; ok {
+		t.Fatalf("disabled blockrun ability must be excluded: %#v", got)
 	}
 }

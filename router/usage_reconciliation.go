@@ -22,5 +22,7 @@ func SetUsageReconciliationRouter(router *gin.Engine) {
 	g := router.Group("/usage")
 	g.Use(middleware.GlobalAPIRateLimit(), middleware.UsageReconAuth())
 	g.GET("/summary", controller.GetUsageSummary)
+	g.GET("/validation", controller.GetUsageValidation)
 	g.GET("/transactions", controller.GetUsageTransactions)
+	g.GET("/models", controller.GetUsageModels)
 }

@@ -15,6 +15,13 @@ type BlockRunChannel struct {
 	Type int    `json:"type"`
 }
 
+type blockRunModelChannelRow struct {
+	Model string
+	Id    int
+	Name  string
+	Type  int
+}
+
 // usageReconLogColumns is the projection used by the reconciliation queries —
 // only the columns needed to aggregate / render, skipping content/ip/username/
 // upstream_request_id to keep transfer light on large windows.
@@ -49,6 +56,46 @@ func GetBlockRunChannels() (map[int]BlockRunChannel, error) {
 	}
 	for _, ch := range chs {
 		out[ch.Id] = ch
+	}
+	return out, nil
+}
+
+// GetBlockRunEnabledModelChannels returns model -> BlockRun channels for every
+// enabled ability backed by a BlockRun-family channel. Duplicate abilities from
+// multiple groups are collapsed so each channel appears once per model.
+func GetBlockRunEnabledModelChannels() (map[string][]BlockRunChannel, error) {
+	out := make(map[string][]BlockRunChannel)
+	types := BlockRunChannelTypes()
+	if len(types) == 0 {
+		return out, nil
+	}
+
+	var rows []blockRunModelChannelRow
+	if err := DB.Table("abilities").
+		Select("abilities.model, channels.id, channels.name, channels.type").
+		Joins("JOIN channels ON abilities.channel_id = channels.id").
+		Where("abilities.enabled = ? AND channels.type IN ?", true, types).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]map[int]struct{})
+	for _, row := range rows {
+		if row.Model == "" {
+			continue
+		}
+		if _, ok := seen[row.Model]; !ok {
+			seen[row.Model] = make(map[int]struct{})
+		}
+		if _, ok := seen[row.Model][row.Id]; ok {
+			continue
+		}
+		seen[row.Model][row.Id] = struct{}{}
+		out[row.Model] = append(out[row.Model], BlockRunChannel{
+			Id:   row.Id,
+			Name: row.Name,
+			Type: row.Type,
+		})
 	}
 	return out, nil
 }
