@@ -18,26 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import {
-  flexRender,
   type ColumnDef,
   type Row,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { PageFooterPortal } from '@/components/layout'
+import {
+  DataTableView,
+  type DataTableColumnClassName,
+  type DataTablePinnedColumn,
+  type DataTableRenderRowHelpers,
+} from './data-table-view'
 import { MobileCardList } from './mobile-card-list'
 import { DataTablePagination } from './pagination'
-import { TableEmpty } from './table-empty'
-import { TableSkeleton } from './table-skeleton'
 import { DataTableToolbar } from './toolbar'
 
 /**
@@ -145,7 +140,22 @@ export type DataTablePageProps<TData> = {
    * Custom desktop row renderer — replaces the default `<TableRow>`/`<TableCell>` mapping.
    * Use for expanded rows, aggregate rows, click-on-row navigation, etc.
    */
-  renderRow?: (row: Row<TData>) => React.ReactNode
+  renderRow?: (
+    row: Row<TData>,
+    helpers: DataTableRenderRowHelpers
+  ) => React.ReactNode
+
+  /**
+   * Desktop column className resolver. Use for semantic alignment/spacing only;
+   * fixed-column behavior should be configured with `pinnedColumns`.
+   */
+  getColumnClassName?: DataTableColumnClassName
+
+  /**
+   * Fixed desktop columns. The shared table component owns sticky position,
+   * layering, shadows, and row-state backgrounds.
+   */
+  pinnedColumns?: DataTablePinnedColumn[]
 
   /**
    * Apply explicit column widths from `header.getSize()` to `<TableHead>`.
@@ -301,90 +311,28 @@ function renderDesktop<TData>(
   const isFetchingOnly = props.isFetching && !props.isLoading
 
   return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-lg border transition-opacity duration-150',
+    <DataTableView
+      table={props.table}
+      rows={rows}
+      isLoading={props.isLoading}
+      emptyTitle={props.emptyTitle}
+      emptyDescription={props.emptyDescription}
+      emptyIcon={props.emptyIcon}
+      emptyAction={props.emptyAction}
+      skeletonKeyPrefix={props.skeletonKeyPrefix}
+      renderRow={props.renderRow}
+      applyHeaderSize={props.applyHeaderSize}
+      tableHeaderClassName={props.tableHeaderClassName}
+      getColumnClassName={props.getColumnClassName}
+      pinnedColumns={props.pinnedColumns}
+      containerClassName={cn(
+        'transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
       )}
-    >
-      <Table>
-        <TableHeader className={props.tableHeaderClassName}>
-          {props.table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  colSpan={header.colSpan}
-                  style={
-                    props.applyHeaderSize
-                      ? { width: header.getSize() }
-                      : undefined
-                  }
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {props.isLoading ? (
-            <TableSkeleton
-              table={props.table}
-              keyPrefix={props.skeletonKeyPrefix}
-            />
-          ) : rows.length === 0 ? (
-            <TableEmpty
-              colSpan={props.columns.length}
-              title={props.emptyTitle}
-              description={props.emptyDescription}
-              icon={props.emptyIcon}
-            >
-              {props.emptyAction}
-            </TableEmpty>
-          ) : (
-            rows.map((row) => {
-              if (props.renderRow) {
-                return props.renderRow(row)
-              }
-              return (
-                <DefaultRow
-                  key={row.id}
-                  row={row}
-                  className={props.getRowClassName?.(row, { isMobile: false })}
-                />
-              )
-            })
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function DefaultRow<TData>({
-  row,
-  className,
-}: {
-  row: Row<TData>
-  className?: string
-}) {
-  return (
-    <TableRow
-      data-state={row.getIsSelected() && 'selected'}
-      className={className}
-    >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </TableCell>
-      ))}
-    </TableRow>
+      getRowClassName={(row) =>
+        props.getRowClassName?.(row, { isMobile: false })
+      }
+    />
   )
 }

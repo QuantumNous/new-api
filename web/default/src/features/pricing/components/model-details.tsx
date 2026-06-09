@@ -32,16 +32,16 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CopyButton } from '@/components/copy-button'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CopyButton } from '@/components/copy-button'
+} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
 import { PublicLayout } from '@/components/layout'
@@ -269,9 +269,7 @@ function ModelHeader(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
-  const modelIcon = modelIconKey
-    ? getLobeIcon(modelIconKey, 20)
-    : null
+  const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const description = model.description || model.vendor_description || null
   const tags = parseTags(model.tags)
   const isSpecialExpression =
@@ -707,56 +705,57 @@ function GroupPricingSection(props: {
                     {ratio}x
                   </span>
                 </div>
-                <div className='overflow-x-auto'>
-                  <Table className='text-sm'>
-                    <TableHeader>
-                      <TableRow className='hover:bg-transparent'>
-                        <TableHead className={thClass}>{t('Tier')}</TableHead>
-                        {priceFields.map((entry) => (
-                          <TableHead
-                            key={entry.field}
-                            className={`${thClass} text-right`}
-                          >
-                            {t(entry.shortLabel)}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dynamicTiers.map((tier, tierIndex) => {
-                        const entries = getDynamicPriceEntries(tier, {
-                          tokenUnit: props.tokenUnit,
-                          showRechargePrice,
-                          priceRate: props.priceRate,
-                          usdExchangeRate: props.usdExchangeRate,
-                          groupRatioMultiplier: ratio,
-                        })
-                        const entryMap = new Map(
-                          entries.map((entry) => [entry.field, entry])
-                        )
+                <StaticDataTable
+                  className='rounded-none border-0'
+                  tableClassName='text-sm'
+                >
+                  <TableHeader>
+                    <TableRow className='hover:bg-transparent'>
+                      <TableHead className={thClass}>{t('Tier')}</TableHead>
+                      {priceFields.map((entry) => (
+                        <TableHead
+                          key={entry.field}
+                          className={`${thClass} text-right`}
+                        >
+                          {t(entry.shortLabel)}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dynamicTiers.map((tier, tierIndex) => {
+                      const entries = getDynamicPriceEntries(tier, {
+                        tokenUnit: props.tokenUnit,
+                        showRechargePrice,
+                        priceRate: props.priceRate,
+                        usdExchangeRate: props.usdExchangeRate,
+                        groupRatioMultiplier: ratio,
+                      })
+                      const entryMap = new Map(
+                        entries.map((entry) => [entry.field, entry])
+                      )
 
-                        return (
-                          <TableRow key={`${group}-${tier.label || tierIndex}`}>
-                            <TableCell className='text-muted-foreground py-2.5'>
-                              {tier.label || t('Default')}
-                            </TableCell>
-                            {priceFields.map((fieldEntry) => {
-                              const entry = entryMap.get(fieldEntry.field)
-                              return (
-                                <TableCell
-                                  key={fieldEntry.field}
-                                  className='py-2.5 text-right font-mono'
-                                >
-                                  {entry?.formatted ?? '-'}
-                                </TableCell>
-                              )
-                            })}
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                      return (
+                        <TableRow key={`${group}-${tier.label || tierIndex}`}>
+                          <TableCell className='text-muted-foreground py-2.5'>
+                            {tier.label || t('Default')}
+                          </TableCell>
+                          {priceFields.map((fieldEntry) => {
+                            const entry = entryMap.get(fieldEntry.field)
+                            return (
+                              <TableCell
+                                key={fieldEntry.field}
+                                className='py-2.5 text-right font-mono'
+                              >
+                                {entry?.formatted ?? '-'}
+                              </TableCell>
+                            )
+                          })}
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </StaticDataTable>
               </div>
             )
           })}
@@ -772,108 +771,108 @@ function GroupPricingSection(props: {
     <section>
       <SectionTitle>{t('Pricing by Group')}</SectionTitle>
       <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
-      <div className='-mx-4 overflow-x-auto sm:mx-0'>
-        <Table className='text-sm'>
-          <TableHeader>
-            <TableRow className='hover:bg-transparent'>
-              <TableHead className={thClass}>{t('Group')}</TableHead>
-              <TableHead className={thClass}>{t('Ratio')}</TableHead>
-              {isTokenBased ? (
-                <>
-                  <TableHead className={`${thClass} text-right`}>
-                    {t('Input')}
-                  </TableHead>
-                  <TableHead className={`${thClass} text-right`}>
-                    {t('Output')}
-                  </TableHead>
-                  {extraPriceTypes.map((ep) => (
-                    <TableHead
-                      key={ep.type}
-                      className={`${thClass} text-right`}
-                    >
-                      {ep.label}
-                    </TableHead>
-                  ))}
-                </>
-              ) : (
+      <StaticDataTable
+        className='-mx-4 rounded-none border-0 sm:mx-0'
+        tableClassName='text-sm'
+      >
+        <TableHeader>
+          <TableRow className='hover:bg-transparent'>
+            <TableHead className={thClass}>{t('Group')}</TableHead>
+            <TableHead className={thClass}>{t('Ratio')}</TableHead>
+            {isTokenBased ? (
+              <>
                 <TableHead className={`${thClass} text-right`}>
-                  {t('Price')}
+                  {t('Input')}
                 </TableHead>
-              )}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {availableGroups.map((group) => {
-              const ratio = props.groupRatio[group] || 1
-              return (
-                <TableRow key={group}>
-                  <TableCell className='py-2.5'>
-                    <GroupBadge group={group} size='sm' />
-                  </TableCell>
-                  <TableCell className='text-muted-foreground py-2.5 font-mono'>
-                    {ratio}x
-                  </TableCell>
-                  {isTokenBased ? (
-                    <>
-                      <TableCell className='py-2.5 text-right font-mono'>
-                        {formatGroupPrice(
-                          props.model,
-                          group,
-                          'input',
-                          props.tokenUnit,
-                          showRechargePrice,
-                          props.priceRate,
-                          props.usdExchangeRate,
-                          props.groupRatio
-                        )}
-                      </TableCell>
-                      <TableCell className='py-2.5 text-right font-mono'>
-                        {formatGroupPrice(
-                          props.model,
-                          group,
-                          'output',
-                          props.tokenUnit,
-                          showRechargePrice,
-                          props.priceRate,
-                          props.usdExchangeRate,
-                          props.groupRatio
-                        )}
-                      </TableCell>
-                      {extraPriceTypes.map((ep) => (
-                        <TableCell
-                          key={ep.type}
-                          className='py-2.5 text-right font-mono'
-                        >
-                          {formatGroupPrice(
-                            props.model,
-                            group,
-                            ep.type,
-                            props.tokenUnit,
-                            showRechargePrice,
-                            props.priceRate,
-                            props.usdExchangeRate,
-                            props.groupRatio
-                          )}
-                        </TableCell>
-                      ))}
-                    </>
-                  ) : (
+                <TableHead className={`${thClass} text-right`}>
+                  {t('Output')}
+                </TableHead>
+                {extraPriceTypes.map((ep) => (
+                  <TableHead key={ep.type} className={`${thClass} text-right`}>
+                    {ep.label}
+                  </TableHead>
+                ))}
+              </>
+            ) : (
+              <TableHead className={`${thClass} text-right`}>
+                {t('Price')}
+              </TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {availableGroups.map((group) => {
+            const ratio = props.groupRatio[group] || 1
+            return (
+              <TableRow key={group}>
+                <TableCell className='py-2.5'>
+                  <GroupBadge group={group} size='sm' />
+                </TableCell>
+                <TableCell className='text-muted-foreground py-2.5 font-mono'>
+                  {ratio}x
+                </TableCell>
+                {isTokenBased ? (
+                  <>
                     <TableCell className='py-2.5 text-right font-mono'>
-                      {formatFixedPrice(
+                      {formatGroupPrice(
                         props.model,
                         group,
+                        'input',
+                        props.tokenUnit,
                         showRechargePrice,
                         props.priceRate,
                         props.usdExchangeRate,
                         props.groupRatio
                       )}
                     </TableCell>
-                  )}
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+                    <TableCell className='py-2.5 text-right font-mono'>
+                      {formatGroupPrice(
+                        props.model,
+                        group,
+                        'output',
+                        props.tokenUnit,
+                        showRechargePrice,
+                        props.priceRate,
+                        props.usdExchangeRate,
+                        props.groupRatio
+                      )}
+                    </TableCell>
+                    {extraPriceTypes.map((ep) => (
+                      <TableCell
+                        key={ep.type}
+                        className='py-2.5 text-right font-mono'
+                      >
+                        {formatGroupPrice(
+                          props.model,
+                          group,
+                          ep.type,
+                          props.tokenUnit,
+                          showRechargePrice,
+                          props.priceRate,
+                          props.usdExchangeRate,
+                          props.groupRatio
+                        )}
+                      </TableCell>
+                    ))}
+                  </>
+                ) : (
+                  <TableCell className='py-2.5 text-right font-mono'>
+                    {formatFixedPrice(
+                      props.model,
+                      group,
+                      showRechargePrice,
+                      props.priceRate,
+                      props.usdExchangeRate,
+                      props.groupRatio
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </StaticDataTable>
+      <div className='-mx-4 sm:mx-0'>
         {isTokenBased && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
             {t('Prices shown per')} {tokenUnitLabel} tokens

@@ -22,10 +22,41 @@ export { DataTableFacetedFilter } from './faceted-filter'
 export { DataTableViewOptions } from './view-options'
 export { DataTableToolbar } from './toolbar'
 export { DataTableBulkActions } from './bulk-actions'
+export {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+export {
+  StaticDataTable,
+  StaticDataTableEmptyState,
+  StaticDataTableEmptyRow,
+  staticDataTableClassNames,
+  type StaticDataTableElement,
+} from './static-data-table'
+export {
+  DataTableHeader,
+  DataTableRow,
+  DataTableView,
+  type DataTableColumnClassName,
+  type DataTablePinnedColumn,
+  type DataTableRenderRowHelpers,
+  type DataTableViewProps,
+} from './data-table-view'
 export { TableSkeleton } from './table-skeleton'
 export { TableEmpty } from './table-empty'
 export { MobileCardList } from './mobile-card-list'
 export { DataTablePage, type DataTablePageProps } from './data-table-page'
+export {
+  useDataTable,
+  type DataTableRowSelectionPredicate,
+  type UseDataTableOptions,
+} from './use-data-table'
 
 export const DISABLED_ROW_DESKTOP =
   'bg-muted/85 hover:bg-muted [&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1'

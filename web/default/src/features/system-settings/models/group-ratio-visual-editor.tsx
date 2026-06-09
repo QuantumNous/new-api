@@ -36,13 +36,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/data-table'
+import {
+  StaticDataTable,
+  StaticDataTableEmptyRow,
+} from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { safeJsonParse } from '../utils/json-parser'
 
@@ -427,54 +430,47 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               {t('Add group')}
             </Button>
             {topupRatioList.length > 0 && (
-              <div className='rounded-md border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Group name')}</TableHead>
-                      <TableHead>{t('Multiplier')}</TableHead>
-                      <TableHead className='text-right'>
-                        {t('Actions')}
-                      </TableHead>
+              <StaticDataTable>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('Group name')}</TableHead>
+                    <TableHead>{t('Multiplier')}</TableHead>
+                    <TableHead className='text-right'>{t('Actions')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topupRatioList.map((group) => (
+                    <TableRow key={group.name}>
+                      <TableCell className='font-medium'>
+                        {group.name}
+                      </TableCell>
+                      <TableCell>{group.value}</TableCell>
+                      <TableCell className='text-right'>
+                        <div className='flex justify-end gap-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() =>
+                              handleSimpleEdit('topupGroupRatio', group)
+                            }
+                          >
+                            <Pencil className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() =>
+                              handleSimpleDelete('topupGroupRatio', group.name)
+                            }
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {topupRatioList.map((group) => (
-                      <TableRow key={group.name}>
-                        <TableCell className='font-medium'>
-                          {group.name}
-                        </TableCell>
-                        <TableCell>{group.value}</TableCell>
-                        <TableCell className='text-right'>
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() =>
-                                handleSimpleEdit('topupGroupRatio', group)
-                              }
-                            >
-                              <Pencil className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() =>
-                                handleSimpleDelete(
-                                  'topupGroupRatio',
-                                  group.name
-                                )
-                              }
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </StaticDataTable>
             )}
           </div>
         </CardContent>
@@ -541,7 +537,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                       <CollapsibleContent>
                         {userGroupData.overrides.length > 0 && (
                           <div className='border-t'>
-                            <Table>
+                            <StaticDataTable className='rounded-none border-0'>
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>{t('Target group')}</TableHead>
@@ -589,7 +585,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                                   </TableRow>
                                 ))}
                               </TableBody>
-                            </Table>
+                            </StaticDataTable>
                           </div>
                         )}
                       </CollapsibleContent>
@@ -858,106 +854,100 @@ function GroupPricingTable({
       </CardHeader>
       <CardContent>
         <div className='space-y-3'>
-          <div className='overflow-hidden rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='min-w-40'>{t('Group name')}</TableHead>
-                  <TableHead className='w-28'>{t('Ratio')}</TableHead>
-                  <TableHead className='w-28 text-center'>
-                    {t('User selectable')}
-                  </TableHead>
-                  <TableHead className='min-w-56'>{t('Description')}</TableHead>
-                  <TableHead className='w-16 text-right'>
-                    {t('Actions')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className='text-muted-foreground h-20 text-center text-sm'
-                    >
-                      {t('No groups yet. Add a group to get started.')}
+          <StaticDataTable>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='min-w-40'>{t('Group name')}</TableHead>
+                <TableHead className='w-28'>{t('Ratio')}</TableHead>
+                <TableHead className='w-28 text-center'>
+                  {t('User selectable')}
+                </TableHead>
+                <TableHead className='min-w-56'>{t('Description')}</TableHead>
+                <TableHead className='w-16 text-right'>
+                  {t('Actions')}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <StaticDataTableEmptyRow
+                  colSpan={5}
+                  className='text-muted-foreground h-20 text-sm'
+                >
+                  {t('No groups yet. Add a group to get started.')}
+                </StaticDataTableEmptyRow>
+              ) : (
+                rows.map((row) => (
+                  <TableRow key={row._id}>
+                    <TableCell>
+                      <Input
+                        value={row.name}
+                        onChange={(event) =>
+                          updateRow(row._id, 'name', event.target.value)
+                        }
+                        aria-invalid={duplicateNames.includes(row.name.trim())}
+                      />
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => (
-                    <TableRow key={row._id}>
-                      <TableCell>
-                        <Input
-                          value={row.name}
-                          onChange={(event) =>
-                            updateRow(row._id, 'name', event.target.value)
+                    <TableCell>
+                      <Input
+                        type='number'
+                        min={0}
+                        step={0.1}
+                        value={String(row.ratio)}
+                        onChange={(event) =>
+                          updateRow(
+                            row._id,
+                            'ratio',
+                            normalizeRatio(event.target.value)
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex justify-center'>
+                        <Checkbox
+                          checked={row.selectable}
+                          onCheckedChange={(checked) =>
+                            updateRow(row._id, 'selectable', checked === true)
                           }
-                          aria-invalid={duplicateNames.includes(
-                            row.name.trim()
-                          )}
+                          aria-label={t('User selectable')}
                         />
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {row.selectable ? (
                         <Input
-                          type='number'
-                          min={0}
-                          step={0.1}
-                          value={String(row.ratio)}
+                          value={row.description}
+                          placeholder={t('Group description')}
                           onChange={(event) =>
                             updateRow(
                               row._id,
-                              'ratio',
-                              normalizeRatio(event.target.value)
+                              'description',
+                              event.target.value
                             )
                           }
                         />
-                      </TableCell>
-                      <TableCell>
-                        <div className='flex justify-center'>
-                          <Checkbox
-                            checked={row.selectable}
-                            onCheckedChange={(checked) =>
-                              updateRow(row._id, 'selectable', checked === true)
-                            }
-                            aria-label={t('User selectable')}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {row.selectable ? (
-                          <Input
-                            value={row.description}
-                            placeholder={t('Group description')}
-                            onChange={(event) =>
-                              updateRow(
-                                row._id,
-                                'description',
-                                event.target.value
-                              )
-                            }
-                          />
-                        ) : (
-                          <span className='text-muted-foreground px-3 text-sm'>
-                            -
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => removeRow(row._id)}
-                          aria-label={t('Delete')}
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                      ) : (
+                        <span className='text-muted-foreground px-3 text-sm'>
+                          -
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => removeRow(row._id)}
+                        aria-label={t('Delete')}
+                      >
+                        <Trash2 className='h-4 w-4' />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </StaticDataTable>
 
           {duplicateNames.length > 0 && (
             <p className='text-destructive text-sm'>

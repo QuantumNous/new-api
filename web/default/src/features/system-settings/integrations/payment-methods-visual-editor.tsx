@@ -27,13 +27,13 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import {
@@ -291,88 +291,82 @@ export function PaymentMethodsVisualEditor({
       ) : (
         <div className='rounded-md border'>
           {/* Desktop table view */}
-          <div className='hidden md:block'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('Name')}</TableHead>
-                  <TableHead>{t('Type')}</TableHead>
-                  <TableHead>{t('Color')}</TableHead>
-                  <TableHead>{t('Min Top-up')}</TableHead>
-                  <TableHead className='text-right'>{t('Actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMethods.map((method, index) => {
-                  const colorPreview = getColorPreview(method.color)
-                  return (
-                    <TableRow key={`${method.type}-${index}`}>
-                      <TableCell className='font-medium'>
-                        {method.name}
-                      </TableCell>
-                      <TableCell>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
-                          {method.type}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <div className='flex items-center gap-2'>
-                          {colorPreview && (
-                            <div
-                              className='size-5 shrink-0 rounded border'
-                              style={{ backgroundColor: colorPreview }}
-                            />
-                          )}
-                          <span className='text-muted-foreground truncate font-mono text-sm'>
-                            {method.color}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {method.min_topup ? (
-                          <span className='font-mono text-sm'>
-                            {method.min_topup}
-                          </span>
-                        ) : (
-                          <span className='text-muted-foreground text-sm'>
-                            —
-                          </span>
+          <StaticDataTable className='hidden rounded-none border-0 md:block'>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('Name')}</TableHead>
+                <TableHead>{t('Type')}</TableHead>
+                <TableHead>{t('Color')}</TableHead>
+                <TableHead>{t('Min Top-up')}</TableHead>
+                <TableHead className='text-right'>{t('Actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMethods.map((method, index) => {
+                const colorPreview = getColorPreview(method.color)
+                return (
+                  <TableRow key={`${method.type}-${index}`}>
+                    <TableCell className='font-medium'>{method.name}</TableCell>
+                    <TableCell>
+                      <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                        {method.type}
+                      </code>
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex items-center gap-2'>
+                        {colorPreview && (
+                          <div
+                            className='size-5 shrink-0 rounded border'
+                            style={{ backgroundColor: colorPreview }}
+                          />
                         )}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <div className='flex justify-end gap-2'>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleEdit(method)
-                            }}
-                          >
-                            <Pencil className='h-4 w-4' />
-                          </Button>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleDelete(method)
-                            }}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                        <span className='text-muted-foreground truncate font-mono text-sm'>
+                          {method.color}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {method.min_topup ? (
+                        <span className='font-mono text-sm'>
+                          {method.min_topup}
+                        </span>
+                      ) : (
+                        <span className='text-muted-foreground text-sm'>—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      <div className='flex justify-end gap-2'>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleEdit(method)
+                          }}
+                        >
+                          <Pencil className='h-4 w-4' />
+                        </Button>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleDelete(method)
+                          }}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </StaticDataTable>
 
           {/* Mobile card view */}
           <div className='divide-y md:hidden'>

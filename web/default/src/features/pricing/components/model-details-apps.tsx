@@ -26,13 +26,16 @@ import {
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/data-table'
+import {
+  StaticDataTable,
+  staticDataTableClassNames as tableStyles,
+} from '@/components/data-table'
 import {
   buildAppRankings,
   formatTokenVolume,
@@ -123,9 +126,6 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
 
   const totalMonthlyTokens = apps.reduce((s, a) => s + a.monthly_tokens, 0)
   const top = apps[0]
-  const headerCellClass =
-    'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
-
   return (
     <div className='flex flex-col gap-4'>
       <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
@@ -165,60 +165,72 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
         </div>
       </div>
 
-      <div className='overflow-x-auto rounded-lg border'>
-        <Table className='text-sm'>
-          <TableHeader>
-            <TableRow className='hover:bg-transparent'>
-              <TableHead className={cn(headerCellClass, 'w-12')}>#</TableHead>
-              <TableHead className={headerCellClass}>{t('App')}</TableHead>
-              <TableHead
-                className={cn(headerCellClass, 'hidden md:table-cell')}
-              >
-                {t('Category')}
-              </TableHead>
-              <TableHead className={`${headerCellClass} text-right`}>
-                {t('Monthly tokens')}
-              </TableHead>
-              <TableHead className={`${headerCellClass} text-right`}>
-                {t('30d change')}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {apps.map((app) => (
-              <TableRow key={`${app.rank}-${app.name}`}>
-                <TableCell className='py-2.5'>
-                  <RankBadge rank={app.rank} />
-                </TableCell>
-                <TableCell className='py-2.5'>
-                  <div className='flex items-center gap-3'>
-                    <span className='bg-muted text-muted-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md font-bold'>
-                      {app.initial}
-                    </span>
-                    <div className='min-w-0'>
-                      <div className='text-sm font-medium'>
-                        <AppLink app={app} />
-                      </div>
-                      <p className='text-muted-foreground line-clamp-1 text-sm'>
-                        {app.description}
-                      </p>
+      <StaticDataTable className='rounded-lg' tableClassName='text-sm'>
+        <TableHeader>
+          <TableRow className={tableStyles.compactHeaderRow}>
+            <TableHead className={cn(tableStyles.compactHeaderCell, 'w-12')}>
+              #
+            </TableHead>
+            <TableHead className={tableStyles.compactHeaderCell}>
+              {t('App')}
+            </TableHead>
+            <TableHead
+              className={cn(
+                tableStyles.compactHeaderCell,
+                'hidden md:table-cell'
+              )}
+            >
+              {t('Category')}
+            </TableHead>
+            <TableHead className={tableStyles.compactHeaderCellRight}>
+              {t('Monthly tokens')}
+            </TableHead>
+            <TableHead className={tableStyles.compactHeaderCellRight}>
+              {t('30d change')}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {apps.map((app) => (
+            <TableRow key={`${app.rank}-${app.name}`}>
+              <TableCell className={tableStyles.compactCell}>
+                <RankBadge rank={app.rank} />
+              </TableCell>
+              <TableCell className={tableStyles.compactCell}>
+                <div className='flex items-center gap-3'>
+                  <span className='bg-muted text-muted-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md font-bold'>
+                    {app.initial}
+                  </span>
+                  <div className='min-w-0'>
+                    <div className='text-sm font-medium'>
+                      <AppLink app={app} />
                     </div>
+                    <p className='text-muted-foreground line-clamp-1 text-sm'>
+                      {app.description}
+                    </p>
                   </div>
-                </TableCell>
-                <TableCell className='text-muted-foreground hidden py-2.5 md:table-cell'>
-                  {app.category}
-                </TableCell>
-                <TableCell className='py-2.5 text-right font-mono tabular-nums'>
-                  {formatTokenVolume(app.monthly_tokens)}
-                </TableCell>
-                <TableCell className='py-2.5 text-right'>
-                  <GrowthChip value={app.growth_pct} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                </div>
+              </TableCell>
+              <TableCell
+                className={cn(
+                  tableStyles.compactMutedCell,
+                  'hidden md:table-cell'
+                )}
+              >
+                {app.category}
+              </TableCell>
+              <TableCell
+                className={cn(tableStyles.compactNumericCell, 'tabular-nums')}
+              >
+                {formatTokenVolume(app.monthly_tokens)}
+              </TableCell>
+              <TableCell className={cn(tableStyles.compactCell, 'text-right')}>
+                <GrowthChip value={app.growth_pct} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </StaticDataTable>
 
       <p className='text-muted-foreground/60 text-[11px] leading-relaxed'>
         {t(

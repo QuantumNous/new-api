@@ -20,15 +20,15 @@ import { useState } from 'react'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { useDeleteProvider } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthProvider } from '../types'
@@ -69,7 +69,7 @@ export function ProviderTable(props: ProviderTableProps) {
           {t('No custom OAuth providers configured yet.')}
         </div>
       ) : (
-        <Table>
+        <StaticDataTable>
           <TableHeader>
             <TableRow>
               <TableHead>{t('Icon')}</TableHead>
@@ -129,7 +129,7 @@ export function ProviderTable(props: ProviderTableProps) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </StaticDataTable>
       )}
 
       <ConfirmDialog

@@ -21,10 +21,6 @@ import {
   type ColumnDef,
   type RowSelectionState,
   type Table as TanStackTable,
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  useReactTable,
 } from '@tanstack/react-table'
 import { Check, Copy, Info, Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -53,19 +49,15 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import {
+  DataTableBulkActions as BulkActionsToolbar,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
 import { Dialog } from '@/components/dialog'
 import {
@@ -200,7 +192,7 @@ function getTestTableColumnClass(columnId: string) {
     case 'status':
       return 'w-70 min-w-70 max-w-70 whitespace-normal'
     case 'actions':
-      return 'bg-popover sticky right-0 z-20 w-24 min-w-24 border-l shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.2)] whitespace-nowrap sm:w-28 sm:min-w-28'
+      return 'bg-popover w-24 min-w-24 whitespace-nowrap sm:w-28 sm:min-w-28'
     default:
       return undefined
   }
@@ -502,18 +494,17 @@ export function ChannelTestDialog({
     ]
   )
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: tableData,
     columns,
-    state: {
-      rowSelection,
-      pagination,
-    },
+    rowSelection,
+    pagination,
     enableRowSelection: true,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onRowSelectionChange: setRowSelection,
     onPaginationChange: setPagination,
+    withFilteredRowModel: false,
+    withSortedRowModel: false,
+    withFacetedRowModel: false,
   })
 
   if (!currentRow) {
@@ -615,80 +606,41 @@ export function ChannelTestDialog({
             </div>
 
             <div className='space-y-3'>
-              <div
-                className='overflow-hidden rounded-md border'
-                role='region'
-                aria-label={t('Channel models')}
-              >
-                <div className='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'>
-                  <Table className='w-max min-w-full table-auto'>
-                    <colgroup>
-                      <col className='w-10 min-w-10' />
-                      <col className='w-auto' />
-                      <col className='w-70' />
-                      <col className='w-24 sm:w-28' />
-                    </colgroup>
-                    <TableHeader>
-                      {table.getHeaderGroups().map((headerGroup) => (
-                        <TableRow key={headerGroup.id}>
-                          {headerGroup.headers.map((header) => (
-                            <TableHead
-                              key={header.id}
-                              className={getTestTableColumnClass(
-                                header.column.id
-                              )}
-                            >
-                              {header.isPlaceholder
-                                ? null
-                                : flexRender(
-                                    header.column.columnDef.header,
-                                    header.getContext()
-                                  )}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableHeader>
-                    <TableBody>
-                      {table.getRowModel().rows.length ? (
-                        table.getRowModel().rows.map((row) => (
-                          <TableRow
-                            key={row.id}
-                            data-state={
-                              row.getIsSelected() ? 'selected' : undefined
-                            }
-                          >
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell
-                                key={cell.id}
-                                className={getTestTableColumnClass(
-                                  cell.column.id
-                                )}
-                              >
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell
-                            colSpan={table.getVisibleLeafColumns().length}
-                            className='text-muted-foreground h-16 text-center text-sm'
-                          >
-                            {models.length
-                              ? 'No models matched your search.'
-                              : 'This channel has no configured models.'}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
+              <DataTableView
+                table={table}
+                containerClassName='rounded-md'
+                containerProps={{
+                  role: 'region',
+                  'aria-label': t('Channel models'),
+                }}
+                tableContainerClassName='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'
+                tableClassName='w-max min-w-full table-auto'
+                pinnedColumns={[
+                  {
+                    columnId: 'actions',
+                    side: 'right',
+                    className: 'w-24 min-w-24 sm:w-28 sm:min-w-28',
+                    cellClassName: 'bg-popover',
+                  },
+                ]}
+                colgroup={
+                  <colgroup>
+                    <col className='w-10 min-w-10' />
+                    <col className='w-auto' />
+                    <col className='w-70' />
+                    <col className='w-24 sm:w-28' />
+                  </colgroup>
+                }
+                getColumnClassName={(columnId) =>
+                  getTestTableColumnClass(columnId)
+                }
+                emptyContent={
+                  models.length
+                    ? t('No models matched your search.')
+                    : t('This channel has no configured models.')
+                }
+                emptyCellClassName='text-muted-foreground h-16 text-center text-sm'
+              />
 
               <DataTablePagination table={table} />
             </div>

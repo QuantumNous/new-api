@@ -22,13 +22,16 @@ import { AlertTriangle, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/data-table'
+import {
+  StaticDataTable,
+  staticDataTableClassNames as tableStyles,
+} from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
@@ -218,9 +221,6 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     intent = 'default'
   }
 
-  const headerCellClass =
-    'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
-
   return (
     <div className='flex flex-col gap-4'>
       <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
@@ -256,53 +256,53 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           title={t('Per-group performance')}
           description={t('Average latency, TTFT, TPS, and success rate')}
         />
-        <div className='overflow-x-auto rounded-lg border'>
-          <Table className='text-sm'>
-            <TableHeader>
-              <TableRow className='hover:bg-transparent'>
-                <TableHead className={headerCellClass}>{t('Group')}</TableHead>
-                <TableHead className={`${headerCellClass} text-right`}>
-                  TPS
-                </TableHead>
-                <TableHead className={`${headerCellClass} text-right`}>
-                  {t('Average TTFT')}
-                </TableHead>
-                <TableHead className={`${headerCellClass} text-right`}>
-                  {t('Average latency')}
-                </TableHead>
-                <TableHead
-                  className={`${headerCellClass} min-w-[180px] text-left`}
-                >
-                  {t('Success rate')}
-                </TableHead>
+        <StaticDataTable className='rounded-lg' tableClassName='text-sm'>
+          <TableHeader>
+            <TableRow className={tableStyles.compactHeaderRow}>
+              <TableHead className={tableStyles.compactHeaderCell}>
+                {t('Group')}
+              </TableHead>
+              <TableHead className={tableStyles.compactHeaderCellRight}>
+                TPS
+              </TableHead>
+              <TableHead className={tableStyles.compactHeaderCellRight}>
+                {t('Average TTFT')}
+              </TableHead>
+              <TableHead className={tableStyles.compactHeaderCellRight}>
+                {t('Average latency')}
+              </TableHead>
+              <TableHead
+                className={cn(tableStyles.compactHeaderCell, 'min-w-[180px]')}
+              >
+                {t('Success rate')}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {performances.map((perf) => (
+              <TableRow key={perf.group}>
+                <TableCell className={tableStyles.compactCell}>
+                  <GroupBadge group={perf.group} size='sm' />
+                </TableCell>
+                <TableCell className={tableStyles.compactNumericCell}>
+                  {formatThroughput(perf.avg_tps)}
+                </TableCell>
+                <TableCell className={tableStyles.compactNumericCell}>
+                  {formatLatency(perf.avg_ttft_ms)}
+                </TableCell>
+                <TableCell className={tableStyles.compactMutedNumericCell}>
+                  {formatLatency(perf.avg_latency_ms)}
+                </TableCell>
+                <TableCell className={tableStyles.compactCell}>
+                  <UptimeSparkline
+                    size='sm'
+                    series={uptimeByGroup[perf.group] ?? []}
+                  />
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {performances.map((perf) => (
-                <TableRow key={perf.group}>
-                  <TableCell className='py-2.5'>
-                    <GroupBadge group={perf.group} size='sm' />
-                  </TableCell>
-                  <TableCell className='py-2.5 text-right font-mono'>
-                    {formatThroughput(perf.avg_tps)}
-                  </TableCell>
-                  <TableCell className='py-2.5 text-right font-mono'>
-                    {formatLatency(perf.avg_ttft_ms)}
-                  </TableCell>
-                  <TableCell className='text-muted-foreground py-2.5 text-right font-mono'>
-                    {formatLatency(perf.avg_latency_ms)}
-                  </TableCell>
-                  <TableCell className='py-2.5'>
-                    <UptimeSparkline
-                      size='sm'
-                      series={uptimeByGroup[perf.group] ?? []}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </StaticDataTable>
       </section>
 
       <section>

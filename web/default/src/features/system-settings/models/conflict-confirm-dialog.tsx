@@ -28,13 +28,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 
 export type ConflictItem = {
   channel: string
@@ -71,40 +71,38 @@ export function ConflictConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className='max-h-96 overflow-y-auto rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Channel')}</TableHead>
-                <TableHead>{t('Model')}</TableHead>
-                <TableHead>{t('Current Billing')}</TableHead>
-                <TableHead>{t('Change To')}</TableHead>
+        <StaticDataTable className='max-h-96 overflow-y-auto'>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('Channel')}</TableHead>
+              <TableHead>{t('Model')}</TableHead>
+              <TableHead>{t('Current Billing')}</TableHead>
+              <TableHead>{t('Change To')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {conflicts.map((conflict, index) => (
+              <TableRow key={index}>
+                <TableCell className='font-medium'>
+                  {conflict.channel}
+                </TableCell>
+                <TableCell className='font-mono text-sm'>
+                  {conflict.model}
+                </TableCell>
+                <TableCell>
+                  <pre className='text-sm whitespace-pre-wrap'>
+                    {conflict.current}
+                  </pre>
+                </TableCell>
+                <TableCell>
+                  <pre className='text-sm whitespace-pre-wrap'>
+                    {conflict.newVal}
+                  </pre>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {conflicts.map((conflict, index) => (
-                <TableRow key={index}>
-                  <TableCell className='font-medium'>
-                    {conflict.channel}
-                  </TableCell>
-                  <TableCell className='font-mono text-sm'>
-                    {conflict.model}
-                  </TableCell>
-                  <TableCell>
-                    <pre className='text-sm whitespace-pre-wrap'>
-                      {conflict.current}
-                    </pre>
-                  </TableCell>
-                  <TableCell>
-                    <pre className='text-sm whitespace-pre-wrap'>
-                      {conflict.newVal}
-                    </pre>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </StaticDataTable>
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>

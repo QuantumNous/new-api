@@ -30,6 +30,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import type { Modality } from '../types'
 
 type IconComponent = React.ComponentType<{ className?: string }>
@@ -96,18 +104,18 @@ export function ModalitiesMatrix(props: {
   const outputSet = new Set(props.output)
 
   const renderRow = (label: string, set: Set<Modality>) => (
-    <tr>
-      <th
+    <TableRow>
+      <TableHead
         scope='row'
         className='text-muted-foreground bg-muted/30 px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase'
       >
         {label}
-      </th>
+      </TableHead>
       {ALL_MODALITIES.map((modality) => {
         const enabled = set.has(modality)
         const Icon = MODALITY_META[modality].icon
         return (
-          <td
+          <TableCell
             key={modality}
             className={cn(
               'border-l px-3 py-2 text-center',
@@ -135,39 +143,37 @@ export function ModalitiesMatrix(props: {
             >
               <Icon className='size-4' />
             </span>
-          </td>
+          </TableCell>
         )
       })}
-    </tr>
+    </TableRow>
   )
 
   return (
-    <div className='overflow-x-auto rounded-lg border'>
-      <table className='w-full text-sm'>
-        <thead>
-          <tr className='bg-muted/40'>
-            <th
+    <StaticDataTable className='rounded-lg' tableClassName='text-sm'>
+      <TableHeader>
+        <TableRow className='bg-muted/40'>
+          <TableHead
+            scope='col'
+            className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase'
+          >
+            {t('Modality')}
+          </TableHead>
+          {ALL_MODALITIES.map((modality) => (
+            <TableHead
+              key={modality}
               scope='col'
-              className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase'
+              className='text-muted-foreground border-l px-3 py-2 text-center text-[11px] font-medium tracking-wider uppercase'
             >
-              {t('Modality')}
-            </th>
-            {ALL_MODALITIES.map((modality) => (
-              <th
-                key={modality}
-                scope='col'
-                className='text-muted-foreground border-l px-3 py-2 text-center text-[11px] font-medium tracking-wider uppercase'
-              >
-                {t(MODALITY_META[modality].labelKey)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {renderRow(t('Input'), inputSet)}
-          {renderRow(t('Output'), outputSet)}
-        </tbody>
-      </table>
-    </div>
+              {t(MODALITY_META[modality].labelKey)}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {renderRow(t('Input'), inputSet)}
+        {renderRow(t('Output'), outputSet)}
+      </TableBody>
+    </StaticDataTable>
   )
 }

@@ -22,13 +22,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isObjectRecord } from '../utils/json-validators'
 import { RateLimitDialog, type RateLimitEntryData } from './rate-limit-dialog'
@@ -151,59 +151,55 @@ export function RateLimitVisualEditor({
               )}
         </div>
       ) : (
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Group Name')}</TableHead>
-                <TableHead className='text-right'>
-                  {t('Max Requests (incl. failures)')}
-                </TableHead>
-                <TableHead className='text-right'>{t('Max Success')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
+        <StaticDataTable>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('Group Name')}</TableHead>
+              <TableHead className='text-right'>
+                {t('Max Requests (incl. failures)')}
+              </TableHead>
+              <TableHead className='text-right'>{t('Max Success')}</TableHead>
+              <TableHead className='text-right'>{t('Actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredRateLimits.map((limit) => (
+              <TableRow key={limit.groupName}>
+                <TableCell className='font-medium'>{limit.groupName}</TableCell>
+                <TableCell className='text-right'>
+                  <span className='font-mono'>
+                    {limit.maxRequests === 0
+                      ? t('Unlimited')
+                      : limit.maxRequests.toLocaleString()}
+                  </span>
+                </TableCell>
+                <TableCell className='text-right'>
+                  <span className='font-mono'>
+                    {limit.maxSuccess.toLocaleString()}
+                  </span>
+                </TableCell>
+                <TableCell className='text-right'>
+                  <div className='flex justify-end gap-2'>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => handleEdit(limit)}
+                    >
+                      <Pencil className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => handleDelete(limit.groupName)}
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRateLimits.map((limit) => (
-                <TableRow key={limit.groupName}>
-                  <TableCell className='font-medium'>
-                    {limit.groupName}
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <span className='font-mono'>
-                      {limit.maxRequests === 0
-                        ? t('Unlimited')
-                        : limit.maxRequests.toLocaleString()}
-                    </span>
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <span className='font-mono'>
-                      {limit.maxSuccess.toLocaleString()}
-                    </span>
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <div className='flex justify-end gap-2'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => handleEdit(limit)}
-                      >
-                        <Pencil className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => handleDelete(limit.groupName)}
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </StaticDataTable>
       )}
 
       <RateLimitDialog
