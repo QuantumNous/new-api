@@ -108,7 +108,9 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	// ── Guard 1: nil checks ───────────────────────────────────────────────
 	// Both relayInfo and usage are required to build a meaningful event.
 	// nil usage means the upstream returned no token counts at all.
-	if relayInfo == nil || usage == nil {
+	// ChannelMeta is embedded as a pointer; guard against the unlikely case
+	// where InitChannelMeta was never called (e.g. test scaffolding gaps).
+	if relayInfo == nil || relayInfo.ChannelMeta == nil || usage == nil {
 		return
 	}
 
@@ -198,7 +200,9 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	// boundary. gin.Context must not be read from a different goroutine;
 	// c.Copy() creates a snapshot safe for async use (gin docs).
 	url := user.BillingWebhookURL
-	secret := []byte(user.WebhookSecret)
+	// TrimSpace here mirrors the guard above so the HMAC key is always the
+	// normalised secret even when the admin stored it with surrounding whitespace.
+	secret := []byte(strings.TrimSpace(user.WebhookSecret))
 	asyncCtx := c.Copy()
 
 	gopool.Go(func() {

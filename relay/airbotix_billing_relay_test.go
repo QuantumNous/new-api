@@ -598,6 +598,53 @@ func TestIntegration_DeepRouterAuto_RoutedFromFilled(t *testing.T) {
 	cs.verifySig(t, integrationTestSecret)
 }
 
+// TestIntegration_NilUsage_WebhookNotFired verifies Guard 1 (nil usage check) via
+// the full PostTextConsumeQuota path. nil usage is the real outcome when
+// adaptor.DoResponse fails: TextHelper returns early without calling
+// PostTextConsumeQuota. This test calls PostTextConsumeQuota(nil) directly to
+// prove that even if it were called, the guard prevents webhook dispatch.
+func TestIntegration_NilUsage_WebhookNotFired(t *testing.T) {
+	withDBBypass(t)
+
+	cs := newCaptureServer(t)
+	c := integrationCtx(cs.URL, integrationTestSecret, "")
+	ri := integrationRelayInfo(
+		"req-nil-usage-001", "gpt-4o-mini",
+		constant.ChannelTypeOpenAI, constant.APITypeOpenAI,
+		false, types.RelayFormatOpenAI,
+	)
+
+	service.PostTextConsumeQuota(c, ri, nil, nil)
+
+	time.Sleep(150 * time.Millisecond)
+	if cs.hits.Load() != 0 {
+		t.Errorf("webhook must not fire for nil usage (Guard 1), got %d calls", cs.hits.Load())
+	}
+}
+
+// TestIntegration_ZeroTokenUsage_WebhookNotFired verifies Guard 2 (zero-token
+// check) via the full PostTextConsumeQuota path. This covers cases where the
+// upstream returned a usage struct but reported zero tokens (e.g. streaming
+// without a final usage chunk).
+func TestIntegration_ZeroTokenUsage_WebhookNotFired(t *testing.T) {
+	withDBBypass(t)
+
+	cs := newCaptureServer(t)
+	c := integrationCtx(cs.URL, integrationTestSecret, "")
+	ri := integrationRelayInfo(
+		"req-zero-usage-001", "gpt-4o-mini",
+		constant.ChannelTypeOpenAI, constant.APITypeOpenAI,
+		false, types.RelayFormatOpenAI,
+	)
+
+	service.PostTextConsumeQuota(c, ri, &dto.Usage{PromptTokens: 0, CompletionTokens: 0, TotalTokens: 0}, nil)
+
+	time.Sleep(150 * time.Millisecond)
+	if cs.hits.Load() != 0 {
+		t.Errorf("webhook must not fire for zero-token usage (Guard 2), got %d calls", cs.hits.Load())
+	}
+}
+
 // TestIntegration_FailedRelay_NoWebhook verifies that when the upstream returns
 // a 500 error, DoResponse signals the failure via a non-nil *types.NewAPIError,
 // which causes the relay completion path to skip PostTextConsumeQuota entirely —

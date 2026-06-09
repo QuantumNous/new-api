@@ -40,6 +40,14 @@ Wiring `internal/` into the request path is done through a **small** set of name
 | `model/user.go` | Extended with 5 Airbotix columns (`kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret`) |
 | `service/airbotix_billing.go` | Orchestrates per-request billing webhook dispatch: reads gin.Context (AirbotixUser, X-Tenant-User header, ContextKeyAliasResolvedFrom), builds `billing.Event`, calls `internal/billing.NewDispatcher` in a gopool goroutine. Cannot live in `internal/billing/` because it requires gin.Context and relay/common.RelayInfo — upstream types that would break the leaf package's zero-upstream-dependency contract. Added DR-25 (Phase 2 billing wiring). |
 
+One upstream file also carries a single minimal hook:
+
+| File | Change | Rationale |
+|---|---|---|
+| `service/text_quota.go` | `dispatchAirbotixBilling` call added inside `SettleBilling` else-branch (~3 lines) | The dispatch must happen after quota settlement; no Airbotix business logic lives here — the file is otherwise unchanged |
+
+This is the only upstream `service/` file modified. Any future cross-cutting hooks in `PostTextConsumeQuota` or similar upstream functions should follow the same pattern: the smallest possible change to the upstream file, with all logic delegated to the sanctioned file.
+
 Adding a fifth sanctioned upstream-adjacent file requires updating this ADR.
 
 The discipline:

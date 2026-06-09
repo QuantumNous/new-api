@@ -215,8 +215,10 @@ func TestDispatchAirbotixBilling_SendsPayloadAndHMAC(t *testing.T) {
 	}
 
 	// ── cost ──────────────────────────────────────────────────────────
-	if ev.CostUSD <= 0 {
-		t.Errorf("CostUSD should be positive, got %f", ev.CostUSD)
+	// 500_000 quota / 500000 QuotaPerUnit = $1.00 exactly.
+	const wantCostUSD = float64(500_000) / float64(500_000) // = 1.0
+	if ev.CostUSD != wantCostUSD {
+		t.Errorf("CostUSD: want %.6f (quota=500000, QuotaPerUnit=500000), got %.9f", wantCostUSD, ev.CostUSD)
 	}
 
 	// ── DR-25 required timestamps (replaced Timestamp) ────────────────
@@ -612,6 +614,92 @@ func TestDispatchAirbotixBilling_SignaturesAreValid(t *testing.T) {
 	for i, entry := range calls {
 		if !verifyHMAC(entry.body, entry.sig, testSecret) {
 			t.Errorf("call %d: HMAC verification failed: sig=%q", i+1, entry.sig)
+		}
+	}
+}
+
+// TestDispatchAirbotixBilling_CostUSDPrecision verifies the exact cost_usd
+// calculation: quota / QuotaPerUnit. Using quota=420 and the known QuotaPerUnit
+// of 500000, the expected value is 0.00084 (matching PRD §7.3 example).
+func TestDispatchAirbotixBilling_CostUSDPrecision(t *testing.T) {
+	ws := newWebhookServer(t, http.StatusOK)
+	c := billingTestCtx(ws.URL, testSecret, "")
+
+	// quota=420, QuotaPerUnit=500000 → cost_usd = 420/500000 = 0.00084 (PRD §7.3 example)
+	dispatchAirbotixBilling(c, testRelayInfo("req-cost-001", "gpt-4o-mini", constant.ChannelTypeOpenAI), testUsage(100, 50), 420)
+
+	if !ws.waitHits(1, 2*time.Second) {
+		t.Fatal("webhook not called")
+	}
+
+	ev := decodeEvent(t, ws)
+	// Both sides compute float64(420)/float64(500000); IEEE 754 gives the same bit
+	// pattern, so exact equality is correct here — no epsilon needed.
+	const wantCostUSD = float64(420) / float64(500_000)
+	if ev.CostUSD != wantCostUSD {
+		t.Errorf("CostUSD: want %.6f (quota=420, QuotaPerUnit=500000), got %.9f", wantCostUSD, ev.CostUSD)
+	}
+}
+
+// TestDispatchAirbotixBilling_TrimmedSecretSignsCorrectly verifies that a
+// WebhookSecret stored with surrounding whitespace is normalised before HMAC.
+// The guard already trims, but without the fix the signing key would include
+// the whitespace, producing a signature that doesn't verify against the clean key.
+func TestDispatchAirbotixBilling_TrimmedSecretSignsCorrectly(t *testing.T) {
+	const baseSecret = "actual-hmac-key"
+	paddedSecret := "  " + baseSecret + "  " // admin stored with extra spaces
+
+	ws := newWebhookServer(t, http.StatusOK)
+	c := billingTestCtx(ws.URL, paddedSecret, "")
+
+	dispatchAirbotixBilling(c, testRelayInfo("req-trim-001", "gpt-4o-mini", constant.ChannelTypeOpenAI), testUsage(100, 50), 420)
+
+	if !ws.waitHits(1, 2*time.Second) {
+		t.Fatal("webhook not called")
+	}
+
+	// Signature must verify against the TRIMMED key, not the padded one.
+	if !verifyHMAC(ws.getBody(), ws.getSig(), baseSecret) {
+		t.Error("HMAC must verify against trimmed secret; signing key must be normalised")
+	}
+	// Sanity: it must NOT verify against the untrimmed secret (would mean trim was skipped).
+	if verifyHMAC(ws.getBody(), ws.getSig(), paddedSecret) {
+		t.Error("HMAC must NOT verify against the padded secret — trim must have been applied")
+	}
+}
+
+// TestChannelTypeProviderID_KnownProviders verifies the explicit entries in the
+// provider map return stable, lowercase wire-format IDs (not display names).
+func TestChannelTypeProviderID_KnownProviders(t *testing.T) {
+	cases := []struct {
+		channelType int
+		want        string
+	}{
+		{constant.ChannelTypeOpenAI, "openai"},
+		{constant.ChannelTypeAnthropic, "anthropic"},
+		{constant.ChannelTypeAzure, "azure"},
+		{constant.ChannelTypeGemini, "gemini"},
+		{constant.ChannelTypeDeepSeek, "deepseek"},
+	}
+	for _, tc := range cases {
+		got := channelTypeProviderID(tc.channelType)
+		if got != tc.want {
+			t.Errorf("channelTypeProviderID(%d): want %q, got %q", tc.channelType, tc.want, got)
+		}
+	}
+}
+
+// TestChannelTypeProviderID_FallbackIsLowercase verifies that the fallback path
+// (strings.ToLower(GetChannelTypeName())) always produces a lowercase string.
+// An unknown channel type must never produce a mixed-case display name.
+func TestChannelTypeProviderID_FallbackIsLowercase(t *testing.T) {
+	// Use a channel type that is very unlikely to exist in the explicit map.
+	const unknownType = 9999
+	result := channelTypeProviderID(unknownType)
+	for _, r := range result {
+		if r >= 'A' && r <= 'Z' {
+			t.Errorf("fallback provider ID must be all-lowercase, got %q (contains uppercase)", result)
+			break
 		}
 	}
 }
