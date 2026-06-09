@@ -56,14 +56,22 @@ type upstreamEnvelope[T any] struct {
 }
 
 type upstreamModel struct {
-	Description string          `json:"description"`
-	Endpoints   json.RawMessage `json:"endpoints"`
-	Icon        string          `json:"icon"`
-	ModelName   string          `json:"model_name"`
-	NameRule    int             `json:"name_rule"`
-	Status      int             `json:"status"`
-	Tags        string          `json:"tags"`
-	VendorName  string          `json:"vendor_name"`
+	Description      string          `json:"description"`
+	Endpoints        json.RawMessage `json:"endpoints"`
+	Icon             string          `json:"icon"`
+	ModelName        string          `json:"model_name"`
+	NameRule         int             `json:"name_rule"`
+	Status           int             `json:"status"`
+	Tags             string          `json:"tags"`
+	VendorName       string          `json:"vendor_name"`
+	ContextLength    int             `json:"context_length"`
+	MaxOutputTokens  int             `json:"max_output_tokens"`
+	KnowledgeCutoff  string          `json:"knowledge_cutoff"`
+	ReleaseDate      string          `json:"release_date"`
+	ParameterCount   string          `json:"parameter_count"`
+	InputModalities  string          `json:"input_modalities"`
+	OutputModalities string          `json:"output_modalities"`
+	PresentFields    map[string]bool `json:"-"`
 }
 
 type upstreamVendor struct {
@@ -71,6 +79,24 @@ type upstreamVendor struct {
 	Icon        string `json:"icon"`
 	Name        string `json:"name"`
 	Status      int    `json:"status"`
+}
+
+func (m *upstreamModel) UnmarshalJSON(data []byte) error {
+	type alias upstreamModel
+	var raw map[string]json.RawMessage
+	if err := common.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var decoded alias
+	if err := common.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*m = upstreamModel(decoded)
+	m.PresentFields = make(map[string]bool, len(raw))
+	for field := range raw {
+		m.PresentFields[field] = true
+	}
+	return nil
 }
 
 var (
@@ -180,10 +206,10 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 				cacheMutex.Unlock()
 
 				// Try decode as envelope first
-				if err := json.Unmarshal(buf, out); err != nil {
+				if err := common.Unmarshal(buf, out); err != nil {
 					// Try decode as pure array
 					var arr []T
-					if err2 := json.Unmarshal(buf, &arr); err2 != nil {
+					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
 						return
 					}
@@ -205,9 +231,9 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 					lastErr = errors.New("cache miss for 304 response")
 					return
 				}
-				if err := json.Unmarshal(buf, out); err != nil {
+				if err := common.Unmarshal(buf, out); err != nil {
 					var arr []T
-					if err2 := json.Unmarshal(buf, &arr); err2 != nil {
+					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
 						return
 					}
@@ -373,13 +399,20 @@ func SyncUpstreamModels(c *gin.Context) {
 
 		// 创建模型
 		mi := &model.Model{
-			ModelName:   name,
-			Description: up.Description,
-			Icon:        up.Icon,
-			Tags:        up.Tags,
-			VendorID:    vendorID,
-			Status:      chooseStatus(up.Status, 1),
-			NameRule:    up.NameRule,
+			ModelName:        name,
+			Description:      up.Description,
+			Icon:             up.Icon,
+			Tags:             up.Tags,
+			VendorID:         vendorID,
+			ContextLength:    up.ContextLength,
+			MaxOutputTokens:  up.MaxOutputTokens,
+			KnowledgeCutoff:  up.KnowledgeCutoff,
+			ReleaseDate:      up.ReleaseDate,
+			ParameterCount:   up.ParameterCount,
+			InputModalities:  up.InputModalities,
+			OutputModalities: up.OutputModalities,
+			Status:           chooseStatus(up.Status, 1),
+			NameRule:         up.NameRule,
 		}
 		if err := mi.Insert(); err == nil {
 			createdModels++
@@ -437,6 +470,34 @@ func SyncUpstreamModels(c *gin.Context) {
 					local.Status = chooseStatus(up.Status, local.Status)
 					needUpdate = true
 				}
+				if containsField(ow.Fields, "context_length") && up.HasField("context_length") {
+					local.ContextLength = up.ContextLength
+					needUpdate = true
+				}
+				if containsField(ow.Fields, "max_output_tokens") && up.HasField("max_output_tokens") {
+					local.MaxOutputTokens = up.MaxOutputTokens
+					needUpdate = true
+				}
+				if containsField(ow.Fields, "knowledge_cutoff") && up.HasField("knowledge_cutoff") {
+					local.KnowledgeCutoff = up.KnowledgeCutoff
+					needUpdate = true
+				}
+				if containsField(ow.Fields, "release_date") && up.HasField("release_date") {
+					local.ReleaseDate = up.ReleaseDate
+					needUpdate = true
+				}
+				if containsField(ow.Fields, "parameter_count") && up.HasField("parameter_count") {
+					local.ParameterCount = up.ParameterCount
+					needUpdate = true
+				}
+				if containsField(ow.Fields, "input_modalities") && up.HasField("input_modalities") {
+					local.InputModalities = up.InputModalities
+					needUpdate = true
+				}
+				if containsField(ow.Fields, "output_modalities") && up.HasField("output_modalities") {
+					local.OutputModalities = up.OutputModalities
+					needUpdate = true
+				}
 				if !needUpdate {
 					return nil
 				}
@@ -476,6 +537,13 @@ func containsField(fields []string, key string) bool {
 		}
 	}
 	return false
+}
+
+func (m upstreamModel) HasField(key string) bool {
+	if len(m.PresentFields) == 0 {
+		return false
+	}
+	return m.PresentFields[key]
 }
 
 func coalesce(a, b string) string {
@@ -613,6 +681,27 @@ func SyncUpstreamPreview(c *gin.Context) {
 		}
 		if local.Status != chooseStatus(up.Status, local.Status) {
 			fields = append(fields, conflictField{Field: "status", Local: local.Status, Upstream: up.Status})
+		}
+		if up.HasField("context_length") && local.ContextLength != up.ContextLength {
+			fields = append(fields, conflictField{Field: "context_length", Local: local.ContextLength, Upstream: up.ContextLength})
+		}
+		if up.HasField("max_output_tokens") && local.MaxOutputTokens != up.MaxOutputTokens {
+			fields = append(fields, conflictField{Field: "max_output_tokens", Local: local.MaxOutputTokens, Upstream: up.MaxOutputTokens})
+		}
+		if up.HasField("knowledge_cutoff") && strings.TrimSpace(local.KnowledgeCutoff) != strings.TrimSpace(up.KnowledgeCutoff) {
+			fields = append(fields, conflictField{Field: "knowledge_cutoff", Local: local.KnowledgeCutoff, Upstream: up.KnowledgeCutoff})
+		}
+		if up.HasField("release_date") && strings.TrimSpace(local.ReleaseDate) != strings.TrimSpace(up.ReleaseDate) {
+			fields = append(fields, conflictField{Field: "release_date", Local: local.ReleaseDate, Upstream: up.ReleaseDate})
+		}
+		if up.HasField("parameter_count") && strings.TrimSpace(local.ParameterCount) != strings.TrimSpace(up.ParameterCount) {
+			fields = append(fields, conflictField{Field: "parameter_count", Local: local.ParameterCount, Upstream: up.ParameterCount})
+		}
+		if up.HasField("input_modalities") && strings.TrimSpace(local.InputModalities) != strings.TrimSpace(up.InputModalities) {
+			fields = append(fields, conflictField{Field: "input_modalities", Local: local.InputModalities, Upstream: up.InputModalities})
+		}
+		if up.HasField("output_modalities") && strings.TrimSpace(local.OutputModalities) != strings.TrimSpace(up.OutputModalities) {
+			fields = append(fields, conflictField{Field: "output_modalities", Local: local.OutputModalities, Upstream: up.OutputModalities})
 		}
 		if len(fields) > 0 {
 			conflicts = append(conflicts, conflictItem{ModelName: local.ModelName, Fields: fields})

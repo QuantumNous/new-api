@@ -93,6 +93,13 @@ const extendedModelFormSchema = z.object({
   tags: z.array(z.string()),
   vendor_id: z.number().optional(),
   endpoints: z.string(),
+  context_length: z.string().optional(),
+  max_output_tokens: z.string().optional(),
+  knowledge_cutoff: z.string().optional(),
+  release_date: z.string().optional(),
+  parameter_count: z.string().optional(),
+  input_modalities: z.string().optional(),
+  output_modalities: z.string().optional(),
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
@@ -215,6 +222,13 @@ export function ModelMutateDrawer({
       tags: [],
       vendor_id: undefined,
       endpoints: '',
+      context_length: '',
+      max_output_tokens: '',
+      knowledge_cutoff: '',
+      release_date: '',
+      parameter_count: '',
+      input_modalities: '',
+      output_modalities: '',
       name_rule: 0,
       status: true,
       sync_official: true,
@@ -259,6 +273,12 @@ export function ModelMutateDrawer({
     }
   }
 
+  const parseOptionalInteger = (value?: string) => {
+    if (!value || value.trim() === '') return 0
+    const parsed = parseInt(value, 10)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+
   // Load model data for editing and ratio configuration
   useEffect(() => {
     if (open && isEditing && modelData?.data) {
@@ -274,6 +294,15 @@ export function ModelMutateDrawer({
         tags: parseModelTags(model.tags),
         vendor_id: model.vendor_id,
         endpoints: model.endpoints || '',
+        context_length: model.context_length ? String(model.context_length) : '',
+        max_output_tokens: model.max_output_tokens
+          ? String(model.max_output_tokens)
+          : '',
+        knowledge_cutoff: model.knowledge_cutoff || '',
+        release_date: model.release_date || '',
+        parameter_count: model.parameter_count || '',
+        input_modalities: model.input_modalities || '',
+        output_modalities: model.output_modalities || '',
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
@@ -378,6 +407,13 @@ export function ModelMutateDrawer({
         tags: [],
         vendor_id: undefined,
         endpoints: '',
+        context_length: '',
+        max_output_tokens: '',
+        knowledge_cutoff: '',
+        release_date: '',
+        parameter_count: '',
+        input_modalities: '',
+        output_modalities: '',
         name_rule: 0,
         status: true,
         sync_official: true,
@@ -400,6 +436,13 @@ export function ModelMutateDrawer({
           ...values,
           id: isEditing ? currentRow!.id : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
+          context_length: parseOptionalInteger(values.context_length),
+          max_output_tokens: parseOptionalInteger(values.max_output_tokens),
+          knowledge_cutoff: values.knowledge_cutoff || '',
+          release_date: values.release_date || '',
+          parameter_count: values.parameter_count || '',
+          input_modalities: values.input_modalities || '',
+          output_modalities: values.output_modalities || '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
         }
@@ -782,6 +825,160 @@ export function ModelMutateDrawer({
                   </FormItem>
                 )}
               />
+            </SideDrawerSection>
+
+            {/* Display Metadata */}
+            <SideDrawerSection>
+              <h3 className='text-sm font-semibold'>
+                {t('Display Metadata')}
+              </h3>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='context_length'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Context length')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          inputMode='numeric'
+                          placeholder='128000'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value === '' || /^\d+$/.test(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum input window shown on the pricing page.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='max_output_tokens'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Max output tokens')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          inputMode='numeric'
+                          placeholder='16384'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value === '' || /^\d+$/.test(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum response tokens shown on the pricing page.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='knowledge_cutoff'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Knowledge cutoff')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='2025-12-01' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Use YYYY-MM or YYYY-MM-DD. Leave empty to hide.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='release_date'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Release date')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='2026-04-23' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Use YYYY-MM or YYYY-MM-DD. Leave empty to hide.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='parameter_count'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Parameter count')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='70B' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional display label, for example 70B or 405B.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='input_modalities'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Input modalities')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='text,image' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Comma separated: text, image, audio, video, file.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='output_modalities'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Output modalities')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='text' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Comma separated: text, image, audio, video, file.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </SideDrawerSection>
 
             {/* Matching Configuration */}
