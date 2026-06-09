@@ -417,6 +417,38 @@ func TestSetupRequestHeader_ImageForcesJSON(t *testing.T) {
 	}
 }
 
+// TestNormalizeImageAccepted asserts BlockRun's 202 Accepted (used for a
+// successful SYNCHRONOUS image response whose body carries the image) is
+// normalized to 200 for image relay modes — the generic ImageHelper only accepts
+// 200 — while non-image modes and non-202 statuses are left untouched.
+func TestNormalizeImageAccepted(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   int
+		mode     int
+		wantCode int
+	}{
+		{"202 + generations → 200", http.StatusAccepted, relayconstant.RelayModeImagesGenerations, http.StatusOK},
+		{"202 + edits → 200", http.StatusAccepted, relayconstant.RelayModeImagesEdits, http.StatusOK},
+		{"202 + chat → unchanged", http.StatusAccepted, relayconstant.RelayModeChatCompletions, http.StatusAccepted},
+		{"200 + generations → unchanged", http.StatusOK, relayconstant.RelayModeImagesGenerations, http.StatusOK},
+		{"500 + generations → unchanged", http.StatusInternalServerError, relayconstant.RelayModeImagesGenerations, http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &http.Response{StatusCode: tc.status}
+			info := &relaycommon.RelayInfo{RelayMode: tc.mode}
+			normalizeImageAccepted(resp, info)
+			if resp.StatusCode != tc.wantCode {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.wantCode)
+			}
+		})
+	}
+
+	// must not panic on nil response
+	normalizeImageAccepted(nil, &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations})
+}
+
 // ---------------------------------------------------------------------------
 // C) SetupRequestHeader — SECURITY: wallet private key must NEVER hit a header.
 // ---------------------------------------------------------------------------
