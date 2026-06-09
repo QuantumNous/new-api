@@ -14,20 +14,42 @@ DeepRouter is an independent product (not part of Airbotix). See [`docs/PRD.md`]
 
 The model-selection sidecar lives in a **separate repo** (`../smart-router/`, Apache 2.0) precisely to keep routing intelligence outside AGPL's viral scope. See `../CLAUDE.md` for the process-boundary rules.
 
-## What we customise (status as of 2026-05-23)
+## What we customise (status as of 2026-06-07, Sprint 1)
 
 We minimise core changes to keep upstream cherry-picking sustainable. All Airbotix-specific code lives in dedicated locations:
 
 | Path | Purpose | Status |
 |---|---|---|
-| `internal/policy/` | Decision engine — `DecisionFor(kidsMode, profile) → Decision` (6 boolean flags) | ✅ Implemented (78 LOC + tests) — wired via `relay/airbotix_policy.go` |
-| `internal/kids/` | Hard constraints: model whitelist, metadata strip, OpenAI ZDR, child-safe system prompt | ✅ Implemented (112 LOC + tests) — wired via `relay/airbotix_policy.go` |
-| `internal/smart_router_client/` | HTTP client for the smart-router sidecar, with circuit breaker and graceful degradation | ✅ Implemented (190 LOC + tests) — wired via `middleware/smart_router.go` |
-| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher with retry policy | ✅ Implemented (119 LOC + tests) — **NOT yet wired into relay path (Phase 2 in PLAN.md)** |
-| `relay/airbotix_policy.go` + test | Stitches policy + kids enforcement into OpenAI / Claude / Gemini / Responses request shapes | ✅ Wired |
+| `internal/policy/` | Decision engine — `DecisionFor(kidsMode, profile) → Decision` (6 boolean flags) | ✅ Done — wired via `relay/airbotix_policy.go` |
+| `internal/kids/` | Hard constraints: model whitelist, metadata strip, OpenAI ZDR, child-safe system prompt | ✅ Done — wired via `relay/airbotix_policy.go` |
+| `internal/smart_router_client/` | HTTP client for the smart-router sidecar, with circuit breaker and graceful degradation | ✅ Done — wired via `middleware/smart_router.go` |
+| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher with retry policy | ✅ Code + tests done — **NOT yet wired into relay path (Phase 2 in PLAN.md)** |
+| `relay/airbotix_policy.go` + test | Stitches policy + kids enforcement into OpenAI / Claude / Gemini / Responses request shapes | ✅ Wired, 20+ unit tests |
+| `relay/compatible_handler.go` | **Bug fix (2026-06-07)**: policy check moved BEFORE `ModelMappedHelper` so kids whitelist uses client-requested model name, not channel-remapped name. | ✅ Fixed (PR open) — ⚠️ same fix still needed in claude/responses/gemini handlers |
 | `middleware/smart_router.go` | Detects `deeprouter-auto` virtual model, calls smart_router_client, rewrites model name | ✅ Wired |
 | `model/user.go` | Extended with 5 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret` | ✅ Migration applies on boot |
 | `web/default/` | Admin UI — needs fields added for the 4 new User columns (Phase 1 work) | 🟡 Backend ready, UI pending |
+| `.dockerignore` | Added `web/default/node_modules` + `web/classic/node_modules` to cut build context from ~1.5 GB to ~40 MB | ✅ Fixed — PR pending |
+
+## Sprint 1 ticket status (5 Jun – 19 Jun 2026)
+
+| Ticket | Title | Status | Notes |
+|--------|-------|--------|-------|
+| DR-6 | `internal/billing` webhook dispatcher | ✅ Done | Code + tests. Not wired (Phase 2). |
+| DR-7 | `internal/kids` hard constraints | ✅ Done | Whitelist, ZDR, metadata strip, child-safe prompt. |
+| DR-8 | `internal/policy` decision engine | ✅ Done | `DecisionFor()` pure function + tests. |
+| DR-9 | e2e: same endpoint, different key → different policy | 🟡 PR open | chat completions path fixed + verified. claude/responses/gemini handlers still have ordering bug. |
+| DR-13 | Quota check RPM/TPM + staging deploy | ⏳ Not started | Next. |
+
+## Known bugs / open items
+
+### Policy ordering bug in non-chat handlers (HIGH)
+`applyAirbotixPolicy*` is called AFTER `helper.ModelMappedHelper` in three handlers:
+- `relay/claude_handler.go` (line 39 → line 45)
+- `relay/responses_handler.go` (line 63 → line 69)
+- `relay/gemini_handler.go` (line 69 → line 77)
+
+Effect: kids key + whitelisted model gets blocked if the channel remaps it to a non-whitelisted upstream name. Identical root cause as the bug fixed in `compatible_handler.go` (DR-9). Fix tracked in the same PR before merge.
 
 **Database changes**: extend NewAPI's existing `users` table with 5 columns. No new tables, no schema rewrite.
 
