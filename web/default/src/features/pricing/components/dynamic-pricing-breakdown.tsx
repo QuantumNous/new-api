@@ -22,13 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/data-table'
 import { StaticDataTable } from '@/components/data-table'
 import {
   BILLING_PRICING_VARS,
@@ -310,37 +303,34 @@ export function DynamicPricingBreakdown({
           <StaticDataTable
             className='hidden rounded-none border-0 sm:block'
             tableClassName='text-sm'
-          >
-            <TableHeader>
-              <TableRow className='hover:bg-transparent'>
-                <TableHead className='text-muted-foreground py-2 font-medium'>
-                  {t('Tier')}
-                </TableHead>
-                {visiblePriceFields.map((v) => (
-                  <TableHead
-                    key={v.field}
-                    className='text-muted-foreground py-2 text-right font-medium'
-                  >
-                    {t(v.shortLabel)}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tiers.map((tier, i) => {
-                const condSummary = formatConditionSummary(tier.conditions, t)
-                const isMatched =
-                  normalizedMatchedTierLabel !== '' &&
-                  normalizeTierLabel(tier.label) === normalizedMatchedTierLabel
-                return (
-                  <TableRow
-                    key={`tier-${i}`}
-                    className={cn(
-                      isMatched &&
-                        'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
-                    )}
-                  >
-                    <TableCell className='py-2.5 align-top'>
+            headerRowClassName='hover:bg-transparent'
+            data={tiers}
+            getRowKey={(_tier, index) => `tier-${index}`}
+            getRowClassName={(tier) => {
+              const isMatched =
+                normalizedMatchedTierLabel !== '' &&
+                normalizeTierLabel(tier.label) === normalizedMatchedTierLabel
+              return cn(
+                isMatched &&
+                  'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
+              )
+            }}
+            columns={[
+              {
+                id: 'tier',
+                header: t('Tier'),
+                className: 'text-muted-foreground py-2 font-medium',
+                cellClassName: 'py-2.5 align-top',
+                cell: (tier) => {
+                  const condSummary = formatConditionSummary(
+                    tier.conditions,
+                    t
+                  )
+                  const isMatched =
+                    normalizedMatchedTierLabel !== '' &&
+                    normalizeTierLabel(tier.label) === normalizedMatchedTierLabel
+                  return (
+                    <>
                       <div className='flex flex-wrap items-center gap-1.5'>
                         <Badge
                           variant='secondary'
@@ -362,31 +352,30 @@ export function DynamicPricingBreakdown({
                           {condSummary}
                         </div>
                       )}
-                    </TableCell>
-                    {visiblePriceFields.map((v) => {
-                      const value = Number(
-                        tier[v.field as string as keyof ParsedTier] || 0
-                      )
-                      return (
-                        <TableCell
-                          key={v.field}
-                          className='py-2.5 text-right align-top font-mono'
-                        >
-                          {value > 0 ? (
-                            <span className='font-semibold'>
-                              {`${symbol}${(value * rate).toFixed(4)}`}
-                            </span>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </StaticDataTable>
+                    </>
+                  )
+                },
+              },
+              ...visiblePriceFields.map((v, index) => ({
+                id: v.field ?? `price-${index}`,
+                header: t(v.shortLabel),
+                className: 'text-muted-foreground py-2 text-right font-medium',
+                cellClassName: 'py-2.5 text-right align-top font-mono',
+                cell: (tier: ParsedTier) => {
+                  const value = Number(
+                    tier[v.field as string as keyof ParsedTier] || 0
+                  )
+                  return value > 0 ? (
+                    <span className='font-semibold'>
+                      {`${symbol}${(value * rate).toFixed(4)}`}
+                    </span>
+                  ) : (
+                    '-'
+                  )
+                },
+              })),
+            ]}
+          />
         </div>
       )}
 

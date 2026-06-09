@@ -22,20 +22,11 @@ export { DataTableViewOptions } from './view-options'
 export { DataTableToolbar } from './toolbar'
 export { DataTableBulkActions } from './bulk-actions'
 export {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-export {
   StaticDataTable,
   StaticDataTableEmptyRow,
-  staticDataTableClassNames,
+  type StaticDataTableColumn,
 } from './static-data-table'
+export { staticDataTableClassNames } from './static-data-table-classnames'
 export {
   DataTableRow,
   DataTableView,
@@ -47,6 +38,7 @@ export {
 export { MobileCardList } from './mobile-card-list'
 export { DataTablePage, type DataTablePageProps } from './data-table-page'
 export { useDataTable } from './use-data-table'
+export { useDebouncedColumnFilter } from './use-debounced-column-filter'
 
 export const DISABLED_ROW_DESKTOP =
   'bg-muted/85 hover:bg-muted [&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1'

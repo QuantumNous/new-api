@@ -22,13 +22,6 @@ import { AlertTriangle, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/data-table'
-import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
@@ -256,53 +249,55 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           title={t('Per-group performance')}
           description={t('Average latency, TTFT, TPS, and success rate')}
         />
-        <StaticDataTable className='rounded-lg' tableClassName='text-sm'>
-          <TableHeader>
-            <TableRow className={tableStyles.compactHeaderRow}>
-              <TableHead className={tableStyles.compactHeaderCell}>
-                {t('Group')}
-              </TableHead>
-              <TableHead className={tableStyles.compactHeaderCellRight}>
-                TPS
-              </TableHead>
-              <TableHead className={tableStyles.compactHeaderCellRight}>
-                {t('Average TTFT')}
-              </TableHead>
-              <TableHead className={tableStyles.compactHeaderCellRight}>
-                {t('Average latency')}
-              </TableHead>
-              <TableHead
-                className={cn(tableStyles.compactHeaderCell, 'min-w-[180px]')}
-              >
-                {t('Success rate')}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {performances.map((perf) => (
-              <TableRow key={perf.group}>
-                <TableCell className={tableStyles.compactCell}>
-                  <GroupBadge group={perf.group} size='sm' />
-                </TableCell>
-                <TableCell className={tableStyles.compactNumericCell}>
-                  {formatThroughput(perf.avg_tps)}
-                </TableCell>
-                <TableCell className={tableStyles.compactNumericCell}>
-                  {formatLatency(perf.avg_ttft_ms)}
-                </TableCell>
-                <TableCell className={tableStyles.compactMutedNumericCell}>
-                  {formatLatency(perf.avg_latency_ms)}
-                </TableCell>
-                <TableCell className={tableStyles.compactCell}>
-                  <UptimeSparkline
-                    size='sm'
-                    series={uptimeByGroup[perf.group] ?? []}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </StaticDataTable>
+        <StaticDataTable
+          className='rounded-lg'
+          tableClassName='text-sm'
+          headerRowClassName={tableStyles.compactHeaderRow}
+          data={performances}
+          getRowKey={(perf) => perf.group}
+          columns={[
+            {
+              id: 'group',
+              header: t('Group'),
+              className: tableStyles.compactHeaderCell,
+              cellClassName: tableStyles.compactCell,
+              cell: (perf) => <GroupBadge group={perf.group} size='sm' />,
+            },
+            {
+              id: 'tps',
+              header: 'TPS',
+              className: tableStyles.compactHeaderCellRight,
+              cellClassName: tableStyles.compactNumericCell,
+              cell: (perf) => formatThroughput(perf.avg_tps),
+            },
+            {
+              id: 'ttft',
+              header: t('Average TTFT'),
+              className: tableStyles.compactHeaderCellRight,
+              cellClassName: tableStyles.compactNumericCell,
+              cell: (perf) => formatLatency(perf.avg_ttft_ms),
+            },
+            {
+              id: 'latency',
+              header: t('Average latency'),
+              className: tableStyles.compactHeaderCellRight,
+              cellClassName: tableStyles.compactMutedNumericCell,
+              cell: (perf) => formatLatency(perf.avg_latency_ms),
+            },
+            {
+              id: 'success',
+              header: t('Success rate'),
+              className: cn(tableStyles.compactHeaderCell, 'min-w-[180px]'),
+              cellClassName: tableStyles.compactCell,
+              cell: (perf) => (
+                <UptimeSparkline
+                  size='sm'
+                  series={uptimeByGroup[perf.group] ?? []}
+                />
+              ),
+            },
+          ]}
+        />
       </section>
 
       <section>

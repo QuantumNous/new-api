@@ -24,17 +24,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/data-table'
-import {
-  StaticDataTable,
-  StaticDataTableEmptyRow,
-} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const OPTION_KEY = 'tool_price_setting.prices'
@@ -263,37 +253,28 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
       </div>
 
       {editMode === 'visual' ? (
-        <StaticDataTable>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('Tool identifier')}</TableHead>
-              <TableHead className='w-[200px]'>
-                {t('Price ($/1K calls)')}
-              </TableHead>
-              <TableHead className='w-[80px] text-right'>
-                {t('Actions')}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <StaticDataTableEmptyRow
-                colSpan={3}
-                className='text-muted-foreground py-8'
-              >
-                {t('No tools configured')}
-              </StaticDataTableEmptyRow>
-            ) : (
-              rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
+        <StaticDataTable
+          data={rows}
+          getRowKey={(row) => row.id}
+          emptyClassName='text-muted-foreground py-8'
+          emptyContent={t('No tools configured')}
+          columns={[
+            {
+              id: 'tool',
+              header: t('Tool identifier'),
+              cell: (row) => (
                     <Input
                       value={row.key}
                       placeholder='web_search_preview:gpt-4o*'
                       onChange={(e) => updateRow(row.id, 'key', e.target.value)}
                     />
-                  </TableCell>
-                  <TableCell>
+              ),
+            },
+            {
+              id: 'price',
+              header: t('Price ($/1K calls)'),
+              className: 'w-[200px]',
+              cell: (row) => (
                     <Input
                       type='number'
                       min={0}
@@ -303,8 +284,14 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                         updateRow(row.id, 'price', Number(e.target.value) || 0)
                       }
                     />
-                  </TableCell>
-                  <TableCell className='text-right'>
+              ),
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-[80px] text-right',
+              cellClassName: 'text-right',
+              cell: (row) => (
                     <Button
                       variant='ghost'
                       size='icon'
@@ -313,12 +300,10 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                     >
                       <Trash2 className='text-destructive h-4 w-4' />
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </StaticDataTable>
+              ),
+            },
+          ]}
+        />
       ) : (
         <div className='space-y-2'>
           <Textarea

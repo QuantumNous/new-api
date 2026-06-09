@@ -28,13 +28,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  StaticDataTable,
 } from '@/components/data-table'
-import { StaticDataTable } from '@/components/data-table'
 
 export type ConflictItem = {
   channel: string
@@ -71,38 +66,42 @@ export function ConflictConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <StaticDataTable className='max-h-96 overflow-y-auto'>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('Channel')}</TableHead>
-              <TableHead>{t('Model')}</TableHead>
-              <TableHead>{t('Current Billing')}</TableHead>
-              <TableHead>{t('Change To')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {conflicts.map((conflict, index) => (
-              <TableRow key={index}>
-                <TableCell className='font-medium'>
-                  {conflict.channel}
-                </TableCell>
-                <TableCell className='font-mono text-sm'>
-                  {conflict.model}
-                </TableCell>
-                <TableCell>
+        <StaticDataTable
+          className='max-h-96 overflow-y-auto'
+          data={conflicts}
+          columns={[
+            {
+              id: 'channel',
+              header: t('Channel'),
+              cellClassName: 'font-medium',
+              cell: (conflict) => conflict.channel,
+            },
+            {
+              id: 'model',
+              header: t('Model'),
+              cellClassName: 'font-mono text-sm',
+              cell: (conflict) => conflict.model,
+            },
+            {
+              id: 'current',
+              header: t('Current Billing'),
+              cell: (conflict) => (
                   <pre className='text-sm whitespace-pre-wrap'>
                     {conflict.current}
                   </pre>
-                </TableCell>
-                <TableCell>
+              ),
+            },
+            {
+              id: 'new',
+              header: t('Change To'),
+              cell: (conflict) => (
                   <pre className='text-sm whitespace-pre-wrap'>
                     {conflict.newVal}
                   </pre>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </StaticDataTable>
+              ),
+            },
+          ]}
+        />
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>

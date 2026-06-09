@@ -16,11 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { type Table as TanstackTable } from '@tanstack/react-table'
-import { useDebounce } from '@/hooks'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -40,6 +38,7 @@ import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
   DataTablePage,
+  useDebouncedColumnFilter,
   useDataTable,
 } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
@@ -203,27 +202,15 @@ export function ApiKeysTable() {
     ],
   })
 
-  const tokenFilterFromUrl =
-    (columnFilters.find((f) => f.id === '_tokenSearch')?.value as string) || ''
-  const [tokenFilterInput, setTokenFilterInput] = useState(tokenFilterFromUrl)
-  const debouncedTokenFilter = useDebounce(tokenFilterInput, 500)
-
-  useEffect(() => {
-    setTokenFilterInput(tokenFilterFromUrl)
-  }, [tokenFilterFromUrl])
-
-  useEffect(() => {
-    if (debouncedTokenFilter !== tokenFilterFromUrl) {
-      onColumnFiltersChange((prev) => {
-        const filtered = prev.filter((f) => f.id !== '_tokenSearch')
-        return debouncedTokenFilter
-          ? [...filtered, { id: '_tokenSearch', value: debouncedTokenFilter }]
-          : filtered
-      })
-    }
-  }, [debouncedTokenFilter, tokenFilterFromUrl, onColumnFiltersChange])
-
-  const tokenFilter = tokenFilterFromUrl
+  const {
+    value: tokenFilter,
+    inputValue: tokenFilterInput,
+    setInputValue: setTokenFilterInput,
+  } = useDebouncedColumnFilter({
+    columnFilters,
+    columnId: '_tokenSearch',
+    onColumnFiltersChange,
+  })
   const shouldSearch = Boolean(globalFilter?.trim() || tokenFilter.trim())
 
   // Fetch data with React Query

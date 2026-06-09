@@ -21,13 +21,6 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/data-table'
 import { StaticDataTable } from '@/components/data-table'
 import {
   formatCreemPrice,
@@ -183,67 +176,80 @@ export function CreemProductsVisualEditor({
       ) : (
         <div className='rounded-md border'>
           {/* Desktop table view */}
-          <StaticDataTable className='hidden rounded-none border-0 md:block'>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Name')}</TableHead>
-                <TableHead>{t('Product ID')}</TableHead>
-                <TableHead>{t('Price')}</TableHead>
-                <TableHead>{t('Quota')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.productId}>
-                  <TableCell className='font-medium'>{product.name}</TableCell>
-                  <TableCell>
-                    <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
-                      {product.productId}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <span className='font-mono text-sm'>
-                      {formatCreemPrice(product.price, product.currency)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className='font-mono text-sm'>
-                      {formatQuotaShort(product.quota)}
-                    </span>
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <div className='flex justify-end gap-2'>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleEdit(product)
-                        }}
-                      >
-                        <Pencil className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleDelete(product)
-                        }}
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </StaticDataTable>
+          <StaticDataTable
+            className='hidden rounded-none border-0 md:block'
+            data={filteredProducts}
+            getRowKey={(product) => product.productId}
+            columns={[
+              {
+                id: 'name',
+                header: t('Name'),
+                cellClassName: 'font-medium',
+                cell: (product) => product.name,
+              },
+              {
+                id: 'product-id',
+                header: t('Product ID'),
+                cell: (product) => (
+                  <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                    {product.productId}
+                  </code>
+                ),
+              },
+              {
+                id: 'price',
+                header: t('Price'),
+                cell: (product) => (
+                  <span className='font-mono text-sm'>
+                    {formatCreemPrice(product.price, product.currency)}
+                  </span>
+                ),
+              },
+              {
+                id: 'quota',
+                header: t('Quota'),
+                cell: (product) => (
+                  <span className='font-mono text-sm'>
+                    {formatQuotaShort(product.quota)}
+                  </span>
+                ),
+              },
+              {
+                id: 'actions',
+                header: t('Actions'),
+                className: 'text-right',
+                cellClassName: 'text-right',
+                cell: (product) => (
+                  <div className='flex justify-end gap-2'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleEdit(product)
+                      }}
+                    >
+                      <Pencil className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDelete(product)
+                      }}
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+          />
 
           {/* Mobile card view */}
           <div className='divide-y md:hidden'>

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -24,7 +24,7 @@ import {
   type SortingState,
   type Row,
 } from '@tanstack/react-table'
-import { useDebounce, useMediaQuery } from '@/hooks'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
@@ -33,6 +33,7 @@ import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
   DataTablePage,
+  useDebouncedColumnFilter,
   useDataTable,
 } from '@/components/data-table'
 import { getChannels, searchChannels, getGroups } from '../api'
@@ -106,35 +107,21 @@ export function ChannelsTable() {
   // Extract filters from column filters
   const statusFilter =
     (columnFilters.find((f) => f.id === 'status')?.value as string[]) || []
-  const typeFilter =
-    (columnFilters.find((f) => f.id === 'type')?.value as string[]) || []
+  const typeFilter = useMemo(
+    () => (columnFilters.find((f) => f.id === 'type')?.value as string[]) || [],
+    [columnFilters]
+  )
   const groupFilter =
     (columnFilters.find((f) => f.id === 'group')?.value as string[]) || []
-  const modelFilterFromUrl =
-    (columnFilters.find((f) => f.id === 'model')?.value as string) || ''
-
-  // Local state for immediate input feedback
-  const [modelFilterInput, setModelFilterInput] = useState(modelFilterFromUrl)
-  const debouncedModelFilter = useDebounce(modelFilterInput, 500)
-
-  // Sync local input with URL when URL changes (e.g., from back/forward navigation)
-  useEffect(() => {
-    setModelFilterInput(modelFilterFromUrl)
-  }, [modelFilterFromUrl])
-
-  // Update URL when debounced value changes
-  useEffect(() => {
-    if (debouncedModelFilter !== modelFilterFromUrl) {
-      onColumnFiltersChange((prev) => {
-        const filtered = prev.filter((f) => f.id !== 'model')
-        return debouncedModelFilter
-          ? [...filtered, { id: 'model', value: debouncedModelFilter }]
-          : filtered
-      })
-    }
-  }, [debouncedModelFilter, modelFilterFromUrl, onColumnFiltersChange])
-
-  const modelFilter = modelFilterFromUrl
+  const {
+    value: modelFilter,
+    inputValue: modelFilterInput,
+    setInputValue: setModelFilterInput,
+  } = useDebouncedColumnFilter({
+    columnFilters,
+    columnId: 'model',
+    onColumnFiltersChange,
+  })
 
   // Determine whether to use search or regular list API
   const shouldSearch = Boolean(globalFilter?.trim() || modelFilter.trim())

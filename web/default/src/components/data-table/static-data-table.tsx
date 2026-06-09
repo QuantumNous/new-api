@@ -18,39 +18,27 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { Table, TableCell, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { staticDataTableClassNames } from './static-data-table-classnames'
 
-export const staticDataTableClassNames = {
-  container: 'overflow-hidden rounded-md border',
-  sectionContainer: 'border-border/60 rounded-lg',
-  embeddedContainer: 'rounded-none border-0',
-  compactTable: 'text-sm',
-  compactHeaderRow: 'hover:bg-transparent',
-  mutedHeaderRow: 'bg-muted/30 hover:bg-muted/30',
-  compactHeaderCell:
-    'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
-  compactHeaderCellRight:
-    'text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase',
-  compactCell: 'py-2.5',
-  compactTopCell: 'py-2.5 align-top',
-  compactTopNumericCell: 'py-2.5 text-right align-top font-mono',
-  compactMutedCell: 'text-muted-foreground py-2.5',
-  compactMutedCodeCell: 'text-muted-foreground py-2.5 font-mono',
-  compactNumericCell: 'py-2.5 text-right font-mono',
-  compactMutedNumericCell: 'text-muted-foreground py-2.5 text-right font-mono',
-  topCell: 'py-2 align-top',
-  topMutedCell: 'text-muted-foreground py-2 align-top',
-  codeCell: 'font-mono text-sm',
-  mutedCell: 'text-muted-foreground text-sm',
-  mutedCodeCell: 'text-muted-foreground font-mono text-sm',
-  topNumericCell: 'py-2 text-right font-mono',
-  mediumCell: 'font-medium',
-  actionHeaderCell: 'text-right',
-  actionCell: 'text-right',
-} as const
-
-type StaticDataTableProps = {
-  children: React.ReactNode
+type StaticDataTableProps<TData = unknown> = {
+  children?: React.ReactNode
+  columns?: StaticDataTableColumn<TData>[]
+  data?: TData[]
+  getRowKey?: (row: TData, index: number) => React.Key
+  getRowClassName?: (row: TData, index: number) => string | undefined
+  renderRow?: (row: TData, index: number) => React.ReactNode
+  empty?: boolean
+  emptyContent?: React.ReactNode
+  emptyClassName?: string
+  headerRowClassName?: string
   className?: string
   tableClassName?: string
   containerProps?: Omit<React.ComponentProps<'div'>, 'className' | 'children'>
@@ -60,20 +48,93 @@ type StaticDataTableProps = {
   >
 }
 
-export function StaticDataTable({
+export type StaticDataTableColumn<TData = unknown> = {
+  id: string
+  header: React.ReactNode
+  className?: string
+  cellClassName?: string | ((row: TData, index: number) => string | undefined)
+  cell?: (row: TData, index: number) => React.ReactNode
+}
+
+export function StaticDataTable<TData = unknown>({
   children,
+  columns,
+  data,
+  getRowKey,
+  getRowClassName,
+  renderRow,
+  empty,
+  emptyContent,
+  emptyClassName,
+  headerRowClassName,
   className,
   tableClassName,
   containerProps,
   tableProps,
-}: StaticDataTableProps) {
+}: StaticDataTableProps<TData>) {
+  const rows = data
+    ? data.map((row, index) => {
+        const key = getRowKey?.(row, index) ?? index
+
+        if (renderRow) {
+          return <React.Fragment key={key}>{renderRow(row, index)}</React.Fragment>
+        }
+
+        return (
+          <TableRow key={key} className={getRowClassName?.(row, index)}>
+            {columns?.map((column) => {
+              const cellClassName =
+                typeof column.cellClassName === 'function'
+                  ? column.cellClassName(row, index)
+                  : column.cellClassName
+
+              return (
+                <TableCell key={column.id} className={cellClassName}>
+                  {column.cell?.(row, index)}
+                </TableCell>
+              )
+            })}
+          </TableRow>
+        )
+      })
+    : children
+  const isEmpty = empty ?? (data !== undefined && data.length === 0)
+
+  const content = columns ? (
+    <>
+      <TableHeader>
+        <TableRow className={headerRowClassName}>
+          {columns.map((column) => (
+            <TableHead key={column.id} className={column.className}>
+              {column.header}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {isEmpty ? (
+          <StaticDataTableEmptyRow
+            colSpan={columns.length}
+            className={emptyClassName}
+          >
+            {emptyContent}
+          </StaticDataTableEmptyRow>
+        ) : (
+          rows
+        )}
+      </TableBody>
+    </>
+  ) : (
+    rows
+  )
+
   return (
     <div
       className={cn(staticDataTableClassNames.container, className)}
       {...containerProps}
     >
       <Table className={tableClassName} {...tableProps}>
-        {children}
+        {content}
       </Table>
     </div>
   )

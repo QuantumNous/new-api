@@ -32,17 +32,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/data-table'
-import {
-  StaticDataTable,
-  StaticDataTableEmptyRow,
-} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { SettingsSwitchField } from '../../components/settings-form-layout'
@@ -549,114 +539,117 @@ export function ChannelAffinitySection(props: Props) {
 
         {/* Rules Table or JSON Editor */}
         {editMode === 'visual' ? (
-          <StaticDataTable tableClassName='min-w-max'>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Name')}</TableHead>
-                <TableHead>{t('Model Regex')}</TableHead>
-                <TableHead>{t('Key Sources')}</TableHead>
-                <TableHead>{t('TTL')}</TableHead>
-                <TableHead>{t('Retry')}</TableHead>
-                <TableHead>{t('Scope')}</TableHead>
-                <TableHead>{t('Cache')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rules.length === 0 ? (
-                <StaticDataTableEmptyRow
-                  colSpan={8}
-                  className='text-muted-foreground py-8'
-                >
-                  {t('No rules yet')}
-                </StaticDataTableEmptyRow>
-              ) : (
-                rules.map((rule, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className='font-medium'>
-                      {rule.name || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <RuleBadgeList items={rule.model_regex || []} />
-                    </TableCell>
-                    <TableCell>
-                      <RuleBadgeList
-                        items={(rule.key_sources || []).map(
-                          (src) =>
-                            `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>{rule.ttl_seconds || '-'}</TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        label={
-                          rule.skip_retry_on_failure
-                            ? t('No Retry')
-                            : t('Retry')
-                        }
-                        variant={
-                          rule.skip_retry_on_failure ? 'danger' : 'neutral'
-                        }
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const scopeItems = [
-                          rule.include_using_group && t('Group'),
-                          rule.include_model_name && t('Model'),
-                          rule.include_rule_name && t('Rule'),
-                        ].filter(Boolean) as string[]
-                        if (scopeItems.length === 0) return '-'
-                        return <RuleBadgeList items={scopeItems} />
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {rule.include_rule_name && cacheStats?.by_rule_name
-                        ? cacheStats.by_rule_name[rule.name] || 0
-                        : 'N/A'}
-                    </TableCell>
-                    <TableCell className='text-right'>
-                      <div className='flex justify-end gap-1'>
-                        {rule.include_rule_name && (
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='h-7 w-7'
-                            onClick={() => setClearRuleName(rule.name)}
-                            title={t('Clear cache for this rule')}
-                          >
-                            <X className='h-3 w-3' />
-                          </Button>
-                        )}
-                        <Button
-                          variant='ghost'
-                          size='icon'
-                          className='h-7 w-7'
-                          onClick={() => {
-                            setEditingRule(rule)
-                            setRuleTemplateKey(null)
-                            setRuleEditorOpen(true)
-                          }}
-                        >
-                          <Edit className='h-3 w-3' />
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          size='icon'
-                          className='h-7 w-7'
-                          onClick={() => handleDeleteRule(idx)}
-                        >
-                          <Trash2 className='h-3 w-3' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </StaticDataTable>
+          <StaticDataTable
+            tableClassName='min-w-max'
+            data={rules}
+            emptyClassName='text-muted-foreground py-8'
+            emptyContent={t('No rules yet')}
+            columns={[
+              {
+                id: 'name',
+                header: t('Name'),
+                cellClassName: 'font-medium',
+                cell: (rule) => rule.name || '-',
+              },
+              {
+                id: 'model-regex',
+                header: t('Model Regex'),
+                cell: (rule) => <RuleBadgeList items={rule.model_regex || []} />,
+              },
+              {
+                id: 'key-sources',
+                header: t('Key Sources'),
+                cell: (rule) => (
+                  <RuleBadgeList
+                    items={(rule.key_sources || []).map(
+                      (src) =>
+                        `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
+                    )}
+                  />
+                ),
+              },
+              {
+                id: 'ttl',
+                header: t('TTL'),
+                cell: (rule) => rule.ttl_seconds || '-',
+              },
+              {
+                id: 'retry',
+                header: t('Retry'),
+                cell: (rule) => (
+                  <StatusBadge
+                    label={
+                      rule.skip_retry_on_failure ? t('No Retry') : t('Retry')
+                    }
+                    variant={rule.skip_retry_on_failure ? 'danger' : 'neutral'}
+                    copyable={false}
+                  />
+                ),
+              },
+              {
+                id: 'scope',
+                header: t('Scope'),
+                cell: (rule) => {
+                  const scopeItems = [
+                    rule.include_using_group && t('Group'),
+                    rule.include_model_name && t('Model'),
+                    rule.include_rule_name && t('Rule'),
+                  ].filter(Boolean) as string[]
+                  if (scopeItems.length === 0) return '-'
+                  return <RuleBadgeList items={scopeItems} />
+                },
+              },
+              {
+                id: 'cache',
+                header: t('Cache'),
+                cell: (rule) =>
+                  rule.include_rule_name && cacheStats?.by_rule_name
+                    ? cacheStats.by_rule_name[rule.name] || 0
+                    : 'N/A',
+              },
+              {
+                id: 'actions',
+                header: t('Actions'),
+                className: 'text-right',
+                cellClassName: 'text-right',
+                cell: (rule, idx) => (
+                  <div className='flex justify-end gap-1'>
+                    {rule.include_rule_name && (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7'
+                        onClick={() => setClearRuleName(rule.name)}
+                        title={t('Clear cache for this rule')}
+                      >
+                        <X className='h-3 w-3' />
+                      </Button>
+                    )}
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-7 w-7'
+                      onClick={() => {
+                        setEditingRule(rule)
+                        setRuleTemplateKey(null)
+                        setRuleEditorOpen(true)
+                      }}
+                    >
+                      <Edit className='h-3 w-3' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-7 w-7'
+                      onClick={() => handleDeleteRule(idx)}
+                    >
+                      <Trash2 className='h-3 w-3' />
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+          />
         ) : (
           <div className='grid gap-1.5'>
             <Label>{t('Rules JSON')}</Label>
