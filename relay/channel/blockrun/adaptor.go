@@ -47,11 +47,13 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -87,10 +89,18 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.claudeAdaptor.Init(info)
 }
 
-// GetRequestURL builds the upstream URL by inbound format. VIP native passthrough
-// supports only Anthropic (/v1/messages) and OpenAI (/v1/chat/completions);
-// Gemini is rejected.
+// GetRequestURL builds the upstream URL. Image relay modes are dispatched first
+// to BlockRun's dedicated image endpoints (independent of RelayFormat); the rest
+// is VIP native passthrough: Anthropic → /v1/messages, OpenAI → /v1/chat/completions,
+// Gemini rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations:
+		return fmt.Sprintf("%s/v1/images/generations", info.ChannelBaseUrl), nil
+	case relayconstant.RelayModeImagesEdits:
+		// BlockRun img2img / multi-image fusion endpoint (JSON + base64).
+		return fmt.Sprintf("%s/v1/images/image2image", info.ChannelBaseUrl), nil
+	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
 		requestURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
@@ -138,6 +148,14 @@ func shouldAppendClaudeBetaQuery(info *relaycommon.RelayInfo) bool {
 // Authentication is the EIP-712 x402 signature, never a transmitted secret.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+
+	// Image legs always send a JSON body (generations passthrough / image2image),
+	// so force application/json. channel.SetupApiRequestHeader copies the inbound
+	// Content-Type verbatim, which would otherwise forward a multipart/form-data
+	// header (from a multipart edits request) over our JSON body and break parsing.
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+		req.Set("Content-Type", "application/json")
+	}
 
 	if info.RelayFormat == types.RelayFormatClaude {
 		// Native Anthropic Messages API leg. Use the client's incoming
@@ -208,8 +226,49 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	return nil, errors.New("blockrun: audio not supported")
 }
 
+// ConvertImageRequest dispatches by image relay mode. Text-to-image
+// (generations) is an OpenAI-compatible JSON passthrough → /v1/images/generations.
+// Image-to-image (edits) is mapped to BlockRun's /v1/images/image2image body
+// (JSON + base64 data URI); multipart binary uploads are not supported.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("blockrun: image not supported")
+	if request.Model == "" {
+		return nil, errors.New("blockrun: image model is required")
+	}
+	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations:
+		// OpenAI-compatible text-to-image: pass the request through unchanged.
+		return a.openaiAdaptor.ConvertImageRequest(c, info, request)
+	case relayconstant.RelayModeImagesEdits:
+		return buildImage2ImageBody(&request)
+	default:
+		return nil, errors.New("blockrun: unsupported image relay mode")
+	}
+}
+
+// buildImage2ImageBody validates an inbound OpenAI-style edit request and returns
+// it for a JSON passthrough to BlockRun's /v1/images/image2image. The source image
+// lives under the `image` key (dto.ImageRequest tag): a single base64 data URI as
+// a string, or an array for multi-image fusion. All modeled dto.ImageRequest fields
+// (quality, response_format, size, n, …) are forwarded; note that any unknown
+// client fields land in ImageRequest.Extra, which ImageRequest.MarshalJSON does
+// NOT re-emit, so they are dropped. Two fail-fast guards apply: a usable `image`
+// is required (multipart binary uploads are not supported — it must be a JSON
+// base64 data URI), and `mask` cannot be combined with multiple source images
+// (BlockRun constraint).
+func buildImage2ImageBody(req *dto.ImageRequest) (any, error) {
+	image := req.Image // json.RawMessage: a base64 data URI string or an array
+	// Reject absent / explicit-null / empty-string image. A raw len() check would
+	// accept `null` (4 bytes) and `""` (2 bytes) and pay the upstream for an
+	// imageless request; JsonRawMessageToString normalises both to "".
+	if common.JsonRawMessageToString(image) == "" {
+		return nil, errors.New("blockrun: image2image requires `image` as a base64 data URI string (or an array for fusion) in a JSON body; multipart upload is not supported")
+	}
+	// Treat an explicit JSON null mask as absent so it doesn't falsely trip the
+	// mask-vs-multi-image guard.
+	if common.JsonRawMessageToString(req.Mask) != "" && common.GetJsonType(image) == "array" {
+		return nil, errors.New("blockrun: `mask` cannot be combined with multiple source images")
+	}
+	return *req, nil
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {

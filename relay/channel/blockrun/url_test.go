@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -122,6 +123,61 @@ func TestGetRequestURL_ClaudeBetaQuery(t *testing.T) {
 			}
 			if got != "https://blockrun.ai/api/v1/messages?beta=true" {
 				t.Fatalf("got %q, want beta query appended", got)
+			}
+		})
+	}
+}
+
+// TestGetRequestURL_ImageModes verifies image relay modes route to BlockRun's
+// dedicated image endpoints, independent of RelayFormat:
+//   - RelayModeImagesGenerations → /v1/images/generations (text-to-image)
+//   - RelayModeImagesEdits        → /v1/images/image2image (img2img / fusion)
+func TestGetRequestURL_ImageModes(t *testing.T) {
+	a := &Adaptor{}
+	cases := []struct {
+		name string
+		info *relaycommon.RelayInfo
+		want string
+	}{
+		{
+			name: "images generations → /v1/images/generations",
+			info: &relaycommon.RelayInfo{
+				RelayMode:      relayconstant.RelayModeImagesGenerations,
+				RequestURLPath: "/v1/images/generations",
+				RelayFormat:    types.RelayFormatOpenAI,
+				ChannelMeta:    &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+			},
+			want: "https://blockrun.ai/api/v1/images/generations",
+		},
+		{
+			name: "images edits → /v1/images/image2image",
+			info: &relaycommon.RelayInfo{
+				RelayMode:      relayconstant.RelayModeImagesEdits,
+				RequestURLPath: "/v1/images/edits",
+				RelayFormat:    types.RelayFormatOpenAI,
+				ChannelMeta:    &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+			},
+			want: "https://blockrun.ai/api/v1/images/image2image",
+		},
+		{
+			name: "images generations with custom base URL",
+			info: &relaycommon.RelayInfo{
+				RelayMode:      relayconstant.RelayModeImagesGenerations,
+				RequestURLPath: "/v1/images/generations",
+				RelayFormat:    types.RelayFormatOpenAI,
+				ChannelMeta:    &relaycommon.ChannelMeta{ChannelBaseUrl: "https://proxy.example.com/blockrun"},
+			},
+			want: "https://proxy.example.com/blockrun/v1/images/generations",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := a.GetRequestURL(tc.info)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
 			}
 		})
 	}
