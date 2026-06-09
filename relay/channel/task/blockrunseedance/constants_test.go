@@ -44,3 +44,14 @@ func TestSupportsRealFaceAsset_WireNames(t *testing.T) {
 		}
 	}
 }
+
+// Production verification observed the async video gateway advertising a 600s
+// x402 authorization window. The video window cap MUST cover it, or every video
+// submit is refused before signing (the 300s chat cap rejected it in prod).
+func TestVideoAuthorizationWindowCoversUpstream(t *testing.T) {
+	const observedUpstreamWindow = 600
+	if maxAuthorizationWindowSecondsVideo < observedUpstreamWindow {
+		t.Fatalf("video window cap %ds is below the observed upstream window %ds",
+			maxAuthorizationWindowSecondsVideo, observedUpstreamWindow)
+	}
+}
