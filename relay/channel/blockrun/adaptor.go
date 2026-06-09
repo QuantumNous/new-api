@@ -309,7 +309,16 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		return nil, fmt.Errorf("blockrun: get request url: %w", urlErr)
 	}
 
-	paymentB64, signErr := SignX402Payment(firstResp, info.ApiKey, fullURL)
+	// Synchronous image endpoints advertise a longer authorization window (BlockRun
+	// holds the request open while generating), so raise the window cap for them;
+	// chat keeps the default 300s window. Amount cap stays at the default $1.
+	var paymentB64 string
+	var signErr error
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+		paymentB64, signErr = SignX402PaymentWithCaps(firstResp, info.ApiKey, fullURL, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds)
+	} else {
+		paymentB64, signErr = SignX402Payment(firstResp, info.ApiKey, fullURL)
+	}
 	if signErr != nil {
 		return nil, signErr
 	}
