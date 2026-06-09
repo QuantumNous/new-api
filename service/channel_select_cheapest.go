@@ -29,34 +29,40 @@ const AutoCheapestGroup = "default"
 // should map that to a 503 / model-not-found response.
 func SelectCheapestEnabledChannel(c *gin.Context, modelName string) (*model.Channel, error) {
 	bannedIDs := bannedChannelIDsFromContext(c)
+	filter := ChannelPickFilter(c, modelName)
+	const maxAttempts = 32
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		id1, price1, ok1 := selectCheapestByPricingCandidates(modelName, ModelNameCandidates(modelName), bannedIDs)
+		id2, price2, ok2 := selectCheapestByModelMapping(modelName, bannedIDs)
 
-	id1, price1, ok1 := selectCheapestByPricingCandidates(modelName, ModelNameCandidates(modelName), bannedIDs)
-	id2, price2, ok2 := selectCheapestByModelMapping(modelName, bannedIDs)
-
-	var pickedID int
-	switch {
-	case ok1 && ok2:
-		if price2 < price1 {
+		var pickedID int
+		switch {
+		case ok1 && ok2:
+			if price2 < price1 {
+				pickedID = id2
+			} else if price1 < price2 {
+				pickedID = id1
+			} else {
+				pickedID = id1
+			}
+		case ok1:
+			pickedID = id1
+		case ok2:
 			pickedID = id2
-		} else if price1 < price2 {
-			pickedID = id1
-		} else {
-			// Tie on price — prefer higher priority (handled inside each selector via ORDER BY)
-			pickedID = id1
+		default:
+			return nil, ErrNoCheapestChannel
 		}
-	case ok1:
-		pickedID = id1
-	case ok2:
-		pickedID = id2
-	default:
-		return nil, ErrNoCheapestChannel
-	}
 
-	ch, err := model.GetChannelById(pickedID, true)
-	if err != nil {
-		return nil, fmt.Errorf("auto-cheapest load channel %d: %w", pickedID, err)
+		ch, err := model.GetChannelById(pickedID, true)
+		if err != nil {
+			return nil, fmt.Errorf("auto-cheapest load channel %d: %w", pickedID, err)
+		}
+		if filter == nil || filter(ch) {
+			return ch, nil
+		}
+		bannedIDs = append(bannedIDs, pickedID)
 	}
-	return ch, nil
+	return nil, ErrNoCheapestChannel
 }
 
 // ErrNoCheapestChannel signals "no candidate fits" — distinct sentinel so the

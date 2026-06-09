@@ -80,6 +80,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	appendChannelActualPrice(relayInfo, other)
+	if ctx != nil && relayInfo != nil {
+		AppendCodexClientLogInfo(ctx, relayInfo.OriginModelName, other)
+	}
 	return other
 }
 
