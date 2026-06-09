@@ -195,12 +195,21 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   )
 
   React.useEffect(() => {
-    if (searchDebounceMs <= 0 || isSearchComposingRef.current) {
+    if (
+      searchDebounceMs <= 0 ||
+      isSearchComposingRef.current ||
+      debouncedSearchValue !== pendingSearchValue
+    ) {
       return
     }
 
     commitSearchValue(debouncedSearchValue)
-  }, [commitSearchValue, debouncedSearchValue, searchDebounceMs])
+  }, [
+    commitSearchValue,
+    debouncedSearchValue,
+    pendingSearchValue,
+    searchDebounceMs,
+  ])
 
   const queueSearchValue = (value: string) => {
     setPendingSearchValue(value)

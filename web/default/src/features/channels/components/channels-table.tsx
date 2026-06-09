@@ -147,7 +147,10 @@ export function ChannelsTable() {
 
   // Update URL when debounced value changes
   useEffect(() => {
-    if (debouncedModelFilter !== modelFilterFromUrl) {
+    if (
+      debouncedModelFilter === modelFilterPendingValue &&
+      debouncedModelFilter !== modelFilterFromUrl
+    ) {
       onColumnFiltersChange((prev) => {
         const filtered = prev.filter((f) => f.id !== 'model')
         return debouncedModelFilter
@@ -155,7 +158,12 @@ export function ChannelsTable() {
           : filtered
       })
     }
-  }, [debouncedModelFilter, modelFilterFromUrl, onColumnFiltersChange])
+  }, [
+    debouncedModelFilter,
+    modelFilterFromUrl,
+    modelFilterPendingValue,
+    onColumnFiltersChange,
+  ])
 
   const handleModelFilterChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value
