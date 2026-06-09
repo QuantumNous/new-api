@@ -30,6 +30,11 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/refund-policy", controller.GetRefundPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
+		blogRoute := apiRouter.Group("/blog")
+		{
+			blogRoute.GET("/list", controller.GetBlogList)
+			blogRoute.GET("/detail/:slug", controller.GetBlogPost)
+		}
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)

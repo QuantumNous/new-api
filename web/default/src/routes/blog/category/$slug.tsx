@@ -16,19 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TopNavLink } from '../types'
+import { createFileRoute } from '@tanstack/react-router'
+import { BlogCategoryPage } from '@/features/blog'
 
-/**
- * Default top navigation links
- *
- * In practice, navigation links are dynamically fetched from backend.
- * Priority: Backend dynamic links > Provided navLinks > defaultTopNavLinks
- *
- * If backend configuration is unavailable, keep public product routes discoverable.
- */
-export const defaultTopNavLinks: TopNavLink[] = [
-  {
-    title: 'Blog',
-    href: '/blog',
-  },
-]
+function validateBlogCategorySearch(search: Record<string, unknown>) {
+  const page = Number(search.page)
+  return {
+    page: Number.isFinite(page) && page > 1 ? page : undefined,
+    q: typeof search.q === 'string' ? search.q : undefined,
+  }
+}
+
+export const Route = createFileRoute('/blog/category/$slug')({
+  validateSearch: validateBlogCategorySearch,
+  component: BlogCategoryRoute,
+})
+
+function BlogCategoryRoute() {
+  const params = Route.useParams()
+  const search = Route.useSearch()
+  return <BlogCategoryPage slug={params.slug} search={search} />
+}

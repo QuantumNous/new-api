@@ -122,6 +122,8 @@ const rootElement = document.getElementById('root')!
       return trimmedName === 'New API' ? 'Flatkey AI' : trimmedName
     }
     const apply = (name: string) => {
+      const path = window.location.pathname
+      if (path === '/blog' || path.startsWith('/blog/')) return
       const title = normalizePublicTitle(name)
       document.title = title
       const metaTitle = document.querySelector(

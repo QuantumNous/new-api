@@ -16,19 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TopNavLink } from '../types'
 
-/**
- * Default top navigation links
- *
- * In practice, navigation links are dynamically fetched from backend.
- * Priority: Backend dynamic links > Provided navLinks > defaultTopNavLinks
- *
- * If backend configuration is unavailable, keep public product routes discoverable.
- */
-export const defaultTopNavLinks: TopNavLink[] = [
-  {
-    title: 'Blog',
-    href: '/blog',
-  },
-]
+export function formatBlogDate(
+  value: string | undefined,
+  length: 'short' | 'long'
+): string {
+  if (!value) {
+    return ''
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  const month = length === 'long' ? 'long' : 'short'
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month,
+    day: 'numeric',
+  }).format(date)
+}
