@@ -1637,6 +1637,19 @@ export function renderTaskBillingProcess(other, content) {
   ]);
 }
 
+export function renderTaskRefundProcess(other, quota, content) {
+  const lines = [`${i18next.t('退款')}：${renderQuota(quota, 6)}`];
+  if (other?.pre_consumed_quota != null && other?.actual_quota != null) {
+    lines.push(
+        `${i18next.t('预扣')} ${renderQuota(other.pre_consumed_quota, 6)} → ${i18next.t('实际扣费')} ${renderQuota(other.actual_quota, 6)}`,
+    );
+  }
+  if (content) {
+    lines.push(content);
+  }
+  return renderBillingArticle(lines, { showReferenceNote: false });
+}
+
 export function renderModelPrice(opts) {
   const {
     prompt_tokens: inputTokens = 0,
