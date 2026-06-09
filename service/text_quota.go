@@ -68,6 +68,15 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	return summary.CacheCreationTokens
 }
 
+// CacheHitRatio returns cache_read / (input + cache_read + cache_creation) for usage logs.
+func CacheHitRatio(promptTokens, cacheReadTokens, cacheCreationTokens int) float64 {
+	denom := promptTokens + cacheReadTokens + cacheCreationTokens
+	if denom <= 0 {
+		return 0
+	}
+	return float64(cacheReadTokens) / float64(denom)
+}
+
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
 	if relayInfo == nil || usage == nil {
 		return false
@@ -447,6 +456,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// If split 5m/1h values are present, this is their sum; otherwise it falls back
 		// to cache_creation_tokens.
 		other["cache_write_tokens"] = cacheWriteTokens
+	}
+	if ratio := CacheHitRatio(summary.PromptTokens, summary.CacheTokens, cacheWriteTokens); ratio > 0 || summary.CacheTokens > 0 || cacheWriteTokens > 0 {
+		other["cache_hit_ratio"] = ratio
 	}
 	if relayInfo.GetFinalRequestRelayFormat() != types.RelayFormatClaude && usage != nil && usage.UsageSource != "" && usage.InputTokens > 0 {
 		// input_tokens_total: explicit normalized total input used by the usage log UI.

@@ -439,3 +439,9 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
 	require.Equal(t, 14500, quota)
 }
+
+func TestCacheHitRatio(t *testing.T) {
+	require.InDelta(t, 0.986, CacheHitRatio(148, 119419, 1596), 0.001)
+	require.Equal(t, 0.0, CacheHitRatio(189801, 0, 0))
+	require.Equal(t, 0.0, CacheHitRatio(0, 0, 0))
+}
