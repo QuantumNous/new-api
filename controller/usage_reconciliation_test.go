@@ -375,3 +375,45 @@ func TestUsageModelsOnlyReturnsBlockRunModelsWithPrices(t *testing.T) {
 		t.Fatalf("unpriced billing=%v", unpriced)
 	}
 }
+
+func TestRatioPricePer1MTokensUSDUsesCurrentQuotaPerUnit(t *testing.T) {
+	origQuotaPerUnit := common.QuotaPerUnit
+	t.Cleanup(func() { common.QuotaPerUnit = origQuotaPerUnit })
+
+	common.QuotaPerUnit = 1_000_000
+
+	if got := ratioPricePer1MTokensUSD(1.25); got != "1.2500000000" {
+		t.Fatalf("price=%s, want dynamic quota-per-unit conversion", got)
+	}
+}
+
+func TestBuildUsageModelPriceUsesCompactWildcardRatio(t *testing.T) {
+	origModelPrice := ratio_setting.ModelPrice2JSONString()
+	origModelRatio := ratio_setting.ModelRatio2JSONString()
+	origCompletionRatio := ratio_setting.CompletionRatio2JSONString()
+	t.Cleanup(func() {
+		_ = ratio_setting.UpdateModelPriceByJSONString(origModelPrice)
+		_ = ratio_setting.UpdateModelRatioByJSONString(origModelRatio)
+		_ = ratio_setting.UpdateCompletionRatioByJSONString(origCompletionRatio)
+	})
+
+	if err := ratio_setting.UpdateModelPriceByJSONString(`{}`); err != nil {
+		t.Fatalf("clear model price: %v", err)
+	}
+	if err := ratio_setting.UpdateModelRatioByJSONString(`{"*-openai-compact":0.5}`); err != nil {
+		t.Fatalf("set model ratio: %v", err)
+	}
+	if err := ratio_setting.UpdateCompletionRatioByJSONString(`{}`); err != nil {
+		t.Fatalf("clear completion ratio: %v", err)
+	}
+
+	price := buildUsageModelPrice(
+		"gpt-4o-openai-compact",
+		model.BlockRunChannel{Id: 34, Name: "blockRun-llm", Type: 100},
+		ratio_setting.GetModelRatioCopy(),
+	)
+
+	if price.PricingMode != "TOKEN" || price.InputPriceUSDPer1M != "1.0000000000" {
+		t.Fatalf("compact wildcard price=%+v", price)
+	}
+}

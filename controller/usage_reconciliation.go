@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -157,7 +158,10 @@ func priceToUSD(price float64) string {
 }
 
 func ratioPricePer1MTokensUSD(ratio float64) string {
-	return decimal.NewFromFloat(ratio).Mul(decimal.NewFromInt(2)).StringFixed(10)
+	return decimal.NewFromFloat(ratio).
+		Mul(decimal.NewFromInt(1_000_000)).
+		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+		StringFixed(10)
 }
 
 func usageFormatTime(t time.Time) string {
@@ -260,7 +264,7 @@ func blockRunChannelIDs(channels map[int]model.BlockRunChannel) []int {
 	return ids
 }
 
-func buildUsageModelPrice(modelName string, ch model.BlockRunChannel) usageModelPrice {
+func buildUsageModelPrice(modelName string, ch model.BlockRunChannel, modelRatios map[string]float64) usageModelPrice {
 	out := usageModelPrice{
 		Model:       modelName,
 		ChannelID:   strconv.Itoa(ch.Id),
@@ -275,7 +279,11 @@ func buildUsageModelPrice(modelName string, ch model.BlockRunChannel) usageModel
 		return out
 	}
 
-	modelRatio, ok := ratio_setting.GetModelRatioCopy()[ratio_setting.FormatMatchingModelName(modelName)]
+	matchingName := ratio_setting.FormatMatchingModelName(modelName)
+	modelRatio, ok := modelRatios[matchingName]
+	if !ok && strings.HasSuffix(matchingName, ratio_setting.CompactModelSuffix) {
+		modelRatio, ok = modelRatios[ratio_setting.CompactWildcardModelKey]
+	}
 	if !ok {
 		return out
 	}
@@ -593,6 +601,7 @@ func GetUsageModels(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "query models failed"})
 		return
 	}
+	modelRatios := ratio_setting.GetModelRatioCopy()
 
 	modelNames := make([]string, 0, len(modelChannels))
 	for modelName := range modelChannels {
@@ -607,7 +616,7 @@ func GetUsageModels(c *gin.Context) {
 			return channels[i].Id < channels[j].Id
 		})
 		for _, ch := range channels {
-			items = append(items, buildUsageModelPrice(modelName, ch))
+			items = append(items, buildUsageModelPrice(modelName, ch, modelRatios))
 		}
 	}
 
