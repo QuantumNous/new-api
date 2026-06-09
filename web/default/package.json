@@ -41,6 +41,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.3.0",
     "dayjs": "catalog:",
+    "dompurify": "3.4.5",
     "i18next": "^26.2.0",
     "i18next-browser-languagedetector": "^8.2.1",
     "input-otp": "^1.4.2",

@@ -4850,6 +4850,18 @@
     "Unknown channel type #{{id}}": "未知渠道类型 #{{id}}",
     "Unknown channel types are preserved from saved settings.": "未知渠道类型来自已保存设置，将会被保留。",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "选择后，定时检测只检测这些渠道类型，除非它们同时在不需要检测列表中。",
-    "Waffo": "Waffo"
+    "Waffo": "Waffo",
+    "Search articles": "搜索文章",
+    "Page {{page}} of {{total}}": "第 {{page}} 页，共 {{total}} 页",
+    "On this page": "本页目录",
+    "Read more": "阅读更多",
+    "Build faster with one AI gateway.": "用一个 AI 网关更快构建。",
+    "Use Flatkey AI to manage models, keys, billing, and observability from one API platform.": "使用 Flatkey AI 在一个 API 平台中管理模型、密钥、计费和可观测性。",
+    "No posts found": "未找到文章",
+    "Try a different search or category.": "请尝试其他搜索词或分类。",
+    "Flatkey AI Blog": "Flatkey AI 博客",
+    "Insights, product notes, and implementation guides for teams building on AI APIs.": "面向 AI API 构建团队的洞察、产品说明和实施指南。",
+    "Back to Blog": "返回博客",
+    "Related articles": "相关文章"
   }
 }

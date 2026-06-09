@@ -16,19 +16,37 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TopNavLink } from '../types'
 
-/**
- * Default top navigation links
- *
- * In practice, navigation links are dynamically fetched from backend.
- * Priority: Backend dynamic links > Provided navLinks > defaultTopNavLinks
- *
- * If backend configuration is unavailable, keep public product routes discoverable.
- */
-export const defaultTopNavLinks: TopNavLink[] = [
-  {
-    title: 'Blog',
-    href: '/blog',
-  },
-]
+export interface BlogPost {
+  id: number
+  title: string
+  slug: string
+  cover: string
+  summary: string
+  date: string
+  author?: string
+  categoryId?: number
+  categoryName?: string
+  categorySlug?: string
+  content?: string
+  detailUrl?: string
+}
+
+export interface BlogListResult {
+  list: BlogPost[]
+  total: number
+  pageNo: number
+  pageSize: number
+}
+
+export interface ApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
+}
+
+export interface BlogListQuery {
+  page?: number
+  q?: string
+  categoryIds?: number[]
+}

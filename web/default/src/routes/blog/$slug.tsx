@@ -16,19 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TopNavLink } from '../types'
+import { createFileRoute } from '@tanstack/react-router'
+import { BlogPostPage } from '@/features/blog'
 
-/**
- * Default top navigation links
- *
- * In practice, navigation links are dynamically fetched from backend.
- * Priority: Backend dynamic links > Provided navLinks > defaultTopNavLinks
- *
- * If backend configuration is unavailable, keep public product routes discoverable.
- */
-export const defaultTopNavLinks: TopNavLink[] = [
-  {
-    title: 'Blog',
-    href: '/blog',
-  },
-]
+export const Route = createFileRoute('/blog/$slug')({
+  component: BlogPostRoute,
+})
+
+function BlogPostRoute() {
+  const params = Route.useParams()
+  return <BlogPostPage slug={params.slug} />
+}

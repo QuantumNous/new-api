@@ -78,6 +78,139 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+.blog-content {
+  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content h4 {
+  color: var(--foreground);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.blog-content h1 {
+  margin: 2rem 0 1rem;
+  font-size: 1.875rem;
+}
+
+.blog-content h2 {
+  margin: 2.5rem 0 0.875rem;
+  font-size: 1.5rem;
+}
+
+.blog-content h3 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.blog-content h4 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.blog-content p,
+.blog-content ul,
+.blog-content ol,
+.blog-content table,
+.blog-content blockquote,
+.blog-content pre {
+  margin-bottom: 1.25rem;
+}
+
+.blog-content p,
+.blog-content li {
+  color: color-mix(in oklch, var(--foreground) 84%, var(--muted-foreground));
+}
+
+.blog-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.blog-content ul,
+.blog-content ol {
+  padding-left: 1.5rem;
+}
+
+.blog-content ul {
+  list-style-type: disc;
+}
+
+.blog-content ol {
+  list-style-type: decimal;
+}
+
+.blog-content li {
+  margin-bottom: 0.4rem;
+}
+
+.blog-content img {
+  margin: 1.5rem 0;
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+
+.blog-content blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.blog-content code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.15em 0.35em;
+  color: var(--foreground);
+  font-size: 0.875em;
+}
+
+.blog-content pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--foreground);
+  padding: 1rem 1.25rem;
+  color: var(--background);
+}
+
+.blog-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.blog-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.blog-content th,
+.blog-content td {
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+}
+
+.blog-content th {
+  background: var(--muted);
+  font-weight: 600;
+}
+
+.blog-content hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
 /* Vercel Geist-style skeleton shimmer */
 .skeleton-shimmer {
   background: linear-gradient(

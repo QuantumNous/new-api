@@ -16,19 +16,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TopNavLink } from '../types'
 
-/**
- * Default top navigation links
- *
- * In practice, navigation links are dynamically fetched from backend.
- * Priority: Backend dynamic links > Provided navLinks > defaultTopNavLinks
- *
- * If backend configuration is unavailable, keep public product routes discoverable.
- */
-export const defaultTopNavLinks: TopNavLink[] = [
-  {
-    title: 'Blog',
-    href: '/blog',
-  },
-]
+import { useRef } from 'react'
+import DOMPurify from 'dompurify'
+import { BlogToc } from './blog-toc'
+
+interface BlogArticleProps {
+  content: string
+}
+
+export function BlogArticle(props: BlogArticleProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const html = DOMPurify.sanitize(props.content, {
+    ADD_ATTR: ['target'],
+  })
+
+  return (
+    <div className='grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_240px]'>
+      <div
+        ref={contentRef}
+        className='blog-content min-w-0'
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      <aside className='hidden lg:block'>
+        <BlogToc contentRef={contentRef} />
+      </aside>
+    </div>
+  )
+}

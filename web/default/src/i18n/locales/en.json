@@ -4850,6 +4850,18 @@
     "Unknown channel type #{{id}}": "Unknown channel type #{{id}}",
     "Unknown channel types are preserved from saved settings.": "Unknown channel types are preserved from saved settings.",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "When selected, scheduled tests only include these channel types unless they are excluded.",
-    "Waffo": "Waffo"
+    "Waffo": "Waffo",
+    "Search articles": "Search articles",
+    "Page {{page}} of {{total}}": "Page {{page}} of {{total}}",
+    "On this page": "On this page",
+    "Read more": "Read more",
+    "Build faster with one AI gateway.": "Build faster with one AI gateway.",
+    "Use Flatkey AI to manage models, keys, billing, and observability from one API platform.": "Use Flatkey AI to manage models, keys, billing, and observability from one API platform.",
+    "No posts found": "No posts found",
+    "Try a different search or category.": "Try a different search or category.",
+    "Flatkey AI Blog": "Flatkey AI Blog",
+    "Insights, product notes, and implementation guides for teams building on AI APIs.": "Insights, product notes, and implementation guides for teams building on AI APIs.",
+    "Back to Blog": "Back to Blog",
+    "Related articles": "Related articles"
   }
 }
