@@ -121,17 +121,15 @@ function EmptyImageSlot() {
 function ImagePreview({
   image,
   task,
-  index,
   onOpen,
 }: {
   image: ImageResult
   task: ImageTask
-  index: number
   onOpen: (preview: ImagePreviewSelection) => void
 }) {
   const { t } = useTranslation()
   const source = getImageSource(image, task.config)
-  const alt = t('Generated image {{index}}', { index: index + 1 })
+  const alt = t('Generated image')
 
   if (!source) {
     return <EmptyImageSlot />
@@ -168,8 +166,8 @@ function TaskCard({
   onPreviewImage: (preview: ImagePreviewSelection) => void
 }) {
   const { t } = useTranslation()
-  const images = task.images.filter(isImageResultRenderable)
-  const firstImage = images[0]
+  const firstImage =
+    task.image && isImageResultRenderable(task.image) ? task.image : undefined
   const firstSource = firstImage ? getImageSource(firstImage, task.config) : ''
   const canCopyLink = Boolean(firstImage?.url)
   const canDownload = Boolean(firstSource)
@@ -216,27 +214,14 @@ function TaskCard({
               {task.error || t('Generation was interrupted')}
             </p>
           </div>
-        ) : images.length === 0 ? (
+        ) : !firstImage ? (
           <EmptyImageSlot />
-        ) : images.length === 1 ? (
+        ) : (
           <ImagePreview
-            image={images[0]}
-            index={0}
+            image={firstImage}
             task={task}
             onOpen={onPreviewImage}
           />
-        ) : (
-          <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
-            {images.map((image, index) => (
-              <ImagePreview
-                image={image}
-                index={index}
-                key={`${task.id}-${index}`}
-                task={task}
-                onOpen={onPreviewImage}
-              />
-            ))}
-          </div>
         )}
       </CardContent>
 
@@ -245,7 +230,7 @@ function TaskCard({
           {task.status === 'running'
             ? t('Generating')
             : task.status === 'done'
-              ? t('{{count}} image(s)', { count: images.length })
+              ? t('Generated image')
               : task.errorCode || t('Error')}
         </span>
         <div className='flex shrink-0 items-center gap-1'>
@@ -330,7 +315,7 @@ export function PlaygroundImageTaskGrid({
           <DialogContent className='bg-background/95 w-auto max-w-[calc(100vw-1rem)] p-2 sm:max-w-[min(92vw,90rem)]'>
             <DialogHeader className='sr-only'>
               <DialogTitle>
-                {preview?.alt || t('Generated image {{index}}', { index: 1 })}
+                {preview?.alt || t('Generated image')}
               </DialogTitle>
             </DialogHeader>
             <div className='flex max-h-[85vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-lg bg-black/90'>

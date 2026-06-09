@@ -152,8 +152,7 @@ export interface ImageTask {
   prompt: string
   config: ImageGenerationConfig
   status: ImageTaskStatus
-  images: ImageResult[]
-  rawImageUrls?: string[]
+  image?: ImageResult
   error?: string
   errorCode?: string
   createdAt: number

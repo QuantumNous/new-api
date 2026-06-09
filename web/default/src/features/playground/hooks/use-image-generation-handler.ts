@@ -16,22 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { nanoid } from 'nanoid'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { sendImageGeneration } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import {
-  buildImageGenerationPayloads,
-  getRawImageUrls,
+  buildImageGenerationPayload,
   normalizeImageGenerationCount,
 } from '../lib'
 import type { ImageGenerationConfig, ImageResult, ImageTask } from '../types'
 
 interface UseImageGenerationHandlerOptions {
   config: ImageGenerationConfig
-  tasks: ImageTask[]
   onTasksUpdate: (
     updater: ImageTask[] | ((prev: ImageTask[]) => ImageTask[])
   ) => void
@@ -84,15 +82,9 @@ function getImageGenerationError(
 
 export function useImageGenerationHandler({
   config,
-  tasks,
   onTasksUpdate,
 }: UseImageGenerationHandlerOptions) {
   const { t } = useTranslation()
-
-  const isGenerating = useMemo(
-    () => tasks.some((task) => task.status === 'running'),
-    [tasks]
-  )
 
   const updateTask = useCallback(
     (taskId: string, updater: (task: ImageTask) => ImageTask) => {
@@ -107,9 +99,10 @@ export function useImageGenerationHandler({
     async (prompt: string, overrideConfig?: ImageGenerationConfig) => {
       const trimmedPrompt = prompt.trim()
       const sourceConfig = overrideConfig ?? config
+      const requestedCount = normalizeImageGenerationCount(sourceConfig.n)
       const effectiveConfig = {
         ...sourceConfig,
-        n: normalizeImageGenerationCount(sourceConfig.n),
+        n: requestedCount,
       }
 
       if (!trimmedPrompt) {
@@ -122,87 +115,73 @@ export function useImageGenerationHandler({
         return
       }
 
-      if (isGenerating) {
-        toast.error(t('Please wait for the current image generation to finish'))
-        return
-      }
+      const nextTasks: ImageTask[] = Array.from(
+        { length: requestedCount },
+        () => ({
+          id: nanoid(),
+          prompt: trimmedPrompt,
+          config: {
+            ...effectiveConfig,
+            n: 1,
+          },
+          status: 'running',
+          createdAt: Date.now(),
+        })
+      )
 
-      const taskId = nanoid()
-      const task: ImageTask = {
-        id: taskId,
-        prompt: trimmedPrompt,
-        config: effectiveConfig,
-        status: 'running',
-        images: [],
-        createdAt: Date.now(),
-      }
+      onTasksUpdate((prev) => [...nextTasks, ...prev])
 
-      onTasksUpdate((prev) => [task, ...prev])
-
-      try {
-        const payloads = buildImageGenerationPayloads(
-          trimmedPrompt,
-          effectiveConfig
-        )
-
-        const results = await Promise.allSettled(
-          payloads.map(async (payload) => {
-            const response = await sendImageGeneration(payload)
+      const results = await Promise.allSettled(
+        nextTasks.map(async (task) => {
+          try {
+            const response = await sendImageGeneration(
+              buildImageGenerationPayload(trimmedPrompt, task.config)
+            )
             const images = (response.data || []).filter(
               (image): image is ImageResult =>
                 Boolean(image.url || image.b64_json)
             )
-            if (images.length === 0) {
+            const image = images[0]
+            if (!image) {
               throw new Error(t('API did not return image data'))
             }
-            return images
-          })
-        )
 
-        const images = results.flatMap((result) =>
-          result.status === 'fulfilled' ? result.value : []
-        )
-        const firstError = results.find(
-          (result): result is PromiseRejectedResult =>
-            result.status === 'rejected'
-        )
+            updateTask(task.id, (current) => ({
+              ...current,
+              status: 'done',
+              image,
+              finishedAt: Date.now(),
+            }))
+          } catch (error: unknown) {
+            const parsed = getImageGenerationError(
+              error,
+              t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
+            )
+            updateTask(task.id, (current) => ({
+              ...current,
+              status: 'error',
+              error: parsed.message,
+              errorCode: parsed.code,
+              finishedAt: Date.now(),
+            }))
+            throw parsed
+          }
+        })
+      )
 
-        if (images.length === 0) {
-          throw (
-            firstError?.reason ?? new Error(t('API did not return image data'))
-          )
-        }
-
-        updateTask(taskId, (current) => ({
-          ...current,
-          status: 'done',
-          images,
-          rawImageUrls: getRawImageUrls(images),
-          error:
-            firstError !== undefined
-              ? getImageGenerationError(
-                  firstError.reason,
-                  t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
-                ).message
-              : undefined,
-          finishedAt: Date.now(),
-        }))
-      } catch (error: unknown) {
+      const failures = results.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === 'rejected'
+      )
+      if (failures.length === nextTasks.length) {
         const parsed = getImageGenerationError(
-          error,
+          failures[0]?.reason,
           t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
         )
         toast.error(parsed.message)
-        updateTask(taskId, (current) => ({
-          ...current,
-          status: 'error',
-          error: parsed.message,
-          errorCode: parsed.code,
-          finishedAt: Date.now(),
-        }))
       }
     },
-    [config, isGenerating, onTasksUpdate, t, updateTask]
+    [config, onTasksUpdate, t, updateTask]
   )
 
   const retryTask = useCallback(
@@ -215,6 +194,5 @@ export function useImageGenerationHandler({
   return {
     generateImage,
     retryTask,
-    isGenerating,
   }
 }

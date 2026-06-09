@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2Icon, SendIcon } from 'lucide-react'
+import { SendIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NativeSelect } from '@/components/ui/native-select'
 import {
@@ -38,7 +38,6 @@ interface PlaygroundImageInputProps {
   config: ImageGenerationConfig
   disabled?: boolean
   groups: GroupOption[]
-  isGenerating?: boolean
   isModelLoading?: boolean
   models: ModelOption[]
   prompt: string
@@ -113,7 +112,6 @@ export function PlaygroundImageInput({
   config,
   disabled,
   groups,
-  isGenerating,
   isModelLoading = false,
   models,
   prompt,
@@ -130,15 +128,14 @@ export function PlaygroundImageInput({
     { length: MAX_IMAGE_GENERATION_COUNT },
     (_, index) => index + 1
   )
-  const isConfigDisabled = Boolean(disabled || isGenerating)
+  const isConfigDisabled = Boolean(disabled)
   const isModelSelectDisabled =
     isConfigDisabled || isModelLoading || !hasImageModels
   const isGroupSelectDisabled = isConfigDisabled || groups.length === 0
-  const isSubmitDisabled =
-    Boolean(disabled || isGenerating) || !hasPrompt || !config.model
+  const isSubmitDisabled = Boolean(disabled) || !hasPrompt || !config.model
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || disabled || isGenerating) return
+    if (!message.text?.trim() || disabled) return
     onSubmit(message.text)
     onPromptChange('')
   }
@@ -261,17 +258,9 @@ export function PlaygroundImageInput({
             type='submit'
             variant='secondary'
           >
-            {isGenerating ? (
-              <Loader2Icon className='animate-spin' size={16} />
-            ) : (
-              <SendIcon size={16} />
-            )}
-            <span className='hidden sm:inline'>
-              {isGenerating ? t('Generating') : t('Generate')}
-            </span>
-            <span className='sr-only sm:hidden'>
-              {isGenerating ? t('Generating') : t('Generate')}
-            </span>
+            <SendIcon size={16} />
+            <span className='hidden sm:inline'>{t('Generate')}</span>
+            <span className='sr-only sm:hidden'>{t('Generate')}</span>
           </PromptInputButton>
         </PromptInputFooter>
       </PromptInput>

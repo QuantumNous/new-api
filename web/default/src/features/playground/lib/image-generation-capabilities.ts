@@ -24,12 +24,3 @@ export function normalizeImageGenerationCount(count: number): number {
     Math.max(1, Number.isFinite(count) ? count : 1)
   )
 }
-
-export function shouldSplitImageGenerationRequests(model: string): boolean {
-  const normalized = model.trim().toLowerCase()
-  return (
-    normalized === 'gpt-image-2' ||
-    normalized === 'codex-gpt-image-2' ||
-    normalized.endsWith('-gpt-image-2')
-  )
-}

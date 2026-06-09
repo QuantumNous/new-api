@@ -73,10 +73,8 @@ export function Playground() {
   const {
     generateImage,
     retryTask,
-    isGenerating: isGeneratingImage,
   } = useImageGenerationHandler({
     config: imageConfig,
-    tasks: imageTasks,
     onTasksUpdate: updateImageTasks,
   })
 
@@ -318,7 +316,6 @@ export function Playground() {
               config={imageConfig}
               disabled={imageModels.length === 0}
               groups={groups}
-              isGenerating={isGeneratingImage}
               isModelLoading={isLoadingModels}
               models={imageModels}
               prompt={imagePrompt}
