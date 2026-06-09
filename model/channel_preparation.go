@@ -237,7 +237,7 @@ func applyChannelPreparationFilters(db *gorm.DB, opts ChannelPreparationListOpti
 	}
 	group := strings.TrimSpace(opts.Group)
 	if group != "" {
-		db = db.Where(commonGroupCol+" LIKE ?", "%"+group+"%")
+		db = ApplyChannelGroupFilter(db, group)
 	}
 	if includeType && opts.Type != nil {
 		db = db.Where("type = ?", *opts.Type)
