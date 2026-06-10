@@ -283,15 +283,14 @@ func ExportSecurityLogs(c *gin.Context) {
 // ========== 统计看板 ==========
 
 func GetSecurityDashboard(c *gin.Context) {
-	status, err := security.GetSecurityStatus()
+	startTime, _ := strconv.ParseInt(c.DefaultQuery("start_time", "0"), 10, 64)
+	endTime, _ := strconv.ParseInt(c.DefaultQuery("end_time", "0"), 10, 64)
+
+	response, err := security.GetSecurityDashboard(startTime, endTime)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-
-	// TODO: 实现完整的统计聚合查询
-	response := &dto.SecurityDashboardResponse{}
-	response.Summary.TotalDetections = int(status.RuleCount)
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": response})
 }

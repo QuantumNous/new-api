@@ -397,5 +397,47 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+
+		// Security (AI content security management)
+		securityRoute := apiRouter.Group("/security")
+		{
+			// Admin endpoints
+			securityGroupRoute := securityRoute.Group("/groups")
+			securityGroupRoute.Use(middleware.AdminAuth())
+			{
+				securityGroupRoute.GET("/", controller.GetSecurityGroups)
+				securityGroupRoute.POST("/", controller.CreateSecurityGroup)
+				securityGroupRoute.PUT("/:id", controller.UpdateSecurityGroup)
+				securityGroupRoute.DELETE("/:id", controller.DeleteSecurityGroup)
+				securityGroupRoute.POST("/:id/copy", controller.CopySecurityGroup)
+			}
+
+			securityRuleRoute := securityRoute.Group("/rules")
+			securityRuleRoute.Use(middleware.AdminAuth())
+			{
+				securityRuleRoute.GET("/", controller.GetSecurityRules)
+				securityRuleRoute.POST("/", controller.CreateSecurityRule)
+				securityRuleRoute.PUT("/:id", controller.UpdateSecurityRule)
+				securityRuleRoute.DELETE("/:id", controller.DeleteSecurityRule)
+			}
+
+			securityPolicyRoute := securityRoute.Group("/policies")
+			securityPolicyRoute.Use(middleware.AdminAuth())
+			{
+				securityPolicyRoute.GET("/", controller.GetSecurityPolicies)
+				securityPolicyRoute.POST("/", controller.CreateSecurityPolicy)
+				securityPolicyRoute.PUT("/:id", controller.UpdateSecurityPolicy)
+				securityPolicyRoute.DELETE("/:id", controller.DeleteSecurityPolicy)
+			}
+
+			securityRoute.GET("/logs", middleware.AdminAuth(), controller.GetSecurityLogs)
+			securityRoute.GET("/logs/export", middleware.AdminAuth(), controller.ExportSecurityLogs)
+			securityRoute.GET("/dashboard", middleware.AdminAuth(), controller.GetSecurityDashboard)
+			securityRoute.GET("/status", controller.GetSecurityStatus)
+
+			// Detection endpoints (internal use)
+			securityRoute.POST("/check/request", controller.CheckSecurityRequest)
+			securityRoute.POST("/check/response", controller.CheckSecurityResponse)
+		}
 	}
 }
