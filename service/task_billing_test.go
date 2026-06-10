@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -614,7 +615,8 @@ func TestNonTerminalUpdate_NoBilling(t *testing.T) {
 // ===========================================================================
 
 type mockAdaptor struct {
-	adjustReturn int
+	taskcommon.UnsupportedAssets // GCS 转存钩子（本测试不涉及，沿用 no-op 实现）
+	adjustReturn                 int
 }
 
 func (m *mockAdaptor) Init(_ *relaycommon.RelayInfo) {}

@@ -112,7 +112,10 @@ func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
 		err = model.IncreaseTokenQuota(task.PrivateData.TokenId, tokenKey, -delta)
 	}
 	if err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("调整令牌额度失败 (delta=%d, task=%s): %s", delta, task.TaskID, err.Error()))
+		// 计费失败吞错点（设计 4.4 / 实现清单项 14）：error 级日志 + 失败指标，供人工核对，不自动补做
+		gcsMetrics.billingAdjustFail.Add(1)
+		logger.LogError(ctx, fmt.Sprintf("billing-adjust-fail 调整令牌额度失败 task=%s tokenId=%d delta=%d: %s",
+			task.TaskID, task.PrivateData.TokenId, delta, err.Error()))
 	}
 }
 
@@ -157,7 +160,11 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 
 	// 1. 退还资金来源（钱包或订阅）
 	if err := taskAdjustFunding(task, -quota); err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
+		// 计费失败吞错点（设计 4.4 / 实现清单项 14）：该次退款丢失（资金悬置），
+		// error 级日志 + 失败指标供人工核对，不做自动补做
+		gcsMetrics.billingAdjustFail.Add(1)
+		logger.LogError(ctx, fmt.Sprintf("billing-adjust-fail 退还资金来源失败 task=%s user=%d quota=%d reason=%s: %s",
+			task.TaskID, task.UserId, quota, reason, err.Error()))
 		return
 	}
 
@@ -207,7 +214,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 
 	// 调整资金来源
 	if err := taskAdjustFunding(task, quotaDelta); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
+		// 计费失败吞错点（设计 4.4 / 实现清单项 14）：error 级日志 + 失败指标供人工核对
+		gcsMetrics.billingAdjustFail.Add(1)
+		logger.LogError(ctx, fmt.Sprintf("billing-adjust-fail 差额结算资金调整失败 task=%s user=%d delta=%d actual=%d pre=%d: %s",
+			task.TaskID, task.UserId, quotaDelta, actualQuota, preConsumedQuota, err.Error()))
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/service"
 )
 
 func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) (string, error) {
@@ -150,6 +151,19 @@ func getVertexVideoURL(channel *model.Channel, task *model.Task) (string, error)
 		return "", fmt.Errorf("invalid channel or task")
 	}
 	if url := strings.TrimSpace(task.GetResultURL()); url != "" && !isTaskProxyContentURL(url, task.TaskID) {
+		// GCS 转存结果：换签后再处理（设计 4.5 出口 6）。正常情况下 gs:// 任务已在
+		// VideoProxy 入口 302 短路，此处为防御纵深——绝不把裸 gs:// 当 http URL 回源。
+		if service.IsGCSResultURL(url) {
+			_, objectName, perr := service.ParseGCSObjectURL(url)
+			if perr != nil {
+				return "", fmt.Errorf("malformed gcs result url: %w", perr)
+			}
+			signedURL, _, serr := service.GCSSignResultURL(objectName, task.FinishTime)
+			if serr != nil {
+				return "", fmt.Errorf("sign gcs result url failed: %w", serr)
+			}
+			return signedURL, nil
+		}
 		return url, nil
 	}
 	if url := extractVertexVideoURLFromTaskData(task); url != "" {
