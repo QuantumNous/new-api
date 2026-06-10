@@ -1,0 +1,4 @@
+context_file: CLAUDE.md
+context_markers:
+  start: <!-- SPECKIT START -->
+  end: <!-- SPECKIT END -->
