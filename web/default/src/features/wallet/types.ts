@@ -260,6 +260,10 @@ export interface TopupRecord {
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  /** Admin-only: username of the paying user */
+  username?: string
+  /** Admin-only: 2-letter country code from login IP */
+  country?: string
 }
 
 /**

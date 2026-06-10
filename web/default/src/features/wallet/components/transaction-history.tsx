@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Check, Globe } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -97,9 +97,11 @@ export function TransactionHistory() {
     pageSize,
     keyword,
     loading,
+    isAdmin,
     handlePageChange,
     handleSearch,
   } = useBillingHistory({ initialPageSize: 10 })
+  const colCount = isAdmin ? 8 : 6
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -133,6 +135,8 @@ export function TransactionHistory() {
             <thead>
               <tr className='border-y bg-muted/30 text-xs text-muted-foreground'>
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Order No.')}</th>
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>用户名</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />国家</th>}
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Payment Method')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Recharge Amount')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Amount Paid')}</th>
@@ -145,6 +149,8 @@ export function TransactionHistory() {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
                       <td className='px-4 py-3'><Skeleton className='h-4 w-44' /></td>
+                      {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-24' /></td>}
+                      {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-8' /></td>}
                       <td className='px-4 py-3'><Skeleton className='h-4 w-16' /></td>
                       <td className='px-4 py-3'><Skeleton className='ml-auto h-4 w-12' /></td>
                       <td className='px-4 py-3'><Skeleton className='ml-auto h-4 w-16' /></td>
@@ -155,7 +161,7 @@ export function TransactionHistory() {
                 : records.length === 0
                   ? (
                     <tr>
-                      <td colSpan={6} className='px-4 py-12 text-center'>
+                      <td colSpan={colCount} className='px-4 py-12 text-center'>
                         <p className='text-muted-foreground text-sm'>
                           {keyword ? t('Try adjusting your search') : t('No billing records found')}
                         </p>
@@ -172,6 +178,21 @@ export function TransactionHistory() {
                           <CopyBtn text={record.trade_no || String(record.id)} />
                         </div>
                       </td>
+                      {isAdmin && (
+                        <td className='px-4 py-3'>
+                          {record.username
+                            ? <div className='flex items-center gap-1'>
+                                <span className='font-mono text-xs text-foreground max-w-[160px] truncate'>{record.username}</span>
+                                <CopyBtn text={record.username} />
+                              </div>
+                            : <span className='text-muted-foreground text-xs'>—</span>}
+                        </td>
+                      )}
+                      {isAdmin && (
+                        <td className='px-4 py-3 text-xs font-medium'>
+                          {record.country || <span className='text-muted-foreground'>—</span>}
+                        </td>
+                      )}
                       <td className='px-4 py-3 text-muted-foreground'>
                         {getPaymentMethodName(record.payment_method, t)}
                       </td>

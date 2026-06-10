@@ -22,6 +22,9 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+	// Admin-only computed fields — not stored in DB
+	Username string `json:"username,omitempty" gorm:"-"`
+	Country  string `json:"country,omitempty" gorm:"-"`
 }
 
 const (
@@ -604,4 +607,35 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	return nil
+}
+
+// EnrichTopupsWithUserInfo batch-fills Username and Country on each TopUp
+// by joining the users table. One extra query for the whole page — not per row.
+func EnrichTopupsWithUserInfo(topups []*TopUp) {
+	if len(topups) == 0 {
+		return
+	}
+	ids := make([]int, len(topups))
+	for i, t := range topups {
+		ids[i] = t.UserId
+	}
+	type row struct {
+		Id       int
+		Username string
+		Country  string
+	}
+	var rows []row
+	if err := DB.Model(&User{}).Select("id, username, country").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return
+	}
+	m := make(map[int]row, len(rows))
+	for _, r := range rows {
+		m[r.Id] = r
+	}
+	for _, t := range topups {
+		if u, ok := m[t.UserId]; ok {
+			t.Username = u.Username
+			t.Country = u.Country
+		}
+	}
 }

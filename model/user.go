@@ -52,6 +52,7 @@ type User struct {
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	Country          string         `json:"country,omitempty" gorm:"type:varchar(10);default:''"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
