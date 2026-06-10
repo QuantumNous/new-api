@@ -37,6 +37,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if !ok {
 		return convertedRequest, nil
 	}
+	normalizeClaudeSystemMessagesForNonNativeUpstream(claudeRequest)
 	if err := applyDeepSeekV4ClaudeThinkingSuffix(info, claudeRequest); err != nil {
 		return nil, err
 	}
