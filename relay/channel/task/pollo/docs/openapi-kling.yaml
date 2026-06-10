@@ -1,0 +1,165 @@
+openapi: 3.0.3
+info:
+  title: Seedance 视频生成 — 可灵（Kling）兼容格式
+  version: "1.0"
+  description: |
+    可灵官方 API 兼容入口。`middleware.KlingRequestConvert` 将原始可灵请求体整体放入
+    统一请求的 `metadata`，再由所选渠道适配器消费，因此可用可灵格式调用 Doubao/Pollo
+    的 seedance 模型（`model_name` 填 seedance 模型名，或经渠道模型映射）。
+
+    ## 可灵字段在 seedance 渠道上的消费情况
+    | 可灵字段 | Doubao | Pollo |
+    |---|---|---|
+    | `model_name` / `model` | 选路（模型名） | 同左 |
+    | `prompt` | ✅ | ✅ |
+    | `duration`（字符串 "5"/"10"） | ✅（容忍字符串） | ✅（容忍字符串） |
+    | `image` | ❌ 忽略 | ✅ → input.image（首帧） |
+    | `image_tail` | ❌ 忽略 | ✅ → input.imageTail（尾帧） |
+    | `aspect_ratio` | ❌ 忽略（Doubao 用 `ratio` 键） | ✅ → input.aspectRatio |
+    | `callback_url` | ✅ 透传 | ✅ → webhookUrl（仅地址） |
+    | `seed` | ✅ | ✅ |
+    | `negative_prompt` / `cfg_scale` / `mode` / `camera_control` / `static_mask` / `dynamic_masks` / `external_task_id` | ❌ 忽略 | ❌ 忽略 |
+
+    > 注意：提交响应与查询响应为 new-api 统一格式（提交返回 OpenAI Video 对象，查询返回
+    > TaskResponse<TaskDto>），不是可灵原生响应格式；仅**请求体**做可灵格式兼容。
+servers:
+  - url: https://your-newapi-host
+security:
+  - bearerAuth: []
+paths:
+  /kling/v1/videos/text2video:
+    post:
+      summary: 文生视频（可灵格式）
+      operationId: klingText2Video
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KlingText2VideoRequest'
+            examples:
+              seedance:
+                value:
+                  model_name: seedance-2-0
+                  prompt: a cat surfing, cinematic
+                  duration: "10"
+                  aspect_ratio: "9:16"
+                  callback_url: https://your.site/hook
+      responses:
+        "200":
+          description: 任务已受理（OpenAI Video 对象，id 为公开 task_id）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpenAIVideo' }
+    # 查询沿用同一路径 + task_id
+  /kling/v1/videos/text2video/{task_id}:
+    get:
+      summary: 查询文生视频任务
+      operationId: klingGetText2Video
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 通用 TaskDto 格式（非可灵原生格式）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+  /kling/v1/videos/image2video:
+    post:
+      summary: 图生视频（可灵格式）
+      operationId: klingImage2Video
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KlingImage2VideoRequest'
+            examples:
+              seedance:
+                value:
+                  model_name: seedance-2-0
+                  prompt: the person waves and smiles
+                  image: https://example.com/first.jpg
+                  image_tail: https://example.com/last.jpg
+                  duration: "5"
+                  aspect_ratio: "16:9"
+      responses:
+        "200":
+          description: 任务已受理
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpenAIVideo' }
+  /kling/v1/videos/image2video/{task_id}:
+    get:
+      summary: 查询图生视频任务
+      operationId: klingGetImage2Video
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 通用 TaskDto 格式
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    KlingText2VideoRequest:
+      type: object
+      required: [prompt]
+      properties:
+        model_name: { type: string, example: seedance-2-0, description: 模型名（也接受 model 键） }
+        prompt: { type: string }
+        negative_prompt: { type: string, description: seedance 渠道忽略 }
+        cfg_scale: { type: number, description: seedance 渠道忽略 }
+        mode: { type: string, enum: [std, pro], description: seedance 渠道忽略 }
+        duration: { type: string, enum: ["5", "10"], description: 时长（秒）；seedance 渠道接受 4-15 }
+        aspect_ratio: { type: string, enum: ["16:9", "9:16", "1:1"], description: Pollo 渠道生效；Doubao 渠道忽略 }
+        camera_control: { type: object, description: seedance 渠道忽略 }
+        callback_url: { type: string }
+        external_task_id: { type: string, description: seedance 渠道忽略 }
+        seed: { type: integer }
+    KlingImage2VideoRequest:
+      allOf:
+        - $ref: '#/components/schemas/KlingText2VideoRequest'
+        - type: object
+          required: [image]
+          properties:
+            image: { type: string, description: 首帧图 URL（Pollo 渠道生效；Doubao 渠道忽略，需改用 metadata.content） }
+            image_tail: { type: string, description: 尾帧图 URL（Pollo 渠道生效） }
+            static_mask: { type: string, description: seedance 渠道忽略 }
+            dynamic_masks: { type: array, items: { type: object }, description: seedance 渠道忽略 }
+    OpenAIVideo:
+      type: object
+      properties:
+        id: { type: string, example: task_0123456789 }
+        task_id: { type: string }
+        object: { type: string, example: video }
+        model: { type: string }
+        status: { type: string, enum: [queued, in_progress, completed, failed] }
+        progress: { type: integer }
+        created_at: { type: integer, format: int64 }
+    TaskResponse:
+      type: object
+      properties:
+        code: { type: string, example: success }
+        data:
+          type: object
+          properties:
+            task_id: { type: string }
+            platform: { type: string }
+            status: { type: string, enum: [NOT_START, SUBMITTED, QUEUED, IN_PROGRESS, SUCCESS, FAILURE] }
+            progress: { type: string, example: "100%" }
+            fail_reason: { type: string }
+            result_url: { type: string }
+            submit_time: { type: integer, format: int64 }
+            finish_time: { type: integer, format: int64 }

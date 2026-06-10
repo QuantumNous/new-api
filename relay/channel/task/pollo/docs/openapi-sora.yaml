@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Seedance 视频生成 — Sora（OpenAI Video API）兼容格式
+  version: "1.0"
+  description: |
+    OpenAI Video API（Sora）兼容入口，适用于 Doubao 与 Pollo 的 seedance 模型。
+    支持 `application/json` 与 `multipart/form-data` 两种提交方式。
+
+    seedance 模型消费的字段：`model`、`prompt`、`seconds`、`input_reference`
+    （映射为首帧参考图）。`size` 字段仅 sora-2* 模型消费，seedance 模型（Doubao 与
+    Pollo 一致）忽略 `size` —— 分辨率请通过 `metadata.resolution` 传入（JSON 方式），
+    或 multipart 表单中的非标准键（自动归入 metadata）。
+
+    查询接口 `GET /v1/videos/{video_id}` 返回 OpenAI Video 对象，由各渠道适配器渲染；
+    Doubao 与 Pollo 渲染的字段集合完全一致（id/status/progress/created_at/
+    completed_at/model/metadata.url/error）。
+servers:
+  - url: https://your-newapi-host
+security:
+  - bearerAuth: []
+paths:
+  /v1/videos:
+    post:
+      summary: 创建视频（OpenAI 兼容）
+      operationId: createVideo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVideoRequest'
+            examples:
+              t2v:
+                summary: 文生视频
+                value:
+                  model: seedance-2-0
+                  prompt: a corgi running on the beach at sunset
+                  seconds: "8"
+                  metadata:
+                    resolution: 720p
+                    ratio: "16:9"
+          multipart/form-data:
+            schema:
+              type: object
+              required: [model, prompt]
+              properties:
+                model: { type: string, example: seedance-2-0 }
+                prompt: { type: string }
+                seconds: { type: string, example: "5" }
+                size: { type: string, description: 仅 sora-2* 消费；seedance 忽略 }
+                input_reference:
+                  type: string
+                  description: 参考图（URL 或文件）；映射为首帧
+                resolution:
+                  type: string
+                  description: 非标准键自动归入 metadata，seedance 渠道消费
+      responses:
+        "200":
+          description: 任务已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAIVideo'
+  /v1/videos/{video_id}:
+    get:
+      summary: 查询视频任务（OpenAI Video 对象）
+      operationId: getVideo
+      parameters:
+        - name: video_id
+          in: path
+          required: true
+          schema: { type: string }
+          example: task_0123456789
+      responses:
+        "200":
+          description: |
+            OpenAI Video 对象。Doubao 与 Pollo 渠道字段对齐：
+            `created_at`=任务创建时间、`completed_at`=最近更新时间、`model`=请求模型名、
+            `metadata.url`=视频地址（键始终存在，未完成为空串）、失败时 `error.message`。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAIVideo'
+              examples:
+                completed:
+                  value:
+                    id: task_0123456789
+                    task_id: task_0123456789
+                    object: video
+                    model: seedance-2-0
+                    status: completed
+                    progress: 100
+                    created_at: 1765432100
+                    completed_at: 1765432290
+                    metadata: { url: "https://cdn.example.com/out.mp4" }
+                failed:
+                  value:
+                    id: task_0123456789
+                    task_id: task_0123456789
+                    object: video
+                    model: seedance-2-0
+                    status: failed
+                    progress: 100
+                    created_at: 1765432100
+                    completed_at: 1765432290
+                    metadata: { url: "" }
+                    error: { message: "generation failed", code: "" }
+  /v1/videos/{video_id}/content:
+    get:
+      summary: 下载/代理视频内容
+      operationId: getVideoContent
+      parameters:
+        - name: video_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 视频字节流（new-api 代理上游 URL）
+          content:
+            video/mp4:
+              schema: { type: string, format: binary }
+  /v1/videos/{video_id}/remix:
+    post:
+      summary: 基于已有任务 remix（沿用原任务渠道）
+      operationId: remixVideo
+      parameters:
+        - name: video_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string }
+      responses:
+        "200":
+          description: 新任务已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAIVideo'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    CreateVideoRequest:
+      type: object
+      required: [model, prompt]
+      properties:
+        model: { type: string, example: seedance-2-0 }
+        prompt: { type: string }
+        seconds: { type: string, description: 时长（秒），4-15, example: "5" }
+        size: { type: string, description: 仅 sora-2* 消费；seedance（Doubao/Pollo 一致）忽略 }
+        input_reference: { type: string, description: 参考图 URL → 首帧 }
+        metadata:
+          type: object
+          description: seedance 扩展参数（resolution/ratio/seed/generate_audio/content[] 等，详见 openapi-newapi.yaml）
+    OpenAIVideo:
+      type: object
+      properties:
+        id: { type: string }
+        task_id: { type: string }
+        object: { type: string, example: video }
+        model: { type: string }
+        status: { type: string, enum: [queued, in_progress, completed, failed] }
+        progress: { type: integer }
+        created_at: { type: integer, format: int64 }
+        completed_at: { type: integer, format: int64 }
+        metadata:
+          type: object
+          properties:
+            url: { type: string }
+        error:
+          type: object
+          nullable: true
+          properties:
+            message: { type: string }
+            code: { type: string }

@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: Seedance 视频生成 — 即梦（Jimeng/火山 CV）兼容格式
+  version: "1.0"
+  description: |
+    即梦官方 API（火山 CV 同步转异步协议）兼容入口。`middleware.JimengRequestConvert`
+    依据查询参数 `Action` 分发：提交（CVSync2AsyncSubmitTask）将原始请求体整体放入统一
+    请求的 `metadata`（`req_key` 作为模型名选路）；查询（CVSync2AsyncGetResult）改写为
+    内部任务查询。`req_key` 填 seedance 模型名（或经渠道模型映射）即可路由到
+    Doubao/Pollo 渠道。
+
+    ## 即梦字段在 seedance 渠道上的消费情况
+    | 即梦字段 | Doubao | Pollo |
+    |---|---|---|
+    | `req_key` | 选路（模型名） | 同左 |
+    | `prompt` | ✅ | ✅ |
+    | `image_urls[]` | ❌ 忽略 | ✅ [0]→首帧 image，[1]→尾帧 imageTail |
+    | `binary_data_base64` | ❌ 忽略 | ❌ 忽略（Pollo 上游不接受 base64） |
+    | `seed` | ✅ | ✅ |
+    | `frames`（121=5s / 241=10s） | ✅ 透传 | ✅ 换算秒数 (frames-1)/24 |
+    | `aspect_ratio` | ❌ 忽略（Doubao 用 `ratio` 键） | ✅ → input.aspectRatio |
+    | `callback_url` | ✅ 透传 | ✅ → webhookUrl（仅地址） |
+
+    > 注意：响应为 new-api 统一格式（提交返回 OpenAI Video 对象，查询返回
+    > TaskResponse<TaskDto>），不是即梦原生 `{code,data,...}` 火山响应格式；
+    > 仅**请求体**做即梦格式兼容。
+servers:
+  - url: https://your-newapi-host
+security:
+  - bearerAuth: []
+paths:
+  /jimeng/:
+    post:
+      summary: 提交 / 查询任务（按 Action 分发）
+      operationId: jimengAction
+      parameters:
+        - name: Action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [CVSync2AsyncSubmitTask, CVSync2AsyncGetResult]
+        - name: Version
+          in: query
+          required: false
+          schema: { type: string, example: "2022-08-31" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/JimengSubmitRequest'
+                - $ref: '#/components/schemas/JimengGetResultRequest'
+            examples:
+              submit-t2v:
+                summary: 提交文生视频（Action=CVSync2AsyncSubmitTask）
+                value:
+                  req_key: seedance-2-0
+                  prompt: a dog running in the snow
+                  seed: 42
+                  frames: 121
+                  aspect_ratio: "16:9"
+              submit-i2v:
+                summary: 提交图生视频（首尾帧）
+                value:
+                  req_key: seedance-2-0
+                  prompt: smooth morph between the two frames
+                  image_urls:
+                    - https://example.com/first.jpg
+                    - https://example.com/last.jpg
+                  frames: 241
+              get-result:
+                summary: 查询任务（Action=CVSync2AsyncGetResult）
+                value:
+                  req_key: seedance-2-0
+                  task_id: task_0123456789
+      responses:
+        "200":
+          description: |
+            提交：OpenAI Video 对象（id 为公开 task_id）。
+            查询：TaskResponse<TaskDto>。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OpenAIVideo'
+                  - $ref: '#/components/schemas/TaskResponse'
+        "400":
+          description: 缺少 Action / task_id 或请求体非法
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    JimengSubmitRequest:
+      type: object
+      required: [req_key, prompt]
+      properties:
+        req_key: { type: string, example: seedance-2-0, description: 模型名（即梦语义的 req_key） }
+        prompt: { type: string }
+        image_urls:
+          type: array
+          items: { type: string }
+          description: 参考图；[0]=首帧，[1]=尾帧（Pollo 渠道生效；Doubao 渠道忽略）
+        binary_data_base64:
+          type: array
+          items: { type: string }
+          description: seedance 渠道忽略
+        seed: { type: integer, example: 42 }
+        frames: { type: integer, description: 帧数 = 24*秒+1（121=5s，241=10s） }
+        aspect_ratio: { type: string, description: Pollo 渠道生效；Doubao 渠道忽略 }
+        callback_url: { type: string }
+    JimengGetResultRequest:
+      type: object
+      required: [task_id]
+      properties:
+        req_key: { type: string }
+        task_id: { type: string, example: task_0123456789, description: 提交时返回的公开 task_id }
+    OpenAIVideo:
+      type: object
+      properties:
+        id: { type: string, example: task_0123456789 }
+        task_id: { type: string }
+        object: { type: string, example: video }
+        model: { type: string }
+        status: { type: string, enum: [queued, in_progress, completed, failed] }
+        progress: { type: integer }
+        created_at: { type: integer, format: int64 }
+    TaskResponse:
+      type: object
+      properties:
+        code: { type: string, example: success }
+        data:
+          type: object
+          properties:
+            task_id: { type: string }
+            platform: { type: string }
+            status: { type: string, enum: [NOT_START, SUBMITTED, QUEUED, IN_PROGRESS, SUCCESS, FAILURE] }
+            progress: { type: string, example: "100%" }
+            fail_reason: { type: string }
+            result_url: { type: string }
+            submit_time: { type: integer, format: int64 }
+            finish_time: { type: integer, format: int64 }
