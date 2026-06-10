@@ -24,6 +24,10 @@ func PlaygroundImageGeneration(c *gin.Context) {
 	handlePlaygroundRelay(c, types.RelayFormatOpenAIImage)
 }
 
+func PlaygroundImageEdit(c *gin.Context) {
+	handlePlaygroundRelay(c, types.RelayFormatOpenAIImage)
+}
+
 func handlePlaygroundRelay(c *gin.Context, relayFormat types.RelayFormat) {
 	var newAPIError *types.NewAPIError
 
@@ -73,10 +77,17 @@ func handlePlaygroundRelay(c *gin.Context, relayFormat types.RelayFormat) {
 }
 
 func stripPlaygroundInternalFields(c *gin.Context) error {
-	if !strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
-		return nil
+	contentType := c.Request.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		return stripPlaygroundJSONInternalFields(c)
 	}
+	if strings.Contains(contentType, "multipart/form-data") {
+		return stripPlaygroundMultipartInternalFields(c)
+	}
+	return nil
+}
 
+func stripPlaygroundJSONInternalFields(c *gin.Context) error {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return err
@@ -116,5 +127,22 @@ func stripPlaygroundInternalFields(c *gin.Context) error {
 	c.Set(common.KeyBodyStorage, sanitizedStorage)
 	c.Request.Body = io.NopCloser(sanitizedStorage)
 	c.Request.ContentLength = int64(len(sanitizedBody))
+	return nil
+}
+
+func stripPlaygroundMultipartInternalFields(c *gin.Context) error {
+	if _, err := c.MultipartForm(); err != nil {
+		return err
+	}
+	if c.Request.MultipartForm == nil || c.Request.MultipartForm.Value == nil {
+		return nil
+	}
+	delete(c.Request.MultipartForm.Value, "group")
+	if c.Request.PostForm != nil {
+		delete(c.Request.PostForm, "group")
+	}
+	if c.Request.Form != nil {
+		delete(c.Request.Form, "group")
+	}
 	return nil
 }

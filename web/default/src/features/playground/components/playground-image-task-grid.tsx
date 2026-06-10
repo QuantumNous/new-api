@@ -25,6 +25,7 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   Trash2Icon,
+  XIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,6 +33,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -44,7 +46,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getImageSource, isImageResultRenderable } from '../lib'
-import type { ImageResult, ImageTask } from '../types'
+import type { ImageReferencePreview, ImageResult, ImageTask } from '../types'
 
 interface PlaygroundImageTaskGridProps {
   tasks: ImageTask[]
@@ -104,6 +106,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 
 interface ImagePreviewSelection {
   alt: string
+  referenceImages?: ImageReferencePreview[]
   source: string
 }
 
@@ -140,7 +143,13 @@ function ImagePreview({
       aria-label={alt}
       className={`group focus-visible:ring-ring/50 ${imageResultClassName} outline-none focus-visible:ring-3`}
       type='button'
-      onClick={() => onOpen({ alt, source })}
+      onClick={() =>
+        onOpen({
+          alt,
+          referenceImages: task.referenceImages,
+          source,
+        })
+      }
     >
       <img
         alt={alt}
@@ -171,7 +180,7 @@ function TaskCard({
   const firstSource = firstImage ? getImageSource(firstImage, task.config) : ''
   const canCopyLink = Boolean(firstImage?.url)
   const canDownload = Boolean(firstSource)
-
+  const isEditTask = task.mode === 'edit'
   const handleCopyLink = () => {
     if (!firstImage?.url) return
     void copyText(firstImage.url, t('Image link copied'))
@@ -230,7 +239,9 @@ function TaskCard({
           {task.status === 'running'
             ? t('Generating')
             : task.status === 'done'
-              ? t('Generated image')
+              ? isEditTask
+                ? t('Edited image')
+                : t('Generated image')
               : task.errorCode || t('Error')}
         </span>
         <div className='flex shrink-0 items-center gap-1'>
@@ -312,19 +323,50 @@ export function PlaygroundImageTaskGrid({
             if (!open) setPreview(null)
           }}
         >
-          <DialogContent className='bg-background/95 w-auto max-w-[calc(100vw-1rem)] p-2 sm:max-w-[min(92vw,90rem)]'>
+          <DialogContent
+            showCloseButton={false}
+            className='!fixed !inset-0 !top-0 !left-0 !z-50 !flex !h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !items-center !justify-center !gap-0 !rounded-none !bg-black/90 !p-0 !ring-0'
+          >
             <DialogHeader className='sr-only'>
-              <DialogTitle>
-                {preview?.alt || t('Generated image')}
-              </DialogTitle>
+              <DialogTitle>{preview?.alt || t('Generated image')}</DialogTitle>
             </DialogHeader>
-            <div className='flex max-h-[85vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-lg bg-black/90'>
-              {preview ? (
-                <img
-                  alt={preview.alt}
-                  className='max-h-[85vh] max-w-[90vw] object-contain'
-                  src={preview.source}
+            <DialogClose
+              render={
+                <Button
+                  aria-label={t('Close')}
+                  className='bg-background/85 text-foreground hover:bg-background absolute top-3 right-3 z-10 shadow-md backdrop-blur'
+                  size='icon-sm'
+                  type='button'
+                  variant='secondary'
                 />
+              }
+            >
+              <XIcon className='size-4' />
+              <span className='sr-only'>{t('Close')}</span>
+            </DialogClose>
+            <div className='flex h-full w-full items-center justify-center p-3 pt-14 sm:p-6 sm:pt-16'>
+              {preview ? (
+                <div className='flex h-full w-full flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4'>
+                  {preview.referenceImages?.length ? (
+                    <div className='flex w-full shrink-0 items-center justify-center gap-2 overflow-x-auto sm:h-full sm:w-24 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto'>
+                      {preview.referenceImages.map((reference) => (
+                        <img
+                          key={reference.id}
+                          alt={reference.name || t('Reference image')}
+                          className='bg-background/10 ring-border/20 size-16 shrink-0 rounded-md object-contain ring-1 sm:size-20'
+                          src={reference.dataUrl}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className='flex min-h-0 min-w-0 flex-1 items-center justify-center self-stretch'>
+                    <img
+                      alt={preview.alt}
+                      className='block h-full w-full object-contain'
+                      src={preview.source}
+                    />
+                  </div>
+                </div>
               ) : null}
             </div>
           </DialogContent>

@@ -139,6 +139,20 @@ export interface ImageGenerationResponse {
   metadata?: unknown
 }
 
+export interface ImageReferencePreview {
+  id: string
+  name: string
+  dataUrl: string
+  type?: string
+  size: number
+}
+
+export interface ImageReferenceInput extends ImageReferencePreview {
+  file: File
+}
+
+export type ImageTaskMode = 'generate' | 'edit'
+
 export type ImageTaskStatus = 'running' | 'done' | 'error' | 'interrupted'
 
 export interface ImageResult {
@@ -151,6 +165,8 @@ export interface ImageTask {
   id: string
   prompt: string
   config: ImageGenerationConfig
+  mode?: ImageTaskMode
+  referenceImages?: ImageReferencePreview[]
   status: ImageTaskStatus
   image?: ImageResult
   error?: string

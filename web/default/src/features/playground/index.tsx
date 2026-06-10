@@ -31,7 +31,11 @@ import {
   useChatHandler,
   useImageGenerationHandler,
 } from './hooks'
-import { createUserMessage, createLoadingAssistantMessage } from './lib'
+import {
+  createUserMessage,
+  createLoadingAssistantMessage,
+  supportsImageEditingModel,
+} from './lib'
 import type { ImageTask, Message as MessageType, ModelOption } from './types'
 
 function supportsImageGeneration(model: ModelOption): boolean {
@@ -70,10 +74,7 @@ export function Playground() {
 
   const imageModels = models.filter(supportsImageGeneration)
 
-  const {
-    generateImage,
-    retryTask,
-  } = useImageGenerationHandler({
+  const { generateImage, retryTask } = useImageGenerationHandler({
     config: imageConfig,
     onTasksUpdate: updateImageTasks,
   })
@@ -319,9 +320,14 @@ export function Playground() {
               isModelLoading={isLoadingModels}
               models={imageModels}
               prompt={imagePrompt}
+              supportsReferenceImages={supportsImageEditingModel(
+                imageConfig.model
+              )}
               onConfigChange={updateImageConfig}
               onPromptChange={setImagePrompt}
-              onSubmit={(prompt) => void generateImage(prompt)}
+              onSubmit={(prompt, referenceImages) =>
+                void generateImage(prompt, referenceImages)
+              }
             />
           )}
         </div>

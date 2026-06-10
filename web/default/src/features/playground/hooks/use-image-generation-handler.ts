@@ -20,13 +20,21 @@ import { useCallback } from 'react'
 import { nanoid } from 'nanoid'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { sendImageGeneration } from '../api'
+import { sendImageEdit, sendImageGeneration } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import {
+  buildImageEditFormData,
   buildImageGenerationPayload,
   normalizeImageGenerationCount,
+  supportsImageEditingModel,
 } from '../lib'
-import type { ImageGenerationConfig, ImageResult, ImageTask } from '../types'
+import type {
+  ImageGenerationConfig,
+  ImageReferenceInput,
+  ImageReferencePreview,
+  ImageResult,
+  ImageTask,
+} from '../types'
 
 interface UseImageGenerationHandlerOptions {
   config: ImageGenerationConfig
@@ -74,9 +82,20 @@ function getImageGenerationError(
   }
 
   return {
-    message:
-      upstreamMessage || ERROR_MESSAGES.API_REQUEST_ERROR,
+    message: upstreamMessage || ERROR_MESSAGES.API_REQUEST_ERROR,
     code: err?.response?.data?.error?.code || undefined,
+  }
+}
+
+function toReferencePreview(
+  reference: ImageReferenceInput
+): ImageReferencePreview {
+  return {
+    id: reference.id,
+    name: reference.name,
+    dataUrl: reference.dataUrl,
+    type: reference.type,
+    size: reference.size,
   }
 }
 
@@ -96,7 +115,11 @@ export function useImageGenerationHandler({
   )
 
   const generateImage = useCallback(
-    async (prompt: string, overrideConfig?: ImageGenerationConfig) => {
+    async (
+      prompt: string,
+      referenceImages: ImageReferenceInput[] = [],
+      overrideConfig?: ImageGenerationConfig
+    ) => {
       const trimmedPrompt = prompt.trim()
       const sourceConfig = overrideConfig ?? config
       const requestedCount = normalizeImageGenerationCount(sourceConfig.n)
@@ -115,6 +138,15 @@ export function useImageGenerationHandler({
         return
       }
 
+      const isEditMode = referenceImages.length > 0
+      if (isEditMode && !supportsImageEditingModel(effectiveConfig.model)) {
+        toast.error(
+          t('The selected image model does not support reference images')
+        )
+        return
+      }
+      const referencePreviews = referenceImages.map(toReferencePreview)
+
       const nextTasks: ImageTask[] = Array.from(
         { length: requestedCount },
         () => ({
@@ -124,6 +156,8 @@ export function useImageGenerationHandler({
             ...effectiveConfig,
             n: 1,
           },
+          mode: isEditMode ? 'edit' : 'generate',
+          referenceImages: isEditMode ? referencePreviews : undefined,
           status: 'running',
           createdAt: Date.now(),
         })
@@ -134,9 +168,17 @@ export function useImageGenerationHandler({
       const results = await Promise.allSettled(
         nextTasks.map(async (task) => {
           try {
-            const response = await sendImageGeneration(
-              buildImageGenerationPayload(trimmedPrompt, task.config)
-            )
+            const response = isEditMode
+              ? await sendImageEdit(
+                  buildImageEditFormData(
+                    trimmedPrompt,
+                    task.config,
+                    referenceImages
+                  )
+                )
+              : await sendImageGeneration(
+                  buildImageGenerationPayload(trimmedPrompt, task.config)
+                )
             const images = (response.data || []).filter(
               (image): image is ImageResult =>
                 Boolean(image.url || image.b64_json)
@@ -155,7 +197,13 @@ export function useImageGenerationHandler({
           } catch (error: unknown) {
             const parsed = getImageGenerationError(
               error,
-              t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
+              isEditMode
+                ? t(
+                    'The selected channel does not support image editing for this model'
+                  )
+                : t(
+                    'The selected channel does not have access to this image model, or the upstream does not support image generation for it'
+                  )
             )
             updateTask(task.id, (current) => ({
               ...current,
@@ -176,7 +224,13 @@ export function useImageGenerationHandler({
       if (failures.length === nextTasks.length) {
         const parsed = getImageGenerationError(
           failures[0]?.reason,
-          t('The selected channel does not have access to this image model, or the upstream does not support image generation for it')
+          isEditMode
+            ? t(
+                'The selected channel does not support image editing for this model'
+              )
+            : t(
+                'The selected channel does not have access to this image model, or the upstream does not support image generation for it'
+              )
         )
         toast.error(parsed.message)
       }
@@ -186,9 +240,13 @@ export function useImageGenerationHandler({
 
   const retryTask = useCallback(
     (task: ImageTask) => {
-      void generateImage(task.prompt, task.config)
+      if (task.mode === 'edit') {
+        toast.error(t('Upload the reference images again to retry this edit'))
+        return
+      }
+      void generateImage(task.prompt, [], task.config)
     },
-    [generateImage]
+    [generateImage, t]
   )
 
   return {

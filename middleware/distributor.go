@@ -33,7 +33,8 @@ var errPlaygroundGroupAccessDenied = errors.New("playground group access denied"
 
 func isPlaygroundRelayRequest(path string) bool {
 	return strings.HasPrefix(path, "/pg/chat/completions") ||
-		strings.HasPrefix(path, "/pg/images/generations")
+		strings.HasPrefix(path, "/pg/images/generations") ||
+		strings.HasPrefix(path, "/pg/images/edits")
 }
 
 func relayEndpointType(path string) constant.EndpointType {

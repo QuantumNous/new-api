@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type {
   ImageGenerationConfig,
   ImageGenerationRequest,
+  ImageReferenceInput,
 } from '../types'
 
 export function buildImageGenerationPayload(
@@ -49,4 +50,39 @@ export function buildImageGenerationPayload(
   }
 
   return payload
+}
+
+export function buildImageEditFormData(
+  prompt: string,
+  config: ImageGenerationConfig,
+  referenceImages: ImageReferenceInput[]
+): FormData {
+  const formData = new FormData()
+
+  formData.append('model', config.model)
+  formData.append('group', config.group)
+  formData.append('prompt', prompt.trim())
+  formData.append('size', config.size)
+  formData.append('quality', config.quality)
+  formData.append('n', '1')
+  formData.append('response_format', config.response_format)
+
+  if (config.output_format) {
+    formData.append('output_format', config.output_format)
+  }
+  if (
+    config.output_compression !== undefined &&
+    config.output_compression !== null
+  ) {
+    formData.append('output_compression', String(config.output_compression))
+  }
+  if (config.moderation) {
+    formData.append('moderation', config.moderation)
+  }
+
+  referenceImages.forEach((reference) => {
+    formData.append('image', reference.file, reference.file.name)
+  })
+
+  return formData
 }
