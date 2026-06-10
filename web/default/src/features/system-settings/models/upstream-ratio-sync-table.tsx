@@ -28,8 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DataTableView, useDataTable } from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table'
+import {
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'
