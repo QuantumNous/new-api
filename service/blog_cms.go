@@ -206,6 +206,9 @@ func FetchBlogPost(params BlogPostParams) (BlogPost, error) {
 		return BlogPost{}, errors.New("blog post not found")
 	}
 	post := mapBlogCMSPost(payload.Data[0])
+	if post.Slug == "" {
+		post.Slug = params.Slug
+	}
 	post.Content = payload.Data[0].PostContent
 	return post, nil
 }

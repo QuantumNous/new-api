@@ -114,6 +114,40 @@ func TestFetchBlogPostMapsContent(t *testing.T) {
 	}
 }
 
+func TestFetchBlogPostKeepsRequestedSlugWhenCMSDetailSlugIsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/n/blog/detailData" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"code": 200,
+			"data": [{
+				"ID": 34198,
+				"post_title": "Seedance 2.0 API Access",
+				"slug": "",
+				"post_excerpt": "Seedance access guide.",
+				"post_content": "<p>Use one API key.</p>",
+				"post_date": "2026-06-10T16:02:49.000Z",
+				"author_name": "Big Y"
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	post, err := FetchBlogPost(BlogPostParams{
+		CMSHost: server.URL,
+		Client:  server.Client(),
+		Slug:    "seedance-api-access",
+	})
+	if err != nil {
+		t.Fatalf("FetchBlogPost returned error: %v", err)
+	}
+	if post.Slug != "seedance-api-access" {
+		t.Fatalf("expected requested slug to be preserved, got %q", post.Slug)
+	}
+}
+
 func TestFetchBlogListFallsBackToWordPressPosts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
