@@ -123,30 +123,38 @@ func parseStringSliceOptionValue(value any) ([]string, error) {
 	return patterns, nil
 }
 
+func normalizeStringSliceOptionValue(value any) (string, []string, error) {
+	values, err := parseStringSliceOptionValue(value)
+	if err != nil {
+		return "", nil, err
+	}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			normalized = append(normalized, value)
+		}
+	}
+	raw, isString := value.(string)
+	if isString && strings.HasPrefix(strings.TrimSpace(raw), "[") && reflect.DeepEqual(normalized, values) {
+		return raw, normalized, nil
+	}
+	bytes, err := common.Marshal(normalized)
+	if err != nil {
+		return "", nil, err
+	}
+	return string(bytes), normalized, nil
+}
+
 func normalizeCodexPatternsOptionValue(value any) (string, error) {
-	patterns, err := parseStringSliceOptionValue(value)
+	serialized, patterns, err := normalizeStringSliceOptionValue(value)
 	if err != nil {
 		return "", err
 	}
 	if err := operation_setting.ValidateCodexModelGovernancePatterns(patterns); err != nil {
 		return "", err
 	}
-	normalized := make([]string, 0, len(patterns))
-	for _, pattern := range patterns {
-		pattern = strings.TrimSpace(pattern)
-		if pattern != "" {
-			normalized = append(normalized, pattern)
-		}
-	}
-	raw, isString := value.(string)
-	if isString && strings.HasPrefix(strings.TrimSpace(raw), "[") && reflect.DeepEqual(normalized, patterns) {
-		return raw, nil
-	}
-	bytes, err := common.Marshal(normalized)
-	if err != nil {
-		return "", err
-	}
-	return string(bytes), nil
+	return serialized, nil
 }
 
 func GetOptions(c *gin.Context) {
@@ -201,7 +209,8 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
-	if option.Key == "codex_model_governance_setting.unsupported_message_patterns" {
+	switch option.Key {
+	case "codex_model_governance_setting.unsupported_message_patterns":
 		option.Value, err = normalizeCodexPatternsOptionValue(option.Value)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -210,7 +219,18 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	} else {
+	case "codex_model_governance_setting.official_source_urls",
+		"codex_model_governance_setting.official_lifecycle_terms":
+		serialized, _, serializeErr := normalizeStringSliceOptionValue(option.Value)
+		if serializeErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": serializeErr.Error(),
+			})
+			return
+		}
+		option.Value = serialized
+	default:
 		switch option.Value.(type) {
 		case bool:
 			option.Value = common.Interface2String(option.Value.(bool))
