@@ -239,6 +239,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
   const toolbarNode = renderToolbar(props)
   const mobileNode = renderMobile(props, showMobile)
   const desktopNode = renderDesktop(props, showMobile)
+  const paginationNode = renderPagination(props)
 
   return (
     <>
@@ -260,16 +261,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
           handle its own visibility, we just gate it to non-mobile. */}
       {!showMobile && props.bulkActions}
 
-      {props.showPagination !== false &&
-        (props.paginationInFooter !== false ? (
-          <PageFooterPortal>
-            <DataTablePagination table={props.table} />
-          </PageFooterPortal>
-        ) : (
-          <div className='pt-2'>
-            <DataTablePagination table={props.table} />
-          </div>
-        ))}
+      {paginationNode}
     </>
   )
 }
@@ -287,6 +279,20 @@ function renderToolbar<TData>(
     return <DataTableToolbar table={props.table} {...props.toolbarProps} />
   }
   return null
+}
+
+function renderPagination<TData>(
+  props: DataTablePageProps<TData>
+): React.ReactNode {
+  if (props.showPagination === false) return null
+
+  const pagination = <DataTablePagination table={props.table} />
+
+  return props.paginationInFooter !== false ? (
+    <PageFooterPortal>{pagination}</PageFooterPortal>
+  ) : (
+    <div className='pt-2'>{pagination}</div>
+  )
 }
 
 function renderMobile<TData>(
