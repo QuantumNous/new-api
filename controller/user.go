@@ -946,6 +946,7 @@ func CreateUser(c *gin.Context) {
 		Role:        user.Role, // 保持管理员设置的角色
 		Group:       user.Group,
 		InviterId:   user.InviterId,
+		Email:       user.Email,
 	}
 	if err := cleanUser.Insert(user.InviterId); err != nil {
 		common.ApiError(c, err)
