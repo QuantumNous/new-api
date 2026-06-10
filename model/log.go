@@ -57,13 +57,14 @@ type Log struct {
 
 // don't use iota, avoid change log type value
 const (
-	LogTypeUnknown = 0
-	LogTypeTopup   = 1
-	LogTypeConsume = 2
-	LogTypeManage  = 3
-	LogTypeSystem  = 4
-	LogTypeError   = 5
-	LogTypeRefund  = 6
+	LogTypeUnknown    = 0
+	LogTypeTopup      = 1
+	LogTypeConsume    = 2
+	LogTypeManage     = 3
+	LogTypeSystem     = 4
+	LogTypeError      = 5
+	LogTypeRefund     = 6
+	LogTypePreConsume = 7 // 预扣费中间态日志，不计入统计面板
 )
 
 func formatUserLogs(logs []*Log, startIdx int) {
@@ -312,6 +313,14 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
+	}
+	// LogTypePreConsume 是预扣费中间态，统计数据在差额结算时一次性写入，避免虚高。
+	// LogTypeRefund 对应任务失败退款：由于预扣阶段未写 quota_data，退款无需冲销，跳过写入。
+	if common.DataExportEnabled && params.LogType != LogTypePreConsume && params.LogType != LogTypeRefund {
+		quotaForStats := params.Quota
+		gopool.Go(func() {
+			LogQuotaData(params.UserId, username, params.ModelName, quotaForStats, common.GetTimestamp(), 0)
+		})
 	}
 }
 
