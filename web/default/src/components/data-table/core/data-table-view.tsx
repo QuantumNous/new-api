@@ -17,73 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import {
-  flexRender,
-  type Row,
-  type Table as TanstackTable,
-} from '@tanstack/react-table'
+import { type Row } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { getResolvedColumnClassName } from './column-pinning'
+import { DataTableHeader } from './data-table-header'
+import { DataTableRow } from './data-table-row'
 import { TableEmpty } from './table-empty'
 import { TableSkeleton } from './table-skeleton'
+import type { DataTableColumnClassName, DataTableViewProps } from './types'
 
-export type DataTableColumnClassName = (
-  columnId: string,
-  kind: 'header' | 'cell'
-) => string | undefined
-
-export type DataTablePinnedColumn = {
-  columnId: string
-  side: 'left' | 'right'
-  className?: string
-  headerClassName?: string
-  cellClassName?: string
-}
-
-export type DataTableRenderRowHelpers = {
-  getCellClassName: (columnId: string, className?: string) => string | undefined
-}
-
-export type DataTableViewProps<TData> = {
-  table: TanstackTable<TData>
-  isLoading?: boolean
-  rows?: Row<TData>[]
-  emptyTitle?: string
-  emptyDescription?: string
-  emptyIcon?: React.ReactNode
-  emptyAction?: React.ReactNode
-  emptyContent?: React.ReactNode
-  emptyCellClassName?: string
-  skeletonKeyPrefix?: string
-  skeletonRowHeight?: string
-  renderRow?: (
-    row: Row<TData>,
-    helpers: DataTableRenderRowHelpers
-  ) => React.ReactNode
-  getRowClassName?: (row: Row<TData>) => string | undefined
-  getColumnClassName?: DataTableColumnClassName
-  pinnedColumns?: DataTablePinnedColumn[]
-  applyHeaderSize?: boolean
-  tableClassName?: string
-  tableHeaderClassName?: string
-  tableHeaderRowClassName?: string
-  tableBodyClassName?: string
-  tableBodyRowClassName?: string
-  splitHeader?: boolean
-  splitHeaderScrollClassName?: string
-  bodyContainerClassName?: string
-  containerClassName?: string
-  containerProps?: Omit<React.ComponentProps<'div'>, 'className' | 'children'>
-  tableContainerClassName?: string
-  colgroup?: React.ReactNode
-}
+export type {
+  DataTableColumnClassName,
+  DataTablePinnedColumn,
+  DataTableRenderRowHelpers,
+  DataTableViewProps,
+} from './types'
+export { DataTableRow } from './data-table-row'
 
 export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   const rows = props.rows ?? props.table.getRowModel().rows
@@ -301,116 +251,5 @@ function renderDefaultRow<TData>(
       className={cn(props.tableBodyRowClassName, props.getRowClassName?.(row))}
       getColumnClassName={getColumnClassName}
     />
-  )
-}
-
-function getResolvedColumnClassName(
-  getColumnClassName?: DataTableColumnClassName,
-  pinnedColumns?: DataTablePinnedColumn[]
-): DataTableColumnClassName {
-  if (!pinnedColumns?.length) {
-    return (columnId, kind) => getColumnClassName?.(columnId, kind)
-  }
-
-  const pinnedColumnById = new Map(
-    pinnedColumns.map((column) => [column.columnId, column])
-  )
-
-  return (columnId, kind) => {
-    const pinnedColumn = pinnedColumnById.get(columnId)
-    const customClassName = getColumnClassName?.(columnId, kind)
-
-    if (!pinnedColumn) return customClassName
-
-    return cn(customClassName, getPinnedColumnClassName(pinnedColumn, kind))
-  }
-}
-
-function getPinnedColumnClassName(
-  pinnedColumn: DataTablePinnedColumn,
-  kind: 'header' | 'cell'
-) {
-  const edgeClassName =
-    pinnedColumn.side === 'left'
-      ? 'border-r shadow-[8px_0_10px_-10px_hsl(var(--foreground))]'
-      : 'border-l shadow-[-8px_0_10px_-10px_hsl(var(--foreground))]'
-
-  return cn(
-    'sticky whitespace-nowrap',
-    pinnedColumn.side === 'left' ? 'left-0' : 'right-0',
-    edgeClassName,
-    kind === 'header'
-      ? 'bg-background z-30'
-      : 'bg-background z-10 group-hover:bg-muted group-data-[state=selected]:bg-muted',
-    pinnedColumn.className,
-    kind === 'header'
-      ? pinnedColumn.headerClassName
-      : pinnedColumn.cellClassName
-  )
-}
-
-function DataTableHeader<TData>({
-  table,
-  applyHeaderSize,
-  className,
-  rowClassName,
-  getColumnClassName,
-}: {
-  table: TanstackTable<TData>
-  applyHeaderSize?: boolean
-  className?: string
-  rowClassName?: string
-  getColumnClassName?: DataTableColumnClassName
-}) {
-  return (
-    <TableHeader className={className}>
-      {table.getHeaderGroups().map((headerGroup) => (
-        <TableRow key={headerGroup.id} className={rowClassName}>
-          {headerGroup.headers.map((header) => (
-            <TableHead
-              key={header.id}
-              colSpan={header.colSpan}
-              className={getColumnClassName?.(header.column.id, 'header')}
-              style={applyHeaderSize ? { width: header.getSize() } : undefined}
-            >
-              {header.isPlaceholder
-                ? null
-                : flexRender(
-                    header.column.columnDef.header,
-                    header.getContext()
-                  )}
-            </TableHead>
-          ))}
-        </TableRow>
-      ))}
-    </TableHeader>
-  )
-}
-
-export function DataTableRow<TData>({
-  row,
-  className,
-  getColumnClassName,
-  ...rowProps
-}: {
-  row: Row<TData>
-  className?: string
-  getColumnClassName?: DataTableColumnClassName
-} & Omit<React.ComponentProps<typeof TableRow>, 'children'>) {
-  return (
-    <TableRow
-      data-state={row.getIsSelected() ? 'selected' : undefined}
-      className={className}
-      {...rowProps}
-    >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell
-          key={cell.id}
-          className={getColumnClassName?.(cell.column.id, 'cell')}
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </TableCell>
-      ))}
-    </TableRow>
   )
 }

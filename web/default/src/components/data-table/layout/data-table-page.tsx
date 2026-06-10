@@ -30,10 +30,10 @@ import {
   type DataTableColumnClassName,
   type DataTablePinnedColumn,
   type DataTableRenderRowHelpers,
-} from './data-table-view'
+} from '../core/data-table-view'
+import { DataTablePagination } from '../core/pagination'
+import { DataTableToolbar } from '../toolbar/toolbar'
 import { MobileCardList } from './mobile-card-list'
-import { DataTablePagination } from './pagination'
-import { DataTableToolbar } from './toolbar'
 
 /**
  * Pass-through configuration for the default {@link DataTableToolbar}.
