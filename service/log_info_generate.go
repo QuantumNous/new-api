@@ -81,7 +81,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendStreamStatus(relayInfo, other)
 	appendChannelActualPrice(relayInfo, other)
 	if ctx != nil && relayInfo != nil {
-		AppendCodexClientLogInfo(ctx, relayInfo.OriginModelName, other)
+		AppendClientExclusiveLogInfo(ctx, relayInfo.OriginModelName, other)
 	}
 	return other
 }

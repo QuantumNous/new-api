@@ -35,6 +35,7 @@ type ModelDataItem struct {
 	ChannelID   int    `json:"channel_id"`
 	ChannelName string `json:"channel_name"`
 	KeyGroup    string `json:"key_group"`
+	ClientExclusive string `json:"client_exclusive"` // "" | codex | claude_code
 	// Pricing fields: nil = no pricing row (upstream 401/404 / cookie-only auth / no endpoint).
 	// Frontend renders nil as "—".
 	ModelPrice                 *float64      `json:"model_price"`                  // base model price = input_price / group_ratio ($/1M); nil = unknown
@@ -286,6 +287,7 @@ func GetModelData(c *gin.Context) {
 		}
 
 		keyGroup := modelDataExtractKeyGroup(r.Setting)
+		clientExclusive := modelDataExtractClientExclusive(r.Setting)
 
 		// Hub compare price: hub's listed price × this channel's recharge_rate,
 		// matched by host + key_group. nil when the relay isn't on the hub, or
@@ -321,6 +323,7 @@ func GetModelData(c *gin.Context) {
 			ChannelID:                  r.ChannelID,
 			ChannelName:                r.ChannelName,
 			KeyGroup:                   keyGroup,
+			ClientExclusive:            clientExclusive,
 			ModelPrice:                 modelPricePtr,
 			GroupRatio:                 groupRatioPtr,
 			InputPrice:                 inputPricePtr,
@@ -385,6 +388,10 @@ func GetModelData(c *gin.Context) {
 
 func modelDataExtractKeyGroup(setting *string) string {
 	return service.ExtractKeyGroup(setting)
+}
+
+func modelDataExtractClientExclusive(setting *string) string {
+	return string(service.ExtractClientExclusive(setting))
 }
 
 // applyModelMappingPricingToRow fills pricing fields from channel_model_pricings when

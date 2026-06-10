@@ -96,7 +96,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		ch, cheapErr := SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
 		if cheapErr != nil {
 			if errors.Is(cheapErr, ErrNoCheapestChannel) {
-				if policyErr := CodexPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil && RequiresCodexChannelPolicy(param.ModelName) {
+				if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil && RequiresClientExclusivePolicy(param.ModelName) {
 					return nil, AutoCheapestGroup, policyErr
 				}
 			}
@@ -177,8 +177,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			return nil, param.TokenGroup, err
 		}
 	}
-	if channel == nil && RequiresCodexChannelPolicy(param.ModelName) {
-		if policyErr := CodexPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil {
+	if channel == nil && RequiresClientExclusivePolicy(param.ModelName) {
+		if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil {
 			return nil, selectGroup, policyErr
 		}
 	}

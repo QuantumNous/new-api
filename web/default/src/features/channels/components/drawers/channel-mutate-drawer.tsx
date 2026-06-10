@@ -388,6 +388,59 @@ function KeyGroupField({
   )
 }
 
+const CLIENT_EXCLUSIVE_OPTIONS = [
+  { value: 'none', label: '通用（任何客户端）' },
+  { value: 'codex', label: 'Codex 专属' },
+  { value: 'claude_code', label: 'Claude Code 专属' },
+] as const
+
+function ClientExclusiveField({
+  control,
+}: {
+  control: ReturnType<typeof useForm<ChannelFormValues>>['control']
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={control}
+      name='client_exclusive'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Client Exclusive')}</FormLabel>
+          <Select
+            items={CLIENT_EXCLUSIVE_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.label),
+            }))}
+            value={field.value && field.value !== '' ? field.value : 'none'}
+            onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue placeholder={t('通用（任何客户端）')} />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {CLIENT_EXCLUSIVE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {t(opt.label)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            {t('Restrict this channel to Codex or Claude Code clients. Pricing key_group is unchanged.')}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
 // Manual group-ratio fallback: used by FetchChannelPricing when the upstream
 // /api/pricing doesn't expose a group_ratio for this channel's key_group.
 function ManualGroupRatioField({
@@ -2756,6 +2809,8 @@ export function ChannelMutateDrawer({
                   baseUrl={form.watch('base_url') || ''}
                   channelId={channelId}
                 />
+
+                <ClientExclusiveField control={form.control} />
 
                 <ManualGroupRatioField control={form.control} />
 

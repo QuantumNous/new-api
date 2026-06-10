@@ -46,6 +46,7 @@ interface ModelDataItem {
   channel_id: number
   channel_name: string
   key_group: string
+  client_exclusive?: string  // '' | codex | claude_code
   // null when upstream /api/pricing returned 401/404 or cookie-only auth —
   // we have no idea how much this channel costs. UI renders these as "—".
   model_price: number | null       // base price before group markup
@@ -136,6 +137,23 @@ function fmtPrice(price: number | null | undefined): string {
   // 显示破折号而不是 "0"，避免被误认为"免费"渠道。
   if (price == null || price <= 0) return '—'
   return parseFloat(price.toFixed(4)).toString()
+}
+
+function ClientExclusiveBadge({ value }: { value?: string }) {
+  if (!value) return <span className='text-gray-300'>—</span>
+  const styles: Record<string, string> = {
+    codex: 'bg-cyan-100 text-cyan-800',
+    claude_code: 'bg-violet-100 text-violet-800',
+  }
+  const labels: Record<string, string> = {
+    codex: 'Codex',
+    claude_code: 'CC',
+  }
+  return (
+    <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${styles[value] ?? 'bg-gray-100 text-gray-600'}`}>
+      {labels[value] ?? value}
+    </span>
+  )
 }
 
 // Format unix-sec → "下次 18:42" or "即将 / Xs/Xm" depending on how soon.
@@ -772,6 +790,7 @@ export function ModelDataPage() {
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>ID</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点分组</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>客户端</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>充值汇率</th>
                 <th className='text-right px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>gratio</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
@@ -795,12 +814,12 @@ export function ModelDataPage() {
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={13} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={14} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={13} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={14} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
@@ -851,6 +870,9 @@ export function ModelDataPage() {
                       )}
                     </td>
                     <td className={`px-3 py-2.5 text-gray-500 ${dim}`}>{item.key_group || <span className='text-gray-300'>—</span>}</td>
+                    <td className={`px-3 py-2.5 ${dim}`}>
+                      <ClientExclusiveBadge value={item.client_exclusive} />
+                    </td>
                     <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
                       {item.recharge_rate != null ? item.recharge_rate.toFixed(4) : <span className='text-gray-300'>—</span>}
                     </td>

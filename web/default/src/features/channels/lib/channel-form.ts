@@ -90,6 +90,8 @@ export const channelFormSchema = z.object({
   model_price_ratio: z.number().min(0).optional(),
   // 检测接口格式：fingerprint 调用时使用的 API 格式（openai-compatible / anthropic）
   api_format: z.string().optional(),
+  // 客户端专属：空=通用 / codex / claude_code
+  client_exclusive: z.enum(['', 'codex', 'claude_code']).optional(),
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -153,6 +155,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   apimaster_price_ratio: undefined,
   model_price_ratio: undefined,
   api_format: 'openai-compatible',
+  client_exclusive: '',
 }
 
 // ============================================================================
@@ -176,6 +179,7 @@ export function transformChannelToFormDefaults(
     key_group: '',
     manual_group_ratio: 0,
     model_price_ratio: 0,
+    client_exclusive: '' as '' | 'codex' | 'claude_code',
   }
 
   if (channel.setting) {
@@ -192,6 +196,9 @@ export function transformChannelToFormDefaults(
         manual_group_ratio: parsed.manual_group_ratio || 0,
         model_price_ratio: parsed.model_price_ratio || 0,
         api_format: parsed.api_format || 'openai-compatible',
+        client_exclusive: (parsed.client_exclusive === 'codex' || parsed.client_exclusive === 'claude_code'
+          ? parsed.client_exclusive
+          : '') as '' | 'codex' | 'claude_code',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -306,6 +313,7 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     key_group: formData.key_group || '',
     manual_group_ratio: formData.manual_group_ratio || 0,
     model_price_ratio: formData.model_price_ratio || 0,
+    ...(formData.client_exclusive ? { client_exclusive: formData.client_exclusive } : {}),
   }
   return JSON.stringify(settingObj)
 }
