@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"bytes"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -54,5 +56,57 @@ func TestStripPlaygroundInternalFieldsRemovesGroupFromReusableBody(t *testing.T)
 	}
 	if strings.Contains(string(fromRequest), `"group"`) {
 		t.Fatalf("request body still contains group: %s", fromRequest)
+	}
+}
+
+func TestStripPlaygroundInternalFieldsRemovesGroupFromMultipartForm(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("model", "gpt-image-1"); err != nil {
+		t.Fatalf("WriteField model returned error: %v", err)
+	}
+	if err := writer.WriteField("group", "vip"); err != nil {
+		t.Fatalf("WriteField group returned error: %v", err)
+	}
+	if err := writer.WriteField("prompt", "make the reference image brighter"); err != nil {
+		t.Fatalf("WriteField prompt returned error: %v", err)
+	}
+	imagePart, err := writer.CreateFormFile("image", "reference.png")
+	if err != nil {
+		t.Fatalf("CreateFormFile returned error: %v", err)
+	}
+	if _, err := imagePart.Write([]byte("not-a-real-png")); err != nil {
+		t.Fatalf("image write returned error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close returned error: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/pg/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	if err := stripPlaygroundInternalFields(c); err != nil {
+		t.Fatalf("stripPlaygroundInternalFields returned error: %v", err)
+	}
+
+	form := c.Request.MultipartForm
+	if form == nil {
+		t.Fatal("MultipartForm is nil")
+	}
+	if _, exists := form.Value["group"]; exists {
+		t.Fatalf("multipart form still contains group: %#v", form.Value["group"])
+	}
+	if values := form.Value["model"]; len(values) != 1 || values[0] != "gpt-image-1" {
+		t.Fatalf("model = %#v, want gpt-image-1", values)
+	}
+	if values := form.Value["prompt"]; len(values) != 1 || values[0] != "make the reference image brighter" {
+		t.Fatalf("prompt = %#v, want original prompt", values)
+	}
+	if files := form.File["image"]; len(files) != 1 || files[0].Filename != "reference.png" {
+		t.Fatalf("image files = %#v, want reference.png", files)
 	}
 }

@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +61,50 @@ func TestApplyPlaygroundGroupOverrideSupportsImageGenerationReusableBody(t *test
 	var raw dto.PlayGroundRequest
 	if err := common.UnmarshalBodyReusable(c, &raw); err != nil {
 		t.Fatalf("UnmarshalBodyReusable after image validation returned error: %v", err)
+	}
+	if raw.Group != "vip" || raw.Model != "gpt-image-1" {
+		t.Fatalf("re-read playground request = %+v, want group/model preserved", raw)
+	}
+}
+
+func TestApplyPlaygroundGroupOverrideSupportsImageEditMultipart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("model", "gpt-image-1"); err != nil {
+		t.Fatalf("WriteField model returned error: %v", err)
+	}
+	if err := writer.WriteField("group", "vip"); err != nil {
+		t.Fatalf("WriteField group returned error: %v", err)
+	}
+	if err := writer.WriteField("prompt", "make the reference image brighter"); err != nil {
+		t.Fatalf("WriteField prompt returned error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close returned error: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/pg/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+
+	usingGroup, err := applyPlaygroundGroupOverride(c, "default")
+	if err != nil {
+		t.Fatalf("applyPlaygroundGroupOverride returned error: %v", err)
+	}
+	if usingGroup != "vip" {
+		t.Fatalf("usingGroup = %q, want vip", usingGroup)
+	}
+	if got := common.GetContextKeyString(c, constant.ContextKeyUsingGroup); got != "vip" {
+		t.Fatalf("ContextKeyUsingGroup = %q, want vip", got)
+	}
+
+	var raw dto.PlayGroundRequest
+	if err := common.UnmarshalBodyReusable(c, &raw); err != nil {
+		t.Fatalf("UnmarshalBodyReusable after group override returned error: %v", err)
 	}
 	if raw.Group != "vip" || raw.Model != "gpt-image-1" {
 		t.Fatalf("re-read playground request = %+v, want group/model preserved", raw)

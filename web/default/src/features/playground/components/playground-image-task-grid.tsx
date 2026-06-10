@@ -173,6 +173,7 @@ function TaskCard({
   const firstSource = firstImage ? getImageSource(firstImage, task.config) : ''
   const canCopyLink = Boolean(firstImage?.url)
   const canDownload = Boolean(firstSource)
+  const isEditTask = task.mode === 'edit'
 
   const handleCopyLink = () => {
     if (!firstImage?.url) return
@@ -205,6 +206,31 @@ function TaskCard({
       </CardHeader>
 
       <CardContent className='space-y-3 px-3 pb-3'>
+        {task.referenceImages?.length ? (
+          <div className='flex items-center gap-2 overflow-x-auto'>
+            {task.referenceImages.map((reference) => (
+              <button
+                key={reference.id}
+                aria-label={t('Preview reference image')}
+                className='bg-muted ring-border/70 focus-visible:ring-ring/50 size-10 shrink-0 overflow-hidden rounded-md ring-1 outline-none focus-visible:ring-2'
+                type='button'
+                onClick={() =>
+                  onPreviewImage({
+                    alt: reference.name || t('Reference image'),
+                    source: reference.dataUrl,
+                  })
+                }
+              >
+                <img
+                  alt={reference.name}
+                  className='size-full object-cover'
+                  src={reference.dataUrl}
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {task.status === 'running' ? (
           <Skeleton className='aspect-square w-full rounded-md' />
         ) : task.status === 'error' || task.status === 'interrupted' ? (
@@ -232,7 +258,9 @@ function TaskCard({
           {task.status === 'running'
             ? t('Generating')
             : task.status === 'done'
-              ? t('Generated image')
+              ? isEditTask
+                ? t('Edited image')
+                : t('Generated image')
               : task.errorCode || t('Error')}
         </span>
         <div className='flex shrink-0 items-center gap-1'>
@@ -319,9 +347,7 @@ export function PlaygroundImageTaskGrid({
             className='!fixed !inset-0 !top-0 !left-0 !z-50 !flex !h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !items-center !justify-center !gap-0 !rounded-none !bg-black/90 !p-0 !ring-0'
           >
             <DialogHeader className='sr-only'>
-              <DialogTitle>
-                {preview?.alt || t('Generated image')}
-              </DialogTitle>
+              <DialogTitle>{preview?.alt || t('Generated image')}</DialogTitle>
             </DialogHeader>
             <DialogClose
               render={

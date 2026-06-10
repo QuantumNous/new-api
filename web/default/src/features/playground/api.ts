@@ -48,6 +48,15 @@ export async function sendImageGeneration(
   return res.data
 }
 
+export async function sendImageEdit(
+  payload: FormData
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
 /**
  * Get user available models
  */

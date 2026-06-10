@@ -177,12 +177,10 @@ function sanitizeImageTasksForStorage(tasks: ImageTask[]): ImageTask[] {
     const status =
       task.status === 'running' ? ('interrupted' as const) : task.status
     const error =
-      task.status === 'running'
-        ? 'Generation was interrupted'
-        : task.error
+      task.status === 'running' ? 'Generation was interrupted' : task.error
     const finishedAt =
       task.status === 'running'
-        ? task.finishedAt ?? Date.now()
+        ? (task.finishedAt ?? Date.now())
         : task.finishedAt
 
     let image = task.image
@@ -203,6 +201,16 @@ function sanitizeImageTasksForStorage(tasks: ImageTask[]): ImageTask[] {
       createdAt: task.createdAt,
     }
 
+    if (task.mode) sanitized.mode = task.mode
+    if (task.referenceImages) {
+      sanitized.referenceImages = task.referenceImages.map((image) => ({
+        id: image.id,
+        name: image.name,
+        dataUrl: image.dataUrl,
+        type: image.type,
+        size: image.size,
+      }))
+    }
     if (image) sanitized.image = image
     if (error) sanitized.error = error
     if (task.errorCode) sanitized.errorCode = task.errorCode

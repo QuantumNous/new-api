@@ -24,3 +24,10 @@ export function normalizeImageGenerationCount(count: number): number {
     Math.max(1, Number.isFinite(count) ? count : 1)
   )
 }
+
+export function supportsImageEditingModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase()
+  return (
+    normalized.startsWith('gpt-image-') || normalized === 'chatgpt-image-latest'
+  )
+}
