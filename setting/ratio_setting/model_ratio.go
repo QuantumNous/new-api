@@ -316,6 +316,9 @@ var defaultModelPrice = map[string]float64{
 	// xgapi.top: veo3.1-lite=$0.5, veo3.1-lite-4k=$0.55, sora-2=$0.2(按次,便宜)
 	// Apexer (www.aiapexers.com): veo2≈$0.2, veo2-fast≈$0.2, veo2-pro≈$0.5, veo3≈$0.3, veo3-fast≈$0.2, veo3-pro≈$1, veo3.1≈$0.3, veo3.1-pro≈$1
 	// Qilin API (www.937qq.cn): grok-imagine-1.0-video≈$0.020833333333333332
+	// 漫小白 (api.manxiaobai.online): gpt-image-2=$0.03, gpt-image-2-1k=$0.05, gpt-image-2-2k=$0.06, gpt-image-2-4k=$0.07
+	// 漫小白 (api.manxiaobai.online): gemini-3-pro-image-preview=$0.125, gemini-3.1-flash-image-preview=$0.1
+	// 漫小白 (api.manxiaobai.online): grok-imagine-video=$0.2(10s), grok-imagine-video-1.5-preview=$0.35(必须参考图,10/15s)
 	// Runway Explore adapter: pricing is estimated by public web-app credit rates; production requests remain async.
 	"sora-2":                            0.4,
 	"sora-2-pro":                        0.6,
@@ -387,6 +390,11 @@ var defaultModelPrice = map[string]float64{
 	"gemini_3.1_flash_image_preview":    0.25,
 	"gemini_3.1_flash_image_preview_4K": 0.3,
 	"gpt-image-2":                       0.5,
+	"gpt-image-2-1k":                    0.55,
+	"gpt-image-2-2k":                    0.6,
+	"gpt-image-2-4k":                    0.65,
+	"grok-imagine-video":                0.25,
+	"grok-imagine-video-1.5-preview":    0.45,
 	"nano-banana-pro":                   0.3,
 	"gemini-3-pro-image-preview":        0.3,
 	"gpt-4o-mini-tts":                   0.3,

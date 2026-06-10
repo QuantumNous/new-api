@@ -31,6 +31,8 @@ var ModelList = []string{
 	"grok-imagine-1.0-video",
 	"grok-imagine-1.0-video-20s",
 	"grok-imagine-1.0-video-30s",
+	"grok-imagine-video",
+	"grok-imagine-video-1.5-preview",
 	"xb-sora2",
 	"openai-sora-2",
 	"sora-2-pro-text-to-video",

@@ -52,6 +52,8 @@ func getProviderByHint(channelOther string) (provider, bool) {
 		return &qilinProvider{}, true
 	case containsAny(channelOther, "apexer"):
 		return &apexerapiProvider{}, true
+	case containsAny(channelOther, "manxiaobai", "漫小白", "mxb"):
+		return &manxiaobaiProvider{}, true
 	case containsAny(channelOther, "newapi"):
 		return &newapiProvider{}, true
 	default:
@@ -71,6 +73,8 @@ func getProviderByBaseURL(baseURL string) provider {
 		return &qilinProvider{}
 	case containsAny(baseURL, "apexer"):
 		return &apexerapiProvider{}
+	case containsAny(baseURL, "manxiaobai"):
+		return &manxiaobaiProvider{}
 	case containsAny(baseURL, "newapi"):
 		return &newapiProvider{}
 	case isXBSoraBaseURL(baseURL):
@@ -99,6 +103,8 @@ func getProviderForRelayInfo(info *relaycommon.RelayInfo) provider {
 		return &qilinProvider{}
 	case containsAny(baseURL, "apexer"):
 		return &apexerapiProvider{}
+	case containsAny(baseURL, "manxiaobai"):
+		return &manxiaobaiProvider{}
 	case containsAny(baseURL, "newapi"):
 		return &newapiProvider{}
 	case isXBSoraBaseURL(baseURL), isXBSoraModelName(info.OriginModelName), isXBSoraModelName(info.UpstreamModelName):
@@ -127,6 +133,8 @@ func getProviderForTaskFetch(baseURL string, body map[string]any) provider {
 		return &qilinProvider{}
 	case containsAny(baseURL, "apexer"):
 		return &apexerapiProvider{}
+	case containsAny(baseURL, "manxiaobai"):
+		return &manxiaobaiProvider{}
 	case containsAny(baseURL, "newapi"):
 		return &newapiProvider{}
 	case isXBSoraBaseURL(baseURL):
