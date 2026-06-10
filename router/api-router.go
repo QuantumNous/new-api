@@ -333,6 +333,17 @@ func SetApiRouter(router *gin.Engine) {
 			prefillGroupRoute.DELETE("/:id", controller.DeletePrefillGroup)
 		}
 
+		comboRoute := apiRouter.Group("/combo")
+		comboRoute.Use(middleware.UserAuth())
+		{
+			comboRoute.GET("/", controller.GetComboList)
+			comboRoute.GET("/search", controller.SearchCombos)
+			comboRoute.GET("/:id", controller.GetCombo)
+			comboRoute.POST("/", controller.CreateCombo)
+			comboRoute.PUT("/:id", controller.UpdateCombo)
+			comboRoute.DELETE("/:id", controller.DeleteCombo)
+		}
+
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
 		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
