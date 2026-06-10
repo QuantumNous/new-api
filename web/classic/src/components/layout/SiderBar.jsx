@@ -25,6 +25,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
+import { useFeedbackUnread } from '../../hooks/common/useFeedbackUnread';
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
@@ -52,6 +53,7 @@ const routerMap = {
   personal: '/console/personal',
   kyc: '/console/kyc',
   enterprise: '/console/enterprise',
+  feedback: '/console/feedback',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -64,6 +66,32 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   } = useSidebar();
 
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
+  const { userUnread, adminUnread } = useFeedbackUnread();
+
+  // 给菜单文案附一个未读计数小红标
+  const withUnreadBadge = (label, count) => {
+    if (!count) return label;
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {label}
+        <span
+          style={{
+            minWidth: 16,
+            height: 16,
+            padding: '0 4px',
+            borderRadius: 8,
+            background: 'var(--semi-color-danger)',
+            color: '#fff',
+            fontSize: 11,
+            lineHeight: '16px',
+            textAlign: 'center',
+          }}
+        >
+          {count > 99 ? '99+' : count}
+        </span>
+      </span>
+    );
+  };
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
   const [chatItems, setChatItems] = useState([]);
@@ -133,7 +161,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
-        text: t('个人设置'),
+        text: withUnreadBadge(t('个人设置'), userUnread),
         itemKey: 'personal',
         to: '/personal',
       },
@@ -146,7 +174,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [t, isModuleVisible]);
+  }, [t, isModuleVisible, userUnread]);
 
   const adminItems = useMemo(() => {
     const items = [
@@ -205,6 +233,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
+        text: withUnreadBadge(t('工单管理'), adminUnread),
+        itemKey: 'feedback',
+        to: '/console/feedback',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
         text: t('系统设置'),
         itemKey: 'setting',
         to: '/setting',
@@ -219,7 +253,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [isAdmin(), isRoot(), t, isModuleVisible]);
+  }, [isAdmin(), isRoot(), t, isModuleVisible, adminUnread]);
 
   const chatMenuItems = useMemo(() => {
     const items = [

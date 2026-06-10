@@ -50,6 +50,7 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import KYCPage from './pages/KYC';
 import EnterprisePage from './pages/Enterprise';
+import FeedbackPage from './pages/Feedback';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
 
@@ -195,6 +196,14 @@ function App() {
           element={
             <AdminRoute>
               <EnterprisePage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/feedback'
+          element={
+            <AdminRoute>
+              <FeedbackPage />
             </AdminRoute>
           }
         />

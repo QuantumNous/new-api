@@ -138,6 +138,15 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/enterprise", controller.SubmitEnterprise)
 				selfRoute.PUT("/enterprise", controller.UpdateEnterprise)
 				selfRoute.DELETE("/enterprise", controller.DeleteEnterprise)
+
+				// Feedback (建议及咨询/工单) routes
+				selfRoute.GET("/feedback/topics", controller.GetUserFeedbackTopics)
+				selfRoute.POST("/feedback/topics", middleware.CriticalRateLimit(), controller.CreateFeedbackTopic)
+				selfRoute.GET("/feedback/unread", controller.GetUserFeedbackUnread)
+				selfRoute.GET("/feedback/images/:imageId", controller.GetUserFeedbackImage)
+				selfRoute.GET("/feedback/topics/:id", controller.GetUserFeedbackTopicDetail)
+				selfRoute.POST("/feedback/topics/:id/messages", middleware.CriticalRateLimit(), controller.ReplyFeedbackTopic)
+				selfRoute.PUT("/feedback/topics/:id/close", controller.CloseFeedbackTopicByUser)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -178,6 +187,14 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.PUT("/enterprise/admin/:id/reset", controller.AdminResetEnterprise)
 				adminRoute.GET("/enterprise/admin/:id/reveal", controller.AdminRevealEnterprise)
 				adminRoute.GET("/enterprise/admin/:id/images", controller.AdminGetEnterpriseImages)
+
+				// Feedback admin routes — static segments before /:id
+				adminRoute.GET("/feedback/admin/topics", controller.AdminGetFeedbackTopics)
+				adminRoute.GET("/feedback/admin/unread", controller.AdminGetFeedbackUnread)
+				adminRoute.GET("/feedback/admin/images/:imageId", controller.AdminGetFeedbackImage)
+				adminRoute.GET("/feedback/admin/topics/:id", controller.AdminGetFeedbackTopicDetail)
+				adminRoute.POST("/feedback/admin/topics/:id/messages", middleware.CriticalRateLimit(), controller.AdminReplyFeedbackTopic)
+				adminRoute.PUT("/feedback/admin/topics/:id/status", controller.AdminUpdateFeedbackStatus)
 			}
 		}
 
