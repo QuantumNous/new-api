@@ -15,7 +15,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:model-test?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		panic("failed to open test db: " + err.Error())
 	}
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic("failed to get sql.DB: " + err.Error())
 	}
-	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxOpenConns(5)
 
 	if err := db.AutoMigrate(
 		&Task{},
@@ -42,6 +42,7 @@ func TestMain(m *testing.M) {
 		&Channel{},
 		&Ability{},
 		&TopUp{},
+		&Redemption{},
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
@@ -63,6 +64,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM channels")
 		DB.Exec("DELETE FROM abilities")
 		DB.Exec("DELETE FROM top_ups")
+		DB.Exec("DELETE FROM redemptions")
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")

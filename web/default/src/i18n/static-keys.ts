@@ -390,6 +390,15 @@ export const STATIC_I18N_KEYS = [
   'Disable',
   'Enable',
 
+  // Redemption code benefits
+  'Benefit',
+  'Redemption Type',
+  'Select redemption type',
+  'Subscription Plan',
+  'Choose whether this code grants quota or a plan',
+  'Redeeming this code will activate the selected plan',
+  'Redemption successful! Activated plan: {{plan}}',
+
   // User subscription management
   'User Subscription Management',
   'Select subscription plan',

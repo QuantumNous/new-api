@@ -95,7 +95,7 @@ const PaymentSetting = () => {
       type: 'input',
       text: t('并确认自行承担部署'),
     },
-    { type: 'static', text: t('、') },
+    { type: 'static', text: '、' },
     {
       type: 'input',
       text: t('运营和收费行为产生的法律责任'),
