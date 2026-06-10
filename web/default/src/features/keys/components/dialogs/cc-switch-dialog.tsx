@@ -22,7 +22,16 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { ComboboxInput } from '@/components/ui/combobox-input'
+import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog } from '@/components/dialog'
@@ -51,6 +60,67 @@ const APP_CONFIGS = {
 } as const
 
 type AppType = keyof typeof APP_CONFIGS
+type ModelOption = {
+  value: string
+  label: string
+}
+
+type ModelComboboxProps = {
+  id?: string
+  options: ModelOption[]
+  value: string
+  onValueChange: (value: string) => void
+  placeholder?: string
+  emptyText?: string
+}
+
+function ModelCombobox({
+  id,
+  options,
+  value,
+  onValueChange,
+  placeholder,
+  emptyText,
+}: ModelComboboxProps) {
+  const labelMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const option of options) {
+      map.set(option.value, option.label)
+    }
+    return map
+  }, [options])
+
+  return (
+    <Combobox
+      items={options.map((option) => option.value)}
+      value={value || null}
+      inputValue={value}
+      onInputValueChange={onValueChange}
+      onValueChange={(nextValue) => onValueChange(nextValue ?? '')}
+      itemToStringLabel={(item) => labelMap.get(item) ?? item}
+      itemToStringValue={(item) => item}
+    >
+      <ComboboxInput
+        id={id}
+        placeholder={placeholder}
+        className='w-full'
+        showClear={value.length > 0}
+      />
+      <ComboboxContent>
+        <ComboboxList>
+          <ComboboxCollection>
+            {(item: string) => (
+              <ComboboxItem key={item} value={item}>
+                <span className='truncate'>{labelMap.get(item) ?? item}</span>
+              </ComboboxItem>
+            )}
+          </ComboboxCollection>
+        </ComboboxList>
+        <ComboboxEmpty>{emptyText}</ComboboxEmpty>
+      </ComboboxContent>
+    </Combobox>
+  )
+}
 
 function getServerAddress(): string {
   try {
@@ -187,13 +257,10 @@ export function CCSwitchDialog(props: Props) {
 
         <div className='space-y-2'>
           <Label>{t('Name')}</Label>
-          <ComboboxInput
-            options={[]}
+          <Input
             value={name}
-            onValueChange={setName}
+            onChange={(event) => setName(event.target.value)}
             placeholder={currentConfig.defaultName}
-            emptyText=''
-            allowCustomValue={true}
           />
         </div>
 
@@ -205,7 +272,7 @@ export function CCSwitchDialog(props: Props) {
                 <span className='text-destructive ml-0.5'>*</span>
               )}
             </Label>
-            <ComboboxInput
+            <ModelCombobox
               options={modelOptions}
               value={models[field.key] || ''}
               onValueChange={(v) =>
