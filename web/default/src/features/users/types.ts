@@ -126,6 +126,20 @@ export interface ManageUserQuotaPayload {
   value: number
 }
 
+export interface UserInvoiceProfile {
+  company_name: string
+  billing_email: string
+  tax_id_type?: string
+  tax_id?: string
+  country: string
+  state?: string
+  city?: string
+  address_line1: string
+  address_line2?: string
+  postal_code?: string
+  phone?: string
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

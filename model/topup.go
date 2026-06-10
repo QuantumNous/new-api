@@ -13,18 +13,19 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	PaymentCurrency string  `json:"payment_currency" gorm:"type:varchar(10);default:''"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	GatewayTradeNo  string  `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id              int             `json:"id"`
+	UserId          int             `json:"user_id" gorm:"index"`
+	Amount          int64           `json:"amount"`
+	Money           float64         `json:"money"`
+	PaymentCurrency string          `json:"payment_currency" gorm:"type:varchar(10);default:''"`
+	TradeNo         string          `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	GatewayTradeNo  string          `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
+	PaymentMethod   string          `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider string          `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	CreateTime      int64           `json:"create_time"`
+	CompleteTime    int64           `json:"complete_time"`
+	Status          string          `json:"status"`
+	Invoice         *PaymentInvoice `json:"invoice,omitempty" gorm:"foreignKey:TradeNo;references:TradeNo"`
 }
 
 const (
@@ -273,7 +274,7 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 	}
 
 	// Get paginated topups within same transaction
-	err = tx.Where("user_id = ? AND create_time >= ?", userId, cutoff).Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
+	err = tx.Preload("Invoice").Where("user_id = ? AND create_time >= ?", userId, cutoff).Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -304,7 +305,7 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 		return nil, 0, err
 	}
 
-	if err = tx.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	if err = tx.Preload("Invoice").Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -348,7 +349,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 		return nil, 0, errors.New("搜索充值记录失败")
 	}
 
-	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	if err = query.Preload("Invoice").Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
 		tx.Rollback()
 		common.SysError("failed to search topups: " + err.Error())
 		return nil, 0, errors.New("搜索充值记录失败")
@@ -388,7 +389,7 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 		return nil, 0, errors.New("搜索充值记录失败")
 	}
 
-	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	if err = query.Preload("Invoice").Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
 		tx.Rollback()
 		common.SysError("failed to search topups: " + err.Error())
 		return nil, 0, errors.New("搜索充值记录失败")

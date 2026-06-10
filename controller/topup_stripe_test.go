@@ -7,10 +7,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/stripe-go/v81"
 )
 
 func TestNormalizeStripeTopUpAmountUsesDisplayTokens(t *testing.T) {
@@ -90,4 +92,44 @@ func TestGetStripePayMoneyAppliesDisplayGroupAndDiscount(t *testing.T) {
 	paymentSetting.AmountDiscount = map[int]float64{int(2 * common.QuotaPerUnit): 0.5}
 
 	require.Equal(t, 3.0, getStripePayMoney(2*common.QuotaPerUnit, "vip"))
+}
+
+func TestMapStripeInvoiceStatusUsesLocalStatuses(t *testing.T) {
+	require.Equal(t, model.PaymentInvoiceStatusPaid, mapStripeInvoiceStatus(stripe.InvoiceStatusPaid))
+	require.Equal(t, model.PaymentInvoiceStatusPending, mapStripeInvoiceStatus(stripe.InvoiceStatusOpen))
+	require.Equal(t, model.PaymentInvoiceStatusPending, mapStripeInvoiceStatus(stripe.InvoiceStatusDraft))
+	require.Equal(t, model.PaymentInvoiceStatusFailed, mapStripeInvoiceStatus(stripe.InvoiceStatusVoid))
+	require.Equal(t, model.PaymentInvoiceStatusFailed, mapStripeInvoiceStatus(stripe.InvoiceStatusUncollectible))
+	require.Equal(t, model.PaymentInvoiceStatusPending, mapStripeInvoiceStatus(stripe.InvoiceStatus("")))
+}
+
+func TestValidateInvoiceProfileNormalizesAndReturnsTranslationKeys(t *testing.T) {
+	fields, err := validateInvoiceProfile(model.InvoiceProfileFields{
+		CompanyName:  " Acme Inc ",
+		BillingEmail: " billing@example.com ",
+		TaxIDType:    " EU_VAT ",
+		Country:      " us ",
+		AddressLine1: " 1 Main St ",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Acme Inc", fields.CompanyName)
+	require.Equal(t, "billing@example.com", fields.BillingEmail)
+	require.Equal(t, "eu_vat", fields.TaxIDType)
+	require.Equal(t, "US", fields.Country)
+	require.Equal(t, "1 Main St", fields.AddressLine1)
+
+	_, err = validateInvoiceProfile(model.InvoiceProfileFields{
+		BillingEmail: "billing@example.com",
+		Country:      "US",
+		AddressLine1: "1 Main St",
+	})
+	require.EqualError(t, err, "Company name is required")
+
+	_, err = validateInvoiceProfile(model.InvoiceProfileFields{
+		CompanyName:  "Acme Inc",
+		BillingEmail: "bad-email",
+		Country:      "US",
+		AddressLine1: "1 Main St",
+	})
+	require.EqualError(t, err, "Billing email is invalid")
 }
