@@ -230,9 +230,12 @@ export function ApiKeysMutateDrawer({
         }
       })
     } else if (open && !isUpdate) {
-      // For create, reset to defaults
-      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
-      setMode(loadPreferredMode())
+      // For create, reset to defaults — pass the preferred mode so the form's
+      // internal mode field stays in sync with the React state (fixes silent
+      // Zod validation failure in Advanced create mode).
+      const preferredMode = loadPreferredMode()
+      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup, preferredMode))
+      setMode(preferredMode)
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, userDefaultGroup])
 
