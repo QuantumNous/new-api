@@ -2,12 +2,12 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"regexp"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,7 +60,7 @@ func SecurityInputValidation() gin.HandlerFunc {
 		}
 
 		var payload map[string]any
-		if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		if err := common.Unmarshal(bodyBytes, &payload); err != nil {
 			// 解析失败可能是文件上传等非 JSON，放行让后续处理器处理
 			c.Next()
 			return

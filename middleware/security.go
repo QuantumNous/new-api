@@ -3,7 +3,6 @@ package middleware
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -213,7 +212,7 @@ func extractContentFromResponse(body []byte) string {
 		} `json:"choices"`
 	}
 
-	if err := json.Unmarshal(body, &resp); err != nil {
+	if err := common.Unmarshal(body, &resp); err != nil {
 		return ""
 	}
 
@@ -248,7 +247,7 @@ func extractContentFromRequest(body []byte) string {
 		} `json:"messages"`
 	}
 
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := common.Unmarshal(body, &req); err != nil {
 		return ""
 	}
 
@@ -267,7 +266,7 @@ func extractModelFromRequest(body []byte) string {
 	var req struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := common.Unmarshal(body, &req); err != nil {
 		return ""
 	}
 	return req.Model

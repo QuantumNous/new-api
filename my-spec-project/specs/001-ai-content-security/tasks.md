@@ -171,7 +171,7 @@ description: "Task list for AI Content Security Management Module implementation
 - [x] T055 [P] Create integration tests for the full detection pipeline (`middleware/security_test.go`) using `httptest`
 - [x] T056 Add rate limiting to security admin APIs to prevent abuse
 - [x] T057 Performance optimization: pre-load all active rules into memory cache on startup and refresh on policy changes
-- [~] T058 Run `quickstart.md` validation scenarios end-to-end and fix any issues
+- [~] T058 Run `quickstart.md` validation scenarios end-to-end and fix any issues (requires running backend service with DB + AI channel configured)
 - [x] T059 Update project documentation (README or docs/) with security module setup and configuration instructions
 
 ---

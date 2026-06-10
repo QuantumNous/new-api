@@ -3,7 +3,6 @@ package security
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -100,7 +99,7 @@ func (ad *AIDetector) callAIDetection(ctx context.Context, content string) (bool
 		},
 	}
 
-	jsonBody, err := json.Marshal(reqBody)
+	jsonBody, err := common.Marshal(reqBody)
 	if err != nil {
 		return false, 0, "", err
 	}
@@ -134,7 +133,7 @@ func (ad *AIDetector) callAIDetection(ctx context.Context, content string) (bool
 		} `json:"choices"`
 	}
 
-	if err := json.Unmarshal(body, &aiResp); err != nil {
+	if err := common.Unmarshal(body, &aiResp); err != nil {
 		return false, 0, "", err
 	}
 
@@ -157,7 +156,7 @@ func (ad *AIDetector) callAIDetection(ctx context.Context, content string) (bool
 	end := strings.LastIndex(contentStr, "}")
 	if start != -1 && end != -1 && end > start {
 		jsonStr := contentStr[start : end+1]
-		if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		if err := common.Unmarshal([]byte(jsonStr), &result); err != nil {
 			common.SysLog("AI 检测结果解析失败: " + err.Error())
 			return false, 0, "", nil
 		}
