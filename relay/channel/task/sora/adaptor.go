@@ -2,6 +2,7 @@ package sora
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -285,6 +286,36 @@ func (a *TaskAdaptor) GetModelList() []string {
 
 func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// ExtractUpstreamAssets：Sora 上游无直链，结果需带鉴权请求 {base}/v1/videos/{id}/content
+// 获取（gcs-video-transfer-design.md 4.2），因此资产 URL 留空、由 FetchResultContent 取流。
+func (a *TaskAdaptor) ExtractUpstreamAssets(_ *model.Task, _ *relaycommon.TaskInfo, _ []byte) ([]taskcommon.UpstreamAsset, error) {
+	return []taskcommon.UpstreamAsset{{Index: 0, Ext: taskcommon.AssetExtVideo}}, nil
+}
+
+// FetchResultContent 请求 {base}/v1/videos/{id}/content + Bearer 取流。
+// 凭证按 PrivateData.Key 优先、ch.Key 兜底（InitTask 已对 Sora/OpenAI 渠道快照 key，
+// 多 key 渠道直接用 ch.Key 是换行拼接的原始串、确定性无效）。
+func (a *TaskAdaptor) FetchResultContent(ctx context.Context, task *model.Task, ch *model.Channel, _ taskcommon.UpstreamAsset) (io.ReadCloser, string, error) {
+	if task == nil || ch == nil {
+		return nil, "", fmt.Errorf("task or channel is nil")
+	}
+	key := taskcommon.ResolveTaskFetchKey(task, ch)
+	if key == "" {
+		return nil, "", fmt.Errorf("no api key available for sora content fetch")
+	}
+	baseURL := constant.ChannelBaseURLs[ch.Type]
+	if ch.GetBaseURL() != "" {
+		baseURL = ch.GetBaseURL()
+	}
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	contentURL := fmt.Sprintf("%s/v1/videos/%s/content", strings.TrimRight(baseURL, "/"), task.GetUpstreamTaskID())
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+key)
+	return channel.FetchTaskAssetByURL(ctx, ch, contentURL, header)
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

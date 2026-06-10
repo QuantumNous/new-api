@@ -6,13 +6,17 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 // fakeSettleAdaptor lets us drive settleTaskBillingOnComplete without importing a real
 // adaptor (which would create an import cycle: adaptors import the service package).
-type fakeSettleAdaptor struct{ adjust int }
+type fakeSettleAdaptor struct {
+	taskcommon.UnsupportedAssets // GCS 转存钩子（本测试不涉及，沿用 no-op 实现）
+	adjust                       int
+}
 
 func (f *fakeSettleAdaptor) Init(*relaycommon.RelayInfo) {}
 func (f *fakeSettleAdaptor) FetchTask(string, string, map[string]any, string) (*http.Response, error) {

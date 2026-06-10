@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -268,12 +269,19 @@ func InitResources() error {
 	// 加载环境变量
 	common.InitEnv()
 
+	// 加载 GCS 视频转存配置（环境变量驱动）
+	setting.InitGCSSettings()
+
 	logger.SetupLogger()
 
 	// Initialize model settings
 	ratio_setting.InitRatioSettings()
 
 	service.InitHttpClient()
+
+	// 初始化 GCS 存储 client（仅 GCS_TRANSFER_ENABLED 开启时；初始化失败 fatal 退出，
+	// 转存是计费关键路径，绝不静默带病启动）
+	service.InitGCSStorage()
 
 	service.InitTokenEncoders()
 

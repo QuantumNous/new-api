@@ -1,11 +1,13 @@
 package channel
 
 import (
+	"context"
 	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -58,6 +60,11 @@ type TaskAdaptor interface {
 	// Called by the polling loop after ParseTaskResult.
 	// Return a positive value to trigger delta settlement (supplement / refund).
 	// Return 0 to keep the pre-charged amount unchanged.
+	//
+	// 接口契约（GCS 转存模式，gcs-video-transfer-design.md 4.4）：转存 worker 结算时
+	// 传入的 taskResult 由 PrivateData.SettleTokens 合成，仅保证 TotalTokens 有效。
+	// 实现不得读取 taskResult 的其他字段（Url/Progress/Reason 等），否则需先扩展
+	// SettleTokens 的持久化集。当前唯一非默认实现 pollo 只读 TotalTokens。
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 
 	// ── Request / Response ───────────────────────────────────────────
@@ -76,6 +83,24 @@ type TaskAdaptor interface {
 
 	FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error)
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
+
+	// ── GCS Transfer (gcs-video-transfer-design.md 4.2) ─────────────
+
+	// ExtractUpstreamAssets 在"上游成功"时由轮询循环调用，枚举本任务的全部结果资产。
+	// rawRespBody 是上游查询响应的原始字节（URL/base64 脱敏前）——多资产渠道
+	// （Vidu/Pollo）只能从原始响应解析，不得依赖 task.Data（其内容受脱敏时序影响）。
+	// 调用点硬顺序（S6）：先 Extract 暂存进 PrivateData.UpstreamAssets，后 URL 脱敏，
+	// 再落库；转存重试不再依赖 task.Data。
+	// 返回 error 或空清单时，本轮不进入转存阶段（不写 UpstreamDoneAt），下一轮重试。
+	ExtractUpstreamAssets(task *model.Task, taskResult *relaycommon.TaskInfo, rawRespBody []byte) ([]taskcommon.UpstreamAsset, error)
+
+	// FetchResultContent 返回单个资产的内容流，由异步转存 worker（S5）调用，
+	// 可能发起带鉴权的上游请求（Sora content 端点 / Gemini 文件 URI / Vertex 重取 base64）。
+	// 取流凭证解析顺序：task.PrivateData.Key 优先、ch.Key 兜底（taskcommon.ResolveTaskFetchKey）。
+	// 实现必须：URL 下载前过 common.ValidateURLWithFetchSetting、使用 service.GetHttpClient
+	// 系列共享 client（禁止裸 http.Client）、超时经 ctx 强制。
+	// 返回 (内容流, Content-Type, error)，调用方负责 Close。
+	FetchResultContent(ctx context.Context, task *model.Task, ch *model.Channel, asset taskcommon.UpstreamAsset) (io.ReadCloser, string, error)
 }
 
 type OpenAIVideoConverter interface {

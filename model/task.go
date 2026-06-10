@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -99,12 +100,18 @@ func (m Properties) Value() (driver.Value, error) {
 type TaskPrivateData struct {
 	Key            string `json:"key,omitempty"`
 	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等；GCS 转存后为 gs:// 对象路径）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// GCS 转存阶段字段（gcs-video-transfer-design.md 4.4）。
+	// 注意：本结构体的 Value() 以 == 与零值比较，新增字段只能用可比较类型；
+	// 多值数据（如资产清单）序列化为 JSON 字符串存单个 string 字段。
+	UpstreamDoneAt int64  `json:"upstream_done_at,omitempty"` // 上游完成时间戳（Unix 秒）；非零即表示"上游已成功，进入转存阶段"，同时是 transferDeadline 的锚点
+	UpstreamAssets string `json:"upstream_assets,omitempty"`  // 资产清单 JSON（[]UpstreamAsset 序列化，按 Index 排序）；含上游直链，仅供转存与读取侧重组，绝不对外返回
+	SettleTokens   int64  `json:"settle_tokens,omitempty"`    // 上游完成时的 TotalTokens 快照（结算输入持久化，进程重启后无需依赖内存中的 taskResult）
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
@@ -173,9 +180,14 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	properties := Properties{}
 	privateData := TaskPrivateData{}
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
+		// 带鉴权取流的渠道必须在提交时快照 key（多 key 渠道会轮转，且 Gemini 文件 URI
+		// 与创建它的 key/项目绑定；轮询/转存/video_proxy 取流时 PrivateData.Key 优先、ch.Key 兜底）。
+		// Sora 任务可能挂在 Sora 或 OpenAI 类型渠道上（见 controller/video_proxy.go 的分支），两者都快照。
 		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi ||
-			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypePollo {
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypePollo ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeSora ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeOpenAI {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
 		if relayInfo.UpstreamModelName != "" {
@@ -315,6 +327,31 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	return tasks
 }
 
+// CountStuckInProgressCompleteTasks 卡死哨兵（gcs-video-transfer-design.md 4.8）：
+// status=IN_PROGRESS 且 progress='100%' 的任务数，应恒为 0。该状态同时退出轮询集合
+// （GetAllUnFinishSyncTasks）与超时清扫集合（GetTimedOutUnfinishedTasks），
+// 永久卡死、资金悬置（设计 3.3 / 红线 1），只能靠本查询发现。
+func CountStuckInProgressCompleteTasks() (int64, error) {
+	var n int64
+	err := DB.Model(&Task{}).
+		Where("status = ?", TaskStatusInProgress).
+		Where("progress = ?", "100%"). // taskcommon.ProgressComplete
+		Count(&n).Error
+	return n, err
+}
+
+// CountTransferStageTasks 转存积压量（gcs-video-transfer-design.md 4.8）：
+// 处于 GCS 转存阶段（progress='95%' 且未终态）的任务总数。轮询集合按 TASK_QUERY_LIMIT
+// 截断，本查询给出 DB 全量积压；积压过多会饿死新任务的轮询（设计 风险 3）。
+func CountTransferStageTasks() (int64, error) {
+	var n int64
+	err := DB.Model(&Task{}).
+		Where("progress = ?", "95%"). // taskcommon.ProgressTransferring
+		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
+		Count(&n).Error
+	return n, err
+}
+
 func GetByOnlyTaskId(taskId string) (*Task, bool, error) {
 	if taskId == "" {
 		return nil, false, nil
@@ -372,6 +409,11 @@ type taskSnapshot struct {
 	FailReason string
 	ResultURL  string
 	Data       json.RawMessage
+	// GCS 转存阶段字段：必须纳入快照比较，否则 snap.Equal 判"无变化"会跳过落库，
+	// UpstreamDoneAt 等字段根本写不进 DB（gcs-video-transfer-design.md 4.4 硬规则 2）
+	UpstreamDoneAt int64
+	UpstreamAssets string
+	SettleTokens   int64
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
@@ -381,18 +423,24 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.FinishTime == other.FinishTime &&
 		s.FailReason == other.FailReason &&
 		s.ResultURL == other.ResultURL &&
+		s.UpstreamDoneAt == other.UpstreamDoneAt &&
+		s.UpstreamAssets == other.UpstreamAssets &&
+		s.SettleTokens == other.SettleTokens &&
 		bytes.Equal(s.Data, other.Data)
 }
 
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
-		Status:     t.Status,
-		Progress:   t.Progress,
-		StartTime:  t.StartTime,
-		FinishTime: t.FinishTime,
-		FailReason: t.FailReason,
-		ResultURL:  t.PrivateData.ResultURL,
-		Data:       t.Data,
+		Status:         t.Status,
+		Progress:       t.Progress,
+		StartTime:      t.StartTime,
+		FinishTime:     t.FinishTime,
+		FailReason:     t.FailReason,
+		ResultURL:      t.PrivateData.ResultURL,
+		Data:           t.Data,
+		UpstreamDoneAt: t.PrivateData.UpstreamDoneAt,
+		UpstreamAssets: t.PrivateData.UpstreamAssets,
+		SettleTokens:   t.PrivateData.SettleTokens,
 	}
 }
 
@@ -515,6 +563,13 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.SetProgressStr(t.Progress)
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
-	openAIVideo.SetMetadata("url", t.GetResultURL())
+	resultURL := t.GetResultURL()
+	if strings.HasPrefix(resultURL, "gs://") {
+		// GCS 对象路径绝不直出（设计 4.5 / 红线 12）：正常读取路径由框架层
+		// overrideOpenAIVideoGCSResult（relay/relay_task.go）覆写为读时现签的 V4 URL；
+		// 此处为防御纵深——model 包不能反向依赖 service 签名层，置空兜底防旁路泄漏。
+		resultURL = ""
+	}
+	openAIVideo.SetMetadata("url", resultURL)
 	return openAIVideo
 }

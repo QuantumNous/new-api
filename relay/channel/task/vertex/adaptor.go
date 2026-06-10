@@ -2,6 +2,8 @@ package vertex
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,6 +41,10 @@ type operationVideo struct {
 	MimeType           string `json:"mimeType"`
 	BytesBase64Encoded string `json:"bytesBase64Encoded"`
 	Encoding           string `json:"encoding"`
+	// GcsUri：用户经 metadata.storageUri 注入（已被旁路剥离收口，存量任务仍可能存在）时，
+	// 上游把结果直写用户 bucket、查询响应变为 gcsUri 形态——此时 base64 重取必然失败，
+	// GCS 转存按失败处理、不得盲等（gcs-video-transfer-design.md 4.2）。
+	GcsUri string `json:"gcsUri"`
 }
 
 type operationResponse struct {
@@ -51,6 +57,7 @@ type operationResponse struct {
 		BytesBase64Encoded    string           `json:"bytesBase64Encoded"`
 		Encoding              string           `json:"encoding"`
 		Video                 string           `json:"video"`
+		GcsUri                string           `json:"gcsUri"`
 	} `json:"response"`
 	Error struct {
 		Message string `json:"message"`
@@ -346,6 +353,190 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		return ti, nil
 	}
 	return ti, nil
+}
+
+// ExtractUpstreamAssets：Vertex 的 base64 视频仅存在于查询响应（task.Data 中已被 redact
+// 删除）且不宜整段暂存进 PrivateData，因此资产 URL 留空、ext 按响应 mime 在暂存时定死，
+// 转存时由 FetchResultContent 重新 fetchPredictOperation 解码（gcs-video-transfer-design.md 4.2）。
+// gcsUri 形态（storageUri 注入未被剥离的存量任务）在此直接报错，不进入转存阶段。
+func (a *TaskAdaptor) ExtractUpstreamAssets(_ *model.Task, _ *relaycommon.TaskInfo, rawRespBody []byte) ([]taskcommon.UpstreamAsset, error) {
+	var op operationResponse
+	if err := common.Unmarshal(rawRespBody, &op); err != nil {
+		return nil, fmt.Errorf("unmarshal vertex operation response failed: %w", err)
+	}
+	if op.Error.Message != "" {
+		return nil, fmt.Errorf("vertex operation carries error: %s", op.Error.Message)
+	}
+	if !op.Done {
+		return nil, fmt.Errorf("vertex operation not done yet")
+	}
+	if gcsUri := vertexResultGcsUri(&op); gcsUri != "" {
+		return nil, fmt.Errorf("vertex result was routed to user storageUri (%s), cannot transfer", gcsUri)
+	}
+	b64, mime := vertexResultBase64(&op)
+	if b64 == "" {
+		return nil, fmt.Errorf("vertex operation done but no base64 video content in response")
+	}
+	return []taskcommon.UpstreamAsset{{Index: 0, Ext: vertexMimeToExt(mime)}}, nil
+}
+
+// FetchResultContent 重新 fetchPredictOperation 取 bytesBase64Encoded 并解码
+// （task.Data 中的 base64 已被 redact，不能依赖）。凭证按 PrivateData.Key 优先、
+// ch.Key 兜底；请求经 ctx 强制超时（不复用 FetchTask——其内部请求不带 context）。
+// 响应为 gcsUri 形态时按转存失败处理，不得盲等。
+func (a *TaskAdaptor) FetchResultContent(ctx context.Context, task *model.Task, ch *model.Channel, _ taskcommon.UpstreamAsset) (io.ReadCloser, string, error) {
+	if task == nil || ch == nil {
+		return nil, "", fmt.Errorf("task or channel is nil")
+	}
+	key := taskcommon.ResolveTaskFetchKey(task, ch)
+	if key == "" {
+		return nil, "", fmt.Errorf("no credentials available for vertex operation fetch")
+	}
+	upstreamName, err := taskcommon.DecodeLocalTaskID(task.GetUpstreamTaskID())
+	if err != nil {
+		return nil, "", fmt.Errorf("decode task_id failed: %w", err)
+	}
+
+	baseURL := constant.ChannelBaseURLs[ch.Type]
+	if ch.GetBaseURL() != "" {
+		baseURL = ch.GetBaseURL()
+	}
+	fetchURL, err := buildFetchOperationURL(baseURL, upstreamName)
+	if err != nil {
+		return nil, "", err
+	}
+	payload, err := common.Marshal(fetchOperationPayload{OperationName: upstreamName})
+	if err != nil {
+		return nil, "", err
+	}
+
+	adc := &vertexcore.Credentials{}
+	if err := common.Unmarshal([]byte(key), adc); err != nil {
+		return nil, "", fmt.Errorf("failed to decode credentials: %w", err)
+	}
+	proxy := ch.GetSetting().Proxy
+	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to acquire access token: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fetchURL, bytes.NewReader(payload))
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("x-goog-user-project", adc.ProjectID)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, "", fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("fetch operation failed: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("read operation response failed: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("fetch operation returned status %d: %s", resp.StatusCode, truncateForError(respBody))
+	}
+
+	var op operationResponse
+	if err := common.Unmarshal(respBody, &op); err != nil {
+		return nil, "", fmt.Errorf("unmarshal operation response failed: %w", err)
+	}
+	if op.Error.Message != "" {
+		return nil, "", fmt.Errorf("vertex operation carries error: %s", op.Error.Message)
+	}
+	if !op.Done {
+		return nil, "", fmt.Errorf("vertex operation not done yet")
+	}
+	if gcsUri := vertexResultGcsUri(&op); gcsUri != "" {
+		return nil, "", fmt.Errorf("vertex result was routed to user storageUri (%s), cannot transfer", gcsUri)
+	}
+	b64, mime := vertexResultBase64(&op)
+	if b64 == "" {
+		return nil, "", fmt.Errorf("vertex operation done but no base64 video content in response")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(b64)
+		if err != nil {
+			return nil, "", fmt.Errorf("decode vertex video base64 failed: %w", err)
+		}
+	}
+	return io.NopCloser(bytes.NewReader(decoded)), mime, nil
+}
+
+// vertexResultGcsUri 返回响应中的 gcsUri（storageUri 直写形态），无则空串。
+func vertexResultGcsUri(op *operationResponse) string {
+	if len(op.Response.Videos) > 0 && strings.TrimSpace(op.Response.Videos[0].GcsUri) != "" {
+		return strings.TrimSpace(op.Response.Videos[0].GcsUri)
+	}
+	if u := strings.TrimSpace(op.Response.GcsUri); u != "" {
+		return u
+	}
+	// 部分变体把 gs:// 路径放在 video 字段
+	if v := strings.TrimSpace(op.Response.Video); strings.HasPrefix(v, "gs://") {
+		return v
+	}
+	return ""
+}
+
+// vertexResultBase64 提取响应中的 base64 视频内容与 mime（与 ParseTaskResult 的取值顺序一致）。
+func vertexResultBase64(op *operationResponse) (b64 string, mime string) {
+	buildMime := func(mimeType, encoding string) string {
+		m := strings.TrimSpace(mimeType)
+		if m != "" {
+			return m
+		}
+		enc := strings.TrimSpace(encoding)
+		if enc == "" {
+			enc = "mp4"
+		}
+		if strings.Contains(enc, "/") {
+			return enc
+		}
+		return "video/" + enc
+	}
+	if len(op.Response.Videos) > 0 {
+		v0 := op.Response.Videos[0]
+		if v0.BytesBase64Encoded != "" {
+			return v0.BytesBase64Encoded, buildMime(v0.MimeType, v0.Encoding)
+		}
+	}
+	if op.Response.BytesBase64Encoded != "" {
+		return op.Response.BytesBase64Encoded, buildMime("", op.Response.Encoding)
+	}
+	if v := op.Response.Video; v != "" && !strings.HasPrefix(v, "gs://") && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+		return v, buildMime("", op.Response.Encoding)
+	}
+	return "", ""
+}
+
+// vertexMimeToExt 按 mime 静态映射对象扩展名（暂存时定死，不随重试漂移）。
+func vertexMimeToExt(mime string) string {
+	switch {
+	case strings.Contains(mime, "webm"):
+		return "webm"
+	case strings.Contains(mime, "quicktime"), strings.Contains(mime, "mov"):
+		return "mov"
+	default:
+		return taskcommon.AssetExtVideo
+	}
+}
+
+func truncateForError(b []byte) string {
+	const maxKeep = 512
+	if len(b) <= maxKeep {
+		return string(b)
+	}
+	return string(b[:maxKeep]) + "..."
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {

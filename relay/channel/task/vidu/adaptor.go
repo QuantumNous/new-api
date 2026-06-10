@@ -74,8 +74,37 @@ type creation struct {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	baseURL     string
+	channel.DirectLinkAssets // FetchResultContent 用默认直链下载；Extract 覆写见下
+	ChannelType              int
+	baseURL                  string
+}
+
+// ExtractUpstreamAssets 枚举 creations[] 的全部资产（GCS 转存，
+// gcs-video-transfer-design.md 4.2）：每个 creation 的视频 url 与 cover_url 各占一个
+// Index（封面 ext=jpg）。ParseTaskResult 现只取 creations[0].URL，不足以覆盖多文件。
+// 视频先于封面分配 Index——index=0 是主文件（写 ResultURL/metadata.url，设计 4.5），
+// 必须保证是视频而非封面（首个 creation 缺 url 仅有 cover_url 的形态不得占据 index 0）。
+// 至少需要一个视频直链，否则报错留待下一轮重试。
+func (a *TaskAdaptor) ExtractUpstreamAssets(_ *model.Task, _ *relaycommon.TaskInfo, rawRespBody []byte) ([]taskcommon.UpstreamAsset, error) {
+	var taskResp taskResultResponse
+	if err := common.Unmarshal(rawRespBody, &taskResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal vidu task result failed")
+	}
+	assets := make([]taskcommon.UpstreamAsset, 0, len(taskResp.Creations)*2)
+	for _, cr := range taskResp.Creations {
+		if u := strings.TrimSpace(cr.URL); u != "" {
+			assets = append(assets, taskcommon.UpstreamAsset{Index: len(assets), URL: u, Ext: taskcommon.AssetExtVideo})
+		}
+	}
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("vidu task succeeded but no video url in creations")
+	}
+	for _, cr := range taskResp.Creations {
+		if u := strings.TrimSpace(cr.CoverURL); u != "" {
+			assets = append(assets, taskcommon.UpstreamAsset{Index: len(assets), URL: u, Ext: taskcommon.AssetExtImage})
+		}
+	}
+	return assets, nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {

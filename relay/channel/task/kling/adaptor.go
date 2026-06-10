@@ -113,9 +113,32 @@ type responsePayload struct {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	channel.DirectLinkAssets // FetchResultContent 用默认直链下载；Extract 覆写见下
+	ChannelType              int
+	apiKey                   string
+	baseURL                  string
+}
+
+// ExtractUpstreamAssets 枚举 task_result.videos[] 的全部直链（GCS 转存，
+// gcs-video-transfer-design.md 4.2）。本网关的请求结构无数量参数、当前多视频不可达，
+// 但仍枚举整个数组以防上游演进（ParseTaskResult 现取 videos[0]，仅作状态解析用）。
+func (a *TaskAdaptor) ExtractUpstreamAssets(_ *model.Task, _ *relaycommon.TaskInfo, rawRespBody []byte) ([]taskcommon.UpstreamAsset, error) {
+	var resPayload responsePayload
+	if err := common.Unmarshal(rawRespBody, &resPayload); err != nil {
+		return nil, errors.Wrap(err, "unmarshal kling task result failed")
+	}
+	assets := make([]taskcommon.UpstreamAsset, 0, len(resPayload.Data.TaskResult.Videos))
+	for _, v := range resPayload.Data.TaskResult.Videos {
+		u := strings.TrimSpace(v.Url)
+		if u == "" {
+			continue
+		}
+		assets = append(assets, taskcommon.UpstreamAsset{Index: len(assets), URL: u, Ext: taskcommon.AssetExtVideo})
+	}
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("kling task succeeded but no video url in task_result")
+	}
+	return assets, nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {

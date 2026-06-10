@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -19,6 +21,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -397,7 +400,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			// GCS 转存读取侧收口（设计 4.5 出口 1/2）：框架层统一覆写各渠道
+			// ConvertToOpenAIVideo 的输出，metadata.url 换为现签 URL（sora 的原始
+			// Data 透传与 hailuo 经 model.ToOpenAIVideo 的 GetResultURL 同样被收口）
+			respBody = overrideOpenAIVideoGCSResult(c.Request.Context(), originTask, openAIVideoData)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -418,7 +424,20 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
 // 仅当渠道类型为 Gemini 或 Vertex 时触发；其他渠道或出错时返回 nil。
 // 当非 OpenAI Video API 时，还会构建自定义格式的响应体。
+//
+// GCS 转存模式下本函数对视频任务完全只读（单写者模型，gcs-video-transfer-design.md 4.4）：
+// 不落库、不触发转存；发现上游成功也只对外返回处理中——本函数的读-写窗口横跨一次
+// 上游 HTTP 调用，且运行在任意实例上，任何写入都会与 master 轮询循环的陈旧内存副本
+// 互相整行覆盖（lost update）。首次暂存与转存触发完全由 master 轮询驱动，
+// 代价是 Gemini/Vertex 任务的对外成功最多延迟一个轮询周期（≤15s+）。
 func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
+	readOnly := setting.GCSTransferEnabled
+	if readOnly && isOpenAIVideoAPI {
+		// OpenAI 格式响应由调用方基于 DB 状态组装；只读模式下该路径无任何副作用可做，
+		// 直接跳过上游往返
+		return nil
+	}
+
 	channelModel, err := model.GetChannelById(task.ChannelId, true)
 	if err != nil {
 		return nil
@@ -455,6 +474,39 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
+	if readOnly {
+		// 只读展示：不修改 task、不落库、不触发转存。上游的非终态进度可以前瞻展示；
+		// 终态（成功/失败）必须等 master 轮询落库后才对外呈现——succeeded 只能由
+		// 转存完成产生，且响应 url 只取 DB 值，上游 ti.Url 绝不进响应。
+		displayStatus := task.Status
+		if ti.Status != "" {
+			if s := model.TaskStatus(ti.Status); s != model.TaskStatusSuccess && s != model.TaskStatusFailure {
+				displayStatus = s
+			} else if task.Status != model.TaskStatusSuccess && task.Status != model.TaskStatusFailure {
+				displayStatus = model.TaskStatusInProgress
+			}
+		}
+		// 读取侧收口（设计 4.5 出口 3）：gs:// 换现签 URL，签名失败/过期降级代理 URL，
+		// 绝不返回裸 gs://（红线 12）
+		displayURL, expiresAt := service.GetTaskDisplayResultURL(context.Background(), task)
+		out := map[string]any{
+			"error":    nil,
+			"format":   detectVideoFormat(body),
+			"metadata": nil,
+			"status":   mapTaskStatusToSimple(displayStatus),
+			"task_id":  task.TaskID,
+			"url":      displayURL,
+		}
+		if expiresAt > 0 {
+			out["expires_at"] = expiresAt
+		}
+		respBody, _ := common.Marshal(dto.TaskResponse[any]{
+			Code: "success",
+			Data: out,
+		})
+		return respBody
+	}
+
 	snap := task.Snapshot()
 
 	// 将上游最新状态更新到 task
@@ -483,14 +535,19 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 
 	// 非 OpenAI Video API: 构建自定义格式响应
+	// 读取侧收口（设计 4.5 出口 3）：转存模式关闭后存量 gs:// 任务同样换签/降级，绝不裸出
 	format := detectVideoFormat(body)
+	displayURL, expiresAt := service.GetTaskDisplayResultURL(context.Background(), task)
 	out := map[string]any{
 		"error":    nil,
 		"format":   format,
 		"metadata": nil,
 		"status":   mapTaskStatusToSimple(task.Status),
 		"task_id":  task.TaskID,
-		"url":      task.GetResultURL(),
+		"url":      displayURL,
+	}
+	if expiresAt > 0 {
+		out["expires_at"] = expiresAt
 	}
 	respBody, _ := common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
@@ -538,7 +595,137 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 	}
 }
 
+// overrideOpenAIVideoGCSResult GCS 转存读取侧的框架层统一覆写（设计 4.5 出口 1/2，红线 12）：
+// 任务 SUCCESS 且 ResultURL 为 gs:// 时，强制把 metadata.url 覆写为读时现签的 V4 URL，
+// 多文件按 UpstreamAssets 的 Index 升序重组（index=0 写 metadata.url，全部资产按序
+// 写 metadata.urls，Pollo 付 N 拿 N），并附真实 expires_at。各渠道 ConvertToOpenAIVideo
+// 从（已脱敏的）task.Data 抽出的 URL 一律被覆盖；sora 的原始 Data 透传分支与 hailuo 经
+// model.ToOpenAIVideo 的输出同样收口。
+//   - 超保留期：返回明确的 result_expired 错误对象，不签必 404 的死链；
+//   - 签名失败：metadata.url 降级为 video_proxy 代理 URL（访问时 503 可重试 / 410 过期），
+//     绝不返回裸 gs://。
+//
+// 转存阶段（UpstreamDoneAt != 0 且对外仍 IN_PROGRESS）同样在此收口：部分渠道的
+// ConvertToOpenAIVideo 从 task.Data 抽上游状态（ali 的 aliResp.Output.TaskStatus、
+// sora 的原始 Data 透传），上游已 succeeded 会先于转存完成泄露给用户——强制把
+// status/progress 覆写回 DB 值（in_progress / 95%），「转存完成才返回成功」。
+//
+// 非转存任务（直链/旧数据/紧急开关降级完成）原样放行。
+func overrideOpenAIVideoGCSResult(ctx context.Context, task *model.Task, body []byte) []byte {
+	if task.PrivateData.UpstreamDoneAt != 0 &&
+		(task.Status == model.TaskStatusInProgress || task.Status == model.TaskStatusFailure) {
+		// 转存阶段（in_progress 95%）与转存超截止判 FAILURE（已退款）的任务：
+		// 状态必须以 DB 为准，Data 中的上游 succeeded 不得泄露为 completed
+		return forceTaskStatusOpenAIVideo(ctx, task, body)
+	}
+	if task.Status != model.TaskStatusSuccess || !service.IsGCSResultURL(strings.TrimSpace(task.GetResultURL())) {
+		return body
+	}
+
+	var m map[string]any
+	if err := common.Unmarshal(body, &m); err != nil || m == nil {
+		// 不可解析时绝不放行可能含 gs:// 的原始体，重建最小响应结构
+		m = map[string]any{
+			"id":         task.TaskID,
+			"object":     "video",
+			"model":      task.Properties.OriginModelName,
+			"status":     task.Status.ToVideoStatus(),
+			"created_at": task.CreatedAt,
+		}
+	}
+	metadata, _ := m["metadata"].(map[string]any)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+
+	signedAssets, err := service.GetTaskSignedAssets(task)
+	switch {
+	case err == nil:
+		metadata["url"] = signedAssets[0].SignedURL
+		if len(signedAssets) > 1 {
+			urls := make([]string, 0, len(signedAssets))
+			for _, sa := range signedAssets {
+				urls = append(urls, sa.SignedURL)
+			}
+			metadata["urls"] = urls
+		} else {
+			delete(metadata, "urls")
+		}
+		m["expires_at"] = signedAssets[0].ExpiresAt
+	case errors.Is(err, service.ErrGCSResultExpired):
+		// 保留期是对外 API 契约（设计 4.5 规则 1）：明确报过期，不返回任何 URL
+		delete(metadata, "url")
+		delete(metadata, "urls")
+		delete(m, "expires_at")
+		m["error"] = map[string]any{
+			"message": fmt.Sprintf("video result has expired (results are retained for %d days)", setting.GCSResultRetentionDays),
+			"code":    "result_expired",
+		}
+	default:
+		// 签名失败降级（设计 4.5 规则 2）：JSON 出口无错误通道，降级为网关代理 URL
+		logger.LogError(ctx, fmt.Sprintf("gcs sign-fail task=%s, degrade openai video url to proxy url: %s", task.TaskID, err.Error()))
+		metadata["url"] = taskcommon.BuildProxyURL(task.TaskID)
+		delete(metadata, "urls")
+		delete(m, "expires_at")
+	}
+	m["metadata"] = metadata
+
+	b, mErr := common.Marshal(m)
+	if mErr != nil {
+		// 理论不可达（map[string]any 全为可序列化值）；兜底输出不含 gs:// 的最小结构
+		logger.LogError(ctx, fmt.Sprintf("marshal overridden openai video failed for task %s: %s", task.TaskID, mErr.Error()))
+		return []byte(fmt.Sprintf(`{"id":%q,"object":"video","status":%q,"metadata":{"url":%q}}`,
+			task.TaskID, task.Status.ToVideoStatus(), taskcommon.BuildProxyURL(task.TaskID)))
+	}
+	return b
+}
+
+// forceTaskStatusOpenAIVideo 转存链路的对外状态收口：
+//   - 转存阶段（上游已成功、GCS 未就绪）：对外必须保持 in_progress（progress 95%）——
+//     「转存完成才返回成功」是核心语义（设计 4.1/4.4）；
+//   - 转存超截止判 FAILURE（已退款）：对外必须呈现 failed，不得显示 completed。
+//
+// 从 task.Status 取状态的渠道天然满足；从 task.Data 抽上游状态的渠道（ali、sora 原始
+// 透传）会按上游 succeeded 泄露 completed，在此强制覆写回 DB 值。
+// URL 类字段同样清掉（task.Data 已脱敏，此处为防御纵深）。
+func forceTaskStatusOpenAIVideo(ctx context.Context, task *model.Task, body []byte) []byte {
+	var m map[string]any
+	if err := common.Unmarshal(body, &m); err != nil || m == nil {
+		m = map[string]any{
+			"id":         task.TaskID,
+			"object":     "video",
+			"model":      task.Properties.OriginModelName,
+			"created_at": task.CreatedAt,
+		}
+	}
+	m["status"] = task.Status.ToVideoStatus()
+	progress, _ := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(task.Progress), "%"))
+	m["progress"] = progress
+	delete(m, "completed_at")
+	delete(m, "expires_at")
+	if metadata, _ := m["metadata"].(map[string]any); metadata != nil {
+		delete(metadata, "url")
+		delete(metadata, "urls")
+	}
+	if task.Status == model.TaskStatusFailure && task.FailReason != "" {
+		if _, hasErr := m["error"].(map[string]any); !hasErr {
+			m["error"] = map[string]any{"message": task.FailReason, "code": "task_failed"}
+		}
+	}
+	b, mErr := common.Marshal(m)
+	if mErr != nil {
+		logger.LogError(ctx, fmt.Sprintf("marshal transfer-stage openai video failed for task %s: %s", task.TaskID, mErr.Error()))
+		return []byte(fmt.Sprintf(`{"id":%q,"object":"video","status":%q,"progress":%d}`,
+			task.TaskID, task.Status.ToVideoStatus(), progress))
+	}
+	return b
+}
+
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
+	// 读取侧收口（设计 4.5 出口 4）：ResultURL 为 gs:// 时换现签 URL，签名失败/过期
+	// 降级代理 URL，绝不返回裸 gs://（红线 12）；非 gs://（直链/旧数据/Suno）原样返回。
+	// Data 字段的上游直链已在写库前经 redactVideoResponseBody 脱敏（service/task_polling.go）。
+	displayURL, _ := service.GetTaskDisplayResultURL(context.Background(), task)
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
@@ -552,7 +739,7 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Action:     task.Action,
 		Status:     string(task.Status),
 		FailReason: task.FailReason,
-		ResultURL:  task.GetResultURL(),
+		ResultURL:  displayURL,
 		SubmitTime: task.SubmitTime,
 		StartTime:  task.StartTime,
 		FinishTime: task.FinishTime,

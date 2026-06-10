@@ -102,9 +102,10 @@ type responseTask struct {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	channel.DirectLinkAssets // 单 content.video_url 直链，GCS 转存走默认实现
+	ChannelType              int
+	apiKey                   string
+	baseURL                  string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
