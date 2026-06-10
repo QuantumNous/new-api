@@ -40,6 +40,10 @@ type DataTablePaginationProps<TData> = {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100] as const
+const PAGE_SIZE_SELECT_ITEMS = PAGE_SIZE_OPTIONS.map((pageSize) => ({
+  value: `${pageSize}`,
+  label: pageSize,
+}))
 
 export function DataTablePagination<TData>({
   table,
@@ -72,10 +76,7 @@ export function DataTablePagination<TData>({
             {t('Rows per page')}
           </p>
           <Select
-            items={PAGE_SIZE_OPTIONS.map((pageSize) => ({
-              value: `${pageSize}`,
-              label: pageSize,
-            }))}
+            items={PAGE_SIZE_SELECT_ITEMS}
             value={`${pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value))
