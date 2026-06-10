@@ -89,7 +89,7 @@ func parseStringSliceOptionValue(value any) ([]string, error) {
 			}
 			return patterns, nil
 		}
-		return []string{raw}, nil
+		return strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n"), nil
 	}
 
 	val := reflect.ValueOf(value)
@@ -131,7 +131,17 @@ func normalizeCodexPatternsOptionValue(value any) (string, error) {
 	if err := operation_setting.ValidateCodexModelGovernancePatterns(patterns); err != nil {
 		return "", err
 	}
-	bytes, err := common.Marshal(patterns)
+	normalized := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			normalized = append(normalized, pattern)
+		}
+	}
+	if raw, ok := value.(string); ok && reflect.DeepEqual(normalized, patterns) {
+		return raw, nil
+	}
+	bytes, err := common.Marshal(normalized)
 	if err != nil {
 		return "", err
 	}

@@ -30,4 +30,9 @@ func TestValidateCodexModelGovernancePatterns(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invalid regex error")
 	}
+
+	err = ValidateCodexModelGovernancePatterns([]string{``})
+	if err == nil {
+		t.Fatal("expected empty regex error")
+	}
 }
