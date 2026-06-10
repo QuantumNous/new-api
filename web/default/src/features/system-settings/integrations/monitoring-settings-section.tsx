@@ -47,6 +47,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { CHANNEL_TYPE_OPTIONS } from '@/features/channels/constants'
+import { testCodexModelGovernanceRule } from '../api'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -64,6 +65,11 @@ import {
   selectAllKnownChannelTypeIds,
   shouldShowChannelTypeSelectAllShortcut,
 } from './monitoring-channel-types'
+import {
+  codexGovernanceLinesToArray,
+  codexGovernanceLinesToJsonArray,
+  codexGovernanceStringArrayToLines,
+} from './codex-governance-settings-utils'
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
@@ -101,6 +107,21 @@ const monitoringSchema = z
       dingtalk_alert_webhook_url: z.string(),
       dingtalk_alert_secret: z.string(),
       dingtalk_alert_cooldown_minutes: z.coerce
+        .number()
+        .int()
+        .min(1, 'Cooldown must be at least 1 minute'),
+    }),
+    codex_model_governance_setting: z.object({
+      enabled: z.boolean(),
+      probe_enabled: z.boolean(),
+      probe_interval_minutes: z.coerce
+        .number()
+        .int()
+        .min(60, 'Interval must be at least 60 minutes'),
+      unsupported_message_patterns: z.string(),
+      official_source_urls: z.string(),
+      official_lifecycle_terms: z.string(),
+      alert_cooldown_minutes: z.coerce
         .number()
         .int()
         .min(1, 'Cooldown must be at least 1 minute'),
@@ -174,6 +195,13 @@ type MonitoringSettingsSectionProps = {
     'monitor_setting.dingtalk_alert_webhook_url': string
     'monitor_setting.dingtalk_alert_secret': string
     'monitor_setting.dingtalk_alert_cooldown_minutes': number
+    'codex_model_governance_setting.enabled': boolean
+    'codex_model_governance_setting.probe_enabled': boolean
+    'codex_model_governance_setting.probe_interval_minutes': number
+    'codex_model_governance_setting.unsupported_message_patterns': string[]
+    'codex_model_governance_setting.official_source_urls': string[]
+    'codex_model_governance_setting.official_lifecycle_terms': string[]
+    'codex_model_governance_setting.alert_cooldown_minutes': number
   }
 }
 
@@ -197,6 +225,13 @@ type NormalizedMonitoringValues = {
   'monitor_setting.dingtalk_alert_webhook_url': string
   'monitor_setting.dingtalk_alert_secret': string
   'monitor_setting.dingtalk_alert_cooldown_minutes': number
+  'codex_model_governance_setting.enabled': boolean
+  'codex_model_governance_setting.probe_enabled': boolean
+  'codex_model_governance_setting.probe_interval_minutes': number
+  'codex_model_governance_setting.unsupported_message_patterns': string
+  'codex_model_governance_setting.official_source_urls': string
+  'codex_model_governance_setting.official_lifecycle_terms': string
+  'codex_model_governance_setting.alert_cooldown_minutes': number
 }
 
 function serializeOptionValue(
@@ -208,6 +243,13 @@ function serializeOptionValue(
     key === 'monitor_setting.auto_test_channel_ignored_types'
   ) {
     return JSON.stringify(value)
+  }
+  if (
+    key === 'codex_model_governance_setting.unsupported_message_patterns' ||
+    key === 'codex_model_governance_setting.official_source_urls' ||
+    key === 'codex_model_governance_setting.official_lifecycle_terms'
+  ) {
+    return codexGovernanceLinesToJsonArray(value as string)
   }
   return value as string | boolean | number
 }
@@ -415,6 +457,29 @@ const buildFormDefaults = (
     dingtalk_alert_cooldown_minutes:
       defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
   },
+  codex_model_governance_setting: {
+    enabled: defaults['codex_model_governance_setting.enabled'] ?? false,
+    probe_enabled:
+      defaults['codex_model_governance_setting.probe_enabled'] ?? false,
+    probe_interval_minutes:
+      defaults['codex_model_governance_setting.probe_interval_minutes'] ??
+      1440,
+    unsupported_message_patterns: codexGovernanceStringArrayToLines(
+      defaults[
+        'codex_model_governance_setting.unsupported_message_patterns'
+      ] ?? []
+    ),
+    official_source_urls: codexGovernanceStringArrayToLines(
+      defaults['codex_model_governance_setting.official_source_urls'] ?? []
+    ),
+    official_lifecycle_terms: codexGovernanceStringArrayToLines(
+      defaults[
+        'codex_model_governance_setting.official_lifecycle_terms'
+      ] ?? []
+    ),
+    alert_cooldown_minutes:
+      defaults['codex_model_governance_setting.alert_cooldown_minutes'] ?? 60,
+  },
 })
 
 const normalizeDefaults = (
@@ -453,6 +518,35 @@ const normalizeDefaults = (
   ).trim(),
   'monitor_setting.dingtalk_alert_cooldown_minutes':
     defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
+  'codex_model_governance_setting.enabled':
+    defaults['codex_model_governance_setting.enabled'] ?? false,
+  'codex_model_governance_setting.probe_enabled':
+    defaults['codex_model_governance_setting.probe_enabled'] ?? false,
+  'codex_model_governance_setting.probe_interval_minutes':
+    defaults['codex_model_governance_setting.probe_interval_minutes'] ?? 1440,
+  'codex_model_governance_setting.unsupported_message_patterns':
+    normalizeLineEndings(
+      codexGovernanceStringArrayToLines(
+        defaults[
+          'codex_model_governance_setting.unsupported_message_patterns'
+        ] ?? []
+      )
+    ),
+  'codex_model_governance_setting.official_source_urls': normalizeLineEndings(
+    codexGovernanceStringArrayToLines(
+      defaults['codex_model_governance_setting.official_source_urls'] ?? []
+    )
+  ),
+  'codex_model_governance_setting.official_lifecycle_terms':
+    normalizeLineEndings(
+      codexGovernanceStringArrayToLines(
+        defaults[
+          'codex_model_governance_setting.official_lifecycle_terms'
+        ] ?? []
+      )
+    ),
+  'codex_model_governance_setting.alert_cooldown_minutes':
+    defaults['codex_model_governance_setting.alert_cooldown_minutes'] ?? 60,
 })
 
 const normalizeFormValues = (
@@ -489,6 +583,32 @@ const normalizeFormValues = (
     values.monitor_setting.dingtalk_alert_secret.trim(),
   'monitor_setting.dingtalk_alert_cooldown_minutes':
     values.monitor_setting.dingtalk_alert_cooldown_minutes,
+  'codex_model_governance_setting.enabled':
+    values.codex_model_governance_setting.enabled,
+  'codex_model_governance_setting.probe_enabled':
+    values.codex_model_governance_setting.probe_enabled,
+  'codex_model_governance_setting.probe_interval_minutes':
+    values.codex_model_governance_setting.probe_interval_minutes,
+  'codex_model_governance_setting.unsupported_message_patterns':
+    codexGovernanceStringArrayToLines(
+      codexGovernanceLinesToArray(
+        values.codex_model_governance_setting.unsupported_message_patterns
+      )
+    ),
+  'codex_model_governance_setting.official_source_urls':
+    codexGovernanceStringArrayToLines(
+      codexGovernanceLinesToArray(
+        values.codex_model_governance_setting.official_source_urls
+      )
+    ),
+  'codex_model_governance_setting.official_lifecycle_terms':
+    codexGovernanceStringArrayToLines(
+      codexGovernanceLinesToArray(
+        values.codex_model_governance_setting.official_lifecycle_terms
+      )
+    ),
+  'codex_model_governance_setting.alert_cooldown_minutes':
+    values.codex_model_governance_setting.alert_cooldown_minutes,
 })
 
 export function MonitoringSettingsSection({
@@ -496,6 +616,13 @@ export function MonitoringSettingsSection({
 }: MonitoringSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const [codexRuleTestMessage, setCodexRuleTestMessage] = useState('')
+  const [codexRuleTestResult, setCodexRuleTestResult] = useState<{
+    matched: boolean
+    model_name: string
+    matched_rule: string
+  } | null>(null)
+  const [isCodexRuleTesting, setIsCodexRuleTesting] = useState(false)
   const baselineRef = useRef<NormalizedMonitoringValues>(
     normalizeDefaults(defaultValues)
   )
@@ -522,6 +649,29 @@ export function MonitoringSettingsSection({
     () => parseHttpStatusCodeRules(autoRetryStatusCodes),
     [autoRetryStatusCodes]
   )
+
+  const handleCodexRuleTest = async () => {
+    setIsCodexRuleTesting(true)
+    try {
+      const res = await testCodexModelGovernanceRule({
+        message: codexRuleTestMessage,
+        patterns: codexGovernanceLinesToArray(
+          form.getValues(
+            'codex_model_governance_setting.unsupported_message_patterns'
+          )
+        ),
+      })
+      setCodexRuleTestResult(res.data)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to test Codex rule')
+      )
+    } finally {
+      setIsCodexRuleTesting(false)
+    }
+  }
 
   const onSubmit = async (values: MonitoringFormValues) => {
     const normalized = normalizeFormValues(values)
@@ -759,6 +909,210 @@ export function MonitoringSettingsSection({
                       'Saved DingTalk secrets are not shown. Enter a new signing secret to update it, or leave blank to keep the current one.'
                     )}
                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='codex_model_governance_setting.enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Codex model governance')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Move explicitly unsupported Codex subscription models to manual review.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='codex_model_governance_setting.probe_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Probe Codex models')}</FormLabel>
+                    <FormDescription>
+                      {t('Lightweight checks run only against Codex channels.')}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='codex_model_governance_setting.probe_interval_minutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Codex probe interval (minutes)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={60}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='codex_model_governance_setting.alert_cooldown_minutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Codex governance alert cooldown (minutes)')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name='codex_model_governance_setting.unsupported_message_patterns'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Codex unsupported message patterns')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={4}
+                    placeholder={t('one regex per line')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Only matching messages move a model to unsupported review.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className='space-y-3 rounded-md border p-4'>
+            <FormLabel>{t('Test Codex rule')}</FormLabel>
+            <Textarea
+              rows={3}
+              value={codexRuleTestMessage}
+              onChange={(event) => {
+                setCodexRuleTestMessage(event.target.value)
+                setCodexRuleTestResult(null)
+              }}
+              placeholder={t('Paste an upstream error message')}
+            />
+            <div className='flex flex-wrap items-center gap-3'>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={isCodexRuleTesting}
+                onClick={handleCodexRuleTest}
+              >
+                {t('Test Codex rule')}
+              </Button>
+              {codexRuleTestResult && (
+                <div className='flex flex-wrap items-center gap-2 text-sm'>
+                  <Badge
+                    variant={
+                      codexRuleTestResult.matched ? 'default' : 'secondary'
+                    }
+                  >
+                    {codexRuleTestResult.matched
+                      ? t('Rule matched')
+                      : t('Rule did not match')}
+                  </Badge>
+                  {codexRuleTestResult.model_name && (
+                    <span className='text-muted-foreground'>
+                      {t('Extracted model')}:{' '}
+                      <span className='text-foreground'>
+                        {codexRuleTestResult.model_name}
+                      </span>
+                    </span>
+                  )}
+                  {codexRuleTestResult.matched_rule && (
+                    <span className='text-muted-foreground'>
+                      {t('Matched rule')}:{' '}
+                      <span className='text-foreground break-all'>
+                        {codexRuleTestResult.matched_rule}
+                      </span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='codex_model_governance_setting.official_source_urls'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Official Codex source URLs')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={4}
+                      placeholder={t('one URL per line')}
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='codex_model_governance_setting.official_lifecycle_terms'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Official lifecycle terms')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={4}
+                      placeholder={t('one term per line')}
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
