@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>中转站 · 一键导入 CC Switch 静态 Demo</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --text: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --primary: #0f172a;
+      --primary-2: #1d4ed8;
+      --primary-soft: #eff6ff;
+      --danger: #ef4444;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      background: #0b1220;
+      color: #dbeafe;
+      padding: 24px 18px;
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 34px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #6366f1, #2563eb);
+      color: #fff;
+      font-weight: 800;
+      box-shadow: 0 16px 36px rgba(37, 99, 235, 0.36);
+    }
+
+    .brand-title {
+      font-weight: 800;
+      font-size: 19px;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-subtitle {
+      color: #93a4bd;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-item {
+      padding: 12px 14px;
+      border-radius: 12px;
+      color: #a8b6cc;
+      cursor: default;
+    }
+
+    .nav-item.active {
+      background: rgba(255,255,255,.10);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 24px 36px 48px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+
+    .breadcrumb {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      letter-spacing: -0.04em;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: .16s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--line-strong);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .btn-link {
+      border: 0;
+      background: transparent;
+      color: var(--primary-2);
+      padding: 6px 0;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-danger-soft {
+      color: var(--danger);
+      background: #fef2f2;
+      border-color: #fee2e2;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 16px 44px rgba(15, 23, 42, 0.06);
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 22px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card-title {
+      font-weight: 900;
+      font-size: 20px;
+      margin: 0 0 4px;
+    }
+
+    .card-desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .search-box {
+      width: 260px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--muted);
+      background: var(--panel-soft);
+    }
+
+    .search-box input {
+      border: 0;
+      outline: 0;
+      background: transparent;
+      min-width: 0;
+      width: 100%;
+      color: var(--text);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 800;
+      background: #fbfdff;
+    }
+
+    tr:hover td {
+      background: #fcfdff;
+    }
+
+    .token-name {
+      font-weight: 900;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .token-desc {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pill-success {
+      color: #15803d;
+      background: #dcfce7;
+    }
+
+    .pill-blue {
+      color: #1d4ed8;
+      background: #dbeafe;
+    }
+
+    .row-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .row-action {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .row-action.import {
+      background: var(--primary-soft);
+      color: var(--primary-2);
+    }
+
+    .row-action.delete {
+      background: #fef2f2;
+      color: var(--danger);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgba(15, 23, 42, .58);
+      padding: 24px;
+      z-index: 50;
+    }
+
+    .overlay.show {
+      display: grid;
+    }
+
+    .modal {
+      width: min(760px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      background: var(--panel);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      animation: pop .18s ease;
+    }
+
+    @keyframes pop {
+      from { opacity: 0; transform: translateY(10px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .modal-head {
+      padding: 24px 28px 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-title {
+      font-size: 22px;
+      font-weight: 950;
+      margin: 0 0 6px;
+      letter-spacing: -0.03em;
+    }
+
+    .modal-subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      background: #f1f5f9;
+      border-radius: 12px;
+      cursor: pointer;
+      color: #334155;
+      font-size: 18px;
+    }
+
+    .modal-body {
+      padding: 22px 28px 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .info-card {
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      border-radius: 18px;
+      padding: 18px 20px;
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 16px;
+      font-weight: 950;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 22px;
+    }
+
+    .field-label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+
+    .field-value {
+      font-weight: 900;
+      font-size: 16px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+
+    .full { grid-column: 1 / -1; }
+
+    .setting-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .setting-summary {
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .setting-value {
+      font-weight: 950;
+      font-size: 17px;
+      margin-top: 4px;
+    }
+
+    .setting-extra {
+      padding: 0 20px 18px;
+      border-top: 1px solid var(--line);
+      display: none;
+    }
+
+    .setting-card.expanded .setting-extra {
+      display: block;
+    }
+
+    .target-list {
+      display: grid;
+      gap: 10px;
+      padding-top: 16px;
+    }
+
+    .target-option, .model-option {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      cursor: pointer;
+      text-align: left;
+      transition: .14s ease;
+    }
+
+    .target-option:hover, .model-option:hover {
+      border-color: #bfdbfe;
+      background: #f8fbff;
+    }
+
+    .target-option.selected, .model-option.selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .target-option.disabled {
+      cursor: not-allowed;
+      opacity: .62;
+      background: #f8fafc;
+    }
+
+    .option-main {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .option-title {
+      font-weight: 950;
+      color: var(--text);
+    }
+
+    .option-desc {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .badge-primary { background: #dbeafe; color: #1d4ed8; }
+    .badge-success { background: #dcfce7; color: #15803d; }
+    .badge-wait { background: #fff7ed; color: #c2410c; }
+
+    .model-search-wrap {
+      padding-top: 16px;
+    }
+
+    .model-search {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: var(--panel-soft);
+      margin-bottom: 12px;
+    }
+
+    .model-search input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+    }
+
+    .model-list-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+      margin: 6px 0 8px;
+    }
+
+    .model-list {
+      display: grid;
+      gap: 10px;
+      max-height: 300px;
+      overflow: auto;
+      padding-right: 3px;
+    }
+
+    .model-name {
+      font-weight: 950;
+    }
+
+    .empty-state {
+      color: var(--muted);
+      border: 1px dashed var(--line-strong);
+      background: #f8fafc;
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      display: none;
+    }
+
+    .empty-state.show {
+      display: block;
+    }
+
+    .modal-foot {
+      padding: 18px 28px 24px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfdff;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 14px;
+      box-shadow: 0 18px 50px rgba(15,23,42,.25);
+      z-index: 80;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .main { padding: 20px; }
+      .topbar { align-items: flex-start; flex-direction: column; gap: 14px; }
+      .card-head { align-items: flex-start; flex-direction: column; gap: 14px; }
+      .search-box { width: 100%; }
+      table { min-width: 900px; }
+      .table-wrap { overflow-x: auto; }
+      .info-grid { grid-template-columns: 1fr; }
+      .full { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">Z</div>
+        <div>
+          <div class="brand-title">中转站</div>
+          <div class="brand-subtitle">Provider Center</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item active">令牌管理</div>
+        <div class="nav-item">模型池</div>
+        <div class="nav-item">调用统计</div>
+        <div class="nav-item">账单中心</div>
+        <div class="nav-item">系统设置</div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <div class="breadcrumb">控制台 / 令牌管理</div>
+          <h1>API 令牌</h1>
+        </div>
+        <div class="top-actions">
+          <button class="btn">查看文档</button>
+          <button class="btn btn-primary">新增令牌</button>
+        </div>
+      </div>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">令牌列表</h2>
+            <p class="card-desc">在每条令牌右侧新增“导入”，用于一键导入到 CC Switch。</p>
+          </div>
+          <label class="search-box">
+            <span>⌕</span>
+            <input id="tokenSearch" placeholder="搜索令牌名称" />
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>状态</th>
+                <th>分组</th>
+                <th>密钥</th>
+                <th>默认模型</th>
+                <th>创建时间</th>
+                <th style="text-align:right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tokenTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h2 class="modal-title" id="modalTitle">导入到 CC Switch</h2>
+          <p class="modal-subtitle">系统已帮你选择默认目标和模型；不满意时再更换。</p>
+        </div>
+        <button class="icon-btn" id="closeModal" aria-label="关闭">×</button>
+      </div>
+
+      <div class="modal-body">
+        <section class="info-card">
+          <h3 class="section-title">当前令牌</h3>
+          <div class="info-grid">
+            <div>
+              <div class="field-label">名称</div>
+              <div class="field-value" id="tokenNameText">codex</div>
+            </div>
+            <div>
+              <div class="field-label">密钥</div>
+              <div class="field-value" id="tokenKeyText">sk-HYYi********M15</div>
+            </div>
+            <div class="full">
+              <div class="field-label">BaseURL</div>
+              <div class="field-value" id="tokenBaseText">https://api.example.com/v1</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="setting-card" id="targetCard">
+          <div class="setting-summary">
+            <div>
+              <div class="field-label">导入目标</div>
+              <div class="setting-value" id="selectedTargetText">Codex</div>
+            </div>
+            <button class="btn-link" id="toggleTarget">更换</button>
+          </div>
+          <div class="setting-extra">
+            <div class="target-list" id="targetList"></div>
+          </div>
+        </section>
+
+        <section class="setting-card" id="modelCard">
+          <div class="setting-summary">
+            <div>
+              <div class="field-label">默认模型</div>
+              <div class="setting-value" id="selectedModelText">gpt-5.1-codex</div>
+            </div>
+            <button class="btn-link" id="toggleModel">更换</button>
+          </div>
+          <div class="setting-extra">
+            <div class="model-search-wrap">
+              <label class="model-search">
+                <span>⌕</span>
+                <input id="modelSearch" placeholder="输入模型名称，例如 codex / sonnet / qwen" />
+              </label>
+              <div class="model-list-head">
+                <span id="modelListTitle">推荐 / 最近添加</span>
+                <span id="modelCountText">共 0 个匹配</span>
+              </div>
+              <div class="model-list" id="modelList"></div>
+              <div class="empty-state" id="emptyModel">没有找到匹配模型，请换个关键词。</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn" id="cancelImport">取消</button>
+        <button class="btn btn-primary" id="confirmImport">立即导入</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // 静态 Demo 数据：真实接入时替换为后端接口返回的数据。
+    const tokens = [
+      {
+        id: 'token_codex',
+        name: 'codex',
+        desc: '主力开发令牌',
+        status: '已启用',
+        group: 'codex',
+        maskedKey: 'sk-HYYi********M15',
+        apiKey: 'sk-test-demo-key-do-not-use',
+        baseURL: 'https://api.example.com/v1',
+        defaultModel: 'gpt-5.1-codex',
+        createdAt: '2026-06-04 23:25:56'
+      },
+      {
+        id: 'token_team_dev',
+        name: 'team-dev',
+        desc: '团队开发环境',
+        status: '已启用',
+        group: 'dev',
+        maskedKey: 'sk-team********8K2',
+        apiKey: 'sk-test-team-demo-key-do-not-use',
+        baseURL: 'https://api.example.com/v1',
+        defaultModel: 'claude-sonnet-4',
+        createdAt: '2026-06-02 18:10:20'
+      }
+    ];
+
+    const targets = [
+      { id: 'codex', name: 'Codex', app: 'codex', desc: '当前版本支持', enabled: true, badge: '已支持' },
+      { id: 'claude', name: 'Claude Code', app: 'claude', desc: '后续扩展目标', enabled: false, badge: '即将支持' },
+      { id: 'openclaw', name: 'OpenClaw', app: 'openclaw', desc: '后续扩展目标', enabled: false, badge: '即将支持' },
+      { id: 'hermes', name: 'Hermes', app: 'hermes', desc: '协议待验证后开放', enabled: false, badge: '待验证' }
+    ];
+
+    const models = [
+      { name: 'gpt-5.1-codex', desc: '推荐用于 Codex 开发场景', tag: '推荐', createdAt: '2026-06-10 09:20' },
+      { name: 'gpt-5-codex', desc: 'Codex 场景备用模型', tag: '最近添加', createdAt: '2026-06-09 21:30' },
+      { name: 'claude-sonnet-4', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-08 18:00' },
+      { name: 'claude-3.7-sonnet', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-07 15:10' },
+      { name: 'qwen-max', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-06 11:00' },
+      { name: 'deepseek-r1', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-05 14:20' },
+      { name: 'gemini-2.5-pro', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-04 20:15' },
+      { name: 'kimi-k2', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-03 13:05' },
+      { name: 'doubao-seed-1.6', desc: '通用模型池可选模型', tag: '通用', createdAt: '2026-06-02 17:45' }
+    ];
+
+    let currentToken = tokens[0];
+    let selectedTarget = targets[0];
+    let selectedModel = currentToken.defaultModel;
+
+    const tokenTable = document.getElementById('tokenTable');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const tokenNameText = document.getElementById('tokenNameText');
+    const tokenKeyText = document.getElementById('tokenKeyText');
+    const tokenBaseText = document.getElementById('tokenBaseText');
+    const selectedTargetText = document.getElementById('selectedTargetText');
+    const selectedModelText = document.getElementById('selectedModelText');
+    const targetCard = document.getElementById('targetCard');
+    const modelCard = document.getElementById('modelCard');
+    const targetList = document.getElementById('targetList');
+    const modelList = document.getElementById('modelList');
+    const modelSearch = document.getElementById('modelSearch');
+    const modelCountText = document.getElementById('modelCountText');
+    const modelListTitle = document.getElementById('modelListTitle');
+    const emptyModel = document.getElementById('emptyModel');
+    const toast = document.getElementById('toast');
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>'"]/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[ch]));
+    }
+
+    function renderTokens(keyword = '') {
+      const kw = keyword.trim().toLowerCase();
+      const rows = tokens
+        .filter(item => !kw || item.name.toLowerCase().includes(kw) || item.group.toLowerCase().includes(kw))
+        .map(item => `
+          <tr>
+            <td>
+              <div class="token-name">${escapeHtml(item.name)}</div>
+              <div class="token-desc">${escapeHtml(item.desc)}</div>
+            </td>
+            <td><span class="pill pill-success">${escapeHtml(item.status)}</span></td>
+            <td><span class="pill pill-blue">${escapeHtml(item.group)}</span></td>
+            <td>${escapeHtml(item.maskedKey)}</td>
+            <td>${escapeHtml(item.defaultModel)}</td>
+            <td>${escapeHtml(item.createdAt)}</td>
+            <td>
+              <div class="row-actions">
+                <button class="row-action">聊天</button>
+                <button class="row-action import" data-import-id="${escapeHtml(item.id)}">导入</button>
+                <button class="row-action">禁用</button>
+                <button class="row-action">编辑</button>
+                <button class="row-action delete">删除</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      tokenTable.innerHTML = rows || `<tr><td colspan="7" style="text-align:center;color:#64748b;padding:38px;">没有找到令牌</td></tr>`;
+    }
+
+    function openModal(tokenId) {
+      currentToken = tokens.find(item => item.id === tokenId) || tokens[0];
+      selectedTarget = targets[0];
+      selectedModel = currentToken.defaultModel || models[0].name;
+
+      tokenNameText.textContent = currentToken.name;
+      tokenKeyText.textContent = currentToken.maskedKey;
+      tokenBaseText.textContent = currentToken.baseURL;
+      selectedTargetText.textContent = selectedTarget.name;
+      selectedModelText.textContent = selectedModel;
+
+      targetCard.classList.remove('expanded');
+      modelCard.classList.remove('expanded');
+      document.getElementById('toggleTarget').textContent = '更换';
+      document.getElementById('toggleModel').textContent = '更换';
+      modelSearch.value = '';
+
+      renderTargets();
+      renderModels();
+      modalOverlay.classList.add('show');
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('show');
+    }
+
+    function renderTargets() {
+      targetList.innerHTML = targets.map(item => {
+        const selected = item.id === selectedTarget.id;
+        const classes = ['target-option'];
+        if (selected) classes.push('selected');
+        if (!item.enabled) classes.push('disabled');
+        const badgeClass = item.enabled ? 'badge-primary' : (item.id === 'hermes' ? 'badge-wait' : '');
+        return `
+          <button class="${classes.join(' ')}" data-target-id="${escapeHtml(item.id)}" ${item.enabled ? '' : 'disabled'}>
+            <span class="option-main">
+              <span class="option-title">${escapeHtml(item.name)}</span>
+              <span class="option-desc">${escapeHtml(item.desc)}</span>
+            </span>
+            <span class="badge ${badgeClass}">${escapeHtml(item.badge)}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderModels() {
+      const kw = modelSearch.value.trim().toLowerCase();
+      const words = kw.split(/\s+/).filter(Boolean);
+      const list = models.filter(item => {
+        const name = item.name.toLowerCase();
+        return words.every(word => name.includes(word));
+      });
+
+      modelListTitle.textContent = kw ? '搜索结果' : '推荐 / 最近添加';
+      modelCountText.textContent = `共 ${list.length} 个匹配`;
+      emptyModel.classList.toggle('show', list.length === 0);
+      modelList.style.display = list.length ? 'grid' : 'none';
+
+      modelList.innerHTML = list.map(item => {
+        const selected = item.name === selectedModel;
+        return `
+          <button class="model-option ${selected ? 'selected' : ''}" data-model-name="${escapeHtml(item.name)}">
+            <span class="option-main">
+              <span class="model-name">${escapeHtml(item.name)}</span>
+              <span class="option-desc">${escapeHtml(item.desc)} · 添加时间：${escapeHtml(item.createdAt)}</span>
+            </span>
+            <span class="badge ${item.tag === '推荐' ? 'badge-success' : ''}">${escapeHtml(item.tag)}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function buildCCSwitchUrl() {
+      const params = new URLSearchParams({
+        resource: 'provider',
+        app: selectedTarget.app,
+        name: currentToken.name,
+        endpoint: currentToken.baseURL,
+        apiKey: currentToken.apiKey,
+        model: selectedModel,
+        enabled: 'true'
+      });
+      return `ccswitch://v1/import?${params.toString()}`;
+    }
+
+    document.getElementById('tokenSearch').addEventListener('input', event => {
+      renderTokens(event.target.value);
+    });
+
+    tokenTable.addEventListener('click', event => {
+      const btn = event.target.closest('[data-import-id]');
+      if (!btn) return;
+      openModal(btn.dataset.importId);
+    });
+
+    document.getElementById('closeModal').addEventListener('click', closeModal);
+    document.getElementById('cancelImport').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', event => {
+      if (event.target === modalOverlay) closeModal();
+    });
+
+    document.getElementById('toggleTarget').addEventListener('click', () => {
+      const expanded = targetCard.classList.toggle('expanded');
+      document.getElementById('toggleTarget').textContent = expanded ? '收起' : '更换';
+      if (expanded) modelCard.classList.remove('expanded');
+      document.getElementById('toggleModel').textContent = modelCard.classList.contains('expanded') ? '收起' : '更换';
+    });
+
+    document.getElementById('toggleModel').addEventListener('click', () => {
+      const expanded = modelCard.classList.toggle('expanded');
+      document.getElementById('toggleModel').textContent = expanded ? '收起' : '更换';
+      if (expanded) {
+        targetCard.classList.remove('expanded');
+        document.getElementById('toggleTarget').textContent = '更换';
+        setTimeout(() => modelSearch.focus(), 80);
+      }
+    });
+
+    targetList.addEventListener('click', event => {
+      const btn = event.target.closest('[data-target-id]');
+      if (!btn || btn.disabled) return;
+      const target = targets.find(item => item.id === btn.dataset.targetId);
+      if (!target) return;
+      selectedTarget = target;
+      selectedTargetText.textContent = target.name;
+      targetCard.classList.remove('expanded');
+      document.getElementById('toggleTarget').textContent = '更换';
+      renderTargets();
+    });
+
+    modelSearch.addEventListener('input', renderModels);
+
+    modelList.addEventListener('click', event => {
+      const btn = event.target.closest('[data-model-name]');
+      if (!btn) return;
+      selectedModel = btn.dataset.modelName;
+      selectedModelText.textContent = selectedModel;
+      modelCard.classList.remove('expanded');
+      document.getElementById('toggleModel').textContent = '更换';
+      modelSearch.value = '';
+      renderModels();
+    });
+
+    document.getElementById('confirmImport').addEventListener('click', () => {
+      if (!selectedTarget.enabled) {
+        showToast('当前目标暂未开放，请选择 Codex');
+        return;
+      }
+      const url = buildCCSwitchUrl();
+      showToast('正在尝试唤起 CC Switch，请在系统弹窗中确认');
+
+      // 静态 Demo 中也会尝试打开 ccswitch://。
+      // 若未安装 CC Switch 或协议未注册，浏览器可能无反应或提示失败。
+      setTimeout(() => {
+        window.location.href = url;
+      }, 350);
+    });
+
+    renderTokens();
+  </script>
+</body>
+</html>
