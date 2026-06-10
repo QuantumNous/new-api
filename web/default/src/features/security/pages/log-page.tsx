@@ -27,7 +27,7 @@ export function SecurityLogPage() {
   const [logs, setLogs] = useState<SecurityHitLog[]>([])
   const [loading, setLoading] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [selectedLogId, setSelectedLogId] = useState<number | null>(null)
+  const [selectedLog, setSelectedLog] = useState<SecurityHitLog | null>(null)
 
   useEffect(() => {
     loadLogs()
@@ -64,8 +64,8 @@ export function SecurityLogPage() {
     }
   }
 
-  const openDrawer = (id: number) => {
-    setSelectedLogId(id)
+  const openDrawer = (log: SecurityHitLog) => {
+    setSelectedLog(log)
     setDrawerOpen(true)
   }
 
@@ -102,7 +102,7 @@ export function SecurityLogPage() {
                 <TableRow
                   key={log.id}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => openDrawer(log.id)}
+                  onClick={() => openDrawer(log)}
                 >
                   <TableCell>{new Date(log.created_at * 1000).toLocaleString()}</TableCell>
                   <TableCell>{log.user_name}</TableCell>
@@ -123,7 +123,7 @@ export function SecurityLogPage() {
       </Card>
 
       <LogDetailDrawer
-        logId={selectedLogId}
+        log={selectedLog}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
       />

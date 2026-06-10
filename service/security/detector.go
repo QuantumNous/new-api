@@ -92,8 +92,9 @@ func (de *DetectionEngine) Detect(ctx context.Context, userID int, content strin
 		return result, nil
 	}
 
-	// 过滤生效范围
+	// 过滤生效范围并去重
 	var effectiveGroupIds []int64
+	seen := make(map[int64]bool)
 	for _, policy := range policies {
 		if contentType == constant.SecurityContentTypeRequest && policy.Scope == constant.SecurityScopeResponseOnly {
 			continue
@@ -101,8 +102,10 @@ func (de *DetectionEngine) Detect(ctx context.Context, userID int, content strin
 		if contentType == constant.SecurityContentTypeResponse && policy.Scope == constant.SecurityScopeRequestOnly {
 			continue
 		}
-		effectiveGroupIds = append(effectiveGroupIds, policy.GroupID)
-		// TODO: 包含子分组
+		if !seen[policy.GroupID] {
+			seen[policy.GroupID] = true
+			effectiveGroupIds = append(effectiveGroupIds, policy.GroupID)
+		}
 	}
 
 	if len(effectiveGroupIds) == 0 {

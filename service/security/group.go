@@ -64,9 +64,7 @@ func CreateSecurityGroup(req *dto.SecurityGroupRequest) (*model.SecurityGroup, e
 			return nil, fmt.Errorf("分组嵌套深度不能超过%d层", constant.SecurityMaxGroupDepth)
 		}
 		depth = parent.Depth + 1
-		path = fmt.Sprintf("%s/%d", parent.Path, req.ParentID)
-	} else {
-		path = fmt.Sprintf("/%d", req.ParentID)
+		path = parent.Path
 	}
 
 	group := &model.SecurityGroup{
@@ -90,7 +88,11 @@ func CreateSecurityGroup(req *dto.SecurityGroupRequest) (*model.SecurityGroup, e
 	}
 
 	// 更新 path 包含自身 ID
-	group.Path = fmt.Sprintf("%s/%d", path, group.ID)
+	if path == "" {
+		group.Path = fmt.Sprintf("/%d", group.ID)
+	} else {
+		group.Path = fmt.Sprintf("%s/%d", path, group.ID)
+	}
 	err = model.DB.Model(group).Update("path", group.Path).Error
 	if err != nil {
 		common.SysLog("更新分组 path 失败: " + err.Error())
@@ -166,8 +168,13 @@ func CopySecurityGroup(id int64) (*model.SecurityGroup, error) {
 		return nil, err
 	}
 
-	// 更新 path
-	newGroup.Path = fmt.Sprintf("%s/%d", srcGroup.Path, newGroup.ID)
+	// 更新 path（与源分组同级，而非子级）
+	if srcGroup.ParentID == 0 {
+		newGroup.Path = fmt.Sprintf("/%d", newGroup.ID)
+	} else {
+		parentPath := strings.TrimSuffix(srcGroup.Path, fmt.Sprintf("/%d", srcGroup.ID))
+		newGroup.Path = fmt.Sprintf("%s/%d", parentPath, newGroup.ID)
+	}
 	model.DB.Model(newGroup).Update("path", newGroup.Path)
 
 	// 复制规则

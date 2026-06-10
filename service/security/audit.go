@@ -1,9 +1,9 @@
 package security
 
 import (
-	"encoding/json"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -11,11 +11,11 @@ import (
 func CreateAuditLog(userID int, actionType string, targetType string, targetID int64, oldValue interface{}, newValue interface{}) error {
 	var oldJSON, newJSON string
 	if oldValue != nil {
-		data, _ := json.Marshal(oldValue)
+		data, _ := common.Marshal(oldValue)
 		oldJSON = string(data)
 	}
 	if newValue != nil {
-		data, _ := json.Marshal(newValue)
+		data, _ := common.Marshal(newValue)
 		newJSON = string(data)
 	}
 

@@ -8,11 +8,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { securityApi, type SecurityHitLog } from '../api/security'
-import { useEffect, useState } from 'react'
+import { type SecurityHitLog } from '../api/security'
 
 interface LogDetailDrawerProps {
-  logId: number | null
+  log: SecurityHitLog | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -46,27 +45,8 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export function LogDetailDrawer({ logId, open, onOpenChange }: LogDetailDrawerProps) {
+export function LogDetailDrawer({ log, open, onOpenChange }: LogDetailDrawerProps) {
   const { t } = useTranslation()
-  const [log, setLog] = useState<SecurityHitLog | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!open || !logId) {
-      setLog(null)
-      return
-    }
-    setLoading(true)
-    securityApi
-      .getLogs({ page: 1, page_size: 1 })
-      .then((res: any) => {
-        if (res.success && res.data?.items) {
-          const found = res.data.items.find((i: SecurityHitLog) => i.id === logId)
-          setLog(found || null)
-        }
-      })
-      .finally(() => setLoading(false))
-  }, [open, logId])
 
   const risk = log ? riskLevelMap[log.risk_level] : undefined
 
@@ -81,13 +61,11 @@ export function LogDetailDrawer({ logId, open, onOpenChange }: LogDetailDrawerPr
         </SheetHeader>
 
         <div className="py-4 space-y-4 overflow-y-auto">
-          {loading && <div className="text-sm text-muted-foreground">{t('Loading...')}</div>}
-
-          {!loading && !log && (
+          {!log && (
             <div className="text-sm text-muted-foreground">{t('Log not found')}</div>
           )}
 
-          {!loading && log && (
+          {log && (
             <>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">{actionMap[log.action] ?? log.action}</Badge>

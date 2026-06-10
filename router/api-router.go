@@ -436,9 +436,9 @@ func SetApiRouter(router *gin.Engine) {
 			securityRoute.GET("/dashboard", middleware.AdminAuth(), controller.GetSecurityDashboard)
 			securityRoute.GET("/status", controller.GetSecurityStatus)
 
-			// Detection endpoints (internal use)
-			securityRoute.POST("/check/request", controller.CheckSecurityRequest)
-			securityRoute.POST("/check/response", controller.CheckSecurityResponse)
+			// Detection endpoints (admin only)
+			securityRoute.POST("/check/request", middleware.AdminAuth(), controller.CheckSecurityRequest)
+			securityRoute.POST("/check/response", middleware.AdminAuth(), controller.CheckSecurityResponse)
 		}
 	}
 }

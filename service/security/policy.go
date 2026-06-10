@@ -2,6 +2,7 @@ package security
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -155,7 +156,7 @@ func GetUserEffectiveGroups(userID int) ([]int64, error) {
 		groupIdMap[policy.GroupID] = true
 		// 获取子分组
 		var childGroups []*model.SecurityGroup
-		model.DB.Where("path LIKE ?", "%/"+string(rune(policy.GroupID))+"/%").Find(&childGroups)
+		model.DB.Where("path LIKE ?", "%/"+strconv.FormatInt(policy.GroupID, 10)+"/%").Find(&childGroups)
 		for _, child := range childGroups {
 			groupIdMap[child.ID] = true
 		}

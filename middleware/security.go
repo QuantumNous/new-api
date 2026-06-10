@@ -37,10 +37,16 @@ func SecurityCheck() gin.HandlerFunc {
 			return
 		}
 
-		// 读取请求体
-		bodyBytes, err := io.ReadAll(c.Request.Body)
+		// 读取请求体（限制最大 10MB）
+		const maxBodySize = 10 * 1024 * 1024
+		bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, maxBodySize+1))
 		if err != nil {
 			common.SysLog("读取请求体失败: " + err.Error())
+			c.Next()
+			return
+		}
+		if len(bodyBytes) > maxBodySize {
+			common.SysLog("请求体超过 10MB，跳过安全检测")
 			c.Next()
 			return
 		}
