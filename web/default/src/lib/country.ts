@@ -14,10 +14,9 @@ const COUNTRY_NAMES: Record<string, string> = {
   AR: '阿根廷', CO: '哥伦比亚', CL: '智利',
 }
 
-/** Format a 2-letter country code as "TW（台湾）". Falls back to just the code. */
-export function formatCountry(code: string | undefined | null): string {
-  if (!code) return '—'
+/** Returns { code, name } for a 2-letter country code. */
+export function parseCountry(code: string | undefined | null): { code: string; name: string } | null {
+  if (!code) return null
   const upper = code.toUpperCase()
-  const name = COUNTRY_NAMES[upper]
-  return name ? `${upper}（${name}）` : upper
+  return { code: upper, name: COUNTRY_NAMES[upper] ?? '' }
 }

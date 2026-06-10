@@ -27,7 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatCountry } from '@/lib/country'
+import { parseCountry } from '@/lib/country'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
@@ -124,12 +124,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
         <DataTableColumnHeader column={column} title='国家' />
       ),
       cell: ({ row }) => {
-        const country = row.getValue('country') as string | undefined
-        return (
-          <span className='text-sm whitespace-nowrap'>
-            {formatCountry(country)}
-          </span>
-        )
+        const c = parseCountry(row.getValue('country') as string | undefined)
+        return c
+          ? <div className='flex flex-col gap-0.5'>
+              <span className='text-xs font-medium'>{c.code}</span>
+              {c.name && <span className='text-muted-foreground text-xs'>{c.name}</span>}
+            </div>
+          : <span className='text-muted-foreground text-xs'>—</span>
       },
       enableSorting: false,
       meta: { label: '国家', mobileHidden: true },

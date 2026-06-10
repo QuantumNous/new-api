@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCountry } from '@/lib/country'
+import { parseCountry } from '@/lib/country'
 import { useBillingHistory } from '../hooks/use-billing-history'
 import { GLASS_CARD_CLS } from '../constants'
 import { getPaymentMethodName, formatTimestamp } from '../lib/billing'
@@ -198,10 +198,16 @@ export function TransactionHistory() {
                         </td>
                       )}
                       {isAdmin && (
-                        <td className='px-4 py-3 text-xs font-medium whitespace-nowrap'>
-                          {record.country
-                            ? formatCountry(record.country)
-                            : <span className='text-muted-foreground'>—</span>}
+                        <td className='px-4 py-3'>
+                          {(() => {
+                            const c = parseCountry(record.country)
+                            return c
+                              ? <div className='flex flex-col gap-0.5'>
+                                  <span className='text-xs font-medium'>{c.code}</span>
+                                  {c.name && <span className='text-muted-foreground text-xs'>{c.name}</span>}
+                                </div>
+                              : <span className='text-muted-foreground text-xs'>—</span>
+                          })()}
                         </td>
                       )}
                       <td className='px-4 py-3 text-muted-foreground'>
