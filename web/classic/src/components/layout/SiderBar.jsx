@@ -54,6 +54,7 @@ const routerMap = {
   kyc: '/console/kyc',
   enterprise: '/console/enterprise',
   feedback: '/console/feedback',
+  myfeedback: '/console/myfeedback',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -161,9 +162,14 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
-        text: withUnreadBadge(t('个人设置'), userUnread),
+        text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
+      },
+      {
+        text: withUnreadBadge(t('我的工单'), userUnread),
+        itemKey: 'myfeedback',
+        to: '/console/myfeedback',
       },
     ];
 
@@ -221,6 +227,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
+        text: withUnreadBadge(t('工单管理'), adminUnread),
+        itemKey: 'feedback',
+        to: '/console/feedback',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
         text: t('实名认证'),
         itemKey: 'kyc',
         to: '/kyc',
@@ -230,12 +242,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('企业认证'),
         itemKey: 'enterprise',
         to: '/enterprise',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: withUnreadBadge(t('工单管理'), adminUnread),
-        itemKey: 'feedback',
-        to: '/console/feedback',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

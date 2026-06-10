@@ -30,7 +30,6 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
-import { UserContext } from '../../../context/User';
 import { useUserPermissions } from '../../../hooks/common/useUserPermissions';
 import { mergeAdminConfig, useSidebar } from '../../../hooks/common/useSidebar';
 import { Settings } from 'lucide-react';
@@ -95,6 +94,7 @@ export default function SettingsSidebarModulesUser() {
         enabled: true,
         topup: isSidebarModuleAllowed('personal', 'topup'),
         personal: isSidebarModuleAllowed('personal', 'personal'),
+        myfeedback: isSidebarModuleAllowed('personal', 'myfeedback'),
       };
     }
 
@@ -329,6 +329,11 @@ export default function SettingsSidebarModulesUser() {
           key: 'personal',
           title: t('个人设置'),
           description: t('个人信息设置'),
+        },
+        {
+          key: 'myfeedback',
+          title: t('我的工单'),
+          description: t('查看与提交自己的工单'),
         },
       ],
     },

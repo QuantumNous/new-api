@@ -51,6 +51,7 @@ import PersonalSetting from './components/settings/PersonalSetting';
 import KYCPage from './pages/KYC';
 import EnterprisePage from './pages/Enterprise';
 import FeedbackPage from './pages/Feedback';
+import MyFeedbackPage from './pages/Feedback/MyFeedback';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
 
@@ -205,6 +206,14 @@ function App() {
             <AdminRoute>
               <FeedbackPage />
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/myfeedback'
+          element={
+            <PrivateRoute>
+              <MyFeedbackPage />
+            </PrivateRoute>
           }
         />
         <Route

@@ -336,13 +336,16 @@ func GetFeedbackTopicById(topicId int) (*FeedbackTopic, error) {
 }
 
 // GetUserFeedbackTopics 我的工单列表，按 last_reply_at DESC（最新置顶）。status/category=0 表示不过滤。
-func GetUserFeedbackTopics(userId, status, category, page, pageSize int) ([]*FeedbackTopic, int64, error) {
+func GetUserFeedbackTopics(userId, status, category int, keyword string, page, pageSize int) ([]*FeedbackTopic, int64, error) {
 	query := DB.Model(&FeedbackTopic{}).Where("user_id = ?", userId)
 	if status != 0 {
 		query = query.Where("status = ?", status)
 	}
 	if category != 0 {
 		query = query.Where("category = ?", category)
+	}
+	if keyword != "" {
+		query = query.Where("title LIKE ?", "%"+keyword+"%")
 	}
 
 	var total int64
@@ -406,7 +409,9 @@ func GetFeedbackAdminTopics(filterUserId, status, category int, username, keywor
 }
 
 // GetFeedbackMessages 取某工单的消息（分页，created_at ASC），并回填 ImageIds 与 AuthorName。
-func GetFeedbackMessages(topicId, page, pageSize int) ([]*FeedbackMessage, int64, error) {
+// maskAdmin=true（用户侧）时不回填管理员消息的真名，避免向终端用户暴露管理员账号
+// （撞库/猜密码风险，见 docs/feedback-consult-design.md §2.2）；控制器再把 AuthorId 置 0。
+func GetFeedbackMessages(topicId, page, pageSize int, maskAdmin bool) ([]*FeedbackMessage, int64, error) {
 	query := DB.Model(&FeedbackMessage{}).Where("topic_id = ?", topicId)
 
 	var total int64
@@ -440,6 +445,10 @@ func GetFeedbackMessages(topicId, page, pageSize int) ([]*FeedbackMessage, int64
 	nameMap := loadUsernames(authorIds)
 	for _, m := range messages {
 		m.ImageIds = imgMap[m.Id]
+		// 用户侧脱敏：管理员消息不回填真名（前端固定显示「官方客服」）。
+		if maskAdmin && m.AuthorRole == FeedbackAuthorAdmin {
+			continue
+		}
 		m.AuthorName = nameMap[m.UserId]
 	}
 	return messages, total, nil

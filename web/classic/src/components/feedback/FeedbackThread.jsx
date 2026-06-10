@@ -11,7 +11,7 @@ import { IconImage, IconClose, IconSend } from '@douyinfe/semi-icons';
 import { API, showError } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import {
-  compressImageToBase64,
+  encodeFeedbackImageFiles,
   FEEDBACK_MAX_IMAGES,
   FEEDBACK_ROLE_ADMIN,
 } from './feedbackHelpers';
@@ -121,6 +121,7 @@ export default function FeedbackThread({
   const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [images, setImages] = useState([]); // base64[]
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef(null);
   const endRef = useRef(null);
 
@@ -128,24 +129,32 @@ export default function FeedbackThread({
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
 
+  // 点击选择与拖拽共用：处理一批文件 → 追加到 images。
+  const addFiles = async (fileList) => {
+    const { encoded, error } = await encodeFeedbackImageFiles(
+      fileList,
+      images.length,
+    );
+    if (error) showError(t(error));
+    // 函数式封顶：即使并发拖拽/选择读到的是旧 count，也保证不超过上限。
+    if (encoded.length)
+      setImages((prev) => [...prev, ...encoded].slice(0, FEEDBACK_MAX_IMAGES));
+  };
+
   const handleFiles = async (e) => {
-    const files = Array.from(e.target.files || []);
+    const fileList = e.target.files;
     e.target.value = '';
-    if (files.length === 0) return;
-    const room = FEEDBACK_MAX_IMAGES - images.length;
-    if (room <= 0) {
+    await addFiles(fileList);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setDragging(false);
+    if (images.length >= FEEDBACK_MAX_IMAGES) {
       showError(t('最多上传 3 张图片'));
       return;
     }
-    try {
-      const picked = files.slice(0, room);
-      const encoded = await Promise.all(
-        picked.map((f) => compressImageToBase64(f)),
-      );
-      setImages((prev) => [...prev, ...encoded]);
-    } catch {
-      showError(t('图片处理失败'));
-    }
+    await addFiles(e.dataTransfer.files);
   };
 
   const submit = async () => {
@@ -184,7 +193,24 @@ export default function FeedbackThread({
       </div>
 
       {!disabled && (
-        <div className='border-t pt-2'>
+        <div
+          className={`border-t pt-2 rounded-md transition-colors ${
+            dragging ? 'bg-blue-50 ring-2 ring-blue-300 ring-inset' : ''
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!dragging) setDragging(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false);
+          }}
+          onDrop={handleDrop}
+        >
+          {dragging && (
+            <div className='mb-2 text-center text-xs text-blue-500'>
+              {t('松开鼠标上传图片')}
+            </div>
+          )}
           {images.length > 0 && (
             <div className='flex flex-wrap gap-2 mb-2'>
               {images.map((b64, idx) => (

@@ -38,9 +38,10 @@ func GetUserFeedbackTopics(c *gin.Context) {
 	userId := c.GetInt("id")
 	status, _ := strconv.Atoi(c.DefaultQuery("status", "0"))
 	category, _ := strconv.Atoi(c.DefaultQuery("category", "0"))
+	keyword := strings.TrimSpace(c.Query("keyword"))
 	page, pageSize := parsePaging(c, feedbackDefaultPageSize, feedbackMaxTopicPageSize)
 
-	topics, total, err := model.GetUserFeedbackTopics(userId, status, category, page, pageSize)
+	topics, total, err := model.GetUserFeedbackTopics(userId, status, category, keyword, page, pageSize)
 	if err != nil {
 		common.ApiErrorMsg(c, "查询失败")
 		return
@@ -102,7 +103,7 @@ func GetUserFeedbackTopicDetail(c *gin.Context) {
 	}
 	model.MarkFeedbackUserRead(id, userId)
 	topic.UserUnread = false
-	feedbackWriteDetail(c, topic, "")
+	feedbackWriteDetail(c, topic, "", true)
 }
 
 // ReplyFeedbackTopic POST /api/user/feedback/topics/:id/messages
@@ -203,7 +204,7 @@ func AdminGetFeedbackTopicDetail(c *gin.Context) {
 	if names := feedbackUsernames([]int{topic.UserId}); names != nil {
 		username = names[topic.UserId]
 	}
-	feedbackWriteDetail(c, topic, username)
+	feedbackWriteDetail(c, topic, username, false)
 }
 
 // AdminReplyFeedbackTopic POST /api/user/feedback/admin/topics/:id/messages
@@ -300,16 +301,22 @@ func feedbackAddMessage(c *gin.Context, topicId, authorId, authorRole int) {
 }
 
 // feedbackWriteDetail 读取消息分页并输出工单详情。
-func feedbackWriteDetail(c *gin.Context, topic *model.FeedbackTopic, username string) {
+// maskAdmin=true（用户侧）时隐去管理员消息的真名与 user_id，统一「官方客服」。
+func feedbackWriteDetail(c *gin.Context, topic *model.FeedbackTopic, username string, maskAdmin bool) {
 	page, pageSize := parsePaging(c, feedbackMsgPageSize, feedbackMaxMsgPageSize)
-	messages, total, err := model.GetFeedbackMessages(topic.Id, page, pageSize)
+	messages, total, err := model.GetFeedbackMessages(topic.Id, page, pageSize, maskAdmin)
 	if err != nil {
 		common.ApiErrorMsg(c, "查询失败")
 		return
 	}
 	items := make([]dto.FeedbackMessageItem, 0, len(messages))
 	for _, m := range messages {
-		items = append(items, feedbackMessageToItem(m))
+		item := feedbackMessageToItem(m)
+		// 用户侧脱敏：管理员消息不暴露具体管理员 user_id（前端按空名显示「官方客服」）。
+		if maskAdmin && m.AuthorRole == model.FeedbackAuthorAdmin {
+			item.AuthorId = 0
+		}
+		items = append(items, item)
 	}
 	common.ApiSuccess(c, dto.FeedbackTopicDetailResponse{
 		Topic:    feedbackTopicToItem(topic, username),
