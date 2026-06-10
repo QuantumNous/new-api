@@ -1070,14 +1070,13 @@ const Playground = () => {
         const abortController = new AbortController();
         imageAbortControllerRef.current = abortController;
 
-        const imageGenerationUrl = import.meta.env
-          .VITE_REACT_IMAGE_GENERATIONS_URL
-          ? import.meta.env.VITE_REACT_IMAGE_GENERATIONS_URL +
-            API_ENDPOINTS.IMAGE_GENERATIONS
-          : API_ENDPOINTS.IMAGE_GENERATIONS;
+        // const imageGenerationUrl = import.meta.env
+        //   .VITE_REACT_IMAGE_GENERATIONS_URL
+        //   ? import.meta.env.VITE_REACT_IMAGE_GENERATIONS_URL +
+        //     API_ENDPOINTS.IMAGE_GENERATIONS
+        //   : API_ENDPOINTS.IMAGE_GENERATIONS;
 
-        // 单独处理，因为访问改接口cloudflare有两分钟的超时
-        const createResponse = await fetch(imageGenerationUrl, {
+        const createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
