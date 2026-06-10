@@ -138,7 +138,8 @@ func normalizeCodexPatternsOptionValue(value any) (string, error) {
 			normalized = append(normalized, pattern)
 		}
 	}
-	if raw, ok := value.(string); ok && reflect.DeepEqual(normalized, patterns) {
+	raw, isString := value.(string)
+	if isString && strings.HasPrefix(strings.TrimSpace(raw), "[") && reflect.DeepEqual(normalized, patterns) {
 		return raw, nil
 	}
 	bytes, err := common.Marshal(normalized)
