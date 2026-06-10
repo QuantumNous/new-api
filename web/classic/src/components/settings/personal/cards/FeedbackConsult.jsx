@@ -8,6 +8,7 @@ import {
   Select,
   Spin,
   Tag,
+  TextArea,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -297,7 +298,7 @@ export default function FeedbackConsult() {
           </div>
           <div>
             <Text>{t('内容')}</Text>
-            <Input.TextArea
+            <TextArea
               value={form.content}
               onChange={(v) => setForm({ ...form, content: v })}
               maxCount={5000}

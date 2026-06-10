@@ -615,6 +615,9 @@ const PersonalSetting = () => {
 
               {/* 偏好设置（语言等） */}
               <PreferencesSettings t={t} />
+
+              {/* 我的工单（建议及咨询） */}
+              <FeedbackConsult />
             </div>
 
             {/* 右侧：通知设置 + 实名认证 */}
@@ -622,7 +625,9 @@ const PersonalSetting = () => {
               <NotificationSettings
                 t={t}
                 notificationSettings={notificationSettings}
-                handleNotificationSettingChange={handleNotificationSettingChange}
+                handleNotificationSettingChange={
+                  handleNotificationSettingChange
+                }
                 saveNotificationSettings={saveNotificationSettings}
               />
               <div
@@ -636,7 +641,6 @@ const PersonalSetting = () => {
                 <KYCSetting />
               </div>
               <EnterpriseSetting />
-              <FeedbackConsult />
             </div>
           </div>
         </div>
