@@ -16,179 +16,151 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Descriptions,
   Modal,
-  RadioGroup,
-  Radio,
   Select,
-  Input,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { selectFilter } from '../../../../helpers';
+import { API, selectFilter } from '../../../../helpers';
 
-const APP_CONFIGS = {
-  claude: {
-    label: 'Claude',
-    defaultName: 'My Claude',
-    modelFields: [
-      { key: 'model', label: '主模型' },
-      { key: 'haikuModel', label: 'Haiku 模型' },
-      { key: 'sonnetModel', label: 'Sonnet 模型' },
-      { key: 'opusModel', label: 'Opus 模型' },
-    ],
-  },
-  codex: {
-    label: 'Codex',
-    defaultName: 'My Codex',
-    modelFields: [{ key: 'model', label: '主模型' }],
-  },
-  gemini: {
-    label: 'Gemini',
-    defaultName: 'My Gemini',
-    modelFields: [{ key: 'model', label: '主模型' }],
-  },
-};
-
-function getServerAddress() {
-  try {
-    const raw = localStorage.getItem('status');
-    if (raw) {
-      const status = JSON.parse(raw);
-      if (status.server_address) return status.server_address;
-    }
-  } catch (_) {}
-  return window.location.origin;
-}
-
-function buildCCSwitchURL(app, name, models, apiKey) {
-  const serverAddress = getServerAddress();
-  const endpoint = app === 'codex' ? serverAddress + '/v1' : serverAddress;
-  const params = new URLSearchParams();
-  params.set('resource', 'provider');
-  params.set('app', app);
-  params.set('name', name);
-  params.set('endpoint', endpoint);
-  params.set('apiKey', apiKey);
-  for (const [k, v] of Object.entries(models)) {
-    if (v) params.set(k, v);
-  }
-  params.set('homepage', serverAddress);
-  params.set('enabled', 'true');
-  return `ccswitch://v1/import?${params.toString()}`;
-}
-
-export default function CCSwitchModal({
-  visible,
-  onClose,
-  tokenKey,
-  modelOptions,
-}) {
+export default function CCSwitchModal({ visible, onClose, tokenId }) {
   const { t } = useTranslation();
-  const [app, setApp] = useState('claude');
-  const [name, setName] = useState(APP_CONFIGS.claude.defaultName);
-  const [models, setModels] = useState({});
-
-  const currentConfig = APP_CONFIGS[app];
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [options, setOptions] = useState(null);
+  const [models, setModels] = useState([]);
+  const [target, setTarget] = useState('');
+  const [model, setModel] = useState('');
 
   useEffect(() => {
-    if (visible) {
-      setModels({});
-      setApp('claude');
-      setName(APP_CONFIGS.claude.defaultName);
-    }
-  }, [visible]);
+    if (!visible || !tokenId) return;
 
-  const handleAppChange = (val) => {
-    setApp(val);
-    setName(APP_CONFIGS[val].defaultName);
-    setModels({});
-  };
+    let active = true;
+    setLoading(true);
+    Promise.all([
+      API.get(`/api/token/${tokenId}/ccswitch/import-options`),
+      API.get('/api/user/models'),
+    ])
+      .then(([optionsResponse, modelsResponse]) => {
+        if (!active) return;
+        const optionsPayload = optionsResponse.data || {};
+        if (!optionsPayload.success) {
+          throw new Error(optionsPayload.message || t('加载失败'));
+        }
+        const nextOptions = optionsPayload.data;
+        setOptions(nextOptions);
+        setTarget(nextOptions.default_target || '');
+        setModel(nextOptions.default_model || '');
+        setModels(modelsResponse.data?.data || []);
+      })
+      .catch((error) => {
+        if (active) Toast.error(error.message || t('加载失败'));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
-  const handleModelChange = (field, value) => {
-    setModels((prev) => ({ ...prev, [field]: value }));
-  };
+    return () => {
+      active = false;
+    };
+  }, [visible, tokenId, t]);
 
-  const handleSubmit = () => {
-    if (!models.model) {
-      Toast.warning(t('请选择主模型'));
+  const targetOptions = useMemo(
+    () =>
+      (options?.targets || []).map((item) => ({
+        label: item.enabled
+          ? item.label
+          : `${item.label} (${item.disabled_reason || '-'})`,
+        value: item.key,
+        disabled: !item.enabled,
+      })),
+    [options?.targets, t],
+  );
+
+  const modelOptions = useMemo(() => {
+    const values = [options?.default_model, ...models].filter(Boolean);
+    return [...new Set(values)].map((item) => ({ label: item, value: item }));
+  }, [models, options?.default_model]);
+
+  const handleSubmit = async () => {
+    if (!tokenId || !target || !model) {
+      Toast.warning(t('请选择模型'));
       return;
     }
-    const url = buildCCSwitchURL(app, name, models, 'sk-' + tokenKey);
-    window.open(url, '_blank');
-    onClose();
-  };
 
-  const fieldLabelStyle = useMemo(
-    () => ({
-      marginBottom: 4,
-      fontSize: 13,
-      color: 'var(--semi-color-text-1)',
-    }),
-    [],
-  );
+    setSubmitting(true);
+    try {
+      const response = await API.post(
+        `/api/token/${tokenId}/ccswitch/import-link`,
+        { target, model },
+      );
+      const payload = response.data || {};
+      if (!payload.success || !payload.data?.url) {
+        throw new Error(payload.message || t('操作失败'));
+      }
+      window.location.href = payload.data.url;
+      onClose();
+    } catch (error) {
+      Toast.error(error.message || t('操作失败'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Modal
-      title={t('填入 CC Switch')}
+      title={`${t('导入')} CC Switch`}
       visible={visible}
       onCancel={onClose}
       onOk={handleSubmit}
-      okText={t('打开 CC Switch')}
+      okText={t('导入')}
       cancelText={t('取消')}
+      confirmLoading={submitting}
       maskClosable={false}
-      width={480}
+      width={520}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div>
-          <div style={fieldLabelStyle}>{t('应用')}</div>
-          <RadioGroup
-            type='button'
-            value={app}
-            onChange={(e) => handleAppChange(e.target.value)}
-            style={{ width: '100%' }}
-          >
-            {Object.entries(APP_CONFIGS).map(([key, cfg]) => (
-              <Radio key={key} value={key}>
-                {cfg.label}
-              </Radio>
-            ))}
-          </RadioGroup>
-        </div>
-
-        <div>
-          <div style={fieldLabelStyle}>{t('名称')}</div>
-          <Input
-            value={name}
-            onChange={setName}
-            placeholder={currentConfig.defaultName}
+      {loading ? (
+        <Typography.Text type='tertiary'>{t('加载中...')}</Typography.Text>
+      ) : (
+        <div className='flex flex-col gap-4'>
+          <Descriptions
+            data={[
+              { key: t('名称'), value: options?.token?.name || '-' },
+              { key: 'API Key', value: options?.token?.masked_key || '-' },
+              { key: 'BaseURL', value: options?.token?.base_url || '-' },
+            ]}
+            row
+            size='small'
           />
-        </div>
 
-        {currentConfig.modelFields.map((field) => (
-          <div key={field.key}>
-            <div style={fieldLabelStyle}>
-              {t(field.label)}
-              {field.key === 'model' && (
-                <Typography.Text type='danger'> *</Typography.Text>
-              )}
-            </div>
+          <div>
+            <div className='mb-1 text-sm'>{t('应用')}</div>
             <Select
-              placeholder={t('请选择模型')}
-              optionList={modelOptions}
-              value={models[field.key] || undefined}
-              onChange={(val) => handleModelChange(field.key, val)}
-              filter={selectFilter}
+              value={target || undefined}
+              optionList={targetOptions}
+              onChange={setTarget}
               style={{ width: '100%' }}
-              showClear
-              searchable
-              emptyContent={t('暂无数据')}
             />
           </div>
-        ))}
-      </div>
+
+          <div>
+            <div className='mb-1 text-sm'>{t('模型')}</div>
+            <Select
+              value={model || undefined}
+              optionList={modelOptions}
+              onChange={setModel}
+              filter={selectFilter}
+              style={{ width: '100%' }}
+              searchable
+            />
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

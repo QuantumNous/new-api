@@ -353,6 +353,7 @@ const renderOperations = (
   text,
   record,
   onOpenLink,
+  openCCSwitchModal,
   setEditingToken,
   setShowEdit,
   manageToken,
@@ -409,6 +410,14 @@ const renderOperations = (
           ></Button>
         </Dropdown>
       </SplitButtonGroup>
+
+      <Button
+        type='tertiary'
+        size='small'
+        onClick={() => openCCSwitchModal(record.id)}
+      >
+        {t('导入')}
+      </Button>
 
       {record.status === 1 ? (
         <Button
@@ -476,6 +485,7 @@ export const getTokensColumns = ({
   copyTokenConnectionString,
   manageToken,
   onOpenLink,
+  openCCSwitchModal,
   setEditingToken,
   setShowEdit,
   refresh,
@@ -563,6 +573,7 @@ export const getTokensColumns = ({
           text,
           record,
           onOpenLink,
+          openCCSwitchModal,
           setEditingToken,
           setShowEdit,
           manageToken,

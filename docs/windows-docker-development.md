@@ -40,6 +40,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows\project.ps1 rebuild
 ## 数据和自动建表
 
 - PostgreSQL、Redis 和应用数据保存在 Docker named volumes 中，普通 `stop`、`restart` 不会删除。
+- 本地 Compose 固定了仅用于本机开发的 `SESSION_SECRET`，后续重建容器不会再次导致已有登录会话因密钥变化而失效。生产部署必须改用独立随机密钥。
 - 应用启动时会执行 GORM `AutoMigrate`。已经登记到迁移列表中的新 Model 会自动创建对应表或补充字段。
 - `CCSwitchImportLog` 和 `UserCCSwitchPreference` 已登记，目标表名分别是 `ccswitch_import_logs` 和 `user_ccswitch_preferences`。
 - `AutoMigrate` 不等于完整的数据库版本迁移工具。涉及删除字段、重命名字段、数据回填或复杂索引变更时，仍应编写显式迁移逻辑。

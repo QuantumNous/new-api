@@ -213,11 +213,11 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
 
   // Open link function for chat integrations
   const onOpenLink = async (type, url, record) => {
-    const fullKey = await fetchTokenKey(record);
     if (url && url.startsWith('ccswitch')) {
-      openCCSwitchModal(fullKey);
+      openCCSwitchModal(record.id);
       return;
     }
+    const fullKey = await fetchTokenKey(record);
     if (url && url.startsWith('fluent')) {
       openFluentNotification(fullKey);
       return;
@@ -505,6 +505,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     copyTokenKey,
     copyTokenConnectionString,
     onOpenLink,
+    openCCSwitchModal,
     manageToken,
     searchTokens,
     sortToken,

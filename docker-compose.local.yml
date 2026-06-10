@@ -20,6 +20,7 @@ services:
       ERROR_LOG_ENABLED: "true"
       BATCH_UPDATE_ENABLED: "true"
       NODE_NAME: new-api-local
+      SESSION_SECRET: new-api-local-development-session-secret
     command: --log-dir /app/logs
     depends_on:
       postgres:
