@@ -12,6 +12,8 @@ func TestIsImageGenerationModelIncludesConfiguredImageModels(t *testing.T) {
 		"gr-image-2",
 		"gemini-2.5-flash-image",
 		"gemini-2.5-flash-image-preview",
+		"gemini-3-pro-image-preview",
+		"gemini-3.1-flash-image-preview",
 		"nano-banana",
 		"nano-banana-hd",
 		"nano-banana-pro",

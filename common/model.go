@@ -20,6 +20,8 @@ var (
 		"prefix:imagen-",
 		"gemini-2.5-flash-image",
 		"gemini-2.5-flash-image-preview",
+		"gemini-3-pro-image-preview",
+		"gemini-3.1-flash-image-preview",
 		"gemini_3.0_pro_image_preview",
 		"gemini_3.1_flash_image_preview",
 		"nano-banana",
