@@ -52,7 +52,101 @@ web/             — Frontend themes container
 - Usage: `useTranslation()` hook, call `t('English key')` in components
 - CLI tools: `bun run i18n:sync` (from `web/default/`)
 
-## Rules
+## Instruction Scope and Precedence
+
+- This root `AGENTS.md` applies to the entire repository.
+- A more specific `AGENTS.md` inside a subdirectory adds to or overrides this file for that subtree.
+- Direct user requirements take precedence over repository guidance. Never override the protected project information rule below.
+- When instructions appear to conflict, identify the conflict before editing and follow the instruction with the narrower scope and higher priority.
+- Treat repository code, tests, configuration, and documentation as the source of truth. Do not invent APIs, scripts, or project behavior from memory.
+
+## Codex Working Principles
+
+### Think Before Coding
+
+- State important assumptions and verify them from the repository before editing.
+- If a request admits multiple materially different interpretations, surface the alternatives instead of silently choosing one.
+- Prefer the simplest solution that satisfies the stated behavior and verification criteria.
+- Push back clearly when a requested approach would introduce a regression, security risk, data loss, or unnecessary complexity.
+
+### Resolve Ambiguity Proactively
+
+- Search code, tests, history, and documentation before asking the user for information that the workspace can answer.
+- Make a reasonable, reversible assumption when the risk is low, and mention it in the final report.
+- Ask for clarification only when missing information cannot be discovered locally and a wrong choice would be high impact, destructive, or difficult to reverse.
+- Do not stall on ordinary implementation details that can be inferred from existing patterns.
+
+### Keep Changes Small and Direct
+
+- Make the smallest coherent change that fully solves the task.
+- Do not refactor adjacent code, rename unrelated symbols, reformat unrelated files, or add speculative flexibility unless required for correctness.
+- Reuse existing helpers, abstractions, and conventions before creating new ones.
+- Avoid compatibility wrappers, fallback branches, or defensive code for states that cannot occur under the documented contract.
+- If a workaround is unavoidable, explain why the direct fix is not possible and keep the workaround isolated.
+
+### Execute to a Verifiable Outcome
+
+- Translate the request into an observable result: behavior, relevant files, constraints, and completion checks.
+- For multi-step or high-risk work, read `.agents/CODEX_WORKFLOW.md` and use its planning, goal, Worktree, review, and Windows guidance.
+- Continue through inspection, implementation, formatting, focused validation, and diff review unless the user explicitly asks only for analysis or a plan.
+- Do not claim success without evidence from tests, builds, static checks, or a clearly described manual verification.
+- If a check cannot run, report the exact reason and what remains unverified.
+
+## Change Workflow
+
+### Before Editing
+
+- Read the smallest set of files needed to understand the execution path and local conventions.
+- Check `git status` and preserve all existing user changes. Never discard or rewrite unrelated work.
+- Locate relevant tests and call sites before changing shared behavior.
+- For bug fixes, reproduce the failure or establish a concrete failing path before implementing the fix when feasible.
+
+### During Editing
+
+- Follow the Router -> Controller -> Service -> Model ownership boundaries.
+- Keep business logic out of controllers when the repository already has a service-layer home for it.
+- Use structured parsers and typed APIs instead of ad hoc string manipulation.
+- Add comments only when they explain a non-obvious constraint or design decision.
+- Do not add new dependencies unless existing code or the standard library cannot reasonably solve the problem.
+
+### Verification
+
+Choose checks based on the blast radius. Start focused, then broaden when shared behavior or cross-module contracts are affected.
+
+- Go formatting: `gofmt -w <changed.go files>`
+- Focused Go tests: `go test ./path/to/affected/package`
+- Broad Go tests: `go test ./...`
+- Frontend type check: from `web/default/`, run `bun run typecheck`
+- Frontend lint: from `web/default/`, run `bun run lint`
+- Frontend production verification: from `web/default/`, run `bun run build:check`
+- Frontend formatting check: from `web/default/`, run `bun run format:check`
+- Frontend i18n synchronization: from `web/default/`, run `bun run i18n:sync`
+
+Additional expectations:
+
+- A narrow backend change should at least run tests for the affected package.
+- Shared model, relay, middleware, billing, or database changes should normally run `go test ./...`.
+- TypeScript or TSX changes should at least run `bun run typecheck`; user-facing or build-sensitive changes should also run the relevant lint/build checks.
+- UI behavior changes should be verified in the Codex in-app browser when a runnable local target is available.
+- Do not fix an unrelated failing check as part of the task. Report it separately with evidence.
+- Never weaken, delete, or skip tests merely to make verification pass.
+
+### Final Review
+
+- Review the complete diff for accidental scope growth, debug artifacts, sensitive data, and behavior not requested.
+- Re-check error paths, authorization boundaries, explicit zero-value handling, and cross-database behavior where relevant.
+- Summarize what changed, why, which checks ran, and any remaining risk or unverified behavior.
+
+## Windows Codex Desktop
+
+- Use PowerShell-native commands and Windows paths by default; do not assume Bash-only syntax or utilities are available.
+- Prefer `rg` and `rg --files` for search. Use `-LiteralPath` in PowerShell when paths contain spaces or special characters.
+- Use Bun directly from `web/default/` for frontend scripts. Do not substitute npm, yarn, or pnpm.
+- Keep repositories on the Windows filesystem when using the native Windows agent. Use WSL2 only when the task genuinely requires Linux-native tooling.
+- Use Worktree threads for independent parallel write tasks so changes remain isolated. Parallelize read-heavy exploration freely; avoid concurrent edits to the same files.
+- Keep the default sandbox permissions for normal work. Grant broader access only when the task requires it and the target is understood.
+
+## Project Rules
 
 ### Rule 1: JSON Package — Use `common/json.go`
 
