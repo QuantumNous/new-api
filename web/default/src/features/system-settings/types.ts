@@ -170,6 +170,7 @@ export type ModelSettings = {
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string
+  'group_ratio_setting.group_descriptions': string
   GroupGroupRatio: string
   AutoGroups: string
   DefaultUseAutoGroup: boolean
@@ -214,6 +215,7 @@ export type BillingSettings = {
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string
+  'group_ratio_setting.group_descriptions': string
   GroupGroupRatio: string
   AutoGroups: string
   DefaultUseAutoGroup: boolean
