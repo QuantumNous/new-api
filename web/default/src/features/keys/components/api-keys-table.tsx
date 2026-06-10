@@ -286,6 +286,7 @@ export function ApiKeysTable() {
         'No API keys available. Create your first API key to get started.'
       )}
       skeletonKeyPrefix='api-keys-skeleton'
+      applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name...'),
         additionalSearch: (

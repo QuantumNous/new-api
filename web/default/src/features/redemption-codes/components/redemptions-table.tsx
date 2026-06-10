@@ -135,6 +135,7 @@ export function RedemptionsTable() {
         'No redemption codes available. Create your first redemption code to get started.'
       )}
       skeletonKeyPrefix='redemptions-skeleton'
+      applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name or ID...'),
         filters: [

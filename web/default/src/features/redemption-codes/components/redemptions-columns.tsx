@@ -87,6 +87,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           </div>
         )
       },
+      size: 180,
     },
     {
       accessorKey: 'status',
@@ -137,6 +138,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         // Check regular status
         return value.includes(String(statusValue))
       },
+      size: 120,
     },
     {
       id: 'code',
@@ -161,6 +163,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         )
       },
       enableSorting: false,
+      size: 280,
     },
     {
       accessorKey: 'quota',
@@ -178,6 +181,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           />
         )
       },
+      size: 120,
     },
     {
       accessorKey: 'created_time',
@@ -192,6 +196,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           </div>
         )
       },
+      size: 160,
     },
     {
       accessorKey: 'expired_time',
@@ -219,6 +224,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           </div>
         )
       },
+      size: 160,
     },
     {
       accessorKey: 'used_user_id',
@@ -262,10 +268,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           </Tooltip>
         )
       },
+      size: 140,
     },
     {
       id: 'actions',
       cell: ({ row }) => <DataTableRowActions row={row} />,
+      size: 88,
     },
   ]
 }

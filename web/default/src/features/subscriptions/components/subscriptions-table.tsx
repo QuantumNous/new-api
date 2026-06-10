@@ -57,6 +57,7 @@ export function SubscriptionsTable() {
         'Click "Create Plan" to create your first subscription plan'
       )}
       skeletonKeyPrefix='subscriptions-skeleton'
+      applyHeaderSize
     />
   )
 }
