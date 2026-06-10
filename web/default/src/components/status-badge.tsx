@@ -103,7 +103,7 @@ export function StatusBadge({
   variant,
   size = 'sm',
   pulse = false,
-  showDot = true,
+  showDot = false,
   copyable = true,
   copyText,
   autoColor,
