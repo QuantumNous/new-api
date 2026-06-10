@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,7 +19,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 )
 
 // ============================
@@ -29,10 +27,17 @@ import (
 
 // ContentItem and MediaURL are the Volcengine seedance content[] item shapes.
 // Aliased to the shared inbound dto so the identical structs are defined once.
-// (Type/url are always set on the outbound body, so the dto's lack of omitempty
-// on those fields produces equivalent JSON.)
+// The official seedance content[] format new-api exposes (dto.SeedanceVideoRequest)
+// is modeled directly on Ark's POST /api/v3/contents/generations/tasks body, so the
+// content[] array passes through to the upstream verbatim.
 type ContentItem = dto.SeedanceContentItem
 type MediaURL = dto.SeedanceURLObject
+
+// toolItem is the Ark `tools[]` entry (e.g. {"type":"web_search"}). It is a
+// Doubao/Ark extension beyond the official seedance schema.
+type toolItem struct {
+	Type string `json:"type,omitempty"`
+}
 
 type requestPayload struct {
 	Model                 string         `json:"model"`
@@ -43,16 +48,14 @@ type requestPayload struct {
 	ExecutionExpiresAfter *dto.IntValue  `json:"execution_expires_after,omitempty"`
 	GenerateAudio         *dto.BoolValue `json:"generate_audio,omitempty"`
 	Draft                 *dto.BoolValue `json:"draft,omitempty"`
-	Tools                 []struct {
-		Type string `json:"type,omitempty"`
-	} `json:"tools,omitempty"`
-	Resolution  string         `json:"resolution,omitempty"`
-	Ratio       string         `json:"ratio,omitempty"`
-	Duration    *dto.IntValue  `json:"duration,omitempty"`
-	Frames      *dto.IntValue  `json:"frames,omitempty"`
-	Seed        *dto.IntValue  `json:"seed,omitempty"`
-	CameraFixed *dto.BoolValue `json:"camera_fixed,omitempty"`
-	Watermark   *dto.BoolValue `json:"watermark,omitempty"`
+	Tools                 []toolItem     `json:"tools,omitempty"`
+	Resolution            string         `json:"resolution,omitempty"`
+	Ratio                 string         `json:"ratio,omitempty"`
+	Duration              *dto.IntValue  `json:"duration,omitempty"`
+	Frames                *dto.IntValue  `json:"frames,omitempty"`
+	Seed                  *dto.IntValue  `json:"seed,omitempty"`
+	CameraFixed           *dto.BoolValue `json:"camera_fixed,omitempty"`
+	Watermark             *dto.BoolValue `json:"watermark,omitempty"`
 }
 
 type responsePayload struct {
@@ -107,10 +110,15 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
-// ValidateRequestAndSetAction parses body, validates fields and sets default action.
+// ValidateRequestAndSetAction parses the inbound body as the shared, official
+// seedance content[] request (via taskcommon.BindSeedanceRequest) and sets the
+// action. The body stays reusable so BuildRequestBody / EstimateBilling can
+// re-read it. No more legacy prompt/images/metadata inbound shape.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	// Accept only POST /v1/video/generations as "generate" action.
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if _, err := taskcommon.BindSeedanceRequest(c, info, constant.TaskActionGenerate); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	return nil
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -126,60 +134,61 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
+// EstimateBilling detects whether the request carries a video input (a
+// video_url content item) and, if so, returns the model's video-input discount
+// ratio. It reuses the seedance request parsed by BindSeedanceRequest (no
+// metadata, no extra body decode).
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	req, err := relaycommon.GetTaskRequest(c)
+	// Reuse the request already parsed by BindSeedanceRequest (in
+	// ValidateRequestAndSetAction) instead of re-decoding the body.
+	seedReq, err := taskcommon.GetSeedanceRequest(c)
 	if err != nil {
 		return nil
 	}
-	if hasVideoInMetadata(req.Metadata) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
+	if len(seedReq.Videos()) == 0 {
+		return nil
+	}
+	// The video-input discount is keyed on the upstream model name. When the
+	// channel uses model mapping, info.OriginModelName is the client-facing
+	// alias (absent from videoInputRatioMap), while info.UpstreamModelName —
+	// already resolved by ModelMappedHelper before EstimateBilling runs — is the
+	// real model. Fall back to OriginModelName for unmapped channels.
+	modelName := info.UpstreamModelName
+	if modelName == "" {
+		modelName = info.OriginModelName
+	}
+	if ratio, ok := GetVideoInputRatio(modelName); ok {
+		return map[string]float64{"video_input": ratio}
 	}
 	return nil
 }
 
-// hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
-// 避免构建完整的上游 requestPayload。
-func hasVideoInMetadata(metadata map[string]interface{}) bool {
-	if metadata == nil {
-		return false
-	}
-	contentRaw, ok := metadata["content"]
-	if !ok {
-		return false
-	}
-	contentSlice, ok := contentRaw.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, item := range contentSlice {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if itemMap["type"] == "video_url" {
-			return true
-		}
-		if _, has := itemMap["video_url"]; has {
-			return true
-		}
-	}
-	return false
+// doubaoExtensions are optional fields beyond the official seedance schema that
+// clients may set to drive Doubao/Ark-specific upstream features. Pure seedance
+// callers simply omit them.
+type doubaoExtensions struct {
+	ServiceTier           string         `json:"service_tier"`
+	ExecutionExpiresAfter *dto.IntValue  `json:"execution_expires_after"`
+	Draft                 *dto.BoolValue `json:"draft"`
+	Tools                 []toolItem     `json:"tools"`
 }
 
-// BuildRequestBody converts request into Doubao specific format.
+// BuildRequestBody re-parses the (reusable) body as the official seedance
+// request plus Doubao-only extensions and translates it into the Ark upstream
+// body.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
+	// The official seedance fields and the Doubao-only extension keys are
+	// siblings in the same JSON body; decode both in a single pass.
+	var inbound struct {
+		dto.SeedanceVideoRequest
+		doubaoExtensions
+	}
+	if err := common.UnmarshalBodyReusable(c, &inbound); err != nil {
 		return nil, err
 	}
+	seedReq := inbound.SeedanceVideoRequest
 
-	body, err := a.convertToRequestPayload(&req)
-	if err != nil {
-		return nil, errors.Wrap(err, "convert request payload failed")
-	}
+	body := buildDoubaoCreateRequest(&seedReq, inbound.doubaoExtensions)
 	if info.IsModelMapped {
 		body.Model = info.UpstreamModelName
 	} else {
@@ -190,6 +199,50 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	return bytes.NewReader(data), nil
+}
+
+// buildDoubaoCreateRequest translates the shared, official seedance content[]
+// request (plus Doubao-only extensions) into the Ark POST .../tasks body. Pure
+// function — no gin/IO — so the mapping is unit-testable in isolation. Because
+// the official content[] format mirrors Ark's wire format, content passes
+// through verbatim and only the typed scalar wrappers differ.
+func buildDoubaoCreateRequest(seedReq *dto.SeedanceVideoRequest, ext doubaoExtensions) *requestPayload {
+	return &requestPayload{
+		Model:                 seedReq.Model,
+		Content:               seedReq.Content,
+		Resolution:            seedReq.Resolution,
+		Ratio:                 seedReq.Ratio,
+		Duration:              toIntValue(seedReq.Duration),
+		Frames:                toIntValue(seedReq.Frames),
+		Seed:                  toIntValue(seedReq.Seed),
+		CameraFixed:           toBoolValue(seedReq.CameraFixed),
+		Watermark:             toBoolValue(seedReq.Watermark),
+		GenerateAudio:         toBoolValue(seedReq.GenerateAudio),
+		ReturnLastFrame:       toBoolValue(seedReq.ReturnLastFrame),
+		CallbackURL:           seedReq.CallbackURL,
+		ServiceTier:           ext.ServiceTier,
+		ExecutionExpiresAfter: ext.ExecutionExpiresAfter,
+		Draft:                 ext.Draft,
+		Tools:                 ext.Tools,
+	}
+}
+
+// toIntValue / toBoolValue convert the official seedance request's *int / *bool
+// pointers into the Ark wire types, preserving nil (absent => omitted).
+func toIntValue(v *int) *dto.IntValue {
+	if v == nil {
+		return nil
+	}
+	iv := dto.IntValue(*v)
+	return &iv
+}
+
+func toBoolValue(v *bool) *dto.BoolValue {
+	if v == nil {
+		return nil
+	}
+	bv := dto.BoolValue(*v)
+	return &bv
 }
 
 // DoRequest delegates to common helper.
@@ -259,42 +312,6 @@ func (a *TaskAdaptor) GetModelList() []string {
 
 func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
-}
-
-func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
-	r := requestPayload{
-		Model:   req.Model,
-		Content: []ContentItem{},
-	}
-
-	// Add images if present
-	if req.HasImage() {
-		for _, imgURL := range req.Images {
-			r.Content = append(r.Content, ContentItem{
-				Type: "image_url",
-				ImageURL: &MediaURL{
-					URL: imgURL,
-				},
-			})
-		}
-	}
-
-	metadata := req.Metadata
-	if err := taskcommon.UnmarshalMetadata(metadata, &r); err != nil {
-		return nil, errors.Wrap(err, "unmarshal metadata failed")
-	}
-
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
-		r.Duration = lo.ToPtr(dto.IntValue(sec))
-	}
-
-	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
-	r.Content = append(r.Content, ContentItem{
-		Type: "text",
-		Text: req.Prompt,
-	})
-
-	return &r, nil
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
