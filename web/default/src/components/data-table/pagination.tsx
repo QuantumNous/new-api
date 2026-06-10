@@ -45,7 +45,9 @@ export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
   const { t } = useTranslation()
-  const currentPage = table.getState().pagination.pageIndex + 1
+  const pagination = table.getState().pagination
+  const currentPage = pagination.pageIndex + 1
+  const pageSize = pagination.pageSize
   const totalPages = table.getPageCount()
   const totalRows = table.getRowCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
@@ -74,13 +76,13 @@ export function DataTablePagination<TData>({
               value: `${pageSize}`,
               label: pageSize,
             }))}
-            value={`${table.getState().pagination.pageSize}`}
+            value={`${pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value))
             }}
           >
             <SelectTrigger className='text-foreground h-8 w-[64px] font-medium tabular-nums sm:w-[70px]'>
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
+              <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side='top' alignItemWithTrigger={false}>
               <SelectGroup>
