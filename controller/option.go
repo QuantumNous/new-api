@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -75,6 +76,68 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 	return string(jsonBytes)
 }
 
+func parseStringSliceOptionValue(value any) ([]string, error) {
+	if raw, ok := value.(string); ok {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return []string{}, nil
+		}
+		var patterns []string
+		if strings.HasPrefix(raw, "[") {
+			if err := common.UnmarshalJsonStr(raw, &patterns); err != nil {
+				return nil, err
+			}
+			return patterns, nil
+		}
+		return []string{raw}, nil
+	}
+
+	val := reflect.ValueOf(value)
+	if !val.IsValid() {
+		return []string{}, nil
+	}
+	if val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return []string{}, nil
+		}
+		val = val.Elem()
+	}
+	if val.Kind() != reflect.Slice && val.Kind() != reflect.Array {
+		return nil, fmt.Errorf("expected string slice option value, got %T", value)
+	}
+
+	patterns := make([]string, 0, val.Len())
+	for i := 0; i < val.Len(); i++ {
+		item := val.Index(i)
+		if item.Kind() == reflect.Interface {
+			if item.IsNil() {
+				return nil, fmt.Errorf("expected string at index %d, got nil", i)
+			}
+			item = item.Elem()
+		}
+		if item.Kind() != reflect.String {
+			return nil, fmt.Errorf("expected string at index %d, got %s", i, item.Kind())
+		}
+		patterns = append(patterns, item.String())
+	}
+	return patterns, nil
+}
+
+func normalizeCodexPatternsOptionValue(value any) (string, error) {
+	patterns, err := parseStringSliceOptionValue(value)
+	if err != nil {
+		return "", err
+	}
+	if err := operation_setting.ValidateCodexModelGovernancePatterns(patterns); err != nil {
+		return "", err
+	}
+	bytes, err := common.Marshal(patterns)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	optionValues := make(map[string]string)
@@ -127,15 +190,26 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
-	switch option.Value.(type) {
-	case bool:
-		option.Value = common.Interface2String(option.Value.(bool))
-	case float64:
-		option.Value = common.Interface2String(option.Value.(float64))
-	case int:
-		option.Value = common.Interface2String(option.Value.(int))
-	default:
-		option.Value = fmt.Sprintf("%v", option.Value)
+	if option.Key == "codex_model_governance_setting.unsupported_message_patterns" {
+		option.Value, err = normalizeCodexPatternsOptionValue(option.Value)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	} else {
+		switch option.Value.(type) {
+		case bool:
+			option.Value = common.Interface2String(option.Value.(bool))
+		case float64:
+			option.Value = common.Interface2String(option.Value.(float64))
+		case int:
+			option.Value = common.Interface2String(option.Value.(int))
+		default:
+			option.Value = fmt.Sprintf("%v", option.Value)
+		}
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
