@@ -24,6 +24,7 @@ type TopUp struct {
 	Status          string  `json:"status"`
 	// Admin-only computed fields — not stored in DB
 	Username string `json:"username,omitempty" gorm:"-"`
+	Email    string `json:"email,omitempty" gorm:"-"`
 	Country  string `json:"country,omitempty" gorm:"-"`
 }
 
@@ -622,10 +623,11 @@ func EnrichTopupsWithUserInfo(topups []*TopUp) {
 	type row struct {
 		Id       int
 		Username string
+		Email    string
 		Country  string
 	}
 	var rows []row
-	if err := DB.Model(&User{}).Select("id, username, country").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := DB.Model(&User{}).Select("id, username, email, country").Where("id IN ?", ids).Find(&rows).Error; err != nil {
 		return
 	}
 	m := make(map[int]row, len(rows))
@@ -635,6 +637,7 @@ func EnrichTopupsWithUserInfo(topups []*TopUp) {
 	for _, t := range topups {
 		if u, ok := m[t.UserId]; ok {
 			t.Username = u.Username
+			t.Email = u.Email
 			t.Country = u.Country
 		}
 	}

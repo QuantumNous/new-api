@@ -262,6 +262,8 @@ export interface TopupRecord {
   status: TopupStatus
   /** Admin-only: username of the paying user */
   username?: string
+  /** Admin-only: email of the paying user */
+  email?: string
   /** Admin-only: 2-letter country code from login IP */
   country?: string
 }

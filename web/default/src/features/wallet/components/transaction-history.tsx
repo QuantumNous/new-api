@@ -181,9 +181,14 @@ export function TransactionHistory() {
                       {isAdmin && (
                         <td className='px-4 py-3'>
                           {record.username
-                            ? <div className='flex items-center gap-1'>
-                                <span className='font-mono text-xs text-foreground max-w-[160px] truncate'>{record.username}</span>
-                                <CopyBtn text={record.username} />
+                            ? <div className='flex flex-col gap-0.5'>
+                                <div className='flex items-center gap-1'>
+                                  <span className='font-mono text-xs text-foreground max-w-[160px] truncate'>{record.username}</span>
+                                  <CopyBtn text={record.username} />
+                                </div>
+                                {record.email && (
+                                  <span className='text-muted-foreground text-xs max-w-[200px] truncate'>{record.email}</span>
+                                )}
                               </div>
                             : <span className='text-muted-foreground text-xs'>—</span>}
                         </td>
