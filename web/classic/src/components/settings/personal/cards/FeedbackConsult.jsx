@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Avatar,
   Badge,
   Button,
   Card,
@@ -12,11 +13,11 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import {
-  IconComment,
   IconArrowLeft,
   IconImage,
   IconClose,
 } from '@douyinfe/semi-icons';
+import { Ticket } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import FeedbackThread from '../../../feedback/FeedbackThread';
@@ -204,17 +205,21 @@ export default function FeedbackConsult() {
 
   const header = (
     <div className='flex items-center justify-between'>
-      <div className='flex items-center gap-2'>
-        <IconComment />
-        <Title heading={6} style={{ margin: 0 }}>
-          {t('我的工单')}
-        </Title>
+      <div className='flex items-center'>
+        <Avatar size='small' color='cyan' className='mr-3 shadow-md'>
+          <Ticket size={16} />
+        </Avatar>
+        <div>
+          <Text className='text-lg font-medium'>{t('我的工单')}</Text>
+          <div className='text-xs text-gray-600 dark:text-gray-400'>
+            {t('遇到问题或有建议，随时向我们反馈')}
+          </div>
+        </div>
       </div>
       {!detail && !showCreate && (
         <Button
           theme='solid'
           type='primary'
-          size='small'
           onClick={() => setShowCreate(true)}
         >
           {t('新建工单')}
@@ -228,7 +233,7 @@ export default function FeedbackConsult() {
     const st = FEEDBACK_STATUS[detail.topic.status] || {};
     const closed = detail.topic.status === 4;
     return (
-      <Card title={header}>
+      <Card title={header} className='!rounded-2xl shadow-sm border-0'>
         <div className='flex items-center justify-between mb-2'>
           <Button
             icon={<IconArrowLeft />}
@@ -272,7 +277,7 @@ export default function FeedbackConsult() {
   // 新建视图
   if (showCreate) {
     return (
-      <Card title={header}>
+      <Card title={header} className='!rounded-2xl shadow-sm border-0'>
         <div className='flex flex-col gap-3'>
           <div>
             <Text>{t('分类')}</Text>
@@ -366,7 +371,7 @@ export default function FeedbackConsult() {
 
   // 列表视图
   return (
-    <Card title={header}>
+    <Card title={header} className='!rounded-2xl shadow-sm border-0'>
       {loadingList ? (
         <div className='flex justify-center py-8'>
           <Spin />

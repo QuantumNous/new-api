@@ -12,7 +12,10 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconComment } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../helpers';
+import { createCardProPagination } from '../../helpers/utils';
 import { useTranslation } from 'react-i18next';
+import { useIsMobile } from '../../hooks/common/useIsMobile';
+import CardPro from '../../components/common/ui/CardPro';
 import FeedbackThread from '../../components/feedback/FeedbackThread';
 import {
   ADMIN_FEEDBACK_BASE,
@@ -22,7 +25,7 @@ import {
   FEEDBACK_CATEGORY_OPTIONS,
 } from '../../components/feedback/feedbackHelpers';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const STATUS_OPTIONS = [
   { value: 0, label: '全部状态' },
@@ -34,6 +37,7 @@ const STATUS_OPTIONS = [
 
 export default function FeedbackPage() {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [list, setList] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -218,81 +222,92 @@ export default function FeedbackPage() {
     },
   ];
 
-  return (
-    <div className='p-2 md:p-4'>
-      <div className='flex items-center gap-2 mb-4'>
-        <IconComment />
-        <Title heading={4} style={{ margin: 0 }}>
-          {t('工单管理')}
-        </Title>
-      </div>
+  const descriptionArea = (
+    <div className='flex items-center text-blue-500'>
+      <IconComment className='mr-2' />
+      <Text>{t('工单管理')}</Text>
+    </div>
+  );
 
-      <Space wrap className='mb-4'>
-        <Input
-          prefix={t('用户ID')}
-          value={filters.user_id}
-          onChange={(v) =>
-            setFilters({ ...filters, user_id: v.replace(/\D/g, '') })
-          }
-          style={{ width: 130 }}
-        />
-        <Input
-          prefix={t('用户名')}
-          value={filters.username}
-          onChange={(v) => setFilters({ ...filters, username: v })}
-          style={{ width: 160 }}
-        />
-        <Select
-          value={filters.status}
-          onChange={(v) => setFilters({ ...filters, status: v })}
-          style={{ width: 130 }}
-          optionList={STATUS_OPTIONS.map((o) => ({
+  const actionsArea = (
+    <Space wrap className='w-full'>
+      <Input
+        prefix={t('用户ID')}
+        value={filters.user_id}
+        onChange={(v) =>
+          setFilters({ ...filters, user_id: v.replace(/\D/g, '') })
+        }
+        style={{ width: 130 }}
+      />
+      <Input
+        prefix={t('用户名')}
+        value={filters.username}
+        onChange={(v) => setFilters({ ...filters, username: v })}
+        style={{ width: 160 }}
+      />
+      <Select
+        value={filters.status}
+        onChange={(v) => setFilters({ ...filters, status: v })}
+        style={{ width: 130 }}
+        optionList={STATUS_OPTIONS.map((o) => ({
+          value: o.value,
+          label: t(o.label),
+        }))}
+      />
+      <Select
+        value={filters.category}
+        onChange={(v) => setFilters({ ...filters, category: v })}
+        style={{ width: 130 }}
+        optionList={[
+          { value: 0, label: t('全部分类') },
+          ...FEEDBACK_CATEGORY_OPTIONS.map((o) => ({
             value: o.value,
             label: t(o.label),
-          }))}
-        />
-        <Select
-          value={filters.category}
-          onChange={(v) => setFilters({ ...filters, category: v })}
-          style={{ width: 130 }}
-          optionList={[
-            { value: 0, label: t('全部分类') },
-            ...FEEDBACK_CATEGORY_OPTIONS.map((o) => ({
-              value: o.value,
-              label: t(o.label),
-            })),
-          ]}
-        />
-        <Input
-          prefix={t('标题')}
-          value={filters.keyword}
-          onChange={(v) => setFilters({ ...filters, keyword: v })}
-          style={{ width: 180 }}
-          onEnterPress={handleSearch}
-        />
-        <Button theme='solid' type='primary' onClick={handleSearch}>
-          {t('查询')}
-        </Button>
-        <Button onClick={handleReset}>{t('重置')}</Button>
-      </Space>
+          })),
+        ]}
+      />
+      <Input
+        prefix={t('标题')}
+        value={filters.keyword}
+        onChange={(v) => setFilters({ ...filters, keyword: v })}
+        style={{ width: 180 }}
+        onEnterPress={handleSearch}
+      />
+      <Button theme='solid' type='primary' onClick={handleSearch}>
+        {t('查询')}
+      </Button>
+      <Button onClick={handleReset}>{t('重置')}</Button>
+    </Space>
+  );
 
-      <Table
-        columns={columns}
-        dataSource={list}
-        loading={loading}
-        rowKey='id'
-        pagination={{
+  return (
+    <div className='mt-[60px] px-2'>
+      <CardPro
+        type='type1'
+        descriptionArea={descriptionArea}
+        actionsArea={actionsArea}
+        paginationArea={createCardProPagination({
           currentPage: page,
           pageSize,
           total,
-          showSizeChanger: true,
           onPageChange: (p) => setPage(p),
           onPageSizeChange: (ps) => {
             setPageSize(ps);
             setPage(1);
           },
-        }}
-      />
+          isMobile,
+          t,
+        })}
+        t={t}
+      >
+        <Table
+          columns={columns}
+          dataSource={list}
+          loading={loading}
+          rowKey='id'
+          pagination={false}
+        />
+      </CardPro>
 
       <SideSheet
         title={detail ? detail.topic.title : t('工单详情')}

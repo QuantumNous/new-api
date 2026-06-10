@@ -10,10 +10,10 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import {
-  IconShield,
   IconUpload,
   IconClose,
 } from '@douyinfe/semi-icons';
+import { Building2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -305,8 +305,8 @@ export default function EnterpriseSetting() {
     <Card className='!rounded-2xl shadow-sm border-0' style={{ marginBottom: 0 }}>
       {/* 卡片 Header */}
       <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-3 shadow-md'>
-          <IconShield />
+        <Avatar size='small' color='indigo' className='mr-3 shadow-md'>
+          <Building2 size={16} />
         </Avatar>
         <div>
           <div className='flex items-center gap-2'>

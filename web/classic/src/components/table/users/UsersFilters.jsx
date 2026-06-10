@@ -104,9 +104,10 @@ const UsersFilters = ({
             size='small'
           />
         </div>
-        <div className='w-full md:w-40'>
+        <div className='w-full md:w-44'>
           <Form.Select
             field='searchKycStatus'
+            insetLabel={t('实名认证')}
             placeholder={t('实名认证状态')}
             optionList={KYC_STATUS_OPTIONS(t)}
             onChange={() => {
@@ -119,9 +120,10 @@ const UsersFilters = ({
             size='small'
           />
         </div>
-        <div className='w-full md:w-40'>
+        <div className='w-full md:w-44'>
           <Form.Select
             field='searchEnterpriseStatus'
+            insetLabel={t('企业认证')}
             placeholder={t('企业认证状态')}
             optionList={ENTERPRISE_STATUS_OPTIONS(t)}
             onChange={() => {

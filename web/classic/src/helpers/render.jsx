@@ -81,6 +81,9 @@ import {
   Server,
   CalendarClock,
   BookOpenCheck,
+  IdCard,
+  Building2,
+  Ticket,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -153,6 +156,12 @@ export function getLucideIcon(key, selected = false) {
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'reconcile':
       return <BookOpenCheck {...commonProps} color={iconColor} />;
+    case 'kyc':
+      return <IdCard {...commonProps} color={iconColor} />;
+    case 'enterprise':
+      return <Building2 {...commonProps} color={iconColor} />;
+    case 'feedback':
+      return <Ticket {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     default:
