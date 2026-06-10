@@ -14,11 +14,13 @@ import (
 const (
 	CodexModelGovernanceStatusActive                   = "active"
 	CodexModelGovernanceStatusUnsupportedPendingReview = "unsupported_pending_review"
+	CodexModelGovernanceStatusPendingReview            = CodexModelGovernanceStatusUnsupportedPendingReview
 	CodexModelGovernanceStatusRemoved                  = "removed"
 	CodexModelGovernanceStatusIgnored                  = "ignored"
 
 	CodexModelGovernanceSourceProbe               = "probe"
 	CodexModelGovernanceSourceOfficialCodexNotice = "official_codex_notice"
+	CodexModelGovernanceSourceOfficialNotice      = CodexModelGovernanceSourceOfficialCodexNotice
 	CodexModelGovernanceSourceManual              = "manual"
 )
 
