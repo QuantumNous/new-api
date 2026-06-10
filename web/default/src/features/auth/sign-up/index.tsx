@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useEffect } from 'react'
 import { useStatus } from '@/hooks/use-status'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
@@ -27,13 +29,25 @@ export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
 
+  useEffect(() => {
+    trackAdsFunnelEvent('flatkey_signup_page_view', {
+      path: window.location.pathname,
+      lng: new URLSearchParams(window.location.search).get('lng') || undefined,
+    })
+  }, [])
+
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Create an account')}
+            {t('Create your API key and get free test credits')}
           </h2>
+          <p className='text-muted-foreground text-left text-sm sm:text-base'>
+            {t(
+              'No credit card required. Test your first API call in less than a minute.'
+            )}
+          </p>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {t('Already have an account?')}{' '}
             <Link

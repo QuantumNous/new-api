@@ -22,6 +22,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { buildAttributionHref } from '@/lib/analytics/attribution'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
 
 interface HeroProps {
@@ -46,6 +47,11 @@ const MoreIcon = () => (
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
   const signUpHref = buildAttributionHref('/sign-up')
+  const trackCtaClick = () => {
+    trackAdsFunnelEvent('flatkey_signup_cta_click', {
+      placement: 'hero',
+    })
+  }
 
   return (
     <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
@@ -119,7 +125,7 @@ export function Hero(props: HeroProps) {
               <>
                 <Button
                   className='group h-11 rounded-lg bg-violet-600 px-5 text-sm font-medium text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500'
-                  render={<a href={signUpHref} />}
+                  render={<a href={signUpHref} onClick={trackCtaClick} />}
                 >
                   {t('Get a key')}
                   <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />

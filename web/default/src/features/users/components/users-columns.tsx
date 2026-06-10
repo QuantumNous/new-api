@@ -42,6 +42,21 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
+function parseAdsAttribution(raw?: string): Record<string, string> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => typeof value === 'string')
+    ) as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
   return [
@@ -265,6 +280,62 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       enableSorting: false,
       meta: { label: t('Role') },
+    },
+    {
+      accessorKey: 'ads_attribution',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Ad Source')} />
+      ),
+      cell: ({ row }) => {
+        const attribution = parseAdsAttribution(row.original.ads_attribution)
+        const source =
+          attribution.utm_source ||
+          (attribution.gclid || attribution.gbraid || attribution.wbraid
+            ? 'google_ads'
+            : '')
+        const campaign =
+          attribution.utm_campaign ||
+          attribution.hsa_cam ||
+          attribution.gad_campaignid ||
+          ''
+        const term = attribution.utm_term || attribution.hsa_kw || ''
+
+        if (!source && !campaign && !term) {
+          return (
+            <StatusBadge
+              label={t('No ad source')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
+        }
+
+        return (
+          <Tooltip>
+            <TooltipTrigger render={<div className='max-w-[180px]' />}>
+              <div className='flex flex-col gap-1 text-xs'>
+                <StatusBadge
+                  label={source || t('Ads')}
+                  variant='success'
+                  copyable={false}
+                />
+                {(campaign || term) && (
+                  <LongText className='text-muted-foreground max-w-[170px]'>
+                    {[campaign, term].filter(Boolean).join(' / ')}
+                  </LongText>
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className='max-w-sm'>
+              <pre className='whitespace-pre-wrap text-xs'>
+                {JSON.stringify(attribution, null, 2)}
+              </pre>
+            </TooltipContent>
+          </Tooltip>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('Ad Source'), mobileHidden: true },
     },
     {
       id: 'invite_info',

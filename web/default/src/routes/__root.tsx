@@ -30,6 +30,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
 import { saveAffiliateCode } from '@/features/auth/lib/storage'
+import { captureAdsAttribution } from '@/lib/analytics/attribution'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
@@ -43,6 +44,7 @@ function RootComponent() {
     if (aff) {
       saveAffiliateCode(aff)
     }
+    captureAdsAttribution()
   }, [])
 
   return (

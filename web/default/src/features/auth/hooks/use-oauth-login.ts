@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
@@ -36,26 +37,41 @@ type LogoutRequestConfig = AxiosRequestConfig & {
   skipErrorHandler?: boolean
 }
 
+function trackOAuthStart(provider: string) {
+  const path = window.location.pathname
+  if (path === '/sign-up' || path === '/sign-up/') {
+    try {
+      window.sessionStorage.setItem('ads:oauth_signup_start', provider)
+    } catch {
+      /* ignore storage failures */
+    }
+  }
+  trackAdsFunnelEvent('flatkey_oauth_start', {
+    provider,
+    path,
+  })
+}
+
 /**
  * Hook for managing OAuth login
  */
 export function useOAuthLogin(status: SystemStatus | null) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
-  const [githubButtonText, setGithubButtonText] = useState('')
+  const [githubButtonText, setGithubButtonText] = useState(() =>
+    t('Continue with GitHub')
+  )
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
   const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { auth } = useAuthStore()
 
   useEffect(() => {
-    setGithubButtonText(t('Continue with GitHub'))
-
     return () => {
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
       }
     }
-  }, [t])
+  }, [])
 
   const resetSession = async () => {
     try {
@@ -75,6 +91,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
   const handleGitHubLogin = async () => {
     if (!status?.github_client_id) return
     if (githubButtonDisabled) return
+    trackOAuthStart('github')
 
     setIsLoading(true)
     setGithubButtonDisabled(true)
@@ -121,6 +138,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const handleDiscordLogin = async () => {
     if (!status?.discord_client_id) return
+    trackOAuthStart('discord')
 
     setIsLoading(true)
     try {
@@ -142,6 +160,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const handleGoogleLogin = async () => {
     if (!status?.google_client_id) return
+    trackOAuthStart('google')
 
     setIsLoading(true)
     try {
@@ -163,6 +182,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const handleOIDCLogin = async () => {
     if (!status?.oidc_authorization_endpoint || !status?.oidc_client_id) return
+    trackOAuthStart('oidc')
 
     setIsLoading(true)
     try {
@@ -188,6 +208,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const handleLinuxDOLogin = async () => {
     if (!status?.linuxdo_client_id) return
+    trackOAuthStart('linuxdo')
 
     setIsLoading(true)
     try {
@@ -213,6 +234,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const handleCustomOAuthLogin = async (provider: CustomOAuthProviderInfo) => {
     if (!provider.authorization_endpoint || !provider.client_id) return
+    trackOAuthStart(provider.slug)
 
     setIsLoading(true)
     try {

@@ -25,6 +25,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxAdsAttributionLength = 4096
+
+func sanitizeAdsAttribution(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > maxAdsAttributionLength {
+		return ""
+	}
+	var payload map[string]any
+	if err := common.UnmarshalJsonStr(raw, &payload); err != nil {
+		return ""
+	}
+	cleaned := make(map[string]string, len(payload))
+	for key, value := range payload {
+		key = strings.TrimSpace(key)
+		if key == "" || len(key) > 64 {
+			continue
+		}
+		stringValue, ok := value.(string)
+		if !ok {
+			continue
+		}
+		stringValue = strings.TrimSpace(stringValue)
+		if stringValue == "" {
+			continue
+		}
+		if len(stringValue) > 512 {
+			stringValue = stringValue[:512]
+		}
+		cleaned[key] = stringValue
+	}
+	if len(cleaned) == 0 {
+		return ""
+	}
+	bytes, err := common.Marshal(cleaned)
+	if err != nil {
+		return ""
+	}
+	return string(bytes)
+}
+
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -177,11 +217,12 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.Username,
-		InviterId:   inviterId,
-		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Username:       user.Username,
+		Password:       user.Password,
+		DisplayName:    user.Username,
+		InviterId:      inviterId,
+		Role:           common.RoleCommonUser, // 明确设置角色为普通用户
+		AdsAttribution: sanitizeAdsAttribution(user.AdsAttribution),
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email

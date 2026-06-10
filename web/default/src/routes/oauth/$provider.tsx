@@ -28,6 +28,7 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
+import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 
@@ -49,12 +50,6 @@ function OAuthCallback() {
     if (typeof window === 'undefined') return 'login'
     return window.opener ? 'bind' : 'login'
   })
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMode(window.opener ? 'bind' : 'login')
-  }, [])
 
   useEffect(() => {
     ;(async () => {
@@ -116,6 +111,35 @@ function OAuthCallback() {
         }, 200)
       }
 
+      const consumeSignupOAuthStart = () => {
+        if (typeof window === 'undefined') return ''
+        try {
+          const startedProvider =
+            window.sessionStorage.getItem('ads:oauth_signup_start') || ''
+          window.sessionStorage.removeItem('ads:oauth_signup_start')
+          return startedProvider
+        } catch {
+          return ''
+        }
+      }
+
+      const trackOAuthResult = (result: 'success' | 'error', message?: string) => {
+        const signupProvider = consumeSignupOAuthStart()
+        trackAdsFunnelEvent(`flatkey_oauth_${result}`, {
+          provider,
+          mode: isBindingFlow ? 'bind' : 'login',
+          started_from_signup: Boolean(signupProvider),
+          reason: message,
+        })
+        if (result === 'success' && signupProvider && !isBindingFlow) {
+          trackSignupConversion()
+          trackAdsFunnelEvent('flatkey_signup_success', {
+            method: 'oauth',
+            provider,
+          })
+        }
+      }
+
       const finalizeLogin = async (): Promise<boolean> => {
         try {
           const selfResponse = (await getSelf()) as {
@@ -149,15 +173,18 @@ function OAuthCallback() {
       }
 
       const handleBindingFailure = (message: string) => {
+        trackOAuthResult('error', message)
         notifyBindingResult('error')
         toast.error(message)
       }
 
       const handleLoginFailure = async (message: string) => {
         if (await finalizeLogin()) {
+          trackOAuthResult('success')
           redirectAfterLogin()
           return
         }
+        trackOAuthResult('error', message)
         toast.error(message)
         safeNavigate('/sign-in')
       }
@@ -180,6 +207,7 @@ function OAuthCallback() {
           const loginUser = (res.data?.data ?? null) as AuthUser | null
           // Check if this is a bind operation
           if (message === 'bind') {
+            trackOAuthResult('success')
             toast.success(i18next.t('Binding successful!'))
             notifyBindingResult('success')
             if (isBindingFlow) {
@@ -200,14 +228,18 @@ function OAuthCallback() {
             } catch (_error) {
               void _error
             }
+            trackOAuthResult('success')
             redirectAfterLogin()
             return
           }
           if (await finalizeLogin()) {
+            trackOAuthResult('success')
             redirectAfterLogin()
             return
           }
-          toast.error(res?.data?.message || i18next.t('OAuth failed'))
+          const failureMessage = res?.data?.message || i18next.t('OAuth failed')
+          trackOAuthResult('error', failureMessage)
+          toast.error(failureMessage)
           safeNavigate('/sign-in')
           return
         }
@@ -216,6 +248,7 @@ function OAuthCallback() {
           // When logging in with an already bound GitHub account, backend may return this message
           if (message === '该 GitHub 账户已被绑定') {
             if (await finalizeLogin()) {
+              trackOAuthResult('success')
               redirectAfterLogin()
               return
             }
