@@ -61,10 +61,10 @@ export function Profile() {
   const name = getDisplayName(profile ?? undefined)
   const roleLabel =
     profile?.role === 100
-      ? 'Super Admin'
+      ? t('Super Admin')
       : profile?.role === 10
-        ? 'Admin'
-        : 'User'
+        ? t('Admin')
+        : t('User')
 
   return (
     <SectionPageLayout>
@@ -79,7 +79,7 @@ export function Profile() {
               <h2 className='text-lg font-semibold'>{name}</h2>
               {profile && (
                 <p className='text-muted-foreground mt-0.5 text-sm'>
-                  {profile.email || profile.username} · {roleLabel} · Registered{' '}
+                  {profile.email || profile.username} · {roleLabel} · {t('Registered')}{' '}
                   {new Date(profile.created_time * 1000).toLocaleDateString()}
                 </p>
               )}
@@ -145,7 +145,7 @@ export function Profile() {
                     disabled={updating}
                     className='h-8 text-xs'
                   >
-                    {updating ? 'Saving...' : 'Save Changes'}
+                    {updating ? t('Saving...') : t('Save Changes')}
                   </Button>
                 </div>
               </div>

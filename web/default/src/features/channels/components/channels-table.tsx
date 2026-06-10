@@ -378,7 +378,7 @@ export function ChannelsTable() {
 
     return [
       {
-        label: 'All Types',
+        label: t('All Types'),
         value: 'all',
         count: totalTypes,
       },
@@ -509,7 +509,7 @@ export function ChannelsTable() {
           <SelectContent>
             {[...CHANNEL_STATUS_OPTIONS].map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.label)}
               </SelectItem>
             ))}
           </SelectContent>

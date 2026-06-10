@@ -421,7 +421,7 @@ export function ApiKeysTable() {
                 <SelectItem value='all'>{t('All Status')}</SelectItem>
                 {[...API_KEY_STATUS_OPTIONS].map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
