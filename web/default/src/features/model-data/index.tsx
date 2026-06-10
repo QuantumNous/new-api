@@ -46,6 +46,7 @@ interface ModelDataItem {
   channel_id: number
   channel_name: string
   key_group: string
+  client_exclusive?: string  // '' | codex | claude_code
   // null when upstream /api/pricing returned 401/404 or cookie-only auth —
   // we have no idea how much this channel costs. UI renders these as "—".
   model_price: number | null       // base price before group markup
@@ -66,6 +67,8 @@ interface ModelDataItem {
   fingerprint_history: DetectPoint[]
   uptime_history: DetectPoint[]
   latency_median_ms: number
+  latency_p95_ms: number
+  latency_cv_pct: number
   status: number  // 1 enabled / 2 manual-disabled / 3 auto-disabled
   consecutive_fingerprint_pass: number  // recovery counter; meaningful when status=3
   model_enabled: boolean  // abilities.enabled for this (channel, model) pair
@@ -106,6 +109,7 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'Sonnet 4.6',      modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
   { label: 'Opus 4.7',        modelId: 'claude-opus-4-7',   accent: '#a855f7' },
   { label: 'Opus 4.8',        modelId: 'claude-opus-4-8',   accent: '#a855f7' },
+  { label: 'Fable 5',         modelId: 'claude-fable-5',    accent: '#a855f7' },
   { label: 'Haiku 4.5',       modelId: 'claude-haiku-4-5',  accent: '#a855f7' },
   { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
   { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
@@ -135,6 +139,23 @@ function fmtPrice(price: number | null | undefined): string {
   // 显示破折号而不是 "0"，避免被误认为"免费"渠道。
   if (price == null || price <= 0) return '—'
   return parseFloat(price.toFixed(4)).toString()
+}
+
+function ClientExclusiveBadge({ value }: { value?: string }) {
+  if (!value) return <span className='text-gray-300'>—</span>
+  const styles: Record<string, string> = {
+    codex: 'bg-cyan-100 text-cyan-800',
+    claude_code: 'bg-violet-100 text-violet-800',
+  }
+  const labels: Record<string, string> = {
+    codex: 'Codex',
+    claude_code: 'CC',
+  }
+  return (
+    <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${styles[value] ?? 'bg-gray-100 text-gray-600'}`}>
+      {labels[value] ?? value}
+    </span>
+  )
 }
 
 // Format unix-sec → "下次 18:42" or "即将 / Xs/Xm" depending on how soon.
@@ -771,6 +792,7 @@ export function ModelDataPage() {
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>ID</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点分组</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>客户端</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>充值汇率</th>
                 <th className='text-right px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>gratio</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
@@ -786,6 +808,8 @@ export function ModelDataPage() {
                   hub&nbsp;价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>P95</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>波动</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>检测结果</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>运行状态</th>
                 <th className='text-center px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>操作</th>
@@ -794,12 +818,12 @@ export function ModelDataPage() {
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={13} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={13} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
@@ -850,6 +874,9 @@ export function ModelDataPage() {
                       )}
                     </td>
                     <td className={`px-3 py-2.5 text-gray-500 ${dim}`}>{item.key_group || <span className='text-gray-300'>—</span>}</td>
+                    <td className={`px-3 py-2.5 ${dim}`}>
+                      <ClientExclusiveBadge value={item.client_exclusive} />
+                    </td>
                     <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
                       {item.recharge_rate != null ? item.recharge_rate.toFixed(4) : <span className='text-gray-300'>—</span>}
                     </td>
@@ -917,6 +944,16 @@ export function ModelDataPage() {
                     <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
                     <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
                       {item.latency_median_ms > 0 ? `${(item.latency_median_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
+                      {item.latency_p95_ms > 0 ? `${(item.latency_p95_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums ${dim}`}>
+                      {item.latency_cv_pct > 0 ? (
+                        <span className={item.latency_cv_pct > 60 ? 'text-rose-500' : item.latency_cv_pct > 30 ? 'text-amber-500' : 'text-gray-500'}>
+                          {item.latency_cv_pct.toFixed(0)}%
+                        </span>
+                      ) : <span className='text-gray-300'>—</span>}
                     </td>
                     <td className={`px-3 py-2.5 ${dim}`}>
                       <DotGrid
