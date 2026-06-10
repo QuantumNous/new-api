@@ -84,71 +84,71 @@ const PlaygroundComposer = ({
               dropdownStyle={{ maxWidth: 420 }}
               position='top'
             />
-            {!isImageMode && (
-              <div className='reference-images'>
-                <Typography.Text className='reference-label'>
-                  {t('参考图片')}
-                </Typography.Text>
-                <div className='reference-image-row'>
-                  <button
-                    className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (!inputs.imageEnabled) {
-                        onInputChange('imageEnabled', true);
-                      }
-                      fileInputRef.current?.click();
-                    }}
-                    type='button'
-                  >
-                    <ImageIcon size={20} />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type='file'
-                    accept='image/jpeg,image/png,image/webp'
-                    className='hidden'
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        onSelectImageFile?.(file);
-                      }
-                      event.target.value = '';
-                    }}
-                  />
-                  {inputs.imageEnabled && imageUrls.length > 0 && (
-                    <div className='reference-image-list'>
-                      {imageUrls.map((url, index) => (
-                        <div
-                          key={`${index}-${url.slice(0, 24)}`}
-                          className='reference-image-item'
+
+            <div className='reference-images'>
+              <Typography.Text className='reference-label'>
+                {t('参考图片')}
+              </Typography.Text>
+              <div className='reference-image-row'>
+                <button
+                  className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!inputs.imageEnabled) {
+                      onInputChange('imageEnabled', true);
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  type='button'
+                >
+                  <ImageIcon size={20} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='image/jpeg,image/png,image/webp'
+                  className='hidden'
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      onSelectImageFile?.(file);
+                    }
+                    event.target.value = '';
+                  }}
+                />
+                {inputs.imageEnabled && imageUrls.length > 0 && (
+                  <div className='reference-image-list'>
+                    {imageUrls.map((url, index) => (
+                      <div
+                        key={`${index}-${url.slice(0, 24)}`}
+                        className='reference-image-item'
+                      >
+                        <img
+                          src={url}
+                          alt={t('图片 {{index}}', { index: index + 1 })}
+                          className='reference-image-preview'
+                        />
+                        <button
+                          type='button'
+                          className='reference-image-remove'
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRemoveImage?.(index);
+                          }}
+                          aria-label={t('删除')}
                         >
-                          <img
-                            src={url}
-                            alt={t('图片 {{index}}', { index: index + 1 })}
-                            className='reference-image-preview'
-                          />
-                          <button
-                            type='button'
-                            className='reference-image-remove'
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onRemoveImage?.(index);
-                            }}
-                            aria-label={t('删除')}
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className='reference-help-text'>
-                  {t('支持 JPEG、PNG、Webp')}
-                </span>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              <span className='reference-help-text'>
+                {t('支持 JPEG、PNG、Webp')}
+              </span>
+            </div>
+
             {isImageMode && (
               <div className='video-options'>
                 <Select
@@ -174,6 +174,15 @@ const PlaygroundComposer = ({
                   onChange={(value) => onInputChange('imageQuality', value)}
                   className='video-option-control'
                   position='top'
+                />
+                <InputNumber
+                  min={1}
+                  max={10}
+                  value={inputs.imageCount}
+                  onChange={(value) =>
+                    onInputChange('imageCount', Number(value) || 1)
+                  }
+                  className='video-option-control'
                 />
               </div>
             )}
