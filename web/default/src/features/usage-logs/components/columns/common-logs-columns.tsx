@@ -480,9 +480,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
                 </AvatarFallback>
               </Avatar>
-              <span className='text-muted-foreground truncate text-sm hover:underline'>
-                {sensitiveVisible ? log.username : '••••'}
-              </span>
+              <div className='flex min-w-0 flex-col'>
+                <span className='text-muted-foreground truncate text-sm hover:underline'>
+                  {sensitiveVisible ? log.username : '••••'}
+                </span>
+                {log.user_email && (
+                  <span className='text-muted-foreground/60 truncate text-[11px]'>
+                    {sensitiveVisible ? log.user_email : '••••'}
+                  </span>
+                )}
+              </div>
             </button>
           )
         },

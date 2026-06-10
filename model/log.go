@@ -32,6 +32,7 @@ type Log struct {
 	IsStream         bool   `json:"is_stream"`
 	ChannelId        int    `json:"channel" gorm:"index"`
 	ChannelName      string `json:"channel_name" gorm:"->"`
+	UserEmail        string `json:"user_email,omitempty" gorm:"->"`
 	TokenId          int    `json:"token_id" gorm:"default:0;index"`
 	Group            string `json:"group" gorm:"index"`
 	Ip               string `json:"ip" gorm:"index;default:''"`
@@ -376,6 +377,29 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 		for i := range logs {
 			logs[i].ChannelName = channelMap[logs[i].ChannelId]
+		}
+	}
+
+	// Bulk-lookup user emails by username
+	usernames := types.NewSet[string]()
+	for _, log := range logs {
+		if log.Username != "" {
+			usernames.Add(log.Username)
+		}
+	}
+	if usernames.Len() > 0 {
+		var userEmailRows []struct {
+			Username string `gorm:"column:username"`
+			Email    string `gorm:"column:email"`
+		}
+		if err2 := DB.Table("users").Select("username, email").Where("username IN ?", usernames.Items()).Find(&userEmailRows).Error; err2 == nil {
+			emailMap := make(map[string]string, len(userEmailRows))
+			for _, row := range userEmailRows {
+				emailMap[row.Username] = row.Email
+			}
+			for i := range logs {
+				logs[i].UserEmail = emailMap[logs[i].Username]
+			}
 		}
 	}
 
