@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +38,9 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !IsCodexImageModel(request.Model) {
 		return nil, fmt.Errorf("codex channel: image endpoint requires a gpt-image-* model, got %q", request.Model)
+	}
+	if err := ValidateCodexImageRequest(request); err != nil {
+		return nil, err
 	}
 
 	action := "generate"
@@ -135,7 +139,63 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	resp, err := channel.DoApiRequest(a, c, info, requestBody)
+	if err != nil {
+		return resp, err
+	}
+	// 白标(F1)：codex 图像路径上游非 200 响应若交给下游 service.RelayErrorHandler，
+	// 会把上游 error.message（含 ChatGPT/OpenAI 品牌、承载模型 gpt-5.4、内部模型名）
+	// 直接透传给客户端。此处在适配器 seam 拦截：把上游原文仅落服务端日志，并用一份
+	// 通用脱敏 JSON 错误替换响应体，状态码保持不变，使下游 handler 无可泄露。
+	// 仅作用于图像 relay mode；text/responses 路径不受影响。
+	if resp != nil {
+		switch info.RelayMode {
+		case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+			if resp.StatusCode != http.StatusOK {
+				sanitizeCodexImageErrorResponse(c, resp)
+			}
+		}
+	}
+	return resp, err
+}
+
+// sanitizeCodexImageErrorResponse 读取并落日志上游错误体(仅服务端)，随后把响应体替换为
+// 通用脱敏 JSON 错误，保留原状态码。下游 service.RelayErrorHandler 解析到的将是这份
+// 脱敏内容，因此不会向客户端泄露任何上游品牌/模型信息。
+func sanitizeCodexImageErrorResponse(c *gin.Context, resp *http.Response) {
+	var upstreamBody []byte
+	if resp.Body != nil {
+		upstreamBody, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+	}
+	if len(upstreamBody) > 0 {
+		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d, body: %s",
+			resp.StatusCode, common.LocalLogPreview(string(upstreamBody))))
+	} else {
+		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d with empty body", resp.StatusCode))
+	}
+
+	sanitized := map[string]any{
+		"error": map[string]any{
+			"message": "codex image generation failed",
+			"type":    "upstream_error",
+		},
+	}
+	payload, mErr := common.Marshal(sanitized)
+	if mErr != nil {
+		// 极端兜底：Marshal 不应失败，但若失败用静态字面量，仍不泄露上游。
+		payload = []byte(`{"error":{"message":"codex image generation failed","type":"upstream_error"}}`)
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(payload))
+	resp.ContentLength = int64(len(payload))
+	if resp.Header == nil {
+		resp.Header = http.Header{}
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(payload)))
+	// 避免下游按 SSE 处理脱敏后的普通 JSON 错误体。
+	resp.Header.Del("Transfer-Encoding")
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {

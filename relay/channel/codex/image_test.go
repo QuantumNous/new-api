@@ -177,6 +177,76 @@ func TestRelayImageOverCodex_FallsBackToDefaultUsageWhenMissing(t *testing.T) {
 	}
 }
 
+func TestSanitizeCodexImageErrorResponse_SuppressesUpstreamBrand(t *testing.T) {
+	// F1 白标：上游非 200 错误体含品牌/模型名，脱敏后客户端可见的响应体绝不能泄露。
+	const upstreamSecret = `{"error":{"message":"ChatGPT model gpt-5.4 quota exceeded","type":"insufficient_quota"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Body:       io.NopCloser(strings.NewReader(upstreamSecret)),
+		Header:     http.Header{},
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	sanitizeCodexImageErrorResponse(c, resp)
+
+	// 状态码必须保留。
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status code changed: got %d, want %d", resp.StatusCode, http.StatusTooManyRequests)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read sanitized body: %v", err)
+	}
+	bodyStr := string(body)
+	if strings.Contains(bodyStr, "ChatGPT") || strings.Contains(bodyStr, "gpt-5.4") ||
+		strings.Contains(bodyStr, "quota exceeded") || strings.Contains(bodyStr, "insufficient_quota") {
+		t.Fatalf("sanitized body leaked upstream detail: %q", bodyStr)
+	}
+
+	// 脱敏体必须是可被下游 error handler 解析的通用 JSON。
+	var parsed struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+	}
+	if err := common.Unmarshal(body, &parsed); err != nil {
+		t.Fatalf("sanitized body is not valid JSON: %v / %s", err, bodyStr)
+	}
+	if parsed.Error.Message != "codex image generation failed" {
+		t.Fatalf("sanitized message = %q, want generic", parsed.Error.Message)
+	}
+	if parsed.Error.Type != "upstream_error" {
+		t.Fatalf("sanitized type = %q, want upstream_error", parsed.Error.Type)
+	}
+	if resp.Header.Get("Content-Type") != "application/json" {
+		t.Fatalf("Content-Type = %q, want application/json", resp.Header.Get("Content-Type"))
+	}
+}
+
+func TestSanitizeCodexImageErrorResponse_EmptyBody(t *testing.T) {
+	// 上游空体也应被替换为通用 JSON 错误，而非保持空（否则下游可能无错误信息）。
+	resp := &http.Response{
+		StatusCode: http.StatusInternalServerError,
+		Body:       io.NopCloser(strings.NewReader("")),
+		Header:     http.Header{},
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	sanitizeCodexImageErrorResponse(c, resp)
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "codex image generation failed") {
+		t.Fatalf("empty-body case not sanitized to generic error, got %q", string(body))
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status code changed: got %d", resp.StatusCode)
+	}
+}
+
 func TestRelayImageOverCodex_EmptyStreamReturnsNoImageError(t *testing.T) {
 	// 只有 [DONE]、没有任何图像：走 "no image returned" 错误路径，不得 panic。
 	sse := strings.Join([]string{

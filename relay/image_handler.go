@@ -46,7 +46,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	// codex 图像必须走 ConvertImageRequest 合成 Responses + image_generation body：
+	// 原始 OpenAI /v1/images body 与上游 /backend-api/codex/responses 结构不兼容，
+	// 直接透传会导致 info.IsStream 永不置位、上游 400，图像静默损坏。
+	// 因此对 codex 图像路径强制忽略 PassThrough（全局/渠道级），仅缩小到本 ApiType，
+	// 不影响其它渠道的透传行为。ImageHelper 仅在图像 relay mode 下被调用，故此处
+	// 判断 ApiType 即等价于「codex 渠道 + 图像模式」。
+	codexImagePath := info.ApiType == constant.APITypeCodex
+
+	if !codexImagePath && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
