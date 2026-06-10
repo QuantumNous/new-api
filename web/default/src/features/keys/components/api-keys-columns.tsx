@@ -92,6 +92,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
       meta: { label: t('Select') },
     },
     {

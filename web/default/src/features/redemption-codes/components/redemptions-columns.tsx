@@ -59,6 +59,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
     },
     {
       accessorKey: 'id',
@@ -71,6 +72,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           <TableId value={row.getValue('id') as number} className='w-[60px]' />
         )
       },
+      size: 80,
     },
     {
       accessorKey: 'name',

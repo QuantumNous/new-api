@@ -66,6 +66,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
       meta: { label: t('Select') },
     },
     {
@@ -78,6 +79,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           <TableId value={row.getValue('id') as number} className='w-[60px]' />
         )
       },
+      size: 80,
       meta: { label: t('ID'), mobileHidden: true },
     },
     {

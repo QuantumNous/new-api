@@ -71,6 +71,7 @@ export function buildModelRatioColumns({
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
       meta: { label: t('Select') },
     },
     {
