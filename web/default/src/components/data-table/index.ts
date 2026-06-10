@@ -32,7 +32,6 @@ export {
   type DataTableColumnClassName,
   type DataTablePinnedColumn,
   type DataTableRenderRowHelpers,
-  type DataTableViewProps,
 } from './data-table-view'
 export { MobileCardList } from './mobile-card-list'
 export { DataTablePage, type DataTablePageProps } from './data-table-page'
