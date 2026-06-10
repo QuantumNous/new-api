@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: Seedance 视频生成 — new-api 原生格式
+  version: "1.0"
+  description: |
+    new-api 原生视频任务接口，适用于 **Doubao（渠道 54/45）** 与 **Pollo（渠道 58）** 的
+    seedance 系列模型。两个渠道消费完全一致的请求字段（Pollo 适配器对 Doubao seedance
+    的输入/输出参数 100% 兼容），客户端无需感知后端走的是火山方舟还是 Pollo。
+
+    ## 字段映射（Doubao ⟷ Pollo）
+    | 请求字段 | Doubao 上游 | Pollo 上游 |
+    |---|---|---|
+    | `prompt` | content[] text 项 | input.prompt |
+    | `images[0]` / `image` | content[] image_url | input.image（首帧） |
+    | `images[1]` | content[] image_url | input.imageTail（尾帧） |
+    | `seconds` | duration | input.length / input.duration |
+    | `metadata.duration` | duration | 同上（优先级低于 seconds） |
+    | `metadata.frames` | frames | 换算秒数 (frames-1)/24 |
+    | `metadata.resolution` | resolution | input.resolution |
+    | `metadata.ratio` | ratio | input.aspectRatio |
+    | `metadata.seed` | seed | input.seed（ref 路径上游忽略） |
+    | `metadata.generate_audio` | generate_audio | input.generateAudio |
+    | `metadata.tools:[{type:web_search}]` | tools | input.webSearch=true |
+    | `metadata.callback_url` | callback_url | webhookUrl（仅地址，回调载荷格式为各上游原生格式） |
+    | `metadata.content[]` image_url role=first_frame/缺省 | 透传 | input.image |
+    | `metadata.content[]` image_url role=last_frame | 透传 | input.imageTail |
+    | `metadata.content[]` image_url role=reference_image | 透传 | input.refs[{type:image}] → /ref2video |
+    | `metadata.content[]` video_url | 透传（视频输入折扣计费） | input.refs[{type:video}] → /ref2video |
+    | `metadata.content[]` audio_url | 透传 | input.refs[{type:audio}] → /ref2video |
+    | `metadata.camera_fixed` / `watermark` / `return_last_frame` / `service_tier` / `draft` / `execution_expires_after` | 透传 | **Pollo 无对应参数，静默忽略** |
+
+    Pollo 专属扩展（Doubao 渠道忽略）：`metadata.aspectRatio`、`metadata.length`、
+    `metadata.videoNum`（ref 路径 1-4）、`metadata.refs[]`（原生 ref 透传，支持
+    image/subject/video/audio）、`metadata.imageMeta`、`metadata.webSearch`、
+    `metadata.generateAudio`、`metadata.imageTail`、`metadata.image`。
+
+    数值/布尔字段同时接受字符串形式（如 `"duration":"5"`、`"watermark":"false"`），
+    两渠道行为一致。
+servers:
+  - url: https://your-newapi-host
+security:
+  - bearerAuth: []
+paths:
+  /v1/video/generations:
+    post:
+      summary: 提交视频生成任务
+      operationId: createVideoGeneration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoGenerationRequest'
+            examples:
+              t2v:
+                summary: 文生视频
+                value:
+                  model: seedance-2-0
+                  prompt: a corgi running on the beach at sunset, cinematic
+                  seconds: "5"
+                  metadata:
+                    resolution: 1080p
+                    ratio: "16:9"
+                    seed: 42
+                    generate_audio: true
+              i2v-first-last:
+                summary: 图生视频（首尾帧）
+                value:
+                  model: seedance-2-0
+                  prompt: smooth transition between the two frames
+                  seconds: "5"
+                  metadata:
+                    resolution: 720p
+                    content:
+                      - type: image_url
+                        role: first_frame
+                        image_url: { url: "https://example.com/first.jpg" }
+                      - type: image_url
+                        role: last_frame
+                        image_url: { url: "https://example.com/last.jpg" }
+              ref2video:
+                summary: 参考图/参考视频生成（自动路由 ref 形态）
+                value:
+                  model: seedance-2-0
+                  prompt: the character waves hello
+                  seconds: "5"
+                  metadata:
+                    resolution: 720p
+                    ratio: "16:9"
+                    content:
+                      - type: image_url
+                        role: reference_image
+                        image_url: { url: "https://example.com/char.jpg" }
+                      - type: video_url
+                        video_url: { url: "https://example.com/clip.mp4" }
+      responses:
+        "200":
+          description: 任务已受理；返回 OpenAI Video 对象（id 即公开 task_id，形如 task_xxxx）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAIVideo'
+        "400":
+          description: 参数错误（缺 prompt / 不支持的模型等）
+  /v1/video/generations/{task_id}:
+    get:
+      summary: 查询任务状态（通用 TaskDto 格式）
+      operationId: getVideoGeneration
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+          example: task_0123456789
+      responses:
+        "200":
+          description: 任务详情；Doubao/Pollo 渠道返回的规范化字段完全一致（data.data 为各上游原始响应，形态因上游而异）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: new-api 令牌（sk-xxxx）
+  schemas:
+    VideoGenerationRequest:
+      type: object
+      required: [model, prompt]
+      properties:
+        model:
+          type: string
+          description: 模型名；Doubao 渠道用 doubao-seedance-*，Pollo 渠道用 seedance-2-0 / seedance-2-0-fast（可经渠道模型映射互通）
+          example: seedance-2-0
+        prompt:
+          type: string
+          description: 提示词（唯一文本来源；metadata.content 中的 text 项会被忽略/替换）
+        image:
+          type: string
+          description: 单图（等价于 images[0]）
+        images:
+          type: array
+          items: { type: string }
+          description: 参考图 URL 列表；[0]=首帧，[1]=尾帧（Pollo i2v 最多消费两张；Doubao 全部透传）
+        seconds:
+          type: string
+          description: 时长（秒，字符串，OpenAI 兼容字段）。优先级最高；4-15
+          example: "5"
+        metadata:
+          type: object
+          description: 扩展参数（见顶部字段映射表）
+          properties:
+            resolution: { type: string, enum: [480p, 720p, 1080p], description: "fast 模型不支持 1080p" }
+            ratio: { type: string, description: "宽高比：16:9/4:3/1:1/3:4/9:16/21:9/adaptive" }
+            duration: { description: "时长（秒），int 或字符串", oneOf: [{ type: integer }, { type: string }] }
+            frames: { type: integer, description: "帧数（24*秒+1，如 121=5s、241=10s）" }
+            seed: { type: integer, description: "随机种子；显式 0 会被保留下发" }
+            generate_audio: { type: boolean, default: false }
+            camera_fixed: { type: boolean, description: "仅 Doubao" }
+            watermark: { type: boolean, description: "仅 Doubao" }
+            callback_url: { type: string, description: "任务回调地址" }
+            tools:
+              type: array
+              items:
+                type: object
+                properties: { type: { type: string, enum: [web_search] } }
+            content:
+              type: array
+              description: Doubao content[] 媒体项
+              items:
+                type: object
+                properties:
+                  type: { type: string, enum: [text, image_url, video_url, audio_url] }
+                  role: { type: string, enum: [first_frame, last_frame, reference_image] }
+                  text: { type: string }
+                  image_url: { $ref: '#/components/schemas/MediaURL' }
+                  video_url: { $ref: '#/components/schemas/MediaURL' }
+                  audio_url: { $ref: '#/components/schemas/MediaURL' }
+    MediaURL:
+      description: 对象形式 {url} 或裸字符串均可
+      oneOf:
+        - type: object
+          properties: { url: { type: string } }
+        - type: string
+    OpenAIVideo:
+      type: object
+      properties:
+        id: { type: string, example: task_0123456789 }
+        task_id: { type: string, description: 兼容旧接口，与 id 相同 }
+        object: { type: string, example: video }
+        model: { type: string }
+        status: { type: string, enum: [queued, in_progress, completed, failed] }
+        progress: { type: integer }
+        created_at: { type: integer, format: int64 }
+        completed_at: { type: integer, format: int64 }
+        metadata:
+          type: object
+          properties:
+            url: { type: string, description: 成功后的视频地址（始终存在该键，未完成时为空串） }
+        error:
+          type: object
+          nullable: true
+          properties:
+            message: { type: string }
+            code: { type: string }
+    TaskResponse:
+      type: object
+      properties:
+        code: { type: string, example: success }
+        data:
+          type: object
+          description: 通用 TaskDto
+          properties:
+            task_id: { type: string, example: task_0123456789 }
+            platform: { type: string, description: "doubao-video 或 pollo" }
+            action: { type: string, example: generate }
+            status: { type: string, enum: [NOT_START, SUBMITTED, QUEUED, IN_PROGRESS, SUCCESS, FAILURE] }
+            progress: { type: string, example: "100%" }
+            fail_reason: { type: string }
+            result_url: { type: string, description: 成功后的视频地址 }
+            submit_time: { type: integer, format: int64 }
+            start_time: { type: integer, format: int64 }
+            finish_time: { type: integer, format: int64 }
+            quota: { type: integer }
+            data: { description: 上游原始响应（Doubao 与 Pollo 形态不同，仅供调试，不建议依赖）, type: object }

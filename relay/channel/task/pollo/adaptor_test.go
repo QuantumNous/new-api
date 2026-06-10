@@ -146,6 +146,25 @@ func TestAdjustBillingOnComplete(t *testing.T) {
 	}
 }
 
+// The charge settles against the fixed settleModelRatio, NOT the admin "display" ModelRatio.
+// A model shown at 7.7$/M (display ratio 3.85) or 5.6$/M (2.8) must still settle at the
+// original $0.06/credit, i.e. round(credit*scale)*settleModelRatio*groupRatio — unchanged
+// no matter what display ratio the snapshot carries.
+func TestAdjustBillingOnComplete_DecoupledFromDisplayRatio(t *testing.T) {
+	a := &TaskAdaptor{}
+	// 4.4 credit -> TotalTokens 440 -> 440 * settleModelRatio(300) * 1 = 132000 quota = $0.264
+	for _, displayRatio := range []float64{3.85, 2.8, 1, 0.5, 999} {
+		task := &model.Task{}
+		task.PrivateData.BillingContext = &model.TaskBillingContext{
+			ModelRatio: displayRatio, GroupRatio: 1,
+		}
+		got := a.AdjustBillingOnComplete(task, &relaycommon.TaskInfo{TotalTokens: 440})
+		if got != 132000 {
+			t.Fatalf("displayRatio=%g: charge=%d, want 132000 (settle must use settleModelRatio, not display ratio)", displayRatio, got)
+		}
+	}
+}
+
 // P3: an error envelope ({"code":"NOT_FOUND"}) must fail, not be treated as queued.
 func TestParseTaskResult_ErrorEnvelope(t *testing.T) {
 	body := []byte(`{"message":"NOT_FOUND_ERROR","code":"NOT_FOUND"}`)
@@ -241,6 +260,144 @@ func TestRequestShape_RefVsStandard(t *testing.T) {
 		}
 		if isRefRequest(req) {
 			t.Fatalf("empty refs[] must not be treated as a ref request")
+		}
+	})
+}
+
+// TestConvertPayload_DoubaoContentRoles verifies the Doubao-compatible metadata.content[]
+// path: image_url items are bucketed by role into Pollo shapes — first_frame/absent ->
+// input.image, last_frame -> input.imageTail, reference_image -> input.refs[] (routing to
+// /ref2video with auto ref1/ref2 names + a required aspectRatio). Mirrors the real Doubao
+// content contract so one client request drives both channels.
+func TestConvertPayload_DoubaoContentRoles(t *testing.T) {
+	mk := func(t *testing.T, meta map[string]any) (*polloRequest, *TaskAdaptor) {
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		req := &relaycommon.TaskSubmitReq{Prompt: "x", Seconds: "5", Metadata: meta}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		return body, a
+	}
+	img := func(url, role string) map[string]any {
+		m := map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}
+		if role != "" {
+			m["role"] = role
+		}
+		return m
+	}
+
+	t.Run("reference_image -> refs + ref2video shape", func(t *testing.T) {
+		body, a := mk(t, map[string]any{"content": []any{
+			img("https://x/a.jpg", "reference_image"),
+			img("https://x/b.jpg", "reference_image"),
+		}})
+		if !a.isRef {
+			t.Fatal("reference_image must set ref mode")
+		}
+		if len(body.Input.Refs) != 2 {
+			t.Fatalf("want 2 refs, got %d", len(body.Input.Refs))
+		}
+		r0, ok := body.Input.Refs[0].(polloRef)
+		if !ok || r0.Type != "image" || r0.Name != "ref1" || r0.Image != "https://x/a.jpg" || r0.Order != 1 {
+			t.Fatalf("ref0 = %+v (ok=%v)", body.Input.Refs[0], ok)
+		}
+		if r1, _ := body.Input.Refs[1].(polloRef); r1.Name != "ref2" || r1.Order != 2 {
+			t.Fatalf("ref1 = %+v", body.Input.Refs[1])
+		}
+		if body.Input.Duration != 5 || body.Input.Length != 0 {
+			t.Fatalf("ref body duration=%d length=%d", body.Input.Duration, body.Input.Length)
+		}
+		if body.Input.Image != "" || body.Input.ImageTail != "" {
+			t.Fatalf("ref2video must not carry image/imageTail, got %q/%q", body.Input.Image, body.Input.ImageTail)
+		}
+		if body.Input.AspectRatio != "16:9" {
+			t.Fatalf("ref2video must default aspectRatio, got %q", body.Input.AspectRatio)
+		}
+	})
+
+	t.Run("first_frame + last_frame -> i2v image/imageTail", func(t *testing.T) {
+		body, a := mk(t, map[string]any{"content": []any{
+			img("https://x/first.jpg", "first_frame"),
+			img("https://x/last.jpg", "last_frame"),
+		}})
+		if a.isRef {
+			t.Fatal("frames must NOT set ref mode")
+		}
+		if body.Input.Image != "https://x/first.jpg" || body.Input.ImageTail != "https://x/last.jpg" {
+			t.Fatalf("image=%q imageTail=%q", body.Input.Image, body.Input.ImageTail)
+		}
+		if body.Input.Length != 5 || body.Input.Duration != 0 {
+			t.Fatalf("i2v length=%d duration=%d", body.Input.Length, body.Input.Duration)
+		}
+	})
+
+	t.Run("absent role -> first frame", func(t *testing.T) {
+		body, a := mk(t, map[string]any{"content": []any{img("https://x/c.jpg", "")}})
+		if a.isRef || body.Input.Image != "https://x/c.jpg" {
+			t.Fatalf("absent role -> first-frame i2v, isRef=%v image=%q", a.isRef, body.Input.Image)
+		}
+	})
+
+	t.Run("ratio alias -> aspectRatio", func(t *testing.T) {
+		body, _ := mk(t, map[string]any{
+			"ratio":   "9:16",
+			"content": []any{img("https://x/a.jpg", "reference_image")},
+		})
+		if body.Input.AspectRatio != "9:16" {
+			t.Fatalf("ratio alias must map to aspectRatio, got %q", body.Input.AspectRatio)
+		}
+	})
+
+	t.Run("bare string image_url tolerated", func(t *testing.T) {
+		body, _ := mk(t, map[string]any{"content": []any{
+			map[string]any{"type": "image_url", "image_url": "https://x/s.jpg", "role": "first_frame"},
+		}})
+		if body.Input.Image != "https://x/s.jpg" {
+			t.Fatalf("bare-string image_url must be read, got %q", body.Input.Image)
+		}
+	})
+}
+
+// TestResolveSeconds_MetadataDuration covers Doubao-style clients that carry the duration only
+// in metadata.duration (no top-level seconds/duration). Top-level fields still take precedence.
+func TestResolveSeconds_MetadataDuration(t *testing.T) {
+	build := func(t *testing.T, req *relaycommon.TaskSubmitReq) *polloRequest {
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		return body
+	}
+
+	t.Run("metadata.duration (float64 from JSON) -> i2v length", func(t *testing.T) {
+		body := build(t, &relaycommon.TaskSubmitReq{Prompt: "x", Image: "https://x/a.jpg",
+			Metadata: map[string]any{"duration": float64(8)}})
+		if body.Input.Length != 8 {
+			t.Fatalf("metadata.duration=8 must drive length, got %d", body.Input.Length)
+		}
+	})
+
+	t.Run("metadata.duration -> ref2video duration", func(t *testing.T) {
+		body := build(t, &relaycommon.TaskSubmitReq{Prompt: "x",
+			Metadata: map[string]any{"duration": float64(10), "content": []any{
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://x/a.jpg"}, "role": "reference_image"},
+			}}})
+		if body.Input.Duration != 10 {
+			t.Fatalf("metadata.duration=10 must drive ref duration, got %d", body.Input.Duration)
+		}
+	})
+
+	t.Run("top-level seconds beats metadata.duration", func(t *testing.T) {
+		body := build(t, &relaycommon.TaskSubmitReq{Prompt: "x", Seconds: "6", Image: "https://x/a.jpg",
+			Metadata: map[string]any{"duration": float64(8)}})
+		if body.Input.Length != 6 {
+			t.Fatalf("top-level seconds must win, got length=%d", body.Input.Length)
 		}
 	})
 }
