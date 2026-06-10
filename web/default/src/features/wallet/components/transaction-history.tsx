@@ -187,7 +187,10 @@ export function TransactionHistory() {
                                   <CopyBtn text={record.username} />
                                 </div>
                                 {record.email && (
-                                  <span className='text-muted-foreground text-xs max-w-[200px] truncate'>{record.email}</span>
+                                  <div className='flex items-center gap-1'>
+                                    <span className='text-muted-foreground text-xs max-w-[200px] truncate'>{record.email}</span>
+                                    <CopyBtn text={record.email} />
+                                  </div>
                                 )}
                               </div>
                             : <span className='text-muted-foreground text-xs'>—</span>}
