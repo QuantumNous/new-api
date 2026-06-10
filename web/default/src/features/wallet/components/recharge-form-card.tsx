@@ -44,6 +44,11 @@ import {
   getMinTopupAmount,
   calculatePresetPricing,
 } from '../lib'
+import {
+  EMPTY_INVOICE_PROFILE,
+  normalizeInvoiceProfile,
+  validateInvoiceProfile,
+} from '../lib/invoice'
 import type {
   PaymentMethod,
   PaymentOptions,
@@ -86,47 +91,6 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
-}
-
-const EMPTY_INVOICE_PROFILE: InvoiceProfile = {
-  company_name: '',
-  billing_email: '',
-  tax_id_type: '',
-  tax_id: '',
-  country: '',
-  state: '',
-  city: '',
-  address_line1: '',
-  address_line2: '',
-  postal_code: '',
-  phone: '',
-}
-
-function normalizeInvoiceProfile(profile: InvoiceProfile): InvoiceProfile {
-  return {
-    company_name: profile.company_name.trim(),
-    billing_email: profile.billing_email.trim(),
-    tax_id_type: profile.tax_id_type?.trim(),
-    tax_id: profile.tax_id?.trim(),
-    country: profile.country.trim().toUpperCase(),
-    state: profile.state?.trim(),
-    city: profile.city?.trim(),
-    address_line1: profile.address_line1.trim(),
-    address_line2: profile.address_line2?.trim(),
-    postal_code: profile.postal_code?.trim(),
-    phone: profile.phone?.trim(),
-  }
-}
-
-function validateInvoiceProfile(profile: InvoiceProfile): string | null {
-  const normalized = normalizeInvoiceProfile(profile)
-  if (!normalized.company_name) return 'Company name is required'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.billing_email)) {
-    return 'Billing email is invalid'
-  }
-  if (!normalized.country) return 'Country is required'
-  if (!normalized.address_line1) return 'Address is required'
-  return null
 }
 
 export function RechargeFormCard({

@@ -14,23 +14,19 @@ import (
 
 var invoiceEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
-type invoiceProfileRequest struct {
-	model.InvoiceProfileFields
-}
-
 func validateInvoiceProfile(fields model.InvoiceProfileFields) (model.InvoiceProfileFields, error) {
-	fields = model.NormalizeInvoiceProfileFields(fields)
+	fields = normalizeInvoiceProfileForRequest(fields)
 	if fields.CompanyName == "" {
-		return fields, errInvoiceProfile("公司抬头不能为空")
+		return fields, errInvoiceProfile("Company name is required")
 	}
 	if fields.BillingEmail == "" || !invoiceEmailPattern.MatchString(fields.BillingEmail) {
-		return fields, errInvoiceProfile("开票邮箱无效")
+		return fields, errInvoiceProfile("Billing email is invalid")
 	}
 	if fields.Country == "" {
-		return fields, errInvoiceProfile("国家不能为空")
+		return fields, errInvoiceProfile("Country is required")
 	}
 	if fields.AddressLine1 == "" {
-		return fields, errInvoiceProfile("地址不能为空")
+		return fields, errInvoiceProfile("Address is required")
 	}
 	return fields, nil
 }
@@ -83,20 +79,20 @@ func AdminUpdateUserInvoiceProfile(c *gin.Context) {
 func parseUserIDParam(c *gin.Context) int {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效的用户ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid user ID"})
 		return 0
 	}
 	return id
 }
 
 func saveInvoiceProfile(c *gin.Context, userId int) {
-	var req invoiceProfileRequest
+	var req model.InvoiceProfileFields
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, "Invalid request parameters")
 		return
 	}
 
-	fields, err := validateInvoiceProfile(req.InvoiceProfileFields)
+	fields, err := validateInvoiceProfile(req)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
@@ -113,7 +109,7 @@ func saveInvoiceProfile(c *gin.Context, userId int) {
 	common.ApiSuccess(c, profile)
 }
 
-func buildInvoiceProfileFromRequest(fields model.InvoiceProfileFields) model.InvoiceProfileFields {
+func normalizeInvoiceProfileForRequest(fields model.InvoiceProfileFields) model.InvoiceProfileFields {
 	fields = model.NormalizeInvoiceProfileFields(fields)
 	fields.TaxIDType = strings.ToLower(fields.TaxIDType)
 	fields.Country = strings.ToUpper(fields.Country)

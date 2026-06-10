@@ -273,7 +273,11 @@ export function UsersMutateDrawer({
         })
         toast.success(t('Invoice profile saved'))
       } else {
-        toast.error(result.message || t('Failed to save invoice profile'))
+        toast.error(
+          result.message
+            ? t(result.message)
+            : t('Failed to save invoice profile')
+        )
       }
     } catch (_error) {
       toast.error(t('Failed to save invoice profile'))

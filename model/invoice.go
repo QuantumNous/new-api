@@ -162,6 +162,36 @@ func UpdatePaymentInvoiceStatus(tradeNo string, status string) error {
 	return nil
 }
 
+func UpdatePaymentInvoiceProfile(tradeNo string, fields InvoiceProfileFields, status string) error {
+	fields = NormalizeInvoiceProfileFields(fields)
+	updates := map[string]interface{}{
+		"invoice_requested": true,
+		"company_name":      fields.CompanyName,
+		"billing_email":     fields.BillingEmail,
+		"tax_id_type":       fields.TaxIDType,
+		"tax_id":            fields.TaxID,
+		"country":           fields.Country,
+		"state":             fields.State,
+		"city":              fields.City,
+		"address_line1":     fields.AddressLine1,
+		"address_line2":     fields.AddressLine2,
+		"postal_code":       fields.PostalCode,
+		"phone":             fields.Phone,
+	}
+	if strings.TrimSpace(status) != "" {
+		updates["invoice_status"] = strings.TrimSpace(status)
+	}
+
+	result := DB.Model(&PaymentInvoice{}).Where("trade_no = ?", tradeNo).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrPaymentInvoiceNotFound
+	}
+	return nil
+}
+
 type StripeInvoiceUpdate struct {
 	StripeCustomerId        string
 	StripeCheckoutSessionId string

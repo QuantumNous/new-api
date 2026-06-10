@@ -70,6 +70,7 @@ export type PaddlePaymentResponse = ApiResponse<
 >
 export type PaddleTopUpStatusResponse = ApiResponse<PaddleTopUpStatus>
 export type InvoiceProfileResponse = ApiResponse<InvoiceProfile | null>
+export type RequestInvoiceResponse = ApiResponse<PaymentInvoice | null>
 
 export interface PaddleTopUpStatus {
   order_id: string

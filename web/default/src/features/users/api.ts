@@ -145,7 +145,9 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
 export async function getUserInvoiceProfile(
   id: number
 ): Promise<ApiResponse<UserInvoiceProfile | null>> {
-  const res = await api.get(`/api/user/${id}/invoice-profile`)
+  const res = await api.get(`/api/user/${id}/invoice-profile`, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -153,7 +155,9 @@ export async function updateUserInvoiceProfile(
   id: number,
   data: UserInvoiceProfile
 ): Promise<ApiResponse<UserInvoiceProfile>> {
-  const res = await api.put(`/api/user/${id}/invoice-profile`, data)
+  const res = await api.put(`/api/user/${id}/invoice-profile`, data, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

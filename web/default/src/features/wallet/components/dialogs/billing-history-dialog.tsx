@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Search,
   Copy,
@@ -24,8 +24,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  FileText,
+  Loader2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -55,6 +58,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import type { StatusVariant } from '@/components/status-badge'
+import { getInvoiceProfile, isApiSuccess } from '../../api'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,
@@ -62,10 +66,16 @@ import {
   formatTimestamp,
 } from '../../lib/billing'
 import {
+  EMPTY_INVOICE_PROFILE,
+  normalizeInvoiceProfile,
+  validateInvoiceProfile,
+} from '../../lib/invoice'
+import {
   buildPaddleWalletCheckoutUrlWithOrder,
   isPaddlePayment,
+  isStripePayment,
 } from '../../lib/payment'
-import type { TopupRecord } from '../../types'
+import type { InvoiceProfile, TopupRecord } from '../../types'
 
 interface BillingHistoryDialogProps {
   open: boolean
@@ -81,6 +91,53 @@ function isPendingPaddleRecord(record: TopupRecord): boolean {
     isPaddlePayment(record.payment_method?.trim().toLowerCase() ?? '') ||
     isPaddlePayment(record.payment_provider?.trim().toLowerCase() ?? '')
   )
+}
+
+function isPaidStripeRecord(record: TopupRecord): boolean {
+  if (record.status !== 'success') {
+    return false
+  }
+
+  return (
+    isStripePayment(record.payment_method?.trim().toLowerCase() ?? '') ||
+    isStripePayment(record.payment_provider?.trim().toLowerCase() ?? '')
+  )
+}
+
+function hasExistingInvoice(record: TopupRecord): boolean {
+  const invoice = record.invoice
+  if (!invoice) {
+    return false
+  }
+
+  return (
+    invoice.invoice_requested === true ||
+    !!invoice.stripe_invoice_id?.trim() ||
+    !!invoice.stripe_invoice_url?.trim() ||
+    !!invoice.stripe_invoice_pdf?.trim()
+  )
+}
+
+function hasStripeInvoiceDocument(record: TopupRecord): boolean {
+  const invoice = record.invoice
+  if (!invoice) {
+    return false
+  }
+
+  return (
+    !!invoice.stripe_invoice_id?.trim() ||
+    !!invoice.stripe_invoice_url?.trim() ||
+    !!invoice.stripe_invoice_pdf?.trim()
+  )
+}
+
+function canRetryInvoice(record: TopupRecord): boolean {
+  const invoice = record.invoice
+  if (!invoice || hasStripeInvoiceDocument(record)) {
+    return false
+  }
+
+  return invoice.invoice_status === 'failed'
 }
 
 function getPaddleGatewayTradeNo(record: TopupRecord): string {
@@ -125,14 +182,21 @@ export function BillingHistoryDialog({
     keyword,
     loading,
     completing,
+    requestingInvoice,
     isAdmin,
     handlePageChange,
     handlePageSizeChange,
     handleSearch,
     handleCompleteOrder,
+    handleRequestInvoice,
   } = useBillingHistory()
 
   const [confirmTradeNo, setConfirmTradeNo] = useState<string | null>(null)
+  const [invoiceTradeNo, setInvoiceTradeNo] = useState<string | null>(null)
+  const [invoiceProfile, setInvoiceProfile] = useState<InvoiceProfile>(
+    EMPTY_INVOICE_PROFILE
+  )
+  const [invoiceProfileLoading, setInvoiceProfileLoading] = useState(false)
   const { copyToClipboard, copiedText } = useCopyToClipboard({ notify: false })
 
   const totalPages = Math.ceil(total / pageSize)
@@ -143,6 +207,74 @@ export function BillingHistoryDialog({
       if (success) {
         setConfirmTradeNo(null)
       }
+    }
+  }
+
+  useEffect(() => {
+    if (!invoiceTradeNo) {
+      return
+    }
+
+    let cancelled = false
+    setInvoiceProfile(EMPTY_INVOICE_PROFILE)
+    setInvoiceProfileLoading(true)
+    getInvoiceProfile()
+      .then((response) => {
+        if (cancelled) {
+          return
+        }
+        if (isApiSuccess(response) && response.data) {
+          setInvoiceProfile({
+            ...EMPTY_INVOICE_PROFILE,
+            ...response.data,
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(t('Failed to load invoice profile'))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInvoiceProfileLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [invoiceTradeNo, t])
+
+  const updateInvoiceField = (
+    field: keyof InvoiceProfile,
+    value: string
+  ): void => {
+    setInvoiceProfile((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleOpenInvoiceRequest = (record: TopupRecord): void => {
+    setInvoiceTradeNo(record.trade_no)
+  }
+
+  const handleConfirmRequestInvoice = async (): Promise<void> => {
+    if (!invoiceTradeNo) {
+      return
+    }
+
+    const normalized = normalizeInvoiceProfile(invoiceProfile)
+    const validationMessage = validateInvoiceProfile(normalized)
+    if (validationMessage) {
+      toast.error(t(validationMessage))
+      return
+    }
+
+    const success = await handleRequestInvoice(invoiceTradeNo, normalized)
+    if (success) {
+      setInvoiceTradeNo(null)
     }
   }
 
@@ -251,8 +383,13 @@ export function BillingHistoryDialog({
                   const hasInvoice = invoice?.invoice_requested === true
                   const invoiceUrl = invoice?.stripe_invoice_url?.trim()
                   const invoicePdf = invoice?.stripe_invoice_pdf?.trim()
+                  const canRequestInvoice =
+                    !isAdmin &&
+                    isPaidStripeRecord(record) &&
+                    (!hasExistingInvoice(record) || canRetryInvoice(record))
                   const showActions =
                     canReopenPaddleCheckout ||
+                    canRequestInvoice ||
                     (isAdmin && record.status === 'pending') ||
                     !!invoiceUrl ||
                     !!invoicePdf
@@ -408,6 +545,16 @@ export function BillingHistoryDialog({
                               {t('Invoice PDF')}
                             </Button>
                           )}
+                          {canRequestInvoice && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              onClick={() => handleOpenInvoiceRequest(record)}
+                            >
+                              <FileText className='mr-1.5 h-3.5 w-3.5' />
+                              {t('Request invoice')}
+                            </Button>
+                          )}
                           {canReopenPaddleCheckout && (
                             <Button
                               size='sm'
@@ -497,6 +644,179 @@ export function BillingHistoryDialog({
               disabled={completing}
             >
               {completing ? t('Processing...') : t('Confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Request Invoice Dialog */}
+      <AlertDialog
+        open={!!invoiceTradeNo}
+        onOpenChange={(open) => !open && setInvoiceTradeNo(null)}
+      >
+        <AlertDialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-2xl'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Request invoice')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('Enter billing details for this paid Stripe topup order.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <ScrollArea className='max-h-[58vh] pr-3'>
+            {invoiceProfileLoading ? (
+              <div className='grid gap-3 sm:grid-cols-2'>
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <Skeleton key={index} className='h-16 rounded-md' />
+                ))}
+              </div>
+            ) : (
+              <div className='grid gap-3 sm:grid-cols-2'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-company-name'>
+                    {t('Company name')}
+                  </Label>
+                  <Input
+                    id='request-invoice-company-name'
+                    value={invoiceProfile.company_name}
+                    onChange={(event) =>
+                      updateInvoiceField('company_name', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-billing-email'>
+                    {t('Billing email')}
+                  </Label>
+                  <Input
+                    id='request-invoice-billing-email'
+                    type='email'
+                    value={invoiceProfile.billing_email}
+                    onChange={(event) =>
+                      updateInvoiceField('billing_email', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-country'>
+                    {t('Country')}
+                  </Label>
+                  <Input
+                    id='request-invoice-country'
+                    value={invoiceProfile.country}
+                    onChange={(event) =>
+                      updateInvoiceField('country', event.target.value)
+                    }
+                    placeholder='US'
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-tax-id-type'>
+                    {t('Tax ID type')}
+                  </Label>
+                  <Input
+                    id='request-invoice-tax-id-type'
+                    value={invoiceProfile.tax_id_type || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('tax_id_type', event.target.value)
+                    }
+                    placeholder='us_ein'
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-tax-id'>{t('Tax ID')}</Label>
+                  <Input
+                    id='request-invoice-tax-id'
+                    value={invoiceProfile.tax_id || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('tax_id', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-state'>{t('State')}</Label>
+                  <Input
+                    id='request-invoice-state'
+                    value={invoiceProfile.state || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('state', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5 sm:col-span-2'>
+                  <Label htmlFor='request-invoice-address-line1'>
+                    {t('Address')}
+                  </Label>
+                  <Input
+                    id='request-invoice-address-line1'
+                    value={invoiceProfile.address_line1}
+                    onChange={(event) =>
+                      updateInvoiceField('address_line1', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5 sm:col-span-2'>
+                  <Label htmlFor='request-invoice-address-line2'>
+                    {t('Address line 2')}
+                  </Label>
+                  <Input
+                    id='request-invoice-address-line2'
+                    value={invoiceProfile.address_line2 || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('address_line2', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-city'>{t('City')}</Label>
+                  <Input
+                    id='request-invoice-city'
+                    value={invoiceProfile.city || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('city', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='request-invoice-postal-code'>
+                    {t('Postal code')}
+                  </Label>
+                  <Input
+                    id='request-invoice-postal-code'
+                    value={invoiceProfile.postal_code || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('postal_code', event.target.value)
+                    }
+                  />
+                </div>
+                <div className='space-y-1.5 sm:col-span-2'>
+                  <Label htmlFor='request-invoice-phone'>{t('Phone')}</Label>
+                  <Input
+                    id='request-invoice-phone'
+                    value={invoiceProfile.phone || ''}
+                    onChange={(event) =>
+                      updateInvoiceField('phone', event.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={requestingInvoice}>
+              {t('Cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                void handleConfirmRequestInvoice()
+              }}
+              disabled={requestingInvoice || invoiceProfileLoading}
+            >
+              {requestingInvoice && (
+                <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+              )}
+              {requestingInvoice ? t('Processing...') : t('Request invoice')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

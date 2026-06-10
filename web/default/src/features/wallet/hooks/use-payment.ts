@@ -49,11 +49,11 @@ import type {
 
 function getPaymentErrorMessage(response: ApiResponse): string {
   if (typeof response.data === 'string' && response.data.trim()) {
-    return response.data
+    return i18next.t(response.data)
   }
 
   if (response.message && response.message !== 'error') {
-    return response.message
+    return i18next.t(response.message)
   }
 
   return i18next.t('Payment request failed')
