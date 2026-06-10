@@ -206,6 +206,12 @@ export default function FeedbackPage() {
     },
     { title: t('消息数'), dataIndex: 'message_count', width: 80 },
     {
+      title: t('创建时间'),
+      dataIndex: 'created_at',
+      width: 170,
+      render: (v) => new Date(v).toLocaleString(),
+    },
+    {
       title: t('最后回复'),
       dataIndex: 'last_reply_at',
       width: 170,

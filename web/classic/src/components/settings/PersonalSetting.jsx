@@ -43,7 +43,6 @@ import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import KYCSetting from './personal/cards/KYCSetting';
 import EnterpriseSetting from './personal/cards/EnterpriseSetting';
-import FeedbackConsult from './personal/cards/FeedbackConsult';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
@@ -615,9 +614,6 @@ const PersonalSetting = () => {
 
               {/* 偏好设置（语言等） */}
               <PreferencesSettings t={t} />
-
-              {/* 我的工单（建议及咨询） */}
-              <FeedbackConsult />
             </div>
 
             {/* 右侧：通知设置 + 实名认证 */}

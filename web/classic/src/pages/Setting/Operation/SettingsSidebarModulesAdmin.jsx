@@ -30,6 +30,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
+import { mergeAdminConfig } from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
@@ -57,6 +58,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       enabled: true,
       topup: true,
       personal: true,
+      myfeedback: true,
     },
     admin: {
       enabled: true,
@@ -65,6 +67,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       deployment: true,
       redemption: true,
       user: true,
+      feedback: true,
       kyc: true,
       enterprise: true,
       subscription: true,
@@ -121,6 +124,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         enabled: true,
         topup: true,
         personal: true,
+        myfeedback: true,
       },
       admin: {
         enabled: true,
@@ -129,6 +133,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         deployment: true,
         redemption: true,
         user: true,
+        feedback: true,
         kyc: true,
         enterprise: true,
         subscription: true,
@@ -179,7 +184,11 @@ export default function SettingsSidebarModulesAdmin(props) {
     // 从 props.options 中获取配置
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
-        const modules = JSON.parse(props.options.SidebarModulesAdmin);
+        // 与运行时（useSidebar）同一套 merge：已存配置缺少新模块键时用默认补齐，
+        // 避免新增模块（如 myfeedback）在开关上显示为关、却实际可见，甚至误存盘隐藏。
+        const modules = mergeAdminConfig(
+          JSON.parse(props.options.SidebarModulesAdmin),
+        );
         setSidebarModulesAdmin(modules);
       } catch (error) {
         // 使用默认配置
@@ -193,7 +202,12 @@ export default function SettingsSidebarModulesAdmin(props) {
             midjourney: true,
             task: true,
           },
-          personal: { enabled: true, topup: true, personal: true },
+          personal: {
+            enabled: true,
+            topup: true,
+            personal: true,
+            myfeedback: true,
+          },
           admin: {
             enabled: true,
             channel: true,
@@ -201,6 +215,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             deployment: true,
             redemption: true,
             user: true,
+            feedback: true,
             kyc: true,
             enterprise: true,
             subscription: true,
@@ -255,6 +270,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           title: t('个人设置'),
           description: t('个人信息设置'),
         },
+        {
+          key: 'myfeedback',
+          title: t('我的工单'),
+          description: t('用户查看与提交自己的工单'),
+        },
       ],
     },
     {
@@ -285,8 +305,21 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
-        { key: 'kyc', title: t('实名认证'), description: t('实名认证审核管理') },
-        { key: 'enterprise', title: t('企业认证'), description: t('企业认证审核管理') },
+        {
+          key: 'feedback',
+          title: t('工单管理'),
+          description: t('查看与回复所有用户的工单'),
+        },
+        {
+          key: 'kyc',
+          title: t('实名认证'),
+          description: t('实名认证审核管理'),
+        },
+        {
+          key: 'enterprise',
+          title: t('企业认证'),
+          description: t('企业认证审核管理'),
+        },
         {
           key: 'setting',
           title: t('系统设置'),

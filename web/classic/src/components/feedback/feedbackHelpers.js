@@ -32,6 +32,26 @@ export const FEEDBACK_CATEGORY_OPTIONS = Object.entries(FEEDBACK_CATEGORY).map(
   ([value, { label }]) => ({ value: Number(value), label }),
 );
 
+// 把「选择」或「拖拽」进来的文件统一处理成 base64[]：自动过滤非图片、按剩余
+// 配额(FEEDBACK_MAX_IMAGES - currentCount)裁剪、逐张压缩。点击上传与拖拽上传共用。
+// 返回 { encoded, error }；error 为待 t() 翻译的文案 key（无错误则 undefined）。
+export async function encodeFeedbackImageFiles(fileList, currentCount) {
+  const files = Array.from(fileList || []).filter((f) =>
+    f.type ? f.type.startsWith('image/') : true,
+  );
+  if (files.length === 0) return { encoded: [] };
+  const room = FEEDBACK_MAX_IMAGES - currentCount;
+  if (room <= 0) return { encoded: [], error: '最多上传 3 张图片' };
+  try {
+    const encoded = await Promise.all(
+      files.slice(0, room).map((f) => compressImageToBase64(f)),
+    );
+    return { encoded };
+  } catch {
+    return { encoded: [], error: '图片处理失败' };
+  }
+}
+
 // 将图片 File 压缩为纯 base64（无 data: 前缀）。与 KYC/企业认证同一套：
 // 缩放到最长边 2400px、JPEG 0.88，超 1.5MB 再降一档质量重试一次。
 export async function compressImageToBase64(
