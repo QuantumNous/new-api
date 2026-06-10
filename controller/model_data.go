@@ -152,6 +152,11 @@ func GetModelData(c *gin.Context) {
 			&rows[i].InputPrice, &rows[i].OutputPrice, &rows[i].CachePrice, &rows[i].CacheCreationPrice,
 			&rows[i].GroupRatio, &rows[i].PricingSource,
 		)
+		applyGlobalModelPricingToRow(
+			modelName,
+			&rows[i].InputPrice, &rows[i].OutputPrice, &rows[i].CachePrice, &rows[i].CacheCreationPrice,
+			&rows[i].GroupRatio, &rows[i].PricingSource,
+		)
 	}
 
 	if len(rows) == 0 {
@@ -439,6 +444,43 @@ func applyModelMappingPricingToRow(
 	}
 }
 
+// applyGlobalModelPricingToRow fills pricing from System Settings → Group & Model Pricing
+// when channel_model_pricings has no row (common for direct MiniMax / self-hosted channels).
+func applyGlobalModelPricingToRow(
+	canonical string,
+	inputPrice, outputPrice, cachePrice, cacheCreationPrice, groupRatio **float64,
+	pricingSource **string,
+) {
+	if inputPrice != nil && *inputPrice != nil && **inputPrice > 0 {
+		return
+	}
+	in, out, cache, cacheCreate, ok := service.GlobalModelPricingUSD(canonical)
+	if !ok || in <= 0 {
+		return
+	}
+	*inputPrice = &in
+	if outputPrice != nil && out > 0 {
+		o := out
+		*outputPrice = &o
+	}
+	if cachePrice != nil && cache > 0 {
+		cp := cache
+		*cachePrice = &cp
+	}
+	if cacheCreationPrice != nil && cacheCreate > 0 {
+		ccp := cacheCreate
+		*cacheCreationPrice = &ccp
+	}
+	if groupRatio != nil && *groupRatio == nil {
+		gr := 1.0
+		*groupRatio = &gr
+	}
+	if pricingSource != nil && (*pricingSource == nil || **pricingSource == "") {
+		src := "global"
+		*pricingSource = &src
+	}
+}
+
 // PublicMarketplaceItem is the public-facing shape returned by GetPublicMarketplace.
 // It omits internal/admin fields (hub_price, model_price, group_ratio, pricing_source, etc.).
 type PublicMarketplaceItem struct {
@@ -535,6 +577,11 @@ func GetPublicMarketplace(c *gin.Context) {
 	for i := range rows {
 		applyModelMappingPricingToRow(
 			rows[i].ChannelID, rows[i].ModelMapping, modelName,
+			&rows[i].InputPrice, &rows[i].OutputPrice, nil, nil,
+			&rows[i].GroupRatio, nil,
+		)
+		applyGlobalModelPricingToRow(
+			modelName,
 			&rows[i].InputPrice, &rows[i].OutputPrice, nil, nil,
 			&rows[i].GroupRatio, nil,
 		)
