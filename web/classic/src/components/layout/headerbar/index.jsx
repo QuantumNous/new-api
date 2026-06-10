@@ -34,7 +34,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     isMobile,
     collapsed,
     logoLoaded,
-    currentLang,
     isLoading,
     systemName,
     logo,
@@ -47,7 +46,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     headerNavModules,
     pricingRequireAuth,
     logout,
-    handleLanguageChange,
     handleThemeToggle,
     handleMobileMenuToggle,
     navigate,
@@ -113,8 +111,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             onNoticeOpen={handleNoticeOpen}
             theme={theme}
             onThemeToggle={handleThemeToggle}
-            currentLang={currentLang}
-            onLanguageChange={handleLanguageChange}
             userState={userState}
             isLoading={isLoading}
             isMobile={isMobile}
