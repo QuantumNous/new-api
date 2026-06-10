@@ -34,6 +34,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			blogRoute.GET("/list", controller.GetBlogList)
 			blogRoute.GET("/detail/:slug", controller.GetBlogPost)
+			blogRoute.GET("/categories", controller.GetBlogCategories)
 		}
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)

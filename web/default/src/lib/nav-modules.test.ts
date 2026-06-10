@@ -16,24 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { BlogCategory } from './types'
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
+import { parseHeaderNavModules } from './nav-modules'
 
-export const BLOG_PAGE_SIZE = 18
+describe('header navigation modules', () => {
+  test('keeps Blog visible by default', () => {
+    assert.equal(parseHeaderNavModules('').blog, true)
+  })
 
-export function normalizeBlogCategories(
-  categories: BlogCategory[]
-): Required<BlogCategory>[] {
-  return categories.map((category) => ({
-    ...category,
-    description: category.description || '',
-  }))
-}
-
-export function getBlogCategory(
-  categories: BlogCategory[] | undefined,
-  slug: string
-): Required<BlogCategory> | undefined {
-  return normalizeBlogCategories(categories ?? []).find(
-    (category) => category.slug === slug
-  )
-}
+  test('allows Blog to be disabled explicitly', () => {
+    assert.equal(parseHeaderNavModules({ blog: false }).blog, false)
+  })
+})

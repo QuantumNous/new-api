@@ -16,24 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
+import { normalizeBlogCategories } from './constants'
 import type { BlogCategory } from './types'
 
-export const BLOG_PAGE_SIZE = 18
+describe('blog category normalization', () => {
+  test('keeps CMS categories without inventing missing descriptions', () => {
+    const categories = normalizeBlogCategories([
+      {
+        id: 364,
+        slug: 'gateway-comparisons',
+        name: 'Gateway Comparisons',
+      },
+    ] satisfies BlogCategory[])
 
-export function normalizeBlogCategories(
-  categories: BlogCategory[]
-): Required<BlogCategory>[] {
-  return categories.map((category) => ({
-    ...category,
-    description: category.description || '',
-  }))
-}
-
-export function getBlogCategory(
-  categories: BlogCategory[] | undefined,
-  slug: string
-): Required<BlogCategory> | undefined {
-  return normalizeBlogCategories(categories ?? []).find(
-    (category) => category.slug === slug
-  )
-}
+    assert.deepEqual(categories, [
+      {
+        id: 364,
+        slug: 'gateway-comparisons',
+        name: 'Gateway Comparisons',
+        description: '',
+      },
+    ])
+  })
+})

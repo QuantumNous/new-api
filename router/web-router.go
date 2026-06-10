@@ -29,6 +29,9 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
+	router.GET("/robots.txt", controller.GetRobotsTxt)
+	router.GET("/llms.txt", controller.GetLLMsTxt)
+	router.GET("/sitemap.xml", controller.GetSitemapXML)
 	router.Use(static.Serve("/", themeFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
