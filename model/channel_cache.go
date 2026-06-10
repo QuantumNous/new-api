@@ -120,17 +120,6 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}
 
-	// quota 冷却渠道整体移出候选，优先级桶随之重排；全部冷却时放行兜底
-	availableChannels := make([]int, 0, len(channels))
-	for _, channelId := range channels {
-		if !IsChannelInQuotaCooldown(channelId) {
-			availableChannels = append(availableChannels, channelId)
-		}
-	}
-	if len(availableChannels) > 0 {
-		channels = availableChannels
-	}
-
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
@@ -148,24 +137,41 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	if retry >= len(uniquePriorities) {
 		retry = len(uniquePriorities) - 1
 	}
-	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
-	var sumWeight = 0
-	var targetChannels []*Channel
-	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
-				targetChannels = append(targetChannels, channel)
+	// 优先级桶序基于全量渠道保持稳定（避免冷却渠道消失导致 retry 索引漂移跳桶）。
+	// quota 冷却只在桶内过滤：目标桶被滤空时顺延到更低优先级桶；
+	// 所有剩余桶都被滤空时，放行目标桶的冷却渠道兜底（被动探活）。
+	collectBucket := func(targetPriority int64, skipCooldown bool) (int, []*Channel) {
+		sumWeight := 0
+		var bucket []*Channel
+		for _, channelId := range channels {
+			channel, ok := channelsIDM[channelId]
+			if !ok || channel.GetPriority() != targetPriority {
+				continue
 			}
-		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			if skipCooldown && IsChannelInQuotaCooldown(channel.Id) {
+				continue
+			}
+			sumWeight += channel.GetWeight()
+			bucket = append(bucket, channel)
 		}
+		return sumWeight, bucket
+	}
+
+	var sumWeight int
+	var targetChannels []*Channel
+	for prioIdx := retry; prioIdx < len(sortedUniquePriorities); prioIdx++ {
+		sumWeight, targetChannels = collectBucket(int64(sortedUniquePriorities[prioIdx]), true)
+		if len(targetChannels) > 0 {
+			break
+		}
+	}
+	if len(targetChannels) == 0 {
+		sumWeight, targetChannels = collectBucket(int64(sortedUniquePriorities[retry]), false)
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, sortedUniquePriorities[retry]))
 	}
 
 	// smoothing factor and adjustment
