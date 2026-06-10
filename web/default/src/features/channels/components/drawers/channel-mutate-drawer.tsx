@@ -3261,6 +3261,32 @@ export function ChannelMutateDrawer({
                         )}
                       />
 
+                      {currentType === 57 && (
+                        <FormField
+                          control={form.control}
+                          name='image_carrier_model'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Image Carrier Model')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'Leave blank to use default gpt-5.4'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Text model that carries image generation requests (Codex channel only; leave blank to use global/default)'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
                       {MODEL_FETCHABLE_TYPES.has(currentType) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
