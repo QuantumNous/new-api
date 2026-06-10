@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -57,6 +58,8 @@ type ModelDataItem struct {
 	FingerprintHistory         []DetectPoint `json:"fingerprint_history"`          // last 24 fingerprint runs (newest first)
 	UptimeHistory              []DetectPoint `json:"uptime_history"`               // last 24 uptime probes (newest first)
 	LatencyMedianMs            float64       `json:"latency_median_ms"`            // median latency over uptime probes in modelDataLatencyWindowSec; 0 if no samples
+	LatencyP95Ms               float64       `json:"latency_p95_ms"`               // 95th-percentile latency over same uptime probes; 0 if no samples
+	LatencyCVPct               float64       `json:"latency_cv_pct"`               // stddev/median ×100 (relative jitter); 0 if <2 samples or median=0
 	Status                     int           `json:"status"`                       // 1 enabled / 2 manual-disabled / 3 auto-disabled (routing algorithm 0.1)
 	ConsecutiveFingerprintPass int           `json:"consecutive_fingerprint_pass"` // recovery counter; only meaningful when status=3
 	ModelEnabled               bool          `json:"model_enabled"`                // abilities.enabled for this (channel, model) — false = disabled for this model only
@@ -343,6 +346,8 @@ func GetModelData(c *gin.Context) {
 			FingerprintHistory:         fp,
 			UptimeHistory:              up,
 			LatencyMedianMs:            medianFloat64(latencies),
+			LatencyP95Ms:               percentileFloat64(latencies, 0.95),
+			LatencyCVPct:               cvPercent(latencies),
 			Status:                     r.Status,
 			ConsecutiveFingerprintPass: r.ConsecutiveFingerprintPass,
 			ModelEnabled:               r.ModelEnabled,
@@ -885,4 +890,49 @@ func medianFloat64(values []float64) float64 {
 		return sorted[n/2]
 	}
 	return (sorted[n/2-1] + sorted[n/2]) / 2
+}
+
+// percentileFloat64 returns the p-th percentile (nearest-rank), matching the
+// Flask detect backend's _latency_stats p95 convention. p in [0,1].
+func percentileFloat64(values []float64, p float64) float64 {
+	n := len(values)
+	if n == 0 {
+		return 0
+	}
+	sorted := make([]float64, n)
+	copy(sorted, values)
+	sort.Float64s(sorted)
+	idx := int(math.Round(p * float64(n-1)))
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > n-1 {
+		idx = n - 1
+	}
+	return sorted[idx]
+}
+
+// cvPercent returns the coefficient of variation as a percentage: sample
+// stddev / median ×100 (relative jitter). Returns 0 for <2 samples or median<=0.
+func cvPercent(values []float64) float64 {
+	n := len(values)
+	if n < 2 {
+		return 0
+	}
+	med := medianFloat64(values)
+	if med <= 0 {
+		return 0
+	}
+	var mean float64
+	for _, v := range values {
+		mean += v
+	}
+	mean /= float64(n)
+	var ss float64
+	for _, v := range values {
+		d := v - mean
+		ss += d * d
+	}
+	std := math.Sqrt(ss / float64(n-1))
+	return std / med * 100
 }

@@ -67,6 +67,8 @@ interface ModelDataItem {
   fingerprint_history: DetectPoint[]
   uptime_history: DetectPoint[]
   latency_median_ms: number
+  latency_p95_ms: number
+  latency_cv_pct: number
   status: number  // 1 enabled / 2 manual-disabled / 3 auto-disabled
   consecutive_fingerprint_pass: number  // recovery counter; meaningful when status=3
   model_enabled: boolean  // abilities.enabled for this (channel, model) pair
@@ -806,6 +808,8 @@ export function ModelDataPage() {
                   hub&nbsp;价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>P95</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>波动</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>检测结果</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>运行状态</th>
                 <th className='text-center px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>操作</th>
@@ -814,12 +818,12 @@ export function ModelDataPage() {
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={14} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={14} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
@@ -940,6 +944,16 @@ export function ModelDataPage() {
                     <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
                     <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
                       {item.latency_median_ms > 0 ? `${(item.latency_median_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
+                      {item.latency_p95_ms > 0 ? `${(item.latency_p95_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums ${dim}`}>
+                      {item.latency_cv_pct > 0 ? (
+                        <span className={item.latency_cv_pct > 60 ? 'text-rose-500' : item.latency_cv_pct > 30 ? 'text-amber-500' : 'text-gray-500'}>
+                          {item.latency_cv_pct.toFixed(0)}%
+                        </span>
+                      ) : <span className='text-gray-300'>—</span>}
                     </td>
                     <td className={`px-3 py-2.5 ${dim}`}>
                       <DotGrid
