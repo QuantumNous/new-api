@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 )
@@ -30,6 +31,14 @@ var (
 func FetchChannelPricing(channel *model.Channel) {
 	ctx := context.Background()
 	if channel == nil || channel.BaseURL == nil || *channel.BaseURL == "" {
+		return
+	}
+
+	if channel.Type == constant.ChannelTypeOpenRouter {
+		if fetchOpenRouterChannelPricing(ctx, channel) {
+			return
+		}
+		fetchModelPriceRatioFallback(ctx, channel)
 		return
 	}
 
