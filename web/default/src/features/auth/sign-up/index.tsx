@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useEffect } from 'react'
 import { useStatus } from '@/hooks/use-status'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
@@ -26,6 +28,13 @@ import { SignUpForm } from './components/sign-up-form'
 export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
+
+  useEffect(() => {
+    trackAdsFunnelEvent('flatkey_signup_page_view', {
+      path: window.location.pathname,
+      lng: new URLSearchParams(window.location.search).get('lng') || undefined,
+    })
+  }, [])
 
   return (
     <AuthLayout>

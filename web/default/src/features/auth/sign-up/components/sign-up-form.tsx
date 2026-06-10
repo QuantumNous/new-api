@@ -23,7 +23,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { trackSignupConversion, ensureGtagLoaded } from '@/lib/analytics/gtag'
+import {
+  trackAdsFunnelEvent,
+  trackSignupConversion,
+  ensureGtagLoaded,
+} from '@/lib/analytics/gtag'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -128,19 +132,35 @@ export function SignUpForm({
   }, [])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+    trackAdsFunnelEvent('flatkey_signup_submit', {
+      method: 'password',
+      has_email: Boolean(data.email),
+    })
+
     // Validate email verification if required
     if (emailVerificationRequired) {
       if (!data.email) {
+        trackAdsFunnelEvent('flatkey_signup_validation_error', {
+          reason: 'missing_email',
+        })
         toast.error(t('Please enter your email'))
         return
       }
       if (!verificationCode) {
+        trackAdsFunnelEvent('flatkey_signup_validation_error', {
+          reason: 'missing_verification_code',
+        })
         toast.error(t('Please enter the verification code'))
         return
       }
     }
 
-    if (!validateTurnstile()) return
+    if (!validateTurnstile()) {
+      trackAdsFunnelEvent('flatkey_signup_validation_error', {
+        reason: 'turnstile',
+      })
+      return
+    }
 
     setIsLoading(true)
     try {
@@ -156,12 +176,23 @@ export function SignUpForm({
       if (res?.success) {
         // Fire Google Ads signup conversion (no-op unless configured via env).
         trackSignupConversion()
+        trackAdsFunnelEvent('flatkey_signup_success', {
+          method: 'password',
+        })
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
+        trackAdsFunnelEvent('flatkey_signup_error', {
+          method: 'password',
+          reason: res?.message || 'api_error',
+        })
         toast.error(res?.message || t('Failed to create account'))
       }
-    } catch (_error) {
+    } catch (error) {
+      trackAdsFunnelEvent('flatkey_signup_error', {
+        method: 'password',
+        reason: error instanceof Error ? error.message : 'request_error',
+      })
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)

@@ -21,6 +21,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { buildAttributionHref } from '@/lib/analytics/attribution'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 
 interface HeroButtonsProps {
   isAuthenticated: boolean
@@ -32,6 +33,11 @@ interface HeroButtonsProps {
 export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
   const { t } = useTranslation()
   const signUpHref = buildAttributionHref('/sign-up')
+  const trackCtaClick = () => {
+    trackAdsFunnelEvent('flatkey_signup_cta_click', {
+      placement: 'hero_buttons',
+    })
+  }
 
   if (isAuthenticated) {
     return (
@@ -43,7 +49,7 @@ export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
 
   return (
     <>
-      <Button size='lg' render={<a href={signUpHref} />}>
+      <Button size='lg' render={<a href={signUpHref} onClick={trackCtaClick} />}>
         {t('Get Started')}
         <ArrowRight className='ml-2 h-5 w-5' />
       </Button>

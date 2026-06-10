@@ -22,7 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
-import { ensureGtagLoaded } from '@/lib/analytics/gtag'
+import { ensureGtagLoaded, trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import {
   CTA,
   Features,
@@ -42,6 +42,10 @@ export function Home() {
 
   useEffect(() => {
     void ensureGtagLoaded()
+    trackAdsFunnelEvent('flatkey_landing_view', {
+      path: window.location.pathname,
+      lng: new URLSearchParams(window.location.search).get('lng') || undefined,
+    })
   }, [])
 
   if (!isLoaded) {
