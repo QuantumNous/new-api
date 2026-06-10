@@ -369,7 +369,7 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
-	if price, ok := modelPriceMap.Get(name); ok {
+	if price, ok := lookupRatioMap(modelPriceMap, name); ok {
 		return price, true
 	}
 
@@ -402,10 +402,24 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	return name
 }
 
+// lookupRatioMap tries exact key then lowercase (MiniMax-M3 → minimax-m3).
+func lookupRatioMap(m *types.RWMap[string, float64], name string) (float64, bool) {
+	if ratio, ok := m.Get(name); ok {
+		return ratio, true
+	}
+	lower := strings.ToLower(name)
+	if lower != name {
+		if ratio, ok := m.Get(lower); ok {
+			return ratio, true
+		}
+	}
+	return 0, false
+}
+
 func GetModelRatio(name string) (float64, bool, string) {
 	name = FormatMatchingModelName(name)
 
-	ratio, ok := modelRatioMap.Get(name)
+	ratio, ok := lookupRatioMap(modelRatioMap, name)
 	if !ok {
 		if strings.HasSuffix(name, CompactModelSuffix) {
 			if wildcardRatio, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
@@ -446,7 +460,7 @@ func GetCompletionRatio(name string) float64 {
 	name = FormatMatchingModelName(name)
 
 	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
+		if ratio, ok := lookupRatioMap(completionRatioMap, name); ok {
 			return ratio
 		}
 	}
@@ -454,7 +468,7 @@ func GetCompletionRatio(name string) float64 {
 	if contain {
 		return hardCodedRatio
 	}
-	if ratio, ok := completionRatioMap.Get(name); ok {
+	if ratio, ok := lookupRatioMap(completionRatioMap, name); ok {
 		return ratio
 	}
 	return hardCodedRatio
