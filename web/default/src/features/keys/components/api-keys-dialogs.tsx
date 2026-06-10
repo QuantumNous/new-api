@@ -22,7 +22,7 @@ import { useApiKeys } from './api-keys-provider'
 import { CCSwitchDialog } from './dialogs/cc-switch-dialog'
 
 export function ApiKeysDialogs() {
-  const { open, setOpen, currentRow, resolvedKey } = useApiKeys()
+  const { open, setOpen, currentRow } = useApiKeys()
 
   return (
     <>
@@ -35,7 +35,7 @@ export function ApiKeysDialogs() {
       <CCSwitchDialog
         open={open === 'cc-switch'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
-        tokenKey={resolvedKey}
+        tokenId={currentRow?.id}
       />
     </>
   )

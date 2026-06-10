@@ -316,7 +316,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'actions',
       cell: ({ row }) => <DataTableRowActions row={row} />,
       meta: { label: t('Actions') },
-      size: 88,
+      size: 360,
     },
   ]
 }

@@ -1,0 +1,73 @@
+name: new-api-local
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: new-api-local:dev
+    container_name: new-api-local-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - app_data:/data
+      - app_logs:/app/logs
+    environment:
+      SQL_DSN: postgresql://root:123456@postgres:5432/new-api
+      REDIS_CONN_STRING: redis://redis:6379
+      TZ: Asia/Shanghai
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+      NODE_NAME: new-api-local
+    command: --log-dir /app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\":true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - local-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: new-api-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: new-api
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - local-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-local-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - local-network
+
+volumes:
+  app_data:
+  app_logs:
+  postgres_data:
+  redis_data:
+
+networks:
+  local-network:
+    driver: bridge

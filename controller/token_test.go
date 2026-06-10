@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
@@ -40,6 +44,22 @@ type tokenResponseItem struct {
 
 type tokenKeyResponse struct {
 	Key string `json:"key"`
+}
+
+type ccSwitchImportOptionsResponse struct {
+	Token struct {
+		ID        int    `json:"id"`
+		Name      string `json:"name"`
+		MaskedKey string `json:"masked_key"`
+		BaseURL   string `json:"base_url"`
+	} `json:"token"`
+	DefaultTarget string                    `json:"default_target"`
+	DefaultModel  string                    `json:"default_model"`
+	Targets       []dto.CCSwitchImportTarget `json:"targets"`
+}
+
+type ccSwitchImportLinkResponse struct {
+	URL string `json:"url"`
 }
 
 type sqliteColumnInfo struct {
@@ -101,7 +121,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.Token{}, &model.CCSwitchImportLog{}, &model.UserCCSwitchPreference{}); err != nil {
 		t.Fatalf("failed to migrate token table: %v", err)
 	}
 }
@@ -206,6 +226,43 @@ func newAuthenticatedContext(t *testing.T, method string, target string, body an
 	return ctx, recorder
 }
 
+func newCCSwitchTokenRouter(userID int) *gin.Engine {
+	router := gin.New()
+	tokenRoute := router.Group("/api/token")
+	tokenRoute.Use(func(c *gin.Context) {
+		c.Set("id", userID)
+		c.Next()
+	})
+	tokenRoute.GET("/:id/ccswitch/import-options", middleware.DisableCache(), GetTokenCCSwitchImportOptions)
+	tokenRoute.POST("/:id/ccswitch/import-link", middleware.CriticalRateLimit(), middleware.DisableCache(), CreateTokenCCSwitchImportLink)
+	return router
+}
+
+func performJSONRequest(t *testing.T, router *gin.Engine, method string, target string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var requestBody *bytes.Reader
+	if body != nil {
+		payload, err := common.Marshal(body)
+		if err != nil {
+			t.Fatalf("failed to marshal request body: %v", err)
+		}
+		requestBody = bytes.NewReader(payload)
+	} else {
+		requestBody = bytes.NewReader(nil)
+	}
+	request := httptest.NewRequest(method, target, requestBody)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	request.Header.Set("User-Agent", "ccswitch-test-agent")
+	request.RemoteAddr = "203.0.113.10:1234"
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
 func decodeAPIResponse(t *testing.T, recorder *httptest.ResponseRecorder) tokenAPIResponse {
 	t.Helper()
 
@@ -214,6 +271,16 @@ func decodeAPIResponse(t *testing.T, recorder *httptest.ResponseRecorder) tokenA
 		t.Fatalf("failed to decode api response: %v", err)
 	}
 	return response
+}
+
+func setServerAddressForTest(t *testing.T, serverAddress string) {
+	t.Helper()
+
+	original := system_setting.ServerAddress
+	system_setting.ServerAddress = serverAddress
+	t.Cleanup(func() {
+		system_setting.ServerAddress = original
+	})
 }
 
 func getSQLiteColumnType(t *testing.T, db *gorm.DB, tableName string, columnName string) string {
@@ -537,5 +604,245 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestGetTokenCCSwitchImportOptionsMasksKey(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://api.xistree.hk/")
+	token := seedToken(t, db, 1, "codex token", "raw-secret-token-value")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-options", nil, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetTokenCCSwitchImportOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected import options to succeed, got message: %s", response.Message)
+	}
+
+	var options ccSwitchImportOptionsResponse
+	if err := common.Unmarshal(response.Data, &options); err != nil {
+		t.Fatalf("failed to decode import options: %v", err)
+	}
+	if options.Token.ID != token.Id {
+		t.Fatalf("expected token id %d, got %d", token.Id, options.Token.ID)
+	}
+	if options.Token.MaskedKey != token.GetMaskedKey() {
+		t.Fatalf("expected masked key %q, got %q", token.GetMaskedKey(), options.Token.MaskedKey)
+	}
+	if options.Token.BaseURL != "https://api.xistree.hk/" {
+		t.Fatalf("expected configured server address, got %q", options.Token.BaseURL)
+	}
+	if options.DefaultTarget != "codex" {
+		t.Fatalf("expected default target codex, got %q", options.DefaultTarget)
+	}
+	if options.DefaultModel != "gpt-5.5" {
+		t.Fatalf("expected default model gpt-5.5, got %q", options.DefaultModel)
+	}
+	if strings.Contains(recorder.Body.String(), token.Key) {
+		t.Fatalf("import options leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestGetTokenCCSwitchImportOptionsUsesPreference(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://api.xistree.hk/")
+	token := seedToken(t, db, 1, "preferred-token", "preference-key")
+	if err := model.UpsertUserCCSwitchPreference(&model.UserCCSwitchPreference{
+		UserId:     1,
+		LastTarget: "codex",
+		LastModel:  "custom-last-model",
+		UpdatedAt:  10,
+	}); err != nil {
+		t.Fatalf("failed to seed preference: %v", err)
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-options", nil, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetTokenCCSwitchImportOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected import options to succeed, got message: %s", response.Message)
+	}
+	var options ccSwitchImportOptionsResponse
+	if err := common.Unmarshal(response.Data, &options); err != nil {
+		t.Fatalf("failed to decode import options: %v", err)
+	}
+	if options.DefaultModel != "custom-last-model" {
+		t.Fatalf("expected preference model, got %q", options.DefaultModel)
+	}
+}
+
+func TestCreateTokenCCSwitchImportLinkRequiresOwnership(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://api.xistree.hk/")
+	token := seedToken(t, db, 1, "owned-token", "owner-only-key")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target: "codex",
+		Model:  "gpt-5.5",
+	}, 2)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	CreateTokenCCSwitchImportLink(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected unauthorized import link request to fail")
+	}
+	if strings.Contains(recorder.Body.String(), token.Key) {
+		t.Fatalf("unauthorized import link response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestCreateTokenCCSwitchImportLinkBuildsEncodedURLAndRecordsAudit(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://api.xistree.hk/")
+	token := seedToken(t, db, 1, "token name / ? &= value", "secret-token-key")
+	router := newCCSwitchTokenRouter(1)
+
+	recorder := performJSONRequest(t, router, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target: "codex",
+		Model:  "gpt 5.5 / ? &= model",
+	})
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected import link to succeed, got message: %s", response.Message)
+	}
+	if !strings.Contains(recorder.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("expected no-store cache header, got %q", recorder.Header().Get("Cache-Control"))
+	}
+
+	var link ccSwitchImportLinkResponse
+	if err := common.Unmarshal(response.Data, &link); err != nil {
+		t.Fatalf("failed to decode import link: %v", err)
+	}
+	parsed, err := url.Parse(link.URL)
+	if err != nil {
+		t.Fatalf("failed to parse import link: %v", err)
+	}
+	if parsed.Scheme != "ccswitch" || parsed.Host != "v1" || parsed.Path != "/import" {
+		t.Fatalf("unexpected import link shape: %s", link.URL)
+	}
+	query := parsed.Query()
+	if query.Get("resource") != "provider" {
+		t.Fatalf("expected provider resource, got %q", query.Get("resource"))
+	}
+	if query.Get("app") != "codex" {
+		t.Fatalf("expected codex app, got %q", query.Get("app"))
+	}
+	if query.Get("endpoint") != "https://api.xistree.hk/" {
+		t.Fatalf("expected raw server address endpoint, got %q", query.Get("endpoint"))
+	}
+	if query.Get("apiKey") != "sk-secret-token-key" {
+		t.Fatalf("expected normalized api key, got %q", query.Get("apiKey"))
+	}
+	if query.Get("name") != token.Name {
+		t.Fatalf("expected encoded token name round trip, got %q", query.Get("name"))
+	}
+	if query.Get("model") != "gpt 5.5 / ? &= model" {
+		t.Fatalf("expected encoded model round trip, got %q", query.Get("model"))
+	}
+	if query.Get("wire_api") != "responses" || query.Get("requires_openai_auth") != "true" {
+		t.Fatalf("expected Codex provider defaults, got %s", link.URL)
+	}
+
+	var importLog model.CCSwitchImportLog
+	if err := db.First(&importLog, "user_id = ? AND token_id = ?", 1, token.Id).Error; err != nil {
+		t.Fatalf("failed to load import log: %v", err)
+	}
+	if importLog.Target != "codex" || importLog.Model != "gpt 5.5 / ? &= model" {
+		t.Fatalf("unexpected import log: %+v", importLog)
+	}
+	logDump := fmt.Sprintf("%+v", importLog)
+	if strings.Contains(logDump, token.Key) || strings.Contains(logDump, "ccswitch://") {
+		t.Fatalf("import log leaked sensitive data: %s", logDump)
+	}
+
+	preference, err := model.GetUserCCSwitchPreference(1)
+	if err != nil {
+		t.Fatalf("failed to load preference: %v", err)
+	}
+	if preference == nil || preference.LastTarget != "codex" || preference.LastModel != "gpt 5.5 / ? &= model" {
+		t.Fatalf("unexpected import preference: %+v", preference)
+	}
+}
+
+func TestCreateTokenCCSwitchImportLinkKeepsExistingSKPrefix(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://api.xistree.hk/")
+	token := seedToken(t, db, 1, "sk-token", "sk-existing-prefix")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target: "codex",
+		Model:  "gpt-5.5",
+	}, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	CreateTokenCCSwitchImportLink(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected import link to succeed, got message: %s", response.Message)
+	}
+	var link ccSwitchImportLinkResponse
+	if err := common.Unmarshal(response.Data, &link); err != nil {
+		t.Fatalf("failed to decode import link: %v", err)
+	}
+	parsed, err := url.Parse(link.URL)
+	if err != nil {
+		t.Fatalf("failed to parse import link: %v", err)
+	}
+	if got := parsed.Query().Get("apiKey"); got != "sk-existing-prefix" {
+		t.Fatalf("expected existing sk prefix to be preserved, got %q", got)
+	}
+}
+
+func TestCreateTokenCCSwitchImportLinkRequiresServerAddress(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "")
+	token := seedToken(t, db, 1, "missing-server-address", "server-address-key")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target: "codex",
+		Model:  "gpt-5.5",
+	}, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	CreateTokenCCSwitchImportLink(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected missing ServerAddress to fail")
+	}
+	if !strings.Contains(response.Message, "server address") {
+		t.Fatalf("expected server address error, got %q", response.Message)
+	}
+}
+
+func TestCreateTokenCCSwitchImportLinkRejectsUnavailableTargetAndMissingModel(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://api.xistree.hk/")
+	token := seedToken(t, db, 1, "validation-token", "validation-key")
+
+	targetCtx, targetRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target: "claude",
+		Model:  "gpt-5.5",
+	}, 1)
+	targetCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	CreateTokenCCSwitchImportLink(targetCtx)
+	targetResponse := decodeAPIResponse(t, targetRecorder)
+	if targetResponse.Success {
+		t.Fatalf("expected disabled target to fail")
+	}
+
+	modelCtx, modelRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target: "codex",
+		Model:  "",
+	}, 1)
+	modelCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	CreateTokenCCSwitchImportLink(modelCtx)
+	modelResponse := decodeAPIResponse(t, modelRecorder)
+	if modelResponse.Success {
+		t.Fatalf("expected missing model to fail")
 	}
 }

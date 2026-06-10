@@ -24,6 +24,9 @@ import type {
   GetApiKeysResponse,
   SearchApiKeysParams,
   ApiKeyFormData,
+  CCSwitchImportLinkRequest,
+  CCSwitchImportLinkResponse,
+  CCSwitchImportOptions,
 } from './types'
 
 // ============================================================================
@@ -113,5 +116,22 @@ export async function fetchTokenKeysBatch(ids: number[]): Promise<{
   data?: { keys: Record<number, string> }
 }> {
   const res = await api.post('/api/token/batch/keys', { ids })
+  return res.data
+}
+
+export async function getCCSwitchImportOptions(
+  id: number
+): Promise<ApiResponse<CCSwitchImportOptions>> {
+  const res = await api.get(`/api/token/${id}/ccswitch/import-options`, {
+    disableDuplicate: true,
+  })
+  return res.data
+}
+
+export async function createCCSwitchImportLink(
+  id: number,
+  data: CCSwitchImportLinkRequest
+): Promise<ApiResponse<CCSwitchImportLinkResponse>> {
+  const res = await api.post(`/api/token/${id}/ccswitch/import-link`, data)
   return res.data
 }

@@ -94,6 +94,36 @@ export interface ApiKeyFormData {
   cross_group_retry: boolean
 }
 
+export interface CCSwitchImportToken {
+  id: number
+  name: string
+  masked_key: string
+  base_url: string
+}
+
+export interface CCSwitchImportTarget {
+  key: string
+  label: string
+  enabled: boolean
+  disabled_reason?: string
+}
+
+export interface CCSwitchImportOptions {
+  token: CCSwitchImportToken
+  default_target: string
+  default_model: string
+  targets: CCSwitchImportTarget[]
+}
+
+export interface CCSwitchImportLinkRequest {
+  target: string
+  model: string
+}
+
+export interface CCSwitchImportLinkResponse {
+  url: string
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================
