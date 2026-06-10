@@ -55,8 +55,8 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 
 | 场景 | 上游推荐传参 | 内部处理 |
 |------|--------------|----------|
-| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 ListenHub 图片 channel；若 ListenHub 返回上游余额/额度不足等可切换错误，会自动重试 xgapi 直出生图兜底 |
-| `gpt-image-2` 带参考图 | `model: "gpt-image-2"` + `image` / `images` | 优先走 ListenHub 参考图接口；大体积 `data:image/...;base64,...` 参考图需压缩或改用 URL |
+| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 xgapi 直出生图（2026-06-10 起 ListenHub 上游余额耗尽，已降为兜底）；失败时自动重试其它可用 channel |
+| `gpt-image-2` 带参考图 | `model: "gpt-image-2"` + `image` / `images` | 仅 ListenHub 参考图接口支持；ListenHub 上游余额耗尽期间该路径不可用，充值后恢复。大体积 `data:image/...;base64,...` 参考图需压缩或改用 URL |
 | 历史图片别名 | `gpt-image-2(线路XF)` / `gr-image-2` / `nano-banana-pro` | 作为兼容别名映射到 xgapi 上游 `gpt-image-2` |
 | `grok-video-3` 视频 | `model: "grok-video-3"` | 走 LK888 视频 channel；`/v1/models` 已暴露该标准名 |
 
@@ -84,9 +84,9 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 | `gemini_3.0_pro_image_preview` | `POST /v1/images/generations` | 生图 | 约 58 秒 | `data[0].b64_json` | Apexer 高质量图片、产品图 |
 | `gemini_3.1_flash_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 65 秒 | `data[0].b64_json` | Apexer 快速高清输出 |
 | `gemini_3.0_pro_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 383 秒 | `data[0].b64_json` | Apexer 4K 高质量，耗时较长 |
-| `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 93 秒 | `data[0].b64_json` | ListenHub 横线命名快速生图 |
-| `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 67 秒 | `data[0].b64_json` | ListenHub 横线命名高质量生图 |
-| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 20-40 秒 | `data[0].b64_json` / `data[0].url` | 优先 ListenHub；xgapi 保留为直出生图兜底 |
+| `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 29-93 秒 | `data[0].b64_json` | 横线命名快速生图；当前主路径 Apexer（映射 `gemini_3.1_flash_image_preview`），ListenHub 为兜底 |
+| `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 58-67 秒 | `data[0].b64_json` | 横线命名高质量生图；当前主路径 Apexer（映射 `gemini_3.0_pro_image_preview`），ListenHub 为兜底 |
+| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 45-90 秒 | `data[0].url` | 当前主路径 xgapi 直出生图；ListenHub 余额耗尽期间降为兜底 |
 | `gpt-image-2(线路XF)` | `POST /v1/images/generations` | 生图 | 48-50 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
 | `gr-image-2` | `POST /v1/images/generations` | 生图 | 46-55 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
 | `nano-banana` | `POST /v1/images/generations` | 生图 | 8-9 秒 | `data[0].url` | bltcy 快速生图 |
@@ -719,7 +719,7 @@ curl -s "${BASE_URL}/videos" \
 图片生成推荐使用 OpenAI 兼容的 **Images** 接口调用，统一入口是 `/v1/images/generations`；图像编辑使用 `/v1/images/edits`。当前内部主用三类模型：
 
 - 下划线模型：`gemini_3.*_image_preview`，走 Apexer OpenAI 兼容通道。
-- 横线模型：`gemini-3.*-image-preview` 当前可通过 ListenHub 通道跑通；`gpt-image-2` 当前优先走 ListenHub，xgapi 保留为直接生图兜底。
+- 横线模型：`gemini-3.*-image-preview` 当前主路径为 Apexer（model_mapping 映射到下划线命名），ListenHub 为兜底；`gpt-image-2` 当前优先走 xgapi 直出生图，ListenHub 余额耗尽期间降为兜底。
 - SiliconFlow 模型：`Qwen/Qwen-Image`、`baidu/ERNIE-Image-Turbo`、`Tongyi-MAI/Z-Image` 和 `Qwen/Qwen-Image-Edit-2509`，返回 `data[0].url`。
 
 Chat Completions 形式仍保留兼容：部分上游会把图片 URL 放在 `choices[0].message.content` 的 Markdown 图片语法中返回。新接入和业务调用优先使用 Images 接口。
