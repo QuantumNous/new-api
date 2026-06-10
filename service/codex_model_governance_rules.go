@@ -52,7 +52,8 @@ func FindOfficialCodexNoticeMatch(content string, modelNames []string, lifecycle
 	if modelIndex < 0 {
 		return OfficialCodexNoticeMatch{}
 	}
-	term := findOfficialCodexNoticeTerm(content, lifecycleTerms)
+	segment := officialCodexNoticeSegment(content, modelIndex, len(modelName))
+	term := findOfficialCodexNoticeTerm(segment, lifecycleTerms)
 	if term == "" {
 		return OfficialCodexNoticeMatch{}
 	}
@@ -60,7 +61,7 @@ func FindOfficialCodexNoticeMatch(content string, modelNames []string, lifecycle
 		Matched:   true,
 		ModelName: modelName,
 		Term:      term,
-		Excerpt:   officialCodexNoticeExcerpt(content, modelIndex, len(modelName)),
+		Excerpt:   officialCodexNoticeExcerpt(segment, strings.Index(segment, modelName), len(modelName)),
 	}
 }
 
@@ -117,7 +118,43 @@ func findOfficialCodexNoticeTerm(content string, lifecycleTerms []string) string
 	return ""
 }
 
+func officialCodexNoticeSegment(content string, modelIndex int, modelLength int) string {
+	if modelIndex < 0 || modelIndex >= len(content) {
+		return content
+	}
+	start := 0
+	for index, value := range content[:modelIndex] {
+		if isOfficialCodexNoticeBoundary(value) {
+			start = index + len(string(value))
+		}
+	}
+	end := len(content)
+	scanStart := modelIndex + modelLength
+	if scanStart > len(content) {
+		scanStart = len(content)
+	}
+	for index, value := range content[scanStart:] {
+		if isOfficialCodexNoticeBoundary(value) {
+			end = scanStart + index + len(string(value))
+			break
+		}
+	}
+	return strings.TrimSpace(content[start:end])
+}
+
+func isOfficialCodexNoticeBoundary(value rune) bool {
+	switch value {
+	case '.', '!', '?', '\n', '\r', ';', '。', '！', '？', '；':
+		return true
+	default:
+		return false
+	}
+}
+
 func officialCodexNoticeExcerpt(content string, modelIndex int, modelLength int) string {
+	if modelIndex < 0 {
+		modelIndex = 0
+	}
 	if len(content) <= officialCodexNoticeExcerptMaxLength {
 		return strings.TrimSpace(content)
 	}
