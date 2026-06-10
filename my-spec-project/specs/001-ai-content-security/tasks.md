@@ -115,7 +115,7 @@ description: "Task list for AI Content Security Management Module implementation
 ### Implementation for User Story 3
 
 - [x] T036 [US3] Extend `middleware/security.go` with `SecurityCheckResponse()` middleware that intercepts AI responses
-- [~] T037 [US3] Integrate `SecurityCheckResponse()` into the response pipeline so it executes after the upstream AI provider returns but before the response is sent to the client
+- [x] T037 [US3] Integrate `SecurityCheckResponse()` into the response pipeline so it executes after the upstream AI provider returns but before the response is sent to the client
 - [x] T038 [US3] Update `service/security/hitlog.go` to support `content_type: 2` (response) in hit log records
 - [x] T039 [US3] Ensure response detection reuses the same detection engines and masking logic as request detection (verify no code duplication)
 
