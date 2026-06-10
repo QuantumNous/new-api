@@ -214,6 +214,27 @@ func BuildDingTalkChannelAlertBatchContent(alerts []DingTalkChannelAlert) string
 	return strings.Join(blocks, "\n\n")
 }
 
+func BuildDingTalkCodexModelGovernanceAlertContent(record *model.CodexModelGovernanceRecord) string {
+	if record == nil {
+		return "Codex model governance alert\nRecord: <nil>"
+	}
+	detectedAt := "-"
+	if record.DetectedAt > 0 {
+		detectedAt = time.Unix(record.DetectedAt, 0).Format("2006-01-02 15:04:05")
+	}
+	channelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	return strings.Join([]string{
+		"Codex model governance alert",
+		fmt.Sprintf("Model: %s", sanitizeDingTalkAlertText(record.ModelName)),
+		fmt.Sprintf("Status: %s", sanitizeDingTalkAlertText(record.Status)),
+		fmt.Sprintf("Source: %s", sanitizeDingTalkAlertText(record.Source)),
+		fmt.Sprintf("Matched Rule: %s", sanitizeDingTalkAlertText(record.MatchedRule)),
+		fmt.Sprintf("Affected Channels: %d (%s)", len(channelIDs), sanitizeDingTalkAlertText(record.AffectedChannelIDs)),
+		fmt.Sprintf("Reason: %s", sanitizeDingTalkAlertText(record.LastError)),
+		fmt.Sprintf("Detected At: %s", detectedAt),
+	}, "\n")
+}
+
 func sanitizeDingTalkAlertText(value string) string {
 	value = common.MaskSensitiveInfo(value)
 	value = dingTalkQuotedCredentialPattern.ReplaceAllString(value, `${1}"***"`)
@@ -319,6 +340,21 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 
 func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
 	return NotifyDingTalkChannelTestFailures([]DingTalkChannelAlert{alert})
+}
+
+func NotifyDingTalkCodexModelGovernance(record *model.CodexModelGovernanceRecord) error {
+	setting := operation_setting.GetMonitorSetting()
+	if setting == nil || !setting.DingTalkAlertEnabled {
+		return nil
+	}
+	if strings.TrimSpace(setting.DingTalkAlertWebhookURL) == "" {
+		return fmt.Errorf("dingtalk alert webhook url is empty")
+	}
+	return SendDingTalkText(
+		setting.DingTalkAlertWebhookURL,
+		setting.DingTalkAlertSecret,
+		BuildDingTalkCodexModelGovernanceAlertContent(record),
+	)
 }
 
 func NotifyDingTalkChannelTestFailures(alerts []DingTalkChannelAlert) error {

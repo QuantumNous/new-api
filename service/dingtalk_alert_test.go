@@ -56,6 +56,44 @@ func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
 	require.NotContains(t, content, "refresh_token abc")
 }
 
+func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.T) {
+	record := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:             model.CodexModelGovernanceSourceProbe,
+		MatchedRule:        `The '([^']+)' model is not supported when using Codex with a ChatGPT account\.`,
+		LastError:          "access_token secret-token sk-sensitive",
+		AffectedChannelIDs: "11,12",
+		DetectedAt:         time.Date(2026, 6, 10, 12, 0, 0, 0, time.Local).Unix(),
+	}
+
+	content := BuildDingTalkCodexModelGovernanceAlertContent(record)
+
+	require.Contains(t, content, "Codex model governance alert")
+	require.Contains(t, content, "Model: gpt-5.3-codex")
+	require.Contains(t, content, "Status: unsupported_pending_review")
+	require.Contains(t, content, "Affected Channels: 2 (11,12)")
+	require.NotContains(t, content, "secret-token")
+	require.NotContains(t, content, "sk-sensitive")
+}
+
+func TestNotifyDingTalkCodexModelGovernanceSkipsWhenMonitorAlertDisabled(t *testing.T) {
+	originalSetting := *operation_setting.GetMonitorSetting()
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+	})
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = false
+	setting.DingTalkAlertWebhookURL = ""
+
+	err := NotifyDingTalkCodexModelGovernance(&model.CodexModelGovernanceRecord{
+		ModelName: "gpt-5.3-codex",
+		Status:    model.CodexModelGovernanceStatusUnsupportedPendingReview,
+	})
+
+	require.NoError(t, err)
+}
+
 func TestBuildDingTalkChannelAlertContentMasksChannelMetadata(t *testing.T) {
 	content := BuildDingTalkChannelAlertContent(DingTalkChannelAlert{
 		ChannelID:       12,

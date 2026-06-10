@@ -75,6 +75,10 @@ func decodeCodexModelGovernanceChannelIDs(encoded string) []int {
 	return normalizeCodexModelGovernanceChannelIDs(ids)
 }
 
+func DecodeCodexModelGovernanceChannelIDs(encoded string) []int {
+	return decodeCodexModelGovernanceChannelIDs(encoded)
+}
+
 func normalizeCodexModelGovernanceChannelIDs(channelIDs []int) []int {
 	seen := make(map[int]struct{}, len(channelIDs))
 	normalized := make([]int, 0, len(channelIDs))
