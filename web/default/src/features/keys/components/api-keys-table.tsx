@@ -414,11 +414,19 @@ export function ApiKeysTable() {
               value={currentStatusValue}
               onValueChange={handleStatusFilterChange}
             >
-              <SelectTrigger className='h-8 w-[130px] text-xs'>
-                <SelectValue placeholder={t('All Status')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>{t('All Status')}</SelectItem>
+            <SelectTrigger className='h-8 w-[130px] text-xs'>
+              <SelectValue>
+                {(value: string) => {
+                  if (value === 'all') return t('All Status')
+                  const opt = API_KEY_STATUS_OPTIONS.find(
+                    (o) => o.value === value
+                  )
+                  return opt ? t(opt.label) : value
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>{t('All Status')}</SelectItem>
                 {[...API_KEY_STATUS_OPTIONS].map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {t(opt.label)}

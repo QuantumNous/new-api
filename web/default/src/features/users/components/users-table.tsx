@@ -303,7 +303,15 @@ export function UsersTable() {
           onValueChange={handleStatusFilterChange}
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
-            <SelectValue placeholder={t('All Status')} />
+            <SelectValue>
+              {(value: string) => {
+                if (value === 'all') return t('All Status')
+                const opt = getUserStatusOptions(t).find(
+                  (o) => o.value === value
+                )
+                return opt ? opt.label : value
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='all'>{t('All Status')}</SelectItem>
@@ -320,7 +328,15 @@ export function UsersTable() {
           onValueChange={handleRoleFilterChange}
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
-            <SelectValue placeholder={t('All Roles')} />
+            <SelectValue>
+              {(value: string) => {
+                if (value === 'all') return t('All Roles')
+                const opt = getUserRoleOptions(t).find(
+                  (o) => o.value === value
+                )
+                return opt ? opt.label : value
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='all'>{t('All Roles')}</SelectItem>

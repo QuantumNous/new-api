@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
 import { SectionPageLayout } from '@/components/layout'
@@ -34,6 +35,7 @@ import { useProfile } from './hooks'
 import { getDisplayName, getUserInitials } from './lib'
 
 export function Profile() {
+  const { t } = useTranslation()
   const { profile, loading, refreshProfile, updateProfile, updating } =
     useProfile()
   const { status } = useStatus()

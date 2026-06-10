@@ -396,7 +396,13 @@ export function ModelsTable() {
           onValueChange={handleVendorFilterChange}
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
-            <SelectValue placeholder={t('All Vendors')} />
+            <SelectValue>
+              {(value: string) => {
+                if (value === 'all') return t('All Vendors')
+                const opt = vendorOptions.find((o) => o.value === value)
+                return opt ? opt.label : value
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='all'>
@@ -415,7 +421,15 @@ export function ModelsTable() {
           onValueChange={handleStatusFilterChange}
         >
           <SelectTrigger className='h-8 w-[120px] text-xs'>
-            <SelectValue placeholder={t('All Status')} />
+            <SelectValue>
+              {(value: string) => {
+                if (!value || value === 'all') return t('All Status')
+                const opt = getModelStatusOptions(t).find(
+                  (o) => o.value === value
+                )
+                return opt ? opt.label : value
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {[...getModelStatusOptions(t)].map((opt) => (

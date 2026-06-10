@@ -290,7 +290,15 @@ export function MultiKeyManageDialog({
                 onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
               >
                 <SelectTrigger className='w-40'>
-                  <SelectValue placeholder={t('All Status')} />
+                  <SelectValue>
+                    {(value: string) => {
+                      if (value === 'all') return t('All Status')
+                      const opt = MULTI_KEY_FILTER_OPTIONS.find(
+                        (o) => o.value === value
+                      )
+                      return opt ? t(opt.label) : value
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
                   <SelectGroup>

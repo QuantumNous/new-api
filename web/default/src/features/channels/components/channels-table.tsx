@@ -504,7 +504,15 @@ export function ChannelsTable() {
           onValueChange={handleStatusFilterChange}
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
-            <SelectValue placeholder={t('All Status')} />
+            <SelectValue>
+              {(value: string) => {
+                if (value === 'all') return t('All Status')
+                const opt = CHANNEL_STATUS_OPTIONS.find(
+                  (o) => o.value === value
+                )
+                return opt ? t(opt.label) : value
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {[...CHANNEL_STATUS_OPTIONS].map((opt) => (
@@ -520,12 +528,21 @@ export function ChannelsTable() {
           onValueChange={handleTypeFilterChange}
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
-            <SelectValue placeholder={t('All Types')} />
+            <SelectValue>
+              {(value: string) => {
+                const opt = typeFilterOptions.find((o) => o.value === value)
+                if (!opt) return value
+                if (value === 'all') return opt.label
+                return t(opt.label)
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {typeFilterOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
-                {t(option.label)}
+                {typeof option.label === 'string' && option.value === 'all'
+                  ? option.label
+                  : t(option.label)}
                 {option.count != null ? ` (${option.count})` : ''}
               </SelectItem>
             ))}
@@ -537,7 +554,12 @@ export function ChannelsTable() {
           onValueChange={handleGroupFilterChange}
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
-            <SelectValue placeholder={t('All Groups')} />
+            <SelectValue>
+              {(value: string) => {
+                const opt = groupFilterOptions.find((o) => o.value === value)
+                return opt ? opt.label : value
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {groupFilterOptions.map((option) => (
