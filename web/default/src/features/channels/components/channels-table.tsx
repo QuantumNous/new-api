@@ -116,7 +116,10 @@ export function ChannelsTable() {
   const {
     value: modelFilter,
     inputValue: modelFilterInput,
-    setInputValue: setModelFilterInput,
+    onChange: onModelFilterInputChange,
+    onCompositionStart: onModelFilterCompositionStart,
+    onCompositionEnd: onModelFilterCompositionEnd,
+    resetInput: resetModelFilterInput,
   } = useDebouncedColumnFilter({
     columnFilters,
     columnId: 'model',
@@ -352,11 +355,17 @@ export function ChannelsTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
+        searchDebounceMs: 500,
+        onReset: () => {
+          resetModelFilterInput()
+        },
         additionalSearch: (
           <Input
             placeholder={t('Filter by model...')}
             value={modelFilterInput}
-            onChange={(e) => setModelFilterInput(e.target.value)}
+            onChange={onModelFilterInputChange}
+            onCompositionStart={onModelFilterCompositionStart}
+            onCompositionEnd={onModelFilterCompositionEnd}
             className='w-full sm:w-[150px] lg:w-[180px]'
           />
         ),

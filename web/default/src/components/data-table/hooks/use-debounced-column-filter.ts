@@ -38,12 +38,18 @@ export function useDebouncedColumnFilter({
       | string
       | undefined) ?? ''
   const [inputValue, setInputValue] = React.useState(value)
-  const debouncedValue = useDebounce(inputValue, delay)
+  const [pendingValue, setPendingValue] = React.useState(value)
+  const isComposingRef = React.useRef(false)
+  const debouncedValue = useDebounce(pendingValue, delay)
 
   React.useEffect(() => {
     // Keep the input aligned when URL state changes outside the local field.
+    if (!isComposingRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInputValue(value)
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInputValue(value)
+    setPendingValue(value)
   }, [value])
 
   React.useEffect(() => {
@@ -57,9 +63,48 @@ export function useDebouncedColumnFilter({
     })
   }, [columnId, debouncedValue, onColumnFiltersChange, value])
 
+  const updateInputValue = React.useCallback((nextValue: string) => {
+    setInputValue(nextValue)
+
+    if (!isComposingRef.current) {
+      setPendingValue(nextValue)
+    }
+  }, [])
+
+  const handleChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      updateInputValue(event.target.value)
+    },
+    [updateInputValue]
+  )
+
+  const handleCompositionStart = React.useCallback(() => {
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = React.useCallback(
+    (event: React.CompositionEvent<HTMLInputElement>) => {
+      isComposingRef.current = false
+      const nextValue = event.currentTarget.value
+      setInputValue(nextValue)
+      setPendingValue(nextValue)
+    },
+    []
+  )
+
+  const resetInput = React.useCallback(() => {
+    isComposingRef.current = false
+    setInputValue('')
+    setPendingValue('')
+  }, [])
+
   return {
     value,
     inputValue,
-    setInputValue,
+    setInputValue: updateInputValue,
+    onChange: handleChange,
+    onCompositionStart: handleCompositionStart,
+    onCompositionEnd: handleCompositionEnd,
+    resetInput,
   }
 }
