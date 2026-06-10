@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Doubao Seedance 视频生成 API · 使用文档</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #6ea8fe;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --code-bg: #0c0e13;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.7; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #141822, #0f1115);
+    padding: 48px 0 36px;
+  }
+  header.hero .wrap { padding-bottom: 0; }
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 12px;
+    color: var(--accent); border: 1px solid #2d3d5e; background: #14213a;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 14px;
+  }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0; max-width: 70ch; }
+  h2 {
+    font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 16px; margin: 28px 0 10px; color: #cdd4e0; }
+  h4 { font-size: 14px; margin: 18px 0 8px; color: #b6bdca; }
+  p { margin: 10px 0; }
+  code {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: #d9e0ec;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 14px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: #cfe3ff; }
+  .method {
+    font-family: var(--mono); font-weight: 700; font-size: 12px;
+    padding: 2px 8px; border-radius: 5px; margin-right: 8px; vertical-align: middle;
+  }
+  .post { background: #14321f; color: var(--green); border: 1px solid #1f5234; }
+  .get  { background: #102a3f; color: var(--accent); border: 1px solid #1d4368; }
+  .path { font-family: var(--mono); font-size: 14px; color: #e6e9ef; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: #cdd4e0; font-weight: 600; }
+  td code { white-space: nowrap; }
+  .req { color: var(--red); font-weight: 700; }
+  .opt { color: var(--muted); }
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel);
+  }
+  .callout.info { border-left-color: var(--accent); }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout.ok   { border-left-color: var(--green); }
+  .callout p:first-child { margin-top: 0; } .callout p:last-child { margin-bottom: 0; }
+  .pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .s-queued { color: var(--muted); }
+  .s-prog   { color: var(--accent); }
+  .s-done   { color: var(--green); }
+  .s-fail   { color: var(--red); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin: 24px 0; }
+  .toc ul { margin: 6px 0; padding-left: 20px; columns: 2; }
+  .toc li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  footer { border-top: 1px solid var(--border); margin-top: 64px; padding-top: 20px; color: var(--muted); font-size: 13px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">异步视频生成 API</span>
+    <h1>Doubao Seedance 视频生成 API</h1>
+    <p class="sub">调用 seedance 视频生成接口生成视频（文生 / 图生 / 多模态参考）。请求体采用官方 seedance <code>content[]</code> 格式，遵循「提交任务 → 轮询状态 → 取回视频」的异步模型；任务完成后返回带签名时效的视频直链，可直接下载或嵌入页面，并附带 token 用量 <code>usage</code>。</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="toc">
+    <strong>目录</strong>
+    <ul>
+      <li><a href="#overview">1. 概览</a></li>
+      <li><a href="#auth">2. 认证</a></li>
+      <li><a href="#endpoints">3. 接口一览</a></li>
+      <li><a href="#create">4. 创建视频任务</a></li>
+      <li><a href="#poll">5. 查询任务状态</a></li>
+      <li><a href="#download">6. 获取视频</a></li>
+      <li><a href="#status">7. 状态值</a></li>
+      <li><a href="#errors">8. 错误</a></li>
+      <li><a href="#example">9. 完整示例</a></li>
+    </ul>
+  </div>
+
+  <h2 id="overview">1. 概览</h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>可用模型</td><td><code>doubao-seedance-2-0-260128</code>、<code>doubao-seedance-2-0-fast-260128</code> 等（以你的服务实际开放的模型名为准）</td></tr>
+    <tr><td>调用模式</td><td>异步：创建任务 → 轮询 → 取视频</td></tr>
+    <tr><td>能力</td><td>文生视频、图生视频（首帧 / 尾帧 / 参考图）、多模态参考（图片 + 视频 + 音频组合）、可选同步音频</td></tr>
+    <tr><td>请求格式</td><td>官方 seedance 多模态 <code>content[]</code> 数组（与官方 seedance API 完全一致，便于无缝迁移）</td></tr>
+    <tr><td>结果交付</td><td>任务完成后视频地址在 <code>metadata.url</code> —— 为带签名时效的对象存储直链（默认约 24h），直接 GET 即可下载或嵌入；附带 token 用量 <code>usage</code></td></tr>
+  </table>
+  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://your-api-host</code>。</p>
+
+  <h2 id="auth">2. 认证</h2>
+  <p>所有请求需在请求头携带访问令牌：</p>
+  <pre><code>Authorization: Bearer sk-xxxxxxxxxxxxxxxx</code></pre>
+
+  <h2 id="endpoints">3. 接口一览</h2>
+  <table>
+    <tr><th>方法 &amp; 路径</th><th>说明</th><th>鉴权</th></tr>
+    <tr><td><span class="method post">POST</span><span class="path">/v1/videos</span></td><td>创建视频生成任务</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}</span></td><td>查询任务状态 / 结果（含 <code>usage</code> 与 <code>metadata.url</code>）</td><td>Bearer</td></tr>
+  </table>
+  <div class="callout info">
+    <p>另有一组等价接口 <code>POST /v1/video/generations</code> 与 <code>GET /v1/video/generations/{task_id}</code>，<strong>创建行为完全相同</strong>，仅查询响应为服务私有格式。<strong>推荐使用上方 <code>/v1/videos</code> 这套</strong>（标准结构、原生携带 <code>usage</code>）。</p>
+  </div>
+
+  <h2 id="create">4. 创建视频任务</h2>
+  <p><span class="method post">POST</span><span class="path">{BASE}/v1/videos</span></p>
+
+  <h3>请求参数（JSON Body）</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>模型名，如 <code>doubao-seedance-2-0-260128</code> / <code>doubao-seedance-2-0-fast-260128</code>（以你的服务开放的名称为准）</td></tr>
+    <tr><td><code>content</code></td><td>array</td><td class="req">必填</td><td>多模态输入数组，见下方「content 元素」。至少包含一个文本项，或一张图片 / 一段视频</td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td>输出分辨率：<code>480p</code> / <code>720p</code> / <code>1080p</code></td></tr>
+    <tr><td><code>ratio</code></td><td>string</td><td class="opt">可选</td><td>画面比例：<code>16:9</code> / <code>4:3</code> / <code>1:1</code> / <code>3:4</code> / <code>9:16</code> / <code>21:9</code> / <code>adaptive</code></td></tr>
+    <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td>时长（秒），如 <code>5</code> / <code>10</code>；传 <code>-1</code> 由模型智能决定</td></tr>
+    <tr><td><code>frames</code></td><td>int</td><td class="opt">可选</td><td>总帧数（与 <code>duration</code> 配合，按模型规则取其一）</td></tr>
+    <tr><td><code>seed</code></td><td>int</td><td class="opt">可选</td><td>随机种子；不传则随机</td></tr>
+    <tr><td><code>watermark</code></td><td>bool</td><td class="opt">可选</td><td>是否添加水印（默认 <code>false</code>）</td></tr>
+    <tr><td><code>generate_audio</code></td><td>bool</td><td class="opt">可选</td><td>是否生成同步音频</td></tr>
+    <tr><td><code>camera_fixed</code></td><td>bool</td><td class="opt">可选</td><td>是否固定镜头（关闭运镜）</td></tr>
+    <tr><td><code>return_last_frame</code></td><td>bool</td><td class="opt">可选</td><td>是否额外返回尾帧图</td></tr>
+    <tr><td><code>callback_url</code></td><td>string</td><td class="opt">可选</td><td>任务完成回调地址（设置后上游会主动回调）</td></tr>
+  </table>
+
+  <h4>content 元素</h4>
+  <table>
+    <tr><th>type</th><th>附带字段</th><th>role 可选值</th><th>说明</th></tr>
+    <tr><td><code>text</code></td><td><code>text</code>（string）</td><td class="opt">—</td><td>文本提示词（可有多条，按顺序拼接）</td></tr>
+    <tr><td><code>image_url</code></td><td><code>image_url.url</code></td><td><code>first_frame</code> / <code>last_frame</code> / <code>reference_image</code></td><td>输入图片，最多 9 张</td></tr>
+    <tr><td><code>video_url</code></td><td><code>video_url.url</code></td><td><code>reference_video</code></td><td>参考视频，最多 3 段</td></tr>
+    <tr><td><code>audio_url</code></td><td><code>audio_url.url</code></td><td><code>reference_audio</code></td><td>参考音频，最多 3 段</td></tr>
+  </table>
+  <p class="muted">输入模式由图片 role 自动推断：含 <code>first_frame</code> / <code>last_frame</code> 时为「首尾帧」模式，否则为「参考图」模式。</p>
+
+  <h4>进阶参数（可选）</h4>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>tools</code></td><td>array</td><td>工具列表，如 <code>[{"type":"web_search"}]</code> 启用联网搜索增强</td></tr>
+    <tr><td><code>service_tier</code></td><td>string</td><td>服务档位（按上游开放的档位取值）</td></tr>
+    <tr><td><code>draft</code></td><td>bool</td><td>草稿 / 快速预览模式</td></tr>
+    <tr><td><code>execution_expires_after</code></td><td>int</td><td>任务执行超时时间（秒），超时未完成则失败</td></tr>
+  </table>
+  <div class="callout info">
+    <p>进阶参数为本渠道扩展，纯官方 seedance 调用者可全部省略。未提供的可选字段一律不下发，由上游使用默认值。</p>
+  </div>
+
+  <h3>请求示例（文生视频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "doubao-seedance-2-0-260128",
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感，镜头缓慢推近" }
+    ],
+    "resolution": "1080p",
+    "ratio": "16:9",
+    "duration": 5
+  }'</code></pre>
+
+  <h3>请求示例（首尾帧图生视频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "doubao-seedance-2-0-260128",
+    "content": [
+      { "type": "text", "text": "镜头缓缓推进" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/first.jpg" }, "role": "first_frame" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/last.jpg" },  "role": "last_frame" }
+    ],
+    "resolution": "720p",
+    "ratio": "16:9",
+    "duration": 5
+  }'</code></pre>
+
+  <h3>请求示例（多模态参考：图 + 视频 + 音频）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "doubao-seedance-2-0-260128",
+    "content": [
+      { "type": "text",      "text": "第一人称果茶宣传广告，参考视频的运镜、音频作背景乐" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/pic1.jpg" }, "role": "reference_image" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/pic2.jpg" }, "role": "reference_image" },
+      { "type": "video_url", "video_url": { "url": "https://example.com/ref.mp4" },  "role": "reference_video" },
+      { "type": "audio_url", "audio_url": { "url": "https://example.com/bgm.mp3" },  "role": "reference_audio" }
+    ],
+    "ratio": "16:9",
+    "duration": 5,
+    "watermark": false,
+    "generate_audio": true
+  }'</code></pre>
+
+  <h3>响应</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "task_id": "task_3f9a...e2",
+  "object": "video",
+  "model": "doubao-seedance-2-0-260128",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1780306574
+}</code></pre>
+  <div class="callout info">
+    <p><code>id</code> / <code>task_id</code> 是公开任务 ID（<code>task_</code> 前缀 + 32 位随机串），后续轮询和取视频都用它。</p>
+  </div>
+
+  <h2 id="poll">5. 查询任务状态</h2>
+  <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}</span></p>
+  <pre><code>curl {BASE}/v1/videos/task_3f9a...e2 \
+  -H "Authorization: Bearer sk-xxxx"</code></pre>
+
+  <h3>排队 / 进行中</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "object": "video",
+  "status": "in_progress",
+  "progress": 50,
+  "model": "doubao-seedance-2-0-260128",
+  "created_at": 1780306574
+}</code></pre>
+
+  <h3>完成</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "object": "video",
+  "status": "completed",
+  "progress": 100,
+  "model": "doubao-seedance-2-0-260128",
+  "usage": {
+    "completion_tokens": 216900,
+    "total_tokens": 216900
+  },
+  "metadata": {
+    "url": "https://...example-storage.../seedance/xxxx.mp4?X-Tos-Expires=86400&X-Tos-Signature=..."
+  },
+  "created_at": 1780306574,
+  "completed_at": 1780306851
+}</code></pre>
+  <div class="callout ok">
+    <p>完成后，视频地址在 <code>metadata.url</code> —— 它是<strong>带签名时效的对象存储直链</strong>（默认有效期约 24h），直接 GET 即可下载或用于 <code>&lt;video src&gt;</code> 嵌入。<code>usage</code> 为本次生成消耗的 token 用量。</p>
+  </div>
+  <div class="callout warn">
+    <p><strong>注意时效：</strong>该直链带签名过期时间（<code>X-Tos-Expires</code>，默认约 24h，以上游签名为准）。任务完成后结果即<strong>冻结</strong>，重新 GET <code>/v1/videos/{task_id}</code> 返回的是<strong>同一个</strong>地址、<strong>不会刷新签名</strong>。请在有效期内<strong>尽快下载并自行落地存储</strong>；签名过期后该直链失效且无法通过本接口续签。</p>
+  </div>
+
+  <h3>失败</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "object": "video",
+  "status": "failed",
+  "error": { "message": "...", "code": "..." }
+}</code></pre>
+  <div class="callout info"><p>任务失败不计费（已预扣的额度自动退还）。</p></div>
+
+  <h2 id="download">6. 获取视频</h2>
+  <p>任务 <code>completed</code> 后，直接对 <code>metadata.url</code> 发起 GET 即可拿到 <code>video/mp4</code>：</p>
+  <pre><code># 从查询响应取出直链
+URL=$(curl -sS "{BASE}/v1/videos/task_3f9a...e2" \
+        -H "Authorization: Bearer sk-xxxx" | jq -r '.metadata.url')
+
+# 下载到本地
+curl -L "$URL" -o output.mp4
+
+# 或在 HTML 中直接嵌入（直链含签名时效，过期前请尽快落地存储）
+&lt;video src="$URL" controls&gt;&lt;/video&gt;</code></pre>
+  <div class="callout warn"><p>仅当任务状态为 <code>completed</code> 时 <code>metadata.url</code> 才有值。直链含签名时效（默认约 24h），<strong>过期后无法通过本接口续签</strong>，请在有效期内下载并自行落地存储。</p></div>
+
+  <h2 id="status">7. 状态值</h2>
+  <table>
+    <tr><th>status</th><th>含义</th></tr>
+    <tr><td><span class="pill s-queued">queued</span></td><td>排队中</td></tr>
+    <tr><td><span class="pill s-prog">in_progress</span></td><td>生成中（<code>progress</code> 0–100）</td></tr>
+    <tr><td><span class="pill s-done">completed</span></td><td>已完成，视频在 <code>metadata.url</code>，token 用量在 <code>usage</code></td></tr>
+    <tr><td><span class="pill s-fail">failed</span></td><td>失败，详情在 <code>error.message</code>；已退款</td></tr>
+  </table>
+
+  <h2 id="errors">8. 错误</h2>
+  <p>任务级失败体现在查询响应的 <code>error</code> 字段（见第 5 节）。请求 / 提交阶段的错误走标准错误体：</p>
+  <pre><code>{ "error": { "message": "...", "type": "...", "code": "..." } }</code></pre>
+  <table>
+    <tr><th>典型场景</th><th>说明</th></tr>
+    <tr><td><code>content</code> 为空</td><td>提交被拒：需至少包含一条文本，或一张图片 / 一段视频</td></tr>
+    <tr><td>模型不可用</td><td>传入了服务未开放的 <code>model</code></td></tr>
+    <tr><td>额度不足</td><td>任务不会创建</td></tr>
+    <tr><td>服务暂时不可用</td><td>通常可稍后重试</td></tr>
+  </table>
+
+  <h2 id="example">9. 完整示例（创建 → 轮询 → 下载）</h2>
+  <pre><code>#!/usr/bin/env bash
+BASE="https://your-api-host"
+TOKEN="sk-xxxxxxxxxxxxxxxx"
+
+# 1) 创建任务
+RESP=$(curl -sS "$BASE/v1/videos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "doubao-seedance-2-0-260128",
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感" }
+    ],
+    "resolution": "1080p",
+    "ratio": "16:9",
+    "duration": 5
+  }')
+TASK_ID=$(echo "$RESP" | jq -r '.id')
+echo "task: $TASK_ID"
+
+# 2) 轮询直到完成或失败
+while true; do
+  Q=$(curl -sS "$BASE/v1/videos/$TASK_ID" \
+        -H "Authorization: Bearer $TOKEN")
+  STATUS=$(echo "$Q" | jq -r '.status')
+  echo "status: $STATUS"
+  [ "$STATUS" = "completed" ] && break
+  if [ "$STATUS" = "failed" ]; then
+    echo "failed: $(echo "$Q" | jq -r '.error.message')"; exit 1
+  fi
+  sleep 5
+done
+
+# 3) 取回视频（metadata.url 为带签名时效的直链）
+URL=$(echo "$Q" | jq -r '.metadata.url')
+TOKENS=$(echo "$Q" | jq -r '.usage.total_tokens')
+echo "tokens: $TOKENS"
+curl -L "$URL" -o output.mp4
+echo "saved -> output.mp4"</code></pre>
+
+  <footer>
+    Doubao Seedance 视频生成 API · 接口使用文档。
+  </footer>
+</div>
+</body>
+</html>
