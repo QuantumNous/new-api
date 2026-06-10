@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import type {
   LoginPayload,
   LoginResponse,
@@ -88,7 +89,10 @@ export async function githubOAuthStart(clientId: string, state: string) {
 export async function getOAuthState(): Promise<string> {
   const aff =
     typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
-  const res = await api.get('/api/oauth/state', { params: { aff } })
+  const adsAttribution = getAdsAttributionPayload()
+  const res = await api.get('/api/oauth/state', {
+    params: { aff, ads_attribution: adsAttribution || undefined },
+  })
   if (res.data?.success) return res.data.data
   return ''
 }

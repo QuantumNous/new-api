@@ -28,6 +28,7 @@ import {
   trackSignupConversion,
   ensureGtagLoaded,
 } from '@/lib/analytics/gtag'
+import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -170,6 +171,7 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
+        ads_attribution: getAdsAttributionPayload() || undefined,
         turnstile: turnstileToken,
       })
 
@@ -387,7 +389,7 @@ export function SignUpForm({
           disabled={isLoading || !turnstileReady}
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
-          {t('Create an account')}
+          {t('Get free test credits')}
         </Button>
       </form>
 
