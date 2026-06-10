@@ -152,6 +152,11 @@ func GetModelData(c *gin.Context) {
 			&rows[i].InputPrice, &rows[i].OutputPrice, &rows[i].CachePrice, &rows[i].CacheCreationPrice,
 			&rows[i].GroupRatio, &rows[i].PricingSource,
 		)
+		applyPublicManualPricingToRow(
+			rows[i].Setting, modelName,
+			&rows[i].InputPrice, &rows[i].OutputPrice, &rows[i].CachePrice, &rows[i].CacheCreationPrice,
+			&rows[i].GroupRatio, &rows[i].PricingSource,
+		)
 		applyGlobalModelPricingToRow(
 			modelName,
 			&rows[i].InputPrice, &rows[i].OutputPrice, &rows[i].CachePrice, &rows[i].CacheCreationPrice,
@@ -444,6 +449,45 @@ func applyModelMappingPricingToRow(
 	}
 }
 
+// applyPublicManualPricingToRow fills pricing from public_model_prices × manual_group_ratio
+// when upstream /api/pricing is unavailable and channel_model_pricings has no row.
+func applyPublicManualPricingToRow(
+	setting *string,
+	canonical string,
+	inputPrice, outputPrice, cachePrice, cacheCreationPrice, groupRatio **float64,
+	pricingSource **string,
+) {
+	if inputPrice != nil && *inputPrice != nil && **inputPrice > 0 {
+		return
+	}
+	pr, ok := service.LookupPublicManualPricing(setting, canonical)
+	if !ok || pr.InputPrice <= 0 {
+		return
+	}
+	in := pr.InputPrice
+	*inputPrice = &in
+	if outputPrice != nil && pr.OutputPrice > 0 {
+		out := pr.OutputPrice
+		*outputPrice = &out
+	}
+	if cachePrice != nil && pr.CachePrice > 0 {
+		cp := pr.CachePrice
+		*cachePrice = &cp
+	}
+	if cacheCreationPrice != nil && pr.CacheCreationPrice > 0 {
+		ccp := pr.CacheCreationPrice
+		*cacheCreationPrice = &ccp
+	}
+	if groupRatio != nil {
+		gr := pr.GroupRatio
+		*groupRatio = &gr
+	}
+	if pricingSource != nil {
+		src := "manual"
+		*pricingSource = &src
+	}
+}
+
 // applyGlobalModelPricingToRow fills pricing from System Settings → Group & Model Pricing
 // when channel_model_pricings has no row (common for direct MiniMax / self-hosted channels).
 func applyGlobalModelPricingToRow(
@@ -577,6 +621,11 @@ func GetPublicMarketplace(c *gin.Context) {
 	for i := range rows {
 		applyModelMappingPricingToRow(
 			rows[i].ChannelID, rows[i].ModelMapping, modelName,
+			&rows[i].InputPrice, &rows[i].OutputPrice, nil, nil,
+			&rows[i].GroupRatio, nil,
+		)
+		applyPublicManualPricingToRow(
+			rows[i].Setting, modelName,
 			&rows[i].InputPrice, &rows[i].OutputPrice, nil, nil,
 			&rows[i].GroupRatio, nil,
 		)
