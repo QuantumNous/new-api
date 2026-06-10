@@ -39,7 +39,6 @@ import { useTranslation } from 'react-i18next';
 import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
-import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import KYCSetting from './personal/cards/KYCSetting';
 import EnterpriseSetting from './personal/cards/EnterpriseSetting';
@@ -612,20 +611,7 @@ const PersonalSetting = () => {
                 onPasskeyDelete={handleRemovePasskey}
               />
 
-              {/* 偏好设置（语言等） */}
-              <PreferencesSettings t={t} />
-            </div>
-
-            {/* 右侧：通知设置 + 实名认证 */}
-            <div className='flex flex-col gap-4 md:gap-6'>
-              <NotificationSettings
-                t={t}
-                notificationSettings={notificationSettings}
-                handleNotificationSettingChange={
-                  handleNotificationSettingChange
-                }
-                saveNotificationSettings={saveNotificationSettings}
-              />
+              {/* 实名认证 */}
               <div
                 ref={kycCardRef}
                 className={
@@ -636,6 +622,18 @@ const PersonalSetting = () => {
               >
                 <KYCSetting />
               </div>
+            </div>
+
+            {/* 右侧：通知设置 + 企业认证 */}
+            <div className='flex flex-col gap-4 md:gap-6'>
+              <NotificationSettings
+                t={t}
+                notificationSettings={notificationSettings}
+                handleNotificationSettingChange={
+                  handleNotificationSettingChange
+                }
+                saveNotificationSettings={saveNotificationSettings}
+              />
               <EnterpriseSetting />
             </div>
           </div>

@@ -17,10 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import React from 'react';
 import { reducer, initialState } from './reducer';
-import { normalizeLanguage } from '../../i18n/language';
 
 export const UserContext = React.createContext({
   state: initialState,
@@ -29,25 +27,7 @@ export const UserContext = React.createContext({
 
 export const UserProvider = ({ children }) => {
   const [state, dispatch] = React.useReducer(reducer, initialState);
-  const { i18n } = useTranslation();
-
-  // Sync language preference when user data is loaded
-  useEffect(() => {
-    if (state.user?.setting) {
-      try {
-        const settings = JSON.parse(state.user.setting);
-        const normalizedLanguage = normalizeLanguage(settings.language);
-        if (normalizedLanguage && normalizedLanguage !== i18n.language) {
-          i18n.changeLanguage(normalizedLanguage);
-        }
-        if (normalizedLanguage) {
-          localStorage.setItem('i18nextLng', normalizedLanguage);
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-  }, [state.user?.setting, i18n]);
+  // 站点固定简体中文（i18n.js 已写死 lng），不再按用户偏好同步语言
 
   return (
     <UserContext.Provider value={[state, dispatch]}>

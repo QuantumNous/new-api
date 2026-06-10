@@ -27,7 +27,6 @@ import ErrorBoundary from '../common/ErrorBoundary';
 import React, { useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
-import { useTranslation } from 'react-i18next';
 import {
   API,
   getLogo,
@@ -38,7 +37,6 @@ import {
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
-import { normalizeLanguage } from '../../i18n/language';
 const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
@@ -47,7 +45,6 @@ const PageLayout = () => {
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { i18n } = useTranslation();
   const location = useLocation();
 
   const cardProPages = [
@@ -120,32 +117,7 @@ const PageLayout = () => {
     }
   }, []);
 
-  useEffect(() => {
-    let preferredLang;
-
-    if (userState?.user?.setting) {
-      try {
-        const settings = JSON.parse(userState.user.setting);
-        preferredLang = normalizeLanguage(settings.language);
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    if (!preferredLang) {
-      const savedLang = localStorage.getItem('i18nextLng');
-      if (savedLang) {
-        preferredLang = normalizeLanguage(savedLang);
-      }
-    }
-
-    if (preferredLang) {
-      localStorage.setItem('i18nextLng', preferredLang);
-      if (preferredLang !== i18n.language) {
-        i18n.changeLanguage(preferredLang);
-      }
-    }
-  }, [i18n, userState?.user?.setting]);
+  // 站点固定简体中文（i18n.js 已写死 lng），不再按用户偏好/localStorage 同步语言
 
   return (
     <Layout

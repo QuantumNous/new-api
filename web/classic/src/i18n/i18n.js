@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
@@ -41,27 +40,26 @@ const merge = (base, custom) => ({
   translation: { ...base.translation, ...custom.translation },
 });
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    load: 'currentOnly',
-    supportedLngs: supportedLanguages,
-    resources: {
-      en: merge(enTranslation, enCustom),
-      'zh-CN': merge(zhCNTranslation, zhCNCustom),
-      'zh-TW': merge(zhTWTranslation, zhTWCustom),
-      fr: merge(frTranslation, frCustom),
-      ru: merge(ruTranslation, ruCustom),
-      ja: merge(jaTranslation, jaCustom),
-      vi: merge(viTranslation, viCustom),
-    },
-    fallbackLng: 'zh-CN',
-    nsSeparator: false,
-    interpolation: {
-      escapeValue: false,
-    },
-  });
+// 站点固定使用简体中文：移除浏览器语言探测，写死 lng（语言切换入口已隐藏）
+i18n.use(initReactI18next).init({
+  lng: 'zh-CN',
+  load: 'currentOnly',
+  supportedLngs: supportedLanguages,
+  resources: {
+    en: merge(enTranslation, enCustom),
+    'zh-CN': merge(zhCNTranslation, zhCNCustom),
+    'zh-TW': merge(zhTWTranslation, zhTWCustom),
+    fr: merge(frTranslation, frCustom),
+    ru: merge(ruTranslation, ruCustom),
+    ja: merge(jaTranslation, jaCustom),
+    vi: merge(viTranslation, viCustom),
+  },
+  fallbackLng: 'zh-CN',
+  nsSeparator: false,
+  interpolation: {
+    escapeValue: false,
+  },
+});
 
 window.__i18n = i18n;
 
