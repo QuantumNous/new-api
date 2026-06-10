@@ -400,6 +400,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Security (AI content security management)
 		securityRoute := apiRouter.Group("/security")
+		securityRoute.Use(middleware.SecurityInputValidation())
 		{
 			// Admin endpoints
 			securityGroupRoute := securityRoute.Group("/groups")

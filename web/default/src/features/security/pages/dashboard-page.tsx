@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { securityApi, type DashboardData } from '../api/security'
+import { RiskDistributionChart } from '../components/risk-distribution-chart'
+import { TopCategoriesChart } from '../components/top-categories-chart'
+import { TopUsersTable } from '../components/top-users-table'
 
 export function SecurityDashboardPage() {
   const { t } = useTranslation()
@@ -69,30 +72,21 @@ export function SecurityDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TopCategoriesChart data={data?.top_categories ?? []} />
+        <RiskDistributionChart data={data?.risk_distribution ?? { low: 0, medium: 0, high: 0, critical: 0 }} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TopUsersTable data={data?.top_users ?? []} />
         <Card>
           <CardHeader>
-            <CardTitle>{t('Top Categories')}</CardTitle>
+            <CardTitle>{t('Top Models')}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {data?.top_categories?.map((item: any, idx: number) => (
+              {data?.top_models?.map((item: any, idx: number) => (
                 <li key={idx} className="flex justify-between">
-                  <span>{item.category}</span>
-                  <span className="font-medium">{item.count}</span>
-                </li>
-              )) ?? <li className="text-muted-foreground">{t('No data')}</li>}
-            </ul>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Top Users')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {data?.top_users?.map((item: any, idx: number) => (
-                <li key={idx} className="flex justify-between">
-                  <span>{item.user_name}</span>
+                  <span>{item.model_name}</span>
                   <span className="font-medium">{item.count}</span>
                 </li>
               )) ?? <li className="text-muted-foreground">{t('No data')}</li>}

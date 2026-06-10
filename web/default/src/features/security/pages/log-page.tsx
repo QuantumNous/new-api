@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { securityApi, type SecurityHitLog } from '../api/security'
+import { LogDetailDrawer } from '../components/log-detail-drawer'
 
 const actionMap: Record<number, string> = {
   1: 'Pass',
@@ -24,6 +26,8 @@ export function SecurityLogPage() {
   const { t } = useTranslation()
   const [logs, setLogs] = useState<SecurityHitLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedLogId, setSelectedLogId] = useState<number | null>(null)
 
   useEffect(() => {
     loadLogs()
@@ -60,6 +64,11 @@ export function SecurityLogPage() {
     }
   }
 
+  const openDrawer = (id: number) => {
+    setSelectedLogId(id)
+    setDrawerOpen(true)
+  }
+
   if (loading) return <div className="p-6">{t('Loading...')}</div>
 
   return (
@@ -90,7 +99,11 @@ export function SecurityLogPage() {
             </TableHeader>
             <TableBody>
               {logs.map((log) => (
-                <TableRow key={log.id}>
+                <TableRow
+                  key={log.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => openDrawer(log.id)}
+                >
                   <TableCell>{new Date(log.created_at * 1000).toLocaleString()}</TableCell>
                   <TableCell>{log.user_name}</TableCell>
                   <TableCell>{log.model_name}</TableCell>
@@ -108,6 +121,12 @@ export function SecurityLogPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <LogDetailDrawer
+        logId={selectedLogId}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   )
 }

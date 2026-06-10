@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -342,7 +341,7 @@ func ExportSecurityLogs(c *gin.Context) {
 		row := []string{
 			strconv.FormatInt(log.ID, 10),
 			log.RequestID,
-			log.CreatedAt.Format("2006-01-02 15:04:05"),
+			time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
 			log.UserName,
 			log.ModelName,
 			contentTypeMap[log.ContentType],

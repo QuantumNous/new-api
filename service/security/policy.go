@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -72,7 +71,7 @@ func CreateSecurityPolicy(req *dto.SecurityPolicyRequest) (*model.SecurityUserPo
 	}
 
 	policy := &model.SecurityUserPolicy{
-		UserID:         req.UserID,
+		UserID:         int(req.UserID),
 		GroupID:        req.GroupID,
 		Scope:          req.Scope,
 		DefaultAction:  req.DefaultAction,

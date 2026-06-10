@@ -50,9 +50,12 @@ export interface SecurityHitLog {
   user_id: number
   user_name?: string
   model_name: string
+  content_type: number
   action: number
   risk_level: number
   risk_score: number
+  rule_id?: number
+  group_id?: number
   original_content_hash: string
   processed_content?: string
   match_detail?: string

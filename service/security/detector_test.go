@@ -41,7 +41,7 @@ func TestResolveAction(t *testing.T) {
 func TestApplyMasking(t *testing.T) {
 	rules := []*model.SecurityRule{{ID: 1}}
 	matches := []*dto.SecurityMatchResult{
-		{RuleID: 1, Position: [2]int{5, 16}},
+		{RuleID: 1, Position: [2]int{10, 21}},
 	}
 
 	result := applyMasking("请联系 13800138000", matches, rules)

@@ -134,7 +134,7 @@ description: "Task list for AI Content Security Management Module implementation
 - [x] T040 [P] [US4] Add `controller/security.go` handler for audit log query (`GET /api/security/logs`) with pagination and multi-field filtering
 - [x] T041 [P] [US4] Add `controller/security.go` handler for log export (`GET /api/security/logs/export`) supporting CSV and Excel formats
 - [x] T042 [US4] Create `web/default/src/features/security/pages/LogListPage.tsx` - audit log query page with filter panel (user, model, date range, category, action, risk level)
-- [ ] T043 [US4] Create `web/default/src/features/security/components/LogDetailDrawer.tsx` - slide-out panel showing full detection event details
+- [x] T043 [US4] Create `web/default/src/features/security/components/LogDetailDrawer.tsx` - slide-out panel showing full detection event details
 - [x] T044 [US4] Add log export button with format selection (CSV/Excel) to the Log List page
 
 **Checkpoint**: At this point, User Stories 1-4 are all independently functional.
@@ -151,9 +151,9 @@ description: "Task list for AI Content Security Management Module implementation
 
 - [x] T045 [P] [US5] Add `controller/security.go` handler for dashboard statistics (`GET /api/security/dashboard`) with aggregated metrics for a given time range
 - [x] T046 [P] [US5] Create `web/default/src/features/security/pages/DashboardPage.tsx` - main dashboard with summary cards (total detections, interceptions, alerts, today's count)
-- [ ] T047 [P] [US5] Create `web/default/src/features/security/components/RiskDistributionChart.tsx` - pie/bar chart showing risk level breakdown
-- [ ] T048 [P] [US5] Create `web/default/src/features/security/components/TopCategoriesChart.tsx` - bar chart of top triggered sensitive categories
-- [ ] T049 [P] [US5] Create `web/default/src/features/security/components/TopUsersTable.tsx` - table of top users with most detection events
+- [x] T047 [P] [US5] Create `web/default/src/features/security/components/RiskDistributionChart.tsx` - pie/bar chart showing risk level breakdown
+- [x] T048 [P] [US5] Create `web/default/src/features/security/components/TopCategoriesChart.tsx` - bar chart of top triggered sensitive categories
+- [x] T049 [P] [US5] Create `web/default/src/features/security/components/TopUsersTable.tsx` - table of top users with most detection events
 - [x] T050 [US5] Register dashboard route in frontend router (`/admin/security/dashboard`) and add to navigation menu
 
 **Checkpoint**: All user stories should now be independently functional.
@@ -166,13 +166,13 @@ description: "Task list for AI Content Security Management Module implementation
 
 - [x] T051 [P] Add `controller/security.go` handler for global security status check (`GET /api/security/status`) exposing module health and rule cache stats
 - [x] T052 [P] Implement global enable/disable switch logic in `middleware/security.go` reading `SECURITY_ENABLED` env var at startup
-- [ ] T053 [P] Add input validation middleware for all security admin APIs to prevent XSS and injection attacks
+- [x] T053 [P] Add input validation middleware for all security admin APIs to prevent XSS and injection attacks
 - [x] T054 [P] Create backend unit tests for detection engines (`service/security/engine_*_test.go`) with mock data and edge cases
-- [ ] T055 [P] Create integration tests for the full detection pipeline (`middleware/security_test.go`) using `httptest`
+- [x] T055 [P] Create integration tests for the full detection pipeline (`middleware/security_test.go`) using `httptest`
 - [x] T056 Add rate limiting to security admin APIs to prevent abuse
 - [x] T057 Performance optimization: pre-load all active rules into memory cache on startup and refresh on policy changes
-- [ ] T058 Run `quickstart.md` validation scenarios end-to-end and fix any issues
-- [ ] T059 Update project documentation (README or docs/) with security module setup and configuration instructions
+- [~] T058 Run `quickstart.md` validation scenarios end-to-end and fix any issues
+- [x] T059 Update project documentation (README or docs/) with security module setup and configuration instructions
 
 ---
 
