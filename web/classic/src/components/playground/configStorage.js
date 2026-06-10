@@ -321,31 +321,6 @@ export const createStoredConversation = (messages = [], id = null) => {
   };
 };
 
-export const loadConversationModes = () => {
-  try {
-    const savedModes = localStorage.getItem(STORAGE_KEYS.CONVERSATION_MODES);
-    if (!savedModes) {
-      return {};
-    }
-    const parsedModes = JSON.parse(savedModes);
-    return parsedModes && typeof parsedModes === 'object' ? parsedModes : {};
-  } catch (error) {
-    console.error('加载会话模式失败:', error);
-    return {};
-  }
-};
-
-export const saveConversationModes = (conversationModes = {}) => {
-  try {
-    localStorage.setItem(
-      STORAGE_KEYS.CONVERSATION_MODES,
-      JSON.stringify(conversationModes),
-    );
-  } catch (error) {
-    console.error('保存会话模式失败:', error);
-  }
-};
-
 const normalizeConversationState = (state) => {
   const conversations = Array.isArray(state?.conversations)
     ? state.conversations

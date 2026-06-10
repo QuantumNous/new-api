@@ -168,5 +168,4 @@ export const STORAGE_KEYS = {
   MESSAGES: 'playground_messages',
   CONVERSATIONS: 'playground_conversations',
   ACTIVE_CONVERSATION: 'playground_active_conversation',
-  CONVERSATION_MODES: 'playground_conversation_modes',
 };
