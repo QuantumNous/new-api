@@ -65,6 +65,8 @@ const FIELD_LABELS: Record<string, string> = {
   enable_groups: 'Enable Groups',
 }
 
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50] as const
+
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined) return '—'
   if (typeof value === 'string') return value || '—'
@@ -546,12 +548,10 @@ export function UpstreamConflictDialog({
                         {t('Rows per page')}
                       </span>
                       <Select
-                        items={[
-                          ...[5, 10, 20, 50].map((size) => ({
-                            value: String(size),
-                            label: size,
-                          })),
-                        ]}
+                        items={PAGE_SIZE_OPTIONS.map((size) => ({
+                          value: String(size),
+                          label: size,
+                        }))}
                         value={String(pageSize)}
                         onValueChange={(value) => {
                           setPageSize(Number(value))
@@ -563,7 +563,7 @@ export function UpstreamConflictDialog({
                         </SelectTrigger>
                         <SelectContent alignItemWithTrigger={false}>
                           <SelectGroup>
-                            {[5, 10, 20, 50].map((size) => (
+                            {PAGE_SIZE_OPTIONS.map((size) => (
                               <SelectItem key={size} value={String(size)}>
                                 {size}
                               </SelectItem>

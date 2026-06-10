@@ -55,10 +55,10 @@ import {
 } from '@/components/ui/tooltip'
 import {
   DataTableBulkActions as BulkActionsToolbar,
+  DataTablePagination,
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import {
   sideDrawerContentClassName,
@@ -539,12 +539,10 @@ export function ChannelTestDialog({
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
               <Select
-                items={[
-                  ...endpointTypeOptions.map((option) => {
-                    const itemValue = option.value
-                    return { value: itemValue, label: t(option.label) }
-                  }),
-                ]}
+                items={endpointTypeOptions.map((option) => ({
+                  value: option.value,
+                  label: t(option.label),
+                }))}
                 value={endpointType}
                 onValueChange={(v) => v !== null && setEndpointType(v)}
               >

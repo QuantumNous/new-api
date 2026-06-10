@@ -577,6 +577,36 @@ function AutoGroupChain(props: { model: PricingModel; autoGroups: string[] }) {
   )
 }
 
+function getDynamicPriceFields(
+  tiers: ReturnType<typeof getDynamicPricingTiers>,
+  options: Parameters<typeof getDynamicPriceEntries>[1]
+) {
+  return Array.from(
+    new Map(
+      tiers
+        .flatMap((tier) => getDynamicPriceEntries(tier, options))
+        .map((entry) => [entry.field, entry])
+    ).values()
+  )
+}
+
+function getDynamicFormattedPricesByTier(
+  tiers: ReturnType<typeof getDynamicPricingTiers>,
+  options: Parameters<typeof getDynamicPriceEntries>[1]
+) {
+  return new Map(
+    tiers.map((tier) => [
+      tier,
+      new Map(
+        getDynamicPriceEntries(tier, options).map((entry) => [
+          entry.field,
+          entry.formatted,
+        ])
+      ),
+    ])
+  )
+}
+
 // ----------------------------------------------------------------------------
 // Group pricing table
 // ----------------------------------------------------------------------------
@@ -667,21 +697,13 @@ function GroupPricingSection(props: {
       )
     }
 
-    const priceFields = Array.from(
-      new Map(
-        dynamicTiers
-          .flatMap((tier) =>
-            getDynamicPriceEntries(tier, {
-              tokenUnit: props.tokenUnit,
-              showRechargePrice,
-              priceRate: props.priceRate,
-              usdExchangeRate: props.usdExchangeRate,
-              groupRatioMultiplier: 1,
-            })
-          )
-          .map((entry) => [entry.field, entry])
-      ).values()
-    )
+    const priceFields = getDynamicPriceFields(dynamicTiers, {
+      tokenUnit: props.tokenUnit,
+      showRechargePrice,
+      priceRate: props.priceRate,
+      usdExchangeRate: props.usdExchangeRate,
+      groupRatioMultiplier: 1,
+    })
 
     return (
       <section>
@@ -690,6 +712,17 @@ function GroupPricingSection(props: {
         <div className='space-y-3'>
           {availableGroups.map((group) => {
             const ratio = props.groupRatio[group] || 1
+            const formattedPricesByTier = getDynamicFormattedPricesByTier(
+              dynamicTiers,
+              {
+                tokenUnit: props.tokenUnit,
+                showRechargePrice,
+                priceRate: props.priceRate,
+                usdExchangeRate: props.usdExchangeRate,
+                groupRatioMultiplier: ratio,
+              }
+            )
+
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
@@ -719,19 +752,10 @@ function GroupPricingSection(props: {
                       header: t(fieldEntry.shortLabel),
                       className: `${thClass} text-right`,
                       cellClassName: 'py-2.5 text-right font-mono',
-                      cell: (tier: (typeof dynamicTiers)[number]) => {
-                        const entries = getDynamicPriceEntries(tier, {
-                          tokenUnit: props.tokenUnit,
-                          showRechargePrice,
-                          priceRate: props.priceRate,
-                          usdExchangeRate: props.usdExchangeRate,
-                          groupRatioMultiplier: ratio,
-                        })
-                        const entryMap = new Map(
-                          entries.map((entry) => [entry.field, entry])
-                        )
-                        return entryMap.get(fieldEntry.field)?.formatted ?? '-'
-                      },
+                      cell: (tier: (typeof dynamicTiers)[number]) =>
+                        formattedPricesByTier
+                          .get(tier)
+                          ?.get(fieldEntry.field) ?? '-',
                     })),
                   ]}
                 />
@@ -745,6 +769,27 @@ function GroupPricingSection(props: {
       </section>
     )
   }
+
+  const renderGroupPrice = (group: string, type: PriceType) =>
+    formatGroupPrice(
+      props.model,
+      group,
+      type,
+      props.tokenUnit,
+      showRechargePrice,
+      props.priceRate,
+      props.usdExchangeRate,
+      props.groupRatio
+    )
+  const renderFixedGroupPrice = (group: string) =>
+    formatFixedPrice(
+      props.model,
+      group,
+      showRechargePrice,
+      props.priceRate,
+      props.usdExchangeRate,
+      props.groupRatio
+    )
 
   return (
     <section>
@@ -778,51 +823,21 @@ function GroupPricingSection(props: {
                   header: t('Input'),
                   className: `${thClass} text-right`,
                   cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) =>
-                    formatGroupPrice(
-                      props.model,
-                      group,
-                      'input',
-                      props.tokenUnit,
-                      showRechargePrice,
-                      props.priceRate,
-                      props.usdExchangeRate,
-                      props.groupRatio
-                    ),
+                  cell: (group: string) => renderGroupPrice(group, 'input'),
                 },
                 {
                   id: 'output',
                   header: t('Output'),
                   className: `${thClass} text-right`,
                   cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) =>
-                    formatGroupPrice(
-                      props.model,
-                      group,
-                      'output',
-                      props.tokenUnit,
-                      showRechargePrice,
-                      props.priceRate,
-                      props.usdExchangeRate,
-                      props.groupRatio
-                    ),
+                  cell: (group: string) => renderGroupPrice(group, 'output'),
                 },
                 ...extraPriceTypes.map((ep) => ({
                   id: ep.type,
                   header: ep.label,
                   className: `${thClass} text-right`,
                   cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) =>
-                    formatGroupPrice(
-                      props.model,
-                      group,
-                      ep.type,
-                      props.tokenUnit,
-                      showRechargePrice,
-                      props.priceRate,
-                      props.usdExchangeRate,
-                      props.groupRatio
-                    ),
+                  cell: (group: string) => renderGroupPrice(group, ep.type),
                 })),
               ]
             : [
@@ -831,15 +846,7 @@ function GroupPricingSection(props: {
                   header: t('Price'),
                   className: `${thClass} text-right`,
                   cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) =>
-                    formatFixedPrice(
-                      props.model,
-                      group,
-                      showRechargePrice,
-                      props.priceRate,
-                      props.usdExchangeRate,
-                      props.groupRatio
-                    ),
+                  cell: renderFixedGroupPrice,
                 },
               ]),
         ]}
