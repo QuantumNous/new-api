@@ -207,37 +207,123 @@ func DisableCodexModelAbilities(modelName string, channelIDs []int) error {
 }
 
 func RestoreCodexModelAbilities(modelName string, channelIDs []int) error {
-	modelName = strings.TrimSpace(modelName)
-	if modelName == "" {
-		return errors.New("model name is required")
-	}
-	codexChannelIDs, err := filterCodexChannelIDsWithModel(modelName, channelIDs)
+	changed, err := restoreCodexModelAbilitiesWithDB(DB, modelName, channelIDs)
 	if err != nil {
 		return err
 	}
-	if len(codexChannelIDs) == 0 {
-		return nil
+	if changed {
+		publishChannelsChanged()
 	}
-	if err := DB.Model(&Ability{}).
-		Where("model = ? AND channel_id IN ?", modelName, codexChannelIDs).
-		Select("enabled").
-		Update("enabled", true).Error; err != nil {
-		return err
-	}
-	publishChannelsChanged()
 	return nil
 }
 
+func restoreCodexModelAbilitiesWithDB(db *gorm.DB, modelName string, channelIDs []int) (bool, error) {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false, errors.New("model name is required")
+	}
+	codexChannelIDs, err := filterEnabledCodexChannelIDsWithModel(db, modelName, channelIDs)
+	if err != nil {
+		return false, err
+	}
+	if len(codexChannelIDs) == 0 {
+		return false, nil
+	}
+	if err := db.Model(&Ability{}).
+		Where("model = ? AND channel_id IN ?", modelName, codexChannelIDs).
+		Select("enabled").
+		Update("enabled", true).Error; err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func RemoveCodexModelFromChannels(modelName string, channelIDs []int) error {
+	changed, err := removeCodexModelFromChannelsWithDB(DB, modelName, channelIDs)
+	if err != nil {
+		return err
+	}
+	if changed {
+		publishChannelsChanged()
+	}
+	return nil
+}
+
+func removeCodexModelFromChannelsWithDB(db *gorm.DB, modelName string, channelIDs []int) (bool, error) {
 	modelName = strings.TrimSpace(modelName)
 	channelIDs = normalizeCodexModelGovernanceChannelIDs(channelIDs)
 	if modelName == "" {
-		return errors.New("model name is required")
+		return false, errors.New("model name is required")
 	}
 	if len(channelIDs) == 0 {
-		return nil
+		return false, nil
 	}
 
+	ownsTx := db == DB
+	tx := db
+	if ownsTx {
+		tx = db.Begin()
+		if tx.Error != nil {
+			return false, tx.Error
+		}
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			if ownsTx {
+				tx.Rollback()
+			}
+			panic(r)
+		}
+	}()
+
+	var channels []Channel
+	if err := tx.Where("id IN ? AND type = ?", channelIDs, constant.ChannelTypeCodex).Find(&channels).Error; err != nil {
+		if ownsTx {
+			tx.Rollback()
+		}
+		return false, err
+	}
+	changedAny := false
+	for _, channel := range channels {
+		nextModels, changed := removeCodexGovernanceModel(channel.Models, modelName)
+		if !changed {
+			continue
+		}
+		changedAny = true
+		channel.Models = nextModels
+		if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("models", nextModels).Error; err != nil {
+			if ownsTx {
+				tx.Rollback()
+			}
+			return false, err
+		}
+		if err := tx.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error; err != nil {
+			if ownsTx {
+				tx.Rollback()
+			}
+			return false, err
+		}
+		if strings.TrimSpace(channel.Models) != "" {
+			if err := channel.AddAbilities(tx); err != nil {
+				if ownsTx {
+					tx.Rollback()
+				}
+				return false, err
+			}
+		}
+	}
+	if ownsTx {
+		if err := tx.Commit().Error; err != nil {
+			return false, err
+		}
+	}
+	return changedAny, nil
+}
+
+func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, note string) error {
+	if id <= 0 {
+		return gorm.ErrRecordNotFound
+	}
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -245,110 +331,110 @@ func RemoveCodexModelFromChannels(modelName string, channelIDs []int) error {
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
+			panic(r)
 		}
 	}()
 
-	var channels []Channel
-	if err := tx.Where("id IN ? AND type = ?", channelIDs, constant.ChannelTypeCodex).Find(&channels).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	for _, channel := range channels {
-		nextModels, changed := removeCodexGovernanceModel(channel.Models, modelName)
-		if !changed {
-			continue
-		}
-		channel.Models = nextModels
-		if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("models", nextModels).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-		if strings.TrimSpace(channel.Models) != "" {
-			if err := channel.AddAbilities(tx); err != nil {
-				tx.Rollback()
-				return err
-			}
-		}
-	}
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-	publishChannelsChanged()
-	return nil
-}
-
-func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, note string) error {
-	record, err := GetCodexModelGovernanceRecord(id)
+	var record CodexModelGovernanceRecord
+	err := tx.First(&record, "id = ?", id).Error
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	nextStatus := strings.TrimSpace(status)
 	channelIDs := decodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	changed := false
 	switch nextStatus {
 	case CodexModelGovernanceStatusActive:
-		if err := RestoreCodexModelAbilities(record.ModelName, channelIDs); err != nil {
+		actionChanged, err := restoreCodexModelAbilitiesWithDB(tx, record.ModelName, channelIDs)
+		if err != nil {
+			tx.Rollback()
 			return err
 		}
+		changed = changed || actionChanged
 	case CodexModelGovernanceStatusRemoved:
-		if err := RemoveCodexModelFromChannels(record.ModelName, channelIDs); err != nil {
+		actionChanged, err := removeCodexModelFromChannelsWithDB(tx, record.ModelName, channelIDs)
+		if err != nil {
+			tx.Rollback()
 			return err
 		}
+		changed = changed || actionChanged
 	case CodexModelGovernanceStatusIgnored:
 	case CodexModelGovernanceStatusUnsupportedPendingReview:
-		if err := DisableCodexModelAbilities(record.ModelName, channelIDs); err != nil {
+		actionChanged, err := setCodexModelAbilityEnabledWithDB(tx, record.ModelName, channelIDs, false)
+		if err != nil {
+			tx.Rollback()
 			return err
 		}
+		changed = changed || actionChanged
 	default:
+		tx.Rollback()
 		return fmt.Errorf("unsupported codex model governance status: %s", status)
 	}
 
 	now := common.GetTimestamp()
-	return DB.Model(&CodexModelGovernanceRecord{}).Where("id = ?", id).Updates(map[string]any{
+	if err := tx.Model(&CodexModelGovernanceRecord{}).Where("id = ?", id).Updates(map[string]any{
 		"status":       nextStatus,
 		"reviewed_at":  now,
 		"reviewed_by":  reviewerID,
 		"review_note":  strings.TrimSpace(note),
 		"updated_time": now,
-	}).Error
-}
-
-func setCodexModelAbilityEnabled(modelName string, channelIDs []int, enabled bool) error {
-	modelName = strings.TrimSpace(modelName)
-	channelIDs = normalizeCodexModelGovernanceChannelIDs(channelIDs)
-	if modelName == "" {
-		return errors.New("model name is required")
-	}
-	if len(channelIDs) == 0 {
-		return nil
-	}
-	codexChannelIDs, err := filterCodexChannelIDs(channelIDs)
-	if err != nil {
+	}).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
-	if len(codexChannelIDs) == 0 {
-		return nil
-	}
-	if err := DB.Model(&Ability{}).
-		Where("model = ? AND channel_id IN ?", modelName, codexChannelIDs).
-		Select("enabled").
-		Update("enabled", enabled).Error; err != nil {
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
-	publishChannelsChanged()
+	if changed {
+		publishChannelsChanged()
+	}
 	return nil
 }
 
-func filterCodexChannelIDs(channelIDs []int) ([]int, error) {
+func setCodexModelAbilityEnabled(modelName string, channelIDs []int, enabled bool) error {
+	changed, err := setCodexModelAbilityEnabledWithDB(DB, modelName, channelIDs, enabled)
+	if err != nil {
+		return err
+	}
+	if changed {
+		publishChannelsChanged()
+	}
+	return nil
+}
+
+func setCodexModelAbilityEnabledWithDB(db *gorm.DB, modelName string, channelIDs []int, enabled bool) (bool, error) {
+	modelName = strings.TrimSpace(modelName)
+	channelIDs = normalizeCodexModelGovernanceChannelIDs(channelIDs)
+	if modelName == "" {
+		return false, errors.New("model name is required")
+	}
+	if len(channelIDs) == 0 {
+		return false, nil
+	}
+	codexChannelIDs, err := filterCodexChannelIDs(db, channelIDs)
+	if err != nil {
+		return false, err
+	}
+	if len(codexChannelIDs) == 0 {
+		return false, nil
+	}
+	if err := db.Model(&Ability{}).
+		Where("model = ? AND channel_id IN ?", modelName, codexChannelIDs).
+		Select("enabled").
+		Update("enabled", enabled).Error; err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func filterCodexChannelIDs(db *gorm.DB, channelIDs []int) ([]int, error) {
 	channelIDs = normalizeCodexModelGovernanceChannelIDs(channelIDs)
 	if len(channelIDs) == 0 {
 		return nil, nil
 	}
 	var channels []Channel
-	if err := DB.Model(&Channel{}).
+	if err := db.Model(&Channel{}).
 		Where("id IN ? AND type = ?", channelIDs, constant.ChannelTypeCodex).
 		Find(&channels).Error; err != nil {
 		return nil, err
@@ -360,14 +446,14 @@ func filterCodexChannelIDs(channelIDs []int) ([]int, error) {
 	return normalizeCodexModelGovernanceChannelIDs(ids), nil
 }
 
-func filterCodexChannelIDsWithModel(modelName string, channelIDs []int) ([]int, error) {
+func filterEnabledCodexChannelIDsWithModel(db *gorm.DB, modelName string, channelIDs []int) ([]int, error) {
 	channelIDs = normalizeCodexModelGovernanceChannelIDs(channelIDs)
 	if len(channelIDs) == 0 {
 		return nil, nil
 	}
 	var channels []Channel
-	if err := DB.Model(&Channel{}).
-		Where("id IN ? AND type = ?", channelIDs, constant.ChannelTypeCodex).
+	if err := db.Model(&Channel{}).
+		Where("id IN ? AND type = ? AND status = ?", channelIDs, constant.ChannelTypeCodex, common.ChannelStatusEnabled).
 		Find(&channels).Error; err != nil {
 		return nil, err
 	}

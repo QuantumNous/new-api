@@ -46,6 +46,11 @@ func setupCodexGovernanceTestDB(t *testing.T) *gorm.DB {
 
 func insertCodexGovernanceChannel(t *testing.T, id int, channelType int, models string) {
 	t.Helper()
+	insertCodexGovernanceChannelWithStatus(t, id, channelType, models, common.ChannelStatusEnabled)
+}
+
+func insertCodexGovernanceChannelWithStatus(t *testing.T, id int, channelType int, models string, status int) {
+	t.Helper()
 
 	priority := int64(0)
 	weight := uint(0)
@@ -54,7 +59,7 @@ func insertCodexGovernanceChannel(t *testing.T, id int, channelType int, models 
 		Type:     channelType,
 		Key:      "test-key",
 		Name:     "test-channel",
-		Status:   common.ChannelStatusEnabled,
+		Status:   status,
 		Models:   models,
 		Group:    "default",
 		Priority: &priority,
@@ -133,4 +138,21 @@ func TestCodexGovernanceRemoveModelUpdatesChannelsAndAbilities(t *testing.T) {
 	var remainingAbility Ability
 	require.NoError(t, DB.First(&remainingAbility, "channel_id = ? AND model = ?", 21, "gpt-5.4-codex").Error)
 	require.True(t, remainingAbility.Enabled)
+}
+
+func TestCodexGovernanceRestoreDoesNotEnableDisabledChannels(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannelWithStatus(t, 31, constant.ChannelTypeCodex, "gpt-5.3-codex", common.ChannelStatusManuallyDisabled)
+	insertCodexGovernanceChannelWithStatus(t, 32, constant.ChannelTypeCodex, "gpt-5.3-codex", common.ChannelStatusEnabled)
+
+	require.NoError(t, DisableCodexModelAbilities("gpt-5.3-codex", []int{31, 32}))
+	require.NoError(t, RestoreCodexModelAbilities("gpt-5.3-codex", []int{31, 32}))
+
+	var disabledChannelAbility Ability
+	require.NoError(t, DB.First(&disabledChannelAbility, "channel_id = ? AND model = ?", 31, "gpt-5.3-codex").Error)
+	require.False(t, disabledChannelAbility.Enabled)
+
+	var enabledChannelAbility Ability
+	require.NoError(t, DB.First(&enabledChannelAbility, "channel_id = ? AND model = ?", 32, "gpt-5.3-codex").Error)
+	require.True(t, enabledChannelAbility.Enabled)
 }
