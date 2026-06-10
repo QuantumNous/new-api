@@ -34,3 +34,17 @@ func TestGlobalModelPricingUSD_minimax(t *testing.T) {
 		t.Fatalf("cache=%v want 0.06", cache)
 	}
 }
+
+func TestGlobalModelPricingUSD_minimax_alias(t *testing.T) {
+	jsonRatio := `{"minimax-m3":0.15}`
+	if err := ratio_setting.UpdateModelRatioByJSONString(jsonRatio); err != nil {
+		t.Fatal(err)
+	}
+	in, _, _, _, ok := GlobalModelPricingUSD("MiniMax-M3")
+	if !ok {
+		t.Fatal("expected ok for provider alias MiniMax-M3")
+	}
+	if in != 0.3 {
+		t.Fatalf("input=%v want 0.3", in)
+	}
+}

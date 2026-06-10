@@ -1,6 +1,8 @@
 package service
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -11,7 +13,7 @@ const PlatformUSDPerModelRatio = 2.0
 // Pricing (ModelPrice / ModelRatio / CompletionRatio / CacheRatio). Tries the
 // canonical model name and ModelNameCandidates aliases (e.g. minimax-m3 ↔ MiniMax-M3).
 func GlobalModelPricingUSD(canonical string) (input, output, cache, cacheCreation float64, ok bool) {
-	for _, name := range ModelNameCandidates(canonical) {
+	for _, name := range modelPricingLookupNames(canonical) {
 		if price, usePrice := ratio_setting.GetModelPrice(name, false); usePrice && price > 0 {
 			input = price
 			fillGlobalDerivedPrices(name, input, &output, &cache, &cacheCreation)
@@ -39,4 +41,17 @@ func fillGlobalDerivedPrices(name string, input float64, output, cache, cacheCre
 	if cc, ccOk := ratio_setting.GetCreateCacheRatio(name); ccOk && cc > 0 {
 		*cacheCreation = input * cc
 	}
+}
+
+// modelPricingLookupNames expands canonical ids and provider aliases (MiniMax-M3 ↔ minimax-m3).
+func modelPricingLookupNames(name string) []string {
+	out := appendUniqueStrings(ModelNameCandidates(name), name)
+	for canonical, aliases := range ModelIDCandidates {
+		for _, alias := range aliases {
+			if strings.EqualFold(alias, name) {
+				out = appendUniqueStrings(out, canonical, alias)
+			}
+		}
+	}
+	return out
 }
