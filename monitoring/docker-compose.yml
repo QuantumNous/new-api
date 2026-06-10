@@ -1,0 +1,113 @@
+version: "3.8"
+
+services:
+  # ===== New API Prometheus Exporter =====
+  exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile.exporter
+    container_name: newapi-exporter
+    ports:
+      - "9099:9099"
+    environment:
+      - NEW_API_BASE=http://host.docker.internal:3002
+      - SCRAPE_INTERVAL=30
+      # Admin credentials for log stats + token metrics
+      - NEW_API_ADMIN_USER=test
+      - NEW_API_ADMIN_PASS=10086111
+      # User/Group monitoring (comma-separated, empty=auto-detect)
+      - NEW_API_USER_LIST=
+      - NEW_API_GROUP_LIST=internal,personal
+    restart: always
+    networks:
+      - monitoring
+
+  # ===== Prometheus =====
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: newapi-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    restart: always
+    networks:
+      - monitoring
+
+  # ===== Feishu Relay =====
+  feishu-relay:
+    build:
+      context: .
+      dockerfile: Dockerfile.relay
+    container_name: newapi-feishu-relay
+    ports:
+      - "9098:9098"
+    environment:
+      - FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/748fd289-6b82-4b21-b7e5-4b7baac7b67e
+    restart: always
+    networks:
+      - monitoring
+
+  # ===== AlertManager =====
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: newapi-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./templates:/etc/alertmanager/templates:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    restart: always
+    networks:
+      - monitoring
+
+  # ===== Grafana =====
+  grafana:
+    image: grafana/grafana:latest
+    container_name: newapi-grafana
+    ports:
+      - "3003:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=newapi123
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/newapi.json:ro
+    restart: always
+    networks:
+      - monitoring
+
+  # ===== Scheduled Report → Feishu =====
+  report:
+    build:
+      context: .
+      dockerfile: Dockerfile.report
+    container_name: newapi-report
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/748fd289-6b82-4b21-b7e5-4b7baac7b67e
+      - REPORT_INTERVAL=60
+    restart: always
+    networks:
+      - monitoring
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: bridge

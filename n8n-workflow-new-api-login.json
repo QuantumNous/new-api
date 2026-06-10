@@ -1,0 +1,547 @@
+{
+  "name": "New API - 登录验证信息获取演示",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-api-login",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook 触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "rawContent": "{\n  \"base_url\": \"{{ $json.body.base_url || $json.body.baseUrl || 'http://localhost:3000' }}\",\n  \"username\": \"{{ $json.body.username || '' }}\",\n  \"password\": \"{{ $json.body.password || '' }}\"\n}"
+      },
+      "id": "prepare-input",
+      "name": "解析请求参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 验证输入参数\nconst username = $input.first().json.username;\nconst password = $input.first().json.password;\nconst baseUrl = $input.first().json.base_url;\n\n// 去除 baseUrl 末尾的斜杠\nconst cleanBaseUrl = baseUrl.replace(/\\/+$/, '');\n\nif (!username || !password) {\n  return {\n    json: {\n      error: true,\n      message: '缺少必填参数：username 和 password 为必填项',\n      base_url: cleanBaseUrl\n    }\n  };\n}\n\nreturn {\n  json: {\n    valid: true,\n    username: username,\n    password: password,\n    base_url: cleanBaseUrl\n  }\n};"
+      },
+      "id": "validate-input",
+      "name": "验证输入参数",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-valid",
+      "name": "参数是否有效？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    success: false,\n    step: 'input_validation',\n    error: $input.first().json.message,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "return-error-input",
+      "name": "返回输入错误",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 450]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.base_url }}/api/setup",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        }
+      },
+      "id": "check-setup",
+      "name": "检查系统初始化状态",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 250]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-setup-ok",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-setup-response",
+      "name": "系统是否就绪？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 250]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 系统未初始化\nconst setupData = $input.first().json;\nreturn {\n  json: {\n    success: false,\n    step: 'system_setup_check',\n    message: '系统尚未初始化或无法连接',\n    setup_data: setupData,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "return-setup-error",
+      "name": "返回系统状态错误",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('validate-input').first().json.base_url }}/api/user/login",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"username\": \"{{ $('validate-input').first().json.username }}\",\n  \"password\": \"{{ $('validate-input').first().json.password }}\"\n}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        }
+      },
+      "id": "login-request",
+      "name": "POST 登录请求",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-login-success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-login-result",
+      "name": "登录是否成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-2fa",
+              "leftValue": "={{ $json.data.require_2fa }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-2fa",
+      "name": "是否需要 2FA？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1850, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 登录成功（无2FA）- 提取用户信息\nconst loginData = $input.first().json;\nconst userData = loginData.data;\n\nreturn {\n  json: {\n    success: true,\n    step: 'login_success',\n    login_type: 'password',\n    message: '登录成功，已获取用户验证信息',\n    user: {\n      用户ID: userData.id,\n      用户名: userData.username,\n      显示名称: userData.display_name,\n      角色: userData.role === 2 ? '管理员' : userData.role === 1 ? '普通用户' : '未知',\n      角色代码: userData.role,\n      账户状态: userData.status === 1 ? '已启用' : '已禁用',\n      状态代码: userData.status,\n      用户分组: userData.group\n    },\n    authentication: {\n      方式: 'Session Cookie（已通过 Set-Cookie 返回）',\n      说明: '登录成功后服务端会设置 Session Cookie，后续请求需携带此 Cookie 以维持认证状态'\n    },\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "format-success",
+      "name": "格式化登录成功结果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 50]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 需要2FA二次验证\nconst loginData = $input.first().json;\n\nreturn {\n  json: {\n    success: true,\n    step: '2fa_required',\n    login_type: 'password_with_2fa',\n    message: '用户名密码验证通过，需要进行双因素认证 (2FA)',\n    require_2fa: true,\n    后续步骤: {\n      步骤1: '用户已通过用户名密码初步验证',\n      步骤2: '需调用 POST /api/user/login/2fa 提交2FA验证码',\n      步骤3: '2FA验证通过后获取完整 Session 认证'\n    },\n    authentication: {\n      当前状态: '部分认证（Pending Session）',\n      说明: '服务端已创建待验证会话 (pending session)，需完成2FA后方可获得完整访问权限'\n    },\n    raw_response: loginData,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "format-2fa",
+      "name": "格式化2FA响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 150]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 登录失败 - 提取错误信息\nconst errorData = $input.first().json;\n\nreturn {\n  json: {\n    success: false,\n    step: 'login_failed',\n    message: errorData.message || '用户名或密码错误',\n    error_detail: errorData,\n    可能原因: [\n      '用户名或密码输入错误',\n      '账户已被禁用 (status=0)',\n      '密码登录方式已被管理员关闭',\n      '超过频率限制（CriticalRateLimit）'\n    ],\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "format-error",
+      "name": "格式化登录失败结果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 250]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 网络错误或其他异常\nreturn {\n  json: {\n    success: false,\n    step: 'network_error',\n    message: '网络请求失败或服务不可用',\n    error: $input.first().json,\n    排查建议: [\n      '确认 New API 服务已启动',\n      '检查 base_url 地址和端口是否正确',\n      '确认网络防火墙未阻止请求',\n      '检查是否使用了 HTTPS 但服务只支持 HTTP'\n    ],\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "format-network-error",
+      "name": "格式化网络错误",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-to-webhook",
+      "name": "返回结果给客户端",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "{{ $workflow.id }}",
+        "options": {}
+      },
+      "id": "error-trigger",
+      "name": "错误处理",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [2250, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 统一错误处理\nconst workflowName = $input.first().workflow.name || 'Unknown';\nconst errorMessage = $input.first().error.message || 'Unknown error';\nconst errorNode = $input.first().error.node || 'Unknown node';\nconst timestamp = new Date().toISOString();\n\nreturn {\n  json: {\n    success: false,\n    step: 'workflow_error',\n    message: `工作流执行异常: ${errorMessage}`,\n    error_detail: {\n      workflow: workflowName,\n      node: errorNode,\n      error: errorMessage,\n      timestamp: timestamp\n    },\n    说明: '工作流执行过程中发生异常，请检查 n8n 执行日志获取详细信息'\n  }\n};"
+      },
+      "id": "format-workflow-error",
+      "name": "格式化工作流异常",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 500]
+    }
+  ],
+  "connections": {
+    "Webhook 触发器": {
+      "main": [
+        [
+          {
+            "node": "解析请求参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析请求参数": {
+      "main": [
+        [
+          {
+            "node": "验证输入参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证输入参数": {
+      "main": [
+        [
+          {
+            "node": "参数是否有效？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "参数是否有效？": {
+      "main": [
+        [
+          {
+            "node": "检查系统初始化状态",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "返回输入错误",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "返回输入错误": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查系统初始化状态": {
+      "main": [
+        [
+          {
+            "node": "系统是否就绪？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "系统是否就绪？": {
+      "main": [
+        [
+          {
+            "node": "POST 登录请求",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "返回系统状态错误",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "返回系统状态错误": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST 登录请求": {
+      "main": [
+        [
+          {
+            "node": "登录是否成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "登录是否成功？": {
+      "main": [
+        [
+          {
+            "node": "是否需要 2FA？",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "格式化登录失败结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "是否需要 2FA？": {
+      "main": [
+        [
+          {
+            "node": "格式化登录成功结果",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "格式化2FA响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化登录成功结果": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化2FA响应": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化登录失败结果": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化网络错误": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "错误处理": {
+      "main": [
+        [
+          {
+            "node": "格式化工作流异常",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化工作流异常": {
+      "main": [
+        [
+          {
+            "node": "返回结果给客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "New API",
+      "id": "new-api-tag"
+    },
+    {
+      "name": "认证演示",
+      "id": "auth-demo-tag"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1.0.0"
+}

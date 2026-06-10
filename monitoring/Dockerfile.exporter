@@ -1,0 +1,6 @@
+FROM python:3.12-alpine
+WORKDIR /app
+COPY exporter.py .
+EXPOSE 9099
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9099/health')"]
+CMD ["python", "exporter.py"]

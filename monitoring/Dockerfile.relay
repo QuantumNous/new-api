@@ -1,0 +1,5 @@
+FROM python:3.12-alpine
+WORKDIR /app
+COPY feishu-relay.py .
+EXPOSE 9098
+CMD ["python", "-u", "feishu-relay.py"]

@@ -1,0 +1,130 @@
+groups:
+  - name: new-api-alerts
+    interval: 30s
+    rules:
+      # ===== 服务可用性 =====
+      - alert: NewAPIDown
+        expr: newapi_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "❌ New API 服务不可用"
+          description: "{{ $labels.instance }} 已超过 1 分钟无法访问"
+
+      - alert: NewAPIFlapping
+        expr: rate(newapi_up[5m]) * 100 < 100
+        for: 2m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "⚠️ New API 服务不稳定"
+          description: "{{ $labels.instance }} 5分钟内可用率 {{ $value }}%"
+
+      # ===== 模型延迟 =====
+      - alert: ModelHighLatency
+        expr: newapi_model_latency_ms > 10000
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "🐌 模型调用延迟过高"
+          description: "模型 {{ $labels.model }} 平均延迟 {{ $value }}ms > 10000ms"
+
+      # ===== 模型成功率 =====
+      - alert: ModelLowSuccessRate
+        expr: newapi_model_success_rate < 90 and newapi_model_success_rate > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "🔴 模型调用成功率低于 90%"
+          description: "模型 {{ $labels.model }} 成功率仅 {{ $value }}%"
+
+      # ===== RPM 突增 =====
+      - alert: HighRPM
+        expr: newapi_rpm > 1000
+        for: 2m
+        labels:
+          severity: warning
+          category: traffic
+        annotations:
+          summary: "📈 请求量突增"
+          description: "当前 RPM: {{ $value }}，实例: {{ $labels.instance }}"
+
+      # ===== 用量告警 =====
+      - alert: QuotaUsageHigh
+        expr: (newapi_quota_used / newapi_quota_per_unit) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+        annotations:
+          summary: "💰 额度使用超过 80%"
+          description: "{{ $labels.instance }} 额度使用率已超过 80%"
+
+      # ===== Exporter 自身 =====
+      - alert: ExporterDown
+        expr: up{job="newapi"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "🛠 Prometheus Exporter 离线"
+          description: "Exporter {{ $labels.instance }} 不可达"
+
+      # ===== 用户级别告警 =====
+      - alert: UserQuotaUsageHigh
+        expr: newapi_user_quota_used > 1000000
+        for: 5m
+        labels:
+          severity: warning
+          category: user-billing
+        annotations:
+          summary: "👤 用户 {{ $labels.username }} 额度使用过高"
+          description: "用户 {{ $labels.username }} 已使用 {{ $value }} 额度，超过阈值 100万"
+
+      - alert: UserQuotaCritical
+        expr: newapi_user_quota_used > 10000000
+        for: 3m
+        labels:
+          severity: critical
+          category: user-billing
+        annotations:
+          summary: "🔴 用户 {{ $labels.username }} 额度严重超标"
+          description: "用户 {{ $labels.username }} 已使用 {{ $value }} 额度，超过阈值 1000万"
+
+      - alert: UserHighRPM
+        expr: newapi_user_rpm > 100
+        for: 2m
+        labels:
+          severity: warning
+          category: user-traffic
+        annotations:
+          summary: "📈 用户 {{ $labels.username }} 请求频率过高"
+          description: "用户 {{ $labels.username }} RPM: {{ $value }}，超过阈值 100"
+
+      - alert: InternalGroupHighUsage
+        expr: newapi_group_quota_used{group="internal"} > 5000000
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+        annotations:
+          summary: "🏢 内部研发组额度使用 > 500万"
+          description: "internal 分组已使用 {{ $value }} 额度，注意与生产稳定性"
+
+      - alert: PersonalGroupHighUsage
+        expr: newapi_group_quota_used{group="personal"} > 2000000
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+        annotations:
+          summary: "👥 个人用户组额度使用 > 200万"
+          description: "personal 分组已使用 {{ $value }} 额度"

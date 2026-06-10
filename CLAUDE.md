@@ -1,4 +1,6 @@
-# CLAUDE.md — Project Conventions for new-api
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
 
@@ -12,6 +14,81 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
 - **Frontend package manager**: Bun (preferred over npm/yarn/pnpm)
+
+## Development Commands
+
+### Backend (Go)
+
+```bash
+# Run backend server
+go run main.go
+
+# Build backend
+go build -o new-api
+
+# Run all tests
+go test ./...
+
+# Run tests for specific package
+go test ./common/
+go test ./relay/channel/claude/
+
+# Run specific test
+go test -run TestJsonRawMessageToString ./common/
+
+# Run tests with verbose output
+go test -v ./...
+```
+
+### Frontend (web/default/)
+
+```bash
+# Install dependencies (from web/ directory)
+cd web && bun install
+
+# Development server (port 5173)
+cd web/default && bun run dev
+
+# Production build
+cd web/default && bun run build
+
+# Type checking
+cd web/default && bun run typecheck
+
+# Linting
+cd web/default && bun run lint
+
+# Format check
+cd web/default && bun run format:check
+
+# Format code
+cd web/default && bun run format
+
+# i18n sync
+cd web/default && bun run i18n:sync
+```
+
+### Docker Development
+
+```bash
+# Start backend services (PostgreSQL + Redis)
+make dev-api
+
+# Rebuild and start backend
+make dev-api-rebuild
+
+# Start frontend dev servers (both default and classic)
+make dev-web
+
+# Start only classic frontend
+make dev-web-classic
+
+# Full dev setup (backend + frontend)
+make dev
+
+# Reset setup wizard state
+make reset-setup
+```
 
 ## Architecture
 
@@ -32,11 +109,28 @@ constant/      — Constants (API types, channel types, context keys)
 types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
-pkg/           — Internal packages (cachex, ionet)
+pkg/           — Internal packages (cachex, ionet, billingexpr)
 web/             — Frontend themes container
  web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
   web/classic/   — Classic frontend (React 18, Vite, Semi Design)
   web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+```
+
+## Testing
+
+Tests use standard Go testing with `github.com/stretchr/testify`. Test files are colocated with source code.
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with coverage
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+
+# Run tests for specific module
+go test ./relay/channel/claude/...
+go test ./service/...
 ```
 
 ## Internationalization (i18n)
@@ -110,8 +204,8 @@ When implementing a new channel:
 
 The following project-related information is **strictly protected** and MUST NOT be modified, deleted, replaced, or removed under any circumstances:
 
-- Any references, mentions, branding, metadata, or attributions related to **nеw-аρi** (the project name/identity)
-- Any references, mentions, branding, metadata, or attributions related to **QuаntumΝоuѕ** (the organization/author identity)
+- Any references, mentions, branding, metadata, or attributions related to **new-api** (the project name/identity)
+- Any references, mentions, branding, metadata, or attributions related to **QuantumNous** (the organization/author identity)
 
 This includes but is not limited to:
 - README files, license headers, copyright notices, package metadata

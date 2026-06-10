@@ -1,0 +1,98 @@
+{
+  "name": "New API - Test Login",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Edit these =====\nconst BASE_URL = 'http://host.docker.internal:3002';\nconst USERNAME = 'test';\nconst PASSWORD = '10086111';\n\nreturn {\n  json: {\n    base_url: BASE_URL.replace(/\\/+$/, ''),\n    username: USERNAME,\n    password: PASSWORD\n  }\n};"
+      },
+      "id": "config",
+      "name": "config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/api/status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "options": { "timeout": 10000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "check-status",
+      "name": "1-Check Connectivity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('config').first().json.base_url }}/api/user/login?turnstile=",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"username\": \"{{ $('config').first().json.username }}\", \"password\": \"{{ $('config').first().json.password }}\"}",
+        "options": {
+          "timeout": 15000,
+          "response": { "response": { "responseFormat": "json", "includeHeaders": true } }
+        }
+      },
+      "id": "login",
+      "name": "2-POST Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 350]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $input.all();\n\n// Parse check-status result\nconst statusCheck = all.find(item => item.json && item.json.hasOwnProperty('success') && !item.json.hasOwnProperty('login_success')) || all[0];\nconst statusRes = statusCheck ? statusCheck.json : {};\n\n// Parse login result\nconst loginAll = all.filter(item => {\n  const j = item.json || {};\n  return j.success !== undefined && (j.data || j.message === 'Username or password');\n});\n\n// Actually, simpler: item 0 = status check, item 1+ = login\nconst body = all[1] ? all[1].json : (all[0] ? all[0].json : {});\n\n// Extract session cookie\nlet setCookie = '';\nif (all.length > 1 && all[1].json) {\n  // Headers might be in different places\n  for (let i = 1; i < all.length; i++) {\n    const h = all[i].json;\n    if (h && h.headers && h.headers['set-cookie']) { setCookie = h.headers['set-cookie']; break; }\n    if (h && h['set-cookie']) { setCookie = h['set-cookie']; break; }\n  }\n}\nif (!setCookie && all[0] && all[0].headers && all[0].headers['set-cookie']) {\n  setCookie = all[0].headers['set-cookie'];\n}\n\nconst cm = setCookie.match(/(session=[^;]+)/);\nconst sessionCookie = cm ? cm[1] : '';\n\nconst loginOk = body.success === true;\nconst user = body.data || {};\n\nreturn {\n  json: {\n    connectivity: {\n      status: statusRes.success ? 'OK' : 'FAIL',\n      server_version: statusRes.data?.version || statusRes.message || 'unknown',\n      raw: statusRes\n    },\n    login: {\n      status: loginOk ? 'SUCCESS' : 'FAILED',\n      message: body.message || '',\n      user: loginOk ? {\n        id: user.id,\n        username: user.username,\n        display_name: user.display_name,\n        role: user.role,\n        status: user.status === 1 ? 'enabled' : 'disabled',\n        group: user.group\n      } : null,\n      auth: loginOk ? {\n        session_cookie: sessionCookie ? sessionCookie.substring(0, 30) + '...' : '(not found)',\n        new_api_user_header: user.id || 'N/A',\n        note: 'Send: Cookie: session=... AND New-Api-User: ' + (user.id || 'N/A')\n      } : null\n    },\n    debug: {\n      base_url_used: $('config').first().json.base_url,\n      username_used: $('config').first().json.username,\n      login_raw_body: body\n    }\n  }\n};"
+      },
+      "id": "parse-result",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "config", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "config": {
+      "main": [
+        [
+          { "node": "1-Check Connectivity", "type": "main", "index": 0 },
+          { "node": "2-POST Login", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "1-Check Connectivity": {
+      "main": [[{ "node": "Parse Result", "type": "main", "index": 0 }]]
+    },
+    "2-POST Login": {
+      "main": [[{ "node": "Parse Result", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "New API", "id": "test-login-tag" }],
+  "pinData": {},
+  "versionId": "2.0.0"
+}

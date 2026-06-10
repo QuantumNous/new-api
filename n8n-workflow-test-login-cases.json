@@ -1,0 +1,83 @@
+{
+  "name": "New API - Login Test Cases",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const BASE_URL = 'http://host.docker.internal:3002';\n\n// Test cases: [label, username, password, expectSuccess]\nconst cases = [\n  { id: 'TC01', label: 'Valid login',         username: 'test',    password: '10086111', expect: true  },\n  { id: 'TC02', label: 'Wrong password',       username: 'test',    password: 'wrongpass', expect: false },\n  { id: 'TC03', label: 'Wrong username',       username: 'nobody',  password: '10086111', expect: false },\n  { id: 'TC04', label: 'Empty username',       username: '',        password: '10086111', expect: false },\n  { id: 'TC05', label: 'Empty password',       username: 'test',    password: '',         expect: false },\n  { id: 'TC06', label: 'Both empty',           username: '',        password: '',         expect: false },\n  { id: 'TC07', label: 'Username with spaces', username: '  test  ',password: '10086111', expect: false },\n  { id: 'TC08', label: 'SQL injection attempt',username: \"' OR 1=1--\",password: \"' OR 1=1--\", expect: false }\n];\n\nreturn cases.map(c => ({\n  json: {\n    base_url: BASE_URL.replace(/\\/+$/, ''),\n    id: c.id,\n    label: c.label,\n    username: c.username,\n    password: c.password,\n    expect: c.expect\n  }\n}));"
+      },
+      "id": "config",
+      "name": "config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.base_url }}/api/user/login?turnstile=",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"username\": \"{{ $json.username }}\", \"password\": \"{{ $json.password }}\"}",
+        "options": {
+          "timeout": 15000,
+          "response": { "response": { "responseFormat": "json", "includeHeaders": true } }
+        }
+      },
+      "id": "login",
+      "name": "POST Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $input.all();\nconst body = all[0] ? all[0].json : {};\n\n// Extract session cookie\nlet setCookie = '';\nfor (let i = 1; i < all.length; i++) {\n  const h = all[i].json;\n  if (h && h.headers && h.headers['set-cookie']) { setCookie = h.headers['set-cookie']; break; }\n  if (h && h['set-cookie']) { setCookie = h['set-cookie']; break; }\n}\nif (!setCookie && all[0] && all[0].headers && all[0].headers['set-cookie']) {\n  setCookie = all[0].headers['set-cookie'];\n}\nconst cm = setCookie.match(/(session=[^;]+)/);\nconst sessionCookie = cm ? cm[1] : '';\n\nconst actualOk = body.success === true;\nconst expectedOk = $input.first().json.expect;\nconst passed = actualOk === expectedOk;\n\nreturn {\n  json: {\n    id: $input.first().json.id,\n    label: $input.first().json.label,\n    username: $input.first().json.username,\n    password_masked: $input.first().json.password ? '****' + $input.first().json.password.slice(-2) : '(empty)',\n    expected: expectedOk ? 'PASS' : 'FAIL',\n    actual: actualOk ? 'PASS' : 'FAIL',\n    result: passed ? 'PASSED' : 'FAILED',\n    message: body.message || '',\n    user: actualOk ? (body.data ? body.data.username : '?') : null,\n    cookie: actualOk ? (sessionCookie ? 'OK' : 'MISSING') : null\n  }\n};"
+      },
+      "id": "parse",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(item => item.json);\nconst passed = results.filter(r => r.result === 'PASSED').length;\nconst failed = results.filter(r => r.result === 'FAILED').length;\n\nreturn {\n  json: {\n    summary: {\n      total: results.length,\n      passed: passed,\n      failed: failed,\n      passRate: (passed / results.length * 100).toFixed(0) + '%'\n    },\n    details: results\n  }\n};"
+      },
+      "id": "summary",
+      "name": "Test Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "config", "type": "main", "index": 0 }]]
+    },
+    "config": {
+      "main": [[{ "node": "POST Login", "type": "main", "index": 0 }]]
+    },
+    "POST Login": {
+      "main": [[{ "node": "Parse Result", "type": "main", "index": 0 }]]
+    },
+    "Parse Result": {
+      "main": [[{ "node": "Test Summary", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "New API", "id": "test-login-tag" }],
+  "pinData": {},
+  "versionId": "1.0.0"
+}

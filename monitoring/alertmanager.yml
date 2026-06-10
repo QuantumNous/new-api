@@ -1,0 +1,57 @@
+global:
+  resolve_timeout: 5m
+
+# Feishu webhook template
+templates:
+  - "/etc/alertmanager/templates/feishu.tmpl"
+
+route:
+  receiver: "feishu-default"
+  group_by: ["alertname", "category"]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 1h
+
+  routes:
+    # Critical alerts -> immediate
+    - match:
+        severity: critical
+      receiver: "feishu-critical"
+      group_wait: 5s
+      repeat_interval: 5m
+
+    # Warning -> batched
+    - match:
+        severity: warning
+      receiver: "feishu-warning"
+      repeat_interval: 30m
+
+receivers:
+  - name: "feishu-default"
+    webhook_configs:
+      - url: "http://feishu-relay:9098"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+  - name: "feishu-critical"
+    webhook_configs:
+      - url: "http://feishu-relay:9098"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+  - name: "feishu-warning"
+    webhook_configs:
+      - url: "http://feishu-relay:9098"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+# Inhibit rules: if NewAPIDown fires, suppress ModelHighLatency etc
+inhibit_rules:
+  - source_match:
+      alertname: "NewAPIDown"
+    target_match_re:
+      alertname: "ModelHighLatency|ModelLowSuccessRate|HighRPM|QuotaUsageHigh"
+    equal: ["instance"]

@@ -1,0 +1,315 @@
+{
+  "name": "New API - Admin Dashboard (Manual Trigger)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Edit these values =====\nconst BASE_URL = 'http://host.docker.internal:3002';\nconst ADMIN_USERNAME = 'test';\nconst ADMIN_PASSWORD = '10086111';\n// API Key from Admin Dashboard > Tokens page (for billing endpoints)\nconst API_KEY = 'cUmtqY2AYM5d6n2V7twm2zJt1OWY5Dladjf3xfBlJikB8r1e';\nconst LOG_TYPE = 0;\nconst LOG_COUNT = 20;\n// ===== Don't edit below =====\n\nconst cleanBaseUrl = BASE_URL.replace(/\\/+$/, '');\n\nreturn {\n  json: {\n    base_url: cleanBaseUrl,\n    username: ADMIN_USERNAME,\n    password: ADMIN_PASSWORD,\n    api_key: API_KEY,\n    log_type: LOG_TYPE,\n    log_count: LOG_COUNT\n  }\n};"
+      },
+      "id": "config",
+      "name": "config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('config').first().json.base_url }}/api/user/login?turnstile=",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"username\": \"{{ $('config').first().json.username }}\", \"password\": \"{{ $('config').first().json.password }}\"}",
+        "options": {
+          "timeout": 15000,
+          "response": { "response": { "responseFormat": "json", "includeHeaders": true } }
+        }
+      },
+      "id": "admin-login",
+      "name": "Admin Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $input.all();\nconst res = all[0] ? all[0].json : {};\n\nlet setCookie = '';\nif (all.length > 1 && all[1].json) {\n  const h = all[1].json;\n  if (h.headers && h.headers['set-cookie']) setCookie = h.headers['set-cookie'];\n  else if (h['set-cookie']) setCookie = h['set-cookie'];\n}\nif (!setCookie && all[0] && all[0].headers && all[0].headers['set-cookie']) {\n  setCookie = all[0].headers['set-cookie'];\n}\nif (!setCookie && res.responseHeaders && res.responseHeaders['set-cookie']) {\n  setCookie = res.responseHeaders['set-cookie'];\n}\n\nconst cm = setCookie.match(/(session=[^;]+)/);\nconst cookie = cm ? cm[1] : '';\n\nif (!res.success) {\n  return { json: { login_success: false, message: res.message || 'Login failed' } };\n}\n\nreturn {\n  json: {\n    login_success: true,\n    session_cookie: cookie,\n    user_id: res.data ? res.data.id : null,\n    username: res.data ? res.data.username : null\n  }\n};"
+      },
+      "id": "extract-cookie",
+      "name": "extract-cookie",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.login_success }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-login",
+      "name": "Login OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { success: false, error: $input.first().json.message || 'Login failed' } };"
+      },
+      "id": "login-error",
+      "name": "Login Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 620]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/api/user/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Cookie", "value": "={{ $('extract-cookie').first().json.session_cookie }}" },
+            { "name": "New-Api-User", "value": "={{ $('extract-cookie').first().json.user_id }}" }
+          ]
+        },
+        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-users",
+      "name": "1-Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 80]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/api/models/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Cookie", "value": "={{ $('extract-cookie').first().json.session_cookie }}" },
+            { "name": "New-Api-User", "value": "={{ $('extract-cookie').first().json.user_id }}" }
+          ]
+        },
+        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-models",
+      "name": "2-Models",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 190]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/api/log/stat?type={{ $('config').first().json.log_type }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Cookie", "value": "={{ $('extract-cookie').first().json.session_cookie }}" },
+            { "name": "New-Api-User", "value": "={{ $('extract-cookie').first().json.user_id }}" }
+          ]
+        },
+        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-stats",
+      "name": "3-Log Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/api/log/?type={{ $('config').first().json.log_type }}&num={{ $('config').first().json.log_count }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Cookie", "value": "={{ $('extract-cookie').first().json.session_cookie }}" },
+            { "name": "New-Api-User", "value": "={{ $('extract-cookie').first().json.user_id }}" }
+          ]
+        },
+        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-logs",
+      "name": "4-Usage Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 410]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/dashboard/billing/subscription",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('config').first().json.api_key }}" }
+          ]
+        },
+        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-sub",
+      "name": "5-Billing Sub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 520]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('config').first().json.base_url }}/dashboard/billing/usage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('config').first().json.api_key }}" }
+          ]
+        },
+        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "get-usage",
+      "name": "6-Billing Usage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 630]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst data = res.data || {};\nconst items = data.items || data || [];\nconst total = data.total || items.length;\nconst rc = { admin: 0, normal: 0, disabled: 0 };\nconst gm = {};\n(Array.isArray(items) ? items : []).forEach(u => {\n  if (u.role >= 2) rc.admin++;\n  else rc.normal++;\n  if (u.status === 0) rc.disabled++;\n  const g = u.group || 'default';\n  gm[g] = (gm[g] || 0) + 1;\n});\nreturn { json: { _src: 'users', _raw: { success: res.success, message: res.message }, totalUsers: total, admins: rc.admin, normalUsers: rc.normal, enabled: total - rc.disabled, disabled: rc.disabled, groups: gm } };"
+      },
+      "id": "parse-users",
+      "name": "Parse Users",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 80]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst data = res.data || {};\nconst modelList = [];\nif (data.items) {\n  (data.items || []).forEach(m => modelList.push({ id: m.id, name: m.model_name, enabled: m.status === 1 }));\n} else if (typeof data === 'object') {\n  Object.values(data).forEach(arr => {\n    if (Array.isArray(arr)) arr.forEach(m => modelList.push({ id: m.id, name: m.model_name || m.name, enabled: m.status === 1 }));\n  });\n}\nconst enabled = modelList.filter(m => m.enabled).length;\nreturn { json: { _src: 'models', _raw: { success: res.success, message: res.message }, totalModels: modelList.length, enabledModels: enabled, disabledModels: modelList.length - enabled, vendorCounts: data.vendor_counts || {} } };"
+      },
+      "id": "parse-models",
+      "name": "Parse Models",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 190]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst d = res.data || res;\nreturn { json: { _src: 'log_stats', _raw: { success: res.success, message: res.message }, quota: d.quota || 0, rpm: d.rpm || 0, tpm: d.tpm || 0 } };"
+      },
+      "id": "parse-stats",
+      "name": "Parse Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst logs = res.data?.items || res.data || [];\nconst ms = {};\nconst cs = {};\nlet tt = 0;\nlet tc = 0;\n(Array.isArray(logs) ? logs : []).forEach(log => {\n  const m = log.model_name || 'unknown';\n  const c = log.channel_type || log.channel || 'unknown';\n  const t = log.prompt_tokens + log.completion_tokens || 0;\n  const cost = log.price || 0;\n  ms[m] = (ms[m] || 0) + t;\n  cs[c] = (cs[c] || 0) + t;\n  tt += t;\n  tc += cost;\n});\nconst recent = (Array.isArray(logs) ? logs : []).slice(0, 5).map(log => ({\n  time: new Date(log.created_at * 1000).toISOString(),\n  model: log.model_name,\n  user: log.username,\n  tokens: (log.prompt_tokens + log.completion_tokens) || 0,\n  cost: log.price || 0\n}));\nreturn { json: { _src: 'logs', _raw: { success: res.success, message: res.message }, logCount: logs.length, totalTokens: tt, totalCost: tc.toFixed(4), modelRank: Object.entries(ms).sort((a,b) => b[1]-a[1]).map(([k,v]) => ({ model: k, tokens: v })), channelDist: cs, recentCalls: recent } };"
+      },
+      "id": "parse-logs",
+      "name": "Parse Logs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 410]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst now = Math.floor(Date.now() / 1000);\nconst until = res.access_until || 0;\nconst days = until > 0 ? Math.max(0, Math.ceil((until - now) / 86400)) : null;\nreturn { json: { _src: 'sub', _raw: res, softLimit: res.soft_limit_usd, hardLimit: res.hard_limit_usd, sysHardLimit: res.system_hard_limit_usd, expiresAt: until > 0 ? new Date(until * 1000).toISOString() : 'Unlimited', daysLeft: days !== null ? days + ' days' : 'Unlimited', status: days !== null && days <= 0 ? 'Expired' : 'Active' } };"
+      },
+      "id": "parse-sub",
+      "name": "Parse Sub",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nreturn { json: { _src: 'usage', _raw: res, totalUsage: res.total_usage || 0, items: (res.line_items || []).map(item => ({ name: item.name, cost: item.cost, limit: item.limit, usage: item.usage })) } };"
+      },
+      "id": "parse-usage",
+      "name": "Parse Usage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 630]
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $input.all().map(item => item.json);\nconst find = src => all.find(d => d._src === src) || {};\nconst u = find('users');\nconst m = find('models');\nconst s = find('log_stats');\nconst l = find('logs');\nconst sub = find('sub');\nconst usage = find('usage');\n\nreturn {\n  json: {\n    title: 'New API Admin Dashboard Report',\n    generatedAt: new Date().toISOString(),\n    userStats: {\n      totalUsers: u.totalUsers || 0,\n      admins: u.admins || 0,\n      normalUsers: u.normalUsers || 0,\n      enabled: u.enabled || 0,\n      disabled: u.disabled || 0,\n      groups: u.groups || {}\n    },\n    modelStats: {\n      totalModels: m.totalModels || 0,\n      enabledModels: m.enabledModels || 0,\n      disabledModels: m.disabledModels || 0,\n      vendorCounts: m.vendorCounts || {}\n    },\n    modelCallAnalysis: {\n      usedQuota: s.quota || 0,\n      rpm: s.rpm || 0,\n      tpm: s.tpm || 0,\n      logCount: l.logCount || 0,\n      totalTokens: l.totalTokens || 0,\n      totalCost: l.totalCost || '0',\n      modelRank: l.modelRank || [],\n      channelDist: l.channelDist || {},\n      recentCalls: l.recentCalls || []\n    },\n    billing: {\n      softLimitUSD: sub.softLimit || 'N/A',\n      hardLimitUSD: sub.hardLimit || 'N/A',\n      expiresAt: sub.expiresAt || 'N/A',\n      daysLeft: sub.daysLeft || 'N/A',\n      status: sub.status || 'N/A',\n      totalUsage: usage.totalUsage || 0,\n      lineItems: usage.items || []\n    },\n    debug_APIRaw: {\n      users: u._raw || {},\n      models: m._raw || {},\n      stats: s._raw || {},\n      logs: l._raw || {},\n      subscription: sub._raw || {},\n      usage: usage._raw || {}\n    }\n  }\n};"
+      },
+      "id": "merge-report",
+      "name": "Dashboard Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "config", "type": "main", "index": 0 }]]
+    },
+    "config": {
+      "main": [[{ "node": "Admin Login", "type": "main", "index": 0 }]]
+    },
+    "Admin Login": {
+      "main": [[{ "node": "extract-cookie", "type": "main", "index": 0 }]]
+    },
+    "extract-cookie": {
+      "main": [[{ "node": "Login OK?", "type": "main", "index": 0 }]]
+    },
+    "Login OK?": {
+      "main": [
+        [
+          { "node": "1-Users", "type": "main", "index": 0 },
+          { "node": "2-Models", "type": "main", "index": 0 },
+          { "node": "3-Log Stats", "type": "main", "index": 0 },
+          { "node": "4-Usage Logs", "type": "main", "index": 0 },
+          { "node": "5-Billing Sub", "type": "main", "index": 0 },
+          { "node": "6-Billing Usage", "type": "main", "index": 0 }
+        ],
+        [{ "node": "Login Failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Login Failed":     { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] },
+    "1-Users":          { "main": [[{ "node": "Parse Users", "type": "main", "index": 0 }]] },
+    "2-Models":         { "main": [[{ "node": "Parse Models", "type": "main", "index": 0 }]] },
+    "3-Log Stats":      { "main": [[{ "node": "Parse Stats", "type": "main", "index": 0 }]] },
+    "4-Usage Logs":     { "main": [[{ "node": "Parse Logs", "type": "main", "index": 0 }]] },
+    "5-Billing Sub":    { "main": [[{ "node": "Parse Sub", "type": "main", "index": 0 }]] },
+    "6-Billing Usage":  { "main": [[{ "node": "Parse Usage", "type": "main", "index": 0 }]] },
+    "Parse Users":      { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] },
+    "Parse Models":     { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] },
+    "Parse Stats":      { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] },
+    "Parse Logs":       { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] },
+    "Parse Sub":        { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] },
+    "Parse Usage":      { "main": [[{ "node": "Dashboard Report", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    { "name": "New API", "id": "new-api-tag" },
+    { "name": "Admin Dashboard", "id": "admin-dashboard-tag" }
+  ],
+  "pinData": {},
+  "versionId": "5.0.0"
+}

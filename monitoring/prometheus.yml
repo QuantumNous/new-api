@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    monitor: "new-api"
+
+# Alert rules
+rule_files:
+  - "/etc/prometheus/alerts.yml"
+
+# AlertManager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # New API exporter (custom metrics)
+  - job_name: "newapi"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["exporter:9099"]
+        labels:
+          service: "new-api"
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

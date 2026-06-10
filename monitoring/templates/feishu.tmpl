@@ -1,0 +1,24 @@
+{{ define "feishu.message" }}
+{{ if eq .Status "resolved" }}
+## ✅ 告警恢复
+
+**告警名称:** {{ .CommonLabels.alertname }}
+**级别:** {{ .CommonLabels.severity }}
+**恢复时间:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+**持续时长:** {{ .Duration }}
+
+> 系统已恢复正常
+{{ else }}
+## {{ if eq .CommonLabels.severity "critical" }}🔴{{ else }}⚠️{{ end }} 告警触发
+
+**告警名称:** {{ .CommonLabels.alertname }}
+**级别:** {{ .CommonLabels.severity }}
+**触发时间:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+
+---
+{{ range .Alerts }}
+{{ .Annotations.summary }}
+> {{ .Annotations.description }}
+{{ end }}
+{{ end }}
+{{ end }}
