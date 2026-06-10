@@ -163,7 +163,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         )
       },
       enableSorting: false,
-      size: 280,
+      size: 320,
     },
     {
       accessorKey: 'quota',
@@ -191,12 +191,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       ),
       cell: ({ row }) => {
         return (
-          <div className='min-w-[140px] font-mono text-sm'>
+          <div className='min-w-[160px] font-mono text-sm'>
             {formatTimestampToDate(row.getValue('created_time'))}
           </div>
         )
       },
-      size: 160,
+      size: 180,
     },
     {
       accessorKey: 'expired_time',
@@ -218,13 +218,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         const isExpired = isTimestampExpired(expiredTime)
         return (
           <div
-            className={`min-w-[140px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}
+            className={`min-w-[160px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}
           >
             {formatTimestampToDate(expiredTime)}
           </div>
         )
       },
-      size: 160,
+      size: 180,
     },
     {
       accessorKey: 'used_user_id',

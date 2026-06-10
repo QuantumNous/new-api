@@ -248,10 +248,8 @@ export function UserSubscriptionsDialog(props: Props) {
               columns={[
                 {
                   id: 'id',
-                  header: 'ID',
-                  cell: (record) => (
-                    <TableId value={record.subscription.id} />
-                  ),
+                  header: t('ID'),
+                  cell: (record) => <TableId value={record.subscription.id} />,
                 },
                 {
                   id: 'plan',
@@ -275,10 +273,7 @@ export function UserSubscriptionsDialog(props: Props) {
                   id: 'status',
                   header: t('Status'),
                   cell: (record) => (
-                    <SubscriptionStatusBadge
-                      sub={record.subscription}
-                      t={t}
-                    />
+                    <SubscriptionStatusBadge sub={record.subscription} t={t} />
                   ),
                 },
                 {
@@ -292,7 +287,9 @@ export function UserSubscriptionsDialog(props: Props) {
                         <div>
                           {t('Start')}: {formatTimestamp(sub.start_time)}
                         </div>
-                        <div>{t('End')}: {formatTimestamp(sub.end_time)}</div>
+                        <div>
+                          {t('End')}: {formatTimestamp(sub.end_time)}
+                        </div>
                       </div>
                     )
                   },
