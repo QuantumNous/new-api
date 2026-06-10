@@ -277,10 +277,6 @@ export function ChannelsTable() {
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
-    withFilteredRowModel: false,
-    withPaginationRowModel: false,
-    withSortedRowModel: false,
-    withFacetedRowModel: false,
     withExpandedRowModel: true,
     ensurePageInRange,
   })

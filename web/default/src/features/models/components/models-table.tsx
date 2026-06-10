@@ -180,10 +180,6 @@ export function ModelsTable() {
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
-    withFilteredRowModel: false,
-    withPaginationRowModel: false,
-    withSortedRowModel: false,
-    withFacetedRowModel: false,
     ensurePageInRange,
   })
 

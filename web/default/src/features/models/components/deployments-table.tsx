@@ -202,10 +202,7 @@ export function DeploymentsTable() {
     onGlobalFilterChange,
     manualPagination: true,
     manualFiltering: true,
-    withFilteredRowModel: false,
-    withPaginationRowModel: false,
     withSortedRowModel: false,
-    withFacetedRowModel: false,
     ensurePageInRange,
   })
 

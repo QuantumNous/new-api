@@ -28,17 +28,7 @@ import {
 } from '@/components/ui/table'
 import { staticDataTableClassNames } from './static-data-table-classnames'
 
-type StaticDataTableProps<TData = unknown> = {
-  children?: React.ReactNode
-  columns?: StaticDataTableColumn<TData>[]
-  data?: TData[]
-  getRowKey?: (row: TData, index: number) => React.Key
-  getRowClassName?: (row: TData, index: number) => string | undefined
-  renderRow?: (row: TData, index: number) => React.ReactNode
-  empty?: boolean
-  emptyContent?: React.ReactNode
-  emptyClassName?: string
-  headerRowClassName?: string
+type StaticDataTableBaseProps = {
   className?: string
   tableClassName?: string
   containerProps?: Omit<React.ComponentProps<'div'>, 'className' | 'children'>
@@ -48,6 +38,28 @@ type StaticDataTableProps<TData = unknown> = {
   >
 }
 
+type StaticDataTableDataProps<TData = unknown> = StaticDataTableBaseProps & {
+  columns: StaticDataTableColumn<TData>[]
+  data: TData[]
+  getRowKey?: (row: TData, index: number) => React.Key
+  getRowClassName?: (row: TData, index: number) => string | undefined
+  renderRow?: (row: TData, index: number) => React.ReactNode
+  empty?: boolean
+  emptyContent?: React.ReactNode
+  emptyClassName?: string
+  headerRowClassName?: string
+}
+
+type StaticDataTableChildrenProps = StaticDataTableBaseProps & {
+  children: React.ReactNode
+  columns?: never
+  data?: never
+}
+
+type StaticDataTableProps<TData = unknown> =
+  | StaticDataTableDataProps<TData>
+  | StaticDataTableChildrenProps
+
 export type StaticDataTableColumn<TData = unknown> = {
   id: string
   header: React.ReactNode
@@ -56,8 +68,28 @@ export type StaticDataTableColumn<TData = unknown> = {
   cell?: (row: TData, index: number) => React.ReactNode
 }
 
-export function StaticDataTable<TData = unknown>({
-  children,
+export function StaticDataTable<TData = unknown>(
+  props: StaticDataTableProps<TData>
+) {
+  const { className, tableClassName, containerProps, tableProps } = props
+
+  return (
+    <div
+      className={cn(staticDataTableClassNames.container, className)}
+      {...containerProps}
+    >
+      <Table className={tableClassName} {...tableProps}>
+        {props.columns !== undefined ? (
+          <StaticDataTableWithColumns {...props} />
+        ) : (
+          props.children
+        )}
+      </Table>
+    </div>
+  )
+}
+
+function StaticDataTableWithColumns<TData>({
   columns,
   data,
   getRowKey,
@@ -67,23 +99,20 @@ export function StaticDataTable<TData = unknown>({
   emptyContent,
   emptyClassName,
   headerRowClassName,
-  className,
-  tableClassName,
-  containerProps,
-  tableProps,
-}: StaticDataTableProps<TData>) {
-  const bodyRows = data
-    ? renderStaticDataRows({
-        data,
-        columns,
-        getRowKey,
-        getRowClassName,
-        renderRow,
-      })
-    : children
+}: StaticDataTableDataProps<TData>) {
   const isEmpty = empty ?? (data !== undefined && data.length === 0)
+  const bodyRows = data.map((row, index) => (
+    <StaticDataTableRow
+      key={getRowKey?.(row, index) ?? index}
+      row={row}
+      index={index}
+      columns={columns}
+      getRowClassName={getRowClassName}
+      renderRow={renderRow}
+    />
+  ))
 
-  const content = columns ? (
+  return (
     <>
       <TableHeader>
         <TableRow className={headerRowClassName}>
@@ -107,52 +136,40 @@ export function StaticDataTable<TData = unknown>({
         )}
       </TableBody>
     </>
-  ) : (
-    bodyRows
-  )
-
-  return (
-    <div
-      className={cn(staticDataTableClassNames.container, className)}
-      {...containerProps}
-    >
-      <Table className={tableClassName} {...tableProps}>
-        {content}
-      </Table>
-    </div>
   )
 }
 
-function renderStaticDataRows<TData>({
-  data,
+type StaticDataTableRowProps<TData> = Required<
+  Pick<StaticDataTableDataProps<TData>, 'columns'>
+> &
+  Pick<StaticDataTableDataProps<TData>, 'getRowClassName' | 'renderRow'> & {
+    row: TData
+    index: number
+  }
+
+function StaticDataTableRow<TData>({
+  row,
+  index,
   columns,
-  getRowKey,
   getRowClassName,
   renderRow,
-}: Pick<
-  StaticDataTableProps<TData>,
-  'data' | 'columns' | 'getRowKey' | 'getRowClassName' | 'renderRow'
->) {
-  return data?.map((row, index) => {
-    const key = getRowKey?.(row, index) ?? index
+}: StaticDataTableRowProps<TData>) {
+  if (renderRow) {
+    return <>{renderRow(row, index)}</>
+  }
 
-    if (renderRow) {
-      return <React.Fragment key={key}>{renderRow(row, index)}</React.Fragment>
-    }
-
-    return (
-      <TableRow key={key} className={getRowClassName?.(row, index)}>
-        {columns?.map((column) => (
-          <TableCell
-            key={column.id}
-            className={getStaticCellClassName(column, row, index)}
-          >
-            {column.cell?.(row, index)}
-          </TableCell>
-        ))}
-      </TableRow>
-    )
-  })
+  return (
+    <TableRow className={getRowClassName?.(row, index)}>
+      {columns.map((column) => (
+        <TableCell
+          key={column.id}
+          className={getStaticCellClassName(column, row, index)}
+        >
+          {column.cell?.(row, index)}
+        </TableCell>
+      ))}
+    </TableRow>
+  )
 }
 
 function getStaticCellClassName<TData>(
