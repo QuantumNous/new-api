@@ -280,7 +280,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const inviterId = user.inviter_id || 0
 
         return (
-          <div className='flex items-center gap-1'>
+          <div className='flex min-w-[220px] flex-wrap items-center gap-1'>
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -340,6 +340,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </div>
         )
       },
+      size: 240,
       enableSorting: false,
       meta: { label: t('Invite Info'), mobileHidden: true },
     },
@@ -356,6 +357,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </span>
         )
       },
+      size: 180,
       meta: { label: t('Created At'), mobileHidden: true },
     },
     {
