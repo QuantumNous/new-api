@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo, useEffect, useCallback, memo } from 'react'
+import { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -150,6 +150,12 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
 
 function groupPricingSignature(rows: GroupPricingRow[]): string {
   const serialized = serializeGroupPricingRows(rows)
+  return groupPricingSerializedSignature(serialized)
+}
+
+function groupPricingSerializedSignature(
+  serialized: ReturnType<typeof serializeGroupPricingRows>
+): string {
   return JSON.stringify({
     groupRatio: safeJsonParse(serialized.GroupRatio, {
       fallback: {},
@@ -790,6 +796,7 @@ function GroupPricingTable({
   onChange,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
+  const pendingLocalSignatureRef = useRef<string | null>(null)
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
     buildGroupPricingRows(groupRatio, userUsableGroups, groupDescriptions)
   )
@@ -801,9 +808,24 @@ function GroupPricingTable({
       groupDescriptions
     )
     setRows((currentRows) => {
-      if (groupPricingSignature(currentRows) === incomingSignature) {
+      const currentSignature = groupPricingSignature(currentRows)
+      const pendingLocalSignature = pendingLocalSignatureRef.current
+
+      if (currentSignature === incomingSignature) {
+        if (pendingLocalSignature === incomingSignature) {
+          pendingLocalSignatureRef.current = null
+        }
         return currentRows
       }
+
+      if (pendingLocalSignature && currentSignature === pendingLocalSignature) {
+        if (incomingSignature === pendingLocalSignature) {
+          pendingLocalSignatureRef.current = null
+        }
+        return currentRows
+      }
+
+      pendingLocalSignatureRef.current = null
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
@@ -814,11 +836,13 @@ function GroupPricingTable({
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
-      setRows(nextRows)
       const serialized = serializeGroupPricingRows(nextRows)
+      pendingLocalSignatureRef.current =
+        groupPricingSerializedSignature(serialized)
+      setRows(nextRows)
       onChange('GroupRatio', serialized.GroupRatio)
-      onChange('UserUsableGroups', serialized.UserUsableGroups)
       onChange('GroupDescriptions', serialized.GroupDescriptions)
+      onChange('UserUsableGroups', serialized.UserUsableGroups)
     },
     [onChange]
   )
