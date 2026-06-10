@@ -13,6 +13,7 @@ var UpstreamQuotaErrorKeywords = []string{
 	"not enough credit",
 	"credit balance",
 	"quota exceeded",
+	"insufficient_user_quota",
 	"余额不足",
 	"额度不足",
 }

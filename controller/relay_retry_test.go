@@ -37,6 +37,20 @@ func TestShouldRetryDoesNotRetryOrdinaryBadRequest(t *testing.T) {
 	require.False(t, shouldRetry(ctx, err, 1))
 }
 
+func TestShouldRetryUpstreamRelayedQuotaErrorCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(nil)
+
+	// 上游 OpenAI 风格错误体透传：errorCode 为上游 code，而非 bad_response_status_code
+	err := types.WithOpenAIError(types.OpenAIError{
+		Message: "当前模型暂时不可用，请稍后重试或联系管理员。",
+		Type:    "new_api_error",
+		Code:    "insufficient_user_quota",
+	}, http.StatusForbidden)
+
+	require.True(t, isRetryableUpstreamQuotaError(err))
+}
+
 func TestShouldRetryTaskRelayUpstreamQuotaError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(nil)

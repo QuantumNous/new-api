@@ -357,7 +357,11 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 }
 
 func isRetryableUpstreamQuotaError(openaiErr *types.NewAPIError) bool {
-	if openaiErr == nil || openaiErr.GetErrorCode() != types.ErrorCodeBadResponseStatusCode {
+	// 本地额度错误（调用方钱包不足等）均带 SkipRetry 标记，先排除；
+	// 上游透传的 OpenAI 风格错误会把 errorCode 设为上游 code（如
+	// insufficient_user_quota），不能用 ErrorCodeBadResponseStatusCode 过滤，
+	// 因此把上游 code 一并纳入关键词匹配。
+	if openaiErr == nil || types.IsSkipRetryError(openaiErr) {
 		return false
 	}
 	switch openaiErr.StatusCode {
@@ -366,7 +370,8 @@ func isRetryableUpstreamQuotaError(openaiErr *types.NewAPIError) bool {
 		return false
 	}
 
-	return operation_setting.IsUpstreamQuotaErrorMessage(openaiErr.Error())
+	message := openaiErr.Error() + " " + string(openaiErr.GetErrorCode())
+	return operation_setting.IsUpstreamQuotaErrorMessage(message)
 }
 
 // isRetryableUpstreamQuotaTaskError 视频任务版本：上游余额/额度不足时换渠道重试。
