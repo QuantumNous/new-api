@@ -699,7 +699,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
                   getColumnClassName={(columnId) =>
                     columnId === 'actions' &&
                     editData?.name === row.original.name
-                      ? getCellClassName(columnId, 'bg-muted/45')
+                      ? getCellClassName(columnId, 'bg-muted')
                       : getCellClassName(columnId)
                   }
                   onClick={(event) => {
