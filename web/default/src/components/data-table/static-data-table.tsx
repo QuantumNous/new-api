@@ -72,7 +72,7 @@ export function StaticDataTable<TData = unknown>({
   containerProps,
   tableProps,
 }: StaticDataTableProps<TData>) {
-  const rows = data
+  const bodyRows = data
     ? renderStaticDataRows({
         data,
         columns,
@@ -103,12 +103,12 @@ export function StaticDataTable<TData = unknown>({
             {emptyContent}
           </StaticDataTableEmptyRow>
         ) : (
-          rows
+          bodyRows
         )}
       </TableBody>
     </>
   ) : (
-    rows
+    bodyRows
   )
 
   return (
