@@ -577,9 +577,13 @@ function AutoGroupChain(props: { model: PricingModel; autoGroups: string[] }) {
   )
 }
 
+type DynamicPriceOptions = Parameters<typeof getDynamicPriceEntries>[1]
+type DynamicPricingTier = ReturnType<typeof getDynamicPricingTiers>[number]
+type DynamicFormattedPricesByTier = Map<DynamicPricingTier, Map<string, string>>
+
 function getDynamicPriceFields(
-  tiers: ReturnType<typeof getDynamicPricingTiers>,
-  options: Parameters<typeof getDynamicPriceEntries>[1]
+  tiers: DynamicPricingTier[],
+  options: DynamicPriceOptions
 ) {
   return Array.from(
     new Map(
@@ -591,9 +595,9 @@ function getDynamicPriceFields(
 }
 
 function getDynamicFormattedPricesByTier(
-  tiers: ReturnType<typeof getDynamicPricingTiers>,
-  options: Parameters<typeof getDynamicPriceEntries>[1]
-) {
+  tiers: DynamicPricingTier[],
+  options: DynamicPriceOptions
+): DynamicFormattedPricesByTier {
   return new Map(
     tiers.map((tier) => [
       tier,
@@ -704,6 +708,21 @@ function GroupPricingSection(props: {
       usdExchangeRate: props.usdExchangeRate,
       groupRatioMultiplier: 1,
     })
+    const formattedPricesByGroup = new Map(
+      availableGroups.map((group) => {
+        const ratio = props.groupRatio[group] || 1
+        return [
+          group,
+          getDynamicFormattedPricesByTier(dynamicTiers, {
+            tokenUnit: props.tokenUnit,
+            showRechargePrice,
+            priceRate: props.priceRate,
+            usdExchangeRate: props.usdExchangeRate,
+            groupRatioMultiplier: ratio,
+          }),
+        ] as const
+      })
+    )
 
     return (
       <section>
@@ -712,16 +731,9 @@ function GroupPricingSection(props: {
         <div className='space-y-3'>
           {availableGroups.map((group) => {
             const ratio = props.groupRatio[group] || 1
-            const formattedPricesByTier = getDynamicFormattedPricesByTier(
-              dynamicTiers,
-              {
-                tokenUnit: props.tokenUnit,
-                showRechargePrice,
-                priceRate: props.priceRate,
-                usdExchangeRate: props.usdExchangeRate,
-                groupRatioMultiplier: ratio,
-              }
-            )
+            const formattedPricesByTier =
+              formattedPricesByGroup.get(group) ??
+              new Map<DynamicPricingTier, Map<string, string>>()
 
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>

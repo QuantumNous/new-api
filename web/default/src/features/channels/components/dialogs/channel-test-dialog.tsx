@@ -219,6 +219,14 @@ export function ChannelTestDialog({
     pageIndex: 0,
     pageSize: 10,
   })
+  const endpointSelectItems = useMemo(
+    () =>
+      endpointTypeOptions.map((option) => ({
+        value: option.value,
+        label: t(option.label),
+      })),
+    [t]
+  )
 
   const resetState = useCallback(() => {
     setEndpointType('auto')
@@ -539,10 +547,7 @@ export function ChannelTestDialog({
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
               <Select
-                items={endpointTypeOptions.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                }))}
+                items={endpointSelectItems}
                 value={endpointType}
                 onValueChange={(v) => v !== null && setEndpointType(v)}
               >
@@ -551,14 +556,11 @@ export function ChannelTestDialog({
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
                   <SelectGroup>
-                    {endpointTypeOptions.map((option) => {
-                      const itemValue = option.value
-                      return (
-                        <SelectItem key={itemValue} value={itemValue}>
-                          {t(option.label)}
-                        </SelectItem>
-                      )
-                    })}
+                    {endpointSelectItems.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
