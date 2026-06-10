@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-10 -->
 
 # relay
 
@@ -22,7 +22,7 @@ relay 是整个网关的核心中继子系统，负责将客户端的 AI API 请
 | `claude_handler.go` | Claude 原生格式（`/v1/messages`）请求的入口 handler |
 | `gemini_handler.go` | Gemini 原生格式（`/v1beta/models`）请求的入口 handler |
 | `compatible_handler.go` | OpenAI 兼容格式通用 handler，处理 chat/completions/embeddings 等 |
-| `image_handler.go` | 图像生成（`/v1/images/generations`、`/v1/images/edits`）handler |
+| `image_handler.go` | 图像生成（`/v1/images/generations`、`/v1/images/edits`）handler；对 codex 图像路径（`APITypeCodex`）强制走 `ConvertImageRequest`，跳过全局/渠道级 PassThrough，并对 Replicate 的 201 Created 与 blockrun 的 202 Accepted 做状态码归一化 |
 | `audio_handler.go` | 音频 TTS / 语音转录 handler |
 | `embedding_handler.go` | Embeddings handler |
 | `rerank_handler.go` | Rerank handler |
