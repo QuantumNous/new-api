@@ -41,6 +41,7 @@ var ModelIDCandidates = map[string][]string{
 	"claude-sonnet-4-6": {"anthropic/claude-sonnet-4.6"},
 	"claude-opus-4-7":   {"anthropic/claude-opus-4.7"},
 	"claude-opus-4-8":   {"anthropic/claude-opus-4.8", "claude-opus-4-8-20260528"},
+	"claude-fable-5":    {"anthropic/claude-fable-5", "claude-fable-5-20260601"},
 	"claude-sonnet-4-5": {"anthropic/claude-sonnet-4.5"},
 	"claude-opus-4-6":   {"anthropic/claude-opus-4.6"},
 	"claude-opus-4-5":   {"anthropic/claude-opus-4.5"},
