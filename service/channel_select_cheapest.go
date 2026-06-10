@@ -102,7 +102,8 @@ func selectCheapestByGlobalSettings(modelName string, bannedIDs []int) (channelI
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
 		Where(modelsMatchClause, modelsMatchArgs...).
-		Where("COALESCE(a.enabled, true) = true")
+		Where("COALESCE(a.enabled, true) = true").
+		Where("NOT EXISTS (SELECT 1 FROM channel_model_pricings p WHERE p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0)", candidates)
 	if len(bannedIDs) > 0 {
 		q = q.Where("c.id NOT IN ?", bannedIDs)
 	}
