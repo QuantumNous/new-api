@@ -46,7 +46,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getImageSource, isImageResultRenderable } from '../lib'
-import type { ImageResult, ImageTask } from '../types'
+import type { ImageReferencePreview, ImageResult, ImageTask } from '../types'
 
 interface PlaygroundImageTaskGridProps {
   tasks: ImageTask[]
@@ -106,6 +106,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 
 interface ImagePreviewSelection {
   alt: string
+  referenceImages?: ImageReferencePreview[]
   source: string
 }
 
@@ -142,7 +143,13 @@ function ImagePreview({
       aria-label={alt}
       className={`group focus-visible:ring-ring/50 ${imageResultClassName} outline-none focus-visible:ring-3`}
       type='button'
-      onClick={() => onOpen({ alt, source })}
+      onClick={() =>
+        onOpen({
+          alt,
+          referenceImages: task.referenceImages,
+          source,
+        })
+      }
     >
       <img
         alt={alt}
@@ -174,7 +181,6 @@ function TaskCard({
   const canCopyLink = Boolean(firstImage?.url)
   const canDownload = Boolean(firstSource)
   const isEditTask = task.mode === 'edit'
-
   const handleCopyLink = () => {
     if (!firstImage?.url) return
     void copyText(firstImage.url, t('Image link copied'))
@@ -206,31 +212,6 @@ function TaskCard({
       </CardHeader>
 
       <CardContent className='space-y-3 px-3 pb-3'>
-        {task.referenceImages?.length ? (
-          <div className='flex items-center gap-2 overflow-x-auto'>
-            {task.referenceImages.map((reference) => (
-              <button
-                key={reference.id}
-                aria-label={t('Preview reference image')}
-                className='bg-muted ring-border/70 focus-visible:ring-ring/50 size-10 shrink-0 overflow-hidden rounded-md ring-1 outline-none focus-visible:ring-2'
-                type='button'
-                onClick={() =>
-                  onPreviewImage({
-                    alt: reference.name || t('Reference image'),
-                    source: reference.dataUrl,
-                  })
-                }
-              >
-                <img
-                  alt={reference.name}
-                  className='size-full object-cover'
-                  src={reference.dataUrl}
-                />
-              </button>
-            ))}
-          </div>
-        ) : null}
-
         {task.status === 'running' ? (
           <Skeleton className='aspect-square w-full rounded-md' />
         ) : task.status === 'error' || task.status === 'interrupted' ? (
@@ -365,11 +346,27 @@ export function PlaygroundImageTaskGrid({
             </DialogClose>
             <div className='flex h-full w-full items-center justify-center p-3 pt-14 sm:p-6 sm:pt-16'>
               {preview ? (
-                <img
-                  alt={preview.alt}
-                  className='block h-full w-full object-contain'
-                  src={preview.source}
-                />
+                <div className='flex h-full w-full flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4'>
+                  {preview.referenceImages?.length ? (
+                    <div className='flex w-full shrink-0 items-center justify-center gap-2 overflow-x-auto sm:h-full sm:w-24 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto'>
+                      {preview.referenceImages.map((reference) => (
+                        <img
+                          key={reference.id}
+                          alt={reference.name || t('Reference image')}
+                          className='bg-background/10 ring-border/20 size-16 shrink-0 rounded-md object-contain ring-1 sm:size-20'
+                          src={reference.dataUrl}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className='flex min-h-0 min-w-0 flex-1 items-center justify-center self-stretch'>
+                    <img
+                      alt={preview.alt}
+                      className='block h-full w-full object-contain'
+                      src={preview.source}
+                    />
+                  </div>
+                </div>
               ) : null}
             </div>
           </DialogContent>
