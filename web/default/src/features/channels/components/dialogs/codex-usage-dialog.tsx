@@ -31,16 +31,9 @@ import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 
 type CodexRateLimitWindow = {
@@ -414,177 +407,23 @@ export function CodexUsageDialog({
   }, [response])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            {t('Codex Account & Usage')}
-          </DialogTitle>
-          <DialogDescription>
-            {t('Channel:')} <strong>{channelName || '-'}</strong>{' '}
-            {channelId ? `(#${channelId})` : ''}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='space-y-4'>
-          {errorMessage && (
-            <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
-              {errorMessage}
-            </div>
-          )}
-
-          {/* Account summary */}
-          <div className='rounded-lg border p-4'>
-            <div className='flex flex-wrap items-center justify-between gap-2'>
-              <div className='flex flex-wrap items-center gap-2'>
-                <StatusBadge
-                  label={accountBadge.label}
-                  variant={accountBadge.variant}
-                  copyable={false}
-                />
-                {statusBadge}
-                {typeof response?.upstream_status === 'number' && (
-                  <StatusBadge
-                    label={`${t('Status:')} ${response.upstream_status}`}
-                    variant='neutral'
-                    copyable={false}
-                  />
-                )}
-              </div>
-              {onRefresh && (
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  onClick={onRefresh}
-                  disabled={Boolean(isRefreshing)}
-                >
-                  <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
-                  {t('Refresh')}
-                </Button>
-              )}
-            </div>
-
-            {/* Account identity info */}
-            <div className='bg-muted/30 mt-3 rounded-md px-3 py-2'>
-              <CopyableField
-                icon={<User className='h-3.5 w-3.5' />}
-                label='User ID'
-                value={payload?.user_id}
-                mono
-              />
-              <CopyableField
-                icon={<Mail className='h-3.5 w-3.5' />}
-                label={t('Email')}
-                value={payload?.email}
-              />
-              <CopyableField
-                icon={<Hash className='h-3.5 w-3.5' />}
-                label='Account ID'
-                value={payload?.account_id}
-                mono
-              />
-            </div>
-          </div>
-
-          {/* Rate limit windows */}
-          <div className='space-y-5'>
-            <div>
-              <div className='mb-1 text-sm font-medium'>
-                {t('Rate Limit Windows')}
-              </div>
-              <p className='text-muted-foreground mb-3 text-xs'>
-                {t(
-                  'Tracks current account base limits and additional metered usage on Codex upstream.'
-                )}
-              </p>
-              <RateLimitGroupSection
-                title={t('Base Limits')}
-                description={t('Base rate limit windows for this account.')}
-                source={payload}
-              />
-            </div>
-
-            {additionalRateLimits.length > 0 && (
-              <div className='space-y-4 border-t pt-4'>
-                <div>
-                  <div className='text-sm font-medium'>
-                    {t('Additional Limits')}
-                  </div>
-                  <p className='text-muted-foreground text-xs'>
-                    {t(
-                      'Per-feature metered windows split by model or capability.'
-                    )}
-                  </p>
-                </div>
-                <div className='space-y-4'>
-                  {additionalRateLimits.map((item, index) => {
-                    const limitName =
-                      item.limit_name ||
-                      item.metered_feature ||
-                      `${t('Additional Limit')} ${index + 1}`
-                    return (
-                      <div
-                        key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
-                        className={index > 0 ? 'border-t pt-4' : ''}
-                      >
-                        <RateLimitGroupSection
-                          title={limitName}
-                          description={t('Additional metered capability')}
-                          source={item}
-                          meteredFeature={item.metered_feature}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Raw JSON collapsible */}
-          <div className='rounded-lg border'>
-            <button
-              type='button'
-              className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
-              onClick={() => setShowRawJson((v) => !v)}
-            >
-              <div className='text-sm font-medium'>{t('Raw JSON')}</div>
-              {showRawJson ? (
-                <ChevronUp className='text-muted-foreground h-4 w-4' />
-              ) : (
-                <ChevronDown className='text-muted-foreground h-4 w-4' />
-              )}
-            </button>
-            {showRawJson && (
-              <>
-                <div className='flex justify-end border-t px-3 py-2'>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    onClick={() => copyToClipboard(rawJsonText)}
-                    disabled={!rawJsonText}
-                  >
-                    {copiedText === rawJsonText ? (
-                      <Check className='mr-1.5 h-3.5 w-3.5 text-green-600' />
-                    ) : (
-                      <Copy className='mr-1.5 h-3.5 w-3.5' />
-                    )}
-                    {t('Copy')}
-                  </Button>
-                </div>
-                <ScrollArea className='max-h-[50vh]'>
-                  <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
-                    {rawJsonText || '-'}
-                  </pre>
-                </ScrollArea>
-              </>
-            )}
-          </div>
-        </div>
-
-        <DialogFooter>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Codex Account & Usage')}
+      description={
+        <>
+          {t('Channel:')}
+          <strong>{channelName || '-'}</strong>{' '}
+          {channelId ? `(#${channelId})` : ''}
+        </>
+      }
+      contentClassName='sm:max-w-3xl'
+      titleClassName='flex items-center gap-2'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
           <Button
             type='button'
             variant='outline'
@@ -592,8 +431,166 @@ export function CodexUsageDialog({
           >
             {t('Close')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='space-y-4'>
+        {errorMessage && (
+          <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Account summary */}
+        <div className='rounded-lg border p-4'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <div className='flex flex-wrap items-center gap-2'>
+              <StatusBadge
+                label={accountBadge.label}
+                variant={accountBadge.variant}
+                copyable={false}
+              />
+              {statusBadge}
+              {typeof response?.upstream_status === 'number' && (
+                <StatusBadge
+                  label={`${t('Status:')} ${response.upstream_status}`}
+                  variant='neutral'
+                  copyable={false}
+                />
+              )}
+            </div>
+            {onRefresh && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={onRefresh}
+                disabled={Boolean(isRefreshing)}
+              >
+                <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
+                {t('Refresh')}
+              </Button>
+            )}
+          </div>
+
+          {/* Account identity info */}
+          <div className='bg-muted/30 mt-3 rounded-md px-3 py-2'>
+            <CopyableField
+              icon={<User className='h-3.5 w-3.5' />}
+              label='User ID'
+              value={payload?.user_id}
+              mono
+            />
+            <CopyableField
+              icon={<Mail className='h-3.5 w-3.5' />}
+              label={t('Email')}
+              value={payload?.email}
+            />
+            <CopyableField
+              icon={<Hash className='h-3.5 w-3.5' />}
+              label='Account ID'
+              value={payload?.account_id}
+              mono
+            />
+          </div>
+        </div>
+
+        {/* Rate limit windows */}
+        <div className='space-y-5'>
+          <div>
+            <div className='mb-1 text-sm font-medium'>
+              {t('Rate Limit Windows')}
+            </div>
+            <p className='text-muted-foreground mb-3 text-xs'>
+              {t(
+                'Tracks current account base limits and additional metered usage on Codex upstream.'
+              )}
+            </p>
+            <RateLimitGroupSection
+              title={t('Base Limits')}
+              description={t('Base rate limit windows for this account.')}
+              source={payload}
+            />
+          </div>
+
+          {additionalRateLimits.length > 0 && (
+            <div className='space-y-4 border-t pt-4'>
+              <div>
+                <div className='text-sm font-medium'>
+                  {t('Additional Limits')}
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Per-feature metered windows split by model or capability.'
+                  )}
+                </p>
+              </div>
+              <div className='space-y-4'>
+                {additionalRateLimits.map((item, index) => {
+                  const limitName =
+                    item.limit_name ||
+                    item.metered_feature ||
+                    `${t('Additional Limit')} ${index + 1}`
+                  return (
+                    <div
+                      key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
+                      className={index > 0 ? 'border-t pt-4' : ''}
+                    >
+                      <RateLimitGroupSection
+                        title={limitName}
+                        description={t('Additional metered capability')}
+                        source={item}
+                        meteredFeature={item.metered_feature}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Raw JSON collapsible */}
+        <div className='rounded-lg border'>
+          <button
+            type='button'
+            className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
+            onClick={() => setShowRawJson((v) => !v)}
+          >
+            <div className='text-sm font-medium'>{t('Raw JSON')}</div>
+            {showRawJson ? (
+              <ChevronUp className='text-muted-foreground h-4 w-4' />
+            ) : (
+              <ChevronDown className='text-muted-foreground h-4 w-4' />
+            )}
+          </button>
+          {showRawJson && (
+            <>
+              <div className='flex justify-end border-t px-3 py-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => copyToClipboard(rawJsonText)}
+                  disabled={!rawJsonText}
+                >
+                  {copiedText === rawJsonText ? (
+                    <Check className='mr-1.5 h-3.5 w-3.5 text-green-600' />
+                  ) : (
+                    <Copy className='mr-1.5 h-3.5 w-3.5' />
+                  )}
+                  {t('Copy')}
+                </Button>
+              </div>
+              <ScrollArea className='max-h-[50vh]'>
+                <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
+                  {rawJsonText || '-'}
+                </pre>
+              </ScrollArea>
+            </>
+          )}
+        </div>
+      </div>
     </Dialog>
   )
 }

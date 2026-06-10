@@ -21,15 +21,8 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { updateUserProfile } from '../../api'
 
@@ -114,82 +107,79 @@ export function ChangePasswordDialog({
     }
   }
 
+  const formId = 'change-password-form'
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-md'>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{t('Change Password')}</DialogTitle>
-            <DialogDescription>
-              {t('Update your password for account:')}{' '}
-              <strong>{username}</strong>
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('Change Password')}
+      description={
+        <>
+          {t('Update your password for account:')} <strong>{username}</strong>
+        </>
+      }
+      contentClassName='sm:max-w-md'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button type='submit' form={formId} disabled={loading}>
+            {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+            {loading ? t('Changing...') : t('Change Password')}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className='space-y-4'>
+        <div className='space-y-2'>
+          <Label htmlFor='currentPassword'>{t('Current Password')}</Label>
+          <PasswordInput
+            id='currentPassword'
+            value={formData.originalPassword}
+            onChange={(e) => handleChange('originalPassword', e.target.value)}
+            disabled={loading}
+            required
+            autoComplete='current-password'
+          />
+        </div>
 
-          <div className='my-6 space-y-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='currentPassword'>{t('Current Password')}</Label>
-              <PasswordInput
-                id='currentPassword'
-                value={formData.originalPassword}
-                onChange={(e) =>
-                  handleChange('originalPassword', e.target.value)
-                }
-                disabled={loading}
-                required
-                autoComplete='current-password'
-              />
-            </div>
+        <div className='space-y-2'>
+          <Label htmlFor='newPassword'>{t('New Password')}</Label>
+          <PasswordInput
+            id='newPassword'
+            value={formData.newPassword}
+            onChange={(e) => handleChange('newPassword', e.target.value)}
+            disabled={loading}
+            required
+            minLength={8}
+            autoComplete='new-password'
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Must be at least 8 characters')}
+          </p>
+        </div>
 
-            <div className='space-y-2'>
-              <Label htmlFor='newPassword'>{t('New Password')}</Label>
-              <PasswordInput
-                id='newPassword'
-                value={formData.newPassword}
-                onChange={(e) => handleChange('newPassword', e.target.value)}
-                disabled={loading}
-                required
-                minLength={8}
-                autoComplete='new-password'
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t('Must be at least 8 characters')}
-              </p>
-            </div>
-
-            <div className='space-y-2'>
-              <Label htmlFor='confirmPassword'>
-                {t('Confirm New Password')}
-              </Label>
-              <PasswordInput
-                id='confirmPassword'
-                value={formData.confirmPassword}
-                onChange={(e) =>
-                  handleChange('confirmPassword', e.target.value)
-                }
-                disabled={loading}
-                required
-                autoComplete='new-password'
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button type='submit' disabled={loading}>
-              {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              {loading ? t('Changing...') : t('Change Password')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+        <div className='space-y-2'>
+          <Label htmlFor='confirmPassword'>{t('Confirm New Password')}</Label>
+          <PasswordInput
+            id='confirmPassword'
+            value={formData.confirmPassword}
+            onChange={(e) => handleChange('confirmPassword', e.target.value)}
+            disabled={loading}
+            required
+            autoComplete='new-password'
+          />
+        </div>
+      </form>
     </Dialog>
   )
 }
