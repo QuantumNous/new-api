@@ -321,14 +321,12 @@ function renderDesktop<TData>(
 ): React.ReactNode {
   if (showMobile) return null
 
-  const rows = props.table.getRowModel().rows
   const isFetchingOnly = props.isFetching && !props.isLoading
   const fixedHeight = props.fixedHeight !== false
 
   return (
     <DataTableView
       table={props.table}
-      rows={rows}
       isLoading={props.isLoading}
       emptyTitle={props.emptyTitle}
       emptyDescription={props.emptyDescription}
