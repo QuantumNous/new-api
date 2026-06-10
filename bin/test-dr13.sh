@@ -103,6 +103,26 @@ run_test() {
   _record "$label" "$expected" "$(_status "$raw")" "$(_body "$raw")"
 }
 
+# Assert middleware allowed the request (status != 429 AND no tenant_quota_exceeded).
+# Used for "pass" cases — upstream may return any non-429 code (upstream errors are OK;
+# we are testing the quota middleware, not the upstream provider).
+assert_allowed() {
+  local label="$1" auth="$2" endpoint="$3" body="${4:-}"
+  local raw; raw=$(_do_curl "$auth" "$endpoint" "$body")
+  local s; s=$(_status "$raw"); local bt; bt=$(_body "$raw")
+  echo -e "${BOLD}── $label${RESET}"
+  echo -e "  ${DIM}middleware must allow (status≠429, no tenant_quota_exceeded)  actual=$s${RESET}"
+  [[ -n "$bt" ]] && echo -e "  ${DIM}body: $bt${RESET}"
+  if [[ "$s" != "429" ]] && ! echo "$bt" | grep -qF "tenant_quota_exceeded"; then
+    echo -e "  ${GREEN}✅ PASS${RESET}"
+    sec_p["$cur_sec"]=$(( ${sec_p[$cur_sec]:-0} + 1 )); pass=$(( pass + 1 ))
+  else
+    echo -e "  ${RED}❌ FAIL  — middleware blocked the request (status=$s)${RESET}"
+    sec_f["$cur_sec"]=$(( ${sec_f[$cur_sec]:-0} + 1 )); fail=$(( fail + 1 ))
+  fi
+  echo ""
+}
+
 assert_body() {
   local label="$1" needle="$2" auth="$3" endpoint="$4" body="${5:-}"
   local raw; raw=$(_do_curl "$auth" "$endpoint" "$body")
@@ -188,8 +208,8 @@ echo -e "${DIM}  All 6 requests fired immediately so they share the same window.
 echo ""
 
 for i in 1 2 3 4 5; do
-  run_test "1.$i  RPM_KEY request #$i of 5 — must be allowed (200)" \
-    "200" "$RPM_KEY" "/v1/chat/completions" "$BODY"
+  assert_allowed "1.$i  RPM_KEY request #$i of 5 — middleware must allow" \
+    "$RPM_KEY" "/v1/chat/completions" "$BODY"
 done
 
 run_test "1.6  RPM_KEY request #6 — limit reached, must return 429" \
@@ -219,8 +239,8 @@ echo -e "${DIM}  TPM_KEY has tpm_limit=20. Request body = 81 bytes → 20 estima
 echo -e "${DIM}  First request: 0+20=20 ≤ 20 → allowed. Second: 20+20=40 > 20 → 429.${RESET}"
 echo ""
 
-run_test "2.1  TPM_KEY first request — 20 estimated tokens ≤ 20 limit → 200" \
-  "200" "$TPM_KEY" "/v1/chat/completions" "$BODY"
+assert_allowed "2.1  TPM_KEY first request — 20 estimated tokens ≤ 20 limit → middleware allows" \
+  "$TPM_KEY" "/v1/chat/completions" "$BODY"
 
 run_test "2.2  TPM_KEY second request — bucket now 40 > 20 → 429" \
   "429" "$TPM_KEY" "/v1/chat/completions" "$BODY"
@@ -235,8 +255,8 @@ assert_body \
   "tpm" \
   "$TPM_KEY" "/v1/chat/completions" "$BODY"
 
-run_test "2.5  ROOT_KEY same body — no TPM limit → 200 (unlimited)" \
-  "200" "$ROOT_KEY" "/v1/chat/completions" "$BODY"
+assert_allowed "2.5  ROOT_KEY same body — no TPM limit → middleware allows (unlimited)" \
+  "$ROOT_KEY" "/v1/chat/completions" "$BODY"
 
 # ============================================================================
 # SECTION 3 — Monthly Enforcement
@@ -250,8 +270,8 @@ echo -e "${YELLOW}  ⚠️  Monthly counter persists all month. Run with a fresh
 echo ""
 
 for i in 1 2 3; do
-  run_test "3.$i  MONTHLY_KEY request #$i of 3 — must be allowed (200)" \
-    "200" "$MONTHLY_KEY" "/v1/chat/completions" "$BODY"
+  assert_allowed "3.$i  MONTHLY_KEY request #$i of 3 — middleware must allow" \
+    "$MONTHLY_KEY" "/v1/chat/completions" "$BODY"
 done
 
 run_test "3.4  MONTHLY_KEY request #4 — monthly limit reached, must return 429" \
@@ -280,8 +300,8 @@ echo -e "${DIM}  Limit of 0 means unlimited — TenantQuotaCheck skips all check
 echo ""
 
 for i in $(seq 1 10); do
-  run_test "4.$i  ROOT_KEY request #$i — must succeed (200, never 429)" \
-    "200" "$ROOT_KEY" "/v1/chat/completions" "$BODY"
+  assert_allowed "4.$i  ROOT_KEY request #$i — no limits, middleware must allow" \
+    "$ROOT_KEY" "/v1/chat/completions" "$BODY"
 done
 
 # ============================================================================
@@ -330,17 +350,17 @@ echo ""
 run_test "6.1  RPM_KEY still blocked (confirmed exhausted)" \
   "429" "$RPM_KEY" "/v1/chat/completions" "$BODY"
 
-run_test "6.2  ROOT_KEY immediately after — still 200 (independent counter)" \
-  "200" "$ROOT_KEY" "/v1/chat/completions" "$BODY"
+assert_allowed "6.2  ROOT_KEY immediately after — still allowed (independent counter)" \
+  "$ROOT_KEY" "/v1/chat/completions" "$BODY"
 
-run_test "6.3  ROOT_KEY again — still 200" \
-  "200" "$ROOT_KEY" "/v1/chat/completions" "$BODY"
+assert_allowed "6.3  ROOT_KEY again — still allowed" \
+  "$ROOT_KEY" "/v1/chat/completions" "$BODY"
 
 run_test "6.4  RPM_KEY again — still blocked (not contaminated by root)" \
   "429" "$RPM_KEY" "/v1/chat/completions" "$BODY"
 
-run_test "6.5  ROOT_KEY after more RPM_KEY blocks — root unaffected" \
-  "200" "$ROOT_KEY" "/v1/chat/completions" "$BODY"
+assert_allowed "6.5  ROOT_KEY after more RPM_KEY blocks — root unaffected" \
+  "$ROOT_KEY" "/v1/chat/completions" "$BODY"
 
 # ============================================================================
 # SECTION 7 — Quota Does Not Apply to Non-Relay Routes
@@ -428,11 +448,11 @@ else
   echo ""
   echo ""
 
-  run_test "9.1  RPM_KEY after 62-second wait — window expired, must be allowed (200)" \
-    "200" "$RPM_KEY" "/v1/chat/completions" "$BODY"
+  assert_allowed "9.1  RPM_KEY after 62-second wait — window expired, middleware must allow" \
+    "$RPM_KEY" "/v1/chat/completions" "$BODY"
 
-  run_test "9.2  RPM_KEY second request in new window — still allowed (200)" \
-    "200" "$RPM_KEY" "/v1/chat/completions" "$BODY"
+  assert_allowed "9.2  RPM_KEY second request in new window — still allowed" \
+    "$RPM_KEY" "/v1/chat/completions" "$BODY"
 fi
 
 # ============================================================================
