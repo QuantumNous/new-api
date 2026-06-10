@@ -25,9 +25,10 @@ import (
 // https://platform.minimaxi.com/docs/api-reference/video-generation-intro
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	channel.DirectLinkAssets // buildVideoURL 解析出的单直链，GCS 转存走默认实现
+	ChannelType              int
+	apiKey                   string
+	baseURL                  string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -159,6 +160,10 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		Duration:   &duration,
 		Resolution: resolution,
 	}
+	// GCS 转存模式下剥离 callback_url 等旁路字段——hailuo 走 relaycommon 的
+	// req.UnmarshalMetadata 而非 taskcommon.UnmarshalMetadata（后者内置剥离），
+	// 必须在 unmarshal 之前对 metadata map 显式删键（见 taskcommon.StripBypassMetadata）。
+	taskcommon.StripBypassMetadata(req.Metadata)
 	if err := req.UnmarshalMetadata(&videoRequest); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata to video request failed")
 	}

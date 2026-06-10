@@ -278,9 +278,10 @@ func (r *polloStatusResponse) failed() bool {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	channel.DirectLinkAssets // FetchResultContent 用默认直链下载；Extract 覆写见 ExtractUpstreamAssets
+	ChannelType              int
+	apiKey                   string
+	baseURL                  string
 
 	// isRef records whether the current request resolved to the /ref2video shape.
 	// It is set by convertToRequestPayload (called from BuildRequestBody) and read
@@ -463,6 +464,41 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	taskInfo.Status = model.TaskStatusInProgress
 	taskInfo.Progress = taskcommon.ProgressInProgress
 	return taskInfo, nil
+}
+
+// ExtractUpstreamAssets 枚举 generations[] 的全部 succeed 条目（GCS 转存，
+// gcs-video-transfer-design.md 4.2）：用户可经 metadata.videoNum 请求 1-4 个视频且按
+// 上游全量 credit 结算，ParseTaskResult 只取首个非空 URL 会"付 N 拿 1"，因此每个
+// succeed generation 各占一个 Index。本方法仅在全部 generation 已 succeed
+// （ParseTaskResult 判 SUCCESS）后由轮询循环调用。
+func (a *TaskAdaptor) ExtractUpstreamAssets(_ *model.Task, _ *relaycommon.TaskInfo, rawRespBody []byte) ([]taskcommon.UpstreamAsset, error) {
+	var resp polloStatusResponse
+	if err := common.Unmarshal(rawRespBody, &resp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal pollo status response failed")
+	}
+	if resp.failed() {
+		return nil, fmt.Errorf("pollo status response carries error code: %s", resp.Code)
+	}
+	gens := resp.gens()
+	assets := make([]taskcommon.UpstreamAsset, 0, len(gens))
+	for _, g := range gens {
+		if g.Status != "succeed" {
+			continue
+		}
+		u := strings.TrimSpace(g.Url)
+		if u == "" {
+			continue
+		}
+		ext := taskcommon.AssetExtVideo
+		if strings.Contains(strings.ToLower(g.MediaType), "image") {
+			ext = taskcommon.AssetExtImage
+		}
+		assets = append(assets, taskcommon.UpstreamAsset{Index: len(assets), URL: u, Ext: ext})
+	}
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("pollo task succeeded but no generation url available")
+	}
+	return assets, nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

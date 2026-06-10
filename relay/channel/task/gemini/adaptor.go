@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -241,6 +242,48 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return ti, nil
+}
+
+// ExtractUpstreamAssets 枚举 generateVideoResponse.generatedVideos[] 的全部文件 URI
+// （GCS 转存，gcs-video-transfer-design.md 4.2）。Gemini 文件 URI 与创建它的 key/项目
+// 绑定，下载时由 FetchResultContent 附 API key。
+func (a *TaskAdaptor) ExtractUpstreamAssets(_ *model.Task, _ *relaycommon.TaskInfo, rawRespBody []byte) ([]taskcommon.UpstreamAsset, error) {
+	var op operationResponse
+	if err := common.Unmarshal(rawRespBody, &op); err != nil {
+		return nil, fmt.Errorf("unmarshal gemini operation response failed: %w", err)
+	}
+	if op.Error.Message != "" {
+		return nil, fmt.Errorf("gemini operation carries error: %s", op.Error.Message)
+	}
+	generated := op.Response.GenerateVideoResponse.GeneratedVideos
+	assets := make([]taskcommon.UpstreamAsset, 0, len(generated))
+	for _, gv := range generated {
+		u := strings.TrimSpace(gv.Video.URI)
+		if u == "" {
+			continue
+		}
+		assets = append(assets, taskcommon.UpstreamAsset{Index: len(assets), URL: u, Ext: taskcommon.AssetExtVideo})
+	}
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("gemini operation done but no video uri in response")
+	}
+	return assets, nil
+}
+
+// FetchResultContent 下载 Gemini 文件 URI，附 x-goog-api-key。
+// 凭证按 PrivateData.Key 优先（InitTask 已快照；文件 URI 与创建它的 key 绑定，
+// 多 key 渠道的 ch.Key 是换行拼接原始串、确定性无效）、ch.Key 兜底。
+func (a *TaskAdaptor) FetchResultContent(ctx context.Context, task *model.Task, ch *model.Channel, asset taskcommon.UpstreamAsset) (io.ReadCloser, string, error) {
+	if task == nil || ch == nil {
+		return nil, "", fmt.Errorf("task or channel is nil")
+	}
+	key := taskcommon.ResolveTaskFetchKey(task, ch)
+	if key == "" {
+		return nil, "", fmt.Errorf("no api key available for gemini file fetch")
+	}
+	header := http.Header{}
+	header.Set("x-goog-api-key", key)
+	return channel.FetchTaskAssetByURL(ctx, ch, asset.URL, header)
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {

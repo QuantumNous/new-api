@@ -20,7 +20,8 @@ import (
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
+	taskcommon.UnsupportedAssets // Suno 走独立批量轮询路径，不参与 GCS 视频转存
+	ChannelType                  int
 }
 
 // ParseTaskResult is not used for Suno tasks.
