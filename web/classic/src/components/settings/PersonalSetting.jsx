@@ -43,6 +43,7 @@ import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import KYCSetting from './personal/cards/KYCSetting';
 import EnterpriseSetting from './personal/cards/EnterpriseSetting';
+import FeedbackConsult from './personal/cards/FeedbackConsult';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
@@ -635,6 +636,7 @@ const PersonalSetting = () => {
                 <KYCSetting />
               </div>
               <EnterpriseSetting />
+              <FeedbackConsult />
             </div>
           </div>
         </div>
