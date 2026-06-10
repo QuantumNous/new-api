@@ -41,6 +41,12 @@ import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
 
+function getCompactModelIcon(iconKey: string) {
+  const baseIconKey = iconKey.split('.')[0]
+
+  return getLobeIcon(`${baseIconKey}.Avatar.type={'platform'}`, 20)
+}
+
 /**
  * Render limited items with "and X more" indicator
  */
@@ -123,9 +129,13 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           vendorMap[model.vendor_id || 0]?.icon ||
           model.model_name?.[0] ||
           'N'
-        const icon = getLobeIcon(iconKey, 20)
+        const icon = getCompactModelIcon(iconKey)
 
-        return <div className='flex items-center justify-center'>{icon}</div>
+        return (
+          <div className='ms-1 flex size-5 items-center justify-center overflow-hidden'>
+            {icon}
+          </div>
+        )
       },
       size: 70,
       enableSorting: false,
