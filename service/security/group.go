@@ -10,6 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+
+	"gorm.io/gorm"
 )
 
 // GetSecurityGroupById 根据ID获取分组

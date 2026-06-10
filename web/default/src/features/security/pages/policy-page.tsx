@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { securityApi, type SecurityPolicy } from '../api/security'
+import { securityApi, type SecurityGroup, type SecurityPolicy } from '../api/security'
+import { PolicyFormModal } from '../components/policy-form-modal'
 
 const scopeMap: Record<number, string> = {
   1: 'Request Only',
@@ -23,13 +24,20 @@ const actionMap: Record<number, string> = {
 export function SecurityPolicyPage() {
   const { t } = useTranslation()
   const [policies, setPolicies] = useState<SecurityPolicy[]>([])
+  const [groups, setGroups] = useState<SecurityGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingPolicy, setEditingPolicy] = useState<SecurityPolicy | null>(null)
 
   useEffect(() => {
     loadPolicies()
+    securityApi.getGroups({ page: 1, page_size: 100 }).then((res: any) => {
+      if (res.success) setGroups(res.data.items)
+    })
   }, [])
 
   const loadPolicies = () => {
+    setLoading(true)
     securityApi.getPolicies({ page: 1, page_size: 100 }).then((res: any) => {
       if (res.success) {
         setPolicies(res.data.items)
@@ -43,13 +51,32 @@ export function SecurityPolicyPage() {
     securityApi.deletePolicy(id).then(() => loadPolicies())
   }
 
+  const handleCreate = () => {
+    setEditingPolicy(null)
+    setModalOpen(true)
+  }
+
+  const handleEdit = (policy: SecurityPolicy) => {
+    setEditingPolicy(policy)
+    setModalOpen(true)
+  }
+
+  const handleSubmit = async (data: Partial<SecurityPolicy>) => {
+    if (editingPolicy) {
+      await securityApi.updatePolicy(editingPolicy.id, data)
+    } else {
+      await securityApi.createPolicy(data)
+    }
+    loadPolicies()
+  }
+
   if (loading) return <div className="p-6">{t('Loading...')}</div>
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t('Security Policies')}</h1>
-        <Button>{t('Create Policy')}</Button>
+        <Button onClick={handleCreate}>{t('Create Policy')}</Button>
       </div>
       <Card>
         <CardContent className="p-0">
@@ -71,7 +98,7 @@ export function SecurityPolicyPage() {
                   <TableCell><Badge variant="outline">{scopeMap[policy.scope] ?? policy.scope}</Badge></TableCell>
                   <TableCell><Badge>{actionMap[policy.default_action] ?? policy.default_action}</Badge></TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="sm">{t('Edit')}</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(policy)}>{t('Edit')}</Button>
                     <Button variant="destructive" size="sm" onClick={() => handleDelete(policy.id)}>
                       {t('Delete')}
                     </Button>
@@ -82,6 +109,14 @@ export function SecurityPolicyPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <PolicyFormModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        initialData={editingPolicy}
+        groups={groups}
+        onSubmit={handleSubmit}
+      />
     </div>
   )
 }

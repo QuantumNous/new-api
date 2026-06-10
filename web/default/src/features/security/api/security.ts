@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { api } from '@/lib/api'
 
 export interface SecurityGroup {
   id: number
@@ -76,34 +76,40 @@ export interface DashboardData {
 export const securityApi = {
   // Groups
   getGroups: (params?: { page?: number; page_size?: number; status?: number; parent_id?: number }) =>
-    apiClient.get('/api/security/groups', { params }).then((r) => r.data),
-  createGroup: (data: Partial<SecurityGroup>) => apiClient.post('/api/security/groups', data).then((r) => r.data),
+    api.get('/api/security/groups', { params }).then((r) => r.data),
+  createGroup: (data: Partial<SecurityGroup>) => api.post('/api/security/groups', data).then((r) => r.data),
   updateGroup: (id: number, data: Partial<SecurityGroup>) =>
-    apiClient.put(`/api/security/groups/${id}`, data).then((r) => r.data),
-  deleteGroup: (id: number) => apiClient.delete(`/api/security/groups/${id}`).then((r) => r.data),
-  copyGroup: (id: number) => apiClient.post(`/api/security/groups/${id}/copy`).then((r) => r.data),
+    api.put(`/api/security/groups/${id}`, data).then((r) => r.data),
+  deleteGroup: (id: number) => api.delete(`/api/security/groups/${id}`).then((r) => r.data),
+  copyGroup: (id: number) => api.post(`/api/security/groups/${id}/copy`).then((r) => r.data),
 
   // Rules
   getRules: (params?: { page?: number; page_size?: number; group_id?: number; type?: number; status?: number }) =>
-    apiClient.get('/api/security/rules', { params }).then((r) => r.data),
-  createRule: (data: Partial<SecurityRule>) => apiClient.post('/api/security/rules', data).then((r) => r.data),
+    api.get('/api/security/rules', { params }).then((r) => r.data),
+  createRule: (data: Partial<SecurityRule>) => api.post('/api/security/rules', data).then((r) => r.data),
   updateRule: (id: number, data: Partial<SecurityRule>) =>
-    apiClient.put(`/api/security/rules/${id}`, data).then((r) => r.data),
-  deleteRule: (id: number) => apiClient.delete(`/api/security/rules/${id}`).then((r) => r.data),
+    api.put(`/api/security/rules/${id}`, data).then((r) => r.data),
+  deleteRule: (id: number) => api.delete(`/api/security/rules/${id}`).then((r) => r.data),
 
   // Policies
   getPolicies: (params?: { page?: number; page_size?: number; user_id?: number; status?: number }) =>
-    apiClient.get('/api/security/policies', { params }).then((r) => r.data),
-  createPolicy: (data: Partial<SecurityPolicy>) => apiClient.post('/api/security/policies', data).then((r) => r.data),
+    api.get('/api/security/policies', { params }).then((r) => r.data),
+  createPolicy: (data: Partial<SecurityPolicy>) => api.post('/api/security/policies', data).then((r) => r.data),
   updatePolicy: (id: number, data: Partial<SecurityPolicy>) =>
-    apiClient.put(`/api/security/policies/${id}`, data).then((r) => r.data),
-  deletePolicy: (id: number) => apiClient.delete(`/api/security/policies/${id}`).then((r) => r.data),
+    api.put(`/api/security/policies/${id}`, data).then((r) => r.data),
+  deletePolicy: (id: number) => api.delete(`/api/security/policies/${id}`).then((r) => r.data),
 
   // Logs
   getLogs: (params?: { page?: number; page_size?: number; user_id?: number; action?: number; risk_level?: number }) =>
-    apiClient.get('/api/security/logs', { params }).then((r) => r.data),
+    api.get('/api/security/logs', { params }).then((r) => r.data),
+  exportLogs: (params?: { format?: 'csv' | 'excel'; user_id?: number; action?: number; risk_level?: number; content_type?: number }) =>
+    api.get('/api/security/logs/export', {
+      params,
+      responseType: 'blob',
+      skipBusinessError: true,
+    }),
 
   // Dashboard
   getDashboard: (params?: { start_time?: number; end_time?: number }) =>
-    apiClient.get('/api/security/dashboard', { params }).then((r) => r.data),
+    api.get('/api/security/dashboard', { params }).then((r) => r.data),
 }

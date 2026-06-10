@@ -31,11 +31,11 @@ description: "Task list for AI Content Security Management Module implementation
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create `constant/security.go` with enums for rule types, actions, risk levels, content types, and scopes
-- [ ] T002 [P] Create `dto/security.go` with request/response structs for groups, rules, policies, and logs
-- [ ] T003 [P] Create `web/default/src/features/security/` directory structure with `components/`, `pages/`, `api/` subdirectories
-- [ ] T004 [P] Create frontend API client `web/default/src/features/security/api/security.ts` with typed HTTP clients for all backend endpoints
-- [ ] T005 Configure security module environment variables in `.env.example` (`SECURITY_ENABLED`, `SECURITY_AI_TIMEOUT`, etc.)
+- [x] T001 Create `constant/security.go` with enums for rule types, actions, risk levels, content types, and scopes
+- [x] T002 [P] Create `dto/security.go` with request/response structs for groups, rules, policies, and logs
+- [x] T003 [P] Create `web/default/src/features/security/` directory structure with `components/`, `pages/`, `api/` subdirectories
+- [x] T004 [P] Create frontend API client `web/default/src/features/security/api/security.ts` with typed HTTP clients for all backend endpoints
+- [x] T005 Configure security module environment variables in `.env.example` (`SECURITY_ENABLED`, `SECURITY_AI_TIMEOUT`, etc.)
 
 ---
 
@@ -45,14 +45,14 @@ description: "Task list for AI Content Security Management Module implementation
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Create `model/security.go` with GORM models for `SecurityGroup`, `SecurityRule`, `SecurityUserPolicy`, `SecurityHitLog`, and `SecurityAuditLog`
-- [ ] T007 Create database migration scripts compatible with SQLite, MySQL, and PostgreSQL for all security tables
-- [ ] T008 [P] Create `service/security/group.go` with group CRUD operations and nested hierarchy helpers (materialized path)
-- [ ] T009 [P] Create `service/security/rule.go` with rule CRUD operations and validation (syntax check for regex patterns)
-- [ ] T010 [P] Create `service/security/policy.go` with policy CRUD and user-group binding logic
-- [ ] T011 [P] Create `service/security/audit.go` with audit log writer for administrative actions
-- [ ] T012 Create `service/security/cache.go` with Redis-based rule/policy cache loader and invalidation logic
-- [ ] T013 Create `service/security/dashboard.go` with statistics aggregation queries (daily counts, top categories, top users)
+- [x] T006 Create `model/security.go` with GORM models for `SecurityGroup`, `SecurityRule`, `SecurityUserPolicy`, `SecurityHitLog`, and `SecurityAuditLog`
+- [x] T007 Create database migration scripts compatible with SQLite, MySQL, and PostgreSQL for all security tables
+- [x] T008 [P] Create `service/security/group.go` with group CRUD operations and nested hierarchy helpers (materialized path)
+- [x] T009 [P] Create `service/security/rule.go` with rule CRUD operations and validation (syntax check for regex patterns)
+- [x] T010 [P] Create `service/security/policy.go` with policy CRUD and user-group binding logic
+- [x] T011 [P] Create `service/security/audit.go` with audit log writer for administrative actions
+- [x] T012 Create `service/security/cache.go` with Redis-based rule/policy cache loader and invalidation logic
+- [x] T013 Create `service/security/dashboard.go` with statistics aggregation queries (daily counts, top categories, top users)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -66,17 +66,17 @@ description: "Task list for AI Content Security Management Module implementation
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Create `controller/security.go` with admin API handlers for group CRUD (`GET/POST/PUT/DELETE /api/security/groups`)
-- [ ] T015 [P] [US1] Add `controller/security.go` handlers for rule CRUD (`GET/POST/PUT/DELETE /api/security/rules`)
-- [ ] T016 [P] [US1] Add `controller/security.go` handlers for policy CRUD (`GET/POST/PUT/DELETE /api/security/policies`)
-- [ ] T017 [US1] Add `controller/security.go` handler for group copy (`POST /api/security/groups/:id/copy`)
-- [ ] T018 [P] [US1] Create `web/default/src/features/security/pages/GroupListPage.tsx` - group management list with create/edit/delete/copy actions
-- [ ] T019 [P] [US1] Create `web/default/src/features/security/pages/RuleListPage.tsx` - rule management within a selected group
-- [ ] T020 [P] [US1] Create `web/default/src/features/security/pages/PolicyListPage.tsx` - user policy assignment and configuration
-- [ ] T021 [US1] Create `web/default/src/features/security/components/GroupFormModal.tsx` - modal form for creating/editing groups with parent selection
-- [ ] T022 [US1] Create `web/default/src/features/security/components/RuleFormModal.tsx` - modal form for creating/editing rules with type selector and content validation
-- [ ] T023 [US1] Register security admin routes in frontend router (`/admin/security/groups`, `/admin/security/rules`, `/admin/security/policies`)
-- [ ] T024 [US1] Add navigation menu item for Security Management in admin sidebar
+- [x] T014 [P] [US1] Create `controller/security.go` with admin API handlers for group CRUD (`GET/POST/PUT/DELETE /api/security/groups`)
+- [x] T015 [P] [US1] Add `controller/security.go` handlers for rule CRUD (`GET/POST/PUT/DELETE /api/security/rules`)
+- [x] T016 [P] [US1] Add `controller/security.go` handlers for policy CRUD (`GET/POST/PUT/DELETE /api/security/policies`)
+- [x] T017 [US1] Add `controller/security.go` handler for group copy (`POST /api/security/groups/:id/copy`)
+- [x] T018 [P] [US1] Create `web/default/src/features/security/pages/GroupListPage.tsx` - group management list with create/edit/delete/copy actions
+- [x] T019 [P] [US1] Create `web/default/src/features/security/pages/RuleListPage.tsx` - rule management within a selected group
+- [x] T020 [P] [US1] Create `web/default/src/features/security/pages/PolicyListPage.tsx` - user policy assignment and configuration
+- [x] T021 [US1] Create `web/default/src/features/security/components/GroupFormModal.tsx` - modal form for creating/editing groups with parent selection
+- [x] T022 [US1] Create `web/default/src/features/security/components/RuleFormModal.tsx` - modal form for creating/editing rules with type selector and content validation
+- [x] T023 [US1] Register security admin routes in frontend router (`/admin/security/groups`, `/admin/security/rules`, `/admin/security/policies`)
+- [x] T024 [US1] Add navigation menu item for Security Management in admin sidebar
 
 **Checkpoint**: At this point, administrators can fully configure security policies via the web UI. User Story 1 should be independently functional and testable.
 
@@ -90,17 +90,17 @@ description: "Task list for AI Content Security Management Module implementation
 
 ### Implementation for User Story 2
 
-- [ ] T025 [P] [US2] Create `service/security/detector.go` with detection orchestrator interface and result aggregation logic
-- [ ] T026 [P] [US2] Create `service/security/engine_keyword.go` - AC automaton keyword detection engine using existing `anknown/ahocorasick` library
-- [ ] T027 [P] [US2] Create `service/security/engine_regex.go` - pre-compiled regex detection engine using `dlclark/regexp2`
-- [ ] T028 [P] [US2] Create `service/security/engine_ner.go` - named entity recognition engine (placeholder/interface for future NER integration)
-- [ ] T029 [P] [US2] Create `service/security/engine_ai.go` - AI-powered detection engine with async execution and 3-second timeout fallback
-- [ ] T030 [US2] Create `service/security/mask.go` with masking strategies: full replace, preserve first/last, preserve N/M, custom symbol
-- [ ] T031 [US2] Create `service/security/engine.go` with rule engine: loads active rules from cache, runs engines in parallel, resolves final action by priority (block > review > mask > alert > pass)
-- [ ] T032 [US2] Create `middleware/security.go` with `SecurityCheck()` middleware that intercepts requests after `TokenAuth()`, loads user policy, runs detection, and applies action
-- [ ] T033 [US2] Integrate `SecurityCheck()` middleware into the main request pipeline (`router/relay.go` or equivalent) for chat completion endpoints
-- [ ] T034 [US2] Create `service/security/hitlog.go` with async hit log writer that records detection events to `security_hit_logs` table
-- [ ] T035 [US2] Wire hit log recording into the middleware so every detection event is persisted with content hash (not raw content)
+- [x] T025 [P] [US2] Create `service/security/detector.go` with detection orchestrator interface and result aggregation logic
+- [x] T026 [P] [US2] Create `service/security/engine_keyword.go` - AC automaton keyword detection engine using existing `anknown/ahocorasick` library
+- [x] T027 [P] [US2] Create `service/security/engine_regex.go` - pre-compiled regex detection engine using `dlclark/regexp2`
+- [x] T028 [P] [US2] Create `service/security/engine_ner.go` - named entity recognition engine (placeholder/interface for future NER integration)
+- [x] T029 [P] [US2] Create `service/security/engine_ai.go` - AI-powered detection engine with async execution and 3-second timeout fallback
+- [x] T030 [P] [US2] Create `service/security/mask.go` with masking strategies: full replace, preserve first/last, preserve N/M, custom symbol
+- [x] T031 [P] [US2] Create `service/security/engine.go` with rule engine: loads active rules from cache, runs engines in parallel, resolves final action by priority (block > review > mask > alert > pass)
+- [x] T032 [US2] Create `middleware/security.go` with `SecurityCheck()` middleware that intercepts requests after `TokenAuth()`, loads user policy, runs detection, and applies action
+- [x] T033 [US2] Integrate `SecurityCheck()` middleware into the main request pipeline (`router/relay.go` or equivalent) for chat completion endpoints
+- [x] T034 [US2] Create `service/security/hitlog.go` with async hit log writer that records detection events to `security_hit_logs` table
+- [x] T035 [US2] Wire hit log recording into the middleware so every detection event is persisted with content hash (not raw content)
 
 **Checkpoint**: At this point, request detection is fully operational. User Stories 1 and 2 should both work independently.
 
@@ -114,10 +114,10 @@ description: "Task list for AI Content Security Management Module implementation
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Extend `middleware/security.go` with `SecurityCheckResponse()` middleware that intercepts AI responses
-- [ ] T037 [US3] Integrate `SecurityCheckResponse()` into the response pipeline so it executes after the upstream AI provider returns but before the response is sent to the client
-- [ ] T038 [US3] Update `service/security/hitlog.go` to support `content_type: 2` (response) in hit log records
-- [ ] T039 [US3] Ensure response detection reuses the same detection engines and masking logic as request detection (verify no code duplication)
+- [x] T036 [US3] Extend `middleware/security.go` with `SecurityCheckResponse()` middleware that intercepts AI responses
+- [~] T037 [US3] Integrate `SecurityCheckResponse()` into the response pipeline so it executes after the upstream AI provider returns but before the response is sent to the client
+- [x] T038 [US3] Update `service/security/hitlog.go` to support `content_type: 2` (response) in hit log records
+- [x] T039 [US3] Ensure response detection reuses the same detection engines and masking logic as request detection (verify no code duplication)
 
 **Checkpoint**: At this point, both request and response detection are operational. User Stories 1, 2, and 3 should all work independently.
 
@@ -131,11 +131,11 @@ description: "Task list for AI Content Security Management Module implementation
 
 ### Implementation for User Story 4
 
-- [ ] T040 [P] [US4] Add `controller/security.go` handler for audit log query (`GET /api/security/logs`) with pagination and multi-field filtering
-- [ ] T041 [P] [US4] Add `controller/security.go` handler for log export (`GET /api/security/logs/export`) supporting CSV and Excel formats
-- [ ] T042 [US4] Create `web/default/src/features/security/pages/LogListPage.tsx` - audit log query page with filter panel (user, model, date range, category, action, risk level)
+- [x] T040 [P] [US4] Add `controller/security.go` handler for audit log query (`GET /api/security/logs`) with pagination and multi-field filtering
+- [x] T041 [P] [US4] Add `controller/security.go` handler for log export (`GET /api/security/logs/export`) supporting CSV and Excel formats
+- [x] T042 [US4] Create `web/default/src/features/security/pages/LogListPage.tsx` - audit log query page with filter panel (user, model, date range, category, action, risk level)
 - [ ] T043 [US4] Create `web/default/src/features/security/components/LogDetailDrawer.tsx` - slide-out panel showing full detection event details
-- [ ] T044 [US4] Add log export button with format selection (CSV/Excel) to the Log List page
+- [x] T044 [US4] Add log export button with format selection (CSV/Excel) to the Log List page
 
 **Checkpoint**: At this point, User Stories 1-4 are all independently functional.
 
@@ -149,12 +149,12 @@ description: "Task list for AI Content Security Management Module implementation
 
 ### Implementation for User Story 5
 
-- [ ] T045 [P] [US5] Add `controller/security.go` handler for dashboard statistics (`GET /api/security/dashboard`) with aggregated metrics for a given time range
-- [ ] T046 [P] [US5] Create `web/default/src/features/security/pages/DashboardPage.tsx` - main dashboard with summary cards (total detections, interceptions, alerts, today's count)
+- [x] T045 [P] [US5] Add `controller/security.go` handler for dashboard statistics (`GET /api/security/dashboard`) with aggregated metrics for a given time range
+- [x] T046 [P] [US5] Create `web/default/src/features/security/pages/DashboardPage.tsx` - main dashboard with summary cards (total detections, interceptions, alerts, today's count)
 - [ ] T047 [P] [US5] Create `web/default/src/features/security/components/RiskDistributionChart.tsx` - pie/bar chart showing risk level breakdown
 - [ ] T048 [P] [US5] Create `web/default/src/features/security/components/TopCategoriesChart.tsx` - bar chart of top triggered sensitive categories
 - [ ] T049 [P] [US5] Create `web/default/src/features/security/components/TopUsersTable.tsx` - table of top users with most detection events
-- [ ] T050 [US5] Register dashboard route in frontend router (`/admin/security/dashboard`) and add to navigation menu
+- [x] T050 [US5] Register dashboard route in frontend router (`/admin/security/dashboard`) and add to navigation menu
 
 **Checkpoint**: All user stories should now be independently functional.
 
@@ -164,13 +164,13 @@ description: "Task list for AI Content Security Management Module implementation
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T051 [P] Add `controller/security.go` handler for global security status check (`GET /api/security/status`) exposing module health and rule cache stats
-- [ ] T052 [P] Implement global enable/disable switch logic in `middleware/security.go` reading `SECURITY_ENABLED` env var at startup
+- [x] T051 [P] Add `controller/security.go` handler for global security status check (`GET /api/security/status`) exposing module health and rule cache stats
+- [x] T052 [P] Implement global enable/disable switch logic in `middleware/security.go` reading `SECURITY_ENABLED` env var at startup
 - [ ] T053 [P] Add input validation middleware for all security admin APIs to prevent XSS and injection attacks
-- [ ] T054 [P] Create backend unit tests for detection engines (`service/security/engine_*_test.go`) with mock data and edge cases
+- [x] T054 [P] Create backend unit tests for detection engines (`service/security/engine_*_test.go`) with mock data and edge cases
 - [ ] T055 [P] Create integration tests for the full detection pipeline (`middleware/security_test.go`) using `httptest`
-- [ ] T056 Add rate limiting to security admin APIs to prevent abuse
-- [ ] T057 Performance optimization: pre-load all active rules into memory cache on startup and refresh on policy changes
+- [x] T056 Add rate limiting to security admin APIs to prevent abuse
+- [x] T057 Performance optimization: pre-load all active rules into memory cache on startup and refresh on policy changes
 - [ ] T058 Run `quickstart.md` validation scenarios end-to-end and fix any issues
 - [ ] T059 Update project documentation (README or docs/) with security module setup and configuration instructions
 

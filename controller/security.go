@@ -1,10 +1,14 @@
 package controller
 
 import (
+	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/security"
@@ -276,8 +280,84 @@ func GetSecurityLogs(c *gin.Context) {
 }
 
 func ExportSecurityLogs(c *gin.Context) {
-	// TODO: 实现 CSV/Excel 导出
-	c.JSON(http.StatusOK, gin.H{"success": false, "message": "导出功能待实现"})
+	format := c.DefaultQuery("format", "csv")
+	userID, _ := strconv.Atoi(c.DefaultQuery("user_id", "0"))
+	action, _ := strconv.Atoi(c.DefaultQuery("action", "0"))
+	riskLevel, _ := strconv.Atoi(c.DefaultQuery("risk_level", "0"))
+	contentType, _ := strconv.Atoi(c.DefaultQuery("content_type", "0"))
+
+	var logs []*model.SecurityHitLogWithDetails
+
+	db := model.DB.Model(&model.SecurityHitLog{}).
+		Select("security_hit_logs.*, users.username as user_name, security_rules.name as rule_name, security_groups.name as group_name").
+		Joins("LEFT JOIN users ON security_hit_logs.user_id = users.id").
+		Joins("LEFT JOIN security_rules ON security_hit_logs.rule_id = security_rules.id").
+		Joins("LEFT JOIN security_groups ON security_hit_logs.group_id = security_groups.id")
+
+	if userID > 0 {
+		db = db.Where("security_hit_logs.user_id = ?", userID)
+	}
+	if action > 0 {
+		db = db.Where("security_hit_logs.action = ?", action)
+	}
+	if riskLevel > 0 {
+		db = db.Where("security_hit_logs.risk_level = ?", riskLevel)
+	}
+	if contentType > 0 {
+		db = db.Where("security_hit_logs.content_type = ?", contentType)
+	}
+
+	db.Order("security_hit_logs.id DESC").Find(&logs)
+
+	filename := fmt.Sprintf("security_logs_%s", time.Now().Format("20060102_150405"))
+
+	switch format {
+	case "excel":
+		c.Header("Content-Type", "application/vnd.ms-excel; charset=utf-8")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.xls", filename))
+	default:
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.csv", filename))
+	}
+	c.Header("Cache-Control", "no-cache")
+
+	writer := csv.NewWriter(c.Writer)
+	defer writer.Flush()
+
+	// UTF-8 BOM for Excel compatibility
+	if format == "excel" {
+		c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	}
+
+	headers := []string{"ID", "Request ID", "Time", "User", "Model", "Content Type", "Action", "Risk Level", "Risk Score", "Rule", "Group", "IP", "Match Detail"}
+	if err := writer.Write(headers); err != nil {
+		return
+	}
+
+	actionMap := map[int]string{1: "Pass", 2: "Alert", 3: "Mask", 4: "Block", 5: "Review"}
+	riskMap := map[int]string{1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
+	contentTypeMap := map[int]string{1: "Request", 2: "Response"}
+
+	for _, log := range logs {
+		row := []string{
+			strconv.FormatInt(log.ID, 10),
+			log.RequestID,
+			log.CreatedAt.Format("2006-01-02 15:04:05"),
+			log.UserName,
+			log.ModelName,
+			contentTypeMap[log.ContentType],
+			actionMap[log.Action],
+			riskMap[log.RiskLevel],
+			strconv.Itoa(log.RiskScore),
+			log.RuleName,
+			log.GroupName,
+			log.IP,
+			log.MatchDetail,
+		}
+		if err := writer.Write(row); err != nil {
+			return
+		}
+	}
 }
 
 // ========== 统计看板 ==========

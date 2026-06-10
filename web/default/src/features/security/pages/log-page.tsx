@@ -38,11 +38,43 @@ export function SecurityLogPage() {
     })
   }
 
+  const handleExport = async (format: 'csv' | 'excel') => {
+    try {
+      const res = await securityApi.exportLogs({ format })
+      const blob = new Blob([res.data], {
+        type:
+          format === 'excel'
+            ? 'application/vnd.ms-excel'
+            : 'text/csv;charset=utf-8;',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `security_logs_${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xls' : 'csv'}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert(t('Export failed'))
+    }
+  }
+
   if (loading) return <div className="p-6">{t('Loading...')}</div>
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">{t('Audit Logs')}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{t('Audit Logs')}</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
+            {t('Export CSV')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
+            {t('Export Excel')}
+          </Button>
+        </div>
+      </div>
       <Card>
         <CardContent className="p-0">
           <Table>

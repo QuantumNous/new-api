@@ -62,6 +62,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     user: true,
     setting: true,
     subscription: true,
+    security: true,
   },
 }
 
@@ -115,6 +116,11 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/subscriptions': { section: 'admin', module: 'subscription' },
   '/system-settings': { section: 'admin', module: 'setting' },
   '/system-settings/site': { section: 'admin', module: 'setting' },
+  '/security': { section: 'admin', module: 'security' },
+  '/security/groups': { section: 'admin', module: 'security' },
+  '/security/rules': { section: 'admin', module: 'security' },
+  '/security/policies': { section: 'admin', module: 'security' },
+  '/security/logs': { section: 'admin', module: 'security' },
 }
 
 /**

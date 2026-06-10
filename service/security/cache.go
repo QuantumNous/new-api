@@ -125,7 +125,7 @@ func InvalidateAllSecurityCache() {
 
 // IsSecurityEnabled 检查安全模块是否启用
 func IsSecurityEnabled() bool {
-	return common.GetEnv(constant.SecurityEnvEnabled, "true") == "true"
+	return common.GetEnvOrDefaultString(constant.SecurityEnvEnabled, "true") == "true"
 }
 
 // GetSecurityStatus 获取安全模块状态

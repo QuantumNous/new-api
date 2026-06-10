@@ -80,8 +80,8 @@ func (ad *AIDetector) DetectWithContext(ctx context.Context, content string, rul
 // callAIDetection 调用 AI 检测服务
 func (ad *AIDetector) callAIDetection(ctx context.Context, content string) (bool, int, string, error) {
 	// 从配置获取 AI 检测服务 URL 和密钥
-	aiURL := common.GetEnv("SECURITY_AI_URL", "")
-	aiKey := common.GetEnv("SECURITY_AI_KEY", "")
+	aiURL := common.GetEnvOrDefaultString("SECURITY_AI_URL", "")
+	aiKey := common.GetEnvOrDefaultString("SECURITY_AI_KEY", "")
 
 	if aiURL == "" {
 		return false, 0, "", errors.New("AI 检测服务未配置")
