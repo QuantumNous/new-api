@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -34,6 +35,10 @@ func Distribute() func(c *gin.Context) {
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+			return
+		}
+		if modelRequest.Model != "" && common.IsImageGenerationModel(modelRequest.Model) && isTextCompletionPath(c.Request.URL.Path) {
+			abortImageModelOnTextEndpoint(c, modelRequest.Model)
 			return
 		}
 		if ok {
@@ -106,38 +111,38 @@ func Distribute() func(c *gin.Context) {
 				// auto-cheapest routing always picks the lowest-priced channel; channel
 				// affinity (sticky last-used) would defeat that, so skip it for this group.
 				if usingGroup != service.AutoCheapestGroup {
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
-								return
-							}
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									if policyErr := service.ValidateChannelClientPolicy(c, preferred, modelRequest.Model); policyErr != nil {
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						preferred, err := model.CacheGetChannel(preferredChannelID)
+						if err == nil && preferred != nil {
+							if preferred.Status != common.ChannelStatusEnabled {
+								if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+									abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
+									return
+								}
+							} else if usingGroup == "auto" {
+								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+								autoGroups := service.GetUserAutoGroup(userGroup)
+								for _, g := range autoGroups {
+									if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+										if policyErr := service.ValidateChannelClientPolicy(c, preferred, modelRequest.Model); policyErr != nil {
+											break
+										}
+										selectGroup = g
+										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+										channel = preferred
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
 										break
 									}
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
 								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							if policyErr := service.ValidateChannelClientPolicy(c, preferred, modelRequest.Model); policyErr == nil {
-								channel = preferred
-								selectGroup = usingGroup
-								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+								if policyErr := service.ValidateChannelClientPolicy(c, preferred, modelRequest.Model); policyErr == nil {
+									channel = preferred
+									selectGroup = usingGroup
+									service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+								}
 							}
 						}
 					}
-				}
 				} // end auto-cheapest skip
 
 				if channel == nil {
@@ -309,6 +314,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/tasks/") {
+		modelRequest.Model = common.GetStringIfEmpty(c.Query("model"), "gpt-image-2")
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
 		contentType := c.ContentType()
@@ -448,4 +455,24 @@ func extractModelNameFromGeminiPath(path string) string {
 
 	// 返回模型名部分
 	return path[startIndex : startIndex+colonIndex]
+}
+
+func isTextCompletionPath(path string) bool {
+	return strings.HasSuffix(path, "/chat/completions") ||
+		(strings.HasSuffix(path, "/completions") && !strings.Contains(path, "/images/"))
+}
+
+func abortImageModelOnTextEndpoint(c *gin.Context, model string) {
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": gin.H{
+			"message": common.MessageWithRequestId(
+				fmt.Sprintf("%s is an image model. Use POST /v1/images/generations instead.", model),
+				c.GetString(common.RequestIdKey),
+			),
+			"type": "invalid_request_error",
+			"code": "model_not_supported_on_endpoint",
+		},
+	})
+	c.Abort()
+	logger.LogError(c.Request.Context(), fmt.Sprintf("image model %s used on text endpoint %s", model, c.Request.URL.Path))
 }
