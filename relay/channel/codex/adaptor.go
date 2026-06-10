@@ -35,7 +35,25 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	if !IsCodexImageModel(request.Model) {
+		return nil, fmt.Errorf("codex channel: image endpoint requires a gpt-image-* model, got %q", request.Model)
+	}
+
+	action := "generate"
+	var inputImages []string
+	var mask string
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		action = "edit"
+		imgs, m, err := readCodexEditImages(c)
+		if err != nil {
+			return nil, err
+		}
+		inputImages, mask = imgs, m
+	}
+
+	// 上游强制流式：本路径始终以 SSE 读取
+	info.IsStream = true
+	return buildCodexImageBody(request, resolveImageCarrierModel(info), action, inputImages, mask), nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -131,6 +149,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return openai.OaiResponsesHandler(c, info, resp)
 	case relayconstant.RelayModeChatCompletions:
 		return RelayChatOverCodex(c, info, resp)
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return RelayImageOverCodex(c, info, resp)
 	default:
 		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
 	}
@@ -152,6 +172,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses/compact", info.ChannelType), nil
 	case relayconstant.RelayModeChatCompletions:
 		// chat completions 入口与 responses 共用同一上游端点（上游协议是 Responses）
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses", info.ChannelType), nil
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses", info.ChannelType), nil
 	default:
 		return "", errors.New("codex channel: only /v1/responses, /v1/responses/compact and /v1/chat/completions are supported")
