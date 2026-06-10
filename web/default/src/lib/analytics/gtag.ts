@@ -32,6 +32,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 type GtagFn = (...args: unknown[]) => void
 
+type GtagEventParams = Record<string, string | number | boolean | undefined>
+
 declare global {
   interface Window {
     dataLayer?: unknown[]
@@ -104,6 +106,24 @@ export function trackSignupConversion(): void {
       window.gtag?.('event', 'signup_success')
     } catch {
       /* swallow — tracking must never break registration UX */
+    }
+  })
+}
+
+export function trackAdsFunnelEvent(
+  eventName: string,
+  params: GtagEventParams = {}
+): void {
+  if (!CONVERSION_ID) return
+  void ensureGtagLoaded().then(() => {
+    try {
+      window.gtag?.('event', eventName, {
+        send_to: CONVERSION_ID,
+        event_category: 'ads_funnel',
+        ...params,
+      })
+    } catch {
+      /* tracking must never break product UX */
     }
   })
 }
