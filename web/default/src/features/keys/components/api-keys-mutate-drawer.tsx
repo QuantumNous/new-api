@@ -366,15 +366,30 @@ export function ApiKeysMutateDrawer({
               </SheetDescription>
             </div>
             {!isUpdate && (
-              <button
-                type='button'
-                onClick={handleChangeMode}
-                className='text-muted-foreground hover:text-foreground shrink-0 text-xs underline-offset-2 hover:underline focus-visible:outline-none'
-              >
-                {mode === 'simple'
-                  ? t('Switch to Advanced')
-                  : t('Switch to Simple')}
-              </button>
+              <div className='flex shrink-0 items-center gap-2 pr-8'>
+                <button
+                  type='button'
+                  onClick={handleChangeMode}
+                  className='text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline focus-visible:outline-none'
+                >
+                  {mode === 'simple'
+                    ? t('Switch to Advanced')
+                    : t('Switch to Simple')}
+                </button>
+                <Button
+                  form='api-key-form'
+                  type='submit'
+                  size='sm'
+                  disabled={isSubmitting}
+                  className='h-8 px-3 text-xs'
+                >
+                  {isSubmitting
+                    ? t('Saving...')
+                    : mode === 'simple'
+                      ? t('Create key')
+                      : t('Save changes')}
+                </Button>
+              </div>
             )}
           </div>
         </SheetHeader>
