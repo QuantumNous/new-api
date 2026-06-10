@@ -227,15 +227,5 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
 
   return {
     table,
-    sorting,
-    onSortingChange,
-    columnVisibility,
-    onColumnVisibilityChange,
-    rowSelection,
-    onRowSelectionChange,
-    expanded,
-    onExpandedChange,
-    pagination,
-    onPaginationChange,
   }
 }
