@@ -25,6 +25,8 @@ var defaultGroupGroupRatio = map[string]map[string]float64{
 
 var groupGroupRatioMap = types.NewRWMap[string, map[string]float64]()
 
+var groupDescriptionsMap = types.NewRWMap[string, string]()
+
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 	"vip": {
 		"append_1":   "vip_special_group_1",
@@ -35,6 +37,7 @@ var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 type GroupRatioSetting struct {
 	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`
 	GroupGroupRatio         *types.RWMap[string, map[string]float64] `json:"group_group_ratio"`
+	GroupDescriptions       *types.RWMap[string, string]             `json:"group_descriptions"`
 	GroupSpecialUsableGroup *types.RWMap[string, map[string]string]  `json:"group_special_usable_group"`
 }
 
@@ -51,6 +54,7 @@ func init() {
 		GroupSpecialUsableGroup: groupSpecialUsableGroup,
 		GroupRatio:              groupRatioMap,
 		GroupGroupRatio:         groupGroupRatioMap,
+		GroupDescriptions:       groupDescriptionsMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -61,11 +65,22 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 		groupRatioSetting.GroupSpecialUsableGroup = types.NewRWMap[string, map[string]string]()
 		groupRatioSetting.GroupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
 	}
+	if groupRatioSetting.GroupDescriptions == nil {
+		groupRatioSetting.GroupDescriptions = types.NewRWMap[string, string]()
+	}
 	return &groupRatioSetting
 }
 
 func GetGroupRatioCopy() map[string]float64 {
 	return groupRatioMap.ReadAll()
+}
+
+func GetGroupDescription(name string) (string, bool) {
+	return GetGroupRatioSetting().GroupDescriptions.Get(name)
+}
+
+func GetGroupDescriptionsCopy() map[string]string {
+	return GetGroupRatioSetting().GroupDescriptions.ReadAll()
 }
 
 func ContainsGroupRatio(name string) bool {
