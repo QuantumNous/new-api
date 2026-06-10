@@ -25,6 +25,7 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   Trash2Icon,
+  XIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,6 +33,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -312,17 +314,34 @@ export function PlaygroundImageTaskGrid({
             if (!open) setPreview(null)
           }}
         >
-          <DialogContent className='bg-background/95 w-auto max-w-[calc(100vw-1rem)] p-2 sm:max-w-[min(92vw,90rem)]'>
+          <DialogContent
+            showCloseButton={false}
+            className='!fixed !inset-0 !top-0 !left-0 !z-50 !flex !h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !items-center !justify-center !gap-0 !rounded-none !bg-black/90 !p-0 !ring-0'
+          >
             <DialogHeader className='sr-only'>
               <DialogTitle>
                 {preview?.alt || t('Generated image')}
               </DialogTitle>
             </DialogHeader>
-            <div className='flex max-h-[85vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-lg bg-black/90'>
+            <DialogClose
+              render={
+                <Button
+                  aria-label={t('Close')}
+                  className='bg-background/85 text-foreground hover:bg-background absolute top-3 right-3 z-10 shadow-md backdrop-blur'
+                  size='icon-sm'
+                  type='button'
+                  variant='secondary'
+                />
+              }
+            >
+              <XIcon className='size-4' />
+              <span className='sr-only'>{t('Close')}</span>
+            </DialogClose>
+            <div className='flex h-full w-full items-center justify-center p-3 pt-14 sm:p-6 sm:pt-16'>
               {preview ? (
                 <img
                   alt={preview.alt}
-                  className='max-h-[85vh] max-w-[90vw] object-contain'
+                  className='block h-full w-full object-contain'
                   src={preview.source}
                 />
               ) : null}
