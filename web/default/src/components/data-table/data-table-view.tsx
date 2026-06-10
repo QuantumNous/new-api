@@ -322,7 +322,7 @@ function getResolvedColumnClassName(
 
     if (!pinnedColumn) return customClassName
 
-    return cn(getPinnedColumnClassName(pinnedColumn, kind), customClassName)
+    return cn(customClassName, getPinnedColumnClassName(pinnedColumn, kind))
   }
 }
 
@@ -341,7 +341,7 @@ function getPinnedColumnClassName(
     edgeClassName,
     kind === 'header'
       ? 'bg-background z-30'
-      : 'bg-background z-10 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted',
+      : 'bg-background z-10 group-hover:bg-muted group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
     kind === 'header'
       ? pinnedColumn.headerClassName
