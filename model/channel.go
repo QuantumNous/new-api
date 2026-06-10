@@ -714,6 +714,10 @@ func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
 }
 
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
+	if status == common.ChannelStatusEnabled {
+		// 渠道被启用（人工或自动恢复）时同步解除 quota 冷却
+		ClearChannelQuotaCooldown(channelId)
+	}
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
 		defer channelStatusLock.Unlock()

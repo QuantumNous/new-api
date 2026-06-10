@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,30 @@ func TestShouldRetryDoesNotRetryOrdinaryBadRequest(t *testing.T) {
 	)
 
 	require.False(t, shouldRetry(ctx, err, 1))
+}
+
+func TestShouldRetryTaskRelayUpstreamQuotaError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(nil)
+
+	taskErr := &dto.TaskError{
+		Message:    "Insufficient credits for video generation",
+		StatusCode: http.StatusBadRequest,
+	}
+
+	require.True(t, shouldRetryTaskRelay(ctx, 1, taskErr, 1))
+}
+
+func TestShouldRetryTaskRelayOrdinaryBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(nil)
+
+	taskErr := &dto.TaskError{
+		Message:    "invalid aspect ratio",
+		StatusCode: http.StatusBadRequest,
+	}
+
+	require.False(t, shouldRetryTaskRelay(ctx, 1, taskErr, 1))
 }
 
 func TestShouldRetryDoesNotRetryLocalUserQuotaError(t *testing.T) {

@@ -120,6 +120,17 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}
 
+	// quota 冷却渠道整体移出候选，优先级桶随之重排；全部冷却时放行兜底
+	availableChannels := make([]int, 0, len(channels))
+	for _, channelId := range channels {
+		if !IsChannelInQuotaCooldown(channelId) {
+			availableChannels = append(availableChannels, channelId)
+		}
+	}
+	if len(availableChannels) > 0 {
+		channels = availableChannels
+	}
+
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
