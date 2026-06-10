@@ -615,6 +615,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     [editorOpen, persistPricingData]
   )
 
+  const hasRows = table.getRowModel().rows.length > 0
+
   return (
     <div className='flex flex-col gap-4'>
       <div className='grid h-[clamp(720px,calc(100vh-12rem),900px)] min-h-0 gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'>
@@ -653,7 +655,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
             }
           />
 
-          {table.getRowModel().rows.length === 0 ? (
+          {!hasRows ? (
             <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
               {table.getState().globalFilter
                 ? t('No models match your search')
@@ -710,9 +712,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
             />
           )}
 
-          {table.getRowModel().rows.length > 0 && (
-            <DataTablePagination table={table} />
-          )}
+          {hasRows && <DataTablePagination table={table} />}
         </div>
 
         <div className='hidden min-h-0 min-w-0 md:block'>
