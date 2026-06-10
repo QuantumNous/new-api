@@ -37,6 +37,8 @@ import {
   loadConversationState,
   saveConversationState,
   createStoredConversation,
+  loadConversationModes,
+  saveConversationModes,
   loadConversationStateFromIndexedDB,
   saveConversationStateToIndexedDB,
   migrateConversationStateToIndexedDB,
@@ -137,6 +139,9 @@ export const usePlaygroundState = () => {
   );
   const [activeConversationId, setActiveConversationId] = useState(
     savedConversationState.activeConversationId,
+  );
+  const [conversationModes, setConversationModes] = useState(() =>
+    loadConversationModes(),
   );
 
   // 消息相关状态 - 使用加载的消息或默认消息初始化
@@ -567,12 +572,12 @@ export const usePlaygroundState = () => {
     const updatedConversations = [nextConversation, ...conversations];
     deletedConversationIdsRef.current.delete(nextConversation.id);
     currentConversationIdRef.current = nextConversation.id;
-    setConversations(updatedConversations);
-    setActiveConversationId(nextConversation.id);
-    setMessage([]);
-    saveMessages([]);
-    persistConversationState(updatedConversations, nextConversation.id);
-    return nextConversation.id;
+      setConversations(updatedConversations);
+      setActiveConversationId(nextConversation.id);
+      setMessage([]);
+      saveMessages([]);
+      persistConversationState(updatedConversations, nextConversation.id);
+      return nextConversation.id;
   }, [conversations, isConversationEmpty, persistConversationState]);
 
   const switchConversation = useCallback(
@@ -586,11 +591,14 @@ export const usePlaygroundState = () => {
       deletedConversationIdsRef.current.delete(conversationId);
       currentConversationIdRef.current = conversationId;
       setActiveConversationId(conversationId);
+      setPlaygroundMode(
+        conversationModes[conversationId] || DEFAULT_CONFIG.playgroundMode,
+      );
       setMessage(conversation.messages || []);
       saveMessages(conversation.messages || []);
       persistConversationState(conversations, conversationId);
     },
-    [conversations, persistConversationState],
+    [conversationModes, conversations, persistConversationState],
   );
 
   const deleteConversation = useCallback(
@@ -612,11 +620,27 @@ export const usePlaygroundState = () => {
         currentConversationIdRef.current = nextActiveId;
         setActiveConversationId(nextActiveId);
         if (activeConversationId === conversationId) {
-          const nextMessages = updatedConversations[0]?.messages || [];
+          const nextConversation = updatedConversations[0];
+          const nextMessages = nextConversation?.messages || [];
+          setPlaygroundMode(
+            nextConversation
+              ? conversationModes[nextConversation.id] ||
+                  DEFAULT_CONFIG.playgroundMode
+              : DEFAULT_CONFIG.playgroundMode,
+          );
           setMessage(nextMessages);
           saveMessages(nextMessages);
         }
         return updatedConversations;
+      });
+      setConversationModes((prevModes) => {
+        if (!Object.prototype.hasOwnProperty.call(prevModes, conversationId)) {
+          return prevModes;
+        }
+        const nextModes = { ...prevModes };
+        delete nextModes[conversationId];
+        saveConversationModes(nextModes);
+        return nextModes;
       });
       API.delete(
         `${API_ENDPOINTS.PLAYGROUND_CONVERSATIONS}/${conversationId}`,
@@ -625,7 +649,7 @@ export const usePlaygroundState = () => {
         console.error('删除后端会话失败:', error);
       });
     },
-    [activeConversationId, persistConversationState],
+    [activeConversationId, conversationModes, persistConversationState],
   );
 
   useEffect(() => {
@@ -666,6 +690,11 @@ export const usePlaygroundState = () => {
       currentConversationIdRef.current = nextActiveConversationId;
       setConversations(dedupedMergedConversations);
       setActiveConversationId(nextActiveConversationId);
+      setPlaygroundMode(
+        (activeConversation &&
+          conversationModes[nextActiveConversationId]) ||
+          DEFAULT_CONFIG.playgroundMode,
+      );
       setMessage(activeConversation?.messages || []);
       saveConversationState(
         dedupedMergedConversations,
@@ -689,6 +718,7 @@ export const usePlaygroundState = () => {
       isCancelled = true;
     };
   }, [
+    conversationModes,
     dedupeConversations,
     mergeConversationLists,
     resolveActiveConversationId,
@@ -750,6 +780,11 @@ export const usePlaygroundState = () => {
           setConversations(dedupedMergedConversations);
           currentConversationIdRef.current = nextActiveConversationId;
           setActiveConversationId(nextActiveConversationId);
+          setPlaygroundMode(
+            (activeConversation &&
+              conversationModes[nextActiveConversationId]) ||
+              DEFAULT_CONFIG.playgroundMode,
+          );
           setMessage(activeConversation?.messages || []);
           persistConversationState(
             dedupedMergedConversations,
@@ -783,6 +818,7 @@ export const usePlaygroundState = () => {
       isCancelled = true;
     };
   }, [
+    conversationModes,
     dedupeConversations,
     mergeConversationLists,
     isConversationEmpty,
@@ -804,10 +840,13 @@ export const usePlaygroundState = () => {
       return;
     }
     const nextMessages = activeConversation.messages || [];
+    setPlaygroundMode(
+      conversationModes[activeConversationId] || DEFAULT_CONFIG.playgroundMode,
+    );
     setMessage((prevMessages) =>
       prevMessages === nextMessages ? prevMessages : nextMessages,
     );
-  }, [activeConversationId, conversations]);
+  }, [activeConversationId, conversationModes, conversations]);
 
   useEffect(() => {
     localConversationStateRef.current = {
@@ -815,6 +854,27 @@ export const usePlaygroundState = () => {
       activeConversationId,
     };
   }, [activeConversationId, conversations]);
+
+  useEffect(() => {
+    if (!activeConversationId) {
+      return;
+    }
+
+    if (conversationModes[activeConversationId] === playgroundMode) {
+      return;
+    }
+
+    const nextConversationModes = {
+      ...conversationModes,
+      [activeConversationId]: playgroundMode,
+    };
+    setConversationModes(nextConversationModes);
+    saveConversationModes(nextConversationModes);
+  }, [
+    activeConversationId,
+    conversationModes,
+    playgroundMode,
+  ]);
 
   // 配置保存
   const debouncedSaveConfig = useCallback(() => {
