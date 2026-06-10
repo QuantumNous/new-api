@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -16,49 +15,27 @@ import (
 // algorithm 0.1 (cheapest enabled channel first, fallback to next cheapest).
 const AutoCheapestGroup = "default"
 
-// SelectCheapestEnabledChannel returns the lowest-priced channel that:
-//   - is status=1 (Enabled — auto-disabled and manually-disabled are excluded)
-//   - has a pricing row for `modelName` or any of its known variants
-//   - hasn't been used (and failed) in the current request's retry chain
+// SelectCheapestEnabledChannel returns the channel with the lowest user price
+// for modelName, using the exact same formula shown on the Model Data admin page:
 //
-// The "actual price" comparison key is `input_price * COALESCE(recharge_rate, 1)`,
-// matching the formula used by [controller/model_data.go]. We tie-break with
-// channel.priority DESC so an operator can hand-promote a tied channel.
+//	user_price = input_price × recharge_rate × apimaster_price_ratio
 //
-// Returns (nil, ErrNoCheapestChannel) when no candidate qualifies — the caller
-// should map that to a 503 / model-not-found response.
+// Price source priority per channel:
+//  1. channel_model_pricings row (direct or via model_mapping alias)
+//  2. System Settings global model ratio/price (fallback for channels without a
+//     dedicated pricing row)
+//
+// Channels with no price from either source are excluded.
+// Returns (nil, ErrNoCheapestChannel) when no candidate qualifies.
 func SelectCheapestEnabledChannel(c *gin.Context, modelName string) (*model.Channel, error) {
 	bannedIDs := bannedChannelIDsFromContext(c)
 	filter := ChannelPickFilter(c, modelName)
 	const maxAttempts = 32
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		id1, price1, ok1 := selectCheapestByPricingCandidates(modelName, ModelNameCandidates(modelName), bannedIDs)
-		id2, price2, ok2 := selectCheapestByModelMapping(modelName, bannedIDs)
-		id3, price3, ok3 := selectCheapestByGlobalSettings(modelName, bannedIDs)
-
-		var pickedID int
-		bestPrice := math.MaxFloat64
-		for _, cand := range []struct {
-			id    int
-			price float64
-			ok    bool
-		}{
-			{id1, price1, ok1},
-			{id2, price2, ok2},
-			{id3, price3, ok3},
-		} {
-			if !cand.ok || cand.id <= 0 {
-				continue
-			}
-			if cand.price < bestPrice {
-				bestPrice = cand.price
-				pickedID = cand.id
-			}
-		}
+		pickedID := selectCheapestChannelID(modelName, bannedIDs)
 		if pickedID == 0 {
 			return nil, ErrNoCheapestChannel
 		}
-
 		ch, err := model.GetChannelById(pickedID, true)
 		if err != nil {
 			return nil, fmt.Errorf("auto-cheapest load channel %d: %w", pickedID, err)
@@ -75,76 +52,24 @@ func SelectCheapestEnabledChannel(c *gin.Context, modelName string) (*model.Chan
 // caller can map it to "no available channel" without parsing the error string.
 var ErrNoCheapestChannel = errors.New("no enabled channel for cheapest routing")
 
-// selectCheapestByGlobalSettings routes to enabled channels that advertise the model
-// but have no channel_model_pricings row, using System Settings model ratio/price.
-func selectCheapestByGlobalSettings(modelName string, bannedIDs []int) (channelID int, actualPrice float64, ok bool) {
-	inputUSD, _, _, _, priceOk := GlobalModelPricingUSD(modelName)
-	if !priceOk || inputUSD <= 0 {
-		return 0, 0, false
+// selectCheapestChannelID returns the channel ID with the lowest user price,
+// using a single SQL query that mirrors the Model Data page price calculation.
+//
+// User price = COALESCE(channel_model_pricings.input_price, globalInputUSD)
+//
+//	× COALESCE(c.recharge_rate, 1)
+//	× COALESCE(c.apimaster_price_ratio, 1)
+//
+// Channels with neither a pricing row nor a global price are excluded.
+func selectCheapestChannelID(modelName string, bannedIDs []int) int {
+	// Global fallback price from System Settings (used when no channel_model_pricings row exists)
+	globalInputUSD, _, _, _, hasGlobal := GlobalModelPricingUSD(modelName)
+	if !hasGlobal || globalInputUSD <= 0 {
+		globalInputUSD = 0
 	}
 
-	type row struct {
-		ChannelID           int
-		RechargeRate        float64
-		ApimasterPriceRatio float64
-		Priority            int64
-	}
+	// Candidate model names: canonical + known aliases + model_mapping targets
 	candidates := modelPricingLookupNames(modelName)
-	modelsCol := "c.models"
-	if common.UsingPostgreSQL {
-		modelsCol = `c."models"`
-	}
-	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, candidates)
-
-	var rows []row
-	q := model.DB.Table("channels c").
-		Select("c.id AS channel_id, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.apimaster_price_ratio, 1) AS apimaster_price_ratio, COALESCE(c.priority, 0) AS priority").
-		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
-		Where("c.status = 1").
-		Where(modelsMatchClause, modelsMatchArgs...).
-		Where("COALESCE(a.enabled, true) = true").
-		Where("NOT EXISTS (SELECT 1 FROM channel_model_pricings p WHERE p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0)", candidates)
-	if len(bannedIDs) > 0 {
-		q = q.Where("c.id NOT IN ?", bannedIDs)
-	}
-	if err := q.Find(&rows).Error; err != nil || len(rows) == 0 {
-		return 0, 0, false
-	}
-
-	bestID := 0
-	bestPrice := math.MaxFloat64
-	bestPriority := int64(math.MinInt64)
-	for _, r := range rows {
-		rr := r.RechargeRate
-		if rr <= 0 {
-			rr = 1.0
-		}
-		apimasterRatio := r.ApimasterPriceRatio
-		if apimasterRatio <= 0 {
-			apimasterRatio = 1.0
-		}
-		userPrice := inputUSD * rr * apimasterRatio
-		if userPrice < bestPrice || (userPrice == bestPrice && r.Priority > bestPriority) {
-			bestPrice = userPrice
-			bestID = r.ChannelID
-			bestPriority = r.Priority
-		}
-	}
-	if bestID == 0 {
-		return 0, 0, false
-	}
-	return bestID, bestPrice, true
-}
-
-func selectCheapestByPricingCandidates(modelName string, candidates []string, bannedIDs []int) (channelID int, actualPrice float64, ok bool) {
-	type row struct {
-		ChannelID           int
-		InputPrice          float64
-		RechargeRate        float64
-		ApimasterPriceRatio float64
-		Priority            int64
-	}
-	var picked row
 
 	modelsCol := "c.models"
 	if common.UsingPostgreSQL {
@@ -152,98 +77,44 @@ func selectCheapestByPricingCandidates(modelName string, candidates []string, ba
 	}
 	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, candidates)
 
-	// Order by USER price (采购价 × apimaster_price_ratio), not raw procurement cost,
-	// so routing picks the channel cheapest *for the user*.
-	q := model.DB.Table("channels c").
-		Select("c.id AS channel_id, p.input_price, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.apimaster_price_ratio, 1) AS apimaster_price_ratio, COALESCE(c.priority, 0) AS priority").
-		Joins("JOIN channel_model_pricings p ON c.id = p.channel_id").
-		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
-		Where("c.status = 1").
-		Where("p.model_name IN ?", candidates).
-		Where(modelsMatchClause, modelsMatchArgs...).
-		Where("COALESCE(a.enabled, true) = true").
-		Where("p.input_price > 0").
-		Order("(p.input_price * COALESCE(c.recharge_rate, 1) * COALESCE(c.apimaster_price_ratio, 1)) ASC, c.priority DESC").
-		Limit(1)
-	if len(bannedIDs) > 0 {
-		q = q.Where("c.id NOT IN ?", bannedIDs)
+	type result struct {
+		ChannelID int
 	}
-	if err := q.Scan(&picked).Error; err != nil || picked.ChannelID == 0 {
-		return 0, 0, false
-	}
-	rr := picked.RechargeRate
-	if rr <= 0 {
-		rr = 1.0
-	}
-	apimasterRatio := picked.ApimasterPriceRatio
-	if apimasterRatio <= 0 {
-		apimasterRatio = 1.0
-	}
-	return picked.ChannelID, picked.InputPrice * rr * apimasterRatio, true
-}
+	var row result
 
-// selectCheapestByModelMapping considers channels that map canonical → upstream
-// model name in channel_model_pricings (per-channel model_mapping only).
-func selectCheapestByModelMapping(modelName string, bannedIDs []int) (channelID int, actualPrice float64, ok bool) {
-	type chRow struct {
-		ID                  int
-		ModelMapping        *string
-		RechargeRate        float64
-		ApimasterPriceRatio float64
-		Priority            int64
-	}
-	modelsCol := "c.models"
-	if common.UsingPostgreSQL {
-		modelsCol = `c."models"`
-	}
-	var channels []chRow
-	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, ModelNameCandidates(modelName))
+	// Single query matching Model Data formula:
+	//   COALESCE(best channel pricing row, global fallback) × rates
+	// Channels with no pricing source are filtered out by the HAVING / WHERE condition.
 	q := model.DB.Table("channels c").
-		Select("c.id, c.model_mapping, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.apimaster_price_ratio, 1) AS apimaster_price_ratio, COALESCE(c.priority, 0) AS priority").
+		Select(`c.id AS channel_id`).
+		Joins("LEFT JOIN channel_model_pricings p ON p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0", candidates).
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
-		Where("c.model_mapping IS NOT NULL AND c.model_mapping != '' AND c.model_mapping != '{}'").
 		Where(modelsMatchClause, modelsMatchArgs...).
 		Where("COALESCE(a.enabled, true) = true")
+
+	if globalInputUSD <= 0 {
+		// No global fallback — only channels with an actual pricing row qualify
+		q = q.Where("p.channel_id IS NOT NULL")
+	}
+	// When globalInputUSD > 0, channels without a pricing row fall back to it — no extra filter needed.
+
 	if len(bannedIDs) > 0 {
 		q = q.Where("c.id NOT IN ?", bannedIDs)
 	}
-	if err := q.Find(&channels).Error; err != nil || len(channels) == 0 {
-		return 0, 0, false
-	}
 
-	bestID := 0
-	bestPrice := math.MaxFloat64
-	bestPriority := int64(math.MinInt64)
-	for _, ch := range channels {
-		target := ModelMappingTarget(ch.ModelMapping, modelName)
-		if target == "" {
-			continue
-		}
-		pr, found := LookupChannelPricingRow(ch.ID, []string{target})
-		if !found {
-			continue
-		}
-		rr := ch.RechargeRate
-		if rr <= 0 {
-			rr = 1.0
-		}
-		apimasterRatio := ch.ApimasterPriceRatio
-		if apimasterRatio <= 0 {
-			apimasterRatio = 1.0
-		}
-		// USER price = 采购价 × apimaster_price_ratio
-		actual := pr.InputPrice * rr * apimasterRatio
-		if actual < bestPrice || (actual == bestPrice && ch.Priority > bestPriority) {
-			bestPrice = actual
-			bestID = ch.ID
-			bestPriority = ch.Priority
-		}
+	// GORM Order() does not bind ? parameters — embed the float literal directly.
+	// globalInputUSD is computed from internal System Settings, not user input.
+	orderExpr := fmt.Sprintf(
+		"(COALESCE(p.input_price, %f) * COALESCE(c.recharge_rate, 1) * COALESCE(c.apimaster_price_ratio, 1)) ASC, COALESCE(c.priority, 0) DESC",
+		globalInputUSD,
+	)
+	q = q.Order(orderExpr).Limit(1)
+
+	if err := q.Scan(&row).Error; err != nil || row.ChannelID == 0 {
+		return 0
 	}
-	if bestID == 0 {
-		return 0, 0, false
-	}
-	return bestID, bestPrice, true
+	return row.ChannelID
 }
 
 // bannedChannelIDsFromContext reads the addUsedChannel() history left by the

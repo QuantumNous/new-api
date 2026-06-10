@@ -785,8 +785,8 @@ export function ModelDataPage() {
         })()}
 
         {/* Table */}
-        <div className='rounded-xl border border-gray-200/80 overflow-hidden bg-white'>
-          <table className='w-full text-sm'>
+        <div className='rounded-xl border border-gray-200/80 overflow-x-auto bg-white'>
+          <table className='w-full min-w-max text-sm'>
             <thead>
               <tr className='border-b border-gray-100'>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>ID</th>
