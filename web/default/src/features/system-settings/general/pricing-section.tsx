@@ -51,6 +51,7 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const createPricingSchema = (t: (key: string) => string) =>
   z
@@ -243,11 +244,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                       <Input
                         type='number'
                         step='0.01'
-                        value={field.value as number}
-                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
+                        {...safeNumberFieldProps(field)}
                       />
                     </FormControl>
                     <FormDescription>

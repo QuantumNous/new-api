@@ -47,6 +47,7 @@ import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
+import { UsageLogsMobileList } from './usage-logs-mobile-card'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -164,6 +165,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     manualPagination: true,
+    manualFiltering: true,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
@@ -185,8 +187,18 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         'No usage logs available. Logs will appear here once API calls are made.'
       )}
       skeletonKeyPrefix='usage-log-skeleton'
-      tableClassName='overflow-x-auto'
+      tableClassName={cn(
+        'overflow-x-auto',
+        '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
+      )}
       tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
+      mobile={
+        <UsageLogsMobileList
+          table={table}
+          isLoading={isLoadingData}
+          logCategory={logCategory}
+        />
+      }
       toolbar={
         isCommon ? (
           <CommonLogsFilterBar table={table} />

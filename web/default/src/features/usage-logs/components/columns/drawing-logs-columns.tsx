@@ -231,7 +231,7 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Image'), mobileHidden: true },
+      meta: { label: t('Image') },
     },
     {
       accessorKey: 'prompt',
@@ -268,7 +268,7 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Prompt'), mobileHidden: true },
+      meta: { label: t('Prompt') },
       size: 200,
       maxSize: 220,
     },
