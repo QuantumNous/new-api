@@ -53,6 +53,51 @@ const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
 
 type LogTypeValue = (typeof logTypeValues)[number]
 
+const SUGGEST_MAX = 8
+
+function getSuggestions(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(`logs_suggest_${key}`)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSuggestion(key: string, value: string) {
+  if (!value.trim()) return
+  try {
+    const prev = getSuggestions(key).filter((v) => v !== value)
+    localStorage.setItem(
+      `logs_suggest_${key}`,
+      JSON.stringify([value, ...prev].slice(0, SUGGEST_MAX))
+    )
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+interface SuggestInputProps extends React.ComponentProps<typeof Input> {
+  suggestKey: string
+}
+
+function SuggestInput({ suggestKey, ...props }: SuggestInputProps) {
+  const listId = `suggest-list-${suggestKey}`
+  const suggestions = getSuggestions(suggestKey)
+  return (
+    <>
+      <Input list={listId} {...props} />
+      {suggestions.length > 0 && (
+        <datalist id={listId}>
+          {suggestions.map((v) => (
+            <option key={v} value={v} />
+          ))}
+        </datalist>
+      )}
+    </>
+  )
+}
+
 function isLogTypeValue(value: string): value is LogTypeValue {
   return (logTypeValues as readonly string[]).includes(value)
 }
@@ -131,6 +176,11 @@ export function CommonLogsFilterBar<TData>(
   )
 
   const handleApply = useCallback(() => {
+    if (filters.email) saveSuggestion('email', filters.email)
+    if (filters.username) saveSuggestion('username', filters.username)
+    if (filters.token) saveSuggestion('token', filters.token)
+    if (filters.channel) saveSuggestion('channel', filters.channel)
+    if (filters.requestId) saveSuggestion('requestId', filters.requestId)
     const filterParams = buildSearchParams(filters, 'common')
     navigate({
       to: '/usage-logs/$section',
@@ -295,7 +345,8 @@ export function CommonLogsFilterBar<TData>(
       }
       expandable={
         <>
-          <Input
+          <SuggestInput
+            suggestKey='token'
             placeholder={t('Token Name')}
             type={sensitiveType}
             value={filters.token || ''}
@@ -304,7 +355,8 @@ export function CommonLogsFilterBar<TData>(
             className={inputClass}
           />
           {isAdmin && (
-            <Input
+            <SuggestInput
+              suggestKey='username'
               placeholder={t('Username')}
               type={sensitiveType}
               value={filters.username || ''}
@@ -314,7 +366,8 @@ export function CommonLogsFilterBar<TData>(
             />
           )}
           {isAdmin && (
-            <Input
+            <SuggestInput
+              suggestKey='email'
               placeholder={t('Email')}
               type={sensitiveType}
               value={filters.email || ''}
@@ -324,7 +377,8 @@ export function CommonLogsFilterBar<TData>(
             />
           )}
           {isAdmin && (
-            <Input
+            <SuggestInput
+              suggestKey='channel'
               placeholder={t('Channel ID')}
               value={filters.channel || ''}
               onChange={(e) => handleChange('channel', e.target.value)}
@@ -332,7 +386,8 @@ export function CommonLogsFilterBar<TData>(
               className={inputClass}
             />
           )}
-          <Input
+          <SuggestInput
+            suggestKey='requestId'
             placeholder={t('Request ID')}
             value={filters.requestId || ''}
             onChange={(e) => handleChange('requestId', e.target.value)}
