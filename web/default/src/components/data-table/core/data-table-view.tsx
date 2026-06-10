@@ -21,9 +21,11 @@ import { type Row } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { getResolvedColumnClassName } from './column-pinning'
+import { DataTableColgroup } from './data-table-colgroup'
 import { DataTableHeader } from './data-table-header'
 import { DataTableRow } from './data-table-row'
 import { TableEmpty } from './table-empty'
+import { getTableSizeStyle } from './table-sizing'
 import { TableSkeleton } from './table-skeleton'
 import type { DataTableColumnClassName, DataTableViewProps } from './types'
 
@@ -69,11 +71,12 @@ function UnifiedTableView<TData>({
     props.getColumnClassName,
     props.pinnedColumns
   )
+  const tableSizing = getTableSizing(props)
 
   return (
     <div className={props.tableContainerClassName}>
-      <Table className={props.tableClassName}>
-        {props.colgroup}
+      <Table className={props.tableClassName} style={tableSizing.style}>
+        {tableSizing.colgroup}
         <DataTableHeader
           table={props.table}
           applyHeaderSize={props.applyHeaderSize}
@@ -102,6 +105,7 @@ function SplitHeaderTableView<TData>({
     props.getColumnClassName,
     props.pinnedColumns
   )
+  const tableSizing = getTableSizing(props)
 
   React.useEffect(() => {
     const headerScroller = headerHostRef.current?.querySelector<HTMLElement>(
@@ -140,10 +144,10 @@ function SplitHeaderTableView<TData>({
       >
         <div
           ref={headerHostRef}
-          className='[scrollbar-gutter:stable] overflow-hidden'
+          className='[scrollbar-gutter:stable] overflow-hidden [&_[data-slot=table-container]]:overflow-x-hidden'
         >
-          <Table className={props.tableClassName}>
-            {props.colgroup}
+          <Table className={props.tableClassName} style={tableSizing.style}>
+            {tableSizing.colgroup}
             <DataTableHeader
               table={props.table}
               applyHeaderSize={props.applyHeaderSize}
@@ -156,18 +160,36 @@ function SplitHeaderTableView<TData>({
         <div
           ref={bodyHostRef}
           className={cn(
-            'min-h-0 flex-1 overflow-y-auto',
+            'min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto',
             props.bodyContainerClassName
           )}
         >
-          <Table className={props.tableClassName}>
-            {props.colgroup}
+          <Table className={props.tableClassName} style={tableSizing.style}>
+            {tableSizing.colgroup}
             {renderTableBody(props, rows, colSpan, getColumnClassName)}
           </Table>
         </div>
       </div>
     </div>
   )
+}
+
+function getTableSizing<TData>(props: DataTableViewProps<TData>): {
+  colgroup?: React.ReactNode
+  style?: React.CSSProperties
+} {
+  if (props.colgroup) {
+    return { colgroup: props.colgroup }
+  }
+
+  if (!props.splitHeader && !props.applyHeaderSize) {
+    return {}
+  }
+
+  return {
+    colgroup: <DataTableColgroup table={props.table} />,
+    style: getTableSizeStyle(props.table),
+  }
 }
 
 function renderTableBody<TData>(
