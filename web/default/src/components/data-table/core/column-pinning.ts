@@ -23,22 +23,30 @@ export function getResolvedColumnClassName(
   getColumnClassName?: DataTableColumnClassName,
   pinnedColumns?: DataTablePinnedColumn[]
 ): DataTableColumnClassName {
-  if (!pinnedColumns?.length) {
-    return (columnId, kind) => getColumnClassName?.(columnId, kind)
-  }
-
-  const pinnedColumnById = new Map(
-    pinnedColumns.map((column) => [column.columnId, column])
+  return getResolvedColumnClassNameFromMap(
+    getColumnClassName,
+    getPinnedColumnMap(pinnedColumns)
   )
+}
 
+export function getResolvedColumnClassNameFromMap(
+  getColumnClassName?: DataTableColumnClassName,
+  pinnedColumnById?: Map<string, DataTablePinnedColumn>
+): DataTableColumnClassName {
   return (columnId, kind) => {
-    const pinnedColumn = pinnedColumnById.get(columnId)
     const customClassName = getColumnClassName?.(columnId, kind)
+    const pinnedColumn = pinnedColumnById?.get(columnId)
 
     if (!pinnedColumn) return customClassName
 
     return cn(customClassName, getPinnedColumnClassName(pinnedColumn, kind))
   }
+}
+
+export function getPinnedColumnMap(pinnedColumns?: DataTablePinnedColumn[]) {
+  if (!pinnedColumns?.length) return undefined
+
+  return new Map(pinnedColumns.map((column) => [column.columnId, column]))
 }
 
 function getPinnedColumnClassName(

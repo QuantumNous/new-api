@@ -1856,6 +1856,7 @@
     "Go to io.net API Keys": "前往 io.net API 密钥",
     "Go to last page": "前往末页",
     "Go to next page": "前往下一页",
+    "Go to page {{page}}": "前往第 {{page}} 页",
     "Go to previous page": "前往上一页",
     "Go to settings": "前往设置",
     "Go to Settings": "前往设置",

@@ -20,14 +20,21 @@ import * as React from 'react'
 import { type Row } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
-import { getResolvedColumnClassName } from './column-pinning'
+import {
+  getPinnedColumnMap,
+  getResolvedColumnClassNameFromMap,
+} from './column-pinning'
 import { DataTableColgroup } from './data-table-colgroup'
 import { DataTableHeader } from './data-table-header'
 import { DataTableRow } from './data-table-row'
 import { TableEmpty } from './table-empty'
 import { getTableSizeStyle } from './table-sizing'
 import { TableSkeleton } from './table-skeleton'
-import type { DataTableColumnClassName, DataTableViewProps } from './types'
+import type {
+  DataTableColumnClassName,
+  DataTablePinnedColumn,
+  DataTableViewProps,
+} from './types'
 
 export type {
   DataTableColumnClassName,
@@ -40,6 +47,10 @@ export { DataTableRow } from './data-table-row'
 export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   const rows = props.rows ?? props.table.getRowModel().rows
   const colSpan = props.table.getVisibleLeafColumns().length
+  const columnClassName = useResolvedColumnClassName(
+    props.getColumnClassName,
+    props.pinnedColumns
+  )
 
   return (
     <div
@@ -50,9 +61,19 @@ export function DataTableView<TData>(props: DataTableViewProps<TData>) {
       {...props.containerProps}
     >
       {props.splitHeader ? (
-        <SplitHeaderTableView props={props} rows={rows} colSpan={colSpan} />
+        <SplitHeaderTableView
+          props={props}
+          rows={rows}
+          colSpan={colSpan}
+          getColumnClassName={columnClassName}
+        />
       ) : (
-        <UnifiedTableView props={props} rows={rows} colSpan={colSpan} />
+        <UnifiedTableView
+          props={props}
+          rows={rows}
+          colSpan={colSpan}
+          getColumnClassName={columnClassName}
+        />
       )}
     </div>
   )
@@ -62,15 +83,13 @@ function UnifiedTableView<TData>({
   props,
   rows,
   colSpan,
+  getColumnClassName,
 }: {
   props: DataTableViewProps<TData>
   rows: Row<TData>[]
   colSpan: number
+  getColumnClassName: DataTableColumnClassName
 }) {
-  const getColumnClassName = getResolvedColumnClassName(
-    props.getColumnClassName,
-    props.pinnedColumns
-  )
   const tableSizing = getTableSizing(props)
 
   return (
@@ -94,17 +113,15 @@ function SplitHeaderTableView<TData>({
   props,
   rows,
   colSpan,
+  getColumnClassName,
 }: {
   props: DataTableViewProps<TData>
   rows: Row<TData>[]
   colSpan: number
+  getColumnClassName: DataTableColumnClassName
 }) {
   const headerHostRef = React.useRef<HTMLDivElement>(null)
   const bodyHostRef = React.useRef<HTMLDivElement>(null)
-  const getColumnClassName = getResolvedColumnClassName(
-    props.getColumnClassName,
-    props.pinnedColumns
-  )
   const tableSizing = getTableSizing(props)
 
   React.useEffect(() => {
@@ -171,6 +188,22 @@ function SplitHeaderTableView<TData>({
         </div>
       </div>
     </div>
+  )
+}
+
+function useResolvedColumnClassName(
+  getColumnClassName?: DataTableColumnClassName,
+  pinnedColumns?: DataTablePinnedColumn[]
+) {
+  const pinnedColumnById = React.useMemo(
+    () => getPinnedColumnMap(pinnedColumns),
+    [pinnedColumns]
+  )
+
+  return React.useMemo(
+    () =>
+      getResolvedColumnClassNameFromMap(getColumnClassName, pinnedColumnById),
+    [getColumnClassName, pinnedColumnById]
   )
 }
 
