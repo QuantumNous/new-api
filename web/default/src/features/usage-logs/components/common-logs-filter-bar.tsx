@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableToolbar } from '@/components/data-table'
+import { getEnabledModels } from '@/features/channels/api'
 import { LOG_TYPES } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -76,6 +77,17 @@ export function CommonLogsFilterBar<TData>(
     return { startTime: start, endTime: end }
   })
   const [logType, setLogType] = useState<LogTypeValue | ''>('')
+  const [enabledModels, setEnabledModels] = useState<string[]>([])
+
+  useEffect(() => {
+    getEnabledModels()
+      .then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          setEnabledModels(res.data.sort())
+        }
+      })
+      .catch(() => {/* fallback to text input if fetch fails */})
+  }, [])
 
   useEffect(() => {
     const next: Partial<CommonLogFilters> = {}
@@ -87,6 +99,7 @@ export function CommonLogsFilterBar<TData>(
     if (searchParams.token) next.token = searchParams.token
     if (searchParams.group) next.group = searchParams.group
     if (searchParams.username) next.username = searchParams.username
+    if (searchParams.email) next.email = searchParams.email
     if (searchParams.requestId) next.requestId = searchParams.requestId
 
     if (Object.keys(next).length > 0) {
@@ -105,6 +118,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.token,
     searchParams.group,
     searchParams.username,
+    searchParams.email,
     searchParams.requestId,
     searchParams.type,
   ])
@@ -160,6 +174,7 @@ export function CommonLogsFilterBar<TData>(
   const hasExpandedFilters =
     !!filters.token ||
     !!filters.username ||
+    !!filters.email ||
     !!filters.channel ||
     !!filters.requestId
 
@@ -196,6 +211,7 @@ export function CommonLogsFilterBar<TData>(
   return (
     <DataTableToolbar
       table={props.table}
+      initialExpanded={true}
       leftActions={statsBar}
       customSearch={
         <CompactDateTimeRangePicker
@@ -210,13 +226,36 @@ export function CommonLogsFilterBar<TData>(
       }
       additionalSearch={
         <>
-          <Input
-            placeholder={t('Model Name')}
-            value={filters.model || ''}
-            onChange={(e) => handleChange('model', e.target.value)}
-            onKeyDown={handleKeyDown}
-            className={inputClass}
-          />
+          {enabledModels.length > 0 ? (
+            <Select
+              value={filters.model || ''}
+              onValueChange={(value) =>
+                handleChange('model', value === 'all' ? undefined : value)
+              }
+            >
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder={t('Model Name')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  <SelectItem value='all'>{t('All Models')}</SelectItem>
+                  {enabledModels.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              placeholder={t('Model Name')}
+              value={filters.model || ''}
+              onChange={(e) => handleChange('model', e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={inputClass}
+            />
+          )}
           <Input
             placeholder={t('Group')}
             type={sensitiveType}
@@ -270,6 +309,16 @@ export function CommonLogsFilterBar<TData>(
               type={sensitiveType}
               value={filters.username || ''}
               onChange={(e) => handleChange('username', e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={inputClass}
+            />
+          )}
+          {isAdmin && (
+            <Input
+              placeholder={t('Email')}
+              type={sensitiveType}
+              value={filters.email || ''}
+              onChange={(e) => handleChange('email', e.target.value)}
               onKeyDown={handleKeyDown}
               className={inputClass}
             />

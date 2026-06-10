@@ -295,7 +295,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, email string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -308,6 +308,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if username != "" {
 		tx = tx.Where("logs.username = ?", username)
+	}
+	if email != "" {
+		tx = tx.Where("logs.username IN (SELECT username FROM users WHERE email = ?)", email)
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
