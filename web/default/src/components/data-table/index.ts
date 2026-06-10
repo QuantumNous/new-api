@@ -23,7 +23,6 @@ export { DataTableToolbar } from './toolbar'
 export { DataTableBulkActions } from './bulk-actions'
 export {
   StaticDataTable,
-  StaticDataTableEmptyRow,
   type StaticDataTableColumn,
 } from './static-data-table'
 export { staticDataTableClassNames } from './static-data-table-classnames'

@@ -171,7 +171,7 @@ type StaticDataTableEmptyRowProps = {
   className?: string
 }
 
-export function StaticDataTableEmptyRow({
+function StaticDataTableEmptyRow({
   colSpan,
   children,
   className,
