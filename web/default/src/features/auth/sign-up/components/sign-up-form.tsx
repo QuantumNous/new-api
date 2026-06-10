@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
 import type { z } from 'zod'
-import { useForm } from 'react-hook-form'
+import { type FieldErrors, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -199,6 +199,16 @@ export function SignUpForm({
     }
   }
 
+  function onInvalid(
+    errors: FieldErrors<z.infer<typeof registerFormSchema>>
+  ) {
+    const fields = Object.keys(errors).sort().join(',')
+    trackAdsFunnelEvent('flatkey_signup_validation_error', {
+      reason: 'form_invalid',
+      fields: fields || undefined,
+    })
+  }
+
   async function handleSendVerificationCode() {
     await sendCode(emailValue || '')
   }
@@ -241,7 +251,7 @@ export function SignUpForm({
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, onInvalid)}
         className={cn('grid gap-4', className)}
         {...props}
       >
