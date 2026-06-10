@@ -219,6 +219,11 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 //     block; under kid-safe profile, only fill when nil.
 //   - Gemini has no User/Store equivalents to strip.
 func applyAirbotixPolicyToGemini(c *gin.Context, model string, request *dto.GeminiChatRequest) *types.NewAPIError {
+	// Clamp before the policy check so the hard cap applies even when
+	// policyDecisionFromContext returns !ok (transient DB error → passthrough).
+	if request != nil {
+		request.GenerationConfig.MaxOutputTokens = clampUint(request.GenerationConfig.MaxOutputTokens, maxTokensHardCap)
+	}
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil
