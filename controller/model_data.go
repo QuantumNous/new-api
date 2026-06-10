@@ -628,6 +628,9 @@ func GetPublicMarketplace(c *gin.Context) {
 				h.Latencies = append(h.Latencies, l.LatencyMeanMs)
 			}
 		} else {
+			if l.Status == "suspicious" {
+				continue // skip suspicious results from public marketplace
+			}
 			if l.Top5Json != "" {
 				var top5 []TopKItem
 				if err := common.Unmarshal([]byte(l.Top5Json), &top5); err == nil {
