@@ -790,7 +790,7 @@ export function ModelDataPage() {
             <thead>
               <tr className='border-b border-gray-100'>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>ID</th>
-                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide w-36'>站点</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点分组</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>客户端</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>充值汇率</th>
@@ -846,32 +846,36 @@ export function ModelDataPage() {
                 return (
                   <tr key={item.channel_id} className='hover:bg-gray-50/60 transition-colors'>
                     <td className={`px-3 py-2.5 text-gray-400 tabular-nums text-xs ${dim}`}>{item.channel_id}</td>
-                    <td className={`px-3 py-2.5 font-medium text-gray-800 ${dim}`}>
-                      {item.channel_name}
-                      {isAutoDisabled && (
-                        <TooltipProvider delay={0}>
-                          <Tooltip>
-                            <TooltipTrigger render={<span />}>
-                              <span className='ml-2 inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400 cursor-help'>
-                                <AlertTriangle size={10} />
-                                已禁用 {item.consecutive_fingerprint_pass}/12
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent className='max-w-xs'>
-                              <div className='space-y-1 text-xs'>
-                                <div className='font-medium text-red-400'>渠道已自动禁用</div>
-                                {item.status_reason && <div>原因：{item.status_reason}</div>}
-                                {item.status_time && item.status_time > 0 && (
-                                  <div>时间：{fmtTime(item.status_time)}</div>
-                                )}
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      {!isModelEnabled && (
-                        <span className='ml-2 text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>已禁用</span>
-                      )}
+                    <td className={`px-3 py-2.5 font-medium text-gray-800 w-36 max-w-[144px] ${dim}`}>
+                      <div className='flex flex-col gap-0.5'>
+                        <span className='truncate'>{item.channel_name}</span>
+                        <div className='flex flex-wrap gap-1'>
+                          {isAutoDisabled && (
+                            <TooltipProvider delay={0}>
+                              <Tooltip>
+                                <TooltipTrigger render={<span />}>
+                                  <span className='inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400 cursor-help'>
+                                    <AlertTriangle size={10} />
+                                    已禁用 {item.consecutive_fingerprint_pass}/12
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className='max-w-xs'>
+                                  <div className='space-y-1 text-xs'>
+                                    <div className='font-medium text-red-400'>渠道已自动禁用</div>
+                                    {item.status_reason && <div>原因：{item.status_reason}</div>}
+                                    {item.status_time && item.status_time > 0 && (
+                                      <div>时间：{fmtTime(item.status_time)}</div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {!isModelEnabled && (
+                            <span className='text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>已禁用</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className={`px-3 py-2.5 text-gray-500 ${dim}`}>{item.key_group || <span className='text-gray-300'>—</span>}</td>
                     <td className={`px-3 py-2.5 ${dim}`}>
