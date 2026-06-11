@@ -22,10 +22,10 @@
 - G2 `price.amount` / `tx_hash` 落入消费日志 `other` 字段，供成本对账。
 - G3 视频出站映射补全 `last_frame_url`、`reference_image_urls`，解除误拒；对齐上游三类 seed 互斥规则。
 - G4 base SDK 升级至 v0.17.0。
+- G5 图像支持 `stream:true`：客户端请求流式时，new-api 本地合成 OpenAI 兼容 SSE（上游不支持流式），连接即刻建立、轮询期间心跳保活，根治"慢图超过客户端自身超时"问题。
 
 **非目标**
 - RealFace / Portrait 登记流程（独立排期）。
-- 图像 `stream:true` 流式（后续演进）。
 - 以 `price.amount` 作为计费基准的精准计费（二期；本期计费基准 = 后台配按张/按次价，属运营配置）。
 - `aspect_ratio` / `duration` 取值域校验增强（非阻塞，另行小改）。
 
@@ -96,6 +96,34 @@
 
 `createRequest` 增加 `LastFrameURL string`、`ReferenceImageURLs []string`（`omitempty`；slice 空即省略，标量遵守 Rule 5 指针约定）。`last_frame_url` 需 `image_url` 同在（上游约束）：有 `last_frame` 角色而无首帧时 **fail-fast 硬错，不自动把尾帧提升为首帧**（对齐 vip video.go:218-223）。
 
+### D5 图像 `stream:true` 本地 SSE 合成（BlockRun 渠道）
+
+上游不支持图像流式（协议是"同步 200 或 202+poll"），`stream:true` 由 new-api 本地合成；这同时是慢图对抗"客户端自身超时"的根治手段（连接建立后靠心跳保活，不再依赖客户端容忍 ~5.5min 静默）。
+
+**入站**
+- `dto/openai_image.go` 启用被注释的 `Stream` 字段，定义为 `Stream *bool \`json:"stream,omitempty"\``（Rule 5 指针）。现状：`stream` 落入 `Extra`（`json:"-"` 不回传上游），等于被静默吞——启用后对 OpenAI 等原生支持图像流式的渠道是行为解锁（透传后走既有 Content-Type 嗅探通路，`image_handler.go:117`），需回归确认无副作用。
+- BlockRun `ConvertImageRequest`：请求 `stream==true` 时置 `info.IsStream=true`，并从上游 body **剥离 `stream` 与 `partial_images`**（上游不识别，剥离防 400）。
+
+**出站合成（blockrun adaptor 内）**
+```
+stream 模式下（仅图像 RelayMode）：
+  DoRequest 入口即写 SSE 响应头并 flush（连接立刻建立）；
+  x402 提交 + D2 轮询期间，每 ~10s 发 SSE 注释心跳（helper.PingData）；
+  结果就绪后由 DoResponse 写终态事件：
+    generations → image_generation.completed；edits → image_edit.completed
+    payload 含 b64_json / created_at / size 等字段
+  b64 来源：上游给 b64_json 直接用；只给 url 时由 new-api 下载（≤64MB cap）
+    转 base64（顺带白标收益：不暴露上游 CDN）；下载失败降级为事件携带
+    url 字段并记日志
+  n>1：每张图一条 completed 事件
+  partial_images：恒发 0 个 partial（OpenAI 语义允许 final 先于 partial 到达，
+    合法）；不向上游转发
+  SSE 已开始后出错：发 error 事件后关闭；错误一律带 ErrOptionWithSkipRetry
+    （字节已写出，外层不可重试）
+```
+
+**钉死项**：终态事件的精确线格式（`event:` 行 vs data-only、是否 `[DONE]` 终止符、字段全集）实施时以 OpenAI 官方 Image Streaming 文档为准核对，测试锚定核对结果。计费路径不变（usage 构造与非流式一致，M3 平台侧保证同样适用）。
+
 ## 4. 错误处理
 
 - 轮询任何阶段的错误均返回 `types.NewAPIError`，文案白标安全（不含上游品牌/host）；上游原始 body 仅进服务端日志。
@@ -116,6 +144,14 @@
 9. completed 缺 data → 报错；
 10. `n>1` → 单次 completed body 返回全部 n 张图；
 11. price 自 202 信封提取、tx_hash 自 `X-Payment-Receipt` 头优先提取，入 context。
+
+**图像 stream（D5）**：
+12. stream + 快路径（同步 200）→ SSE：headers 立即可见、一条 completed 事件；
+13. stream + 慢路径（202→poll→completed）→ 轮询期间可观测到心跳注释、终态 completed 事件；
+14. stream + failed → SSE error 事件且带 SkipRetry；
+15. b64 下载降级：url 下载失败 → 事件携带 url 字段；
+16. 上游 body 已剥离 `stream`/`partial_images`（假网关断言收到的 body）；
+17. 非流式路径回归不受 `Stream` 字段启用影响（含其它渠道序列化抽查）。
 
 **视频（`request_test.go` 扩展）**：首尾帧映射、多图→reference、>9 拒、三类 seed 互斥、缺首帧拒、video/audio 仍拒。
 
@@ -141,3 +177,6 @@
 | 客户端自身超时 < 我们轮询时长 | 客户端放弃不影响钱包资金（未 completed 不结算）；文档注明最长等待 ~5.5min |
 | `price.amount` 在同步快路径缺失 | 不造数，缺失即不写 other；对账以 tx_hash 为准 |
 | 升级 SDK 引入隐性行为变化 | 已验证 x402.go 零 diff + 全量构建/测试绿；仅 bump 不改调用 |
+| SSE 头已发出后才出错（无法再改状态码） | 发 OpenAI 风格 error 事件后关闭 + SkipRetry；事件格式实施时对官方文档核对 |
+| b64 合成需经 new-api 下载图片（额外一跳，MB 级） | 64MB cap + 失败降级 url 字段；顺带白标收益 |
+| 启用 `Stream` 字段改变其它渠道图像请求序列化 | 指针+omitempty 缺省不变；显式 true 对 OpenAI 系是行为解锁而非破坏；§5.17 回归锚定 |
