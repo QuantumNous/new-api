@@ -177,7 +177,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, topUp.Money, PaymentMethodStripe)
+	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodStripe)
 
 	return nil
 }
@@ -538,7 +538,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, topUp.Money, PaymentMethodCreem)
+	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodCreem)
 
 	return nil
 }
@@ -602,7 +602,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 		ProcessAffCommission(topUp.UserId, quotaToAdd)
-		NotifyPaymentSuccess(topUp.UserId, topUp.Money, PaymentMethodWaffo)
+		NotifyPaymentSuccess(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
 	}
 
 	return nil
@@ -664,15 +664,16 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
-		NotifyPaymentSuccess(topUp.UserId, topUp.Money, PaymentMethodWaffoPancake)
+		NotifyPaymentSuccess(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
 	}
 
 	return nil
 }
 
 // NotifyPaymentSuccess sends a Feishu card to the ops group on successful payment.
+// quotaAdded is the quota units credited; USD amount is derived via QuotaPerUnit.
 // Runs in a goroutine so it never blocks the caller.
-func NotifyPaymentSuccess(userId int, money float64, paymentMethod string) {
+func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 	chatID := common.FeishuOpsChatID()
 	if chatID == "" {
 		return
@@ -690,9 +691,10 @@ func NotifyPaymentSuccess(userId int, money float64, paymentMethod string) {
 		if country == "" {
 			country = "—"
 		}
+		usdAmount := float64(quotaAdded) / common.QuotaPerUnit
 		lines := []string{
 			fmt.Sprintf("用户：%s", email),
-			fmt.Sprintf("金额：$%.2f", money),
+			fmt.Sprintf("金额：$%.2f", usdAmount),
 			fmt.Sprintf("国家：%s", country),
 			fmt.Sprintf("方式：%s", paymentMethod),
 		}
