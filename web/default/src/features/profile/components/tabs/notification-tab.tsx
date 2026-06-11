@@ -53,7 +53,7 @@ interface NotificationTabProps {
 
 export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const { t } = useTranslation()
-  const isAdmin = (profile?.role ?? 0) >= ROLE.ADMIN
+  const isAdmin = (profile?.role ?? 0) >= ROLE.READ_ONLY_ADMIN
   const [loading, setLoading] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     notify_type: 'email',

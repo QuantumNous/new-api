@@ -35,7 +35,7 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
-import { isAdmin } from '../../../helpers/utils';
+import { canViewAdmin, isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 
@@ -68,7 +68,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);
     try {
-      const base = isAdmin() ? '/api/user/topup' : '/api/user/topup/self';
+      const base = canViewAdmin() ? '/api/user/topup' : '/api/user/topup/self';
       const qs =
         `p=${currentPage}&page_size=${currentPageSize}` +
         (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
@@ -157,11 +157,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   };
 
   // 检查是否为管理员
+  const userCanViewAdmin = useMemo(() => canViewAdmin(), []);
   const userIsAdmin = useMemo(() => isAdmin(), []);
 
   const columns = useMemo(() => {
     const baseColumns = [
-      ...(userIsAdmin
+      ...(userCanViewAdmin
         ? [
             {
               title: t('用户ID'),
@@ -250,7 +251,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     });
 
     return baseColumns;
-  }, [t, userIsAdmin]);
+  }, [t, userCanViewAdmin, userIsAdmin]);
 
   return (
     <Modal

@@ -32,18 +32,32 @@ const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
 export default HTMLToastContent;
-export function isAdmin() {
+
+export const ROLE_READ_ONLY_ADMIN = 9;
+export const ROLE_ADMIN = 10;
+export const ROLE_ROOT = 100;
+
+export function getCurrentUserRole() {
   let user = localStorage.getItem('user');
-  if (!user) return false;
+  if (!user) return 0;
   user = JSON.parse(user);
-  return user.role >= 10;
+  return user.role || 0;
+}
+
+export function canViewAdmin() {
+  return getCurrentUserRole() >= ROLE_READ_ONLY_ADMIN;
+}
+
+export function isReadOnlyAdmin() {
+  return getCurrentUserRole() === ROLE_READ_ONLY_ADMIN;
+}
+
+export function isAdmin() {
+  return getCurrentUserRole() >= ROLE_ADMIN;
 }
 
 export function isRoot() {
-  let user = localStorage.getItem('user');
-  if (!user) return false;
-  user = JSON.parse(user);
-  return user.role >= 100;
+  return getCurrentUserRole() >= ROLE_ROOT;
 }
 
 export function getSystemName() {

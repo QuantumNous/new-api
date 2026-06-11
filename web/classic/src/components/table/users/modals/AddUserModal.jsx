@@ -48,6 +48,7 @@ const AddUserModal = (props) => {
     username: '',
     display_name: '',
     password: '',
+    role: 1,
     remark: '',
   });
 
@@ -163,6 +164,19 @@ const AddUserModal = (props) => {
                       placeholder={t('请输入密码')}
                       rules={[{ required: true, message: t('请输入密码') }]}
                       showClear
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.Select
+                      field='role'
+                      label={t('角色')}
+                      placeholder={t('请选择角色')}
+                      optionList={[
+                        { label: t('普通用户'), value: 1 },
+                        { label: t('只读管理员'), value: 9 },
+                        { label: t('管理员'), value: 10 },
+                      ]}
+                      rules={[{ required: true, message: t('请选择角色') }]}
                     />
                   </Col>
                   <Col span={24}>

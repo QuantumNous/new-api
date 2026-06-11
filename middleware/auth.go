@@ -33,6 +33,39 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func isReadOnlyAdminAllowed(c *gin.Context) bool {
+	switch c.Request.Method {
+	case http.MethodHead, http.MethodOptions:
+		return true
+	case http.MethodGet:
+		path := c.Request.URL.Path
+		blockedGetPaths := []string{
+			"/api/status/test",
+			"/api/user/token",
+			"/api/user/aff",
+			"/api/channel/test",
+			"/api/channel/update_balance",
+			"/api/channel/fetch_models",
+		}
+		for _, blockedPath := range blockedGetPaths {
+			if strings.HasPrefix(path, blockedPath) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func rejectReadOnlyAdminMutation(c *gin.Context) {
+	c.JSON(http.StatusForbidden, gin.H{
+		"success": false,
+		"message": "read-only administrator can only view data",
+	})
+	c.Abort()
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
@@ -128,7 +161,8 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if role.(int) < minRole {
+	userRole := role.(int)
+	if userRole < minRole && !(minRole == common.RoleAdminUser && userRole == common.RoleReadOnlyAdminUser) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
@@ -136,7 +170,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	if !validUserInfo(username.(string), userRole) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
@@ -145,6 +179,10 @@ func authHelper(c *gin.Context, minRole int) {
 		return
 	}
 	// 防止不同newapi版本冲突，导致数据不通用
+	if userRole == common.RoleReadOnlyAdminUser && !isReadOnlyAdminAllowed(c) {
+		rejectReadOnlyAdminMutation(c)
+		return
+	}
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
 	c.Set("username", username)
 	c.Set("role", role)

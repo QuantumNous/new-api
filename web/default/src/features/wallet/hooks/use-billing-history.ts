@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
-import { useIsAdmin } from '@/hooks/use-admin'
+import { useCanViewAdmin, useIsAdmin } from '@/hooks/use-admin'
 import {
   getUserBillingHistory,
   getAllBillingHistory,
@@ -42,6 +42,7 @@ interface UseBillingHistoryOptions {
 export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const { initialPage = 1, initialPageSize = 10 } = options
   const isAdmin = useIsAdmin()
+  const canViewAdmin = useCanViewAdmin()
 
   const [records, setRecords] = useState<TopupRecord[]>([])
   const [total, setTotal] = useState(0)
@@ -57,7 +58,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const fetchBillingHistory = useCallback(async () => {
     setLoading(true)
     try {
-      const response = isAdmin
+      const response = canViewAdmin
         ? await getAllBillingHistory(page, pageSize, keyword)
         : await getUserBillingHistory(page, pageSize, keyword)
 
@@ -80,7 +81,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, page, pageSize, keyword])
+  }, [canViewAdmin, page, pageSize, keyword])
 
   /**
    * Complete a pending order (admin only)

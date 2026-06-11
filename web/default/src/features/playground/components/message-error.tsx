@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { canViewAdminArea } from '@/lib/roles'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { MESSAGE_STATUS } from '../constants'
@@ -36,7 +37,7 @@ interface MessageErrorProps {
 export function MessageError({ message, className = '' }: MessageErrorProps) {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
-  const isAdmin = user?.role != null && user.role >= 10
+  const isAdmin = canViewAdminArea(user?.role)
 
   if (message.status !== MESSAGE_STATUS.ERROR) {
     return null

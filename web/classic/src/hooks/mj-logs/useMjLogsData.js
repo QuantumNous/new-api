@@ -23,7 +23,7 @@ import { Modal } from '@douyinfe/semi-ui';
 import {
   API,
   copy,
-  isAdmin,
+  canViewAdmin,
   showError,
   showSuccess,
   timestamp2string,
@@ -59,7 +59,7 @@ export const useMjLogsData = () => {
   const [showBanner, setShowBanner] = useState(false);
 
   // User and admin
-  const isAdminUser = isAdmin();
+  const isAdminUser = canViewAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
   const STORAGE_KEY = isAdminUser
     ? 'mj-logs-table-columns-admin'

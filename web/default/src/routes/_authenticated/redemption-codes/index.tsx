@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+import { canViewAdminArea } from '@/lib/roles'
 import { Redemptions } from '@/features/redemption-codes'
 import { REDEMPTION_STATUS_VALUES } from '@/features/redemption-codes/constants'
 
@@ -34,7 +34,7 @@ export const Route = createFileRoute('/_authenticated/redemption-codes/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
 
-    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+    if (!auth.user || !canViewAdminArea(auth.user.role)) {
       throw redirect({
         to: '/403',
       })
