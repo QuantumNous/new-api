@@ -152,6 +152,37 @@ func TestStreamSlowPathHeartbeatAndErrorEvent(t *testing.T) {
 	}
 }
 
+// TestStreamSlowPathSuccessNoRace locks in the synchronous stop() contract:
+// after the slow path returns, no heartbeat write may still be in flight, so
+// subsequent streamImageResponse writes are race-free (run with -race).
+func TestStreamSlowPathSuccessNoRace(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldHB := imageHeartbeatInterval
+	imageHeartbeatInterval = time.Millisecond
+	t.Cleanup(func() { imageHeartbeatInterval = oldHB })
+	shrinkPoll(t, 2*time.Second)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"created":9,"data":[{"b64_json":"aGk="}]}`))
+	}))
+	defer srv.Close()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := imageInfo(srv.URL)
+	info.IsStream = true
+	final, err := resolveImageResult(c, info, fakeResp(202, `{"poll_url":"`+srv.URL+`/p"}`, nil), "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, apiErr := streamImageResponse(c, final, info); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	if !strings.Contains(w.Body.String(), "image_generation.completed") {
+		t.Fatalf("missing completed: %s", w.Body.String())
+	}
+}
+
 func TestStreamImageResponseEditsEventName(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

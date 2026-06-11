@@ -107,8 +107,8 @@ func resolveImageResult(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	captureEnvelopePrice(c, priceAmountString(probe.Price.Amount), probe.Price.Currency)
 	if isImageStreamMode(c, info) {
 		stop := startImageHeartbeat(c)
-		defer stop()
 		final, perr := pollImageJob(c, info, probe.PollURL, paymentSignature)
+		stop() // synchronous: no heartbeat write in flight after this
 		if perr != nil {
 			// Stream already started — surface the failure as a whitelabel SSE
 			// error event since the 200 status can no longer change.

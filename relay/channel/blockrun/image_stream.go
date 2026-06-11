@@ -30,15 +30,21 @@ func isImageStreamMode(c *gin.Context, info *relaycommon.RelayInfo) bool {
 // startImageHeartbeat begins emitting SSE comments so the client connection
 // survives a multi-minute poll. Headers are written lazily here — only the
 // slow path pays the "can't change status code anymore" cost; fast-path
-// errors still return clean JSON errors. Returns an idempotent stop func.
+// errors still return clean JSON errors. Returns an idempotent stop func that
+// is SYNCHRONOUS: it blocks until the heartbeat goroutine has fully exited,
+// because gin's ResponseWriter is not safe for concurrent writes — the caller
+// must not write the next SSE event while a PingData may still be in flight
+// (cf. the mutex guarding PingData in relay/helper/stream_scanner.go).
 func startImageHeartbeat(c *gin.Context) func() {
 	if !c.Writer.Written() {
 		helper.SetEventStreamHeaders(c)
 	}
 	_ = helper.PingData(c)
 	done := make(chan struct{})
+	exited := make(chan struct{})
 	var once sync.Once
 	go func() {
+		defer close(exited)
 		t := time.NewTicker(imageHeartbeatInterval)
 		defer t.Stop()
 		for {
@@ -52,7 +58,12 @@ func startImageHeartbeat(c *gin.Context) func() {
 			}
 		}
 	}()
-	return func() { once.Do(func() { close(done) }) }
+	return func() {
+		once.Do(func() { close(done) })
+		// Wait for the goroutine to stop writing. The ctx.Done exit path also
+		// closes exited, so this never deadlocks.
+		<-exited
+	}
 }
 
 // streamImageResponse converts the final image JSON into a minimal
@@ -80,6 +91,7 @@ func streamImageResponse(c *gin.Context, resp *http.Response, info *relaycommon.
 	if info.RelayMode == relayconstant.RelayModeImagesEdits {
 		eventType = "image_edit.completed"
 	}
+	// Serial downloads are fine here: n is small for image generation (1-4).
 	for idx, item := range ir.Data {
 		evt := map[string]interface{}{
 			"type":       eventType,
@@ -127,6 +139,10 @@ func writeImageStreamError(c *gin.Context, msg string) {
 // downloadImageAsBase64 fetches the upstream-hosted image and returns its bytes
 // base64-encoded, bounded by maxImageBodyBytes. Also a whitelabel win: the
 // client receives bytes, not the upstream CDN URL.
+//
+// Trust note: imageURL comes from the already-paid, trusted upstream (same
+// trust boundary as the response body itself). If this helper is ever reused
+// for a lower-trust upstream, add host allowlist validation first (SSRF).
 func downloadImageAsBase64(c *gin.Context, info *relaycommon.RelayInfo, imageURL string) (string, error) {
 	client, err := service.GetHttpClientWithProxy(info.ChannelSetting.Proxy)
 	if err != nil {
