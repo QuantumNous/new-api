@@ -826,17 +826,25 @@ export function ModelDataPage() {
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>客户端</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>充值汇率</th>
                 <th className='text-right px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>gratio</th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  模型价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>模型价格</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  采购价&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>采购价</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  用户价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>用户价格</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  hub&nbsp;价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>HUB 价格</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>P95</th>
@@ -918,8 +926,8 @@ export function ModelDataPage() {
                     <td className={`px-2 py-3.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
                       {item.group_ratio != null ? item.group_ratio.toFixed(3) : <span className='text-gray-300'>—</span>}
                     </td>
-                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>{fmtPrice(item.model_price)}</td>
-                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
+                    <td className={`px-2 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>{fmtPrice(item.model_price)}</td>
+                    <td className={`px-2 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
                       <TooltipProvider delay={0}>
                       <Tooltip>
                         <TooltipTrigger render={
@@ -970,13 +978,13 @@ export function ModelDataPage() {
                       </Tooltip>
                       </TooltipProvider>
                     </td>
-                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-700 ${dim}`}>
+                    <td className={`px-2 py-2.5 text-right font-semibold tabular-nums text-emerald-700 ${dim}`}>
                       {fmtPrice(item.user_price)}
                       {item.apimaster_price_ratio != null && item.apimaster_price_ratio !== 1 && (
                         <span className='ml-1 text-[10px] font-normal text-emerald-500'>×{item.apimaster_price_ratio.toFixed(2)}</span>
                       )}
                     </td>
-                    <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
+                    <td className={`px-2 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
                     <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
                       {item.latency_median_ms > 0 ? `${(item.latency_median_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
                     </td>
