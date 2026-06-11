@@ -79,6 +79,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendBlockRunSettlementInfo(ctx, other)
 	return other
 }
 
@@ -263,6 +264,24 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	}
 	appendRequestPath(nil, relayInfo, other)
 	return other
+}
+
+// appendBlockRunSettlementInfo overlays upstream settlement signals captured by
+// the blockrun adaptor (price.amount from the 202 async envelope, on-chain
+// USDC tx hash) so the consume log can be reconciled against real cost.
+func appendBlockRunSettlementInfo(ctx *gin.Context, other map[string]interface{}) {
+	if ctx == nil {
+		return
+	}
+	v, ok := ctx.Get(string(constant.ContextKeyBlockRunSettlement))
+	if !ok {
+		return
+	}
+	if m, ok2 := v.(map[string]interface{}); ok2 {
+		for k, val := range m {
+			other[k] = val
+		}
+	}
 }
 
 // InjectTieredBillingInfo overlays tiered billing fields onto an existing
