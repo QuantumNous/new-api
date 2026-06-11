@@ -214,7 +214,7 @@ func GetModelData(c *gin.Context) {
 			if l.Top5Json != "" {
 				var top5 []TopKItem
 				if err := common.Unmarshal([]byte(l.Top5Json), &top5); err == nil {
-					boosted, rawScore := boostTop5(top5, modelName)
+					boosted, rawScore := boostTop5(top5, modelName, l.Status)
 					point.Top5 = boosted
 					if rawScore > 0 {
 						point.Top1ScoreRaw = rawScore
@@ -415,14 +415,17 @@ func modelDataExtractClientExclusive(setting *string) string {
 	return string(service.ExtractClientExclusive(setting))
 }
 
-// boostTop5 raises top1 score to a random value in [0.80, 0.90) when top1 matches the
-// claimed model and the raw score is in [boostThresholdMin, boostThresholdPass).
-// Scores ≥ boostThresholdPass are already in the normal "pass" range and left unchanged.
+// boostTop5 raises top1 score to a random value in [0.80, 0.90) when:
+//   - status == "pass" (Flask already decided this is a pass — handles per-provider thresholds)
+//   - top1 label matches claimed model
+//   - raw score ∈ [boostThresholdMin, boostThresholdPass)
+//
+// Scores ≥ boostThresholdPass (normal pass zone) are left unchanged.
 // Remaining items are scaled proportionally so all scores still sum to 1.0.
-// Raw data is never written to DB — this transform happens only at read time for the admin view.
+// Raw data is never written to DB — this transform happens only at read time.
 // Returns (adjusted slice, raw top1 score); rawScore==0 means no boost was applied.
-func boostTop5(top5 []TopKItem, claimedModel string) ([]TopKItem, float64) {
-	if len(top5) == 0 {
+func boostTop5(top5 []TopKItem, claimedModel string, status string) ([]TopKItem, float64) {
+	if len(top5) == 0 || status != "pass" {
 		return top5, 0
 	}
 	t1 := top5[0]
