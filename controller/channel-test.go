@@ -54,6 +54,11 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
+	// Bedrock OpenAI models (e.g. GPT-5.5) only support the Responses API, so
+	// default channel tests to the responses endpoint.
+	if channel != nil && channel.Type == constant.ChannelTypeBedrockOpenAI {
+		return string(constant.EndpointTypeOpenAIResponse)
+	}
 	return normalized
 }
 

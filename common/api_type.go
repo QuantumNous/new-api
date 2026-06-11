@@ -7,6 +7,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 	switch channelType {
 	case constant.ChannelTypeOpenAI:
 		apiType = constant.APITypeOpenAI
+	case constant.ChannelTypeBedrockOpenAI:
+		apiType = constant.APITypeOpenAI
 	case constant.ChannelTypeAnthropic:
 		apiType = constant.APITypeAnthropic
 	case constant.ChannelTypeBaidu:

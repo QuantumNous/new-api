@@ -20,6 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
   {
+    value: 58,
+    color: 'green',
+    label: 'Bedrock OpenAI',
+  },
+  {
     value: 2,
     color: 'light-blue',
     label: 'Midjourney Proxy',
