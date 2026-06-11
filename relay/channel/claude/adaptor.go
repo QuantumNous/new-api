@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -25,6 +27,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	enableClaudeUpstreamStreamIfNeeded(info, request)
 	return request, nil
 }
 
@@ -95,7 +98,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	return RequestOpenAI2ClaudeMessage(c, *request)
+	claudeReq, err := RequestOpenAI2ClaudeMessage(c, *request)
+	if err != nil {
+		return nil, err
+	}
+	enableClaudeUpstreamStreamIfNeeded(info, claudeReq)
+	return claudeReq, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -118,6 +126,18 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	info.FinalRequestRelayFormat = types.RelayFormatClaude
+	if info.UpstreamStream && !info.IsStream {
+		result, usage, err := AggregateClaudeStreamResponse(c, resp, info)
+		if err != nil {
+			return usage, err
+		}
+		if resultBody, marshalErr := common.Marshal(result); marshalErr != nil {
+			return usage, types.NewError(marshalErr, types.ErrorCodeBadResponseBody)
+		} else {
+			service.IOCopyBytesGracefully(c, nonStreamJSONResponse(resp), resultBody)
+		}
+		return usage, nil
+	}
 	if info.IsStream {
 		return ClaudeStreamHandler(c, resp, info)
 	} else {

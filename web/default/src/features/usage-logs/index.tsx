@@ -98,6 +98,7 @@ function UsageLogsContent() {
       void navigate({
         to: '/usage-logs/$section',
         params: { section: section as UsageLogsSectionId },
+        search: {},
       })
     },
     [navigate]

@@ -1,10 +1,14 @@
 package claude
 
 import (
+	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -42,6 +46,87 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
 	}
+}
+
+func enableClaudeUpstreamStreamIfNeeded(info *relaycommon.RelayInfo, request *dto.ClaudeRequest) {
+	if info == nil || request == nil || !info.ShouldUseUpstreamStream() {
+		return
+	}
+	request.Stream = common.GetPointer(true)
+	info.UpstreamStream = true
+}
+
+func nonStreamJSONResponse(resp *http.Response) *http.Response {
+	if resp == nil {
+		return nil
+	}
+	cloned := *resp
+	cloned.Header = resp.Header.Clone()
+	cloned.Header.Set("Content-Type", "application/json")
+	cloned.Header.Del("Transfer-Encoding")
+	cloned.Header.Del("Cache-Control")
+	cloned.Header.Del("Connection")
+	cloned.Header.Del("X-Accel-Buffering")
+	return &cloned
+}
+
+func inferClaudeFileMimeType(fileName string) string {
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(fileName)), ".")
+	if ext == "" {
+		return ""
+	}
+	mimeType := service.GetMimeTypeByExtension(ext)
+	if mimeType == "application/octet-stream" {
+		return ""
+	}
+	return mimeType
+}
+
+func convertOpenAIFileContentToClaude(c *gin.Context, mediaMessage dto.MediaContent) (*dto.ClaudeMediaMessage, bool, error) {
+	file := mediaMessage.GetFile()
+	if file == nil || file.FileData == "" {
+		return nil, false, nil
+	}
+
+	source := types.NewFileSourceFromData(file.FileData, inferClaudeFileMimeType(file.FileName))
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting file for Claude")
+	if err != nil {
+		return nil, false, fmt.Errorf("get file data failed: %s", err.Error())
+	}
+
+	if strings.HasPrefix(mimeType, "text/") {
+		textBytes, err := base64.StdEncoding.DecodeString(base64Data)
+		if err != nil {
+			return nil, false, fmt.Errorf("decode text file failed: %s", err.Error())
+		}
+		text := string(textBytes)
+		if text == "" {
+			return nil, false, nil
+		}
+		return &dto.ClaudeMediaMessage{
+			Type: "text",
+			Text: common.GetPointer[string](text),
+		}, true, nil
+	}
+
+	var contentType string
+	switch {
+	case strings.HasPrefix(mimeType, "application/pdf"):
+		contentType = "document"
+	case strings.HasPrefix(mimeType, "image/"):
+		contentType = "image"
+	default:
+		return nil, false, nil
+	}
+
+	return &dto.ClaudeMediaMessage{
+		Type: contentType,
+		Source: &dto.ClaudeMessageSource{
+			Type:      "base64",
+			MediaType: mimeType,
+			Data:      base64Data,
+		},
+	}, true, nil
 }
 
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
@@ -380,6 +465,14 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case dto.ContentTypeFile:
+						claudeMediaMessage, ok, err := convertOpenAIFileContentToClaude(c, mediaMessage)
+						if err != nil {
+							return nil, err
+						}
+						if ok {
+							claudeMediaMessages = append(claudeMediaMessages, *claudeMediaMessage)
+						}
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {
@@ -589,6 +682,359 @@ type ClaudeResponseInfo struct {
 	ResponseText strings.Builder
 	Usage        *dto.Usage
 	Done         bool
+}
+
+type claudeStreamAggregate struct {
+	Info              *ClaudeResponseInfo
+	TextBlocks        map[int]*strings.Builder
+	Thinking          strings.Builder
+	ToolCalls         map[int]*dto.ToolCallResponse
+	StopReason        string
+	StopSequence      *string
+	WebSearchRequests int
+}
+
+func newClaudeStreamAggregate(info *relaycommon.RelayInfo) *claudeStreamAggregate {
+	model := ""
+	if info != nil {
+		model = info.UpstreamModelName
+	}
+	return &claudeStreamAggregate{
+		Info: &ClaudeResponseInfo{
+			ResponseId:   "",
+			Created:      common.GetTimestamp(),
+			Model:        model,
+			ResponseText: strings.Builder{},
+			Usage:        &dto.Usage{},
+		},
+		TextBlocks: make(map[int]*strings.Builder),
+		ToolCalls:  make(map[int]*dto.ToolCallResponse),
+	}
+}
+
+func (a *claudeStreamAggregate) apply(c *gin.Context, data string) *types.NewAPIError {
+	var claudeResponse dto.ClaudeResponse
+	if err := common.UnmarshalJsonStr(data, &claudeResponse); err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
+		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+	}
+	if claudeResponse.StopReason != "" {
+		maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
+	}
+	if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
+		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
+	}
+	FormatClaudeResponseInfo(&claudeResponse, nil, a.Info)
+	a.recordServerToolUse(&claudeResponse)
+
+	switch claudeResponse.Type {
+	case "content_block_start":
+		a.applyContentBlockStart(&claudeResponse)
+	case "content_block_delta":
+		a.applyContentBlockDelta(&claudeResponse)
+	case "message_delta":
+		if claudeResponse.Delta != nil {
+			if claudeResponse.Delta.StopReason != nil {
+				a.StopReason = *claudeResponse.Delta.StopReason
+			}
+			if claudeResponse.Delta.StopSequence != nil {
+				a.StopSequence = claudeResponse.Delta.StopSequence
+			}
+		}
+	case "message_stop":
+		a.Info.Done = true
+	}
+	return nil
+}
+
+func (a *claudeStreamAggregate) recordServerToolUse(claudeResponse *dto.ClaudeResponse) {
+	if claudeResponse == nil || claudeResponse.Usage == nil || claudeResponse.Usage.ServerToolUse == nil {
+		return
+	}
+	if claudeResponse.Usage.ServerToolUse.WebSearchRequests > a.WebSearchRequests {
+		a.WebSearchRequests = claudeResponse.Usage.ServerToolUse.WebSearchRequests
+	}
+}
+
+func (a *claudeStreamAggregate) applyContentBlockStart(claudeResponse *dto.ClaudeResponse) {
+	if claudeResponse == nil || claudeResponse.ContentBlock == nil {
+		return
+	}
+	index := claudeResponse.GetIndex()
+	switch claudeResponse.ContentBlock.Type {
+	case "text":
+		if claudeResponse.ContentBlock.Text != nil {
+			a.textBlock(index).WriteString(*claudeResponse.ContentBlock.Text)
+		}
+	case "thinking":
+		if claudeResponse.ContentBlock.Thinking != nil {
+			a.Thinking.WriteString(*claudeResponse.ContentBlock.Thinking)
+		}
+	case "tool_use":
+		a.ToolCalls[index] = &dto.ToolCallResponse{
+			ID:   claudeResponse.ContentBlock.Id,
+			Type: "function",
+			Function: dto.FunctionResponse{
+				Name:      claudeResponse.ContentBlock.Name,
+				Arguments: "",
+			},
+		}
+	}
+}
+
+func (a *claudeStreamAggregate) applyContentBlockDelta(claudeResponse *dto.ClaudeResponse) {
+	if claudeResponse == nil || claudeResponse.Delta == nil {
+		return
+	}
+	index := claudeResponse.GetIndex()
+	if claudeResponse.Delta.Text != nil {
+		a.textBlock(index).WriteString(*claudeResponse.Delta.Text)
+	}
+	if claudeResponse.Delta.Thinking != nil {
+		a.Thinking.WriteString(*claudeResponse.Delta.Thinking)
+	}
+	if claudeResponse.Delta.PartialJson != nil {
+		toolCall, ok := a.ToolCalls[index]
+		if !ok {
+			toolCall = &dto.ToolCallResponse{
+				Type: "function",
+			}
+			a.ToolCalls[index] = toolCall
+		}
+		toolCall.Function.Arguments += *claudeResponse.Delta.PartialJson
+	}
+}
+
+func (a *claudeStreamAggregate) textBlock(index int) *strings.Builder {
+	builder, ok := a.TextBlocks[index]
+	if !ok {
+		builder = &strings.Builder{}
+		a.TextBlocks[index] = builder
+	}
+	return builder
+}
+
+func (a *claudeStreamAggregate) text() string {
+	var out strings.Builder
+	for _, index := range sortedClaudeBlockIndexes(a.TextBlocks) {
+		out.WriteString(a.TextBlocks[index].String())
+	}
+	return out.String()
+}
+
+func (a *claudeStreamAggregate) orderedToolCalls() []dto.ToolCallResponse {
+	if len(a.ToolCalls) == 0 {
+		return nil
+	}
+	toolCalls := make([]dto.ToolCallResponse, 0, len(a.ToolCalls))
+	for _, index := range sortedClaudeBlockIndexes(a.ToolCalls) {
+		toolCalls = append(toolCalls, *a.ToolCalls[index])
+	}
+	return toolCalls
+}
+
+func sortedClaudeBlockIndexes[T any](blocks map[int]T) []int {
+	indexes := make([]int, 0, len(blocks))
+	for index := range blocks {
+		indexes = append(indexes, index)
+	}
+	sort.Ints(indexes)
+	return indexes
+}
+
+func (a *claudeStreamAggregate) usage(info *relaycommon.RelayInfo, c *gin.Context) *dto.Usage {
+	if a.Info.Usage == nil {
+		a.Info.Usage = &dto.Usage{}
+	}
+	if a.Info.Usage.CompletionTokens == 0 || !a.Info.Done {
+		model := a.Info.Model
+		if model == "" && info != nil {
+			model = info.UpstreamModelName
+		}
+		promptTokens := 0
+		if info != nil {
+			promptTokens = info.GetEstimatePromptTokens()
+		}
+		fallback := responseTextUsage(c, a.text()+a.Thinking.String(), model, promptTokens)
+		if a.Info.Usage.CompletionTokens == 0 {
+			a.Info.Usage.CompletionTokens = fallback.CompletionTokens
+		}
+		if a.Info.Usage.PromptTokens == 0 {
+			a.Info.Usage.PromptTokens = fallback.PromptTokens
+		}
+	}
+	a.Info.Usage.TotalTokens = a.Info.Usage.PromptTokens + a.Info.Usage.CompletionTokens
+	a.Info.Usage.UsageSemantic = "anthropic"
+	return a.Info.Usage
+}
+
+func responseTextUsage(c *gin.Context, responseText string, model string, promptTokens int) *dto.Usage {
+	if c != nil {
+		return service.ResponseText2Usage(c, responseText, model, promptTokens)
+	}
+	completionTokens := service.EstimateTokenByModel(model, responseText)
+	return &dto.Usage{
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      promptTokens + completionTokens,
+	}
+}
+
+func (a *claudeStreamAggregate) openAIResponse(info *relaycommon.RelayInfo, c *gin.Context) *dto.OpenAITextResponse {
+	usage := buildOpenAIStyleUsageFromClaudeUsage(a.usage(info, c))
+	model := a.Info.Model
+	if model == "" && info != nil {
+		model = info.UpstreamModelName
+	}
+	finishReason := stopReasonClaude2OpenAI(a.StopReason)
+	if finishReason == "null" || finishReason == "" {
+		finishReason = constant.FinishReasonStop
+	}
+	choice := dto.OpenAITextResponseChoice{
+		Index: 0,
+		Message: dto.Message{
+			Role: "assistant",
+		},
+		FinishReason: finishReason,
+	}
+	choice.Message.SetStringContent(a.text())
+	if thinking := a.Thinking.String(); thinking != "" {
+		choice.Message.ReasoningContent = &thinking
+	}
+	if toolCalls := a.orderedToolCalls(); len(toolCalls) > 0 {
+		choice.Message.SetToolCalls(toolCalls)
+		if a.StopReason == "tool_use" {
+			choice.FinishReason = constant.FinishReasonToolCalls
+		}
+	}
+	return &dto.OpenAITextResponse{
+		Id:      a.Info.ResponseId,
+		Model:   model,
+		Object:  "chat.completion",
+		Created: a.Info.Created,
+		Choices: []dto.OpenAITextResponseChoice{choice},
+		Usage:   usage,
+	}
+}
+
+func (a *claudeStreamAggregate) claudeResponse(info *relaycommon.RelayInfo, c *gin.Context) *dto.ClaudeResponse {
+	usage := a.usage(info, c)
+	model := a.Info.Model
+	if model == "" && info != nil {
+		model = info.UpstreamModelName
+	}
+	content := make([]dto.ClaudeMediaMessage, 0)
+	if thinking := a.Thinking.String(); thinking != "" {
+		thinkingBlock := dto.ClaudeMediaMessage{Type: "thinking"}
+		thinkingBlock.Thinking = &thinking
+		content = append(content, thinkingBlock)
+	}
+	if text := a.text(); text != "" {
+		textBlock := dto.ClaudeMediaMessage{Type: "text"}
+		textBlock.SetText(text)
+		content = append(content, textBlock)
+	}
+	for _, toolCall := range a.orderedToolCalls() {
+		var input any = map[string]any{}
+		if toolCall.Function.Arguments != "" {
+			var parsed any
+			if err := common.UnmarshalJsonStr(toolCall.Function.Arguments, &parsed); err == nil {
+				input = parsed
+			} else {
+				input = toolCall.Function.Arguments
+			}
+		}
+		content = append(content, dto.ClaudeMediaMessage{
+			Type:  "tool_use",
+			Id:    toolCall.ID,
+			Name:  toolCall.Function.Name,
+			Input: input,
+		})
+	}
+	claudeUsage := usageToClaudeUsage(usage)
+	if claudeUsage != nil && a.WebSearchRequests > 0 {
+		claudeUsage.ServerToolUse = &dto.ClaudeServerToolUse{
+			WebSearchRequests: a.WebSearchRequests,
+		}
+	}
+	return &dto.ClaudeResponse{
+		Id:           a.Info.ResponseId,
+		Type:         "message",
+		Role:         "assistant",
+		Content:      content,
+		StopReason:   a.StopReason,
+		StopSequence: a.StopSequence,
+		Model:        model,
+		Usage:        claudeUsage,
+	}
+}
+
+func usageToClaudeUsage(usage *dto.Usage) *dto.ClaudeUsage {
+	if usage == nil {
+		return nil
+	}
+	claudeUsage := &dto.ClaudeUsage{
+		InputTokens:              usage.PromptTokens,
+		OutputTokens:             usage.CompletionTokens,
+		CacheReadInputTokens:     usage.PromptTokensDetails.CachedTokens,
+		CacheCreationInputTokens: usage.PromptTokensDetails.CachedCreationTokens,
+	}
+	if usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0 {
+		claudeUsage.CacheCreation = &dto.ClaudeCacheCreationUsage{
+			Ephemeral5mInputTokens: usage.ClaudeCacheCreation5mTokens,
+			Ephemeral1hInputTokens: usage.ClaudeCacheCreation1hTokens,
+		}
+	}
+	return claudeUsage
+}
+
+func AggregateClaudeStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	aggregate := newClaudeStreamAggregate(info)
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" {
+			continue
+		}
+		// Anthropic ends Claude streams with message_stop; keep [DONE] support for compatible providers.
+		if strings.HasPrefix(data, "[DONE]") {
+			break
+		}
+		if info != nil {
+			info.SetFirstResponseTime()
+			info.ReceivedResponseCount++
+		}
+		if err := aggregate.apply(c, data); err != nil {
+			return nil, aggregate.Info.Usage, err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, aggregate.Info.Usage, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+
+	usage := aggregate.usage(info, c)
+	if c != nil && aggregate.WebSearchRequests > 0 {
+		c.Set("claude_web_search_requests", aggregate.WebSearchRequests)
+	}
+	switch {
+	case info != nil && info.RelayFormat == types.RelayFormatClaude:
+		return aggregate.claudeResponse(info, c), usage, nil
+	default:
+		return aggregate.openAIResponse(info, c), usage, nil
+	}
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
