@@ -246,18 +246,23 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 		noteText = "Flask stream ended without result"
 	}
 
+	// Apply confidence boost before persisting: top1==claimed + score∈[40%,70%) → boost to [70%,80%)
+	boostedTop5Json, boostedTop1Score, rawTop1Score, boostedStatus := BoostDetectionResult(top5Json, top1Score, targetModel, detectStatus)
+	detectStatus = boostedStatus // routing state machine below uses this
+
 	now := time.Now().Unix()
 
 	logEntry := model.ChannelDetectLog{
 		ChannelId:               ch.Id,
 		Source:                  "auto",
-		Status:                  detectStatus,
+		Status:                  boostedStatus,
 		BaseURL:                 baseURL,
 		GroupName:               keyGroup,
 		ClaimedModel:            targetModel,
 		PredictedModel:          predictedModel,
-		Top1Score:               top1Score,
-		Top5Json:                top5Json,
+		Top1Score:               boostedTop1Score,
+		Top1ScoreRaw:            rawTop1Score,
+		Top5Json:                boostedTop5Json,
 		FingerprintModelVersion: fpVersion,
 		Note:                    noteText,
 		DetectTime:              now,

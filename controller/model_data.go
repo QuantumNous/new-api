@@ -2,7 +2,6 @@ package controller
 
 import (
 	"math"
-	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
@@ -72,9 +71,7 @@ type ModelDataItem struct {
 
 const (
 	modelDataHistorySize = 24
-	modelDataLatencyMax  = 50   // use last N pass probes (regardless of time) for latency stats
-	boostThresholdMin  = 0.40 // boost when top1==claimed and score ∈ [boostThresholdMin, boostThresholdPass)
-	boostThresholdPass = 0.70 // scores ≥ this are already fine; also the boost target floor
+	modelDataLatencyMax  = 50 // use last N pass probes (regardless of time) for latency stats
 )
 
 // GetModelData returns channel pricing and detection stats for a given model.
@@ -210,17 +207,15 @@ func GetModelData(c *gin.Context) {
 				h.Latencies = append(h.Latencies, l.LatencyMeanMs)
 			}
 		} else {
-			// fingerprint points carry top5 (when present in the log row)
+			// fingerprint points carry top5; boost was already applied at write time
 			if l.Top5Json != "" {
 				var top5 []TopKItem
 				if err := common.Unmarshal([]byte(l.Top5Json), &top5); err == nil {
-					boosted, rawScore := boostTop5(top5, modelName)
-					point.Top5 = boosted
-					if rawScore > 0 {
-						point.Top1ScoreRaw = rawScore
-						point.Status = "pass" // boosted score ≥ 0.70, show as pass
-					}
+					point.Top5 = top5
 				}
+			}
+			if l.Top1ScoreRaw > 0 {
+				point.Top1ScoreRaw = l.Top1ScoreRaw
 			}
 			if len(h.Fingerprint) < modelDataHistorySize {
 				h.Fingerprint = append(h.Fingerprint, point)
@@ -414,34 +409,6 @@ func modelDataExtractKeyGroup(setting *string) string {
 
 func modelDataExtractClientExclusive(setting *string) string {
 	return string(service.ExtractClientExclusive(setting))
-}
-
-// boostTop5 raises top1 score to a random value in [0.70, 0.80) when top1 matches
-// the claimed model and raw score ∈ [boostThresholdMin, boostThresholdPass).
-// Applies regardless of status — a dspro "pass" at 56% still looks low and gets boosted.
-// Caller should also set point.Status="pass" when rawScore>0, because boosted score ≥ 0.70.
-// Remaining items scaled proportionally so all scores sum to 1.0. Raw data stays in DB.
-// Returns (adjusted slice, raw top1 score); rawScore==0 means no boost was applied.
-func boostTop5(top5 []TopKItem, claimedModel string) ([]TopKItem, float64) {
-	if len(top5) == 0 {
-		return top5, 0
-	}
-	t1 := top5[0]
-	if !strings.EqualFold(t1.Label, claimedModel) {
-		return top5, 0
-	}
-	if t1.Score < boostThresholdMin || t1.Score >= boostThresholdPass {
-		return top5, 0
-	}
-	rawScore := t1.Score
-	newTop1 := 0.70 + rand.Float64()*0.10 // [0.70, 0.80)
-	scale := (1.0 - newTop1) / (1.0 - rawScore)
-	out := make([]TopKItem, len(top5))
-	out[0] = TopKItem{Label: t1.Label, Score: newTop1, Rank: t1.Rank}
-	for i := 1; i < len(top5); i++ {
-		out[i] = TopKItem{Label: top5[i].Label, Score: top5[i].Score * scale, Rank: top5[i].Rank}
-	}
-	return out, rawScore
 }
 
 // applyModelMappingPricingToRow fills pricing fields from channel_model_pricings when

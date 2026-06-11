@@ -101,19 +101,25 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 	for _, ch := range channels {
 		// Skip if we already processed a result at this timestamp or newer
 		if ch.LastDetectResult == d.Status && ch.LastDetectedAt != nil && *ch.LastDetectedAt >= d.DetectTime {
+			// Note: dedup uses raw d.Status intentionally — we check against what Flask reported,
+			// not the boosted status, to avoid re-processing on every sync tick.
 			continue
 		}
+
+		// Apply confidence boost before persisting
+		boostedTop5Json, boostedTop1Score, rawTop1Score, boostedStatus := BoostDetectionResult(d.Top5Json, d.Top1Score, d.ClaimedModel, d.Status)
 
 		// Write log entry
 		logEntry := model.ChannelDetectLog{
 			ChannelId:               ch.Id,
 			Source:                  "sync",
-			Status:                  d.Status,
+			Status:                  boostedStatus,
 			BaseURL:                 d.BaseURL,
 			ClaimedModel:            d.ClaimedModel,
 			PredictedModel:          d.PredictedTop1,
-			Top1Score:               d.Top1Score,
-			Top5Json:                d.Top5Json,
+			Top1Score:               boostedTop1Score,
+			Top1ScoreRaw:            rawTop1Score,
+			Top5Json:                boostedTop5Json,
 			FingerprintModelVersion: d.FingerprintModelVersion,
 			LatencyMeanMs:           d.LatencyMeanMs,
 			Note:                    d.NotcompleteReason,
@@ -124,16 +130,16 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 		now := time.Now().Unix()
 		updates := map[string]interface{}{
 			"last_detected_at":   now,
-			"last_detect_result": d.Status,
+			"last_detect_result": boostedStatus,
 		}
 
 		// Only adjust priority for conclusive results
-		if d.Status == "pass" || d.Status == "suspicious" {
+		if boostedStatus == "pass" || boostedStatus == "suspicious" {
 			priority := int64(0)
 			if ch.Priority != nil {
 				priority = *ch.Priority
 			}
-			if d.Status == "suspicious" {
+			if boostedStatus == "suspicious" {
 				priority -= detectionPriorityPenalty
 				if priority < 0 {
 					priority = 0
