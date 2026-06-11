@@ -62,12 +62,16 @@ type FeishuUserInitResultItem struct {
 	Username      string `json:"username,omitempty"`
 	DisplayName   string `json:"display_name,omitempty"`
 	OrgName       string `json:"org_name,omitempty"`
+	OrgPath       string `json:"org_path,omitempty"`
+	OrgLevel1Name string `json:"org_level1_name,omitempty"`
+	OrgLevel2Name string `json:"org_level2_name,omitempty"`
 	JobTitle      string `json:"job_title,omitempty"`
 	TokenId       int    `json:"token_id,omitempty"`
 	TokenName     string `json:"token_name,omitempty"`
 	TokenKey      string `json:"token_key,omitempty"`
 	Action        string `json:"action"`
 	Error         string `json:"error,omitempty"`
+	Warning       string `json:"warning,omitempty"`
 }
 
 type FeishuInitWebhookRequest struct {
@@ -672,6 +676,17 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			_ = model.SyncUserBindGroupSubscriptions(newUser.Id, "", group)
 		}
 
+		orgSyncWarning := ""
+		if openId != "" {
+			if syncErr := service.SyncOneFeishuUserInfoByOpenID(c.Request.Context(), &newUser, openId); syncErr != nil {
+				orgSyncWarning = "sync feishu organization info failed: " + syncErr.Error()
+				common.SysError(fmt.Sprintf("open_id=%s: %s", openId, orgSyncWarning))
+			} else if err := model.DB.First(&newUser, newUser.Id).Error; err != nil {
+				orgSyncWarning = "reload user after organization sync failed: " + err.Error()
+				common.SysError(fmt.Sprintf("open_id=%s: %s", openId, orgSyncWarning))
+			}
+		}
+
 		model.RecordLog(newUser.Id, model.LogTypeSystem,
 			fmt.Sprintf("管理员通过飞书OpenID批量创建用户，open_id=%s，分组=%s", openId, group))
 
@@ -701,10 +716,17 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			FeishuUserId:  userId,
 			UserId:        newUser.Id,
 			Username:      newUser.Username,
+			DisplayName:   newUser.DisplayName,
+			OrgName:       newUser.OrgName,
+			OrgPath:       newUser.OrgPath,
+			OrgLevel1Name: newUser.OrgLevel1Name,
+			OrgLevel2Name: newUser.OrgLevel2Name,
+			JobTitle:      newUser.JobTitle,
 			TokenId:       createdToken.Id,
 			TokenName:     createdToken.Name,
 			TokenKey:      formatTokenKeyForResponse(tokenKey),
 			Action:        "created",
+			Warning:       orgSyncWarning,
 		})
 	}
 

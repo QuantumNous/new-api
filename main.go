@@ -122,6 +122,9 @@ func main() {
 	// Feishu stats push to bitable (daily/weekly/monthly)
 	service.StartFeishuStatsPushTask()
 
+	// Feishu user organization info sync (daily)
+	service.StartFeishuUserInfoSyncTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

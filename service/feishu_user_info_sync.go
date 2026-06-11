@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/bytedance/gopkg/util/gopool"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcontact "github.com/larksuite/oapi-sdk-go/v3/service/contact/v3"
 )
@@ -30,6 +33,44 @@ type feishuOrgPathInfo struct {
 	Path       string
 	Level1Name string
 	Level2Name string
+}
+
+var feishuUserInfoSyncOnce sync.Once
+
+func StartFeishuUserInfoSyncTask() {
+	feishuUserInfoSyncOnce.Do(func() {
+		if !common.IsMasterNode {
+			return
+		}
+		gopool.Go(func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				runFeishuUserInfoSyncIfNeeded()
+			}
+		})
+	})
+}
+
+func runFeishuUserInfoSyncIfNeeded() {
+	now := time.Now()
+	if now.Hour() != 2 || now.Minute() != 0 {
+		return
+	}
+	common.SysLog("feishu user info sync: start daily sync")
+	result := SyncFeishuUserInfo(context.Background())
+	common.SysLog(fmt.Sprintf("feishu user info sync: completed daily sync, total=%d success=%d skipped=%d failed=%d", result.Total, result.Success, result.Skipped, result.Failed))
+}
+
+func SyncOneFeishuUserInfoByOpenID(ctx context.Context, user *model.User, openID string) error {
+	settings := system_setting.GetFeishuSettings()
+	appID := strings.TrimSpace(settings.AppID)
+	appSecret := strings.TrimSpace(settings.AppSecret)
+	if appID == "" || appSecret == "" {
+		return fmt.Errorf("feishu app_id/app_secret is not configured")
+	}
+	client := lark.NewClient(appID, appSecret)
+	return syncOneFeishuUserInfo(ctx, client, user, openID)
 }
 
 func SyncFeishuUserInfo(ctx context.Context) FeishuUserInfoSyncResult {
