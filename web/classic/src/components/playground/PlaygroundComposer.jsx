@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { InputNumber, Select, Typography } from '@douyinfe/semi-ui';
-import { Bot, Image as ImageIcon, Sparkles, Video, X } from 'lucide-react';
+import { Bot, Image as ImageIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 import { selectFilter } from '../../helpers';
@@ -33,7 +33,6 @@ const PlaygroundComposer = ({
   playgroundMode,
   customRequestMode,
   onInputChange,
-  onModeChange,
 }) => {
   const { t } = useTranslation();
   const { imageUrls, onRemoveImage, onSelectImageFile } = usePlayground();
@@ -63,27 +62,31 @@ const PlaygroundComposer = ({
         <div className='composer-input-row'>{inputNode}</div>
         <div className='composer-controls'>
           <div className='composer-left-controls'>
-            <Select
-              value={selectedModel}
-              optionList={modelOptions}
-              filter={selectFilter}
-              autoClearSearchValue={false}
-              disabled={customRequestMode}
-              onChange={(value) =>
-                onInputChange(
-                  isVideoMode
-                    ? 'videoModel'
-                    : isImageMode
-                      ? 'imageModel'
-                      : 'model',
-                  value,
-                )
-              }
-              prefix={<Bot size={16} className='mx-2' />}
-              className='composer-model-select'
-              dropdownStyle={{ maxWidth: 420 }}
-              position='top'
-            />
+            <div className='composer-model-row'>
+              <Select
+                value={selectedModel}
+                optionList={modelOptions}
+                filter={selectFilter}
+                autoClearSearchValue={false}
+                disabled={customRequestMode}
+                onChange={(value) =>
+                  onInputChange(
+                    isVideoMode
+                      ? 'videoModel'
+                      : isImageMode
+                        ? 'imageModel'
+                        : 'model',
+                    value,
+                  )
+                }
+                prefix={<Bot size={16} className='mx-2' />}
+                className='composer-model-select'
+                dropdownStyle={{ maxWidth: 420 }}
+                position='top'
+              />
+
+              <div className='composer-send-row'>{styledSendNode}</div>
+            </div>
 
             <div className='reference-images'>
               <Typography.Text className='reference-label'>
@@ -211,45 +214,6 @@ const PlaygroundComposer = ({
                 />
               </div>
             )}
-          </div>
-
-          <div className='composer-bottom-row'>
-            <div className='mode-tabs'>
-              <button
-                className={`mode-tab ${playgroundMode === 'chat' ? 'active' : ''}`}
-                type='button'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onModeChange('chat');
-                }}
-              >
-                <Sparkles size={19} />
-                <span>{t('聊天')}</span>
-              </button>
-              <button
-                className={`mode-tab ${playgroundMode === 'image' ? 'active' : ''}`}
-                type='button'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onModeChange('image');
-                }}
-              >
-                <ImageIcon size={18} />
-                <span>{t('图片')}</span>
-              </button>
-              <button
-                className={`mode-tab ${playgroundMode === 'video' ? 'active' : ''}`}
-                type='button'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onModeChange('video');
-                }}
-              >
-                <Video size={18} />
-                <span>{t('视频')}</span>
-              </button>
-            </div>
-            {styledSendNode}
           </div>
         </div>
       </div>
