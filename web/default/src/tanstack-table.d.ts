@@ -29,5 +29,7 @@ declare module '@tanstack/react-table' {
     sortable?: boolean
     // Custom CSS classes to apply to the column cells
     className?: string
+    // Pin this column to 'left' or 'right' — applies to both header and body
+    pinned?: 'left' | 'right'
   }
 }

@@ -582,12 +582,14 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Actions column
     {
       id: 'actions',
+      header: () => t('Actions'),
       cell: ({ row }) => {
         return <DataTableRowActions row={row} />
       },
       size: 100,
       enableSorting: false,
       enableHiding: false,
+      meta: { pinned: 'right' as const },
     },
   ]
 }

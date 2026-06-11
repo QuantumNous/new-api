@@ -1037,6 +1037,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Actions column
     {
       id: 'actions',
+      header: () => t('Actions'),
       cell: ({ row }) => {
         // Check if this is a tag row (has children)
         const isTagRow = isTagAggregateRow(row.original)
@@ -1055,6 +1056,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       size: 132,
       enableSorting: false,
       enableHiding: false,
+      meta: { pinned: 'right' as const },
     },
   ]
 }

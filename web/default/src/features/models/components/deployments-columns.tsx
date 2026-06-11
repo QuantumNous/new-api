@@ -241,6 +241,7 @@ export function useDeploymentsColumns(opts: {
     },
     {
       id: 'actions',
+      header: () => t('Actions'),
       enableHiding: false,
       enableSorting: false,
       cell: ({ row }) => {
@@ -305,6 +306,7 @@ export function useDeploymentsColumns(opts: {
         )
       },
       size: 180,
+      meta: { pinned: 'right' as const },
     },
   ]
 }

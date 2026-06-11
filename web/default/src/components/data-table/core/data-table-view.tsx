@@ -51,6 +51,7 @@ export function DataTableView<TData>(props: DataTableViewProps<TData>) {
     [props.table]
   )
   const columnClassName = useResolvedColumnClassName(
+    props.table,
     props.getColumnClassName,
     props.pinnedColumns
   )
@@ -164,13 +165,28 @@ function SplitHeaderTableView<TData>({
   )
 }
 
-function useResolvedColumnClassName(
+function useResolvedColumnClassName<TData>(
+  table: import('@tanstack/react-table').Table<TData>,
   getColumnClassName?: DataTableColumnClassName,
   pinnedColumns?: DataTablePinnedColumn[]
 ) {
+  const allPinnedColumns = React.useMemo(() => {
+    const fromMeta: DataTablePinnedColumn[] = table
+      .getAllColumns()
+      .filter((col) => col.columnDef.meta?.pinned)
+      .map((col) => ({
+        columnId: col.id,
+        side: col.columnDef.meta!.pinned!,
+      }))
+    if (!fromMeta.length) return pinnedColumns
+    if (!pinnedColumns?.length) return fromMeta
+    const explicitIds = new Set(pinnedColumns.map((p) => p.columnId))
+    return [...pinnedColumns, ...fromMeta.filter((p) => !explicitIds.has(p.columnId))]
+  }, [table, pinnedColumns])
+
   const pinnedColumnById = React.useMemo(
-    () => getPinnedColumnMap(pinnedColumns),
-    [pinnedColumns]
+    () => getPinnedColumnMap(allPinnedColumns),
+    [allPinnedColumns]
   )
 
   return React.useMemo(
