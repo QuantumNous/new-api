@@ -142,6 +142,38 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-ring: oklch(0.708 0 0);
   --skeleton-base: oklch(0.97 0 0);
   --skeleton-highlight: oklch(0.985 0 0);
+  --surface-raised: var(--card);
+  --surface-muted: var(--muted);
+  --surface-glass: color-mix(in oklch, var(--card) 92%, var(--background) 8%);
+  --surface-console: color-mix(
+    in oklch,
+    var(--background) 90%,
+    var(--foreground) 4%
+  );
+  --surface-route: color-mix(
+    in oklch,
+    var(--background) 88%,
+    var(--primary) 6%
+  );
+  --surface-terminal: oklch(0.18 0.018 248);
+  --terminal-foreground: oklch(0.91 0.028 188);
+  --terminal-muted: oklch(0.72 0.03 248);
+  --surface-selected: color-mix(in oklch, var(--primary) 8%, var(--background));
+  --border-subtle: color-mix(in oklch, var(--border) 65%, transparent);
+  --border-strong: color-mix(in oklch, var(--foreground) 16%, var(--border));
+  --status-active: oklch(0.63 0.15 155);
+  --status-degraded: oklch(0.72 0.16 78);
+  --status-failed: oklch(0.62 0.22 27);
+  --status-paused: oklch(0.62 0.02 250);
+  --status-testing: oklch(0.62 0.15 245);
+  --brand-glow-blue: oklch(0.66 0.16 245 / 22%);
+  --brand-glow-cyan: oklch(0.76 0.13 185 / 24%);
+  --brand-glow-violet: oklch(0.64 0.15 302 / 18%);
+  --brand-signal: oklch(0.66 0.17 168);
+  --brand-route: oklch(0.61 0.16 246);
+  --brand-ledger: oklch(0.69 0.16 72);
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px rgb(0 0 0 / 4%);
+  --shadow-floating: 0 2px 16px -6px rgb(0 0 0 / 12%);
 }
 
 .dark {
@@ -188,4 +220,29 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-ring: oklch(0.68 0 0);
   --skeleton-base: oklch(0.285 0 0);
   --skeleton-highlight: oklch(0.39 0 0);
+  --surface-glass: color-mix(in oklch, var(--card) 88%, var(--background) 12%);
+  --surface-console: color-mix(in oklch, var(--background) 92%, white 5%);
+  --surface-route: color-mix(
+    in oklch,
+    var(--background) 84%,
+    var(--primary) 7%
+  );
+  --surface-terminal: oklch(0.13 0.02 248);
+  --terminal-foreground: oklch(0.88 0.04 184);
+  --terminal-muted: oklch(0.68 0.035 248);
+  --surface-selected: color-mix(
+    in oklch,
+    var(--primary) 14%,
+    var(--background)
+  );
+  --border-subtle: color-mix(in oklch, var(--border) 70%, transparent);
+  --border-strong: color-mix(in oklch, white 18%, var(--border));
+  --brand-glow-blue: oklch(0.68 0.17 250 / 16%);
+  --brand-glow-cyan: oklch(0.68 0.13 210 / 12%);
+  --brand-glow-violet: oklch(0.68 0.14 285 / 14%);
+  --brand-signal: oklch(0.72 0.16 166);
+  --brand-route: oklch(0.69 0.16 246);
+  --brand-ledger: oklch(0.78 0.16 75);
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 18%), 0 8px 24px rgb(0 0 0 / 20%);
+  --shadow-floating: 0 2px 16px -6px rgb(0 0 0 / 45%);
 }

@@ -225,7 +225,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
 
   return (
     <>
-      <div className={cn('space-y-2.5 sm:space-y-3', props.className)}>
+      <div className={cn('space-y-3 sm:space-y-4', props.className)}>
         {toolbarNode}
         {mobileNode}
         {desktopNode}
@@ -303,7 +303,7 @@ function renderDesktop<TData>(
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border transition-opacity duration-150',
+        'surface-console overflow-hidden rounded-lg border shadow-none transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
       )}

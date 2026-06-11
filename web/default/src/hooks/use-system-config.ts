@@ -27,6 +27,8 @@ import {
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 
+const STATUS_REQUEST_TIMEOUT_MS = 3500
+
 interface UseSystemConfigOptions {
   /** Automatically fetch config from backend (use only in root component) */
   autoLoad?: boolean
@@ -103,13 +105,26 @@ export function mapStatusDataToConfig(
 
 // Fetch system config from API
 async function fetchSystemConfig(): Promise<Partial<SystemConfig>> {
-  const response = await fetch('/api/status')
-  if (!response.ok) throw new Error('Failed to fetch status')
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    STATUS_REQUEST_TIMEOUT_MS
+  )
 
-  const data: StatusApiResponse = await response.json()
-  if (!data.success) throw new Error('API returned error')
+  try {
+    const response = await fetch('/api/status', {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+    if (!response.ok) throw new Error('Failed to fetch status')
 
-  return mapStatusDataToConfig(data.data)
+    const data: StatusApiResponse = await response.json()
+    if (!data.success) throw new Error('API returned error')
+
+    return mapStatusDataToConfig(data.data)
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
 }
 
 // Preload image and return cleanup function
@@ -187,6 +202,10 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
         if (logo !== DEFAULT_LOGO) {
           // eslint-disable-next-line no-console
           console.error('Failed to load logo:', logo)
+          setConfig({ logo: DEFAULT_LOGO })
+          setLoadedLogoUrl(DEFAULT_LOGO)
+          applyFaviconToDom(DEFAULT_LOGO)
+          return
         }
         // Mark as loaded even on error to prevent infinite retry
         setLoadedLogoUrl(logo)

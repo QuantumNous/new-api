@@ -39,7 +39,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
         <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
           <SkipToMain />
           <AppHeader />
-          <div className='flex min-h-0 w-full flex-1'>
+          <div className='operator-backplane flex min-h-0 w-full flex-1'>
             <AppSidebar />
             <SidebarInset
               className={cn(

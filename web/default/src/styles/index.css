@@ -48,6 +48,7 @@ For commercial licensing, please contact support@quantumnous.com
   }
   html {
     @apply overflow-x-hidden font-sans;
+    text-rendering: optimizeLegibility;
   }
   body {
     @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
@@ -55,6 +56,11 @@ For commercial licensing, please contact support@quantumnous.com
      * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
      * in theme-presets.css). Defaults to the project's humanist sans. */
     font-family: var(--font-body);
+    font-feature-settings:
+      'cv02' 1,
+      'cv03' 1,
+      'cv04' 1,
+      'tnum' 1;
   }
 
   /* Keep sticky headers stable while primitives lock body scrolling. */
@@ -227,6 +233,187 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Launch UI Animations and Effects - Matching Template Exactly */
 @layer utilities {
+  .marketing-mesh {
+    background:
+      linear-gradient(
+        115deg,
+        transparent 0%,
+        color-mix(in oklch, var(--brand-route) 10%, transparent) 38%,
+        transparent 68%
+      ),
+      radial-gradient(
+        ellipse 48% 38% at 15% 18%,
+        var(--brand-glow-blue) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 44% 32% at 88% 10%,
+        var(--brand-glow-cyan) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 42% 32% at 44% 78%,
+        var(--brand-glow-violet) 0%,
+        transparent 72%
+      );
+  }
+
+  .marketing-grid {
+    background-image:
+      linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    background-size: 4rem 4rem;
+    mask-image: radial-gradient(
+      ellipse 62% 50% at 50% 30%,
+      black 18%,
+      transparent 100%
+    );
+  }
+
+  .surface-glass {
+    border-color: var(--border-subtle);
+    background: var(--surface-glass);
+  }
+
+  .surface-console {
+    border-color: var(--border-subtle);
+    background: var(--surface-console);
+  }
+
+  .surface-route {
+    border-color: var(--border-subtle);
+    background:
+      linear-gradient(
+        135deg,
+        color-mix(in oklch, var(--brand-route) 8%, transparent),
+        transparent 42%
+      ),
+      var(--surface-route);
+  }
+
+  .surface-terminal {
+    border-color: color-mix(in oklch, var(--brand-signal) 18%, transparent);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, white 5%, transparent),
+        transparent 22%
+      ),
+      var(--surface-terminal);
+    color: var(--terminal-foreground);
+  }
+
+  .operator-backplane {
+    background-image:
+      linear-gradient(
+        color-mix(in oklch, var(--border) 56%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in oklch, var(--border) 56%, transparent) 1px,
+        transparent 1px
+      ),
+      radial-gradient(
+        circle at 18% 20%,
+        color-mix(in oklch, var(--brand-signal) 12%, transparent),
+        transparent 28%
+      ),
+      radial-gradient(
+        circle at 86% 8%,
+        color-mix(in oklch, var(--brand-route) 10%, transparent),
+        transparent 30%
+      );
+    background-size:
+      56px 56px,
+      56px 56px,
+      auto,
+      auto;
+  }
+
+  .operator-scanline {
+    position: relative;
+  }
+
+  .operator-scanline::after {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    content: '';
+    background: repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 7px,
+      color-mix(in oklch, var(--terminal-foreground) 4%, transparent) 8px
+    );
+    opacity: 0.45;
+  }
+
+  .route-node {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--brand-signal) 30%, transparent),
+      0 0 24px color-mix(in oklch, var(--brand-signal) 18%, transparent);
+  }
+
+  .operator-rail-active {
+    box-shadow: inset 3px 0 0 var(--status-active);
+  }
+
+  .operator-rail-warning {
+    box-shadow: inset 3px 0 0 var(--status-degraded);
+  }
+
+  .operator-rail-danger {
+    box-shadow: inset 3px 0 0 var(--status-failed);
+  }
+
+  .operator-metric-label {
+    @apply text-muted-foreground text-[10px] font-semibold tracking-[0.14em] uppercase;
+  }
+
+  .operator-number {
+    @apply font-mono font-semibold tracking-tight tabular-nums;
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-floating {
+    box-shadow: var(--shadow-floating);
+  }
+
+  .text-gradient-brand {
+    background-image: linear-gradient(
+      110deg,
+      var(--brand-signal),
+      var(--brand-route) 48%,
+      var(--brand-ledger)
+    );
+    @apply bg-clip-text text-transparent;
+  }
+
+  .marketing-section-label {
+    @apply text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase;
+  }
+
+  .marketing-section-title {
+    @apply text-2xl leading-tight font-bold tracking-tight md:text-3xl;
+  }
+
+  .marketing-section-copy {
+    @apply text-muted-foreground text-sm leading-relaxed;
+  }
+
+  .interactive-lift {
+    @apply transition-[border-color,background-color,opacity] duration-150 ease-out;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .interactive-lift:hover {
+      border-color: color-mix(in oklch, var(--primary) 18%, var(--border));
+    }
+  }
   /* Gradient utilities */
   .bg-radial {
     background-image: radial-gradient(var(--tw-gradient-stops));
@@ -503,38 +690,39 @@ For commercial licensing, please contact support@quantumnous.com
     transition: background-color 120ms ease;
   }
 
-  /* Table row stagger-in animation */
-  [data-slot='table'] tbody tr {
+  /* Table row animation is intentionally opt-in: data-heavy pages should paint
+   * immediately instead of scheduling staggered transforms for every row. */
+  [data-table-animate='true'] [data-slot='table'] tbody tr {
     animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
   }
-  [data-slot='table'] tbody tr:nth-child(2) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(2) {
     animation-delay: 25ms;
   }
-  [data-slot='table'] tbody tr:nth-child(3) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(3) {
     animation-delay: 50ms;
   }
-  [data-slot='table'] tbody tr:nth-child(4) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(4) {
     animation-delay: 75ms;
   }
-  [data-slot='table'] tbody tr:nth-child(5) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(5) {
     animation-delay: 100ms;
   }
-  [data-slot='table'] tbody tr:nth-child(6) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(6) {
     animation-delay: 125ms;
   }
-  [data-slot='table'] tbody tr:nth-child(7) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(7) {
     animation-delay: 150ms;
   }
-  [data-slot='table'] tbody tr:nth-child(8) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(8) {
     animation-delay: 175ms;
   }
-  [data-slot='table'] tbody tr:nth-child(9) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(9) {
     animation-delay: 200ms;
   }
-  [data-slot='table'] tbody tr:nth-child(10) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(10) {
     animation-delay: 225ms;
   }
-  [data-slot='table'] tbody tr:nth-child(n + 11) {
+  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(n + 11) {
     animation-delay: 250ms;
   }
 }

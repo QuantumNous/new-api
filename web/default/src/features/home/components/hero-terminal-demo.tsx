@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
@@ -160,8 +160,7 @@ const API_DEMOS: ApiDemoConfig[] = [
   },
 ]
 
-const CYCLE_INTERVAL = 4500
-const TRANSITION_MS = 220
+const TRANSITION_MS = 120
 
 interface HeroTerminalDemoProps {
   className?: string
@@ -170,33 +169,11 @@ interface HeroTerminalDemoProps {
 export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (mq.matches) return
-
-    intervalRef.current = setInterval(() => {
-      setTransitioning(true)
-      timeoutRef.current = setTimeout(() => {
-        setActiveIndex((prev) => (prev + 1) % API_DEMOS.length)
-        setTransitioning(false)
-      }, TRANSITION_MS)
-    }, CYCLE_INTERVAL)
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    }
-  }, [])
 
   const handleSelect = (index: number) => {
     if (index === activeIndex) return
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
     setTransitioning(true)
-    timeoutRef.current = setTimeout(() => {
+    window.setTimeout(() => {
       setActiveIndex(index)
       setTransitioning(false)
     }, TRANSITION_MS)
@@ -209,16 +186,48 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
     <div className={cn('mx-auto w-full max-w-2xl', props.className)}>
       <div
         className={cn(
-          'overflow-hidden rounded-2xl border backdrop-blur-sm',
-          'border-border/60 bg-white/95 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.18)]',
-          'dark:border-white/[0.06] dark:bg-[#0b0f17]/95 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)]'
+          'surface-terminal operator-scanline route-node overflow-hidden rounded-xl border shadow-[0_18px_80px_-42px_var(--brand-route)]',
+          'border-border/60 dark:border-white/[0.08]'
         )}
       >
+        <div className='border-b border-white/8 px-4 py-3'>
+          <div className='flex items-center justify-between gap-3'>
+            <div className='flex items-center gap-2'>
+              <span className='size-2 rounded-full bg-[var(--brand-signal)]' />
+              <span className='font-mono text-[10px] font-semibold tracking-[0.18em] text-[var(--terminal-muted)] uppercase'>
+                gateway.router
+              </span>
+            </div>
+            <span className='font-mono text-[10px] tracking-[0.14em] text-[var(--terminal-muted)] uppercase'>
+              policy: strict
+            </span>
+          </div>
+          <div className='mt-3 grid grid-cols-3 gap-2'>
+            {[
+              ['providers', '42'],
+              ['fallbacks', '8'],
+              ['budget', 'live'],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className='rounded-md border border-white/8 bg-white/[0.035] px-2.5 py-2'
+              >
+                <div className='font-mono text-[9px] tracking-[0.14em] text-[var(--terminal-muted)] uppercase'>
+                  {label}
+                </div>
+                <div className='mt-1 font-mono text-sm font-semibold text-[var(--terminal-foreground)]'>
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Tab strip */}
         <div
           className={cn(
             'flex items-center gap-1 border-b px-2 sm:gap-1.5 sm:px-3',
-            'border-border/50 dark:border-white/[0.05]'
+            'border-white/8'
           )}
         >
           {API_DEMOS.map((item, index) => {
@@ -229,10 +238,10 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
                 key={item.id}
                 onClick={() => handleSelect(index)}
                 className={cn(
-                  'relative -mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs',
+                  'relative -mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-semibold tracking-wide transition-colors sm:px-3 sm:text-xs',
                   isActive
                     ? `${tone.activeBorder} ${tone.activeText}`
-                    : 'text-foreground/40 hover:text-foreground/70 border-transparent'
+                    : 'border-transparent text-[var(--terminal-muted)] hover:text-[var(--terminal-foreground)]'
                 )}
               >
                 {item.label}
@@ -240,8 +249,8 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
             )
           })}
           <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
-            <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
-            <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
+            <span className='inline-block size-1.5 rounded-full bg-[var(--brand-signal)]' />
+            <span className='font-mono text-[10px] tracking-wider text-[var(--terminal-muted)] uppercase'>
               200 ok
             </span>
           </div>
@@ -251,7 +260,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         <div
           className={cn(
             'flex items-center gap-2.5 border-b px-5 py-3',
-            'border-border/40 dark:border-white/[0.04]'
+            'border-white/8'
           )}
         >
           <span
@@ -264,7 +273,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
           </span>
           <code
             className={cn(
-              'text-foreground/75 truncate font-mono text-[12.5px] transition-opacity duration-200',
+              'truncate font-mono text-[12.5px] text-[var(--terminal-foreground)] transition-opacity duration-200',
               transitioning ? 'opacity-0' : 'opacity-100'
             )}
           >
@@ -273,7 +282,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         </div>
 
         {/* Body — fixed rows so neither block shifts when switching demos */}
-        <div className='grid h-[400px] grid-rows-[235px_minmax(0,1fr)] font-mono text-[12.5px] leading-[1.55]'>
+        <div className='grid h-[360px] grid-rows-[215px_minmax(0,1fr)] font-mono text-[12px] leading-[1.55]'>
           {/* Request */}
           <RequestBlock demo={demo} transitioning={transitioning} />
 
@@ -285,20 +294,20 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         <div
           className={cn(
             'flex items-center justify-between border-t px-5 py-2.5',
-            'border-border/40 bg-muted/30 dark:border-white/[0.05] dark:bg-white/[0.02]'
+            'border-white/8 bg-white/[0.035]'
           )}
         >
-          <div className='text-foreground/40 flex items-center gap-3 text-[10px] tabular-nums'>
+          <div className='flex items-center gap-3 text-[10px] text-[var(--terminal-muted)] tabular-nums'>
             <span className='flex items-center gap-1'>
               <span className='font-mono'>{demo.latency}</span>
               <span className='tracking-wider uppercase'>ms</span>
             </span>
-            <span className='bg-foreground/15 size-1 rounded-full' />
+            <span className='size-1 rounded-full bg-white/20' />
             <span className='flex items-center gap-1'>
               <span className='font-mono'>{demo.tokens}</span>
               <span className='tracking-wider uppercase'>tokens</span>
             </span>
-            <span className='bg-foreground/15 size-1 rounded-full' />
+            <span className='size-1 rounded-full bg-white/20' />
             <span className='flex items-center gap-1'>
               <span className='tracking-wider uppercase'>cost</span>
               <span className='font-mono'>
@@ -306,7 +315,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
               </span>
             </span>
           </div>
-          <span className='text-foreground/30 font-mono text-[10px] tracking-wider uppercase'>
+          <span className='font-mono text-[10px] tracking-wider text-[var(--terminal-muted)] uppercase'>
             stream · sse
           </span>
         </div>
@@ -361,7 +370,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
     <div
       className={cn(
         'relative border-t px-5 py-4',
-        'border-border/40 bg-muted/20 dark:border-white/[0.05] dark:bg-white/[0.015]'
+        'border-white/8 bg-white/[0.025]'
       )}
     >
       <SectionLabel>Response</SectionLabel>
@@ -381,7 +390,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
 
 function SectionLabel(props: { children: ReactNode }) {
   return (
-    <span className='text-foreground/30 font-sans text-[10px] font-semibold tracking-[0.18em] uppercase'>
+    <span className='font-sans text-[10px] font-semibold tracking-[0.18em] text-[var(--terminal-muted)] uppercase'>
       {props.children}
     </span>
   )
@@ -536,7 +545,7 @@ function NumberText(props: { children: ReactNode }) {
 }
 
 function Muted(props: { children: ReactNode }) {
-  return <span className='text-foreground/55'>{props.children}</span>
+  return <span className='text-[var(--terminal-muted)]'>{props.children}</span>
 }
 
 function Accent(props: { children: ReactNode; accent: AccentTone }) {

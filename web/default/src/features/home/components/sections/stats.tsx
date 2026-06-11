@@ -105,24 +105,27 @@ export function Stats(_props: StatsProps) {
   ]
 
   return (
-    <div className='border-border/40 bg-muted/10 relative z-10 border-y'>
-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
-        <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
+    <section className='border-border/40 bg-muted/10 relative z-10 border-y'>
+      <div className='mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-12'>
+        <dl className='bg-border/50 grid grid-cols-2 gap-px overflow-hidden rounded-xl border md:grid-cols-4'>
           {stats.map((s) => (
             <div
               key={s.label}
-              className='flex flex-col items-center text-center'
+              className='surface-console flex min-h-28 flex-col justify-between p-4 text-left sm:p-5'
             >
-              <span className='text-2xl font-bold tracking-tight md:text-3xl'>
-                <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
-              </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
+              <dt className='operator-metric-label order-2 mt-3 leading-relaxed'>
                 {s.label}
-              </span>
+              </dt>
+              <dd
+                className='operator-number order-1 text-2xl md:text-3xl'
+                aria-label={`${s.end}${s.suffix} ${s.label}`}
+              >
+                <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
+              </dd>
             </div>
           ))}
-        </div>
+        </dl>
       </div>
-    </div>
+    </section>
   )
 }
