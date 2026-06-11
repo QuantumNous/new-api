@@ -134,8 +134,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		// "completed". If cost signals were captured, the upstream has been (or
 		// will be) charged — a late client disconnect / body-write failure must
 		// not skip local billing, and retrying would double-pay. Bill through.
+		//
+		// Key presence here implies settlement really happened: the async poll
+		// loop runs inside DoRequest, so an envelope price captured without the
+		// poll ever observing "completed" exits via the DoRequest error path
+		// above and never reaches this guard. Reaching DoResponse with the key
+		// set means the poll saw "completed" (or a sync response already
+		// carried a payment receipt).
+		//
+		// Tradeoff: swallowing the error means the client may receive a hollow
+		// 200 (empty body). That is intentional — billing correctness beats
+		// delivery, because surfacing the error would trigger a channel retry
+		// and a second upstream payment. The request id in the warn log keeps
+		// the incident traceable.
 		if _, settled := c.Get(string(constant.ContextKeyBlockRunSettlement)); settled {
-			logger.LogWarn(c, fmt.Sprintf("blockrun image: upstream settled but response delivery failed, billing anyway: %s", newAPIError.Error()))
+			logger.LogWarn(c, fmt.Sprintf("blockrun image: upstream settled but response delivery failed, billing anyway (user=%d channel=%d model=%s): %s", info.UserId, info.ChannelId, info.OriginModelName, newAPIError.Error()))
 			if usage == nil {
 				usage = &dto.Usage{}
 			}
@@ -155,6 +168,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// calculation (both price-based and ratio-based paths).
 	// Adaptors may have already set a more accurate count from the
 	// upstream response; only set the default when they haven't.
+	// On the bill-through path (settlement captured but delivery failed) the
+	// client-requested n still applies on purpose: the upstream settles the
+	// request as submitted, so we charge for what was submitted, not for what
+	// was delivered.
 	if info.PriceData.UsePrice { // only price model use N ratio
 		if _, hasN := info.PriceData.OtherRatios["n"]; !hasN {
 			info.PriceData.AddOtherRatio("n", float64(imageN))
