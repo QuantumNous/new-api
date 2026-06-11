@@ -1,6 +1,7 @@
 package vertex
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
@@ -191,7 +193,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			suffix = "generateContent"
 		}
 
-		if strings.HasPrefix(info.UpstreamModelName, "imagen") {
+		if strings.HasPrefix(info.UpstreamModelName, "imagen") || strings.Contains(info.UpstreamModelName, "embedding") {
 			suffix = "predict"
 		}
 		return a.getRequestUrl(info, info.UpstreamModelName, suffix)
@@ -315,8 +317,8 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	geminiAdaptor := gemini.Adaptor{}
+	return geminiAdaptor.ConvertEmbeddingRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
@@ -325,6 +327,67 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if a.RequestMode == RequestModeGemini && strings.Contains(c.Request.URL.Path, "embed") {
+		bodyBytes, err := io.ReadAll(requestBody)
+		if err != nil {
+			return nil, err
+		}
+
+		vertexReq := make(map[string]interface{})
+		instances := make([]interface{}, 0)
+
+		if info.IsGeminiBatchEmbedding {
+			var req dto.GeminiBatchEmbeddingRequest
+			if err := common.Unmarshal(bodyBytes, &req); err == nil {
+				for _, r := range req.Requests {
+					instance := make(map[string]interface{})
+					content := ""
+					for _, part := range r.Content.Parts {
+						if part.Text != "" {
+							content += part.Text
+						}
+					}
+					instance["content"] = content
+					if r.TaskType != "" {
+						instance["task_type"] = r.TaskType
+					}
+					if r.Title != "" {
+						instance["title"] = r.Title
+					}
+					instances = append(instances, instance)
+				}
+			}
+		} else {
+			var req dto.GeminiEmbeddingRequest
+			if err := common.Unmarshal(bodyBytes, &req); err == nil {
+				instance := make(map[string]interface{})
+				content := ""
+				for _, part := range req.Content.Parts {
+					if part.Text != "" {
+						content += part.Text
+					}
+				}
+				instance["content"] = content
+				if req.TaskType != "" {
+					instance["task_type"] = req.TaskType
+				}
+				if req.Title != "" {
+					instance["title"] = req.Title
+				}
+				instances = append(instances, instance)
+
+				if req.OutputDimensionality > 0 {
+					vertexReq["parameters"] = map[string]interface{}{
+						"outputDimensionality": req.OutputDimensionality,
+					}
+				}
+			}
+		}
+		vertexReq["instances"] = instances
+		newBodyBytes, _ := common.Marshal(vertexReq)
+		requestBody = bytes.NewReader(newBodyBytes)
+		logger.LogDebug(c, "Vertex Embedding request body: "+string(newBodyBytes))
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
@@ -348,6 +411,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		case RequestModeClaude:
 			return claudeAdaptor.DoResponse(c, resp, info)
 		case RequestModeGemini:
+			if isVertexEmbedding(info) {
+				return vertexEmbeddingHandler(c, resp, info)
+			}
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationHandler(c, info, resp)
 			} else {
