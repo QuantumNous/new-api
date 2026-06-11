@@ -691,13 +691,35 @@ export function DetailsDialog(props: DetailsDialogProps) {
           )}
 
           {/* Refund details (type=6) */}
-          {isRefund && other && (other.task_id || other.reason) && (
+          {isRefund && (
             <DetailSection label={t('Refund Details')}>
-              {other.task_id && (
+              <DetailRow
+                label={t('Refund Amount')}
+                value={formatLogQuota(props.log.quota)}
+                mono
+              />
+              {other?.pre_consumed_quota != null && (
+                <DetailRow
+                  label={t('Pre-consumed')}
+                  value={formatLogQuota(other.pre_consumed_quota)}
+                  mono
+                />
+              )}
+              {other?.actual_quota != null && (
+                <DetailRow
+                  label={t('Actual Cost')}
+                  value={formatLogQuota(other.actual_quota)}
+                  mono
+                />
+              )}
+              {other?.task_id && (
                 <DetailRow label={t('Task ID')} value={other.task_id} mono />
               )}
-              {other.reason && (
-                <DetailRow label={t('Reason')} value={other.reason} />
+              {(details || other?.reason) && (
+                <DetailRow
+                  label={t('Reason')}
+                  value={details || other?.reason || ''}
+                />
               )}
             </DetailSection>
           )}

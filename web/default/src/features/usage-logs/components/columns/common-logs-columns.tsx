@@ -102,7 +102,10 @@ function buildDetailSegments(
   t: (key: string, opts?: Record<string, unknown>) => string
 ): DetailSegment[] {
   if (log.type === 6) {
-    return [{ text: t('Async task refund') }]
+    return [
+      { text: t('Async task refund') },
+      { text: `${t('Refund')}: ${formatLogQuota(log.quota)}`, muted: true },
+    ]
   }
 
   if (log.type !== 2) return []

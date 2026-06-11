@@ -38,6 +38,7 @@ import {
   renderModelPrice,
   renderTieredModelPrice,
   renderTaskBillingProcess,
+  renderTaskRefundProcess,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -510,6 +511,10 @@ export const useLogsData = () => {
         }
       }
       if (logs[i].type === 6) {
+        expandDataLocal.push({
+          key: t('计费过程'),
+          value: renderTaskRefundProcess(other, logs[i].quota, logs[i].content),
+        });
         if (other?.task_id) {
           expandDataLocal.push({
             key: t('任务ID'),
