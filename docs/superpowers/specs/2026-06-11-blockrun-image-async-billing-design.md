@@ -107,8 +107,10 @@
 **出站合成（blockrun adaptor 内）**
 ```
 stream 模式下（仅图像 RelayMode）：
-  DoRequest 入口即写 SSE 响应头并 flush（连接立刻建立）；
-  x402 提交 + D2 轮询期间，每 ~10s 发 SSE 注释心跳（helper.PingData）；
+  SSE 头与心跳【懒启动】：进入 202 轮询路径那一刻才写头并开始 ~10s 心跳
+  （helper.PingData）。快路径（≤30s 同步返回）由 DoResponse 写头后直接发终态
+  事件——30s 内的静默客户端可容忍，换来快路径错误仍是干净 JSON 错误、
+  且缩小"字节已写出导致外层无法重试"的窗口；
   结果就绪后由 DoResponse 写终态事件：
     generations → image_generation.completed；edits → image_edit.completed
     payload 含 b64_json / created_at / size 等字段
