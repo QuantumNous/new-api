@@ -142,7 +142,12 @@ function getCookieValue(name: string): string {
   const match = document.cookie.match(
     new RegExp(`(?:^|; )${escapedName}=([^;]*)`)
   )
-  return match ? decodeURIComponent(match[1]) : ''
+  if (!match) return ''
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
 }
 
 function parseGAClientID(cookieValue: string): string | undefined {

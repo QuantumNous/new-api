@@ -16,11 +16,7 @@ const (
 
 func sendSignUpSuccessGA(ctx context.Context, userID int, inviterID int, method string, clientID string, sessionID string) {
 	params := map[string]any{
-		"user_id": userID,
-		"method":  method,
-	}
-	if inviterID > 0 {
-		params["inviter_id"] = inviterID
+		"method": method,
 	}
 	service.SendGAEvent(ctx, service.GAEvent{
 		Name:      gaEventSignUpSuccess,
@@ -51,8 +47,6 @@ func sendPaymentSuccessGA(ctx context.Context, topUp *model.TopUp) {
 		ClientID:  service.NormalizeGAIdentifier(topUp.GAClientID),
 		SessionID: service.NormalizeGAIdentifier(topUp.GASessionID),
 		Params: map[string]any{
-			"user_id":          topUp.UserId,
-			"trade_no":         topUp.TradeNo,
 			"payment_method":   topUp.PaymentMethod,
 			"payment_provider": topUp.PaymentProvider,
 			"value":            topUp.Money,

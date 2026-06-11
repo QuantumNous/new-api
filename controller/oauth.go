@@ -35,10 +35,14 @@ func GenerateOAuthCode(c *gin.Context) {
 	gaClientID := service.NormalizeGAIdentifier(c.Query("ga_client_id"))
 	if gaClientID != "" {
 		session.Set("ga_client_id", gaClientID)
+	} else {
+		session.Delete("ga_client_id")
 	}
 	gaSessionID := service.NormalizeGAIdentifier(c.Query("ga_session_id"))
 	if gaSessionID != "" {
 		session.Set("ga_session_id", gaSessionID)
+	} else {
+		session.Delete("ga_session_id")
 	}
 	session.Set("oauth_state", state)
 	err := session.Save()

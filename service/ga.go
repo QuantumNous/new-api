@@ -62,11 +62,24 @@ func DefaultGAConfig() GAConfig {
 
 func SendGAEvent(ctx context.Context, event GAEvent) {
 	cfg := DefaultGAConfig()
+	event = snapshotGAEvent(event)
 	gopool.Go(func() {
 		if err := SendGAEventWithConfig(cfg, event); err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("GA Measurement Protocol event failed event=%s error=%q", event.Name, err.Error()))
 		}
 	})
+}
+
+func snapshotGAEvent(event GAEvent) GAEvent {
+	if event.Params == nil {
+		return event
+	}
+	params := make(map[string]any, len(event.Params))
+	for key, value := range event.Params {
+		params[key] = value
+	}
+	event.Params = params
+	return event
 }
 
 func NormalizeGAIdentifier(value string) string {
@@ -95,7 +108,7 @@ func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 		cfg.Endpoint = defaultGAEndpoint
 	}
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = http.DefaultClient
+		cfg.HTTPClient = &http.Client{Timeout: 3 * time.Second}
 	}
 
 	collectURL, err := url.Parse(cfg.Endpoint)
@@ -131,7 +144,10 @@ func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 		return fmt.Errorf("marshal GA payload: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, collectURL.String(), bytes.NewReader(body))
+	reqCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, collectURL.String(), bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build GA request: %w", err)
 	}

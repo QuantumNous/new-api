@@ -505,13 +505,12 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 
-	topUpBeforeRecharge := model.GetTopUpByTradeNo(referenceId)
-	err := model.Recharge(referenceId, customerId, callerIp)
+	recharged, err := model.Recharge(referenceId, customerId, callerIp)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
 		return
 	}
-	if topUpBeforeRecharge != nil && topUpBeforeRecharge.Status == common.TopUpStatusPending {
+	if recharged {
 		sendPaymentSuccessGA(ctx, model.GetTopUpByTradeNo(referenceId))
 	}
 

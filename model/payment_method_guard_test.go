@@ -94,7 +94,7 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	insertUserForPaymentGuardTest(t, 101, 0)
 	insertTopUpForPaymentGuardTest(t, "waffo-pancake-guard", 101, PaymentProviderStripe)
 
-	err := RechargeWaffoPancake("waffo-pancake-guard")
+	_, err := RechargeWaffoPancake("waffo-pancake-guard")
 	require.Error(t, err)
 
 	topUp := GetTopUpByTradeNo("waffo-pancake-guard")
@@ -103,14 +103,50 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
 }
 
+func TestRechargeWaffoReportsOnlyActualPendingTransition(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 102, 0)
+	insertTopUpForPaymentGuardTest(t, "waffo-transition-guard", 102, PaymentProviderWaffo)
+
+	recharged, err := RechargeWaffo("waffo-transition-guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, recharged)
+
+	recharged, err = RechargeWaffo("waffo-transition-guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.False(t, recharged)
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 102))
+}
+
+func TestRechargeWaffoPancakeReportsOnlyActualPendingTransition(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 103, 0)
+	insertTopUpForPaymentGuardTest(t, "waffo-pancake-transition-guard", 103, PaymentProviderWaffoPancake)
+
+	recharged, err := RechargeWaffoPancake("waffo-pancake-transition-guard")
+	require.NoError(t, err)
+	assert.True(t, recharged)
+
+	recharged, err = RechargeWaffoPancake("waffo-pancake-transition-guard")
+	require.NoError(t, err)
+	assert.False(t, recharged)
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 103))
+}
+
 func TestRechargePaddle_DuplicateWebhookAddsQuotaOnce(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 111, 0)
 	insertTopUpForPaymentGuardTest(t, "paddle-duplicate-guard", 111, PaymentProviderPaddle)
 
-	require.NoError(t, RechargePaddle("paddle-duplicate-guard", 111, "txn_duplicate_guard", "127.0.0.1"))
-	require.NoError(t, RechargePaddle("paddle-duplicate-guard", 111, "txn_duplicate_guard", "127.0.0.1"))
+	recharged, err := RechargePaddle("paddle-duplicate-guard", 111, "txn_duplicate_guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, recharged)
+	recharged, err = RechargePaddle("paddle-duplicate-guard", 111, "txn_duplicate_guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.False(t, recharged)
 
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "paddle-duplicate-guard"))
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 111))
@@ -125,8 +161,12 @@ func TestRechargeStripeCreditsPurchasedAmountAndIsIdempotent(t *testing.T) {
 	insertUserForPaymentGuardTest(t, 113, 0)
 	insertTopUpForPaymentGuardTest(t, "stripe-amount-guard", 113, PaymentProviderStripe)
 
-	require.NoError(t, Recharge("stripe-amount-guard", "cus_guard", "127.0.0.1"))
-	require.NoError(t, Recharge("stripe-amount-guard", "cus_guard", "127.0.0.1"))
+	recharged, err := Recharge("stripe-amount-guard", "cus_guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, recharged)
+	recharged, err = Recharge("stripe-amount-guard", "cus_guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.False(t, recharged)
 
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "stripe-amount-guard"))
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 113))
@@ -167,19 +207,30 @@ func TestRechargePaddle_ConcurrentWebhookAddsQuotaOnce(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 8)
+	rechargedResults := make(chan bool, 8)
 	for i := 0; i < cap(errs); i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs <- RechargePaddle("paddle-concurrent-guard", 112, "txn_concurrent_guard", "127.0.0.1")
+			recharged, err := RechargePaddle("paddle-concurrent-guard", 112, "txn_concurrent_guard", "127.0.0.1")
+			rechargedResults <- recharged
+			errs <- err
 		}()
 	}
 	wg.Wait()
 	close(errs)
+	close(rechargedResults)
 
 	for err := range errs {
 		require.NoError(t, err)
 	}
+	actualRecharges := 0
+	for recharged := range rechargedResults {
+		if recharged {
+			actualRecharges++
+		}
+	}
+	assert.Equal(t, 1, actualRecharges)
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "paddle-concurrent-guard"))
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 112))
 }
@@ -190,7 +241,7 @@ func TestRechargePaddle_RejectsMismatchedUser(t *testing.T) {
 	insertUserForPaymentGuardTest(t, 113, 0)
 	insertTopUpForPaymentGuardTest(t, "paddle-user-guard", 113, PaymentProviderPaddle)
 
-	err := RechargePaddle("paddle-user-guard", 114, "txn_user_guard", "127.0.0.1")
+	_, err := RechargePaddle("paddle-user-guard", 114, "txn_user_guard", "127.0.0.1")
 	require.Error(t, err)
 	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "paddle-user-guard"))
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 113))
@@ -205,7 +256,7 @@ func TestRechargePaddle_RejectsMismatchedGatewayTradeNo(t *testing.T) {
 		Where("trade_no = ?", "paddle-gateway-guard").
 		Update("gateway_trade_no", "txn_expected_guard").Error)
 
-	err := RechargePaddle("paddle-gateway-guard", 114, "txn_other_guard", "127.0.0.1")
+	_, err := RechargePaddle("paddle-gateway-guard", 114, "txn_other_guard", "127.0.0.1")
 	require.Error(t, err)
 
 	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "paddle-gateway-guard"))
@@ -227,7 +278,9 @@ func TestAttachPaddleGatewayTradeNoOnlyUpdatesPendingPaddleOrder(t *testing.T) {
 	require.NoError(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_attach_guard"))
 	require.Error(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_other_guard"))
 
-	require.NoError(t, RechargePaddle("paddle-attach-guard", 117, "txn_attach_guard", "127.0.0.1"))
+	recharged, err := RechargePaddle("paddle-attach-guard", 117, "txn_attach_guard", "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, recharged)
 	require.NoError(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_attach_guard"))
 	require.Error(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_other_guard"))
 }

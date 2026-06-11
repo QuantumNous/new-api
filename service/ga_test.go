@@ -1,6 +1,7 @@
 package service
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -9,6 +10,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 )
+
+type gaRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn gaRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
 
 func TestSendGAEventPostsMeasurementProtocolPayload(t *testing.T) {
 	var gotPath string
@@ -72,6 +79,57 @@ func TestSendGAEventPostsMeasurementProtocolPayload(t *testing.T) {
 	}
 	if event.Params["user_id"] != float64(42) {
 		t.Fatalf("expected user_id 42, got %#v", event.Params["user_id"])
+	}
+}
+
+func TestSnapshotGAEventCopiesParams(t *testing.T) {
+	params := map[string]any{"method": "password"}
+	event := snapshotGAEvent(GAEvent{
+		Name:   "sign_up_success",
+		Params: params,
+	})
+
+	params["method"] = "oauth"
+	params["extra"] = "mutated"
+
+	if event.Params["method"] != "password" {
+		t.Fatalf("expected cloned method, got %#v", event.Params["method"])
+	}
+	if _, ok := event.Params["extra"]; ok {
+		t.Fatal("expected cloned params to ignore later mutations")
+	}
+}
+
+func TestSendGAEventWithConfigAddsRequestTimeoutContext(t *testing.T) {
+	var hasDeadline bool
+	client := &http.Client{
+		Transport: gaRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, hasDeadline = req.Context().Deadline()
+			return &http.Response{
+				StatusCode: http.StatusNoContent,
+				Status:     "204 No Content",
+				Body:       io.NopCloser(strings.NewReader("")),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
+		}),
+	}
+
+	err := SendGAEventWithConfig(GAConfig{
+		MeasurementID: "G-TEST123",
+		APISecret:     "secret-123",
+		Endpoint:      "https://www.google-analytics.com/mp/collect",
+		HTTPClient:    client,
+	}, GAEvent{
+		Name:      "payment_success",
+		ClientID:  "123.456",
+		SessionID: "789",
+	})
+	if err != nil {
+		t.Fatalf("SendGAEventWithConfig returned error: %v", err)
+	}
+	if !hasDeadline {
+		t.Fatal("expected GA request context to include a deadline")
 	}
 }
 
