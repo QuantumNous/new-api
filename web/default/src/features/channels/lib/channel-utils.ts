@@ -97,6 +97,7 @@ export function getChannelTypeIcon(type: number): string {
     50: 'Kling', // Kling
     51: 'Jimeng', // Jimeng
     52: 'Vidu', // Vidu
+    58: 'XiaomiMiMo', // Xiaomi
     36: 'Suno', // SunoAPI
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo

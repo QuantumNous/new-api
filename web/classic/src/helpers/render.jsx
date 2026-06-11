@@ -50,17 +50,6 @@ import {
   XAI,
   Ollama,
   Doubao,
-  Suno,
-  Xinference,
-  OpenRouter,
-  Dify,
-  Coze,
-  SiliconCloud,
-  FastGPT,
-  Kling,
-  Jimeng,
-  Perplexity,
-  Replicate,
 } from '@lobehub/icons';
 
 import {
@@ -323,6 +312,51 @@ export const getModelCategories = (() => {
   };
 })();
 
+const channelTypeIconMap = {
+  1: 'OpenAI', // OpenAI
+  3: 'OpenAI', // Azure OpenAI
+  57: 'OpenAI', // Codex
+  2: 'Midjourney', // Midjourney Proxy
+  5: 'Midjourney', // Midjourney Proxy Plus
+  36: 'Suno', // Suno API
+  4: 'Ollama', // Ollama
+  14: 'Claude.Color', // Anthropic Claude
+  33: 'Claude.Color', // AWS Claude
+  41: 'Gemini.Color', // Vertex AI
+  34: 'Cohere.Color', // Cohere
+  39: 'Cloudflare.Color', // Cloudflare
+  43: 'DeepSeek.Color', // DeepSeek
+  58: 'XiaomiMiMo', // Xiaomi MiMo
+  15: 'Wenxin.Color', // 百度文心千帆
+  46: 'Wenxin.Color', // 百度文心千帆V2
+  17: 'Qwen.Color', // 阿里通义千问
+  18: 'Spark.Color', // 讯飞星火认知
+  16: 'Zhipu.Color', // 智谱 ChatGLM
+  26: 'Zhipu.Color', // 智谱 GLM-4V
+  24: 'Gemini.Color', // Google Gemini
+  11: 'Gemini.Color', // Google PaLM2
+  47: 'Xinference.Color', // Xinference
+  25: 'Moonshot', // Moonshot
+  27: 'Perplexity.Color', // Perplexity
+  20: 'OpenRouter', // OpenRouter
+  19: 'Ai360.Color', // 360 智脑
+  23: 'Hunyuan.Color', // 腾讯混元
+  31: 'Yi.Color', // 零一万物
+  35: 'Minimax.Color', // MiniMax
+  37: 'Dify.Color', // Dify
+  38: 'Jina', // Jina
+  40: 'SiliconCloud.Color', // SiliconCloud
+  42: 'Mistral.Color', // Mistral AI
+  45: 'Doubao.Color', // 字节火山方舟、豆包通用
+  48: 'XAI', // xAI
+  49: 'Coze', // Coze
+  50: 'Kling.Color', // 可灵 Kling
+  51: 'Jimeng.Color', // 即梦 Jimeng
+  54: 'Doubao.Color', // 豆包视频 Doubao Video
+  56: 'Replicate', // Replicate
+  22: 'FastGPT.Color', // 知识库：FastGPT
+};
+
 /**
  * 根据渠道类型返回对应的厂商图标
  * @param {number} channelType - 渠道类型值
@@ -330,89 +364,11 @@ export const getModelCategories = (() => {
  */
 export function getChannelIcon(channelType) {
   const iconSize = 14;
-
-  switch (channelType) {
-    case 1: // OpenAI
-    case 3: // Azure OpenAI
-    case 57: // Codex
-      return <OpenAI size={iconSize} />;
-    case 2: // Midjourney Proxy
-    case 5: // Midjourney Proxy Plus
-      return <Midjourney size={iconSize} />;
-    case 36: // Suno API
-      return <Suno size={iconSize} />;
-    case 4: // Ollama
-      return <Ollama size={iconSize} />;
-    case 14: // Anthropic Claude
-    case 33: // AWS Claude
-      return <Claude.Color size={iconSize} />;
-    case 41: // Vertex AI
-      return <Gemini.Color size={iconSize} />;
-    case 34: // Cohere
-      return <Cohere.Color size={iconSize} />;
-    case 39: // Cloudflare
-      return <Cloudflare.Color size={iconSize} />;
-    case 43: // DeepSeek
-      return <DeepSeek.Color size={iconSize} />;
-    case 15: // 百度文心千帆
-    case 46: // 百度文心千帆V2
-      return <Wenxin.Color size={iconSize} />;
-    case 17: // 阿里通义千问
-      return <Qwen.Color size={iconSize} />;
-    case 18: // 讯飞星火认知
-      return <Spark.Color size={iconSize} />;
-    case 16: // 智谱 ChatGLM
-    case 26: // 智谱 GLM-4V
-      return <Zhipu.Color size={iconSize} />;
-    case 24: // Google Gemini
-    case 11: // Google PaLM2
-      return <Gemini.Color size={iconSize} />;
-    case 47: // Xinference
-      return <Xinference.Color size={iconSize} />;
-    case 25: // Moonshot
-      return <Moonshot size={iconSize} />;
-    case 27: // Perplexity
-      return <Perplexity.Color size={iconSize} />;
-    case 20: // OpenRouter
-      return <OpenRouter size={iconSize} />;
-    case 19: // 360 智脑
-      return <Ai360.Color size={iconSize} />;
-    case 23: // 腾讯混元
-      return <Hunyuan.Color size={iconSize} />;
-    case 31: // 零一万物
-      return <Yi.Color size={iconSize} />;
-    case 35: // MiniMax
-      return <Minimax.Color size={iconSize} />;
-    case 37: // Dify
-      return <Dify.Color size={iconSize} />;
-    case 38: // Jina
-      return <Jina size={iconSize} />;
-    case 40: // SiliconCloud
-      return <SiliconCloud.Color size={iconSize} />;
-    case 42: // Mistral AI
-      return <Mistral.Color size={iconSize} />;
-    case 45: // 字节火山方舟、豆包通用
-      return <Doubao.Color size={iconSize} />;
-    case 48: // xAI
-      return <XAI size={iconSize} />;
-    case 49: // Coze
-      return <Coze size={iconSize} />;
-    case 50: // 可灵 Kling
-      return <Kling.Color size={iconSize} />;
-    case 51: // 即梦 Jimeng
-      return <Jimeng.Color size={iconSize} />;
-    case 54: // 豆包视频 Doubao Video
-      return <Doubao.Color size={iconSize} />;
-    case 56: // Replicate
-      return <Replicate size={iconSize} />;
-    case 8: // 自定义渠道
-    case 22: // 知识库：FastGPT
-      return <FastGPT.Color size={iconSize} />;
-    case 21: // 知识库：AI Proxy
-    case 44: // 嵌入模型：MokaAI M3E
-    default:
-      return null; // 未知类型或自定义渠道不显示图标
+  const iconName = channelTypeIconMap[channelType];
+  if (!iconName) {
+  return null;
   }
+  return getLobeHubIcon(iconName, iconSize);
 }
 
 /**
@@ -429,7 +385,7 @@ export function getLobeHubIcon(iconName, size = 14) {
   if (typeof iconName === 'string') iconName = iconName.trim();
   // 如果没有图标名称，返回 Avatar
   if (!iconName) {
-    return <Avatar size='extra-extra-small'>?</Avatar>;
+  return <Avatar size='extra-extra-small'>?</Avatar>;
   }
 
   // 解析组件路径与点号链式属性
@@ -441,59 +397,59 @@ export function getLobeHubIcon(iconName, size = 14) {
   let propStartIndex = 1;
 
   if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
-    IconComponent = BaseIcon[segments[1]];
-    propStartIndex = 2;
+  IconComponent = BaseIcon[segments[1]];
+  propStartIndex = 2;
   } else {
-    IconComponent = LobeIcons[baseKey];
-    propStartIndex = 1;
+  IconComponent = LobeIcons[baseKey];
+  propStartIndex = 1;
   }
 
   // 失败兜底
   if (
-      !IconComponent ||
-      (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
+    !IconComponent ||
+    (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
   ) {
-    const firstLetter = String(iconName).charAt(0).toUpperCase();
-    return <Avatar size='extra-extra-small'>{firstLetter}</Avatar>;
+  const firstLetter = String(iconName).charAt(0).toUpperCase();
+  return <Avatar size='extra-extra-small'>{firstLetter}</Avatar>;
   }
 
   // 解析点号链式属性，形如：key={...}、key='...'、key="..."、key=123、key、key=true/false
   const props = {};
 
   const parseValue = (raw) => {
-    if (raw == null) return true;
-    let v = String(raw).trim();
-    // 去除一层花括号包裹
-    if (v.startsWith('{') && v.endsWith('}')) {
-      v = v.slice(1, -1).trim();
-    }
-    // 去除引号
-    if (
-        (v.startsWith('"') && v.endsWith('"')) ||
-        (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      return v.slice(1, -1);
-    }
-    // 布尔
-    if (v === 'true') return true;
-    if (v === 'false') return false;
-    // 数字
-    if (/^-?\d+(?:\.\d+)?$/.test(v)) return Number(v);
-    // 其他原样返回字符串
-    return v;
-  };
+  if (raw == null) return true;
+  let v = String(raw).trim();
+  // 去除一层花括号包裹
+  if (v.startsWith('{') && v.endsWith('}')) {
+    v = v.slice(1, -1).trim();
+  }
+  // 去除引号
+  if (
+      (v.startsWith('"') && v.endsWith('"')) ||
+      (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    return v.slice(1, -1);
+  }
+  // 布尔
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  // 数字
+  if (/^-?\d+(?:\.\d+)?$/.test(v)) return Number(v);
+  // 其他原样返回字符串
+  return v;
+};
 
   for (let i = propStartIndex; i < segments.length; i++) {
-    const seg = segments[i];
-    if (!seg) continue;
-    const eqIdx = seg.indexOf('=');
-    if (eqIdx === -1) {
-      props[seg.trim()] = true;
-      continue;
-    }
-    const key = seg.slice(0, eqIdx).trim();
-    const valRaw = seg.slice(eqIdx + 1).trim();
-    props[key] = parseValue(valRaw);
+  const seg = segments[i];
+  if (!seg) continue;
+  const eqIdx = seg.indexOf('=');
+  if (eqIdx === -1) {
+    props[seg.trim()] = true;
+    continue;
+  }
+  const key = seg.slice(0, eqIdx).trim();
+  const valRaw = seg.slice(eqIdx + 1).trim();
+  props[key] = parseValue(valRaw);
   }
 
   // 兼容第二参数 size，若字符串中未显式指定 size，则使用函数入参
