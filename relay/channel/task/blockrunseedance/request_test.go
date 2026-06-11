@@ -105,9 +105,9 @@ func TestValidateSeedanceValues_AssetPrefix(t *testing.T) {
 	}
 }
 
-// FIX #4/#12: BlockRun Seedance only does text-to-video and single-image-to-video.
-// Any video/audio input, a second seed image, or first/last-frame image roles
-// must be rejected at submit time (fail fast, before the asset block).
+// FIX #4/#12: BlockRun Seedance does not take video/audio inputs, and a lone
+// last_frame image (no first_frame starting point) is invalid; these must be
+// rejected at submit time (fail fast, before the asset block).
 func TestValidateSeedanceValues_RejectsUnsupportedInputs(t *testing.T) {
 	text := dto.SeedanceContentItem{Type: dto.SeedanceContentText, Text: "hi"}
 	img := func(url, role string) dto.SeedanceContentItem {
@@ -130,11 +130,6 @@ func TestValidateSeedanceValues_RejectsUnsupportedInputs(t *testing.T) {
 			wantSub: "audio input is not supported",
 		},
 		{
-			name:    "two images without role now accepted as multi-reference (not rejected)",
-			content: nil, // placeholder: two plain images are now valid (omni reference mode)
-			wantSub: "",  // skipped below
-		},
-		{
 			name:    "lone last_frame without first_frame",
 			content: []dto.SeedanceContentItem{img("https://x/1.jpg", dto.SeedanceRoleLastFrame)},
 			wantSub: "last_frame requires",
@@ -142,9 +137,6 @@ func TestValidateSeedanceValues_RejectsUnsupportedInputs(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.wantSub == "" {
-				t.Skip("behavior changed: now accepted")
-			}
 			err := validateSeedanceValues(
 				&dto.SeedanceVideoRequest{Content: tc.content},
 				blockrunExtensions{}, "seedance-2.0")
@@ -155,6 +147,20 @@ func TestValidateSeedanceValues_RejectsUnsupportedInputs(t *testing.T) {
 				t.Fatalf("error %q should contain %q", err.Error(), tc.wantSub)
 			}
 		})
+	}
+}
+
+// Two plain (role-less) seed images used to be rejected ("only a single seed
+// image is supported"); with role-aware seed mapping they are accepted and
+// mapped to reference_image_urls (omni multi-reference), leaving image_url empty.
+func TestValidateSeedanceValues_TwoPlainImagesAcceptedAsMultiReference(t *testing.T) {
+	r := seedReq(img("https://x/1.jpg", ""), img("https://x/2.jpg", ""))
+	if err := validateSeedanceValues(r, blockrunExtensions{}, "seedance-2.0"); err != nil {
+		t.Fatalf("two plain images must be accepted as multi-reference: %v", err)
+	}
+	body := buildBlockrunSeedanceCreateRequest(r, blockrunExtensions{}, "bytedance/seedance-2.0")
+	if len(body.ReferenceImageURLs) != 2 || body.ImageURL != "" {
+		t.Fatalf("two plain images should map to reference_image_urls: %+v", body)
 	}
 }
 
