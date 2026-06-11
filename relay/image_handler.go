@@ -130,9 +130,20 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		return newAPIError
+		// BlockRun settlement is irreversible the moment a poll observes
+		// "completed". If cost signals were captured, the upstream has been (or
+		// will be) charged — a late client disconnect / body-write failure must
+		// not skip local billing, and retrying would double-pay. Bill through.
+		if _, settled := c.Get(string(constant.ContextKeyBlockRunSettlement)); settled {
+			logger.LogWarn(c, fmt.Sprintf("blockrun image: upstream settled but response delivery failed, billing anyway: %s", newAPIError.Error()))
+			if usage == nil {
+				usage = &dto.Usage{}
+			}
+		} else {
+			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
+		}
 	}
 
 	imageN := uint(1)
