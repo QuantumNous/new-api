@@ -198,6 +198,9 @@ export interface FeishuBatchInitUserItem {
   feishu_open_id?: string
   feishu_union_id?: string
   feishu_user_id?: string
+  employee_id?: string
+  mobile?: string
+  email?: string
   username?: string
   display_name?: string
   password?: string
@@ -205,6 +208,7 @@ export interface FeishuBatchInitUserItem {
   quota?: number
   role?: number
   remark?: string
+  confirmed?: boolean
 }
 
 export interface FeishuBatchInitResponse {
@@ -219,16 +223,64 @@ export interface FeishuBatchInitResponse {
     feishu_user_id?: string
     user_id?: number
     username?: string
+    display_name?: string
+    org_name?: string
+    job_title?: string
     action?: string
     error?: string
   }>
 }
 
 export async function batchCreateFeishuUsers(
-  users: FeishuBatchInitUserItem[]
+  users: FeishuBatchInitUserItem[],
+  previewOnly = false
 ): Promise<ApiResponse<FeishuBatchInitResponse>> {
-  const res = await api.post('/api/user/feishu/users/batch', { users })
+  const res = await api.post('/api/user/feishu/users/batch', {
+    preview_only: previewOnly,
+    users,
+  })
   return res.data
+}
+
+export interface FeishuUserInfoSyncResponse {
+  total: number
+  success: number
+  skipped: number
+  failed: number
+  errors?: string[]
+}
+
+export async function syncFeishuUsersInfo(): Promise<
+  ApiResponse<FeishuUserInfoSyncResponse>
+> {
+  const res = await api.post('/api/user/feishu/users/sync-info')
+  return res.data
+}
+
+function buildUsersExportUrl(params: SearchUsersParams): string {
+  const queryParams = new URLSearchParams()
+  if (params.keyword) queryParams.set('keyword', params.keyword)
+  if (params.group) queryParams.set('group', params.group)
+  if (params.role) queryParams.set('role', params.role)
+  if (params.status) queryParams.set('status', params.status)
+  const query = queryParams.toString()
+  return query ? `/api/user/export?${query}` : '/api/user/export'
+}
+
+export async function exportUsers(params: SearchUsersParams): Promise<void> {
+  const url = buildUsersExportUrl(params)
+  const res = await api.get(url, { responseType: 'blob' })
+  const blob = new Blob([res.data as BlobPart], {
+    type: 'text/csv;charset=utf-8;',
+  })
+  const downloadUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = `users-${new Date().toISOString().split('T')[0]}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(downloadUrl)
 }
 
 export interface FeishuTokenItem {

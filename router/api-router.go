@@ -132,6 +132,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/topup", controller.GetAllTopUps)
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
+				adminRoute.GET("/export", controller.ExportUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
 				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
@@ -155,6 +156,7 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin Feishu user & token management
 				adminRoute.POST("/feishu/users/batch", controller.BatchCreateFeishuUsers)
 				adminRoute.PUT("/feishu/users/batch", controller.BatchUpdateFeishuUsers)
+				adminRoute.POST("/feishu/users/sync-info", controller.SyncFeishuUsersInfo)
 				adminRoute.POST("/feishu/tokens", controller.AdminCreateTokenByFeishu)
 				adminRoute.POST("/feishu/tokens/batch", controller.AdminBatchCreateTokensByFeishu)
 				adminRoute.GET("/feishu/tokens", controller.AdminGetTokensByFeishu)
@@ -337,6 +339,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 		dataRoute.GET("/by-user", middleware.AdminAuth(), controller.GetUserModelStatsByUser)
 		dataRoute.GET("/by-model", middleware.AdminAuth(), controller.GetUserModelStatsByModel)
+		dataRoute.GET("/by-department", middleware.AdminAuth(), controller.GetUserModelStatsByDepartment)
 		dataRoute.GET("/by-detail", middleware.AdminAuth(), controller.GetUserModelStatsByDetail)
 		dataRoute.GET("/export", middleware.AdminAuth(), controller.ExportUserModelStats)
 

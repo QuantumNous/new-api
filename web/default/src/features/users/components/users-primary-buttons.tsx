@@ -16,14 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus, Users } from 'lucide-react'
+import { useState } from 'react'
+import { Download, Plus, RefreshCw, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { exportUsers, syncFeishuUsersInfo } from '../api'
 import { useUsers } from './users-provider'
 
 export function UsersPrimaryButtons() {
   const { t } = useTranslation()
-  const { setOpen, setCurrentRow } = useUsers()
+  const { setOpen, setCurrentRow, triggerRefresh } = useUsers()
+  const [syncing, setSyncing] = useState(false)
 
   const handleCreate = () => {
     setCurrentRow(null)
@@ -32,12 +36,57 @@ export function UsersPrimaryButtons() {
   const handleFeishuBatchInit = () => {
     setOpen('feishu_batch_init')
   }
+  const handleSyncFeishuUsers = async () => {
+    setSyncing(true)
+    try {
+      const res = await syncFeishuUsersInfo()
+      if (!res.success) {
+        toast.error(res.message || '同步失败')
+        return
+      }
+      const data = res.data
+      toast.success(
+        `同步完成：成功 ${data?.success || 0}，跳过 ${data?.skipped || 0}，失败 ${data?.failed || 0}`
+      )
+      triggerRefresh()
+    } finally {
+      setSyncing(false)
+    }
+  }
+  const handleExport = async () => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('status') || ''
+    const role = params.get('role') || ''
+    try {
+      await exportUsers({
+        keyword: params.get('filter') || '',
+        group: params.get('group') || '',
+        status,
+        role,
+      })
+    } catch {
+      toast.error('导出用户失败')
+    }
+  }
 
   return (
-    <div className='flex gap-2'>
+    <div className='flex flex-wrap gap-2'>
       <Button size='sm' variant='outline' onClick={handleFeishuBatchInit}>
         <Users className='h-4 w-4' />
         {t('Feishu Batch Init')}
+      </Button>
+      <Button
+        size='sm'
+        variant='outline'
+        onClick={handleSyncFeishuUsers}
+        disabled={syncing}
+      >
+        <RefreshCw className='h-4 w-4' />
+        {syncing ? '同步中...' : '同步飞书用户信息'}
+      </Button>
+      <Button size='sm' variant='outline' onClick={handleExport}>
+        <Download className='h-4 w-4' />
+        导出用户
       </Button>
       <Button size='sm' onClick={handleCreate}>
         <Plus className='h-4 w-4' />

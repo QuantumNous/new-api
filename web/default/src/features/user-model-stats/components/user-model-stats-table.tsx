@@ -1,7 +1,21 @@
 import { useMemo } from 'react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatNumber } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -10,20 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from 'lucide-react'
 import type { ViewType } from '../types'
 
 interface Column {
@@ -78,6 +78,16 @@ function getColumns(type: ViewType, t: (key: string) => string): Column[] {
         title: t('Model'),
         render: (v) => <Badge variant='secondary'>{v as string}</Badge>,
       },
+      countCol,
+      tokenCol,
+      quotaCol,
+    ]
+  }
+
+  if (type === 'byDepartment') {
+    return [
+      { key: 'org_level1_name', title: '一级组织' },
+      { key: 'org_level2_name', title: '二级组织' },
       countCol,
       tokenCol,
       quotaCol,
@@ -139,7 +149,7 @@ export function UserModelStatsTable({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className='h-24 text-center text-muted-foreground'
+                  className='text-muted-foreground h-24 text-center'
                 >
                   {t('No data')}
                 </TableCell>
@@ -151,7 +161,7 @@ export function UserModelStatsTable({
                     <TableCell key={col.key}>
                       {col.render
                         ? col.render(row[col.key], row)
-                        : (row[col.key] as React.ReactNode) ?? '-'}
+                        : ((row[col.key] as React.ReactNode) ?? '-')}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -163,7 +173,7 @@ export function UserModelStatsTable({
 
       {total > 0 && (
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+          <div className='text-muted-foreground flex items-center gap-2 text-sm'>
             <span>{t('Rows per page')}</span>
             <Select
               value={String(pageSize)}

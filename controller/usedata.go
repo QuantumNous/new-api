@@ -103,6 +103,16 @@ type userModelStatResponseItem struct {
 	QuotaAmountCNY float64 `json:"quota_amount_cny"`
 }
 
+type departmentStatResponseItem struct {
+	OrgLevel1Name  string  `json:"org_level1_name"`
+	OrgLevel2Name  string  `json:"org_level2_name"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
 func quotaToUSDAmount(quota int) float64 {
 	if common.QuotaPerUnit <= 0 {
 		return 0
@@ -154,6 +164,22 @@ func buildUserModelStatResponseItems(items []*model.UserModelStatItem) []userMod
 			Username:       it.Username,
 			UserGroup:      it.UserGroup,
 			ModelName:      it.ModelName,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
+}
+
+func buildDepartmentStatResponseItems(items []*model.DepartmentStatItem) []departmentStatResponseItem {
+	res := make([]departmentStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, departmentStatResponseItem{
+			OrgLevel1Name:  it.OrgLevel1Name,
+			OrgLevel2Name:  it.OrgLevel2Name,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
 			Quota:          it.Quota,
@@ -304,6 +330,48 @@ func GetUserModelStatsByModel(c *gin.Context) {
 	})
 }
 
+func GetUserModelStatsByDepartment(c *gin.Context) {
+	startTimestamp, endTimestamp, err := parseUserModelStatsTimeRange(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := validateTimeWindow(startTimestamp, endTimestamp); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	username := c.Query("username")
+	modelName := c.Query("model_name")
+	userGroup := strings.TrimSpace(c.Query("user_group"))
+	page, _ := strconv.Atoi(c.Query("page"))
+	if page <= 0 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	items, total, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"items":     buildDepartmentStatResponseItems(items),
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+		},
+	})
+}
+
 func GetUserModelStatsByDetail(c *gin.Context) {
 	startTimestamp, endTimestamp, err := parseUserModelStatsTimeRange(c)
 	if err != nil {
@@ -391,6 +459,28 @@ func ExportUserModelStats(c *gin.Context) {
 			}
 			for _, it := range items {
 				writer.Write([]string{it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
+			}
+			if len(items) < pageSize {
+				break
+			}
+			page++
+		}
+	case "by_department":
+		writer.Write([]string{"一级组织名称", "二级组织名称", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
+		page := 1
+		pageSize := 1000
+		for {
+			items, _, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
+			if err != nil {
+				common.SysError("csv export error: " + err.Error())
+				writer.Write([]string{"error", err.Error()})
+				return
+			}
+			if len(items) == 0 {
+				break
+			}
+			for _, it := range items {
+				writer.Write([]string{it.OrgLevel1Name, it.OrgLevel2Name, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
 			}
 			if len(items) < pageSize {
 				break

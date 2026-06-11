@@ -12,6 +12,7 @@ export interface StatsResponse<T = StatsItem> {
 export type StatsItem =
   | UserStatsItem
   | ModelStatsItem
+  | DepartmentStatsItem
   | DetailStatsItem
 
 export interface UserStatsItem {
@@ -32,6 +33,15 @@ export interface ModelStatsItem {
   quota: number
 }
 
+export interface DepartmentStatsItem {
+  [key: string]: unknown
+  org_level1_name: string
+  org_level2_name: string
+  count: number
+  token_used: number
+  quota: number
+}
+
 export interface DetailStatsItem {
   [key: string]: unknown
   user_id: number
@@ -43,4 +53,4 @@ export interface DetailStatsItem {
   quota: number
 }
 
-export type ViewType = 'byUser' | 'byModel' | 'byDetail'
+export type ViewType = 'byUser' | 'byModel' | 'byDepartment' | 'byDetail'

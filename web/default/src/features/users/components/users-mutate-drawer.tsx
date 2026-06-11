@@ -24,7 +24,11 @@ import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import {
+  formatQuota,
+  formatTimestamp,
+  parseQuotaFromDollars,
+} from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -91,6 +95,8 @@ export function UsersMutateDrawer({
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [detailUser, setDetailUser] = useState<User | null>(null)
+  const displayUser = detailUser || currentRow || null
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -112,10 +118,12 @@ export function UsersMutateDrawer({
       // For update, fetch fresh data
       getUser(currentRow.id).then((result) => {
         if (result.success && result.data) {
+          setDetailUser(result.data)
           form.reset(transformUserToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
+      setDetailUser(null)
       // For create, reset to defaults
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
@@ -437,13 +445,79 @@ export function UsersMutateDrawer({
                         </Label>
                         <Input
                           value={
-                            (currentRow?.[key as keyof User] as string) || '-'
+                            (displayUser?.[key as keyof User] as string) || '-'
                           }
                           disabled
                           className='mt-1'
                         />
                       </div>
                     ))}
+                  </div>
+                </SideDrawerSection>
+              )}
+
+              {isUpdate && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>
+                    {t('Feishu Organization Information')}
+                  </h3>
+                  <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                    <div>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Department')}
+                      </Label>
+                      <Input
+                        value={displayUser?.feishu_department_name || '-'}
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Parent Department')}
+                      </Label>
+                      <Input
+                        value={
+                          displayUser?.feishu_parent_department_name || '-'
+                        }
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div className='sm:col-span-2'>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Department Path')}
+                      </Label>
+                      <Input
+                        value={displayUser?.org_path || '-'}
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Feishu Employment Status')}
+                      </Label>
+                      <Input
+                        value={displayUser?.feishu_employment_status || '-'}
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Last Synced At')}
+                      </Label>
+                      <Input
+                        value={
+                          displayUser?.feishu_synced_at
+                            ? formatTimestamp(displayUser.feishu_synced_at)
+                            : '-'
+                        }
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
                   </div>
                 </SideDrawerSection>
               )}
