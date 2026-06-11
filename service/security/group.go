@@ -140,7 +140,12 @@ func DeleteSecurityGroup(id int64) error {
 			return err
 		}
 		// 删除当前分组
-		return tx.Delete(group).Error
+		if err := tx.Delete(group).Error; err != nil {
+			return err
+		}
+		// 清除规则缓存
+		InvalidateRuleCache()
+		return nil
 	})
 }
 
@@ -197,6 +202,7 @@ func CopySecurityGroup(id int64) (*model.SecurityGroup, error) {
 		model.DB.Create(newRule)
 	}
 
+	InvalidateRuleCache()
 	return newGroup, nil
 }
 

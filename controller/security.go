@@ -9,7 +9,6 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/security"
 
 	"github.com/gin-gonic/gin"
@@ -54,6 +53,7 @@ func CreateSecurityGroup(c *gin.Context) {
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "create", "security_group", group.ID, nil, group)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "分组创建成功", "data": group})
 }
 
@@ -65,21 +65,25 @@ func UpdateSecurityGroup(c *gin.Context) {
 		return
 	}
 
+	oldGroup, _ := security.GetSecurityGroupById(id)
 	if err := security.UpdateSecurityGroup(id, &req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "update", "security_group", id, oldGroup, req)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "分组更新成功"})
 }
 
 func DeleteSecurityGroup(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	oldGroup, _ := security.GetSecurityGroupById(id)
 	if err := security.DeleteSecurityGroup(id); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "delete", "security_group", id, oldGroup, nil)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "分组删除成功"})
 }
 
@@ -91,6 +95,7 @@ func CopySecurityGroup(c *gin.Context) {
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "copy", "security_group", group.ID, nil, group)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "分组复制成功", "data": group})
 }
 
@@ -134,6 +139,7 @@ func CreateSecurityRule(c *gin.Context) {
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "create", "security_rule", rule.ID, nil, rule)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "规则创建成功", "data": rule})
 }
 
@@ -145,21 +151,25 @@ func UpdateSecurityRule(c *gin.Context) {
 		return
 	}
 
+	oldRule, _ := security.GetSecurityRuleById(id)
 	if err := security.UpdateSecurityRule(id, &req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "update", "security_rule", id, oldRule, req)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "规则更新成功"})
 }
 
 func DeleteSecurityRule(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	oldRule, _ := security.GetSecurityRuleById(id)
 	if err := security.DeleteSecurityRule(id); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "delete", "security_rule", id, oldRule, nil)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "规则删除成功"})
 }
 
@@ -202,6 +212,7 @@ func CreateSecurityPolicy(c *gin.Context) {
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "create", "security_policy", policy.ID, nil, policy)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "策略创建成功", "data": policy})
 }
 
@@ -213,21 +224,25 @@ func UpdateSecurityPolicy(c *gin.Context) {
 		return
 	}
 
+	oldPolicy, _ := security.GetSecurityPolicyById(id)
 	if err := security.UpdateSecurityPolicy(id, &req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "update", "security_policy", id, oldPolicy, req)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "策略更新成功"})
 }
 
 func DeleteSecurityPolicy(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	oldPolicy, _ := security.GetSecurityPolicyById(id)
 	if err := security.DeleteSecurityPolicy(id); err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
+	security.CreateAuditLog(c.GetInt("id"), "delete", "security_policy", id, oldPolicy, nil)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "策略删除成功"})
 }
 
@@ -241,30 +256,18 @@ func GetSecurityLogs(c *gin.Context) {
 	riskLevel, _ := strconv.Atoi(c.DefaultQuery("risk_level", "0"))
 	contentType, _ := strconv.Atoi(c.DefaultQuery("content_type", "0"))
 
-	var logs []*model.SecurityHitLogWithDetails
-	var count int64
-
-	db := model.DB.Model(&model.SecurityHitLog{}).
-		Select("security_hit_logs.*, users.username as user_name, security_rules.name as rule_name, security_groups.name as group_name").
-		Joins("LEFT JOIN users ON security_hit_logs.user_id = users.id").
-		Joins("LEFT JOIN security_rules ON security_hit_logs.rule_id = security_rules.id").
-		Joins("LEFT JOIN security_groups ON security_hit_logs.group_id = security_groups.id")
-
-	if userID > 0 {
-		db = db.Where("security_hit_logs.user_id = ?", userID)
+	logs, count, err := security.GetSecurityLogs(security.SecurityLogQueryParams{
+		Page:        page,
+		PageSize:    pageSize,
+		UserID:      userID,
+		Action:      action,
+		RiskLevel:   riskLevel,
+		ContentType: contentType,
+	})
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
 	}
-	if action > 0 {
-		db = db.Where("security_hit_logs.action = ?", action)
-	}
-	if riskLevel > 0 {
-		db = db.Where("security_hit_logs.risk_level = ?", riskLevel)
-	}
-	if contentType > 0 {
-		db = db.Where("security_hit_logs.content_type = ?", contentType)
-	}
-
-	db.Count(&count)
-	db.Order("security_hit_logs.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&logs)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -285,28 +288,17 @@ func ExportSecurityLogs(c *gin.Context) {
 	riskLevel, _ := strconv.Atoi(c.DefaultQuery("risk_level", "0"))
 	contentType, _ := strconv.Atoi(c.DefaultQuery("content_type", "0"))
 
-	var logs []*model.SecurityHitLogWithDetails
-
-	db := model.DB.Model(&model.SecurityHitLog{}).
-		Select("security_hit_logs.*, users.username as user_name, security_rules.name as rule_name, security_groups.name as group_name").
-		Joins("LEFT JOIN users ON security_hit_logs.user_id = users.id").
-		Joins("LEFT JOIN security_rules ON security_hit_logs.rule_id = security_rules.id").
-		Joins("LEFT JOIN security_groups ON security_hit_logs.group_id = security_groups.id")
-
-	if userID > 0 {
-		db = db.Where("security_hit_logs.user_id = ?", userID)
+	logs, err := security.GetSecurityLogsForExport(security.ExportSecurityLogParams{
+		Format:      format,
+		UserID:      userID,
+		Action:      action,
+		RiskLevel:   riskLevel,
+		ContentType: contentType,
+	})
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
 	}
-	if action > 0 {
-		db = db.Where("security_hit_logs.action = ?", action)
-	}
-	if riskLevel > 0 {
-		db = db.Where("security_hit_logs.risk_level = ?", riskLevel)
-	}
-	if contentType > 0 {
-		db = db.Where("security_hit_logs.content_type = ?", contentType)
-	}
-
-	db.Order("security_hit_logs.id DESC").Find(&logs)
 
 	filename := fmt.Sprintf("security_logs_%s", time.Now().Format("20060102_150405"))
 
@@ -333,27 +325,14 @@ func ExportSecurityLogs(c *gin.Context) {
 		return
 	}
 
-	actionMap := map[int]string{1: "Pass", 2: "Alert", 3: "Mask", 4: "Block", 5: "Review"}
-	riskMap := map[int]string{1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
-	contentTypeMap := map[int]string{1: "Request", 2: "Response"}
-
-	for _, log := range logs {
-		row := []string{
-			strconv.FormatInt(log.ID, 10),
-			log.RequestID,
-			time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
-			log.UserName,
-			log.ModelName,
-			contentTypeMap[log.ContentType],
-			actionMap[log.Action],
-			riskMap[log.RiskLevel],
-			strconv.Itoa(log.RiskScore),
-			log.RuleName,
-			log.GroupName,
-			log.IP,
-			log.MatchDetail,
+	rows := security.FormatLogRows(logs)
+	for _, row := range rows {
+		record := []string{
+			row.ID, row.RequestID, row.Time, row.UserName, row.ModelName,
+			row.ContentType, row.Action, row.RiskLevel, row.RiskScore,
+			row.RuleName, row.GroupName, row.IP, row.MatchDetail,
 		}
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(record); err != nil {
 			return
 		}
 	}

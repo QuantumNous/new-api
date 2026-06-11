@@ -121,6 +121,12 @@ func SecurityCheckResponse() gin.HandlerFunc {
 			return
 		}
 
+		// 如果响应已经是错误状态码，直接返回原始响应
+		if blw.statusCode >= 400 {
+			blw.flushOriginal()
+			return
+		}
+
 		// 只处理 JSON 响应
 		contentType := blw.Header().Get("Content-Type")
 		if !strings.Contains(contentType, "application/json") {
@@ -197,6 +203,13 @@ func (w *bufferedResponseWriter) flushOriginal() {
 	}
 	w.ResponseWriter.WriteHeader(w.statusCode)
 	w.ResponseWriter.Write(w.body.Bytes())
+}
+
+// 实现 http.Flusher 接口以支持流式响应检测降级
+func (w *bufferedResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 // extractContentFromResponse 从响应体中提取 AI 生成的内容
