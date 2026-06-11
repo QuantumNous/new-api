@@ -304,8 +304,19 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
-func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+func GetRequestURL(a Adaptor, info *common.RelayInfo) (string, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
+	if err != nil {
+		return "", fmt.Errorf("get request url failed: %w", err)
+	}
+	if info.ChannelOnlyBaseUrl {
+		return info.ChannelBaseUrl, nil
+	}
+	return fullRequestURL, nil
+}
+
+func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	fullRequestURL, err := GetRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
@@ -335,7 +346,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	fullRequestURL, err := GetRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
@@ -367,7 +378,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 }
 
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	fullRequestURL, err := GetRequestURL(a, info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
@@ -532,8 +543,19 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return resp, nil
 }
 
-func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+func GetTaskRequestURL(a TaskAdaptor, info *common.RelayInfo) (string, error) {
 	fullRequestURL, err := a.BuildRequestURL(info)
+	if err != nil {
+		return "", fmt.Errorf("get request url failed: %w", err)
+	}
+	if info.ChannelOnlyBaseUrl {
+		return info.ChannelBaseUrl, nil
+	}
+	return fullRequestURL, nil
+}
+
+func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	fullRequestURL, err := GetTaskRequestURL(a, info)
 	if err != nil {
 		return nil, err
 	}

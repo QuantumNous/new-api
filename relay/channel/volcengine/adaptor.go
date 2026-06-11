@@ -375,7 +375,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			}
 
 			// Get the WebSocket URL
-			requestURL, urlErr := a.GetRequestURL(info)
+			requestURL, urlErr := channel.GetRequestURL(a, info)
 			if urlErr != nil {
 				return nil, types.NewErrorWithStatusCode(
 					urlErr,
