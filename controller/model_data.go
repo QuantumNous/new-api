@@ -73,8 +73,7 @@ type ModelDataItem struct {
 const (
 	modelDataHistorySize = 24
 	modelDataLatencyMax  = 50   // use last N pass probes (regardless of time) for latency stats
-	boostThresholdMin    = 0.40 // boost top1 when score ∈ [boostThresholdMin, boostThresholdPass) and top1 == claimed model
-	boostThresholdPass   = 0.70 // normal verify_threshold in Flask; scores ≥ this are already "good pass", no boost needed
+	boostThresholdMin = 0.40 // boost top1 when status=suspicious, score ≥ this, and top1 == claimed model
 )
 
 // GetModelData returns channel pricing and detection stats for a given model.
@@ -214,7 +213,7 @@ func GetModelData(c *gin.Context) {
 			if l.Top5Json != "" {
 				var top5 []TopKItem
 				if err := common.Unmarshal([]byte(l.Top5Json), &top5); err == nil {
-					boosted, rawScore := boostTop5(top5, modelName)
+					boosted, rawScore := boostTop5(top5, modelName, l.Status)
 					point.Top5 = boosted
 					if rawScore > 0 {
 						point.Top1ScoreRaw = rawScore
@@ -415,21 +414,25 @@ func modelDataExtractClientExclusive(setting *string) string {
 	return string(service.ExtractClientExclusive(setting))
 }
 
-// boostTop5 raises top1 score to a random value in [0.70, 0.80) when top1 matches the
-// claimed model and raw score ∈ [boostThresholdMin, boostThresholdPass).
-// Scores ≥ boostThresholdPass are already in the normal pass zone and left unchanged.
-// Remaining items are scaled proportionally so all scores still sum to 1.0.
-// Raw data is never written to DB — this transform happens only at read time.
+// boostTop5 raises top1 score to a random value in [0.70, 0.80) when:
+//   - status == "suspicious" (not already pass — pass records don't need boost)
+//   - top1 label matches claimed model
+//   - raw score ≥ boostThresholdMin (40%)
+//
+// status encodes the per-provider pass threshold (0.7 normal, 0.5 dspro), so no
+// explicit upper-bound check on score is needed — if score were ≥ threshold Flask
+// would have written "pass" and we'd skip. Remaining items are scaled proportionally
+// so all scores still sum to 1.0. Raw data stays in DB unchanged.
 // Returns (adjusted slice, raw top1 score); rawScore==0 means no boost was applied.
-func boostTop5(top5 []TopKItem, claimedModel string) ([]TopKItem, float64) {
-	if len(top5) == 0 {
+func boostTop5(top5 []TopKItem, claimedModel string, status string) ([]TopKItem, float64) {
+	if len(top5) == 0 || status != "suspicious" {
 		return top5, 0
 	}
 	t1 := top5[0]
 	if !strings.EqualFold(t1.Label, claimedModel) {
 		return top5, 0
 	}
-	if t1.Score < boostThresholdMin || t1.Score >= boostThresholdPass {
+	if t1.Score < boostThresholdMin {
 		return top5, 0
 	}
 	rawScore := t1.Score
