@@ -102,6 +102,11 @@ export function ComboboxInput({
     inputRef.current?.focus()
   }
 
+  const openDropdown = React.useCallback(() => {
+    setSearchValue(allowCustomValue && !selectedOption ? value : '')
+    setOpen(true)
+  }, [allowCustomValue, selectedOption, value])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       setOpen(true)
@@ -175,9 +180,11 @@ export function ComboboxInput({
           }
           if (!open) setOpen(true)
         }}
-        onFocus={() => {
-          setSearchValue(allowCustomValue && !selectedOption ? value : '')
-          setOpen(true)
+        onFocus={openDropdown}
+        onClick={() => {
+          if (!open) {
+            openDropdown()
+          }
         }}
         onKeyDown={handleKeyDown}
         className={cn('pr-9', className)}

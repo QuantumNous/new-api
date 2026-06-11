@@ -83,6 +83,7 @@ type Announcement = {
   publishDate: string
   type: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
   extra?: string
+  forcePopup?: boolean
 }
 
 type AnnouncementsSectionProps = {
@@ -101,6 +102,7 @@ const announcementSchema = z.object({
     .string()
     .max(100, 'Extra must be less than 100 characters')
     .optional(),
+  forcePopup: z.boolean().optional(),
 })
 
 type AnnouncementFormValues = z.infer<typeof announcementSchema>
@@ -161,6 +163,7 @@ export function AnnouncementsSection({
       publishDate: new Date().toISOString(),
       type: 'default',
       extra: '',
+      forcePopup: false,
     },
   })
 
@@ -172,6 +175,7 @@ export function AnnouncementsSection({
           parsed.map((item, idx) => ({
             ...item,
             id: item.id || idx + 1,
+            forcePopup: item.forcePopup === true,
           }))
         )
       }
@@ -204,6 +208,7 @@ export function AnnouncementsSection({
       publishDate: new Date().toISOString(),
       type: 'default',
       extra: '',
+      forcePopup: false,
     })
     setShowDialog(true)
   }
@@ -215,6 +220,7 @@ export function AnnouncementsSection({
       publishDate: announcement.publishDate,
       type: announcement.type,
       extra: announcement.extra || '',
+      forcePopup: announcement.forcePopup === true,
     })
     setShowDialog(true)
   }
@@ -258,20 +264,36 @@ export function AnnouncementsSection({
   }
 
   const handleSubmitForm = (values: AnnouncementFormValues) => {
+    const normalizedValues = {
+      ...values,
+      forcePopup: values.forcePopup === true,
+    }
+
     if (editingAnnouncement) {
       setAnnouncements((prev) =>
         prev.map((item) =>
-          item.id === editingAnnouncement.id ? { ...item, ...values } : item
+          item.id === editingAnnouncement.id
+            ? { ...item, ...normalizedValues }
+            : item
         )
       )
       toast.success(t('Announcement updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...announcements.map((item) => item.id), 0) + 1
-      setAnnouncements((prev) => [...prev, { id: newId, ...values }])
+      setAnnouncements((prev) => [...prev, { id: newId, ...normalizedValues }])
       toast.success(t('Announcement added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
     setShowDialog(false)
+  }
+
+  const handleToggleForcePopup = (id: number, checked: boolean) => {
+    setAnnouncements((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, forcePopup: checked } : item
+      )
+    )
+    setHasChanges(true)
   }
 
   const handleSaveAll = async () => {
@@ -375,13 +397,14 @@ export function AnnouncementsSection({
                 <TableHead>{t('Publish Date')}</TableHead>
                 <TableHead>{t('Type')}</TableHead>
                 <TableHead>{t('Extra')}</TableHead>
+                <TableHead>{t('Popup')}</TableHead>
                 <TableHead className='w-32'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedAnnouncements.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
+                  <TableCell colSpan={7} className='h-24 text-center'>
                     {t(
                       'No announcements yet. Click "Add Announcement" to create one.'
                     )}
@@ -436,6 +459,22 @@ export function AnnouncementsSection({
                       title={announcement.extra}
                     >
                       {announcement.extra || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex items-center gap-2'>
+                        <Switch
+                          aria-label={t('Force popup')}
+                          checked={announcement.forcePopup === true}
+                          onCheckedChange={(checked) =>
+                            handleToggleForcePopup(announcement.id, checked)
+                          }
+                        />
+                        <span className='text-muted-foreground text-xs'>
+                          {announcement.forcePopup === true
+                            ? t('Enabled')
+                            : t('Disabled')}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className='flex gap-2'>
@@ -593,6 +632,28 @@ export function AnnouncementsSection({
                       )}
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='forcePopup'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-md border p-3'>
+                    <div className='space-y-1'>
+                      <FormLabel>{t('Force popup')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Automatically open this announcement whenever users enter the home page'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value === true}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />

@@ -87,6 +87,9 @@ export function PublicHeader(props: PublicHeaderProps) {
     useState<AuthPromptTarget | null>(null)
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
     useState(AUTH_PROMPT_SECONDS)
+  const [forcePopupShownEntryKey, setForcePopupShownEntryKey] = useState<
+    string | null
+  >(null)
   const { auth } = useAuthStore()
   const {
     systemName,
@@ -103,6 +106,46 @@ export function PublicHeader(props: PublicHeaderProps) {
   const isAuthenticated = !!user
   const displaySiteName = customSiteName || systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  const {
+    dialogOpen: notificationDialogOpen,
+    forcePopupKeySignature,
+    hasPendingForcePopup,
+    loading: notificationsLoading,
+    openForcePopup,
+  } = notifications
+
+  useEffect(() => {
+    if (!showNotifications || pathname !== '/') {
+      setForcePopupShownEntryKey(null)
+      return
+    }
+
+    if (!hasPendingForcePopup || !forcePopupKeySignature) {
+      setForcePopupShownEntryKey(null)
+      return
+    }
+
+    if (
+      notificationsLoading ||
+      notificationDialogOpen ||
+      forcePopupShownEntryKey === forcePopupKeySignature
+    ) {
+      return
+    }
+
+    if (openForcePopup()) {
+      setForcePopupShownEntryKey(forcePopupKeySignature)
+    }
+  }, [
+    forcePopupKeySignature,
+    forcePopupShownEntryKey,
+    hasPendingForcePopup,
+    notificationDialogOpen,
+    notificationsLoading,
+    openForcePopup,
+    pathname,
+    showNotifications,
+  ])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)

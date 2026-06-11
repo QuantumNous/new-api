@@ -59,7 +59,10 @@ const SITE_SECTIONS = [
     titleKey: 'System Notice',
     descriptionKey: 'Configure system maintenance notice',
     build: (settings: SiteSettings) => (
-      <NoticeSection defaultValue={settings.Notice ?? ''} />
+      <NoticeSection
+        defaultValue={settings.Notice ?? ''}
+        defaultForcePopup={settings.NoticeForcePopup === true}
+      />
     ),
   },
   {

@@ -25,48 +25,75 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const noticeSchema = z.object({
   Notice: z.string().optional(),
+  NoticeForcePopup: z.boolean(),
 })
 
 type NoticeFormValues = z.infer<typeof noticeSchema>
 
 type NoticeSectionProps = {
   defaultValue: string
+  defaultForcePopup: boolean
 }
 
-export function NoticeSection({ defaultValue }: NoticeSectionProps) {
+export function NoticeSection({
+  defaultValue,
+  defaultForcePopup,
+}: NoticeSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<NoticeFormValues>({
     resolver: zodResolver(noticeSchema),
     defaultValues: {
       Notice: defaultValue ?? '',
+      NoticeForcePopup: defaultForcePopup,
     },
   })
 
   useEffect(() => {
-    form.reset({ Notice: defaultValue ?? '' })
-  }, [defaultValue, form])
+    form.reset({
+      Notice: defaultValue ?? '',
+      NoticeForcePopup: defaultForcePopup,
+    })
+  }, [defaultForcePopup, defaultValue, form])
 
   const onSubmit = async (values: NoticeFormValues) => {
     const normalized = values.Notice ?? ''
-    if (normalized === (defaultValue ?? '')) {
+    const updates: Array<{ key: string; value: string | boolean }> = []
+
+    if (normalized !== (defaultValue ?? '')) {
+      updates.push({
+        key: 'Notice',
+        value: normalized,
+      })
+    }
+
+    if (values.NoticeForcePopup !== defaultForcePopup) {
+      updates.push({
+        key: 'NoticeForcePopup',
+        value: values.NoticeForcePopup,
+      })
+    }
+
+    if (updates.length === 0) {
       return
     }
-    await updateOption.mutateAsync({
-      key: 'Notice',
-      value: normalized,
-    })
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
   }
 
   return (
@@ -94,6 +121,29 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
                   />
                 </FormControl>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NoticeForcePopup'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-md border p-3'>
+                <div className='space-y-1'>
+                  <FormLabel>{t('Force popup')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Automatically open this notice whenever users enter the home page'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value === true}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

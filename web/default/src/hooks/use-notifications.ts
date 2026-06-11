@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNotificationStore } from '@/stores/notification-store'
 import { getNotice } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
+
+type NotificationTab = 'notice' | 'announcements'
+type AnnouncementRecord = Record<string, unknown>
 
 function hashString(input: string): string {
   let hash = 0
@@ -57,15 +60,51 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   return `hash:${hashString(fingerprint)}`
 }
 
+function getAnnouncementTime(item: AnnouncementRecord): number {
+  const publishDate = item?.publishDate
+  if (!publishDate) return 0
+
+  const time = new Date(publishDate as string).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
+function isPublishedAnnouncement(item: AnnouncementRecord): boolean {
+  const publishTime = getAnnouncementTime(item)
+  return publishTime > 0 && publishTime <= Date.now()
+}
+
+function isForcePopupCandidate(item: AnnouncementRecord): boolean {
+  return (
+    item?.forcePopup === true &&
+    ((item?.content as string) || '').trim() !== '' &&
+    isPublishedAnnouncement(item)
+  )
+}
+
+function mergeVisibleAnnouncements(
+  allAnnouncements: AnnouncementRecord[]
+): AnnouncementRecord[] {
+  const byKey = new Map<string, AnnouncementRecord>()
+
+  for (const item of allAnnouncements.slice(0, 20)) {
+    byKey.set(getAnnouncementKey(item), item)
+  }
+  for (const item of allAnnouncements.filter(isForcePopupCandidate)) {
+    byKey.set(getAnnouncementKey(item), item)
+  }
+
+  return [...byKey.values()].sort(
+    (a, b) => getAnnouncementTime(b) - getAnnouncementTime(a)
+  )
+}
+
 /**
  * Hook to manage notifications (Notice + Announcements)
  * Provides unread counts and read status management
  */
 export function useNotifications() {
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'notice' | 'announcements'>(
-    'notice'
-  )
+  const [activeTab, setActiveTab] = useState<NotificationTab>('notice')
 
   // Fetch Notice from API
   const {
@@ -79,12 +118,28 @@ export function useNotifications() {
   })
 
   // Fetch Announcements from status
-  const { status, loading: statusLoading } = useStatus()
+  const {
+    status,
+    loading: statusLoading,
+    fetching: statusFetching,
+  } = useStatus()
+  const noticeForcePopupEnabled = status?.notice_force_popup === true
   const announcementsEnabled = status?.announcements_enabled ?? false
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const announcements: Record<string, unknown>[] = announcementsEnabled
-    ? ((status?.announcements || []) as Record<string, unknown>[]).slice(0, 20)
-    : []
+  const allAnnouncements: AnnouncementRecord[] = useMemo(
+    () =>
+      announcementsEnabled
+        ? ((status?.announcements || []) as AnnouncementRecord[])
+        : [],
+    [announcementsEnabled, status?.announcements]
+  )
+  const announcements = useMemo(
+    () => mergeVisibleAnnouncements(allAnnouncements),
+    [allAnnouncements]
+  )
+  const forcePopupAnnouncements = useMemo(
+    () => allAnnouncements.filter(isForcePopupCandidate),
+    [allAnnouncements]
+  )
 
   // Notification store
   const {
@@ -120,19 +175,56 @@ export function useNotifications() {
     }
   }, [noticeContent, lastReadNotice, announcements, isAnnouncementRead])
 
+  const pendingNoticeForcePopup =
+    noticeForcePopupEnabled && noticeContent.trim() !== ''
+
+  const pendingAnnouncementForcePopupKeys = useMemo(
+    () => forcePopupAnnouncements.map((item) => getAnnouncementKey(item)),
+    [forcePopupAnnouncements]
+  )
+
+  const forcePopupKeySignature = [
+    ...(pendingNoticeForcePopup
+      ? [`notice:${hashString(noticeContent.trim())}`]
+      : []),
+    ...pendingAnnouncementForcePopupKeys,
+  ].join('|')
+
+  const handleDialogOpenChange = useCallback(
+    (open: boolean) => {
+      setDialogOpen(open)
+    },
+    []
+  )
+
   // Handle dialog open
-  const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
+  const handleOpenDialog = (tab?: NotificationTab) => {
+    const nextTab = tab || 'notice'
+
     // Mark Notice as read when opening dialog
-    if (noticeContent) {
+    if (nextTab === 'notice' && noticeContent) {
       markNoticeRead(noticeContent)
     }
 
-    setActiveTab(tab || 'notice')
+    setActiveTab(nextTab)
     setDialogOpen(true)
   }
 
+  const handleOpenForcePopup = useCallback(() => {
+    if (
+      !pendingNoticeForcePopup &&
+      pendingAnnouncementForcePopupKeys.length === 0
+    ) {
+      return false
+    }
+
+    setActiveTab(pendingNoticeForcePopup ? 'notice' : 'announcements')
+    setDialogOpen(true)
+    return true
+  }, [pendingAnnouncementForcePopupKeys.length, pendingNoticeForcePopup])
+
   // Handle tab change - mark announcements as read when switching to that tab
-  const handleTabChange = (tab: 'notice' | 'announcements') => {
+  const handleTabChange = (tab: NotificationTab) => {
     setActiveTab(tab)
 
     if (tab === 'announcements' && announcements.length > 0) {
@@ -154,7 +246,7 @@ export function useNotifications() {
     // Data
     notice: noticeContent,
     announcements,
-    loading: noticeLoading || statusLoading,
+    loading: noticeLoading || statusLoading || statusFetching,
 
     // Unread counts
     unreadCount: unreadCounts.total,
@@ -163,17 +255,21 @@ export function useNotifications() {
 
     // Dialog state
     dialogOpen,
-    setDialogOpen,
+    setDialogOpen: handleDialogOpenChange,
     activeTab,
     setActiveTab: handleTabChange,
 
     // Actions
     openDialog: handleOpenDialog,
-    closeDialog: () => setDialogOpen(false),
+    openForcePopup: handleOpenForcePopup,
+    closeDialog: () => handleDialogOpenChange(false),
     closeToday: handleCloseToday,
     refetchNotice,
 
     // Status
     isNoticeClosed: isNoticeClosed(),
+    hasPendingForcePopup:
+      pendingNoticeForcePopup || pendingAnnouncementForcePopupKeys.length > 0,
+    forcePopupKeySignature,
   }
 }

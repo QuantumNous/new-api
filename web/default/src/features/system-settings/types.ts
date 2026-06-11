@@ -59,6 +59,7 @@ export type DeleteLogsResponse = {
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string
+  NoticeForcePopup: boolean
   SystemName: string
   Logo: string
   Footer: string
