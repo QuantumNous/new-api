@@ -61,7 +61,7 @@ require (
 )
 
 require (
-	github.com/BlockRunAI/blockrun-llm-go v0.11.0
+	github.com/BlockRunAI/blockrun-llm-go v0.17.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/waffo-com/waffo-pancake-sdk-go v0.3.1
