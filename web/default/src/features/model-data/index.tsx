@@ -105,16 +105,16 @@ type ModelTab = {
 }
 
 const MODEL_TABS: ModelTab[] = [
-  { label: 'MiniMax M3',        modelId: 'minimax-m3',        accent: '#f97316' },
+  { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
+  { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
   { label: 'Sonnet 4.6',      modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
   { label: 'Opus 4.7',        modelId: 'claude-opus-4-7',   accent: '#a855f7' },
   { label: 'Opus 4.8',        modelId: 'claude-opus-4-8',   accent: '#a855f7' },
   { label: 'Fable 5',         modelId: 'claude-fable-5',    accent: '#a855f7' },
   { label: 'Haiku 4.5',       modelId: 'claude-haiku-4-5',  accent: '#a855f7' },
-  { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
-  { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
   { label: 'DeepSeek Flash',  modelId: 'deepseek-v4-flash', accent: '#a78bfa' },
   { label: 'DeepSeek Pro',    modelId: 'deepseek-v4-pro',   accent: '#a78bfa' },
+  { label: 'MiniMax M3',      modelId: 'minimax-m3',        accent: '#f97316' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
 ]
 
