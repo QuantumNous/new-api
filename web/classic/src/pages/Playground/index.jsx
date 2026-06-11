@@ -73,7 +73,7 @@ const generateAvatarDataUrl = (username) => {
   return `data:image/svg+xml;base64,${encodeToBase64(svg)}`;
 };
 
-const Playground = () => {
+export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
   const { navigator } = useContext(NavigationContext);
@@ -126,6 +126,17 @@ const Playground = () => {
     setCustomRequestBody,
     setPlaygroundMode,
   } = state;
+
+  useEffect(() => {
+    if (
+      forcedMode &&
+      (forcedMode === 'chat' ||
+        forcedMode === 'image' ||
+        forcedMode === 'video')
+    ) {
+      setPlaygroundMode(forcedMode);
+    }
+  }, [forcedMode, setPlaygroundMode]);
 
   // API 请求相关
   const { sendRequest, onStopGenerator } = useApiRequest(
@@ -1687,4 +1698,6 @@ function useMemoizedCallback(callback) {
   return useCallback((...args) => callbackRef.current?.(...args), []);
 }
 
-export default Playground;
+export default function Playground() {
+  return <PlaygroundPage />;
+}

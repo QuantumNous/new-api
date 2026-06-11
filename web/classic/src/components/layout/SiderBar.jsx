@@ -51,6 +51,8 @@ const routerMap = {
   models: '/console/models',
   deployment: '/console/deployment',
   playground: '/console/playground',
+  'image-playground': '/console/image-playground',
+  'video-playground': '/console/video-playground',
   onlineExperience: '/console/online-experience',
   personal: '/console/personal',
 };
@@ -228,6 +230,16 @@ const SiderBar = ({
         text: t('操练场'),
         itemKey: 'playground',
         to: '/playground',
+      },
+      {
+        text: t('图片'),
+        itemKey: 'image-playground',
+        to: '/image-playground',
+      },
+      {
+        text: t('视频'),
+        itemKey: 'video-playground',
+        to: '/video-playground',
       },
       {
         text: t('模型广场'),

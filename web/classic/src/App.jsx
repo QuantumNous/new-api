@@ -46,6 +46,8 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
+import ImagePlayground from './pages/ImagePlayground';
+import VideoPlayground from './pages/VideoPlayground';
 import OnlineExperience from './pages/OnlineExperience';
 import Subscription from './pages/Subscription';
 import OAuth2Callback from './components/auth/OAuth2Callback';
@@ -174,6 +176,22 @@ function App() {
           element={
             <PrivateRoute>
               <Playground />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/image-playground'
+          element={
+            <PrivateRoute>
+              <ImagePlayground />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/video-playground'
+          element={
+            <PrivateRoute>
+              <VideoPlayground />
             </PrivateRoute>
           }
         />
