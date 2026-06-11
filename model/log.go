@@ -31,6 +31,21 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 	return tx.Where(column+" = ?", value), nil
 }
 
+func applyLogUsernameFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
+	if value == "" {
+		return tx, nil
+	}
+	pattern := value
+	if !strings.Contains(pattern, "%") {
+		pattern = "%" + pattern + "%"
+	}
+	pattern, err := sanitizeLikePattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+	return tx.Where(column+" LIKE ? ESCAPE '!'", pattern), nil
+}
+
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
@@ -326,7 +341,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
 	}
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+	if tx, err = applyLogUsernameFilter(tx, "logs.username", username); err != nil {
 		return nil, 0, err
 	}
 	if tokenName != "" {
@@ -460,10 +475,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+	if tx, err = applyLogUsernameFilter(tx, "username", username); err != nil {
 		return stat, err
 	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+	if rpmTpmQuery, err = applyLogUsernameFilter(rpmTpmQuery, "username", username); err != nil {
 		return stat, err
 	}
 	if tokenName != "" {
