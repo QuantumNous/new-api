@@ -117,16 +117,15 @@ func TestGetLogAttribution_FilterByUsername(t *testing.T) {
 	assert.Equal(t, "gpt", rows[0].Key)
 }
 
-func TestNormalizeAttributionFilter_BoundsTopAndWindow(t *testing.T) {
-	// Oversized Top is hard-capped; missing Start gets a default lower bound.
+func TestNormalizeAttributionFilter_CapsTop(t *testing.T) {
+	// Oversized Top is hard-capped.
 	got := normalizeAttributionFilter(AttributionFilter{Top: 99999})
 	assert.EqualValues(t, attributionMaxTop, got.Top)
-	assert.Positive(t, got.Start)
 
-	// Explicit Start and an under-cap Top are preserved as-is.
-	got = normalizeAttributionFilter(AttributionFilter{Top: 10, Start: 12345})
+	// Under-cap Top is preserved as-is. The time-window bound is enforced in
+	// attributionBase (see TestGetLogAttribution_DefaultWindowExcludesOldLogs).
+	got = normalizeAttributionFilter(AttributionFilter{Top: 10})
 	assert.EqualValues(t, 10, got.Top)
-	assert.EqualValues(t, 12345, got.Start)
 }
 
 func TestGetLogAttribution_DefaultWindowExcludesOldLogs(t *testing.T) {

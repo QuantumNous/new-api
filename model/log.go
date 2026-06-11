@@ -642,9 +642,14 @@ func attributionBase(f AttributionFilter) (*gorm.DB, error) {
 	if f.TokenName != "" {
 		tx = tx.Where("token_name = ?", f.TokenName)
 	}
-	if f.Start != 0 {
-		tx = tx.Where("created_at >= ?", f.Start)
+	// Always bound the lower time edge so totals/ranking/drill/trend never scan
+	// the full consume-log history; fall back to a default window when the caller
+	// omits a start timestamp.
+	start := f.Start
+	if start <= 0 {
+		start = time.Now().Unix() - attributionDefaultWindowSec
 	}
+	tx = tx.Where("created_at >= ?", start)
 	if f.End != 0 {
 		tx = tx.Where("created_at <= ?", f.End)
 	}
@@ -671,15 +676,12 @@ const (
 	attributionDefaultWindowSec int64 = 30 * 86400
 )
 
-// normalizeAttributionFilter applies defensive bounds shared by all attribution
-// queries (totals / ranking / drill-down / trend): a hard Top cap and a default
-// time window when no start timestamp is provided.
+// normalizeAttributionFilter hard-caps Top so a crafted request cannot force a
+// huge scan/sort. The lower time-window bound is enforced in attributionBase so
+// every query path (totals / ranking / drill-down / trend) is bounded.
 func normalizeAttributionFilter(f AttributionFilter) AttributionFilter {
 	if f.Top > attributionMaxTop {
 		f.Top = attributionMaxTop
-	}
-	if f.Start <= 0 {
-		f.Start = time.Now().Unix() - attributionDefaultWindowSec
 	}
 	return f
 }
