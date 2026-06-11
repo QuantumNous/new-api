@@ -71,8 +71,8 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 | `grok-imagine-1.0-video` | `POST /v1/videos` | 文生视频、参考图视频 | 约 2 分钟 | `task_id` 后轮询 | Grok Imagine；建议使用稳定尺寸 |
 | `ss-sora-2` | `POST /v1/videos` | 文生视频 | 约 3 分钟 | `task_id` 后轮询 | Sora 2 备用路径 |
 | `veo3.1-4k` | `POST /v1/videos` | 文生视频、图生视频 | 约 4 分钟 | `task_id` 后轮询 | 4K 高质量输出 |
-| `grok-imagine-video` | `POST /v1/videos` | 文生视频、参考图视频（10s） | 待实测 | `task_id` 后轮询 | 漫小白渠道；上游账号充值后可用 |
-| `grok-imagine-video-1.5-preview` | `POST /v1/videos` | 参考图视频（必须参考图，10/15s） | 待实测 | `task_id` 后轮询 | 漫小白渠道；上游账号充值后可用 |
+| `grok-imagine-video` | `POST /v1/videos` | 文生视频、参考图视频（10s） | 约 2-3 分钟 | `task_id` 后轮询 | 漫小白渠道，已真实验证（注意 `seconds` 必须传字符串）；下载走 `/v1/videos/{task_id}/content` |
+| `grok-imagine-video-1.5-preview` | `POST /v1/videos` | 参考图视频（必须参考图，10/15s） | 待实测 | `task_id` 后轮询 | 漫小白渠道；参考图预上传协议待验证 |
 
 ### 图片生成与编辑模型
 
@@ -89,7 +89,7 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 | `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 29-93 秒 | `data[0].b64_json` | 横线命名快速生图；当前主路径 Apexer（映射 `gemini_3.1_flash_image_preview`），ListenHub 为兜底 |
 | `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 58-67 秒 | `data[0].b64_json` | 横线命名高质量生图；当前主路径 Apexer（映射 `gemini_3.0_pro_image_preview`），ListenHub 为兜底 |
 | `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 45-90 秒 | `data[0].url` | 当前主路径 xgapi 直出生图；ListenHub 余额耗尽期间降为兜底 |
-| `gpt-image-2-1k` / `-2k` / `-4k` | `POST /v1/images/generations` | 生图（高分辨率档位） | 待实测 | `data[0].url` | 漫小白独家档位；上游账号充值后可用，需按档位传对应尺寸（如 4k 传 `3840x2160`） |
+| `gpt-image-2-1k` / `-2k` / `-4k` | `POST /v1/images/generations` | 生图（高分辨率档位） | 1k 实测约 138 秒 | `data[0].url` | 漫小白独家档位，已真实验证；需按档位传对应尺寸（如 1k 16:9 传 `1824x1024`，4k 传 `3840x2160`） |
 | `gpt-image-2(线路XF)` | `POST /v1/images/generations` | 生图 | 48-50 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
 | `gr-image-2` | `POST /v1/images/generations` | 生图 | 46-55 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
 | `nano-banana` | `POST /v1/images/generations` | 生图 | 8-9 秒 | `data[0].url` | bltcy 快速生图 |
