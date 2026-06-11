@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import * as z from 'zod'
-import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -60,31 +60,44 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
-import { useResetForm } from '../hooks/use-reset-form'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const perfSchema = z.object({
-  'performance_setting.disk_cache_enabled': z.boolean(),
-  'performance_setting.disk_cache_threshold_mb': z.coerce.number().min(1),
-  'performance_setting.disk_cache_max_size_mb': z.coerce.number().min(100),
-  'performance_setting.disk_cache_path': z.string().optional(),
-  'performance_setting.monitor_enabled': z.boolean(),
-  'performance_setting.monitor_cpu_threshold': z.coerce.number().min(0),
-  'performance_setting.monitor_memory_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'performance_setting.monitor_disk_threshold': z.coerce
-    .number()
-    .min(0)
-    .max(100),
-  'perf_metrics_setting.enabled': z.boolean(),
-  'perf_metrics_setting.flush_interval': z.coerce.number().min(1),
-  'perf_metrics_setting.bucket_time': z.enum(['minute', '5min', 'hour']),
-  'perf_metrics_setting.retention_days': z.coerce.number().min(0),
+  performance_setting: z.object({
+    disk_cache_enabled: z.boolean(),
+    disk_cache_threshold_mb: z.coerce.number().min(1),
+    disk_cache_max_size_mb: z.coerce.number().min(100),
+    disk_cache_path: z.string().optional(),
+    monitor_enabled: z.boolean(),
+    monitor_cpu_threshold: z.coerce.number().min(0),
+    monitor_memory_threshold: z.coerce.number().min(0).max(100),
+    monitor_disk_threshold: z.coerce.number().min(0).max(100),
+  }),
+  perf_metrics_setting: z.object({
+    enabled: z.boolean(),
+    flush_interval: z.coerce.number().min(1),
+    bucket_time: z.enum(['minute', '5min', 'hour']),
+    retention_days: z.coerce.number().min(0),
+  }),
 })
 
 type PerfFormValues = z.infer<typeof perfSchema>
+
+type FlatPerfFormValues = {
+  'performance_setting.disk_cache_enabled': boolean
+  'performance_setting.disk_cache_threshold_mb': number
+  'performance_setting.disk_cache_max_size_mb': number
+  'performance_setting.disk_cache_path': string
+  'performance_setting.monitor_enabled': boolean
+  'performance_setting.monitor_cpu_threshold': number
+  'performance_setting.monitor_memory_threshold': number
+  'performance_setting.monitor_disk_threshold': number
+  'perf_metrics_setting.enabled': boolean
+  'perf_metrics_setting.flush_interval': number
+  'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
+  'perf_metrics_setting.retention_days': number
+}
 
 function formatBytes(bytes: number, decimals = 2): string {
   if (!bytes || isNaN(bytes)) return '0 Bytes'
@@ -98,7 +111,7 @@ function formatBytes(bytes: number, decimals = 2): string {
 }
 
 interface Props {
-  defaultValues: PerfFormValues
+  defaultValues: FlatPerfFormValues
 }
 
 type LogInfo = {
@@ -143,6 +156,34 @@ type PerformanceStats = {
   }
 }
 
+function buildFormDefaults(defaults: FlatPerfFormValues): PerfFormValues {
+  return {
+    performance_setting: {
+      disk_cache_enabled:
+        defaults['performance_setting.disk_cache_enabled'] ?? false,
+      disk_cache_threshold_mb:
+        defaults['performance_setting.disk_cache_threshold_mb'] ?? 10,
+      disk_cache_max_size_mb:
+        defaults['performance_setting.disk_cache_max_size_mb'] ?? 1024,
+      disk_cache_path: defaults['performance_setting.disk_cache_path'] ?? '',
+      monitor_enabled:
+        defaults['performance_setting.monitor_enabled'] ?? false,
+      monitor_cpu_threshold:
+        defaults['performance_setting.monitor_cpu_threshold'] ?? 90,
+      monitor_memory_threshold:
+        defaults['performance_setting.monitor_memory_threshold'] ?? 90,
+      monitor_disk_threshold:
+        defaults['performance_setting.monitor_disk_threshold'] ?? 95,
+    },
+    perf_metrics_setting: {
+      enabled: defaults['perf_metrics_setting.enabled'] ?? true,
+      flush_interval: defaults['perf_metrics_setting.flush_interval'] ?? 5,
+      bucket_time: defaults['perf_metrics_setting.bucket_time'] ?? 'hour',
+      retention_days: defaults['perf_metrics_setting.retention_days'] ?? 0,
+    },
+  }
+}
+
 export function PerformanceSection(props: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -151,15 +192,6 @@ export function PerformanceSection(props: Props) {
   const [logCleanupMode, setLogCleanupMode] = useState('by_count')
   const [logCleanupValue, setLogCleanupValue] = useState(10)
   const [logCleanupLoading, setLogCleanupLoading] = useState(false)
-
-  const form = useForm<PerfFormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(perfSchema) as any,
-    defaultValues: props.defaultValues,
-  })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useResetForm(form as any, props.defaultValues)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -179,30 +211,37 @@ export function PerformanceSection(props: Props) {
     }
   }, [])
 
+  const { form, handleSubmit, isSubmitting } = useSettingsForm<PerfFormValues>({
+    resolver: zodResolver(perfSchema) as Resolver<
+      PerfFormValues,
+      unknown,
+      PerfFormValues
+    >,
+    defaultValues: buildFormDefaults(props.defaultValues),
+    onSubmit: async (_data, changedFields) => {
+      for (const [key, value] of Object.entries(changedFields)) {
+        await updateOption.mutateAsync({
+          key,
+          value: value as string | number | boolean,
+        })
+      }
+      toast.success(t('Saved successfully'))
+      fetchStats()
+    },
+  })
+
   useEffect(() => {
     fetchStats()
     fetchLogInfo()
   }, [fetchStats, fetchLogInfo])
 
-  const onSubmit = async (data: PerfFormValues) => {
-    const entries = Object.entries(data) as [string, unknown][]
-    const updates = entries.filter(
-      ([key, value]) =>
-        value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
-    )
-    if (updates.length === 0) {
-      toast.info(t('No changes to save'))
-      return
+  const handleNumberChange =
+    (onChange: (value: number | string) => void) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      onChange(
+        event.target.value === '' ? '' : event.currentTarget.valueAsNumber
+      )
     }
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: value as string | number | boolean,
-      })
-    }
-    toast.success(t('Saved successfully'))
-    fetchStats()
-  }
 
   const clearDiskCache = async () => {
     try {
@@ -301,7 +340,7 @@ export function PerformanceSection(props: Props) {
       )}
     >
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <form onSubmit={handleSubmit} className='space-y-6'>
           {/* Disk Cache Settings */}
           <div>
             <h4 className='font-medium'>{t('Disk Cache Settings')}</h4>
@@ -335,7 +374,15 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Disk Cache Threshold (MB)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!diskEnabled} />
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      disabled={!diskEnabled}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t('Use disk cache when request body exceeds this size')}
@@ -350,7 +397,15 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Max Disk Cache Size (MB)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!diskEnabled} />
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      disabled={!diskEnabled}
+                    />
                   </FormControl>
                   {stats?.disk_space_info &&
                     stats.disk_space_info.total > 0 && (
@@ -435,7 +490,11 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
@@ -451,7 +510,11 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
@@ -467,7 +530,11 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
@@ -513,7 +580,11 @@ export function PerformanceSection(props: Props) {
                     <Input
                       type='number'
                       min={1}
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!perfMetricsEnabled}
                     />
                   </FormControl>
@@ -562,7 +633,11 @@ export function PerformanceSection(props: Props) {
                     <Input
                       type='number'
                       min={0}
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                       disabled={!perfMetricsEnabled}
                     />
                   </FormControl>
@@ -574,7 +649,10 @@ export function PerformanceSection(props: Props) {
             />
           </div>
 
-          <Button type='submit' disabled={updateOption.isPending}>
+          <Button
+            type='submit'
+            disabled={updateOption.isPending || isSubmitting}
+          >
             {updateOption.isPending ? t('Saving...') : t('Save Changes')}
           </Button>
         </form>
