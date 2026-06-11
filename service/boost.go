@@ -24,22 +24,22 @@ type boostTopKItem struct {
 // proportionally so all scores still sum to 1.0. Status is re-evaluated against the
 // 0.70 threshold after boost.
 //
-// Returns (newTop5Json, newTop1Score, rawTop1Score, newStatus).
-// rawTop1Score==0 means no boost was applied and all other return values equal inputs.
-func BoostDetectionResult(top5Json string, top1Score float64, claimedModel, status string) (string, float64, float64, string) {
+// Returns (newTop5Json, newTop1Score, rawTop1Score, rawTop5Json, newStatus).
+// rawTop1Score==0 / rawTop5Json=="" means no boost was applied.
+func BoostDetectionResult(top5Json string, top1Score float64, claimedModel, status string) (string, float64, float64, string, string) {
 	if top5Json == "" || status == "notcomplete" {
-		return top5Json, top1Score, 0, status
+		return top5Json, top1Score, 0, "", status
 	}
 	var top5 []boostTopKItem
 	if err := common.Unmarshal([]byte(top5Json), &top5); err != nil || len(top5) == 0 {
-		return top5Json, top1Score, 0, status
+		return top5Json, top1Score, 0, "", status
 	}
 	t1 := top5[0]
 	if !strings.EqualFold(t1.Label, claimedModel) {
-		return top5Json, top1Score, 0, status
+		return top5Json, top1Score, 0, "", status
 	}
 	if t1.Score < detectBoostMin || t1.Score >= detectBoostPass {
-		return top5Json, top1Score, 0, status
+		return top5Json, top1Score, 0, "", status
 	}
 
 	rawScore := t1.Score
@@ -54,12 +54,12 @@ func BoostDetectionResult(top5Json string, top1Score float64, claimedModel, stat
 
 	boostedJson, err := common.Marshal(out)
 	if err != nil {
-		return top5Json, top1Score, 0, status
+		return top5Json, top1Score, 0, "", status
 	}
 
 	newStatus := status
 	if newTop1 >= detectBoostPass {
 		newStatus = "pass"
 	}
-	return string(boostedJson), newTop1, rawScore, newStatus
+	return string(boostedJson), newTop1, rawScore, top5Json, newStatus
 }

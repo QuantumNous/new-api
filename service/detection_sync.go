@@ -107,7 +107,7 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 		}
 
 		// Apply confidence boost before persisting
-		boostedTop5Json, boostedTop1Score, rawTop1Score, boostedStatus := BoostDetectionResult(d.Top5Json, d.Top1Score, d.ClaimedModel, d.Status)
+		boostedTop5Json, boostedTop1Score, rawTop1Score, rawTop5Json, boostedStatus := BoostDetectionResult(d.Top5Json, d.Top1Score, d.ClaimedModel, d.Status)
 
 		// Write log entry
 		logEntry := model.ChannelDetectLog{
@@ -120,6 +120,7 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 			Top1Score:               boostedTop1Score,
 			Top1ScoreRaw:            rawTop1Score,
 			Top5Json:                boostedTop5Json,
+			Top5JsonRaw:             rawTop5Json,
 			FingerprintModelVersion: d.FingerprintModelVersion,
 			LatencyMeanMs:           d.LatencyMeanMs,
 			Note:                    d.NotcompleteReason,

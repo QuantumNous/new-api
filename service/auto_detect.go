@@ -247,7 +247,7 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	}
 
 	// Apply confidence boost before persisting: top1==claimed + score∈[40%,70%) → boost to [70%,80%)
-	boostedTop5Json, boostedTop1Score, rawTop1Score, boostedStatus := BoostDetectionResult(top5Json, top1Score, targetModel, detectStatus)
+	boostedTop5Json, boostedTop1Score, rawTop1Score, rawTop5Json, boostedStatus := BoostDetectionResult(top5Json, top1Score, targetModel, detectStatus)
 	detectStatus = boostedStatus // routing state machine below uses this
 
 	now := time.Now().Unix()
@@ -263,6 +263,7 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 		Top1Score:               boostedTop1Score,
 		Top1ScoreRaw:            rawTop1Score,
 		Top5Json:                boostedTop5Json,
+		Top5JsonRaw:             rawTop5Json,
 		FingerprintModelVersion: fpVersion,
 		Note:                    noteText,
 		DetectTime:              now,
