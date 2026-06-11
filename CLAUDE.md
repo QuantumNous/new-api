@@ -160,12 +160,17 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 #### 后端 Go 应用层
 - `controller/AGENTS.md` — HTTP handler 薄胶水层、统一响应与 i18n 错误
 - `service/AGENTS.md` — 业务逻辑层（计费、渠道选择、token 计数等）
+- `service/openaicompat/AGENTS.md` — Chat Completions ↔ Responses API 透明转换（relay 接入层，依赖 pkg/apicompat）
+- `service/passkey/AGENTS.md` — Passkey/WebAuthn 业务逻辑
 - `model/AGENTS.md` — GORM 数据访问、跨 DB 兼容、内存缓存
 - `router/AGENTS.md` — 路由注册与限流策略分配
 - `middleware/AGENTS.md` — 鉴权、分发、限流、CORS、日志、错误响应
+- `cmd/AGENTS.md` — 独立命令行工具入口
+- `cmd/blockrun_balance/AGENTS.md` — BlockRun 余额查询 CLI 工具
 
 #### 共享与类型
 - `common/AGENTS.md` — 共享工具（JSON / DB flags / Redis / crypto / env），Rule 1 核心实现
+- `common/limiter/AGENTS.md` — 限流器实现（含 Lua 脚本）
 - `dto/AGENTS.md` — 请求/响应结构体（重点：Rule 5 指针零值）
 - `constant/AGENTS.md` — 枚举常量与 context key
 - `types/AGENTS.md` — relay 格式、错误体系（NewAPIError）
@@ -182,6 +187,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 
 #### 内部包 pkg/
 - `pkg/AGENTS.md` — 子包总览
+- `pkg/apicompat/AGENTS.md` — Chat Completions ↔ Responses API 双向格式转换底层实现
 - `pkg/billingexpr/AGENTS.md` — 计费表达式（→ Rule 6 / `expr.md`）
 - `pkg/cachex/AGENTS.md` — 双层缓存（Redis + 内存）
 - `pkg/ionet/AGENTS.md` — HTTP 客户端抽象
@@ -219,7 +225,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **new-api** (42213 symbols, 135027 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **new-api** (44712 symbols, 145081 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

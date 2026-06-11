@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-10 -->
 
 # setting/ratio_setting
 
@@ -38,6 +38,8 @@
 - `InvalidateExposedDataCache()` 作为回调注入 `types.LoadFromJsonStringWithCallback()`，任意比率 JSON 更新后自动失效暴露缓存；直接调用 `exposedData.Store(nil)` 等价。
 - 分组比率注册键为 `group_ratio_setting`（整个 `GroupRatioSetting` 结构体序列化），不是单独的 `group_ratio`。
 - `groupSpecialUsableGroup`：key 前缀 `-:` 表示从用户可用分组中移除，无前缀表示追加。
+- **gpt-image-2 图像出图定价**：`gpt-image-2` 同时出现在 `defaultModelRatio`（`2.5`，token 计费方案 b）、`defaultCompletionRatio`（`8`，output 倍率）和 `defaultImageRatio`（`2`，图像分辨率系数）三张表中。这是 codex 订阅出图的计费安排，运营可按需通过管理接口覆盖 `modelRatioMap` 中的值。
+- **BlockRun 模型**（`claude-opus-4-6/7/8` 系列及对应 thinking level 后缀变体）已在 `defaultModelRatio` 中对齐为 `2.5`（$5/1M tokens）；新增同系列变体时遵循相同倍率并补充对应 `-max/-xhigh/-high/-medium/-low` 条目。
 
 ### Testing Requirements
 

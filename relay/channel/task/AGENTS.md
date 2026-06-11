@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-10 -->
 
 # relay/channel/task
 
@@ -19,15 +19,16 @@ task 目录是所有**异步任务类 provider** 适配器的容器。与同步 
 |------|-------------|
 | `taskcommon/helpers.go` | 跨 provider 共享的辅助函数：白标渠道检测（`ShouldWhitelabelPlatform`）、品牌词脱敏（`ScrubBrandedText`）、公开任务 ID 生成等 |
 | `taskcommon/helpers_test.go` | taskcommon 单元测试 |
+| `taskcommon/seedance.go` | **seedance 系共享入口**：`BindSeedanceRequest` 解析官方 `content[]` 格式、调用 `dto.SeedanceVideoRequest.Validate()`、合成 `TaskSubmitReq`、设置 `info.Action`，并将解析结果缓存到 gin context（key `seedance_request`）；`GetSeedanceRequest` 提供只读访问（`EstimateBilling` 等复用），避免重复解析 body |
 
 ## Subdirectories
 
 | Directory | Purpose |
 |-----------|---------|
 | `ali/` | 阿里云异步任务（通义视频等），`adaptor.go` + `constants.go` |
-| `blockrunseedance/` | BlockRun x402-paid Seedance 视频（seedance 系）；x402 双程签名鉴权（无 API Key，钱包私钥存 channel Key）；上游 submit 返回 202，**DoRequest 内 `normalizeAcceptedStatus` 将其归一为 200**（202-gate 模式，见下方说明）；poll_url 作为上游 task_id 存储；结果走 `/v1/videos/{task_id}/content` 代理 |
+| `blockrunseedance/` | BlockRun x402-paid Seedance 视频（seedance 系，**新增**）；入站格式为官方 `content[]`（`BindSeedanceRequest`）；x402 双程签名鉴权，无 API Key，钱包私钥存 channel Key；单次视频金额上限 10 USDC（`maxAmountAtomicUSDCVideo`），鉴权窗口上限 1200 s（`maxAuthorizationWindowSecondsVideo`，覆盖 chat 的 300 s，适应异步 submit→poll 结算时序）；上游 submit POST `/v1/videos/generations` → 202 `{id,status,poll_url}`，**`DoRequest` 内 `normalizeAcceptedStatus` 将 202 归一为 200**（202-gate 模式）；轮询阶段 `FetchTask` 同样处理 poll 的 202/402；`poll_url`（绝对 URL）作为上游 task_id 存储；结果走 `/v1/videos/{task_id}/content` 代理，白标（`taskcommon.whitelabelChannels` 注册，`ScrubBrandedText` 脱敏）；`blockrunExtensions` 支持 `real_face_asset_id`（仅 seedance-2.0 / 2.0-fast）；参考实现同时供 seedance SOP 使用 |
 | `blockrunvideo/` | BlockRun 代理视频（OpenAI-style video 格式，通过 BlockRun 中间层转发）；`adaptor.go` + `constants.go` + `request.go` |
-| `doubao/` | 豆包视频（火山引擎），对应 `ChannelTypeDoubaoVideo` / `ChannelTypeVolcEngine` |
+| `doubao/` | 豆包视频（火山引擎），对应 `ChannelTypeDoubaoVideo` / `ChannelTypeVolcEngine`；**入站格式已切换为官方 seedance `content[]`**：`ValidateRequestAndSetAction` 调用 `taskcommon.BindSeedanceRequest` 解析（不再使用旧的 prompt/images/metadata 格式）；`BuildRequestBody` 将 `dto.SeedanceVideoRequest` 加 Doubao 私有扩展（`service_tier`、`execution_expires_after`、`draft`、`tools`）映射到 Ark `/api/v3/contents/generations/tasks` 上游格式；`EstimateBilling` 利用 `taskcommon.GetSeedanceRequest` 缓存检测视频输入折扣比率 |
 | `gemini/` | Google Gemini 异步任务（Veo 视频生成等） |
 | `hailuo/` | 海螺 / MiniMax 视频，`adaptor.go` + `constants.go` + `models.go` |
 | `jimeng/` | 即梦视频异步任务，`adaptor.go` + `constants.go`（注意：即梦图像同步接口在 `relay/channel/jimeng/`） |
@@ -106,7 +107,7 @@ task 目录是所有**异步任务类 provider** 适配器的容器。与同步 
 
 > 适用场景：要对接一个**新的 seedance 模型渠道商**（上游同样是 seedance 2.0 系视频生成）。
 > 目标形态：**new-api 对客户端统一暴露「官方 seedance `content[]` 格式」，每个渠道适配器在内部把它映射成自己上游所需的参数。** 客户端无需关心背后是哪家供应商。
-> 参考实现：`relay/channel/task/kuaizi/`（第一个样板）。
+> 参考实现：`relay/channel/task/kuaizi/`（第一个样板）；`relay/channel/task/blockrunseedance/`（x402 鉴权 + 202-gate + 渠道扩展字段样板）。
 
 ### 第 0 步：先判断「要不要新增渠道类型」（别一上来就建类型）
 
@@ -212,5 +213,6 @@ build<Channel>CreateRequest()    ← 【渠道私有】纯函数：seedance → 
 | `dto/openai_video.go` | `OpenAIVideo` + `OpenAIVideoUsage`（出参 usage） |
 | `relay/channel/task/taskcommon/seedance.go` | `BindSeedanceRequest` 共享入口 |
 | `relay/channel/task/kuaizi/adaptor.go` | **参考实现**（映射、取值校验、丢弃日志、usage） |
+| `relay/channel/task/blockrunseedance/adaptor.go` | **x402 + 202-gate 参考实现**（`DoRequest` 两程签名、`normalizeAcceptedStatus`、poll 阶段 x402 重签、`real_face_asset_id` 扩展字段） |
 | `service/task_polling.go` / `relay/relay_task.go` | usage 落库（`PrivateData`）+ 两套查询回传 |
 | `docs/api/seedance-video-api.html` | 对客户（白标）API 文档模板 |
