@@ -553,7 +553,14 @@ const NotificationSettings = ({
                             content={{
                               type: 'quota_exceed',
                               title: t('额度预警通知'),
-                              content: t('您的额度即将用尽，当前剩余额度为 {{value}}'),
+                              // 示例展示的是 webhook 模板本身，需保留 {{value}} 占位符：
+                              // 不传值时 i18next 会把缺失变量替换为空串，故用自身回填
+                              content: t(
+                                '您的额度即将用尽，当前剩余额度为 {{value}}',
+                                {
+                                  value: '{{value}}',
+                                },
+                              ),
                               values: ['$0.99'],
                               timestamp: 1739950503,
                             }}
