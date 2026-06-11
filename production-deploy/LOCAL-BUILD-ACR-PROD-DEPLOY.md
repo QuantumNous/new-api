@@ -220,18 +220,31 @@ sudo docker logs --tail=100 new-api
 
 如需补数或验证生产推送，可使用管理员登录态/API Token 手动触发。接口会复用定时任务同一套逻辑，并先清空对应周期的 3 张多维表格，再写入最新统计数据。
 
+后台 API Token 调用时需要同时传入 `New-Api-User`，值为该管理员用户 ID。生产当前管理员用户 ID 为 `1`。
+
 ```bash
 # 手动推送昨天日报
 curl -X POST http://127.0.0.1:3000/api/user/feishu/stats/push/daily \
-  -H "Authorization: Bearer <管理员token>"
+  -H "Authorization: Bearer <管理员token>" \
+  -H "New-Api-User: 1"
 
 # 手动推送上周周报
 curl -X POST http://127.0.0.1:3000/api/user/feishu/stats/push/weekly \
-  -H "Authorization: Bearer <管理员token>"
+  -H "Authorization: Bearer <管理员token>" \
+  -H "New-Api-User: 1"
 
 # 手动推送上月月报
 curl -X POST http://127.0.0.1:3000/api/user/feishu/stats/push/monthly \
-  -H "Authorization: Bearer <管理员token>"
+  -H "Authorization: Bearer <管理员token>" \
+  -H "New-Api-User: 1"
+```
+
+公网域名调用示例：
+
+```bash
+curl -X POST https://airouter.einwin.com/api/user/feishu/stats/push/daily \
+  -H "Authorization: Bearer <管理员token>" \
+  -H "New-Api-User: 1"
 ```
 
 成功响应示例：
