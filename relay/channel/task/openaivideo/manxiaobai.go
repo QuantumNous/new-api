@@ -101,8 +101,9 @@ func (p *manxiaobaiProvider) buildSubmitResponseBody(info *relaycommon.RelayInfo
 	}
 }
 
-// JSON 直传即可，无需转 multipart 表单。
-func (p *manxiaobaiProvider) needsMultipart() bool { return false }
+// 上游 /v1/videos 的 JSON 解析存在缺陷（model 字段丢失报 Field required），
+// 文档推荐且实测可用的是 multipart 表单，统一转表单提交。
+func (p *manxiaobaiProvider) needsMultipart() bool { return true }
 
 func (p *manxiaobaiProvider) mapModelForImages(model string, hasImages bool) string {
 	return model
