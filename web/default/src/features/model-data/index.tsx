@@ -40,6 +40,7 @@ interface DetectPoint {
   group_name?: string  // key_group at time of detection
   fingerprint_model_version?: string  // e.g. apimaster_fingerprint_cccli_v0.1
   top5?: TopKItem[]
+  top1_score_raw?: number  // raw top1 score before boost; non-zero only when boost was applied
 }
 
 interface ModelDataItem {
@@ -259,7 +260,12 @@ function DotGrid({ history, onAnalyze }: { history: DetectPoint[] | null | undef
                         {p.top5.map((t, idx) => (
                           <div key={idx} className='flex items-center justify-between gap-3 text-[11px] font-mono'>
                             <span className='truncate'>{idx + 1}. {t.label}</span>
-                            <span className='opacity-80 tabular-nums'>{(t.score * 100).toFixed(1)}%</span>
+                            <span className='opacity-80 tabular-nums'>
+                              {(t.score * 100).toFixed(1)}%
+                              {idx === 0 && p.top1_score_raw != null && p.top1_score_raw > 0 && (
+                                <span className='ml-1 opacity-50 text-[10px]'>（原：{(p.top1_score_raw * 100).toFixed(1)}%）</span>
+                              )}
+                            </span>
                           </div>
                         ))}
                       </div>

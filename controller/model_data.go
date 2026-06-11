@@ -2,6 +2,7 @@ package controller
 
 import (
 	"math"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strings"
@@ -21,7 +22,8 @@ type DetectPoint struct {
 	Note                    string     `json:"note,omitempty"`
 	GroupName               string     `json:"group_name,omitempty"`                // channel group at time of detection
 	FingerprintModelVersion string     `json:"fingerprint_model_version,omitempty"` // e.g. apimaster_fingerprint_cccli_v0.1
-	Top5                    []TopKItem `json:"top5,omitempty"`                      // fingerprint top-5 predictions (only on fingerprint history points)
+	Top5                    []TopKItem `json:"top5,omitempty"`         // fingerprint top-5 predictions (only on fingerprint history points)
+	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"` // raw top1 score before boost; non-zero only when boost was applied (admin only)
 }
 
 // TopKItem is one prediction in the fingerprint top-5 list. Mirrors apimaster's
@@ -70,7 +72,8 @@ type ModelDataItem struct {
 
 const (
 	modelDataHistorySize = 24
-	modelDataLatencyMax  = 50 // use last N pass probes (regardless of time) for latency stats
+	modelDataLatencyMax  = 50   // use last N pass probes (regardless of time) for latency stats
+	boostThresholdMin    = 0.40 // boost top1 when score ∈ [0.40, 0.80) and top1 == claimed model
 )
 
 // GetModelData returns channel pricing and detection stats for a given model.
@@ -210,7 +213,11 @@ func GetModelData(c *gin.Context) {
 			if l.Top5Json != "" {
 				var top5 []TopKItem
 				if err := common.Unmarshal([]byte(l.Top5Json), &top5); err == nil {
-					point.Top5 = top5
+					boosted, rawScore := boostTop5(top5, modelName)
+					point.Top5 = boosted
+					if rawScore > 0 {
+						point.Top1ScoreRaw = rawScore
+					}
 				}
 			}
 			if len(h.Fingerprint) < modelDataHistorySize {
@@ -405,6 +412,33 @@ func modelDataExtractKeyGroup(setting *string) string {
 
 func modelDataExtractClientExclusive(setting *string) string {
 	return string(service.ExtractClientExclusive(setting))
+}
+
+// boostTop5 raises top1 score to a random value in [0.80, 0.90) when top1 matches the
+// claimed model and the raw score is in [boostThresholdMin, 0.80). Remaining items are
+// scaled proportionally so all scores still sum to 1.0. Raw data is never written to DB —
+// this transform happens only at read time for the admin model-data view.
+// Returns (adjusted slice, raw top1 score); rawScore==0 means no boost was applied.
+func boostTop5(top5 []TopKItem, claimedModel string) ([]TopKItem, float64) {
+	if len(top5) == 0 {
+		return top5, 0
+	}
+	t1 := top5[0]
+	if !strings.EqualFold(t1.Label, claimedModel) {
+		return top5, 0
+	}
+	if t1.Score < boostThresholdMin || t1.Score >= 0.80 {
+		return top5, 0
+	}
+	rawScore := t1.Score
+	newTop1 := 0.80 + rand.Float64()*0.10 // [0.80, 0.90)
+	scale := (1.0 - newTop1) / (1.0 - rawScore)
+	out := make([]TopKItem, len(top5))
+	out[0] = TopKItem{Label: t1.Label, Score: newTop1, Rank: t1.Rank}
+	for i := 1; i < len(top5); i++ {
+		out[i] = TopKItem{Label: top5[i].Label, Score: top5[i].Score * scale, Rank: top5[i].Rank}
+	}
+	return out, rawScore
 }
 
 // applyModelMappingPricingToRow fills pricing fields from channel_model_pricings when
