@@ -109,6 +109,11 @@ const paymentSchema = z.object({
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  PayPalClientID: z.string(),
+  PayPalClientSecret: z.string(),
+  PayPalWebhookID: z.string(),
+  PayPalSandbox: z.boolean(),
+  PayPalMinTopUp: z.coerce.number().min(0),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -404,6 +409,61 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.CreemProducts)
     ) {
       updates.push({ key: 'CreemProducts', value: sanitized.CreemProducts })
+    }
+
+    if (updates.length === 0) {
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+  }
+
+  const savePayPalSettings = async () => {
+    const values = form.getValues()
+    const sanitized = {
+      PayPalClientID: values.PayPalClientID.trim(),
+      PayPalClientSecret: values.PayPalClientSecret.trim(),
+      PayPalWebhookID: values.PayPalWebhookID.trim(),
+      PayPalSandbox: values.PayPalSandbox as boolean,
+      PayPalMinTopUp: values.PayPalMinTopUp as number,
+    }
+
+    const initial = {
+      PayPalClientID: initialRef.current.PayPalClientID.trim(),
+      PayPalClientSecret: initialRef.current.PayPalClientSecret.trim(),
+      PayPalWebhookID: initialRef.current.PayPalWebhookID.trim(),
+      PayPalSandbox: initialRef.current.PayPalSandbox,
+      PayPalMinTopUp: initialRef.current.PayPalMinTopUp,
+    }
+
+    const updates: Array<{ key: string; value: string | number | boolean }> = []
+
+    if (sanitized.PayPalClientID !== initial.PayPalClientID) {
+      updates.push({ key: 'PayPalClientID', value: sanitized.PayPalClientID })
+    }
+
+    if (
+      sanitized.PayPalClientSecret &&
+      sanitized.PayPalClientSecret !== initial.PayPalClientSecret
+    ) {
+      updates.push({
+        key: 'PayPalClientSecret',
+        value: sanitized.PayPalClientSecret,
+      })
+    }
+
+    if (sanitized.PayPalWebhookID !== initial.PayPalWebhookID) {
+      updates.push({ key: 'PayPalWebhookID', value: sanitized.PayPalWebhookID })
+    }
+
+    if (sanitized.PayPalSandbox !== initial.PayPalSandbox) {
+      updates.push({ key: 'PayPalSandbox', value: sanitized.PayPalSandbox })
+    }
+
+    if (sanitized.PayPalMinTopUp !== initial.PayPalMinTopUp) {
+      updates.push({ key: 'PayPalMinTopUp', value: sanitized.PayPalMinTopUp })
     }
 
     if (updates.length === 0) {
@@ -1130,6 +1190,170 @@ export function PaymentSettingsSection({
               {updateOption.isPending
                 ? t('Saving...')
                 : t('Save Stripe settings')}
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('PayPal Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Configuration for native PayPal checkout integration')}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t('Webhook URL:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'<ServerAddress>/api/paypal/webhook'}
+                  </code>
+                </li>
+                <li>
+                  {t('Required events:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    CHECKOUT.ORDER.APPROVED
+                  </code>{' '}
+                  {t('and')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    PAYMENT.CAPTURE.COMPLETED
+                  </code>
+                </li>
+                <li>
+                  {t('Configure at:')}{' '}
+                  <a
+                    href='https://developer.paypal.com/dashboard/applications'
+                    target='_blank'
+                    rel='noreferrer'
+                    className='underline hover:no-underline'
+                  >
+                    PayPal Developer Dashboard
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='PayPalClientID'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Client ID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('PayPal Client ID')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PayPalClientSecret'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Client Secret')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('Enter new secret to update')}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank unless rotating the secret')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PayPalWebhookID'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Webhook ID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('PayPal Webhook ID')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='PayPalMinTopUp'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        min={0}
+                        value={(field.value ?? 0) as number}
+                        onChange={(event) =>
+                          field.onChange(event.target.valueAsNumber)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PayPalSandbox'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>{t('Sandbox mode')}</FormLabel>
+                      <FormDescription>
+                        {t('Use PayPal sandbox API for testing')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Button
+              type='button'
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                savePayPalSettings()
+              }}
+              disabled={updateOption.isPending}
+            >
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save PayPal settings')}
             </Button>
           </div>
 

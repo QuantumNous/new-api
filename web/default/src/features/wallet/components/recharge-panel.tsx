@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { CryptoDepositModal } from './crypto-deposit-modal'
-import { getTopupInfo, requestPayment, isApiSuccess } from '../api'
+import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess } from '../api'
 import { GLASS_CARD_CLS } from '../constants'
 import type { TopupInfo } from '../types'
 
@@ -40,6 +40,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
   const [cryptoOpen, setCryptoOpen] = useState(false)
   const [topupInfo, setTopupInfo] = useState<TopupInfo | null>(null)
   const [epayLoading, setEpayLoading] = useState<string | null>(null)
+  const [paypalLoading, setPaypalLoading] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
 
   const effectiveAmount = customAmount ? parseFloat(customAmount) || 0 : selectedAmount
@@ -102,7 +103,34 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
     }
   }
 
+  async function handlePayPalPay() {
+    const minTopup = topupInfo?.paypal_min_topup ?? 1
+    if (effectiveAmount < minTopup) {
+      toast.error(`${t('Minimum top-up')}: $${minTopup}`)
+      return
+    }
+    setPaypalLoading(true)
+    try {
+      const res = await requestPayPalPayment({
+        amount: Math.round(effectiveAmount),
+        payment_method: 'paypal',
+      })
+      if (isApiSuccess(res) && res.data?.pay_link) {
+        window.open(res.data.pay_link, '_blank')
+        toast.success(t('Redirecting to payment page...'))
+      } else {
+        const msg = typeof res.data === 'string' ? res.data : t('Payment failed')
+        toast.error(msg as string)
+      }
+    } catch {
+      toast.error(t('Payment failed'))
+    } finally {
+      setPaypalLoading(false)
+    }
+  }
+
   const epayEnabled = topupInfo?.enable_online_topup ?? false
+  const paypalEnabled = topupInfo?.enable_paypal_topup ?? false
   const epayMethods = topupInfo?.pay_methods ?? []
   const hasAlipay = epayEnabled && epayMethods.some((m) => m.type === 'alipay')
   const hasWechat = epayEnabled && epayMethods.some((m) => m.type === 'wxpay')
@@ -236,6 +264,34 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                   <div className='truncate text-[11px] text-gray-400'>USDT / USDC</div>
                 </div>
               </button>
+
+              {paypalEnabled && (
+                <button
+                  type='button'
+                  disabled={effectiveAmount <= 0 || paypalLoading}
+                  onClick={() => { handleMethodSelect('paypal'); handlePayPalPay() }}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
+                    selectedMethod === 'paypal'
+                      ? 'border-[#003087] bg-blue-50'
+                      : 'border-border bg-white hover:border-[#003087]'
+                  )}
+                >
+                  <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: '#003087' }}>
+                    {paypalLoading
+                      ? <Loader2 className='size-4 animate-spin text-white' />
+                      : (
+                        <svg viewBox='0 0 24 24' className='size-5 fill-white' aria-hidden='true'>
+                          <path d='M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 2.901C5.026 2.318 5.474 1.9 6.07 1.9h4.674c3.476 0 5.705 1.657 5.083 5.093-.49 2.735-2.278 4.016-4.692 4.016H8.785a.641.641 0 0 0-.633.545l-.634 4.032a.641.641 0 0 1-.633.545h-.009zm.633-7.337h1.272c2.157 0 3.477-1.016 3.929-3.172.35-1.658-.002-2.558-1.032-3.084-.348-.189-.804-.283-1.356-.283H8.016l-.307 6.539z' />
+                        </svg>
+                      )}
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='truncate text-sm font-semibold text-gray-800'>PayPal</div>
+                    <div className='truncate text-[11px] text-gray-400'>{t('Credit / Debit')}</div>
+                  </div>
+                </button>
+              )}
 
               <button
                 type='button'
