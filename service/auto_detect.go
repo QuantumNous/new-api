@@ -111,7 +111,7 @@ func splitChannelModels(models string) map[string]bool {
 	for _, p := range strings.Split(models, ",") {
 		p = strings.TrimSpace(p)
 		if p != "" {
-			out[p] = true
+			out[strings.ToLower(p)] = true
 		}
 	}
 	return out
