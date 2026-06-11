@@ -32,8 +32,6 @@ bun install
 bun run build
 cd ../..
 
-# Immediately delete build artifacts (to prevent backend from serving static files)
-rm -rf web/default/dist web/classic/dist
 ```
 
 #### 2. Start Backend
@@ -204,8 +202,6 @@ This command clears settings and admin accounts in the database for retesting th
 # First build frontend to generate dist
 cd web/default && bun install && bun run build && cd ../..
 
-# Immediately delete to avoid occupation
-rm -rf web/default/dist web/classic/dist
 
 # Start backend
 go run main.go

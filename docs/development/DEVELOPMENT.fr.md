@@ -32,8 +32,6 @@ bun install
 bun run build
 cd ../..
 
-# Supprimer immédiatement les artefacts de compilation (pour empêcher le backend de servir des fichiers statiques)
-rm -rf web/default/dist web/classic/dist
 ```
 
 #### 2. Démarrer le Backend
@@ -204,8 +202,6 @@ Cette commande efface les paramètres et les comptes administrateur dans la base
 # D'abord compiler le frontend pour générer dist
 cd web/default && bun install && bun run build && cd ../..
 
-# Supprimer immédiatement pour éviter l'occupation
-rm -rf web/default/dist web/classic/dist
 
 # Démarrer le backend
 go run main.go

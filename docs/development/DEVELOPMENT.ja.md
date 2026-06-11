@@ -32,8 +32,6 @@ bun install
 bun run build
 cd ../..
 
-# ビルド成果物を即座に削除 (バックエンドが静的ファイルを提供しないようにするため)
-rm -rf web/default/dist web/classic/dist
 ```
 
 #### 2. バックエンドの起動
@@ -204,8 +202,6 @@ make reset-setup
 # まずフロントエンドをビルドして dist を生成
 cd web/default && bun install && bun run build && cd ../..
 
-# すぐに削除して占有を回避
-rm -rf web/default/dist web/classic/dist
 
 # バックエンドを起動
 go run main.go

@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="./DEVELOPMENT.zh_CN.md">简体中文</a> |
-  <a href="./DEVELOPMENT.zh_TW.md">繁體中文</a> |
+  <strong>繁體中文</strong> |
   <a href="./DEVELOPMENT.md">English</a> |
   <a href="./DEVELOPMENT.fr.md">Français</a> |
   <a href="./DEVELOPMENT.ja.md">日本語</a>
@@ -32,8 +32,6 @@ bun install
 bun run build
 cd ../..
 
-# 立即刪除構建產物 (防止後端服務靜態檔案)
-rm -rf web/default/dist web/classic/dist
 ```
 
 #### 2. 啟動後端
@@ -204,8 +202,6 @@ make reset-setup
 # 先構建前端生成 dist
 cd web/default && bun install && bun run build && cd ../..
 
-# 立即刪除以避免佔用
-rm -rf web/default/dist web/classic/dist
 
 # 啟動後端
 go run main.go

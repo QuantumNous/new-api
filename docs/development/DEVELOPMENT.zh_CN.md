@@ -32,8 +32,6 @@ bun install
 bun run build
 cd ../..
 
-# 立即删除构建产物（避免后端提供静态文件）
-rm -rf web/default/dist web/classic/dist
 ```
 
 #### 2. 启动后端
@@ -204,8 +202,6 @@ make reset-setup
 # 先构建前端生成 dist
 cd web/default && bun install && bun run build && cd ../..
 
-# 立即删除避免占用
-rm -rf web/default/dist web/classic/dist
 
 # 启动后端
 go run main.go
