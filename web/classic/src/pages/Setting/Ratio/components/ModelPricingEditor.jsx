@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Banner,
   Button,
   Card,
   Checkbox,
@@ -473,22 +472,6 @@ export default function ModelPricingEditor({
                         placeholder={t('输入 $/1M tokens')}
                         onChange={(value) => handleNumericFieldChange('inputPrice', value)}
                       />
-                      {selectedModel.completionRatioLocked ? (
-                        <Banner
-                          type='warning'
-                          bordered
-                          fullMode={false}
-                          closeIcon={null}
-                          style={{ marginBottom: 12 }}
-                          title={t('补全价格已锁定')}
-                          description={t(
-                            '该模型补全倍率由后端固定为 {{ratio}}。补全价格不能在这里修改。',
-                            {
-                              ratio: selectedModel.lockedCompletionRatio || '-',
-                            },
-                          )}
-                        />
-                      ) : null}
                       <PriceInput
                         label={t('补全价格')}
                         value={selectedModel.completionPrice}
@@ -503,7 +486,6 @@ export default function ModelPricingEditor({
                               selectedModel,
                               'completionPrice',
                             )}
-                            disabled={selectedModel.completionRatioLocked}
                             onChange={(checked) =>
                               handleOptionalFieldToggle('completionPrice', checked)
                             }
@@ -512,24 +494,11 @@ export default function ModelPricingEditor({
                         hidden={
                           !isOptionalFieldEnabled(selectedModel, 'completionPrice')
                         }
-                        disabled={
-                          !hasValue(selectedModel.inputPrice) ||
-                          selectedModel.completionRatioLocked
-                        }
+                        disabled={!hasValue(selectedModel.inputPrice)}
                         extraText={
-                          selectedModel.completionRatioLocked
-                            ? t(
-                                '后端固定倍率：{{ratio}}。该字段仅展示换算后的价格。',
-                                {
-                                  ratio: selectedModel.lockedCompletionRatio || '-',
-                                },
-                              )
-                            : !isOptionalFieldEnabled(
-                                  selectedModel,
-                                  'completionPrice',
-                                )
-                              ? t('当前未启用，需要时再打开即可。')
-                              : ''
+                          !isOptionalFieldEnabled(selectedModel, 'completionPrice')
+                            ? t('当前未启用，需要时再打开即可。')
+                            : ''
                         }
                       />
                       <PriceInput
