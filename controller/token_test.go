@@ -53,9 +53,12 @@ type ccSwitchImportOptionsResponse struct {
 		MaskedKey string `json:"masked_key"`
 		BaseURL   string `json:"base_url"`
 	} `json:"token"`
-	DefaultTarget string                    `json:"default_target"`
-	DefaultModel  string                    `json:"default_model"`
-	Targets       []dto.CCSwitchImportTarget `json:"targets"`
+	DefaultTarget      string                     `json:"default_target"`
+	DefaultModel       string                     `json:"default_model"`
+	DefaultHaikuModel  string                     `json:"default_haiku_model"`
+	DefaultSonnetModel string                     `json:"default_sonnet_model"`
+	DefaultOpusModel   string                     `json:"default_opus_model"`
+	Targets            []dto.CCSwitchImportTarget `json:"targets"`
 }
 
 type ccSwitchImportLinkResponse struct {
@@ -68,21 +71,21 @@ type sqliteColumnInfo struct {
 }
 
 type legacyToken struct {
-	Id                 int            `gorm:"primaryKey"`
-	UserId             int            `gorm:"index"`
-	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int            `gorm:"default:1"`
-	Name               string         `gorm:"index"`
-	CreatedTime        int64          `gorm:"bigint"`
-	AccessedTime       int64          `gorm:"bigint"`
-	ExpiredTime        int64          `gorm:"bigint;default:-1"`
-	RemainQuota        int            `gorm:"default:0"`
+	Id                 int    `gorm:"primaryKey"`
+	UserId             int    `gorm:"index"`
+	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int    `gorm:"default:1"`
+	Name               string `gorm:"index"`
+	CreatedTime        int64  `gorm:"bigint"`
+	AccessedTime       int64  `gorm:"bigint"`
+	ExpiredTime        int64  `gorm:"bigint;default:-1"`
+	RemainQuota        int    `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string         `gorm:"type:text"`
-	AllowIps           *string        `gorm:"default:''"`
-	UsedQuota          int            `gorm:"default:0"`
-	Group              string         `gorm:"column:group;default:''"`
+	ModelLimits        string  `gorm:"type:text"`
+	AllowIps           *string `gorm:"default:''"`
+	UsedQuota          int     `gorm:"default:0"`
+	Group              string  `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -609,7 +612,7 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 
 func TestGetTokenCCSwitchImportOptionsMasksKey(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	setServerAddressForTest(t, "https://api.xistree.hk/")
+	setServerAddressForTest(t, "https://ignored.example.com/")
 	token := seedToken(t, db, 1, "codex token", "raw-secret-token-value")
 
 	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-options", nil, 1)
@@ -632,13 +635,16 @@ func TestGetTokenCCSwitchImportOptionsMasksKey(t *testing.T) {
 		t.Fatalf("expected masked key %q, got %q", token.GetMaskedKey(), options.Token.MaskedKey)
 	}
 	if options.Token.BaseURL != "https://api.xistree.hk/" {
-		t.Fatalf("expected configured server address, got %q", options.Token.BaseURL)
+		t.Fatalf("expected fixed CC Switch endpoint, got %q", options.Token.BaseURL)
 	}
 	if options.DefaultTarget != "codex" {
 		t.Fatalf("expected default target codex, got %q", options.DefaultTarget)
 	}
 	if options.DefaultModel != "gpt-5.5" {
 		t.Fatalf("expected default model gpt-5.5, got %q", options.DefaultModel)
+	}
+	if len(options.Targets) != 2 || options.Targets[0].Key != "codex" || !options.Targets[0].Enabled || options.Targets[1].Key != "claude" || !options.Targets[1].Enabled {
+		t.Fatalf("expected Codex and Claude Code targets to be enabled, got %+v", options.Targets)
 	}
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("import options leaked raw token key: %s", recorder.Body.String())
@@ -733,7 +739,7 @@ func TestCreateTokenCCSwitchImportLinkBuildsEncodedURLAndRecordsAudit(t *testing
 		t.Fatalf("expected codex app, got %q", query.Get("app"))
 	}
 	if query.Get("endpoint") != "https://api.xistree.hk/" {
-		t.Fatalf("expected raw server address endpoint, got %q", query.Get("endpoint"))
+		t.Fatalf("expected fixed CC Switch endpoint, got %q", query.Get("endpoint"))
 	}
 	if query.Get("apiKey") != "sk-secret-token-key" {
 		t.Fatalf("expected normalized api key, got %q", query.Get("apiKey"))
@@ -769,6 +775,60 @@ func TestCreateTokenCCSwitchImportLinkBuildsEncodedURLAndRecordsAudit(t *testing
 	}
 }
 
+func TestCreateTokenCCSwitchClaudeLinkFallsBackAndRecordsModels(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setServerAddressForTest(t, "https://ignored.example.com/")
+	token := seedToken(t, db, 1, "claude token", "claude-secret")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
+		Target:      "claude",
+		Model:       "claude-main",
+		HaikuModel:  "claude-haiku",
+		SonnetModel: "",
+		OpusModel:   "claude-opus",
+	}, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	CreateTokenCCSwitchImportLink(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected Claude import link to succeed, got %q", response.Message)
+	}
+	var link ccSwitchImportLinkResponse
+	if err := common.Unmarshal(response.Data, &link); err != nil {
+		t.Fatalf("failed to decode Claude import link: %v", err)
+	}
+	parsed, err := url.Parse(link.URL)
+	if err != nil {
+		t.Fatalf("failed to parse Claude import link: %v", err)
+	}
+	query := parsed.Query()
+	if query.Get("app") != "claude" || query.Get("endpoint") != "https://api.xistree.hk/" {
+		t.Fatalf("unexpected Claude provider parameters: %s", link.URL)
+	}
+	if query.Get("model") != "claude-main" || query.Get("haikuModel") != "claude-haiku" || query.Get("sonnetModel") != "claude-main" || query.Get("opusModel") != "claude-opus" {
+		t.Fatalf("unexpected Claude model parameters: %s", link.URL)
+	}
+	if query.Get("wire_api") != "" || query.Get("requires_openai_auth") != "" {
+		t.Fatalf("Codex-only parameters leaked into Claude link: %s", link.URL)
+	}
+
+	var importLog model.CCSwitchImportLog
+	if err := db.First(&importLog, "user_id = ? AND token_id = ?", 1, token.Id).Error; err != nil {
+		t.Fatalf("failed to load Claude import log: %v", err)
+	}
+	if importLog.HaikuModel != "claude-haiku" || importLog.SonnetModel != "claude-main" || importLog.OpusModel != "claude-opus" {
+		t.Fatalf("unexpected Claude import log: %+v", importLog)
+	}
+	preference, err := model.GetUserCCSwitchPreference(1)
+	if err != nil {
+		t.Fatalf("failed to load Claude preference: %v", err)
+	}
+	if preference == nil || preference.LastHaikuModel != "claude-haiku" || preference.LastSonnetModel != "" || preference.LastOpusModel != "claude-opus" {
+		t.Fatalf("unexpected Claude preference: %+v", preference)
+	}
+}
+
 func TestCreateTokenCCSwitchImportLinkKeepsExistingSKPrefix(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	setServerAddressForTest(t, "https://api.xistree.hk/")
@@ -798,7 +858,7 @@ func TestCreateTokenCCSwitchImportLinkKeepsExistingSKPrefix(t *testing.T) {
 	}
 }
 
-func TestCreateTokenCCSwitchImportLinkRequiresServerAddress(t *testing.T) {
+func TestCreateTokenCCSwitchImportLinkIgnoresServerAddress(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	setServerAddressForTest(t, "")
 	token := seedToken(t, db, 1, "missing-server-address", "server-address-key")
@@ -811,11 +871,8 @@ func TestCreateTokenCCSwitchImportLinkRequiresServerAddress(t *testing.T) {
 	CreateTokenCCSwitchImportLink(ctx)
 
 	response := decodeAPIResponse(t, recorder)
-	if response.Success {
-		t.Fatalf("expected missing ServerAddress to fail")
-	}
-	if !strings.Contains(response.Message, "server address") {
-		t.Fatalf("expected server address error, got %q", response.Message)
+	if !response.Success {
+		t.Fatalf("expected fixed endpoint to work without ServerAddress, got %q", response.Message)
 	}
 }
 
@@ -825,14 +882,14 @@ func TestCreateTokenCCSwitchImportLinkRejectsUnavailableTargetAndMissingModel(t 
 	token := seedToken(t, db, 1, "validation-token", "validation-key")
 
 	targetCtx, targetRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{
-		Target: "claude",
+		Target: "hermes",
 		Model:  "gpt-5.5",
 	}, 1)
 	targetCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
 	CreateTokenCCSwitchImportLink(targetCtx)
 	targetResponse := decodeAPIResponse(t, targetRecorder)
 	if targetResponse.Success {
-		t.Fatalf("expected disabled target to fail")
+		t.Fatalf("expected unsupported target to fail")
 	}
 
 	modelCtx, modelRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-link", dto.CCSwitchImportLinkRequest{

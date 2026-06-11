@@ -18,45 +18,69 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Descriptions,
-  Modal,
-  Select,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Modal, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { API, selectFilter } from '../../../../helpers';
+
+const emptyModelSelection = () => ({
+  model: '',
+  haiku_model: '',
+  sonnet_model: '',
+  opus_model: '',
+});
 
 export default function CCSwitchModal({ visible, onClose, tokenId }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [options, setOptions] = useState(null);
-  const [models, setModels] = useState([]);
-  const [target, setTarget] = useState('');
-  const [model, setModel] = useState('');
+  const [modelItems, setModelItems] = useState([]);
+  const [target, setTarget] = useState('codex');
+  const [modelsByTarget, setModelsByTarget] = useState({
+    codex: emptyModelSelection(),
+    claude: emptyModelSelection(),
+  });
+  const [modelKeyword, setModelKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedKeyword(modelKeyword.trim()),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [modelKeyword]);
 
   useEffect(() => {
     if (!visible || !tokenId) return;
 
     let active = true;
     setLoading(true);
-    Promise.all([
-      API.get(`/api/token/${tokenId}/ccswitch/import-options`),
-      API.get('/api/user/models'),
-    ])
-      .then(([optionsResponse, modelsResponse]) => {
+    API.get(`/api/token/${tokenId}/ccswitch/import-options`)
+      .then((response) => {
         if (!active) return;
-        const optionsPayload = optionsResponse.data || {};
-        if (!optionsPayload.success) {
-          throw new Error(optionsPayload.message || t('加载失败'));
+        const payload = response.data || {};
+        if (!payload.success) {
+          throw new Error(payload.message || t('加载失败'));
         }
-        const nextOptions = optionsPayload.data;
+        const nextOptions = payload.data;
+        const defaultTarget =
+          nextOptions.default_target === 'claude' ? 'claude' : 'codex';
+        const mainModel = nextOptions.default_model || '';
         setOptions(nextOptions);
-        setTarget(nextOptions.default_target || '');
-        setModel(nextOptions.default_model || '');
-        setModels(modelsResponse.data?.data || []);
+        setTarget(defaultTarget);
+        setModelsByTarget({
+          codex: { ...emptyModelSelection(), model: mainModel },
+          claude: {
+            model: mainModel,
+            haiku_model: nextOptions.default_haiku_model || '',
+            sonnet_model: nextOptions.default_sonnet_model || '',
+            opus_model: nextOptions.default_opus_model || '',
+          },
+        });
+        setModelKeyword('');
+        setDebouncedKeyword('');
       })
       .catch((error) => {
         if (active) Toast.error(error.message || t('加载失败'));
@@ -70,25 +94,80 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
     };
   }, [visible, tokenId, t]);
 
+  useEffect(() => {
+    if (!visible || !tokenId) return;
+
+    let active = true;
+    setModelsLoading(true);
+    API.get(`/api/token/${tokenId}/ccswitch/models`, {
+      params: debouncedKeyword ? { keyword: debouncedKeyword } : undefined,
+    })
+      .then((response) => {
+        if (!active) return;
+        const payload = response.data || {};
+        if (!payload.success) {
+          throw new Error(payload.message || t('加载失败'));
+        }
+        setModelItems(payload.data?.items || []);
+      })
+      .catch((error) => {
+        if (active) Toast.error(error.message || t('加载失败'));
+      })
+      .finally(() => {
+        if (active) setModelsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [visible, tokenId, debouncedKeyword, t]);
+
   const targetOptions = useMemo(
     () =>
       (options?.targets || []).map((item) => ({
-        label: item.enabled
-          ? item.label
-          : `${item.label} (${item.disabled_reason || '-'})`,
+        label: item.label,
         value: item.key,
         disabled: !item.enabled,
       })),
-    [options?.targets, t],
+    [options?.targets],
   );
 
   const modelOptions = useMemo(() => {
-    const values = [options?.default_model, ...models].filter(Boolean);
-    return [...new Set(values)].map((item) => ({ label: item, value: item }));
-  }, [models, options?.default_model]);
+    const grouped = new Map();
+    for (const item of modelItems) {
+      const key = `${item.vendor_id}:${item.vendor_name}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(item);
+    }
+
+    const result = [];
+    for (const [key, items] of grouped.entries()) {
+      result.push({
+        label: items[0]?.vendor_name || t('其他'),
+        value: `__vendor_${key}`,
+        disabled: true,
+      });
+      for (const item of items) {
+        result.push({ label: item.name, value: item.name });
+      }
+    }
+    return result;
+  }, [modelItems, t]);
+
+  const activeModels = modelsByTarget[target] || emptyModelSelection();
+
+  const setModel = (field, value) => {
+    setModelsByTarget((current) => ({
+      ...current,
+      [target]: {
+        ...current[target],
+        [field]: value || '',
+      },
+    }));
+  };
 
   const handleSubmit = async () => {
-    if (!tokenId || !target || !model) {
+    if (!tokenId || !target || !activeModels.model) {
       Toast.warning(t('请选择模型'));
       return;
     }
@@ -97,7 +176,17 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
     try {
       const response = await API.post(
         `/api/token/${tokenId}/ccswitch/import-link`,
-        { target, model },
+        {
+          target,
+          model: activeModels.model,
+          ...(target === 'claude'
+            ? {
+                haiku_model: activeModels.haiku_model,
+                sonnet_model: activeModels.sonnet_model,
+                opus_model: activeModels.opus_model,
+              }
+            : {}),
+        },
       );
       const payload = response.data || {};
       if (!payload.success || !payload.data?.url) {
@@ -111,6 +200,28 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
       setSubmitting(false);
     }
   };
+
+  const renderModelSelect = (field, label, optional = false) => (
+    <div key={field}>
+      <div className='mb-1 text-sm'>{label}</div>
+      <Select
+        value={activeModels[field] || undefined}
+        optionList={modelOptions}
+        onChange={(value) => setModel(field, value)}
+        onSearch={setModelKeyword}
+        onDropdownVisibleChange={(open) => {
+          if (open) setModelKeyword('');
+        }}
+        filter={selectFilter}
+        style={{ width: '100%' }}
+		placeholder={optional ? t('Follow primary model') : t('请选择模型')}
+        emptyContent={modelsLoading ? t('加载中...') : t('暂无数据')}
+        loading={modelsLoading}
+        showClear={optional}
+        searchable
+      />
+    </div>
+  );
 
   return (
     <Modal
@@ -128,37 +239,42 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
         <Typography.Text type='tertiary'>{t('加载中...')}</Typography.Text>
       ) : (
         <div className='flex flex-col gap-4'>
-          <Descriptions
-            data={[
-              { key: t('名称'), value: options?.token?.name || '-' },
-              { key: 'API Key', value: options?.token?.masked_key || '-' },
-              { key: 'BaseURL', value: options?.token?.base_url || '-' },
-            ]}
-            row
-            size='small'
-          />
+          <div className='rounded-lg border p-3'>
+            <div className='mb-3'>
+              <div className='text-xs text-gray-500'>{t('名称')}</div>
+              <div className='break-all font-medium'>
+                {options?.token?.name || '-'}
+              </div>
+            </div>
+            <div>
+              <div className='text-xs text-gray-500'>API Key</div>
+              <div className='break-all font-medium'>
+                {options?.token?.masked_key || '-'}
+              </div>
+            </div>
+          </div>
 
           <div>
             <div className='mb-1 text-sm'>{t('应用')}</div>
             <Select
               value={target || undefined}
               optionList={targetOptions}
-              onChange={setTarget}
+              onChange={(value) => {
+                setTarget(value);
+                setModelKeyword('');
+              }}
               style={{ width: '100%' }}
             />
           </div>
 
-          <div>
-            <div className='mb-1 text-sm'>{t('模型')}</div>
-            <Select
-              value={model || undefined}
-              optionList={modelOptions}
-              onChange={setModel}
-              filter={selectFilter}
-              style={{ width: '100%' }}
-              searchable
-            />
-          </div>
+          {renderModelSelect('model', t('主模型'))}
+          {target === 'claude' && (
+            <>
+              {renderModelSelect('haiku_model', t('Haiku 模型'), true)}
+              {renderModelSelect('sonnet_model', t('Sonnet 模型'), true)}
+              {renderModelSelect('opus_model', t('Opus 模型'), true)}
+            </>
+          )}
         </div>
       )}
     </Modal>

@@ -110,6 +110,18 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+func GetAllModelsMetadata() ([]Model, error) {
+	var models []Model
+	err := DB.Find(&models).Error
+	return models, err
+}
+
+func GetAllVendorsMetadata() ([]Vendor, error) {
+	var vendors []Vendor
+	err := DB.Find(&vendors).Error
+	return vendors, err
+}
+
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
 	result := make(map[string][]BoundChannel)
 	if len(modelNames) == 0 {

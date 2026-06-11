@@ -21,7 +21,6 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserModels } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,8 +28,12 @@ import { Dialog } from '@/components/dialog'
 import {
   createCCSwitchImportLink,
   getCCSwitchImportOptions,
+  getCCSwitchModels,
 } from '../../api'
-import type { CCSwitchImportTarget } from '../../types'
+import type {
+  CCSwitchImportTarget,
+  CCSwitchModelOption,
+} from '../../types'
 
 interface CCSwitchDialogProps {
   open: boolean
@@ -38,13 +41,28 @@ interface CCSwitchDialogProps {
   tokenId?: number
 }
 
+type TargetKey = 'codex' | 'claude'
+type ModelField = 'model' | 'haiku_model' | 'sonnet_model' | 'opus_model'
+type ModelSelection = Record<ModelField, string>
+
+const emptyModelSelection = (): ModelSelection => ({
+  model: '',
+  haiku_model: '',
+  sonnet_model: '',
+  opus_model: '',
+})
+
 export function CCSwitchDialog(props: CCSwitchDialogProps) {
   const { t } = useTranslation()
-  const [selectedTarget, setSelectedTarget] = useState('')
-  const [selectedModel, setSelectedModel] = useState('')
+  const [selectedTarget, setSelectedTarget] = useState<TargetKey>('codex')
+  const [modelsByTarget, setModelsByTarget] = useState<
+    Record<TargetKey, ModelSelection>
+  >({ codex: emptyModelSelection(), claude: emptyModelSelection() })
   const [targetExpanded, setTargetExpanded] = useState(false)
-  const [modelExpanded, setModelExpanded] = useState(false)
+  const [expandedModelField, setExpandedModelField] =
+    useState<ModelField | null>(null)
   const [modelKeyword, setModelKeyword] = useState('')
+  const [debouncedKeyword, setDebouncedKeyword] = useState('')
   const [showLaunchHelp, setShowLaunchHelp] = useState(false)
 
   const optionsQuery = useQuery({
@@ -56,78 +74,89 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
     enabled: props.open && Boolean(props.tokenId),
   })
 
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedKeyword(modelKeyword.trim()),
+      250
+    )
+    return () => window.clearTimeout(timer)
+  }, [modelKeyword])
+
   const modelsQuery = useQuery({
-    queryKey: ['user-models-ccswitch'],
-    queryFn: getUserModels,
-    enabled: props.open,
+    queryKey: ['ccswitch-models', props.tokenId, debouncedKeyword],
+    queryFn: async () => {
+      if (!props.tokenId) throw new Error('Missing token id')
+      return getCCSwitchModels(props.tokenId, debouncedKeyword)
+    },
+    enabled: props.open && Boolean(props.tokenId),
     staleTime: 5 * 60 * 1000,
   })
 
   const options = optionsQuery.data?.data
-  const activeTarget = selectedTarget || options?.default_target || ''
-  const activeModel = selectedModel || options?.default_model || ''
+  const activeModels = modelsByTarget[selectedTarget]
+
+  useEffect(() => {
+    if (!props.open || !options) return
+    const defaultTarget: TargetKey =
+      options.default_target === 'claude' ? 'claude' : 'codex'
+    const mainModel = options.default_model || ''
+    setSelectedTarget(defaultTarget)
+    setModelsByTarget({
+      codex: { ...emptyModelSelection(), model: mainModel },
+      claude: {
+        model: mainModel,
+        haiku_model: options.default_haiku_model || '',
+        sonnet_model: options.default_sonnet_model || '',
+        opus_model: options.default_opus_model || '',
+      },
+    })
+    setTargetExpanded(false)
+    setExpandedModelField(null)
+    setModelKeyword('')
+    setDebouncedKeyword('')
+    setShowLaunchHelp(false)
+  }, [options, props.open, props.tokenId])
 
   const importMutation = useMutation({
     mutationFn: async () => {
       if (!props.tokenId) throw new Error('Missing token id')
       return createCCSwitchImportLink(props.tokenId, {
-        target: activeTarget,
-        model: activeModel,
+        target: selectedTarget,
+        model: activeModels.model,
+        ...(selectedTarget === 'claude'
+          ? {
+              haiku_model: activeModels.haiku_model,
+              sonnet_model: activeModels.sonnet_model,
+              opus_model: activeModels.opus_model,
+            }
+          : {}),
       })
     },
   })
 
-  const modelOptions = useMemo(() => {
-    const data = modelsQuery.data?.data ?? []
-    const seen = new Set<string>()
-    const merged = [options?.default_model, ...data].filter(
-      (item): item is string => Boolean(item)
-    )
-    return merged.filter((model) => {
-      if (seen.has(model)) return false
-      seen.add(model)
-      return true
-    })
-  }, [modelsQuery.data?.data, options?.default_model])
+  const selectedTargetConfig = useMemo(
+    () => options?.targets.find((target) => target.key === selectedTarget),
+    [options?.targets, selectedTarget]
+  )
 
-  const filteredModels = useMemo(() => {
-    const words = modelKeyword
-      .trim()
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean)
-    if (words.length === 0) return modelOptions.slice(0, 30)
-    return modelOptions
-      .filter((model) => {
-        const lowerModel = model.toLowerCase()
-        return words.every((word) => lowerModel.includes(word))
-      })
-      .slice(0, 30)
-  }, [modelKeyword, modelOptions])
-
-  useEffect(() => {
-    if (!props.open) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTargetExpanded(false)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setModelExpanded(false)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setModelKeyword('')
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShowLaunchHelp(false)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedTarget('')
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedModel('')
-  }, [props.open, props.tokenId])
-
-  const selectedTargetConfig = useMemo(() => {
-    return options?.targets.find((target) => target.key === activeTarget)
-  }, [options?.targets, activeTarget])
+  const groupedModels = useMemo(() => {
+    const groups = new Map<string, CCSwitchModelOption[]>()
+    for (const item of modelsQuery.data?.data?.items ?? []) {
+      const key = `${item.vendor_id}:${item.vendor_name}`
+      const group = groups.get(key) ?? []
+      group.push(item)
+      groups.set(key, group)
+    }
+    return [...groups.entries()].map(([key, items]) => ({
+      key,
+      vendorName: items[0]?.vendor_name || t('Other'),
+      items,
+    }))
+  }, [modelsQuery.data?.data?.items, t])
 
   const canImport =
     Boolean(selectedTargetConfig?.enabled) &&
-    Boolean(activeModel.trim()) &&
+    Boolean(activeModels.model.trim()) &&
     !importMutation.isPending
 
   const handleSubmit = async () => {
@@ -135,7 +164,7 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
       toast.warning(t('Please select an available import target'))
       return
     }
-    if (!activeModel.trim()) {
+    if (!activeModels.model.trim()) {
       toast.warning(t('Please select a model'))
       return
     }
@@ -154,42 +183,68 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
     window.setTimeout(() => setShowLaunchHelp(true), 1500)
   }
 
-  let modelListContent: ReactNode
-  if (filteredModels.length > 0) {
-    modelListContent = (
-      <div className='max-h-64 space-y-2 overflow-y-auto pr-1'>
-        {filteredModels.map((model) => (
-          <button
-            key={model}
-            type='button'
-            className={cn(
-              'hover:bg-muted flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-              model === activeModel && 'border-primary bg-primary/5'
-            )}
-            onClick={() => {
-              setSelectedModel(model)
-              setModelKeyword('')
-              setModelExpanded(false)
-              setShowLaunchHelp(false)
-            }}
-          >
-            <span className='min-w-0 truncate font-medium'>{model}</span>
-            {model === options?.default_model ? (
-              <span className='bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs'>
-                {t('Recommended')}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-    )
-  } else {
-    modelListContent = (
-      <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
-        {t('No matching models found')}
-      </div>
-    )
+  const setModel = (field: ModelField, value: string) => {
+    setModelsByTarget((current) => ({
+      ...current,
+      [selectedTarget]: {
+        ...current[selectedTarget],
+        [field]: value,
+      },
+    }))
+    setExpandedModelField(null)
+    setModelKeyword('')
+    setShowLaunchHelp(false)
   }
+
+  const openModelPicker = (field: ModelField) => {
+    setExpandedModelField((current) => (current === field ? null : field))
+    setTargetExpanded(false)
+    setModelKeyword('')
+  }
+
+  const renderModelPicker = (field: ModelField, optional = false) => (
+    <div className='space-y-3 pt-3'>
+      {optional ? (
+        <Button
+          type='button'
+          variant='outline'
+          className='w-full'
+          onClick={() => setModel(field, '')}
+        >
+          {t('Follow primary model')}
+        </Button>
+      ) : null}
+      <div className='relative'>
+        <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2' />
+        <Input
+          value={modelKeyword}
+          onChange={(event) => setModelKeyword(event.target.value)}
+          placeholder={t('Enter model name')}
+          className='pl-8'
+        />
+      </div>
+      <div className='text-muted-foreground flex items-center justify-between text-xs'>
+        <span>
+          {debouncedKeyword
+            ? t('Search results')
+            : t('Recommended / Recently added')}
+        </span>
+        <span>
+          {t('{{count}} matches', {
+            count: modelsQuery.data?.data?.items?.length ?? 0,
+          })}
+        </span>
+      </div>
+      <ModelList
+        groups={groupedModels}
+        selectedModel={activeModels[field]}
+        defaultModel={options?.default_model}
+        loading={modelsQuery.isLoading || modelsQuery.isFetching}
+        failed={modelsQuery.isError || modelsQuery.data?.success === false}
+        onSelect={(model) => setModel(field, model)}
+      />
+    </div>
+  )
 
   let bodyContent: ReactNode
   if (optionsQuery.isLoading) {
@@ -208,27 +263,20 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
     bodyContent = (
       <div className='space-y-4'>
         <section className='bg-muted/40 rounded-lg border p-4'>
-          <h3 className='mb-3 text-sm font-semibold'>
-            {t('Current token')}
-          </h3>
-          <div className='grid gap-3 sm:grid-cols-2'>
+          <h3 className='mb-3 text-sm font-semibold'>{t('Current token')}</h3>
+          <div className='space-y-3'>
             <TokenField label={t('Name')} value={options.token.name} />
             <TokenField label={t('API Key')} value={options.token.masked_key} />
-            <TokenField
-              label={t('BaseURL')}
-              value={options.token.base_url}
-              className='sm:col-span-2'
-            />
           </div>
         </section>
 
         <SettingSection
           label={t('Import target')}
-          value={selectedTargetConfig?.label || activeTarget || '-'}
+          value={selectedTargetConfig?.label || selectedTarget}
           expanded={targetExpanded}
           onToggle={() => {
             setTargetExpanded((value) => !value)
-            setModelExpanded(false)
+            setExpandedModelField(null)
           }}
         >
           <div className='space-y-2 pt-3'>
@@ -236,11 +284,14 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
               <TargetOption
                 key={target.key}
                 target={target}
-                selected={target.key === activeTarget}
+                selected={target.key === selectedTarget}
                 onSelect={() => {
                   if (!target.enabled) return
-                  setSelectedTarget(target.key)
+                  setSelectedTarget(
+                    target.key === 'claude' ? 'claude' : 'codex'
+                  )
                   setTargetExpanded(false)
+                  setExpandedModelField(null)
                   setShowLaunchHelp(false)
                 }}
               />
@@ -249,45 +300,41 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
         </SettingSection>
 
         <SettingSection
-          label={t('Default model')}
-          value={activeModel || '-'}
-          expanded={modelExpanded}
-          onToggle={() => {
-            setModelExpanded((value) => !value)
-            setTargetExpanded(false)
-          }}
+          label={t('Primary Model')}
+          value={activeModels.model || '-'}
+          expanded={expandedModelField === 'model'}
+          onToggle={() => openModelPicker('model')}
         >
-          <div className='space-y-3 pt-3'>
-            <div className='relative'>
-              <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2' />
-              <Input
-                value={modelKeyword}
-                onChange={(event) => setModelKeyword(event.target.value)}
-                placeholder={t('Enter model name, e.g. codex / sonnet / qwen')}
-                className='pl-8'
-              />
-            </div>
-            <div className='text-muted-foreground flex items-center justify-between text-xs'>
-              <span>
-                {modelKeyword.trim()
-                  ? t('Search results')
-                  : t('Recommended / Recently added')}
-              </span>
-              <span>
-                {t('{{count}} matches', { count: filteredModels.length })}
-              </span>
-            </div>
-            {modelListContent}
-          </div>
+          {renderModelPicker('model')}
         </SettingSection>
 
-        {showLaunchHelp && (
+        {selectedTarget === 'claude'
+          ? (
+              [
+                ['haiku_model', 'Haiku Model'],
+                ['sonnet_model', 'Sonnet Model'],
+                ['opus_model', 'Opus Model'],
+              ] as const
+            ).map(([field, label]) => (
+              <SettingSection
+                key={field}
+                label={t(label)}
+                value={activeModels[field] || t('Follow primary model')}
+                expanded={expandedModelField === field}
+                onToggle={() => openModelPicker(field)}
+              >
+                {renderModelPicker(field, true)}
+              </SettingSection>
+            ))
+          : null}
+
+        {showLaunchHelp ? (
           <div className='bg-muted/50 text-muted-foreground rounded-lg border p-3 text-sm'>
             {t(
               'If CC Switch did not open, make sure it is installed and the protocol is registered.'
             )}
           </div>
-        )}
+        ) : null}
       </div>
     )
   } else {
@@ -304,7 +351,7 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
       onOpenChange={props.onOpenChange}
       title={t('Import to CC Switch')}
       description={t(
-        'Import the current token to your local CC Switch for Codex.'
+        'Import the current token to your local CC Switch for Codex or Claude Code.'
       )}
       contentClassName='sm:max-w-xl'
       bodyClassName='space-y-4'
@@ -327,13 +374,75 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
   )
 }
 
-function TokenField(props: {
-  label: string
-  value: string
-  className?: string
+function ModelList(props: {
+  groups: Array<{
+    key: string
+    vendorName: string
+    items: CCSwitchModelOption[]
+  }>
+  selectedModel: string
+  defaultModel?: string
+  loading: boolean
+  failed: boolean
+  onSelect: (model: string) => void
 }) {
+  const { t } = useTranslation()
+  if (props.loading) {
+    return (
+      <div className='text-muted-foreground rounded-lg border p-4 text-center text-sm'>
+        {t('Loading...')}
+      </div>
+    )
+  }
+  if (props.failed) {
+    return (
+      <div className='text-destructive rounded-lg border p-4 text-center text-sm'>
+        {t('Failed to load import options')}
+      </div>
+    )
+  }
+  if (props.groups.length === 0) {
+    return (
+      <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
+        {t('No matching models found')}
+      </div>
+    )
+  }
   return (
-    <div className={cn('min-w-0 space-y-1', props.className)}>
+    <div className='max-h-72 space-y-4 overflow-y-auto pr-1'>
+      {props.groups.map((group) => (
+        <div key={group.key} className='space-y-2'>
+          <div className='text-muted-foreground px-1 text-xs font-semibold'>
+            {group.vendorName}
+          </div>
+          {group.items.map((item) => (
+            <button
+              key={item.name}
+              type='button'
+              className={cn(
+                'hover:bg-muted flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                item.name === props.selectedModel &&
+                  'border-primary bg-primary/5'
+              )}
+              onClick={() => props.onSelect(item.name)}
+            >
+              <span className='min-w-0 truncate font-medium'>{item.name}</span>
+              {item.name === props.defaultModel ? (
+                <span className='bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs'>
+                  {t('Recommended')}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TokenField(props: { label: string; value: string }) {
+  return (
+    <div className='min-w-0 space-y-1'>
       <div className='text-muted-foreground text-xs'>{props.label}</div>
       <div className='break-all text-sm font-medium'>{props.value || '-'}</div>
     </div>

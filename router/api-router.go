@@ -274,6 +274,7 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.GET("/", controller.GetAllTokens)
 			tokenRoute.GET("/search", middleware.SearchRateLimit(), controller.SearchTokens)
 			tokenRoute.GET("/:id/ccswitch/import-options", middleware.DisableCache(), controller.GetTokenCCSwitchImportOptions)
+			tokenRoute.GET("/:id/ccswitch/models", middleware.SearchRateLimit(), middleware.DisableCache(), controller.GetTokenCCSwitchModels)
 			tokenRoute.GET("/:id", controller.GetToken)
 			tokenRoute.POST("/:id/ccswitch/import-link", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.CreateTokenCCSwitchImportLink)
 			tokenRoute.POST("/:id/key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKey)

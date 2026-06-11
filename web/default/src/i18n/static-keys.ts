@@ -251,9 +251,9 @@ export const STATIC_I18N_KEYS = [
   'Import now',
   'Import target',
   'Import the current token to your local CC Switch for Codex.',
+  'Import the current token to your local CC Switch for Codex or Claude Code.',
   'Current token',
   'Default model',
-  'BaseURL',
   'Change',
   'Collapse',
   'Selected',
@@ -276,6 +276,7 @@ export const STATIC_I18N_KEYS = [
   'Haiku Model',
   'Sonnet Model',
   'Opus Model',
+  'Follow primary model',
   'Enter model name',
 
   // User binding dialog

@@ -1,5 +1,6 @@
 {
   "translation": {
+    "Follow primary model": "Theo model chính",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",
