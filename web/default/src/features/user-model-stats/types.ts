@@ -20,6 +20,7 @@ export interface UserStatsItem {
   user_id: number
   username: string
   user_group: string
+  org_path: string
   count: number
   token_used: number
   quota: number

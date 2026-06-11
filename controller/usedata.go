@@ -74,6 +74,7 @@ type userStatResponseItem struct {
 	UserID         int     `json:"user_id"`
 	Username       string  `json:"username"`
 	UserGroup      string  `json:"user_group"`
+	OrgPath        string  `json:"org_path"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
 	Quota          int     `json:"quota"`
@@ -131,6 +132,7 @@ func buildUserStatResponseItems(items []*model.UserStatItem) []userStatResponseI
 			UserID:         it.UserID,
 			Username:       it.Username,
 			UserGroup:      it.UserGroup,
+			OrgPath:        it.OrgPath,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
 			Quota:          it.Quota,
@@ -510,7 +512,7 @@ func ExportUserModelStats(c *gin.Context) {
 			page++
 		}
 	default:
-		writer.Write([]string{"用户ID", "用户名", "用户分组", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
+		writer.Write([]string{"用户ID", "用户名", "用户分组", "完整组织路径", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
 		page := 1
 		pageSize := 1000
 		for {
@@ -524,7 +526,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{strconv.Itoa(it.UserID), it.Username, it.UserGroup, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
+				writer.Write([]string{strconv.Itoa(it.UserID), it.Username, it.UserGroup, it.OrgPath, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
 			}
 			if len(items) < pageSize {
 				break

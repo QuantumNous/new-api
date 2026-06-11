@@ -137,6 +137,7 @@ type UserStatItem struct {
 	UserID    int    `json:"user_id"`
 	Username  string `json:"username"`
 	UserGroup string `json:"user_group"`
+	OrgPath   string `json:"org_path"`
 	Count     int    `json:"count"`
 	TokenUsed int    `json:"token_used"`
 	Quota     int    `json:"quota"`
@@ -173,7 +174,7 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 	aggTx = aggTx.Group("user_id")
 
 	baseTx := DB.Table("users AS u").
-		Select("u.id as user_id, u.username as username, "+selectGroup+", COALESCE(q.count, 0) as count, COALESCE(q.token_used, 0) as token_used, COALESCE(q.quota, 0) as quota").
+		Select("u.id as user_id, u.username as username, "+selectGroup+", COALESCE(u.org_path, '') as org_path, COALESCE(q.count, 0) as count, COALESCE(q.token_used, 0) as token_used, COALESCE(q.quota, 0) as quota").
 		Joins("LEFT JOIN (?) AS q ON q.user_id = u.id", aggTx).
 		Where("u.deleted_at IS NULL")
 	if len(usernames) > 0 {
