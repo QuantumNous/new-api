@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'zh', label: '简体中文' },
   { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' },
   { code: 'fr', label: 'Français' },
   { code: 'pt', label: 'Português' },
   { code: 'ru', label: 'Русский' },
