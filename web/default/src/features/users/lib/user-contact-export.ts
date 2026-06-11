@@ -116,14 +116,28 @@ export async function collectUserContactsForExport(
   pageSize = USER_CONTACT_EXPORT_PAGE_SIZE
 ): Promise<User[]> {
   const normalizedPageSize = Math.max(1, Math.floor(pageSize))
-  const firstPage = await fetchPage({ page: 1, pageSize: normalizedPageSize })
-  const users = [...firstPage.items]
-  const pageCount = Math.ceil(firstPage.total / normalizedPageSize)
+  // Keyed by user id: offset pagination can resend rows when users are
+  // created or deleted mid-export, and the server may clamp the page size
+  // below the requested one, so we page until the collection covers `total`
+  // or the server runs out of rows instead of precomputing a page count.
+  const usersById = new Map<User['id'], User>()
 
-  for (let page = 2; page <= pageCount; page += 1) {
-    const nextPage = await fetchPage({ page, pageSize: normalizedPageSize })
-    users.push(...nextPage.items)
+  for (let page = 1; ; page += 1) {
+    const { items, total } = await fetchPage({
+      page,
+      pageSize: normalizedPageSize,
+    })
+
+    if (items.length === 0) {
+      break
+    }
+    for (const user of items) {
+      usersById.set(user.id, user)
+    }
+    if (usersById.size >= total) {
+      break
+    }
   }
 
-  return users
+  return [...usersById.values()]
 }

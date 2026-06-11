@@ -128,4 +128,68 @@ describe('user contact export', () => {
       { page: 3, pageSize: 1 },
     ])
   })
+
+  test('collects every row even when the server clamps the page size', async () => {
+    // Request 2 rows per page, but the server only ever returns 1.
+    const serverPages = [
+      [makeUser({ id: 3, username: 'user-3' })],
+      [makeUser({ id: 2, username: 'user-2' })],
+      [makeUser({ id: 1, username: 'user-1' })],
+    ]
+
+    const users = await collectUserContactsForExport(
+      async ({ page }) => ({
+        items: serverPages[page - 1] ?? [],
+        total: 3,
+      }),
+      2
+    )
+
+    assert.deepEqual(
+      users.map((user) => user.id),
+      [3, 2, 1]
+    )
+  })
+
+  test('deduplicates rows resent across pages by offset drift', async () => {
+    const serverPages = [
+      [makeUser({ id: 5 }), makeUser({ id: 4 })],
+      [makeUser({ id: 4 }), makeUser({ id: 3 })],
+    ]
+
+    const users = await collectUserContactsForExport(
+      async ({ page }) => ({
+        items: serverPages[page - 1] ?? [],
+        total: 4,
+      }),
+      2
+    )
+
+    assert.deepEqual(
+      users.map((user) => user.id),
+      [5, 4, 3]
+    )
+  })
+
+  test('stops on an empty page when total overstates the row count', async () => {
+    const calls: number[] = []
+
+    const users = await collectUserContactsForExport(
+      async ({ page }) => {
+        calls.push(page)
+
+        return {
+          items: page === 1 ? [makeUser({ id: 1 })] : [],
+          total: 10,
+        }
+      },
+      1
+    )
+
+    assert.deepEqual(
+      users.map((user) => user.id),
+      [1]
+    )
+    assert.deepEqual(calls, [1, 2])
+  })
 })
