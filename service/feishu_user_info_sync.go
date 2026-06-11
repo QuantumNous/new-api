@@ -26,6 +26,12 @@ type feishuDepartmentInfo struct {
 	ParentID string
 }
 
+type feishuOrgPathInfo struct {
+	Path       string
+	Level1Name string
+	Level2Name string
+}
+
 func SyncFeishuUserInfo(ctx context.Context) FeishuUserInfoSyncResult {
 	result := FeishuUserInfoSyncResult{Errors: make([]string, 0)}
 	settings := system_setting.GetFeishuSettings()
@@ -98,6 +104,11 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 		}
 	}
 
+	orgPath := feishuOrgPathInfo{}
+	if department.ID != "" {
+		orgPath = buildFeishuOrgPath(ctx, client, department)
+	}
+
 	updates := map[string]any{
 		"feishu_department_id":          department.ID,
 		"feishu_department_name":        department.Name,
@@ -105,6 +116,9 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 		"feishu_parent_department_name": parent.Name,
 		"feishu_employment_status":      formatFeishuEmploymentStatus(feishuUser.Status),
 		"feishu_synced_at":              common.GetTimestamp(),
+		"org_path":                      orgPath.Path,
+		"org_level1_name":               orgPath.Level1Name,
+		"org_level2_name":               orgPath.Level2Name,
 	}
 	if feishuUser.UserId != nil && strings.TrimSpace(*feishuUser.UserId) != "" {
 		updates["feishu_user_id"] = strings.TrimSpace(*feishuUser.UserId)
@@ -153,6 +167,42 @@ func getFeishuDepartmentInfo(ctx context.Context, client *lark.Client, departmen
 		info.ParentID = strings.TrimSpace(*dept.ParentDepartmentId)
 	}
 	return info, nil
+}
+
+func buildFeishuOrgPath(ctx context.Context, client *lark.Client, current feishuDepartmentInfo) feishuOrgPathInfo {
+	departments := make([]feishuDepartmentInfo, 0, 8)
+	visited := make(map[string]bool)
+	department := current
+	for department.ID != "" && !visited[department.ID] {
+		visited[department.ID] = true
+		if department.Name != "" {
+			departments = append(departments, department)
+		}
+		if department.ParentID == "" || department.ParentID == "0" {
+			break
+		}
+		parent, err := getFeishuDepartmentInfo(ctx, client, department.ParentID)
+		if err != nil {
+			break
+		}
+		department = parent
+	}
+
+	names := make([]string, 0, len(departments))
+	for i := len(departments) - 1; i >= 0; i-- {
+		name := strings.TrimSpace(departments[i].Name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	info := feishuOrgPathInfo{Path: strings.Join(names, "/")}
+	if len(names) > 0 {
+		info.Level1Name = names[0]
+	}
+	if len(names) > 1 {
+		info.Level2Name = names[1]
+	}
+	return info
 }
 
 func formatFeishuEmploymentStatus(status *larkcontact.UserStatus) string {

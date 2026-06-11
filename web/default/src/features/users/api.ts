@@ -257,7 +257,7 @@ export async function syncFeishuUsersInfo(): Promise<
   return res.data
 }
 
-export function buildUsersExportUrl(params: SearchUsersParams): string {
+function buildUsersExportUrl(params: SearchUsersParams): string {
   const queryParams = new URLSearchParams()
   if (params.keyword) queryParams.set('keyword', params.keyword)
   if (params.group) queryParams.set('group', params.group)
@@ -265,6 +265,22 @@ export function buildUsersExportUrl(params: SearchUsersParams): string {
   if (params.status) queryParams.set('status', params.status)
   const query = queryParams.toString()
   return query ? `/api/user/export?${query}` : '/api/user/export'
+}
+
+export async function exportUsers(params: SearchUsersParams): Promise<void> {
+  const url = buildUsersExportUrl(params)
+  const res = await api.get(url, { responseType: 'blob' })
+  const blob = new Blob([res.data as BlobPart], {
+    type: 'text/csv;charset=utf-8;',
+  })
+  const downloadUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = `users-${new Date().toISOString().split('T')[0]}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(downloadUrl)
 }
 
 export interface FeishuTokenItem {

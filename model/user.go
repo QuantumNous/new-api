@@ -46,6 +46,8 @@ type User struct {
 	FeishuSyncedAt             int64          `json:"feishu_synced_at" gorm:"column:feishu_synced_at;default:0;index"`
 	OrgName                    string         `json:"org_name" gorm:"column:org_name;type:varchar(255);default:'';index"`
 	OrgPath                    string         `json:"org_path" gorm:"column:org_path;type:text"`
+	OrgLevel1Name              string         `json:"org_level1_name" gorm:"column:org_level1_name;type:varchar(255);default:'';index"`
+	OrgLevel2Name              string         `json:"org_level2_name" gorm:"column:org_level2_name;type:varchar(255);default:'';index"`
 	JobTitle                   string         `json:"job_title" gorm:"column:job_title;type:varchar(255);default:''"`
 	VerificationCode           string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken                *string        `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management

@@ -149,6 +149,14 @@ type ModelStatItem struct {
 	Quota     int    `json:"quota"`
 }
 
+type DepartmentStatItem struct {
+	OrgLevel1Name string `json:"org_level1_name"`
+	OrgLevel2Name string `json:"org_level2_name"`
+	Count         int    `json:"count"`
+	TokenUsed     int    `json:"token_used"`
+	Quota         int    `json:"quota"`
+}
+
 func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*UserStatItem, total int64, err error) {
 	groupCol := CommonGroupColumnName()
 	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
@@ -213,6 +221,38 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 	}
 
 	err = tx.Group("q.model_name").
+		Order("sum(q.count) desc, sum(q.token_used) desc, sum(q.quota) desc").
+		Limit(pageSize).Offset((page - 1) * pageSize).
+		Find(&items).Error
+	return items, total, err
+}
+
+func GetUserModelStatsByDepartment(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*DepartmentStatItem, total int64, err error) {
+	groupCol := CommonGroupColumnName()
+
+	tx := DB.Table("quota_data q").
+		Select("COALESCE(u.org_level1_name, '') as org_level1_name, COALESCE(u.org_level2_name, '') as org_level2_name, sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
+		Joins("JOIN users u ON u.id = q.user_id").
+		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime).
+		Where("u.deleted_at IS NULL")
+
+	if len(usernames) > 0 {
+		tx = tx.Where("q.username IN ?", usernames)
+	}
+	if len(modelNames) > 0 {
+		tx = tx.Where("q.model_name IN ?", modelNames)
+	}
+	if userGroup != "" {
+		tx = tx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
+	}
+
+	countTx := tx.Session(&gorm.Session{})
+	err = countTx.Group("u.org_level1_name, u.org_level2_name").Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = tx.Group("u.org_level1_name, u.org_level2_name").
 		Order("sum(q.count) desc, sum(q.token_used) desc, sum(q.quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error

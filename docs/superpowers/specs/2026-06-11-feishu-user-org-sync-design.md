@@ -10,7 +10,7 @@
 
 1. 将 default 前端的飞书批量初始化改成可视化配置方式，不再要求手写 JSON。
 2. 新增手动同步飞书用户组织信息功能，只处理系统内已有 `feishu_id`（飞书 OpenID）的用户。
-3. 同步并保存：所在部门名称、所在部门 ID、上级部门名称、上级部门 ID、飞书在职状态、最近同步时间。
+3. 同步并保存：所在部门名称、所在部门 ID、上级部门名称、上级部门 ID、完整部门路径、一级组织名称、二级组织名称、飞书在职状态、最近同步时间。
 4. 在用户详情中展示飞书组织信息。
 5. 用户列表支持按当前筛选条件导出全部匹配用户，导出字段包含飞书组织信息。
 6. 飞书接口调用优先使用飞书官方 Go SDK。
@@ -51,8 +51,9 @@
 
 在用户详情或编辑抽屉中增加只读飞书组织信息区域：
 
-- 所在部门：名称 + ID
-- 上级部门：名称 + ID
+- 所在部门：名称
+- 上级部门：名称
+- 部门路径：`一级组织/二级组织/.../当前部门`
 - 飞书在职状态
 - 最近同步时间
 
@@ -62,7 +63,7 @@
 
 - 保留当前搜索关键词、分组、状态、角色筛选条件。
 - 触发后下载 CSV。
-- 导出字段包含基础用户信息和飞书组织信息。
+- 导出字段包含基础用户信息、飞书组织名称、部门路径、一级组织名称、二级组织名称；用户可见导出不包含部门 ID。
 
 ## 后端设计
 
@@ -76,6 +77,9 @@
 - `FeishuParentDepartmentName` / `feishu_parent_department_name`
 - `FeishuEmploymentStatus` / `feishu_employment_status`
 - `FeishuSyncedAt` / `feishu_synced_at`
+- `OrgPath` / `org_path`
+- `OrgLevel1Name` / `org_level1_name`
+- `OrgLevel2Name` / `org_level2_name`
 
 通过现有 GORM AutoMigrate 增量迁移，保持 SQLite、MySQL、PostgreSQL 兼容。
 
@@ -123,6 +127,16 @@
 - `status`
 
 返回 `text/csv` 附件。
+
+### 部门维度用户模型统计
+
+在用户模型统计页新增“部门视角”：
+
+- 后端新增 `GET /api/data/by-department`。
+- 按用户表中的 `org_level1_name`、`org_level2_name` 分组聚合。
+- 返回一级组织名称、二级组织名称、请求次数、总 Tokens、额度消耗。
+- 用户模型统计导出支持 `view_type=by_department`。
+- 选择冗余一级/二级字段，是为了避免每次统计都解析完整部门路径，同时避免一次性新增一级到六级字段造成字段膨胀。
 
 ## 错误处理
 

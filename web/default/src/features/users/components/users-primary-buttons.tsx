@@ -21,7 +21,7 @@ import { Download, Plus, RefreshCw, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { buildUsersExportUrl, syncFeishuUsersInfo } from '../api'
+import { exportUsers, syncFeishuUsersInfo } from '../api'
 import { useUsers } from './users-provider'
 
 export function UsersPrimaryButtons() {
@@ -41,35 +41,32 @@ export function UsersPrimaryButtons() {
     try {
       const res = await syncFeishuUsersInfo()
       if (!res.success) {
-        toast.error(res.message || t('Sync failed'))
+        toast.error(res.message || '同步失败')
         return
       }
       const data = res.data
       toast.success(
-        t('Sync done: success {{s}}, skipped {{k}}, failed {{f}}', {
-          s: data?.success || 0,
-          k: data?.skipped || 0,
-          f: data?.failed || 0,
-        })
+        `同步完成：成功 ${data?.success || 0}，跳过 ${data?.skipped || 0}，失败 ${data?.failed || 0}`
       )
       triggerRefresh()
     } finally {
       setSyncing(false)
     }
   }
-  const handleExport = () => {
+  const handleExport = async () => {
     const params = new URLSearchParams(window.location.search)
     const status = params.get('status') || ''
     const role = params.get('role') || ''
-    window.open(
-      buildUsersExportUrl({
+    try {
+      await exportUsers({
         keyword: params.get('filter') || '',
         group: params.get('group') || '',
         status,
         role,
-      }),
-      '_blank'
-    )
+      })
+    } catch {
+      toast.error('导出用户失败')
+    }
   }
 
   return (
@@ -85,11 +82,11 @@ export function UsersPrimaryButtons() {
         disabled={syncing}
       >
         <RefreshCw className='h-4 w-4' />
-        {syncing ? t('Syncing...') : t('Sync Feishu User Info')}
+        {syncing ? '同步中...' : '同步飞书用户信息'}
       </Button>
       <Button size='sm' variant='outline' onClick={handleExport}>
         <Download className='h-4 w-4' />
-        {t('Export Users')}
+        导出用户
       </Button>
       <Button size='sm' onClick={handleCreate}>
         <Plus className='h-4 w-4' />

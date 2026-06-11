@@ -1137,7 +1137,7 @@ func ExportUsers(c *gin.Context) {
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
-	_ = writer.Write([]string{"ID", "用户名", "显示名", "邮箱", "分组", "角色", "系统状态", "飞书OpenID", "飞书UnionID", "飞书UserID", "所在部门ID", "所在部门名称", "上级部门ID", "上级部门名称", "飞书在职状态", "最近同步时间"})
+	_ = writer.Write([]string{"ID", "用户名", "显示名", "邮箱", "分组", "角色", "系统状态", "飞书OpenID", "飞书UnionID", "飞书UserID", "所在部门名称", "上级部门名称", "一级组织名称", "二级组织名称", "部门路径", "飞书在职状态", "最近同步时间"})
 	for _, user := range users {
 		syncedAt := ""
 		if user.FeishuSyncedAt > 0 {
@@ -1154,10 +1154,11 @@ func ExportUsers(c *gin.Context) {
 			sanitizeCSVField(user.FeishuId),
 			sanitizeCSVField(user.FeishuUnionId),
 			sanitizeCSVField(user.FeishuUserId),
-			sanitizeCSVField(user.FeishuDepartmentId),
 			sanitizeCSVField(user.FeishuDepartmentName),
-			sanitizeCSVField(user.FeishuParentDepartmentId),
 			sanitizeCSVField(user.FeishuParentDepartmentName),
+			sanitizeCSVField(user.OrgLevel1Name),
+			sanitizeCSVField(user.OrgLevel2Name),
+			sanitizeCSVField(user.OrgPath),
 			sanitizeCSVField(user.FeishuEmploymentStatus),
 			syncedAt,
 		})

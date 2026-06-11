@@ -467,11 +467,7 @@ export function UsersMutateDrawer({
                         {t('Department')}
                       </Label>
                       <Input
-                        value={
-                          displayUser?.feishu_department_name
-                            ? `${displayUser.feishu_department_name} (${displayUser.feishu_department_id || '-'})`
-                            : '-'
-                        }
+                        value={displayUser?.feishu_department_name || '-'}
                         disabled
                         className='mt-1'
                       />
@@ -482,10 +478,18 @@ export function UsersMutateDrawer({
                       </Label>
                       <Input
                         value={
-                          displayUser?.feishu_parent_department_name
-                            ? `${displayUser.feishu_parent_department_name} (${displayUser.feishu_parent_department_id || '-'})`
-                            : '-'
+                          displayUser?.feishu_parent_department_name || '-'
                         }
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div className='sm:col-span-2'>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t('Department Path')}
+                      </Label>
+                      <Input
+                        value={displayUser?.org_path || '-'}
                         disabled
                         className='mt-1'
                       />

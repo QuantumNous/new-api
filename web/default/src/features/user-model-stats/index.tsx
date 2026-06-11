@@ -4,10 +4,13 @@ import { toast } from 'sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { fetchStats, exportStats } from './api'
-import { type FilterValues, UserModelStatsFilters } from './components/user-model-stats-filters'
+import {
+  type FilterValues,
+  UserModelStatsFilters,
+} from './components/user-model-stats-filters'
 import { UserModelStatsTable } from './components/user-model-stats-table'
-import { type ViewType, type StatsItem } from './types'
 import { DEFAULT_PAGE_SIZE, getDefaultDateRange } from './constants'
+import { type ViewType, type StatsItem } from './types'
 
 export function UserModelStatsPage() {
   const { t } = useTranslation()
@@ -31,7 +34,7 @@ export function UserModelStatsPage() {
     <K extends keyof FilterValues>(key: K, value: FilterValues[K]) => {
       setFilters((prev) => ({ ...prev, [key]: value }))
     },
-    [],
+    []
   )
 
   const loadData = useCallback(async () => {
@@ -76,7 +79,7 @@ export function UserModelStatsPage() {
         Math.floor(filters.endDate.getTime() / 1000),
         filters.username || undefined,
         filters.modelName || undefined,
-        filters.userGroup || undefined,
+        filters.userGroup || undefined
       )
     } catch {
       toast.error(t('Export failed'))
@@ -94,7 +97,7 @@ export function UserModelStatsPage() {
         {t('User Model Statistics')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <p className='mb-4 text-sm text-muted-foreground'>
+        <p className='text-muted-foreground mb-4 text-sm'>
           {t('Data from quota_data aggregation table')}
         </p>
 
@@ -111,6 +114,7 @@ export function UserModelStatsPage() {
             <TabsList>
               <TabsTrigger value='byUser'>{t('User View')}</TabsTrigger>
               <TabsTrigger value='byModel'>{t('Model View')}</TabsTrigger>
+              <TabsTrigger value='byDepartment'>部门视角</TabsTrigger>
               <TabsTrigger value='byDetail'>
                 {t('User Model Consumption')}
               </TabsTrigger>
