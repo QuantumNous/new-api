@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -154,6 +153,10 @@ func UpdateCombo(c *gin.Context) {
 			return
 		}
 		combo.Name = updateData.Name
+	}
+
+	if updateData.Status >= 0 && updateData.Status <= 1 {
+		combo.Status = updateData.Status
 	}
 
 	if err := combo.Update(); err != nil {
