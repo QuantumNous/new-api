@@ -20,6 +20,8 @@ import type { User } from '../types'
 
 const UTF8_BOM = '\uFEFF'
 const CSV_ROW_SEPARATOR = '\r\n'
+const FORMULA_PREFIXES = new Set(['=', '+', '-', '@'])
+const LEADING_CONTROL_PREFIXES = new Set(['\t', '\r', '\n'])
 
 export const USER_CONTACT_EXPORT_PAGE_SIZE = 100
 
@@ -56,11 +58,23 @@ const DEFAULT_HEADERS: UserContactsCsvHeaders = {
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {
-  const text = String(value ?? '')
+  const text = neutralizeSpreadsheetFormula(String(value ?? ''))
   if (!/[",\r\n]/.test(text)) {
     return text
   }
   return `"${text.replace(/"/g, '""')}"`
+}
+
+function neutralizeSpreadsheetFormula(text: string): string {
+  const firstCharacter = text.charAt(0)
+  const firstNonWhitespaceCharacter = text.trimStart().charAt(0)
+  if (
+    LEADING_CONTROL_PREFIXES.has(firstCharacter) ||
+    FORMULA_PREFIXES.has(firstNonWhitespaceCharacter)
+  ) {
+    return `'${text}`
+  }
+  return text
 }
 
 export function buildUserContactsCsv(

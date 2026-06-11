@@ -56,7 +56,7 @@ describe('user contact export', () => {
     assert.equal(
       csv,
       '\uFEFFID,Username,Display Name,Email,WeChat ID,Telegram ID\r\n' +
-        '7,"alice, admin","Alice ""A""",alice@example.com,"wx\nline",@alice\r\n'
+        '7,"alice, admin","Alice ""A""",alice@example.com,"wx\nline",\'@alice\r\n'
     )
   })
 
@@ -73,6 +73,25 @@ describe('user contact export', () => {
       csv,
       '\uFEFFID,Username,Display Name,Email,WeChat ID,Telegram ID\r\n' +
         '8,bob,,,,\r\n'
+    )
+  })
+
+  test('neutralizes spreadsheet formulas in exported contact fields', () => {
+    const csv = buildUserContactsCsv([
+      makeUser({
+        id: 9,
+        username: '=HYPERLINK("https://example.com","click")',
+        display_name: '+SUM(1,1)',
+        email: '-10+20@example.com',
+        wechat_id: '@wechat',
+        telegram_id: '\t=cmd',
+      }),
+    ])
+
+    assert.equal(
+      csv,
+      '\uFEFFID,Username,Display Name,Email,WeChat ID,Telegram ID\r\n' +
+        '9,"\'=HYPERLINK(""https://example.com"",""click"")","\'+SUM(1,1)",\'-10+20@example.com,\'@wechat,\'\t=cmd\r\n'
     )
   })
 
