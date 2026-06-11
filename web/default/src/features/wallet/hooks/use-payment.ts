@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import {
   calculateAmount,
   calculatePaddleAmount,
@@ -198,10 +199,12 @@ export function usePayment() {
         const isStripe = isStripePayment(paymentType)
         const isPaddle = isPaddlePayment(paymentType)
         const amount = Math.floor(topupAmount)
+        const gaIdentifiers = getGAMeasurementIdentifiers()
 
         const stripeRequest = {
           amount,
           payment_method: 'stripe',
+          ...gaIdentifiers,
           ...getStripeRedirectUrls(),
           ...(options?.invoiceRequested && options.invoiceProfile
             ? {
@@ -214,10 +217,11 @@ export function usePayment() {
         const response = isStripe
           ? await requestStripePayment(stripeRequest)
           : isPaddle
-            ? await requestPaddlePayment({ amount })
+            ? await requestPaddlePayment({ amount, ...gaIdentifiers })
             : await requestPayment({
                 amount,
                 payment_method: paymentType,
+                ...gaIdentifiers,
               })
 
         if (!isApiSuccess(response)) {

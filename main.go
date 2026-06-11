@@ -259,8 +259,11 @@ func InjectUmamiAnalytics() {
 
 func InjectGoogleAnalytics() {
 	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("GOOGLE_ANALYTICS_ID") != "" {
-		gaID := os.Getenv("GOOGLE_ANALYTICS_ID")
+	gaID := os.Getenv("GOOGLE_ANALYTICS_ID")
+	if gaID == "" {
+		gaID = os.Getenv("GA_MESSUREMENT_ID")
+	}
+	if gaID != "" {
 		// Google Analytics 4 (gtag.js)
 		analyticsInjectBuilder.WriteString("<script async src=\"https://www.googletagmanager.com/gtag/js?id=")
 		analyticsInjectBuilder.WriteString(gaID)

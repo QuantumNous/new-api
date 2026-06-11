@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,9 @@ const (
 )
 
 type PaddlePayRequest struct {
-	Amount int64 `json:"amount"`
+	Amount      int64  `json:"amount"`
+	GAClientID  string `json:"ga_client_id,omitempty"`
+	GASessionID string `json:"ga_session_id,omitempty"`
 }
 
 type PaddleStatusRequest struct {
@@ -195,6 +198,8 @@ func RequestPaddlePay(c *gin.Context) {
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodPaddle,
 		PaymentProvider: model.PaymentProviderPaddle,
+		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
@@ -344,6 +349,9 @@ func PaddleWebhook(c *gin.Context) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 充值处理失败 trade_no=%s transaction_id=%s client_ip=%s error=%q", customData.TradeNo, transactionID, c.ClientIP(), err.Error()))
 		c.String(http.StatusInternalServerError, "retry")
 		return
+	}
+	if topUp.Status == common.TopUpStatusPending {
+		sendPaymentSuccessGA(c.Request.Context(), model.GetTopUpByTradeNo(customData.TradeNo))
 	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle 充值成功 trade_no=%s transaction_id=%s client_ip=%s", customData.TradeNo, transactionID, c.ClientIP()))

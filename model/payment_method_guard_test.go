@@ -136,6 +136,29 @@ func TestRechargeStripeCreditsPurchasedAmountAndIsIdempotent(t *testing.T) {
 	assert.Equal(t, "cus_guard", user.StripeCustomer)
 }
 
+func TestTopUpPersistsGAIdentifiers(t *testing.T) {
+	truncateTables(t)
+
+	topUp := &TopUp{
+		UserId:          1,
+		Amount:          2,
+		Money:           3.5,
+		TradeNo:         "ga-identifiers-guard",
+		PaymentMethod:   PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripe,
+		CreateTime:      123,
+		Status:          common.TopUpStatusPending,
+		GAClientID:      "123.456",
+		GASessionID:     "789",
+	}
+	require.NoError(t, topUp.Insert())
+
+	stored := GetTopUpByTradeNo("ga-identifiers-guard")
+	require.NotNil(t, stored)
+	assert.Equal(t, "123.456", stored.GAClientID)
+	assert.Equal(t, "789", stored.GASessionID)
+}
+
 func TestRechargePaddle_ConcurrentWebhookAddsQuotaOnce(t *testing.T) {
 	truncateTables(t)
 

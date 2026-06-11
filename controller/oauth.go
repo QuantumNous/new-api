@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -30,6 +31,14 @@ func GenerateOAuthCode(c *gin.Context) {
 	adsAttribution := sanitizeAdsAttribution(c.Query("ads_attribution"))
 	if adsAttribution != "" {
 		session.Set("ads_attribution", adsAttribution)
+	}
+	gaClientID := service.NormalizeGAIdentifier(c.Query("ga_client_id"))
+	if gaClientID != "" {
+		session.Set("ga_client_id", gaClientID)
+	}
+	gaSessionID := service.NormalizeGAIdentifier(c.Query("ga_session_id"))
+	if gaSessionID != "" {
+		session.Set("ga_session_id", gaSessionID)
 	}
 	session.Set("oauth_state", state)
 	err := session.Save()
@@ -334,6 +343,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Perform post-transaction tasks
 		user.FinalizeOAuthUserCreation(inviterId)
 	}
+
+	gaClientID, _ := session.Get("ga_client_id").(string)
+	gaSessionID, _ := session.Get("ga_session_id").(string)
+	sendSignUpSuccessGA(c.Request.Context(), user.Id, inviterId, provider.GetProviderPrefix(), gaClientID, gaSessionID)
 
 	return user, nil
 }

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import { requestCreemPayment, isApiSuccess } from '../api'
 
 /**
@@ -33,6 +34,7 @@ export function useCreemPayment() {
       const response = await requestCreemPayment({
         product_id: productId,
         payment_method: 'creem',
+        ...getGAMeasurementIdentifiers(),
       })
 
       if (isApiSuccess(response) && response.data?.checkout_url) {

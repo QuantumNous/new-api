@@ -22,6 +22,8 @@ type TopUp struct {
 	GatewayTradeNo  string          `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
 	PaymentMethod   string          `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string          `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	GAClientID      string          `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
+	GASessionID     string          `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
 	CreateTime      int64           `json:"create_time"`
 	CompleteTime    int64           `json:"complete_time"`
 	Status          string          `json:"status"`
