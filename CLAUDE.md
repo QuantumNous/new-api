@@ -36,7 +36,7 @@ pkg/           — Internal packages (cachex, ionet)
 web/             — Frontend themes container
  web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
   web/classic/   — Classic frontend (React 18, Vite, Semi Design)
-  web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+  web/default/src/i18n/ — Frontend internationalization (i18next, en/zh/fr/ru/ja/vi/es/pt)
 ```
 
 ## Internationalization (i18n)
@@ -47,10 +47,18 @@ web/             — Frontend themes container
 
 ### Frontend (`web/default/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
-- Languages: en (base), zh (fallback), fr, ru, ja, vi
+- Languages: en (base), zh (fallback), fr, ru, ja, vi, es, pt — **8 种，以 `locales/` 目录实际文件为准**
 - Translation files: `web/default/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
 - Usage: `useTranslation()` hook, call `t('English key')` in components
 - CLI tools: `bun run i18n:sync` (from `web/default/`)
+
+#### ⚠️ 多语言（i18n）注意事项 — 历史多次出 bug，任何涉及用户可见文案的工作（开发/重构/review）都必须遵守
+
+- 新 key 必须写入 `locales/` 全部 8 个语言文件，漏写会回退英文；删除/重命名 key 同步清理 8 个文件。
+- 必须真实翻译，禁止把英文原文复制为其他语言的值（es/pt 多次漏翻）；品牌词例外（`BRAND_AND_LITERAL_KEYS`）。
+- 改完在 `web/default/` 跑 `bun run i18n:sync`，提交前检查 `locales/_reports/{lang}.untranslated.json` 是否出现自己改动的 key。
+- 用户可见字符串一律走 `t()`（含 toast/placeholder/错误消息）；非 `t()` 字面量 key 登记 `src/i18n/static-keys.ts`；后端用户可见报错走 `i18n/`（go-i18n，en/zh），与前端体系独立。
+- AI review 涉及文案的 diff 时必须逐项核对以上各条（找漏 key：`grep -L "新 key" src/i18n/locales/*.json`），发现问题按缺陷处理，不得降级为"可选优化"。
 
 ## Rules
 
