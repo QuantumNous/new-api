@@ -17,7 +17,6 @@ const (
 var (
 	ErrCodexClientNoChannel = errors.New("no codex-compatible channel available for this model")
 	ErrNonCodexCodexChannel = errors.New("gpt-5.4/gpt-5.5 via non-Codex clients cannot use Codex-only channels")
-	ErrCodexNonCodexChannel = errors.New("Codex clients must use channels whose site group contains codex")
 )
 
 // RequiresCodexChannelPolicy reports whether gpt-5.4/5.5 need Codex client ↔ channel routing.
@@ -35,7 +34,7 @@ func IsCodexKeyGroup(keyGroup string) bool {
 	return strings.Contains(strings.ToLower(strings.TrimSpace(keyGroup)), "codex")
 }
 
-// ChannelMatchesCodexPolicy checks bidirectional Codex isolation via client_exclusive / key_group.
+// ChannelMatchesCodexPolicy checks one-way Codex isolation via client_exclusive / key_group.
 func ChannelMatchesCodexPolicy(setting *string, isCodexClient bool) bool {
 	clientType := ClientTypeGeneric
 	if isCodexClient {

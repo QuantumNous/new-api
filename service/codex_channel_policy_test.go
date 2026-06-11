@@ -27,7 +27,7 @@ func TestChannelMatchesCodexPolicy(t *testing.T) {
 	require.True(t, ChannelMatchesCodexPolicy(codexSetting, true))
 	require.False(t, ChannelMatchesCodexPolicy(codexSetting, false))
 	require.True(t, ChannelMatchesCodexPolicy(defaultSetting, false))
-	require.False(t, ChannelMatchesCodexPolicy(defaultSetting, true))
+	require.True(t, ChannelMatchesCodexPolicy(defaultSetting, true))
 }
 
 func TestDetectCodexClient_originator(t *testing.T) {

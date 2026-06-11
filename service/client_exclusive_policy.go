@@ -126,14 +126,12 @@ func clientTypeFromContext(c *gin.Context) ClientType {
 	}
 }
 
-// ChannelMatchesClientPolicy applies Codex bidirectional + Claude Code one-way rules.
+// ChannelMatchesClientPolicy applies one-way client-exclusive rules (Codex + Claude Code).
 func ChannelMatchesClientPolicy(setting *string, clientType ClientType, modelName string) bool {
 	exclusive := ExtractClientExclusive(setting)
 
 	if RequiresCodexChannelPolicy(modelName) {
-		isCodexChannel := exclusive == ClientExclusiveCodex
-		isCodexClient := clientType == ClientTypeCodex
-		if isCodexClient != isCodexChannel {
+		if exclusive == ClientExclusiveCodex && clientType != ClientTypeCodex {
 			return false
 		}
 	}
@@ -179,10 +177,7 @@ func ValidateChannelClientPolicy(c *gin.Context, channel *model.Channel, modelNa
 	if exclusive == ClientExclusiveClaudeCode && clientType != ClientTypeClaudeCode {
 		return ErrNonClaudeCodeClaudeChannel
 	}
-	if RequiresCodexChannelPolicy(modelName) {
-		if clientType == ClientTypeCodex {
-			return ErrCodexNonCodexChannel
-		}
+	if exclusive == ClientExclusiveCodex && clientType != ClientTypeCodex {
 		return ErrNonCodexCodexChannel
 	}
 	return ErrNonClaudeCodeClaudeChannel

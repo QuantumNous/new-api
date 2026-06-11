@@ -19,14 +19,14 @@ func TestExtractClientExclusive(t *testing.T) {
 	require.Equal(t, ClientExclusiveNone, ExtractClientExclusive(nil))
 }
 
-func TestChannelMatchesClientPolicy_codexBidirectional(t *testing.T) {
+func TestChannelMatchesClientPolicy_codexOneWay(t *testing.T) {
 	codexSetting := strPtr(`{"client_exclusive":"codex"}`)
 	genericSetting := strPtr(`{"key_group":"default"}`)
 
 	require.True(t, ChannelMatchesClientPolicy(codexSetting, ClientTypeCodex, "gpt-5.4"))
 	require.False(t, ChannelMatchesClientPolicy(codexSetting, ClientTypeGeneric, "gpt-5.4"))
 	require.True(t, ChannelMatchesClientPolicy(genericSetting, ClientTypeGeneric, "gpt-5.4"))
-	require.False(t, ChannelMatchesClientPolicy(genericSetting, ClientTypeCodex, "gpt-5.4"))
+	require.True(t, ChannelMatchesClientPolicy(genericSetting, ClientTypeCodex, "gpt-5.4"))
 }
 
 func TestChannelMatchesClientPolicy_claudeCodeOneWay(t *testing.T) {
