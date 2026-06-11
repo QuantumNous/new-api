@@ -127,6 +127,46 @@
   font-weight: 600;
 }
 
+.playground-header-left {
+  gap: 18px;
+  flex: 1 1 auto;
+}
+
+.playground-header-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.playground-header-nav-link {
+  justify-content: center;
+  min-height: 40px;
+  text-decoration: none;
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.playground-header-nav-link:hover {
+  color: var(--app-text-primary);
+}
+
+.playground-header-nav-link.is-active {
+  color: var(--app-text-primary);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.playground-header-nav-link.is-active::after {
+  transform: scaleX(1);
+}
+
+.playground-header-nav-text {
+  letter-spacing: 0.01em;
+}
+
 .app-header-action-row {
   gap: 10px;
 }
@@ -258,6 +298,20 @@ html.dark .app-header-site {
 html.dark .app-header-site-scrolled {
   background: var(--app-panel-bg-soft);
   border-bottom-color: var(--app-panel-border);
+}
+
+@media (max-width: 767px) {
+  .playground-header-left {
+    gap: 10px;
+  }
+
+  .playground-header-nav-link {
+    min-height: 34px;
+  }
+
+  .playground-header-nav-text {
+    font-size: 13px;
+  }
 }
 
 html.dark .app-header-brand-title.semi-typography {

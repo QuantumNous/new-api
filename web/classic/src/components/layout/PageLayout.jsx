@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
+import PlaygroundHeaderBar from './headerbar/PlaygroundHeaderBar';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
@@ -39,6 +40,7 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
+import { isConsoleTopbarOnlyRoute } from './layout-route-config';
 const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
@@ -70,6 +72,7 @@ const PageLayout = () => {
     (path) => path === location.pathname,
   );
 
+  const isSiderlessConsoleRoute = isConsoleTopbarOnlyRoute(location.pathname);
   const isConsoleRoute = location.pathname.startsWith('/console');
   const isAuthRoute = ['/login', '/register', '/reset', '/user/reset'].some(
     (path) => location.pathname === path,
@@ -82,10 +85,10 @@ const PageLayout = () => {
     '/',
     '/pricing',
   ].some((path) => location.pathname === path);
-  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-  const desktopConsoleShell = isConsoleRoute && !isMobile;
   const contentPadding = isFrontRoute ? '0' : isMobile ? '5px' : '24px';
-  let contentPaddingTop = desktopConsoleShell ? '88px' : '0';
+  const defaultContentPaddingTop =
+    !isAuthRoute && isConsoleRoute && !isMobile ? '88px' : '0';
+  const topbarOnlyContentPaddingTop = !isAuthRoute && !isMobile ? '88px' : '0';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -167,6 +170,75 @@ const PageLayout = () => {
     }
   }, [i18n, userState?.user?.setting]);
 
+  if (isSiderlessConsoleRoute) {
+    return (
+      <Layout
+        className='app-layout'
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: isMobile ? 'visible' : 'hidden',
+        }}
+      >
+        <Header
+          style={{
+            padding: 0,
+            height: 'auto',
+            lineHeight: 'normal',
+            position: 'fixed',
+            width: '100%',
+            left: '0',
+            top: 0,
+            zIndex: 100,
+          }}
+        >
+          <PlaygroundHeaderBar
+            onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+            drawerOpen={drawerOpen}
+            collapsed={collapsed}
+            onDesktopCollapseToggle={toggleCollapsed}
+          />
+        </Header>
+
+        <Layout
+          id='app-scroll-shell'
+          style={{
+            overflow: isMobile ? 'visible' : 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <Layout
+            style={{
+              marginLeft: '0',
+              flex: '1 1 auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Content
+              style={{
+                flex: '1 0 auto',
+                overflowY: isMobile ? 'visible' : 'hidden',
+                WebkitOverflowScrolling: 'touch',
+                paddingTop: topbarOnlyContentPaddingTop,
+                paddingRight: contentPadding,
+                paddingBottom: contentPadding,
+                paddingLeft: contentPadding,
+                position: 'relative',
+              }}
+            >
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
+            </Content>
+          </Layout>
+        </Layout>
+        <ToastContainer />
+      </Layout>
+    );
+  }
+
   return (
     <Layout
       className='app-layout'
@@ -183,10 +255,14 @@ const PageLayout = () => {
             height: 'auto',
             lineHeight: 'normal',
             position: 'fixed',
-            width: desktopConsoleShell
-              ? 'calc(100% - var(--sidebar-current-width))'
-              : '100%',
-            left: desktopConsoleShell ? 'var(--sidebar-current-width)' : '0',
+            width:
+              isConsoleRoute && !isMobile
+                ? 'calc(100% - var(--sidebar-current-width))'
+                : '100%',
+            left:
+              isConsoleRoute && !isMobile
+                ? 'var(--sidebar-current-width)'
+                : '0',
             top: 0,
             zIndex: 100,
           }}
@@ -207,18 +283,19 @@ const PageLayout = () => {
           flexDirection: 'column',
         }}
       >
-        {showSider && (
+        {isConsoleRoute && (!isMobile || drawerOpen) && (
           <Sider
             className='app-sider'
             style={{
               position: 'fixed',
               left: 0,
-              top: desktopConsoleShell ? '0' : '64px',
+              top: isConsoleRoute && !isMobile ? '0' : '64px',
               zIndex: 99,
               border: 'none',
               paddingRight: '0',
               width: 'var(--sidebar-current-width)',
-              height: desktopConsoleShell ? '100vh' : 'calc(100vh - 64px)',
+              height:
+                isConsoleRoute && !isMobile ? '100vh' : 'calc(100vh - 64px)',
             }}
           >
             <SiderBar
@@ -234,7 +311,7 @@ const PageLayout = () => {
           style={{
             marginLeft: isMobile
               ? '0'
-              : showSider
+              : isConsoleRoute
                 ? 'var(--sidebar-current-width)'
                 : '0',
             flex: '1 1 auto',
@@ -247,7 +324,7 @@ const PageLayout = () => {
               flex: '1 0 auto',
               overflowY: isMobile ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
-              paddingTop: contentPaddingTop,
+              paddingTop: defaultContentPaddingTop,
               paddingRight: contentPadding,
               paddingBottom: contentPadding,
               paddingLeft: contentPadding,
