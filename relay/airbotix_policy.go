@@ -33,6 +33,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// maxTokensHardCap is the global ceiling applied to every request shape.
+// Requests that exceed this value are clamped, not rejected.
+const maxTokensHardCap uint = 2048
+
+// clampUint returns nil when v is nil; otherwise returns a pointer to
+// min(*v, ceiling). It does not mutate the original value.
+func clampUint(v *uint, ceiling uint) *uint {
+	if v == nil {
+		return nil
+	}
+	if *v > ceiling {
+		c := ceiling
+		return &c
+	}
+	return v
+}
+
 // policyDecisionFromContext returns the policy.Decision stashed by
 // middleware/policy.go, or zero (passthrough) + false when none is present.
 func policyDecisionFromContext(c *gin.Context) (policy.Decision, bool) {
@@ -115,6 +132,8 @@ func applyAirbotixPolicy(decision policy.Decision, channelType int, request *dto
 	if request == nil {
 		return ""
 	}
+	request.MaxTokens = clampUint(request.MaxTokens, maxTokensHardCap)
+	request.MaxCompletionTokens = clampUint(request.MaxCompletionTokens, maxTokensHardCap)
 	if decision.EnforceModelWhitelist && !kids.IsModelEligible(request.Model) {
 		return "model_not_eligible_for_kids_mode: " + request.Model
 	}
@@ -147,6 +166,8 @@ func applyAirbotixPolicyToClaude(c *gin.Context, request *dto.ClaudeRequest) *ty
 	if request == nil {
 		return nil
 	}
+	request.MaxTokens = clampUint(request.MaxTokens, maxTokensHardCap)
+	request.MaxTokensToSample = clampUint(request.MaxTokensToSample, maxTokensHardCap)
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil
@@ -184,6 +205,7 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 	if request == nil {
 		return nil
 	}
+	request.MaxOutputTokens = clampUint(request.MaxOutputTokens, maxTokensHardCap)
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil

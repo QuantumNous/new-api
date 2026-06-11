@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/internal/kids"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
@@ -197,6 +198,20 @@ func ListModels(c *gin.Context, modelType int) {
 					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
 				})
 			}
+		}
+	}
+
+	// kids_mode: filter catalog to whitelisted models only.
+	userId := c.GetInt("id")
+	if userId > 0 {
+		if u, err := model.GetUserById(userId, false); err == nil && u.KidsMode {
+			filtered := make([]dto.OpenAIModels, 0, len(userOpenAiModels))
+			for _, m := range userOpenAiModels {
+				if kids.IsModelEligible(m.Id) {
+					filtered = append(filtered, m)
+				}
+			}
+			userOpenAiModels = filtered
 		}
 	}
 
