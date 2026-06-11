@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-  type RowSelectionState,
-} from '@tanstack/react-table'
+import { type ColumnDef, type RowSelectionState } from '@tanstack/react-table'
 import {
   Search,
   Info,
@@ -51,14 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataTableView, useDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { applyUpstreamOverwrite } from '../../api'
@@ -77,6 +64,8 @@ const FIELD_LABELS: Record<string, string> = {
   quota_types: 'Quota Types',
   enable_groups: 'Enable Groups',
 }
+
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50] as const
 
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined) return '—'
@@ -341,16 +330,17 @@ export function UpstreamConflictDialog({
     ]
   }, [isMobile])
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: conflictRows,
     columns,
-    state: {
-      rowSelection,
-    },
+    rowSelection,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.id,
+    withFilteredRowModel: false,
+    withPaginationRowModel: false,
+    withSortedRowModel: false,
+    withFacetedRowModel: false,
   })
 
   const totalSelectedFields = table.getSelectedRowModel().rows.length
@@ -536,43 +526,14 @@ export function UpstreamConflictDialog({
             ) : (
               <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border'>
                 <div className='flex-1 overflow-auto'>
-                  <div className={isMobile ? 'min-w-full' : 'min-w-[720px]'}>
-                    <Table>
-                      <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                          <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => (
-                              <TableHead key={header.id}>
-                                {header.isPlaceholder
-                                  ? null
-                                  : flexRender(
-                                      header.column.columnDef.header,
-                                      header.getContext()
-                                    )}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableHeader>
-                      <TableBody>
-                        {paginatedRows.map((row) => (
-                          <TableRow
-                            key={row.id}
-                            data-state={row.getIsSelected() && 'selected'}
-                          >
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id}>
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <DataTableView
+                    table={table}
+                    rows={paginatedRows}
+                    containerClassName='border-0'
+                    tableContainerClassName={
+                      isMobile ? 'min-w-full' : 'min-w-[720px]'
+                    }
+                  />
                 </div>
 
                 <div className='bg-muted/40 flex flex-col gap-2 border-t px-2 py-1.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-3 sm:py-2'>
@@ -587,12 +548,10 @@ export function UpstreamConflictDialog({
                         {t('Rows per page')}
                       </span>
                       <Select
-                        items={[
-                          ...[5, 10, 20, 50].map((size) => ({
-                            value: String(size),
-                            label: size,
-                          })),
-                        ]}
+                        items={PAGE_SIZE_OPTIONS.map((size) => ({
+                          value: String(size),
+                          label: size,
+                        }))}
                         value={String(pageSize)}
                         onValueChange={(value) => {
                           setPageSize(Number(value))
@@ -604,7 +563,7 @@ export function UpstreamConflictDialog({
                         </SelectTrigger>
                         <SelectContent alignItemWithTrigger={false}>
                           <SelectGroup>
-                            {[5, 10, 20, 50].map((size) => (
+                            {PAGE_SIZE_OPTIONS.map((size) => (
                               <SelectItem key={size} value={String(size)}>
                                 {size}
                               </SelectItem>

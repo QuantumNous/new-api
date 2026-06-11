@@ -25,15 +25,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { SettingsSwitchField } from '../components/settings-form-layout'
 
@@ -333,76 +326,74 @@ export function WaffoSettingsSection({
           </Button>
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Display name')}</TableHead>
-                <TableHead>{t('Icon')}</TableHead>
-                <TableHead>{t('Payment method type')}</TableHead>
-                <TableHead>{t('Payment method name')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payMethods.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className='text-muted-foreground py-8 text-center'
+        <StaticDataTable
+          data={payMethods}
+          emptyClassName='text-muted-foreground py-8'
+          emptyContent={t('No payment methods configured')}
+          columns={[
+            {
+              id: 'name',
+              header: t('Display name'),
+              cell: (m) => m.name,
+            },
+            {
+              id: 'icon',
+              header: t('Icon'),
+              cell: (m) =>
+                m.icon ? (
+                  <img
+                    src={m.icon}
+                    alt={m.name}
+                    className='h-6 w-6 rounded object-contain'
+                  />
+                ) : (
+                  <span className='text-muted-foreground'>-</span>
+                ),
+            },
+            {
+              id: 'type',
+              header: t('Payment method type'),
+              cell: (m) => m.payMethodType || '-',
+            },
+            {
+              id: 'method',
+              header: t('Payment method name'),
+              cell: (m) => m.payMethodName || '-',
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'text-right',
+              cellClassName: 'text-right',
+              cell: (_m, idx) => (
+                <div className='flex justify-end gap-1'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='h-7 w-7'
+                    onClick={() => openEdit(idx)}
                   >
-                    {t('No payment methods configured')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                payMethods.map((m, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{m.name}</TableCell>
-                    <TableCell>
-                      {m.icon ? (
-                        <img
-                          src={m.icon}
-                          alt={m.name}
-                          className='h-6 w-6 rounded object-contain'
-                        />
-                      ) : (
-                        <span className='text-muted-foreground'>-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{m.payMethodType || '-'}</TableCell>
-                    <TableCell>{m.payMethodName || '-'}</TableCell>
-                    <TableCell className='text-right'>
-                      <div className='flex justify-end gap-1'>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='icon'
-                          className='h-7 w-7'
-                          onClick={() => openEdit(idx)}
-                        >
-                          <Pencil className='h-3 w-3' />
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='icon'
-                          className='h-7 w-7'
-                          onClick={() =>
-                            onPayMethodsChange((prev) =>
-                              prev.filter((_, i) => i !== idx)
-                            )
-                          }
-                        >
-                          <Trash2 className='h-3 w-3' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                    <Pencil className='h-3 w-3' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='h-7 w-7'
+                    onClick={() =>
+                      onPayMethodsChange((prev) =>
+                        prev.filter((_, i) => i !== idx)
+                      )
+                    }
+                  >
+                    <Trash2 className='h-3 w-3' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <Dialog

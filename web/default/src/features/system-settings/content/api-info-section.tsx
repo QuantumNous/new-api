@@ -54,14 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSwitchField } from '../components/settings-form-layout'
@@ -306,101 +299,98 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
           />
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === apiInfoList.length &&
-                      apiInfoList.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
+        <StaticDataTable
+          data={apiInfoList}
+          getRowKey={(apiInfo) => apiInfo.id}
+          emptyContent={t('No API Domains yet. Click "Add API" to create one.')}
+          columns={[
+            {
+              id: 'select',
+              header: (
+                <Checkbox
+                  checked={
+                    selectedIds.length === apiInfoList.length &&
+                    apiInfoList.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+              ),
+              className: 'w-12',
+              cell: (apiInfo) => (
+                <Checkbox
+                  checked={selectedIds.includes(apiInfo.id)}
+                  onCheckedChange={(checked) =>
+                    toggleSelectOne(apiInfo.id, checked as boolean)
+                  }
+                />
+              ),
+            },
+            {
+              id: 'url',
+              header: t('URL'),
+              cellClassName: 'max-w-xs truncate font-mono text-sm',
+              cell: (apiInfo) => (
+                <StatusBadge
+                  label={apiInfo.url}
+                  variant='neutral'
+                  copyable={false}
+                />
+              ),
+            },
+            {
+              id: 'route',
+              header: t('Route'),
+              cell: (apiInfo) => (
+                <StatusBadge
+                  label={apiInfo.route}
+                  variant='neutral'
+                  copyable={false}
+                />
+              ),
+            },
+            {
+              id: 'description',
+              header: t('Description'),
+              cellClassName: 'max-w-xs truncate',
+              cell: (apiInfo) => apiInfo.description,
+            },
+            {
+              id: 'color',
+              header: t('Color'),
+              cell: (apiInfo) => (
+                <div className='flex items-center gap-2'>
+                  <div
+                    className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
                   />
-                </TableHead>
-                <TableHead>{t('URL')}</TableHead>
-                <TableHead>{t('Route')}</TableHead>
-                <TableHead>{t('Description')}</TableHead>
-                <TableHead>{t('Color')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {apiInfoList.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
-                    {t('No API Domains yet. Click "Add API" to create one.')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                apiInfoList.map((apiInfo) => (
-                  <TableRow key={apiInfo.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(apiInfo.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(apiInfo.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate font-mono text-sm'
-                      title={apiInfo.url}
-                    >
-                      <StatusBadge
-                        label={apiInfo.url}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        label={apiInfo.route}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate'
-                      title={apiInfo.description}
-                    >
-                      {apiInfo.description}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex items-center gap-2'>
-                        <div
-                          className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
-                        />
-                        <span className='text-sm capitalize'>
-                          {apiInfo.color}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(apiInfo)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(apiInfo)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  <span className='text-sm capitalize'>{apiInfo.color}</span>
+                </div>
+              ),
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-32',
+              cell: (apiInfo) => (
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={() => handleEdit(apiInfo)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Edit className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(apiInfo)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <Dialog

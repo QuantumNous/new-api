@@ -18,27 +18,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import {
-  flexRender,
   type ColumnDef,
   type Row,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { PageFooterPortal } from '@/components/layout'
+import {
+  DataTableView,
+  type DataTableColumnClassName,
+  type DataTablePinnedColumn,
+  type DataTableRenderRowHelpers,
+} from '../core/data-table-view'
+import { DataTablePagination } from '../core/pagination'
+import { DataTableToolbar } from '../toolbar/toolbar'
 import { MobileCardList } from './mobile-card-list'
-import { DataTablePagination } from './pagination'
-import { TableEmpty } from './table-empty'
-import { TableSkeleton } from './table-skeleton'
-import { DataTableToolbar } from './toolbar'
 
 /**
  * Pass-through configuration for the default {@link DataTableToolbar}.
@@ -145,7 +140,22 @@ export type DataTablePageProps<TData> = {
    * Custom desktop row renderer — replaces the default `<TableRow>`/`<TableCell>` mapping.
    * Use for expanded rows, aggregate rows, click-on-row navigation, etc.
    */
-  renderRow?: (row: Row<TData>) => React.ReactNode
+  renderRow?: (
+    row: Row<TData>,
+    helpers: DataTableRenderRowHelpers
+  ) => React.ReactNode
+
+  /**
+   * Desktop column className resolver. Use for semantic alignment/spacing only;
+   * fixed-column behavior should be configured with `pinnedColumns`.
+   */
+  getColumnClassName?: DataTableColumnClassName
+
+  /**
+   * Fixed desktop columns. The shared table component owns sticky position,
+   * layering, shadows, and row-state backgrounds.
+   */
+  pinnedColumns?: DataTablePinnedColumn[]
 
   /**
    * Apply explicit column widths from `header.getSize()` to `<TableHead>`.
@@ -183,13 +193,20 @@ export type DataTablePageProps<TData> = {
   className?: string
 
   /**
+   * Make the desktop table consume the available page height and scroll inside
+   * the table body while keeping the header fixed. Defaults to `true`.
+   */
+  fixedHeight?: boolean
+
+  /**
    * Desktop table container className (the bordered scroll wrapper).
    */
   tableClassName?: string
 
   /**
    * Desktop `<TableHeader>` className override.
-   * Useful for sticky headers (`'sticky top-0 z-10 bg-muted/30'`) on long lists.
+   * Use for header color/spacing overrides. Fixed-height pages keep the header
+   * outside the scrollable body automatically.
    */
   tableHeaderClassName?: string
 }
@@ -222,10 +239,18 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
   const toolbarNode = renderToolbar(props)
   const mobileNode = renderMobile(props, showMobile)
   const desktopNode = renderDesktop(props, showMobile)
+  const paginationNode = renderPagination(props)
 
   return (
     <>
-      <div className={cn('space-y-2.5 sm:space-y-3', props.className)}>
+      <div
+        className={cn(
+          props.fixedHeight !== false
+            ? 'flex h-full min-h-0 flex-col gap-2.5 sm:gap-3'
+            : 'space-y-2.5 sm:space-y-3',
+          props.className
+        )}
+      >
         {toolbarNode}
         {mobileNode}
         {desktopNode}
@@ -236,16 +261,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
           handle its own visibility, we just gate it to non-mobile. */}
       {!showMobile && props.bulkActions}
 
-      {props.showPagination !== false &&
-        (props.paginationInFooter !== false ? (
-          <PageFooterPortal>
-            <DataTablePagination table={props.table} />
-          </PageFooterPortal>
-        ) : (
-          <div className='pt-2'>
-            <DataTablePagination table={props.table} />
-          </div>
-        ))}
+      {paginationNode}
     </>
   )
 }
@@ -265,12 +281,25 @@ function renderToolbar<TData>(
   return null
 }
 
+function renderPagination<TData>(
+  props: DataTablePageProps<TData>
+): React.ReactNode {
+  if (props.showPagination === false) return null
+
+  const pagination = <DataTablePagination table={props.table} />
+
+  return props.paginationInFooter !== false ? (
+    <PageFooterPortal>{pagination}</PageFooterPortal>
+  ) : (
+    <div className='pt-2'>{pagination}</div>
+  )
+}
+
 function renderMobile<TData>(
   props: DataTablePageProps<TData>,
   showMobile: boolean
 ): React.ReactNode {
   if (!showMobile) return null
-  if (props.mobile !== undefined) return props.mobile
 
   const ownGetRowClassName = props.getRowClassName
   const mobileGetRowClassName =
@@ -278,8 +307,7 @@ function renderMobile<TData>(
     (ownGetRowClassName
       ? (row: Row<TData>) => ownGetRowClassName(row, { isMobile: true })
       : undefined)
-
-  return (
+  const mobileContent = props.mobile ?? (
     <MobileCardList
       table={props.table}
       isLoading={props.isLoading}
@@ -289,6 +317,8 @@ function renderMobile<TData>(
       getRowClassName={mobileGetRowClassName}
     />
   )
+
+  return <div className='min-h-0 flex-1 overflow-y-auto'>{mobileContent}</div>
 }
 
 function renderDesktop<TData>(
@@ -297,94 +327,37 @@ function renderDesktop<TData>(
 ): React.ReactNode {
   if (showMobile) return null
 
-  const rows = props.table.getRowModel().rows
   const isFetchingOnly = props.isFetching && !props.isLoading
+  const fixedHeight = props.fixedHeight !== false
 
   return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-lg border transition-opacity duration-150',
+    <DataTableView
+      table={props.table}
+      isLoading={props.isLoading}
+      emptyTitle={props.emptyTitle}
+      emptyDescription={props.emptyDescription}
+      emptyIcon={props.emptyIcon}
+      emptyAction={props.emptyAction}
+      skeletonKeyPrefix={props.skeletonKeyPrefix}
+      renderRow={props.renderRow}
+      applyHeaderSize={props.applyHeaderSize}
+      splitHeader={fixedHeight}
+      tableContainerClassName={fixedHeight ? 'h-full min-h-0' : undefined}
+      tableHeaderClassName={cn(
+        fixedHeight && 'bg-muted/30',
+        props.tableHeaderClassName
+      )}
+      getColumnClassName={props.getColumnClassName}
+      pinnedColumns={props.pinnedColumns}
+      containerClassName={cn(
+        fixedHeight && 'min-h-0 flex-1',
+        'transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
       )}
-    >
-      <Table>
-        <TableHeader className={props.tableHeaderClassName}>
-          {props.table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  colSpan={header.colSpan}
-                  style={
-                    props.applyHeaderSize
-                      ? { width: header.getSize() }
-                      : undefined
-                  }
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {props.isLoading ? (
-            <TableSkeleton
-              table={props.table}
-              keyPrefix={props.skeletonKeyPrefix}
-            />
-          ) : rows.length === 0 ? (
-            <TableEmpty
-              colSpan={props.columns.length}
-              title={props.emptyTitle}
-              description={props.emptyDescription}
-              icon={props.emptyIcon}
-            >
-              {props.emptyAction}
-            </TableEmpty>
-          ) : (
-            rows.map((row) => {
-              if (props.renderRow) {
-                return props.renderRow(row)
-              }
-              return (
-                <DefaultRow
-                  key={row.id}
-                  row={row}
-                  className={props.getRowClassName?.(row, { isMobile: false })}
-                />
-              )
-            })
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function DefaultRow<TData>({
-  row,
-  className,
-}: {
-  row: Row<TData>
-  className?: string
-}) {
-  return (
-    <TableRow
-      data-state={row.getIsSelected() && 'selected'}
-      className={className}
-    >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </TableCell>
-      ))}
-    </TableRow>
+      getRowClassName={(row) =>
+        props.getRowClassName?.(row, { isMobile: false })
+      }
+    />
   )
 }

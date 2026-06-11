@@ -15,59 +15,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetAndValidOpenAIImageRequestMultipartStream verifies reusable image edit parsing.
+// TestGetAndValidOpenAIImageRequestMultipartStream verifies multipart image
+// edit parsing: the stream field is parsed and validated, and the request body
+// stays replayable for the upstream request.
 func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	require.NoError(t, writer.WriteField("model", "gpt-image-1"))
-	require.NoError(t, writer.WriteField("prompt", "edit this image"))
-	require.NoError(t, writer.WriteField("stream", "true"))
-	require.NoError(t, writer.WriteField("n", "1"))
-	part, err := writer.CreateFormFile("image", "input.png")
-	require.NoError(t, err)
-	_, err = part.Write([]byte("fake image"))
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-	originalBody := body.String()
+	newContext := func(t *testing.T, streamValue string, withImage bool) (*gin.Context, string) {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		require.NoError(t, writer.WriteField("prompt", "edit this image"))
+		require.NoError(t, writer.WriteField("stream", streamValue))
+		if withImage {
+			part, err := writer.CreateFormFile("image", "input.png")
+			require.NoError(t, err)
+			_, err = part.Write([]byte("fake image"))
+			require.NoError(t, err)
+		}
+		require.NoError(t, writer.Close())
+		originalBody := body.String()
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
-	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		return c, originalBody
+	}
 
-	req, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
-	require.NoError(t, err)
-	require.True(t, req.Stream)
-	require.True(t, req.IsStream(c))
+	t.Run("valid stream value keeps body replayable", func(t *testing.T) {
+		c, originalBody := newContext(t, "true", true)
 
-	bodyAfterValidation, err := io.ReadAll(c.Request.Body)
-	require.NoError(t, err)
-	require.Equal(t, originalBody, string(bodyAfterValidation))
+		req, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+		require.NoError(t, err)
+		require.NotNil(t, req.Stream)
+		require.True(t, *req.Stream)
+		require.True(t, req.IsStream(c))
 
-	form, err := common.ParseMultipartFormReusable(c)
-	require.NoError(t, err)
-	require.Equal(t, "true", url.Values(form.Value).Get("stream"))
-	require.Len(t, form.File["image"], 1)
-}
+		bodyAfterValidation, err := io.ReadAll(c.Request.Body)
+		require.NoError(t, err)
+		require.Equal(t, originalBody, string(bodyAfterValidation))
 
-// TestGetAndValidOpenAIImageRequestMultipartStreamInvalidValue verifies stream validation.
-func TestGetAndValidOpenAIImageRequestMultipartStreamInvalidValue(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+		form, err := common.ParseMultipartFormReusable(c)
+		require.NoError(t, err)
+		require.Equal(t, "true", url.Values(form.Value).Get("stream"))
+		require.Len(t, form.File["image"], 1)
+	})
 
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	require.NoError(t, writer.WriteField("model", "gpt-image-1"))
-	require.NoError(t, writer.WriteField("stream", "notabool"))
-	require.NoError(t, writer.Close())
+	t.Run("invalid stream value is rejected", func(t *testing.T) {
+		c, _ := newContext(t, "notabool", false)
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
-	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-
-	_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid stream value")
+		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid stream value")
+	})
 }

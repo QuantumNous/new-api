@@ -21,6 +21,7 @@ import { useState, type ReactNode } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useDebounce } from '@/hooks'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +47,10 @@ export type DataTableToolbarProps<TData> = {
    * Placeholder for the default search input. Defaults to `t('Filter...')`.
    */
   searchPlaceholder?: string
+  /**
+   * Delay committing the default search input. Defaults to immediate updates.
+   */
+  searchDebounceMs?: number
   /**
    * Column id to filter on. When provided, the search input filters
    * a specific column. When omitted, the search input updates the
@@ -136,6 +141,8 @@ export type DataTableToolbarProps<TData> = {
 export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+  const isSearchComposingRef = React.useRef(false)
+  const lastCommittedSearchValueRef = React.useRef('')
 
   const filters = props.filters ?? []
   const hasExpandable = props.expandable != null
@@ -147,26 +154,109 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     !!props.hasAdditionalFilters
 
   const placeholder = props.searchPlaceholder ?? t('Filter...')
+  const currentSearchValue = props.searchKey
+    ? ((props.table.getColumn(props.searchKey)?.getFilterValue() as string) ??
+      '')
+    : ((props.table.getState().globalFilter as string | undefined) ?? '')
+
+  const [searchValue, setSearchValue] = useState(currentSearchValue)
+  const [pendingSearchValue, setPendingSearchValue] =
+    useState(currentSearchValue)
+  const searchDebounceMs = Math.max(0, props.searchDebounceMs ?? 0)
+  const debouncedSearchValue = useDebounce(
+    pendingSearchValue,
+    searchDebounceMs
+  )
+
+  React.useEffect(() => {
+    lastCommittedSearchValueRef.current = currentSearchValue
+    if (!isSearchComposingRef.current) {
+      setSearchValue(currentSearchValue)
+    }
+    setPendingSearchValue(currentSearchValue)
+  }, [currentSearchValue])
+
+  const commitSearchValue = React.useCallback(
+    (value: string) => {
+      if (value === lastCommittedSearchValueRef.current) {
+        return
+      }
+
+      lastCommittedSearchValueRef.current = value
+
+      if (props.searchKey) {
+        props.table.getColumn(props.searchKey)?.setFilterValue(value)
+        return
+      }
+
+      props.table.setGlobalFilter(value)
+    },
+    [props.searchKey, props.table]
+  )
+
+  React.useEffect(() => {
+    if (
+      searchDebounceMs <= 0 ||
+      isSearchComposingRef.current ||
+      debouncedSearchValue !== pendingSearchValue
+    ) {
+      return
+    }
+
+    commitSearchValue(debouncedSearchValue)
+  }, [
+    commitSearchValue,
+    debouncedSearchValue,
+    pendingSearchValue,
+    searchDebounceMs,
+  ])
+
+  const queueSearchValue = (value: string) => {
+    setPendingSearchValue(value)
+
+    if (searchDebounceMs <= 0) {
+      commitSearchValue(value)
+    }
+  }
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+    setSearchValue(value)
+
+    if (!isSearchComposingRef.current) {
+      queueSearchValue(value)
+    }
+  }
+
+  const handleSearchCompositionStart = () => {
+    isSearchComposingRef.current = true
+  }
+
+  const handleSearchCompositionEnd = (
+    event: React.CompositionEvent<HTMLInputElement>
+  ) => {
+    isSearchComposingRef.current = false
+    const value = event.currentTarget.value
+    setSearchValue(value)
+    queueSearchValue(value)
+  }
 
   const searchInput = props.searchKey ? (
     <Input
       placeholder={placeholder}
-      value={
-        (props.table.getColumn(props.searchKey)?.getFilterValue() as string) ??
-        ''
-      }
-      onChange={(event) =>
-        props.table
-          .getColumn(props.searchKey!)
-          ?.setFilterValue(event.target.value)
-      }
+      value={searchValue}
+      onChange={handleSearchChange}
+      onCompositionStart={handleSearchCompositionStart}
+      onCompositionEnd={handleSearchCompositionEnd}
       className='w-full sm:w-[200px] lg:w-[240px]'
     />
   ) : (
     <Input
       placeholder={placeholder}
-      value={props.table.getState().globalFilter ?? ''}
-      onChange={(event) => props.table.setGlobalFilter(event.target.value)}
+      value={searchValue}
+      onChange={handleSearchChange}
+      onCompositionStart={handleSearchCompositionStart}
+      onCompositionEnd={handleSearchCompositionEnd}
       className='w-full sm:w-[200px] lg:w-[240px]'
     />
   )
@@ -186,6 +276,10 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   })
 
   const handleReset = () => {
+    isSearchComposingRef.current = false
+    setSearchValue('')
+    setPendingSearchValue('')
+    lastCommittedSearchValueRef.current = ''
     props.table.resetColumnFilters()
     props.table.setGlobalFilter('')
     props.onReset?.()

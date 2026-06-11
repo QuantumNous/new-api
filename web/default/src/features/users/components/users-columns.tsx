@@ -66,6 +66,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
       meta: { label: t('Select') },
     },
     {
@@ -78,6 +79,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           <TableId value={row.getValue('id') as number} className='w-[60px]' />
         )
       },
+      size: 80,
       meta: { label: t('ID'), mobileHidden: true },
     },
     {
@@ -118,6 +120,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       enableHiding: false,
+      size: 220,
       meta: { label: t('Username'), mobileTitle: true },
     },
     {
@@ -158,6 +161,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return value.includes(String(row.getValue(id)))
       },
       enableSorting: false,
+      size: 120,
       meta: { label: t('Status'), mobileBadge: true },
     },
     {
@@ -220,6 +224,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </Tooltip>
         )
       },
+      size: 170,
       meta: { label: t('Quota') },
     },
     {
@@ -236,6 +241,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const searchValue = String(value).toLowerCase()
         return group.includes(searchValue)
       },
+      size: 140,
       meta: { label: t('Group') },
     },
     {
@@ -264,6 +270,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return value.includes(String(row.getValue(id)))
       },
       enableSorting: false,
+      size: 120,
       meta: { label: t('Role') },
     },
     {
@@ -278,7 +285,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const inviterId = user.inviter_id || 0
 
         return (
-          <div className='flex items-center gap-1'>
+          <div className='flex min-w-[220px] flex-wrap items-center gap-1'>
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -338,6 +345,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </div>
         )
       },
+      size: 240,
       enableSorting: false,
       meta: { label: t('Invite Info'), mobileHidden: true },
     },
@@ -354,6 +362,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </span>
         )
       },
+      size: 180,
       meta: { label: t('Created At'), mobileHidden: true },
     },
     {
@@ -369,6 +378,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </span>
         )
       },
+      size: 180,
       meta: { label: t('Last Login'), mobileHidden: true },
     },
     {

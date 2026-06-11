@@ -92,6 +92,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
       meta: { label: t('Select') },
     },
     {
@@ -104,6 +105,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           {row.getValue('name')}
         </div>
       ),
+      size: 180,
       meta: { label: t('Name'), mobileTitle: true },
     },
     {
@@ -123,6 +125,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         )
       },
       filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
+      size: 120,
       meta: { label: t('Status'), mobileBadge: true },
     },
     {
@@ -131,6 +134,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       header: t('API Key'),
       cell: ({ row }) => <ApiKeyCell apiKey={row.original} />,
       enableSorting: false,
+      size: 260,
       meta: { label: t('API Key') },
     },
     {
@@ -189,6 +193,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           </Tooltip>
         )
       },
+      size: 170,
       meta: { label: t('Quota') },
     },
     {
@@ -230,6 +235,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         }
         return <GroupBadge group={group} ratio={ratio} />
       },
+      size: 160,
       meta: { label: t('Group'), mobileHidden: true },
     },
     {
@@ -240,6 +246,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
       enableSorting: false,
+      size: 160,
       meta: { label: t('Models'), mobileHidden: true },
     },
     {
@@ -250,6 +257,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       cell: ({ row }) => <IpRestrictionsCell apiKey={row.original} />,
       enableSorting: false,
+      size: 160,
       meta: { label: t('IP Restriction'), mobileHidden: true },
     },
     {
@@ -258,10 +266,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         <DataTableColumnHeader column={column} title={t('Created')} />
       ),
       cell: ({ row }) => (
-        <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+        <span className='text-muted-foreground block truncate font-mono text-xs tabular-nums'>
           {formatTimestampToDate(row.getValue('created_time'))}
         </span>
       ),
+      size: 180,
       meta: { label: t('Created'), mobileHidden: true },
     },
     {
@@ -275,11 +284,12 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
         return (
-          <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+          <span className='text-muted-foreground block truncate font-mono text-xs tabular-nums'>
             {formatTimestampToDate(accessedTime)}
           </span>
         )
       },
+      size: 180,
       meta: { label: t('Last Used'), mobileHidden: true },
     },
     {
@@ -302,7 +312,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         return (
           <span
             className={cn(
-              'font-mono text-xs tabular-nums',
+              'block truncate font-mono text-xs tabular-nums',
               isExpired ? 'text-destructive' : 'text-muted-foreground'
             )}
           >
@@ -310,6 +320,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           </span>
         )
       },
+      size: 180,
       meta: { label: t('Expires'), mobileHidden: true },
     },
     {

@@ -21,14 +21,7 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StaticDataTable } from '@/components/data-table'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import { ChatDialog, type ChatEntryData } from './chat-dialog'
@@ -149,55 +142,55 @@ export function ChatSettingsVisualEditor({
         </Button>
       </div>
 
-      {filteredChats.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
-          {searchText
+      <StaticDataTable
+        data={filteredChats}
+        getRowKey={(chat) => chat.name}
+        emptyContent={
+          searchText
             ? t('No chat presets match your search')
             : t(
                 'No chat presets configured. Click "Add chat preset" to get started.'
-              )}
-        </div>
-      ) : (
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Chat Client Name')}</TableHead>
-                <TableHead>{t('URL')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredChats.map((chat) => (
-                <TableRow key={chat.name}>
-                  <TableCell className='font-medium'>{chat.name}</TableCell>
-                  <TableCell className='max-w-md truncate font-mono text-sm'>
-                    {chat.url}
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <div className='flex justify-end gap-2'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => handleEdit(chat)}
-                      >
-                        <Pencil className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => handleDelete(chat.name)}
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              )
+        }
+        columns={[
+          {
+            id: 'name',
+            header: t('Chat Client Name'),
+            cellClassName: 'font-medium',
+            cell: (chat) => chat.name,
+          },
+          {
+            id: 'url',
+            header: t('URL'),
+            cellClassName: 'max-w-md truncate font-mono text-sm',
+            cell: (chat) => chat.url,
+          },
+          {
+            id: 'actions',
+            header: t('Actions'),
+            className: 'text-right',
+            cellClassName: 'text-right',
+            cell: (chat) => (
+              <div className='flex justify-end gap-2'>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => handleEdit(chat)}
+                >
+                  <Pencil className='h-4 w-4' />
+                </Button>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => handleDelete(chat.name)}
+                >
+                  <Trash2 className='h-4 w-4' />
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <ChatDialog
         open={dialogOpen}
