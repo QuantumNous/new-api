@@ -123,31 +123,7 @@ function SplitHeaderTableView<TData>({
   colSpan: number
   getColumnClassName: DataTableColumnClassName
 }) {
-  const headerHostRef = React.useRef<HTMLDivElement>(null)
-  const bodyHostRef = React.useRef<HTMLDivElement>(null)
   const tableSizing = getTableSizing(props)
-
-  React.useEffect(() => {
-    const headerScroller = headerHostRef.current?.querySelector<HTMLElement>(
-      '[data-slot=table-container]'
-    )
-    const bodyScroller = bodyHostRef.current?.querySelector<HTMLElement>(
-      '[data-slot=table-container]'
-    )
-
-    if (!headerScroller || !bodyScroller) return
-
-    const syncHeaderScroll = () => {
-      headerScroller.scrollLeft = bodyScroller.scrollLeft
-    }
-
-    syncHeaderScroll()
-    bodyScroller.addEventListener('scroll', syncHeaderScroll, { passive: true })
-
-    return () => {
-      bodyScroller.removeEventListener('scroll', syncHeaderScroll)
-    }
-  }, [rows.length]) // tableClassName / colgroup are styling — don't need to re-attach listener
 
   return (
     <div
@@ -158,37 +134,30 @@ function SplitHeaderTableView<TData>({
     >
       <div
         className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-hidden',
-          props.splitHeaderScrollClassName
+          'min-h-0 flex-1 overflow-auto',
+          '[&_[data-slot=table-header]]:[background-color:color-mix(in_oklch,var(--muted)_30%,var(--background))]',
+          props.splitHeaderScrollClassName,
+          props.bodyContainerClassName
         )}
       >
-        <div
-          ref={headerHostRef}
-          className='[scrollbar-gutter:stable] overflow-hidden [&_[data-slot=table-container]]:overflow-x-hidden'
-        >
-          <Table className={props.tableClassName} style={tableSizing.style}>
-            {tableSizing.colgroup}
-            <DataTableHeader
-              table={props.table}
-              applyHeaderSize={props.applyHeaderSize}
-              className={props.tableHeaderClassName}
-              rowClassName={props.tableHeaderRowClassName}
-              getColumnClassName={getColumnClassName}
-            />
-          </Table>
-        </div>
-        <div
-          ref={bodyHostRef}
+        <table
+          data-slot='table'
           className={cn(
-            'min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto',
-            props.bodyContainerClassName
+            'w-full caption-bottom text-sm tabular-nums [&_td]:text-sm [&_td_*]:text-sm [&_th]:text-sm [&_th_*]:text-sm',
+            props.tableClassName
           )}
+          style={tableSizing.style}
         >
-          <Table className={props.tableClassName} style={tableSizing.style}>
-            {tableSizing.colgroup}
-            {renderTableBody(props, rows, colSpan, getColumnClassName)}
-          </Table>
-        </div>
+          {tableSizing.colgroup}
+          <DataTableHeader
+            table={props.table}
+            applyHeaderSize={props.applyHeaderSize}
+            className={cn('sticky top-0 z-10', props.tableHeaderClassName)}
+            rowClassName={props.tableHeaderRowClassName}
+            getColumnClassName={getColumnClassName}
+          />
+          {renderTableBody(props, rows, colSpan, getColumnClassName)}
+        </table>
       </div>
     </div>
   )
