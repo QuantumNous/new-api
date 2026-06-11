@@ -237,6 +237,8 @@
     "SMTP 访问凭证": "SMTP Access Credential",
     "SMTP 账户": "SMTP Account",
     "SMTP 加密方式": "SMTP encryption",
+    "SSL/TLS": "SSL/TLS",
+    "STARTTLS": "STARTTLS",
     "Sonnet 模型": "Sonnet Model",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "The speed field controls Claude inference speed mode. Disabled by default to avoid unintentionally switching to fast mode",
     "SSE 事件": "SSE Events",

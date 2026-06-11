@@ -145,6 +145,8 @@
     "SMTP 访问凭证": "SMTP 访问凭证",
     "SMTP 账户": "SMTP 账户",
     "SMTP 加密方式": "SMTP 加密方式",
+    "SSL/TLS": "SSL/TLS",
+    "STARTTLS": "STARTTLS",
     "SSE 事件": "SSE 事件",
     "SSE数据流": "SSE数据流",
     "SSRF防护开关详细说明": "总开关控制是否启用SSRF防护功能。关闭后将跳过所有SSRF检查，允许访问任意URL。⚠️ 仅在完全信任环境中关闭此功能。",

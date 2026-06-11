@@ -230,6 +230,8 @@
     "SMTP 访问凭证": "Thông tin xác thực truy cập SMTP",
     "SMTP 账户": "Tài khoản SMTP",
     "SMTP 加密方式": "Mã hóa SMTP",
+    "SSL/TLS": "SSL/TLS",
+    "STARTTLS": "STARTTLS",
     "Sonnet 模型": "Model Sonnet",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "Trường speed kiểm soát chế độ tốc độ suy luận Claude. Mặc định tắt để tránh vô tình chuyển sang chế độ fast",
     "SSE 事件": "Sự kiện SSE",

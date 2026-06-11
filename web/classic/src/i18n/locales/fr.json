@@ -235,6 +235,8 @@
     "SMTP 访问凭证": "Informations d'identification d'accès SMTP",
     "SMTP 账户": "Compte SMTP",
     "SMTP 加密方式": "Chiffrement SMTP",
+    "SSL/TLS": "SSL/TLS",
+    "STARTTLS": "STARTTLS",
     "Sonnet 模型": "Modèle Sonnet",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "Le champ speed contrôle le mode de vitesse d'inférence de Claude. Désactivé par défaut pour éviter un passage involontaire au mode fast",
     "SSE 事件": "Événement SSE",

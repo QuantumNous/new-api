@@ -268,7 +268,7 @@ export function EmailSettingsSection({
                       htmlFor='smtp-security-ssl-tls'
                       className='cursor-pointer font-normal'
                     >
-                      SSL/TLS
+                      {t('SSL/TLS')}
                     </Label>
                   </div>
                   <div className='flex items-center gap-2'>
@@ -280,7 +280,7 @@ export function EmailSettingsSection({
                       htmlFor='smtp-security-starttls'
                       className='cursor-pointer font-normal'
                     >
-                      STARTTLS
+                      {t('STARTTLS')}
                     </Label>
                   </div>
                 </RadioGroup>

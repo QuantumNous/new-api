@@ -28,6 +28,7 @@ type fakeSMTPServer struct {
 	authMechanisms    []string
 	messages          chan string
 	authCommands      chan string
+	startTLSCommands  chan string
 }
 
 func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
@@ -57,6 +58,7 @@ func newFakeSMTPServerWithSTARTTLSAdvertisement(t *testing.T, advertiseSTARTTLS 
 		authMechanisms:    []string{"PLAIN", "LOGIN"},
 		messages:          make(chan string, 1),
 		authCommands:      make(chan string, 1),
+		startTLSCommands:  make(chan string, 1),
 	}
 	go server.serve()
 	return server
@@ -105,6 +107,10 @@ func (s *fakeSMTPServer) serve() {
 				return
 			}
 		case upperCommand == "STARTTLS":
+			select {
+			case s.startTLSCommands <- command:
+			default:
+			}
 			if err := writeSMTPLine(rw, "220 2.0.0 Ready to start TLS"); err != nil {
 				return
 			}
@@ -252,7 +258,7 @@ func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
 	}
 }
 
-func TestSendEmailForcesStartTLSWhenServerDoesNotAdvertiseIt(t *testing.T) {
+func TestSendEmailExplicitStartTLSRequiresServerSupport(t *testing.T) {
 	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
 	defer server.close()
 	withSMTPSettings(t)
@@ -269,7 +275,34 @@ func TestSendEmailForcesStartTLSWhenServerDoesNotAdvertiseIt(t *testing.T) {
 	SystemName = "New API"
 
 	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "STARTTLS")
+}
+
+func TestSendEmailDoesNotAutoUpgradeWhenStartTLSDisabled(t *testing.T) {
+	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, true)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = false
+	SMTPInsecureSkipVerify = false
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = "sender@example.com"
+	SMTPToken = "secret"
+	SystemName = "New API"
+
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
 	require.NoError(t, err)
+
+	select {
+	case command := <-server.startTLSCommands:
+		t.Fatalf("unexpected SMTP STARTTLS command: %s", command)
+	default:
+	}
 
 	select {
 	case message := <-server.messages:
@@ -291,6 +324,39 @@ func TestSendEmailSkipsAuthWhenCredentialsAreEmpty(t *testing.T) {
 	SMTPInsecureSkipVerify = false
 	SMTPForceAuthLogin = false
 	SMTPAccount = ""
+	SMTPFrom = "sender@example.com"
+	SMTPToken = ""
+	SystemName = "New API"
+
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	require.NoError(t, err)
+
+	select {
+	case command := <-server.authCommands:
+		t.Fatalf("unexpected SMTP auth command: %s", command)
+	default:
+	}
+
+	select {
+	case message := <-server.messages:
+		require.Contains(t, message, "<p>123456</p>")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SMTP DATA")
+	}
+}
+
+func TestSendEmailSkipsAuthWhenCredentialsAreIncomplete(t *testing.T) {
+	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = false
+	SMTPInsecureSkipVerify = false
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
 	SMTPFrom = "sender@example.com"
 	SMTPToken = ""
 	SystemName = "New API"

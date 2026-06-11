@@ -222,6 +222,8 @@
     "SMTP 访问凭证": "SMTP 访问凭证",
     "SMTP 账户": "SMTP 账户",
     "SMTP 加密方式": "SMTP 加密方式",
+    "SSL/TLS": "SSL/TLS",
+    "STARTTLS": "STARTTLS",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式",
     "SSE 事件": "SSE 事件",
     "SSE数据流": "SSE数据流",

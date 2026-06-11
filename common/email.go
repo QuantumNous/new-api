@@ -31,7 +31,7 @@ func getSMTPAuth() smtp.Auth {
 }
 
 func shouldAuthenticateSMTP() bool {
-	return SMTPAccount != "" || SMTPToken != ""
+	return SMTPAccount != "" && SMTPToken != ""
 }
 
 func smtpTLSConfig() *tls.Config {
@@ -60,8 +60,12 @@ func newSMTPClient(addr string) (*smtp.Client, error) {
 		return nil, err
 	}
 
-	startTLSSupported, _ := client.Extension("STARTTLS")
-	if SMTPStartTLSEnabled || startTLSSupported {
+	if SMTPStartTLSEnabled {
+		startTLSSupported, _ := client.Extension("STARTTLS")
+		if !startTLSSupported {
+			_ = client.Close()
+			return nil, fmt.Errorf("SMTP server does not support STARTTLS")
+		}
 		if err := client.StartTLS(smtpTLSConfig()); err != nil {
 			_ = client.Close()
 			return nil, err

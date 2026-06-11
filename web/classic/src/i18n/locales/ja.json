@@ -229,6 +229,8 @@
     "SMTP 访问凭证": "SMTP 認証情報",
     "SMTP 账户": "SMTP アカウント",
     "SMTP 加密方式": "SMTP 暗号化方式",
+    "SSL/TLS": "SSL/TLS",
+    "STARTTLS": "STARTTLS",
     "Sonnet 模型": "Sonnetモデル",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "speed フィールドは Claude の推論速度モードを制御します。意図せず fast モードへ切り替わるのを避けるため、デフォルトで無効です",
     "SSE 事件": "SSEイベント",

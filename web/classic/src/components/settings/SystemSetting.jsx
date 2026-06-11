@@ -1377,8 +1377,8 @@ const SystemSetting = () => {
                         style={{ marginTop: 8, marginBottom: 8 }}
                       >
                         <Radio value='none'>{t('无加密')}</Radio>
-                        <Radio value='ssl_tls'>SSL/TLS</Radio>
-                        <Radio value='starttls'>STARTTLS</Radio>
+                        <Radio value='ssl_tls'>{t('SSL/TLS')}</Radio>
+                        <Radio value='starttls'>{t('STARTTLS')}</Radio>
                       </Radio.Group>
                       <Text
                         type='secondary'
