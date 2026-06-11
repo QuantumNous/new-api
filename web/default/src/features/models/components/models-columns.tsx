@@ -27,10 +27,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnHeader, BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
-import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import {
   getModelStatusConfig,
@@ -46,22 +46,6 @@ function getCompactModelIcon(iconKey: string) {
   const baseIconKey = iconKey.split('.')[0]
 
   return getLobeIcon(`${baseIconKey}.Avatar.type={'platform'}`, 20)
-}
-
-/**
- * Render limited items with "and X more" indicator
- */
-function renderLimitedItems(
-  items: React.ReactNode[],
-  maxDisplay: number = 2
-): React.ReactNode {
-  return (
-    <StatusBadgeList
-      items={items}
-      max={maxDisplay}
-      renderItem={(item) => item}
-    />
-  )
 }
 
 /**
@@ -209,7 +193,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           return (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger render={<div />}>{badge}</TooltipTrigger>
+                <TooltipTrigger render={<div className='-ml-1.5' />}>{badge}</TooltipTrigger>
                 <TooltipContent
                   side='top'
                   className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
@@ -305,31 +289,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       cell: ({ row }) => {
         const tags = row.getValue('tags') as string
         const tagArray = parseModelTags(tags)
-
-        if (tagArray.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const tagBadges = tagArray.map((tag, idx) => (
-          <StatusBadge key={idx} label={tag} autoColor={tag} size='sm' />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(tagBadges, 2)}
-              </TooltipTrigger>
-              {tagArray.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{tagBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={tagArray.map((tag, idx) => (
+              <StatusBadge key={idx} label={tag} autoColor={tag} size='sm' />
+            ))}
+          />
         )
       },
       size: 150,
@@ -344,31 +309,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       cell: ({ row }) => {
         const endpoints = row.getValue('endpoints') as string
         const endpointArray = formatEndpointsDisplay(endpoints)
-
-        if (endpointArray.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const endpointBadges = endpointArray.map((ep, idx) => (
-          <StatusBadge key={idx} label={ep} autoColor={ep} size='sm' />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(endpointBadges, 2)}
-              </TooltipTrigger>
-              {endpointArray.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{endpointBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={endpointArray.map((ep, idx) => (
+              <StatusBadge key={idx} label={ep} autoColor={ep} size='sm' />
+            ))}
+          />
         )
       },
       size: 150,
@@ -387,36 +333,17 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           type?: number
           status?: number
         }>
-
-        if (!channels || channels.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const channelBadges = channels.map((c, idx) => (
-          <StatusBadge
-            key={idx}
-            label={`${c.name} (${c.type})`}
-            autoColor={c.name}
-            size='sm'
-          />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(channelBadges, 2)}
-              </TooltipTrigger>
-              {channels.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{channelBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={(channels ?? []).map((c, idx) => (
+              <StatusBadge
+                key={idx}
+                label={`${c.name} (${c.type})`}
+                autoColor={c.name}
+                size='sm'
+              />
+            ))}
+          />
         )
       },
       size: 150,
@@ -432,31 +359,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       ),
       cell: ({ row }) => {
         const groups = row.getValue('enable_groups') as string[]
-
-        if (!groups || groups.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const groupBadges = groups.map((g) => (
-          <GroupBadge key={g} group={g} size='sm' />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(groupBadges, 2)}
-              </TooltipTrigger>
-              {groups.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{groupBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={(groups ?? []).map((g) => (
+              <GroupBadge key={g} group={g} size='sm' />
+            ))}
+          />
         )
       },
       size: 150,
@@ -470,46 +378,27 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       header: t('Quota Types'),
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]
-
-        if (!quotaTypes || quotaTypes.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const quotaBadges = quotaTypes.map((qt, idx) => {
-          const config = QUOTA_TYPE_CONFIG[qt]
-          return (
-            <StatusBadge
-              key={idx}
-              label={config?.label || String(qt)}
-              variant={
-                (config?.color === 'error' ? 'danger' : config?.color) as
-                  | 'neutral'
-                  | 'success'
-                  | 'warning'
-                  | 'danger'
-                  | 'info'
-              }
-              size='sm'
-            />
-          )
-        })
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(quotaBadges, 2)}
-              </TooltipTrigger>
-              {quotaTypes.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{quotaBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={(quotaTypes ?? []).map((qt, idx) => {
+              const config = QUOTA_TYPE_CONFIG[qt]
+              return (
+                <StatusBadge
+                  key={idx}
+                  label={config?.label || String(qt)}
+                  variant={
+                    (config?.color === 'error' ? 'danger' : config?.color) as
+                      | 'neutral'
+                      | 'success'
+                      | 'warning'
+                      | 'danger'
+                      | 'info'
+                  }
+                  size='sm'
+                />
+              )
+            })}
+          />
         )
       },
       size: 150,

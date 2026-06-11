@@ -45,10 +45,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnHeader, BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
-import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
 import { getCodexUsage } from '../api'
@@ -96,22 +96,6 @@ function parseIonetMeta(otherInfo: string | null | undefined): null | {
     return null
   }
   return null
-}
-
-/**
- * Render limited items with "and X more" indicator
- */
-function renderLimitedItems(
-  items: React.ReactNode[],
-  maxDisplay: number = 2
-): React.ReactNode {
-  return (
-    <StatusBadgeList
-      items={items}
-      max={maxDisplay}
-      renderItem={(item) => item}
-    />
-  )
 }
 
 /**
@@ -349,7 +333,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
   return (
     <TooltipProvider>
-      <div className='flex items-center gap-1'>
+      <div className='-ml-1.5 flex items-center gap-1'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -845,37 +829,18 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       cell: ({ row }) => {
         const models = row.getValue('models') as string
         const modelArray = parseModelsList(models)
-
-        if (modelArray.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const modelBadges = modelArray.map((model, idx) => (
-          <StatusBadge
-            key={idx}
-            label={model}
-            autoColor={model}
-            size='sm'
-            className='font-mono'
-          />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(modelBadges, 2)}
-              </TooltipTrigger>
-              {modelArray.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{modelBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={modelArray.map((model, idx) => (
+              <StatusBadge
+                key={idx}
+                label={model}
+                autoColor={model}
+                size='sm'
+                className='font-mono'
+              />
+            ))}
+          />
         )
       },
       size: 200,
@@ -890,27 +855,12 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       cell: ({ row }) => {
         const group = row.getValue('group') as string
         const groupArray = parseGroupsList(group)
-
-        const groupBadges = groupArray.map((g) => (
-          <GroupBadge key={g} group={g} size='sm' />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(groupBadges, 2)}
-              </TooltipTrigger>
-              {groupArray.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{groupBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={groupArray.map((g) => (
+              <GroupBadge key={g} group={g} size='sm' />
+            ))}
+          />
         )
       },
       filterFn: (row, id, value) => {
