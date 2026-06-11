@@ -202,8 +202,11 @@ function PriorityCell({ channel }: { channel: Channel }) {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title={t('Confirm Batch Update')}
-          desc={`This will update the priority to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
-          confirmText='Update'
+          desc={t(
+            'This will update the priority to {{value}} for all {{count}} channel(s) with tag "{{tag}}". Continue?',
+            { value: pendingValue, count: channelCount, tag }
+          )}
+          confirmText={t('Update')}
           handleConfirm={() => {
             if (pendingValue !== null) {
               handleUpdateTagField(tag, 'priority', pendingValue, queryClient)
@@ -257,8 +260,11 @@ function WeightCell({ channel }: { channel: Channel }) {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title={t('Confirm Batch Update')}
-          desc={`This will update the weight to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
-          confirmText='Update'
+          desc={t(
+            'This will update the weight to {{value}} for all {{count}} channel(s) with tag "{{tag}}". Continue?',
+            { value: pendingValue, count: channelCount, tag }
+          )}
+          confirmText={t('Update')}
           handleConfirm={() => {
             if (pendingValue !== null) {
               handleUpdateTagField(tag, 'weight', pendingValue, queryClient)
@@ -449,7 +455,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           checked={table.getIsAllPageRowsSelected()}
           indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label='Select all'
+          aria-label={t('Select all')}
         />
       ),
       cell: ({ row }) => {
@@ -464,7 +470,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label='Select row'
+            aria-label={t('Select row')}
           />
         )
       },

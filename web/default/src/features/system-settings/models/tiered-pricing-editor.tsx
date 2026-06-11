@@ -487,7 +487,7 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
         min={0}
         value={condition.value}
         onValueChange={(value) => onChange({ ...condition, value })}
-        placeholder='tokens'
+        placeholder={t('tokens')}
         className='w-32'
       />
       <span className='text-muted-foreground text-xs'>
@@ -497,7 +497,7 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
         variant='ghost'
         size='icon'
         onClick={onRemove}
-        aria-label='remove'
+        aria-label={t('Remove')}
         className='ml-auto'
       >
         <Trash2 className='text-destructive h-4 w-4' />

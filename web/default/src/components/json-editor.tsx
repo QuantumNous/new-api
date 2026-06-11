@@ -255,7 +255,7 @@ export function JsonEditor({
                     type='button'
                     variant='ghost'
                     size='icon'
-                    aria-label='Delete row'
+                    aria-label={t('Delete row')}
                     onClick={() => handleDeleteRow(row.id)}
                     disabled={disabled}
                     className='h-10 w-10'
