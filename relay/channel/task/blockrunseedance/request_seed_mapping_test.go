@@ -57,6 +57,7 @@ func TestSeedValidationRejections(t *testing.T) {
 			img("1", ""), img("2", ""), img("3", ""), img("4", ""), img("5", ""),
 			img("6", ""), img("7", ""), img("8", ""), img("9", ""), img("10", "")), "at most 9"},
 		{"duplicate first frames", seedReq(img("a", dto.SeedanceRoleFirstFrame), img("b", dto.SeedanceRoleFirstFrame)), "at most one"},
+		{"duplicate last frames", seedReq(img("a", dto.SeedanceRoleLastFrame), img("b", dto.SeedanceRoleLastFrame)), "at most one"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,6 +66,17 @@ func TestSeedValidationRejections(t *testing.T) {
 				t.Fatalf("want error containing %q, got %v", tc.want, err)
 			}
 		})
+	}
+}
+
+func TestSeedMappingFirstFrameOnly(t *testing.T) {
+	r := seedReq(img("http://a/first.png", dto.SeedanceRoleFirstFrame))
+	if err := validateSeedanceValues(r, blockrunExtensions{}, "seedance-2.0"); err != nil {
+		t.Fatalf("first-only must be accepted: %v", err)
+	}
+	body := buildBlockrunSeedanceCreateRequest(r, blockrunExtensions{}, "bytedance/seedance-2.0")
+	if body.ImageURL != "http://a/first.png" || body.LastFrameURL != "" || len(body.ReferenceImageURLs) != 0 {
+		t.Fatalf("first-only mapping wrong: %+v", body)
 	}
 }
 

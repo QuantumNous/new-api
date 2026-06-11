@@ -15,16 +15,16 @@ type createRequest struct {
 	// Prompt is always sent (no omitempty) to match the upstream client, which
 	// always includes a "prompt" key — even for an image-only request where the
 	// prompt is empty (FIX #9).
-	Prompt          string `json:"prompt"`
-	Model           string `json:"model"`
-	ImageURL        string `json:"image_url,omitempty"`
-	RealFaceAssetID string `json:"real_face_asset_id,omitempty"`
-	DurationSeconds *int   `json:"duration_seconds,omitempty"`
-	Resolution      string `json:"resolution,omitempty"`
-	AspectRatio     string `json:"aspect_ratio,omitempty"`
-	GenerateAudio   *bool  `json:"generate_audio,omitempty"`
-	Seed            *int   `json:"seed,omitempty"`
-	Watermark       *bool  `json:"watermark,omitempty"`
+	Prompt             string   `json:"prompt"`
+	Model              string   `json:"model"`
+	ImageURL           string   `json:"image_url,omitempty"`
+	RealFaceAssetID    string   `json:"real_face_asset_id,omitempty"`
+	DurationSeconds    *int     `json:"duration_seconds,omitempty"`
+	Resolution         string   `json:"resolution,omitempty"`
+	AspectRatio        string   `json:"aspect_ratio,omitempty"`
+	GenerateAudio      *bool    `json:"generate_audio,omitempty"`
+	Seed               *int     `json:"seed,omitempty"`
+	Watermark          *bool    `json:"watermark,omitempty"`
 	ReturnLastFrame    *bool    `json:"return_last_frame,omitempty"`
 	LastFrameURL       string   `json:"last_frame_url,omitempty"`
 	ReferenceImageURLs []string `json:"reference_image_urls,omitempty"`
@@ -106,8 +106,9 @@ func validateResolution(r string) error {
 // validateSeedanceValues fails fast on value-domain violations so an upstream
 // 4xx never burns a pre-charge. pseudoModel is the client-facing model name.
 func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensions, pseudoModel string) error {
-	// BlockRun Seedance only supports text-to-video and single-image-to-video.
-	// Reject any input mode this channel cannot serve before the asset block.
+	// BlockRun Seedance supports text-to-video, single-image-to-video,
+	// first/last-frame interpolation, and multi-reference (omni) generation.
+	// Reject input modes this channel cannot serve before the asset block.
 	if len(seed.Videos()) > 0 {
 		return fmt.Errorf("video input is not supported by this channel")
 	}
