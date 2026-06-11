@@ -10,6 +10,7 @@ type FeishuSettings struct {
 	AuthPolicy                      string `json:"auth_policy"`
 	AllowAdminManagePlaintextTokens bool   `json:"allow_admin_manage_plaintext_tokens"`
 	InitWebhookSecret               string `json:"init_webhook_secret"`
+	StatsBaseToken                  string `json:"stats_base_token"`
 }
 
 var defaultFeishuSettings = FeishuSettings{

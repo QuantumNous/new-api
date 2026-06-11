@@ -77,6 +77,7 @@ type userStatResponseItem struct {
 	OrgPath        string  `json:"org_path"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
+	TokenUsedM     float64 `json:"token_used_m"`
 	Quota          int     `json:"quota"`
 	QuotaAmountUSD float64 `json:"quota_amount_usd"`
 	QuotaAmountCNY float64 `json:"quota_amount_cny"`
@@ -87,6 +88,7 @@ type modelStatResponseItem struct {
 	UserGroup      string  `json:"user_group"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
+	TokenUsedM     float64 `json:"token_used_m"`
 	Quota          int     `json:"quota"`
 	QuotaAmountUSD float64 `json:"quota_amount_usd"`
 	QuotaAmountCNY float64 `json:"quota_amount_cny"`
@@ -99,6 +101,7 @@ type userModelStatResponseItem struct {
 	ModelName      string  `json:"model_name"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
+	TokenUsedM     float64 `json:"token_used_m"`
 	Quota          int     `json:"quota"`
 	QuotaAmountUSD float64 `json:"quota_amount_usd"`
 	QuotaAmountCNY float64 `json:"quota_amount_cny"`
@@ -109,6 +112,7 @@ type departmentStatResponseItem struct {
 	OrgLevel2Name  string  `json:"org_level2_name"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
+	TokenUsedM     float64 `json:"token_used_m"`
 	Quota          int     `json:"quota"`
 	QuotaAmountUSD float64 `json:"quota_amount_usd"`
 	QuotaAmountCNY float64 `json:"quota_amount_cny"`
@@ -125,6 +129,10 @@ func quotaToCNYAmount(quota int) float64 {
 	return quotaToUSDAmount(quota) * operation_setting.USDExchangeRate
 }
 
+func tokenToM(tokens int) float64 {
+	return float64(tokens) / 1_000_000
+}
+
 func buildUserStatResponseItems(items []*model.UserStatItem) []userStatResponseItem {
 	res := make([]userStatResponseItem, 0, len(items))
 	for _, it := range items {
@@ -135,6 +143,7 @@ func buildUserStatResponseItems(items []*model.UserStatItem) []userStatResponseI
 			OrgPath:        it.OrgPath,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
+			TokenUsedM:     tokenToM(it.TokenUsed),
 			Quota:          it.Quota,
 			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
 			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
@@ -150,6 +159,7 @@ func buildModelStatResponseItems(items []*model.ModelStatItem) []modelStatRespon
 			ModelName:      it.ModelName,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
+			TokenUsedM:     tokenToM(it.TokenUsed),
 			Quota:          it.Quota,
 			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
 			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
@@ -168,6 +178,7 @@ func buildUserModelStatResponseItems(items []*model.UserModelStatItem) []userMod
 			ModelName:      it.ModelName,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
+			TokenUsedM:     tokenToM(it.TokenUsed),
 			Quota:          it.Quota,
 			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
 			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
@@ -184,6 +195,7 @@ func buildDepartmentStatResponseItems(items []*model.DepartmentStatItem) []depar
 			OrgLevel2Name:  it.OrgLevel2Name,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
+			TokenUsedM:     tokenToM(it.TokenUsed),
 			Quota:          it.Quota,
 			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
 			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
