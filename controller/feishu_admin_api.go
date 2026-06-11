@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"crypto/subtle"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
@@ -1085,6 +1087,81 @@ func AdminGetTokensByFeishu(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(tokens)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func SyncFeishuUsersInfo(c *gin.Context) {
+	result := service.SyncFeishuUserInfo(c.Request.Context())
+	if len(result.Errors) > 0 && result.Success == 0 && result.Total == 0 {
+		common.ApiError(c, fmt.Errorf("%s", strings.Join(result.Errors, "; ")))
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func ExportUsers(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	group := strings.TrimSpace(c.Query("group"))
+	roleValue := strings.TrimSpace(c.Query("role"))
+	statusValue := strings.TrimSpace(c.Query("status"))
+
+	query := model.DB.Unscoped().Model(&model.User{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("username LIKE ? OR email LIKE ? OR display_name LIKE ?", like, like, like)
+	}
+	if group != "" {
+		query = query.Where(model.CommonGroupColumnName()+" = ?", group)
+	}
+	if roleValue != "" {
+		role, err := strconv.Atoi(roleValue)
+		if err == nil {
+			query = query.Where("role = ?", role)
+		}
+	}
+	if statusValue != "" {
+		status, err := strconv.Atoi(statusValue)
+		if err == nil {
+			query = query.Where("status = ?", status)
+		}
+	}
+
+	var users []model.User
+	if err := query.Order("id desc").Find(&users).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	filename := fmt.Sprintf("users-%s.csv", time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	writer := csv.NewWriter(c.Writer)
+	defer writer.Flush()
+
+	_ = writer.Write([]string{"ID", "用户名", "显示名", "邮箱", "分组", "角色", "系统状态", "飞书OpenID", "飞书UnionID", "飞书UserID", "所在部门ID", "所在部门名称", "上级部门ID", "上级部门名称", "飞书在职状态", "最近同步时间"})
+	for _, user := range users {
+		syncedAt := ""
+		if user.FeishuSyncedAt > 0 {
+			syncedAt = time.Unix(user.FeishuSyncedAt, 0).Format("2006-01-02 15:04:05")
+		}
+		_ = writer.Write([]string{
+			strconv.Itoa(user.Id),
+			sanitizeCSVField(user.Username),
+			sanitizeCSVField(user.DisplayName),
+			sanitizeCSVField(user.Email),
+			sanitizeCSVField(user.Group),
+			strconv.Itoa(user.Role),
+			strconv.Itoa(user.Status),
+			sanitizeCSVField(user.FeishuId),
+			sanitizeCSVField(user.FeishuUnionId),
+			sanitizeCSVField(user.FeishuUserId),
+			sanitizeCSVField(user.FeishuDepartmentId),
+			sanitizeCSVField(user.FeishuDepartmentName),
+			sanitizeCSVField(user.FeishuParentDepartmentId),
+			sanitizeCSVField(user.FeishuParentDepartmentName),
+			sanitizeCSVField(user.FeishuEmploymentStatus),
+			syncedAt,
+		})
+	}
 }
 
 func FeishuInitWebhook(c *gin.Context) {

@@ -1,0 +1,182 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcontact "github.com/larksuite/oapi-sdk-go/v3/service/contact/v3"
+)
+
+type FeishuUserInfoSyncResult struct {
+	Total   int      `json:"total"`
+	Success int      `json:"success"`
+	Skipped int      `json:"skipped"`
+	Failed  int      `json:"failed"`
+	Errors  []string `json:"errors,omitempty"`
+}
+
+type feishuDepartmentInfo struct {
+	ID       string
+	Name     string
+	ParentID string
+}
+
+func SyncFeishuUserInfo(ctx context.Context) FeishuUserInfoSyncResult {
+	result := FeishuUserInfoSyncResult{Errors: make([]string, 0)}
+	settings := system_setting.GetFeishuSettings()
+	appID := strings.TrimSpace(settings.AppID)
+	appSecret := strings.TrimSpace(settings.AppSecret)
+	if appID == "" || appSecret == "" {
+		result.Errors = append(result.Errors, "feishu app_id/app_secret is not configured")
+		return result
+	}
+
+	var users []model.User
+	if err := model.DB.Where("feishu_id <> ?", "").Find(&users).Error; err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return result
+	}
+
+	client := lark.NewClient(appID, appSecret)
+	result.Total = len(users)
+	for _, user := range users {
+		openID := strings.TrimSpace(user.FeishuId)
+		if openID == "" {
+			result.Skipped++
+			continue
+		}
+		if err := syncOneFeishuUserInfo(ctx, client, &user, openID); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("user %d: %s", user.Id, err.Error()))
+			continue
+		}
+		result.Success++
+	}
+	return result
+}
+
+func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model.User, openID string) error {
+	req := larkcontact.NewGetUserReqBuilder().
+		UserId(openID).
+		UserIdType("open_id").
+		DepartmentIdType("open_department_id").
+		Build()
+	resp, err := client.Contact.User.Get(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.Success() {
+		return fmt.Errorf("feishu get user failed: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if resp.Data == nil || resp.Data.User == nil {
+		return fmt.Errorf("feishu user not found")
+	}
+
+	feishuUser := resp.Data.User
+	departmentID := ""
+	if len(feishuUser.DepartmentIds) > 0 {
+		departmentID = strings.TrimSpace(feishuUser.DepartmentIds[0])
+	}
+	department := feishuDepartmentInfo{ID: departmentID}
+	if departmentID != "" {
+		got, deptErr := getFeishuDepartmentInfo(ctx, client, departmentID)
+		if deptErr == nil {
+			department = got
+		}
+	}
+
+	parent := feishuDepartmentInfo{ID: department.ParentID}
+	if department.ParentID != "" && department.ParentID != "0" {
+		got, deptErr := getFeishuDepartmentInfo(ctx, client, department.ParentID)
+		if deptErr == nil {
+			parent = got
+		}
+	}
+
+	updates := map[string]any{
+		"feishu_department_id":          department.ID,
+		"feishu_department_name":        department.Name,
+		"feishu_parent_department_id":   parent.ID,
+		"feishu_parent_department_name": parent.Name,
+		"feishu_employment_status":      formatFeishuEmploymentStatus(feishuUser.Status),
+		"feishu_synced_at":              common.GetTimestamp(),
+	}
+	if feishuUser.UserId != nil && strings.TrimSpace(*feishuUser.UserId) != "" {
+		updates["feishu_user_id"] = strings.TrimSpace(*feishuUser.UserId)
+	}
+	if feishuUser.UnionId != nil && strings.TrimSpace(*feishuUser.UnionId) != "" {
+		updates["feishu_union_id"] = strings.TrimSpace(*feishuUser.UnionId)
+	}
+	if feishuUser.JobTitle != nil {
+		updates["job_title"] = strings.TrimSpace(*feishuUser.JobTitle)
+	}
+	if department.Name != "" {
+		updates["org_name"] = department.Name
+	}
+	return model.DB.Model(user).Updates(updates).Error
+}
+
+func getFeishuDepartmentInfo(ctx context.Context, client *lark.Client, departmentID string) (feishuDepartmentInfo, error) {
+	departmentID = strings.TrimSpace(departmentID)
+	if departmentID == "" {
+		return feishuDepartmentInfo{}, nil
+	}
+	req := larkcontact.NewGetDepartmentReqBuilder().
+		DepartmentId(departmentID).
+		DepartmentIdType("open_department_id").
+		UserIdType("open_id").
+		Build()
+	resp, err := client.Contact.Department.Get(ctx, req)
+	if err != nil {
+		return feishuDepartmentInfo{}, err
+	}
+	if !resp.Success() {
+		return feishuDepartmentInfo{}, fmt.Errorf("feishu get department failed: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if resp.Data == nil || resp.Data.Department == nil {
+		return feishuDepartmentInfo{ID: departmentID}, nil
+	}
+	dept := resp.Data.Department
+	info := feishuDepartmentInfo{ID: departmentID}
+	if dept.OpenDepartmentId != nil && strings.TrimSpace(*dept.OpenDepartmentId) != "" {
+		info.ID = strings.TrimSpace(*dept.OpenDepartmentId)
+	}
+	if dept.Name != nil {
+		info.Name = strings.TrimSpace(*dept.Name)
+	}
+	if dept.ParentDepartmentId != nil {
+		info.ParentID = strings.TrimSpace(*dept.ParentDepartmentId)
+	}
+	return info, nil
+}
+
+func formatFeishuEmploymentStatus(status *larkcontact.UserStatus) string {
+	if status == nil {
+		return "unknown"
+	}
+	states := make([]string, 0, 4)
+	if status.IsActivated != nil && *status.IsActivated {
+		states = append(states, "activated")
+	}
+	if status.IsFrozen != nil && *status.IsFrozen {
+		states = append(states, "frozen")
+	}
+	if status.IsResigned != nil && *status.IsResigned {
+		states = append(states, "resigned")
+	}
+	if status.IsExited != nil && *status.IsExited {
+		states = append(states, "exited")
+	}
+	if status.IsUnjoin != nil && *status.IsUnjoin {
+		states = append(states, "unjoin")
+	}
+	if len(states) == 0 {
+		return "unknown"
+	}
+	return strings.Join(states, ",")
+}
