@@ -41,7 +41,7 @@ selection layer.
 ## Phases
 
 - **Phase 1** ✅ — Backend CRUD + DB migration
-- **Phase 2** — Routing integration in `middleware/distributor.go`
+- **Phase 2** ✅ — Routing integration in `middleware/distributor.go`
 - **Phase 3** — Frontend management UI
 - **Phase 4** — Advanced (parallel, billing, sharing)
 

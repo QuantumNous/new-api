@@ -72,4 +72,8 @@ const (
 	// fallback in authHelper (finishAdminAudit) skips its record to avoid
 	// duplicate entries.
 	ContextKeyAuditLogged ContextKey = "audit_logged"
+	
+	// combo routing
+	ContextKeyComboName     ContextKey = "combo_name"
+	ContextKeyComboStrategy ContextKey = "combo_strategy"
 )
