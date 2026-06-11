@@ -20,6 +20,7 @@ import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
+import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
@@ -37,6 +38,9 @@ import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as LocaleUserAgreementRouteImport } from './routes/$locale/user-agreement'
+import { Route as LocaleRefundPolicyRouteImport } from './routes/$locale/refund-policy'
+import { Route as LocalePrivacyPolicyRouteImport } from './routes/$locale/privacy-policy'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
@@ -51,6 +55,10 @@ import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as LocaleRankingsIndexRouteImport } from './routes/$locale/rankings/index'
+import { Route as LocalePricingIndexRouteImport } from './routes/$locale/pricing/index'
+import { Route as LocaleBlogIndexRouteImport } from './routes/$locale/blog/index'
+import { Route as LocaleAboutIndexRouteImport } from './routes/$locale/about/index'
 import { Route as BlogCategorySlugRouteImport } from './routes/blog/category/$slug'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
@@ -58,6 +66,7 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as LocaleBlogSlugRouteImport } from './routes/$locale/blog/$slug'
 import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/system-settings/site/index'
 import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/system-settings/security/index'
 import { Route as AuthenticatedSystemSettingsOperationsIndexRouteImport } from './routes/_authenticated/system-settings/operations/index'
@@ -65,6 +74,7 @@ import { Route as AuthenticatedSystemSettingsModelsIndexRouteImport } from './ro
 import { Route as AuthenticatedSystemSettingsContentIndexRouteImport } from './routes/_authenticated/system-settings/content/index'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
+import { Route as LocalePricingModelIdIndexRouteImport } from './routes/$locale/pricing/$modelId/index'
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
 import { Route as AuthenticatedSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/system-settings/security/$section'
 import { Route as AuthenticatedSystemSettingsOperationsSectionRouteImport } from './routes/_authenticated/system-settings/operations/$section'
@@ -72,6 +82,7 @@ import { Route as AuthenticatedSystemSettingsModelsSectionRouteImport } from './
 import { Route as AuthenticatedSystemSettingsContentSectionRouteImport } from './routes/_authenticated/system-settings/content/$section'
 import { Route as AuthenticatedSystemSettingsBillingSectionRouteImport } from './routes/_authenticated/system-settings/billing/$section'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
+import { Route as LocaleBlogCategorySlugRouteImport } from './routes/$locale/blog/category/$slug'
 
 const UserAgreementRoute = UserAgreementRouteImport.update({
   id: '/user-agreement',
@@ -124,6 +135,11 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
 const AboutIndexRoute = AboutIndexRouteImport.update({
   id: '/about/',
   path: '/about/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleIndexRoute = LocaleIndexRouteImport.update({
+  id: '/$locale/',
+  path: '/$locale/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthProviderRoute = OauthProviderRouteImport.update({
@@ -211,6 +227,21 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => authRouteRoute,
 } as any)
+const LocaleUserAgreementRoute = LocaleUserAgreementRouteImport.update({
+  id: '/$locale/user-agreement',
+  path: '/$locale/user-agreement',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleRefundPolicyRoute = LocaleRefundPolicyRouteImport.update({
+  id: '/$locale/refund-policy',
+  path: '/$locale/refund-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalePrivacyPolicyRoute = LocalePrivacyPolicyRouteImport.update({
+  id: '/$locale/privacy-policy',
+  path: '/$locale/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSystemSettingsRouteRoute =
   AuthenticatedSystemSettingsRouteRouteImport.update({
     id: '/system-settings',
@@ -292,6 +323,26 @@ const AuthenticatedChannelsIndexRoute =
     path: '/channels/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const LocaleRankingsIndexRoute = LocaleRankingsIndexRouteImport.update({
+  id: '/$locale/rankings/',
+  path: '/$locale/rankings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalePricingIndexRoute = LocalePricingIndexRouteImport.update({
+  id: '/$locale/pricing/',
+  path: '/$locale/pricing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleBlogIndexRoute = LocaleBlogIndexRouteImport.update({
+  id: '/$locale/blog/',
+  path: '/$locale/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleAboutIndexRoute = LocaleAboutIndexRouteImport.update({
+  id: '/$locale/about/',
+  path: '/$locale/about/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BlogCategorySlugRoute = BlogCategorySlugRouteImport.update({
   id: '/blog/category/$slug',
   path: '/blog/category/$slug',
@@ -330,6 +381,11 @@ const authUserResetRoute = authUserResetRouteImport.update({
   id: '/user/reset',
   path: '/user/reset',
   getParentRoute: () => authRouteRoute,
+} as any)
+const LocaleBlogSlugRoute = LocaleBlogSlugRouteImport.update({
+  id: '/$locale/blog/$slug',
+  path: '/$locale/blog/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSystemSettingsSiteIndexRoute =
   AuthenticatedSystemSettingsSiteIndexRouteImport.update({
@@ -373,6 +429,12 @@ const AuthenticatedSystemSettingsAuthIndexRoute =
     path: '/auth/',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const LocalePricingModelIdIndexRoute =
+  LocalePricingModelIdIndexRouteImport.update({
+    id: '/$locale/pricing/$modelId/',
+    path: '/$locale/pricing/$modelId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedSystemSettingsSiteSectionRoute =
   AuthenticatedSystemSettingsSiteSectionRouteImport.update({
     id: '/site/$section',
@@ -415,6 +477,11 @@ const AuthenticatedSystemSettingsAuthSectionRoute =
     path: '/auth/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const LocaleBlogCategorySlugRoute = LocaleBlogCategorySlugRouteImport.update({
+  id: '/$locale/blog/category/$slug',
+  path: '/$locale/blog/category/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -422,6 +489,9 @@ export interface FileRoutesByFullPath {
   '/refund-policy': typeof RefundPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
+  '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
@@ -439,11 +509,13 @@ export interface FileRoutesByFullPath {
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
+  '/$locale/': typeof LocaleIndexRoute
   '/about/': typeof AboutIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -451,6 +523,10 @@ export interface FileRoutesByFullPath {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/blog/category/$slug': typeof BlogCategorySlugRoute
+  '/$locale/about/': typeof LocaleAboutIndexRoute
+  '/$locale/blog/': typeof LocaleBlogIndexRoute
+  '/$locale/pricing/': typeof LocalePricingIndexRoute
+  '/$locale/rankings/': typeof LocaleRankingsIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -464,6 +540,7 @@ export interface FileRoutesByFullPath {
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
+  '/$locale/blog/category/$slug': typeof LocaleBlogCategorySlugRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -471,6 +548,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/$locale/pricing/$modelId/': typeof LocalePricingModelIdIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -484,6 +562,9 @@ export interface FileRoutesByTo {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
+  '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
+  '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
@@ -501,11 +582,13 @@ export interface FileRoutesByTo {
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
+  '/$locale': typeof LocaleIndexRoute
   '/about': typeof AboutIndexRoute
   '/blog': typeof BlogIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
+  '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -513,6 +596,10 @@ export interface FileRoutesByTo {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/blog/category/$slug': typeof BlogCategorySlugRoute
+  '/$locale/about': typeof LocaleAboutIndexRoute
+  '/$locale/blog': typeof LocaleBlogIndexRoute
+  '/$locale/pricing': typeof LocalePricingIndexRoute
+  '/$locale/rankings': typeof LocaleRankingsIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -526,6 +613,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
+  '/$locale/blog/category/$slug': typeof LocaleBlogCategorySlugRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -533,6 +621,7 @@ export interface FileRoutesByTo {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/$locale/pricing/$modelId': typeof LocalePricingModelIdIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -550,6 +639,9 @@ export interface FileRoutesById {
   '/refund-policy': typeof RefundPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
+  '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
   '/(auth)/otp': typeof authOtpRoute
@@ -567,11 +659,13 @@ export interface FileRoutesById {
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
+  '/$locale/': typeof LocaleIndexRoute
   '/about/': typeof AboutIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -579,6 +673,10 @@ export interface FileRoutesById {
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/blog/category/$slug': typeof BlogCategorySlugRoute
+  '/$locale/about/': typeof LocaleAboutIndexRoute
+  '/$locale/blog/': typeof LocaleBlogIndexRoute
+  '/$locale/pricing/': typeof LocalePricingIndexRoute
+  '/$locale/rankings/': typeof LocaleRankingsIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -592,6 +690,7 @@ export interface FileRoutesById {
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
+  '/$locale/blog/category/$slug': typeof LocaleBlogCategorySlugRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -599,6 +698,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/$locale/pricing/$modelId/': typeof LocalePricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -615,6 +715,9 @@ export interface FileRouteTypes {
     | '/refund-policy'
     | '/user-agreement'
     | '/system-settings'
+    | '/$locale/privacy-policy'
+    | '/$locale/refund-policy'
+    | '/$locale/user-agreement'
     | '/forgot-password'
     | '/oauth'
     | '/otp'
@@ -632,11 +735,13 @@ export interface FileRouteTypes {
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
+    | '/$locale/'
     | '/about/'
     | '/blog/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
+    | '/$locale/blog/$slug'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -644,6 +749,10 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/blog/category/$slug'
+    | '/$locale/about/'
+    | '/$locale/blog/'
+    | '/$locale/pricing/'
+    | '/$locale/rankings/'
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
@@ -657,6 +766,7 @@ export interface FileRouteTypes {
     | '/users/'
     | '/wallet/'
     | '/pricing/$modelId/'
+    | '/$locale/blog/category/$slug'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -664,6 +774,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/$locale/pricing/$modelId/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -677,6 +788,9 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/refund-policy'
     | '/user-agreement'
+    | '/$locale/privacy-policy'
+    | '/$locale/refund-policy'
+    | '/$locale/user-agreement'
     | '/forgot-password'
     | '/oauth'
     | '/otp'
@@ -694,11 +808,13 @@ export interface FileRouteTypes {
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
+    | '/$locale'
     | '/about'
     | '/blog'
     | '/pricing'
     | '/rankings'
     | '/setup'
+    | '/$locale/blog/$slug'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -706,6 +822,10 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/blog/category/$slug'
+    | '/$locale/about'
+    | '/$locale/blog'
+    | '/$locale/pricing'
+    | '/$locale/rankings'
     | '/channels'
     | '/dashboard'
     | '/keys'
@@ -719,6 +839,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/wallet'
     | '/pricing/$modelId'
+    | '/$locale/blog/category/$slug'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -726,6 +847,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/$locale/pricing/$modelId'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -742,6 +864,9 @@ export interface FileRouteTypes {
     | '/refund-policy'
     | '/user-agreement'
     | '/_authenticated/system-settings'
+    | '/$locale/privacy-policy'
+    | '/$locale/refund-policy'
+    | '/$locale/user-agreement'
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
     | '/(auth)/otp'
@@ -759,11 +884,13 @@ export interface FileRouteTypes {
     | '/console/log'
     | '/console/topup'
     | '/oauth/$provider'
+    | '/$locale/'
     | '/about/'
     | '/blog/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
+    | '/$locale/blog/$slug'
     | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
@@ -771,6 +898,10 @@ export interface FileRouteTypes {
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/blog/category/$slug'
+    | '/$locale/about/'
+    | '/$locale/blog/'
+    | '/$locale/pricing/'
+    | '/$locale/rankings/'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
@@ -784,6 +915,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
     | '/pricing/$modelId/'
+    | '/$locale/blog/category/$slug'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
     | '/_authenticated/system-settings/content/$section'
@@ -791,6 +923,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
+    | '/$locale/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -807,6 +940,9 @@ export interface RootRouteChildren {
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
   UserAgreementRoute: typeof UserAgreementRoute
+  LocalePrivacyPolicyRoute: typeof LocalePrivacyPolicyRoute
+  LocaleRefundPolicyRoute: typeof LocaleRefundPolicyRoute
+  LocaleUserAgreementRoute: typeof LocaleUserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
   errors404Route: typeof errors404Route
@@ -816,13 +952,21 @@ export interface RootRouteChildren {
   ConsoleLogRoute: typeof ConsoleLogRoute
   ConsoleTopupRoute: typeof ConsoleTopupRoute
   OauthProviderRoute: typeof OauthProviderRoute
+  LocaleIndexRoute: typeof LocaleIndexRoute
   AboutIndexRoute: typeof AboutIndexRoute
   BlogIndexRoute: typeof BlogIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
+  LocaleBlogSlugRoute: typeof LocaleBlogSlugRoute
   BlogCategorySlugRoute: typeof BlogCategorySlugRoute
+  LocaleAboutIndexRoute: typeof LocaleAboutIndexRoute
+  LocaleBlogIndexRoute: typeof LocaleBlogIndexRoute
+  LocalePricingIndexRoute: typeof LocalePricingIndexRoute
+  LocaleRankingsIndexRoute: typeof LocaleRankingsIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
+  LocaleBlogCategorySlugRoute: typeof LocaleBlogCategorySlugRoute
+  LocalePricingModelIdIndexRoute: typeof LocalePricingModelIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -902,6 +1046,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about/'
       preLoaderRoute: typeof AboutIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/': {
+      id: '/$locale/'
+      path: '/$locale'
+      fullPath: '/$locale/'
+      preLoaderRoute: typeof LocaleIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/$provider': {
@@ -1023,6 +1174,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/$locale/user-agreement': {
+      id: '/$locale/user-agreement'
+      path: '/$locale/user-agreement'
+      fullPath: '/$locale/user-agreement'
+      preLoaderRoute: typeof LocaleUserAgreementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/refund-policy': {
+      id: '/$locale/refund-policy'
+      path: '/$locale/refund-policy'
+      fullPath: '/$locale/refund-policy'
+      preLoaderRoute: typeof LocaleRefundPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/privacy-policy': {
+      id: '/$locale/privacy-policy'
+      path: '/$locale/privacy-policy'
+      fullPath: '/$locale/privacy-policy'
+      preLoaderRoute: typeof LocalePrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/system-settings': {
       id: '/_authenticated/system-settings'
       path: '/system-settings'
@@ -1121,6 +1293,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/$locale/rankings/': {
+      id: '/$locale/rankings/'
+      path: '/$locale/rankings'
+      fullPath: '/$locale/rankings/'
+      preLoaderRoute: typeof LocaleRankingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/pricing/': {
+      id: '/$locale/pricing/'
+      path: '/$locale/pricing'
+      fullPath: '/$locale/pricing/'
+      preLoaderRoute: typeof LocalePricingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/blog/': {
+      id: '/$locale/blog/'
+      path: '/$locale/blog'
+      fullPath: '/$locale/blog/'
+      preLoaderRoute: typeof LocaleBlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/about/': {
+      id: '/$locale/about/'
+      path: '/$locale/about'
+      fullPath: '/$locale/about/'
+      preLoaderRoute: typeof LocaleAboutIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/blog/category/$slug': {
       id: '/blog/category/$slug'
       path: '/blog/category/$slug'
@@ -1169,6 +1369,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/user/reset'
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
+    }
+    '/$locale/blog/$slug': {
+      id: '/$locale/blog/$slug'
+      path: '/$locale/blog/$slug'
+      fullPath: '/$locale/blog/$slug'
+      preLoaderRoute: typeof LocaleBlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/system-settings/site/': {
       id: '/_authenticated/system-settings/site/'
@@ -1219,6 +1426,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthIndexRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/$locale/pricing/$modelId/': {
+      id: '/$locale/pricing/$modelId/'
+      path: '/$locale/pricing/$modelId'
+      fullPath: '/$locale/pricing/$modelId/'
+      preLoaderRoute: typeof LocalePricingModelIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/system-settings/site/$section': {
       id: '/_authenticated/system-settings/site/$section'
       path: '/site/$section'
@@ -1267,6 +1481,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/system-settings/auth/$section'
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/$locale/blog/category/$slug': {
+      id: '/$locale/blog/category/$slug'
+      path: '/$locale/blog/category/$slug'
+      fullPath: '/$locale/blog/category/$slug'
+      preLoaderRoute: typeof LocaleBlogCategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -1408,6 +1629,9 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
   UserAgreementRoute: UserAgreementRoute,
+  LocalePrivacyPolicyRoute: LocalePrivacyPolicyRoute,
+  LocaleRefundPolicyRoute: LocaleRefundPolicyRoute,
+  LocaleUserAgreementRoute: LocaleUserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,
   errors404Route: errors404Route,
@@ -1417,13 +1641,21 @@ const rootRouteChildren: RootRouteChildren = {
   ConsoleLogRoute: ConsoleLogRoute,
   ConsoleTopupRoute: ConsoleTopupRoute,
   OauthProviderRoute: OauthProviderRoute,
+  LocaleIndexRoute: LocaleIndexRoute,
   AboutIndexRoute: AboutIndexRoute,
   BlogIndexRoute: BlogIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
+  LocaleBlogSlugRoute: LocaleBlogSlugRoute,
   BlogCategorySlugRoute: BlogCategorySlugRoute,
+  LocaleAboutIndexRoute: LocaleAboutIndexRoute,
+  LocaleBlogIndexRoute: LocaleBlogIndexRoute,
+  LocalePricingIndexRoute: LocalePricingIndexRoute,
+  LocaleRankingsIndexRoute: LocaleRankingsIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
+  LocaleBlogCategorySlugRoute: LocaleBlogCategorySlugRoute,
+  LocalePricingModelIdIndexRoute: LocalePricingModelIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

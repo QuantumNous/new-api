@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { Button } from '@/components/ui/button'
 
 interface BlogPaginationProps {
@@ -38,6 +38,10 @@ function buildSearch(page: number, query?: string) {
 
 export function BlogPagination(props: BlogPaginationProps) {
   const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   if (props.totalPages <= 1) {
     return null
   }
@@ -47,22 +51,32 @@ export function BlogPagination(props: BlogPaginationProps) {
 
   const previousLink = props.categorySlug ? (
     <Link
-      to='/blog/category/$slug'
-      params={{ slug: props.categorySlug }}
+      to={localizePublicPath(
+        `/blog/category/${props.categorySlug}`,
+        currentPublicLanguage
+      )}
       search={buildSearch(prevPage, props.query)}
     />
   ) : (
-    <Link to='/blog' search={buildSearch(prevPage, props.query)} />
+    <Link
+      to={localizePublicPath('/blog', currentPublicLanguage)}
+      search={buildSearch(prevPage, props.query)}
+    />
   )
 
   const nextLink = props.categorySlug ? (
     <Link
-      to='/blog/category/$slug'
-      params={{ slug: props.categorySlug }}
+      to={localizePublicPath(
+        `/blog/category/${props.categorySlug}`,
+        currentPublicLanguage
+      )}
       search={buildSearch(nextPage, props.query)}
     />
   ) : (
-    <Link to='/blog' search={buildSearch(nextPage, props.query)} />
+    <Link
+      to={localizePublicPath('/blog', currentPublicLanguage)}
+      search={buildSearch(nextPage, props.query)}
+    />
   )
 
   return (

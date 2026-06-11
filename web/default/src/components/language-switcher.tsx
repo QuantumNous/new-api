@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback } from 'react'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   INTERFACE_LANGUAGE_OPTIONS,
   normalizeInterfaceLanguage,
@@ -25,6 +26,11 @@ import { Languages, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import {
+  getPublicPathLanguage,
+  isPublicWebsitePath,
+  localizePublicPath,
+} from '@/lib/public-locale'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,11 +42,25 @@ import {
 
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
   const user = useAuthStore((s) => s.auth.user)
-  const currentLanguage = normalizeInterfaceLanguage(i18n.language)
+  const isPublicPage = isPublicWebsitePath(location.pathname)
+  const currentLanguage = isPublicPage
+    ? getPublicPathLanguage(location.pathname)
+    : normalizeInterfaceLanguage(i18n.language)
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
+      if (isPublicWebsitePath(location.pathname)) {
+        await i18n.changeLanguage(code)
+        const pathname = localizePublicPath(location.pathname, code)
+        await navigate({
+          to: `${pathname}${window.location.search}${window.location.hash}`,
+        })
+        return
+      }
+
       await i18n.changeLanguage(code)
       if (user) {
         try {
@@ -50,7 +70,7 @@ export function LanguageSwitcher() {
         }
       }
     },
-    [i18n, user]
+    [i18n, location.pathname, navigate, user]
   )
 
   return (

@@ -48,17 +48,28 @@ function normalizeViewMode(value: unknown): ViewMode {
   return VIEW_MODES.CARD
 }
 
+function getOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function getOptionalTokenUnit(value: unknown): TokenUnit | undefined {
+  return value === 'K' || value === 'M' ? value : undefined
+}
+
 export function useFilters(models: PricingModel[]) {
-  const search = useSearch({ from: '/pricing/' })
+  const search = useSearch({ strict: false })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
-    search: search.search,
-    sort: search.sort,
-    vendor: search.vendor,
-    quotaType: search.quotaType,
-    endpointType: search.endpointType,
-    tokenUnit: search.tokenUnit,
-    view: search.view,
-    rechargePrice: search.rechargePrice,
+    search: getOptionalString(search.search),
+    sort: getOptionalString(search.sort),
+    vendor: getOptionalString(search.vendor),
+    quotaType: getOptionalString(search.quotaType),
+    endpointType: getOptionalString(search.endpointType),
+    tokenUnit: getOptionalTokenUnit(search.tokenUnit),
+    view: normalizeViewMode(search.view),
+    rechargePrice:
+      typeof search.rechargePrice === 'boolean'
+        ? search.rechargePrice
+        : undefined,
   }))
 
   const searchInput = filterState.search || ''

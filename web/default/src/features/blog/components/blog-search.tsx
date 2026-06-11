@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -32,6 +32,10 @@ interface BlogSearchProps {
 export function BlogSearch(props: BlogSearchProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   const [value, setValue] = useState(props.query ?? '')
 
   const buildSearch = () => {
@@ -47,26 +51,33 @@ export function BlogSearch(props: BlogSearchProps) {
     const search = buildSearch()
     if (props.categorySlug) {
       navigate({
-        to: '/blog/category/$slug',
-        params: { slug: props.categorySlug },
+        to: localizePublicPath(
+          `/blog/category/${props.categorySlug}`,
+          currentPublicLanguage
+        ),
         search,
       })
       return
     }
-    navigate({ to: '/blog', search })
+    navigate({ to: localizePublicPath('/blog', currentPublicLanguage), search })
   }
 
   const clearSearch = () => {
     setValue('')
     if (props.categorySlug) {
       navigate({
-        to: '/blog/category/$slug',
-        params: { slug: props.categorySlug },
+        to: localizePublicPath(
+          `/blog/category/${props.categorySlug}`,
+          currentPublicLanguage
+        ),
         search: { page: undefined, q: undefined },
       })
       return
     }
-    navigate({ to: '/blog', search: { page: undefined, q: undefined } })
+    navigate({
+      to: localizePublicPath('/blog', currentPublicLanguage),
+      search: { page: undefined, q: undefined },
+    })
   }
 
   return (

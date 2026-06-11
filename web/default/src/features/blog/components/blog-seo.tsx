@@ -17,6 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect } from 'react'
+import {
+  buildPublicHrefLangLinks,
+  getPublicPathLanguage,
+  localizePublicPath,
+} from '@/lib/public-locale'
 import type { BlogPost } from '../types'
 
 const SITE_NAME = 'Flatkey AI'
@@ -83,6 +88,20 @@ function upsertCanonical(href: string) {
   element.href = href
 }
 
+function upsertHrefLangLinks(origin: string, path: string) {
+  document
+    .querySelectorAll<HTMLLinkElement>('link[rel="alternate"][hreflang]')
+    .forEach((element) => element.remove())
+
+  buildPublicHrefLangLinks(origin, path).forEach((alternate) => {
+    const element = document.createElement('link')
+    element.rel = 'alternate'
+    element.hreflang = alternate.hrefLang
+    element.href = alternate.href
+    document.head.appendChild(element)
+  })
+}
+
 function snapshotMeta() {
   return META_SELECTORS.map((selector) => {
     const element = document.querySelector<HTMLMetaElement>(selector)
@@ -97,6 +116,19 @@ function snapshotMeta() {
         : undefined,
     }
   })
+}
+
+function snapshotHrefLangLinks() {
+  return Array.from(
+    document.querySelectorAll<HTMLLinkElement>(
+      'link[rel="alternate"][hreflang]'
+    )
+  ).map((element) => ({
+    attrs: Array.from(element.attributes).map((attr) => ({
+      name: attr.name,
+      value: attr.value,
+    })),
+  }))
 }
 
 function restoreMeta(
@@ -125,6 +157,22 @@ function restoreMeta(
   } else {
     document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.remove()
   }
+}
+
+function restoreHrefLangLinks(
+  snapshot: ReturnType<typeof snapshotHrefLangLinks>
+) {
+  document
+    .querySelectorAll<HTMLLinkElement>('link[rel="alternate"][hreflang]')
+    .forEach((element) => element.remove())
+
+  snapshot.forEach((item) => {
+    const element = document.createElement('link')
+    item.attrs.forEach((attr) => {
+      element.setAttribute(attr.name, attr.value)
+    })
+    document.head.appendChild(element)
+  })
 }
 
 function buildPublisherSchema(canonicalUrl: string) {
@@ -274,11 +322,15 @@ export function BlogSeo(props: BlogSeoProps) {
       post,
       categoryName,
     }
-    const canonicalUrl = buildAbsoluteUrl(path)
+    const origin = window.location.origin
+    const currentLanguage = getPublicPathLanguage(window.location.pathname)
+    const localizedPath = localizePublicPath(path, currentLanguage)
+    const canonicalUrl = buildAbsoluteUrl(localizedPath)
     const title = `${titleProp} | ${SITE_NAME}`
     const description = descriptionProp || DEFAULT_BLOG_DESCRIPTION
     const previousTitle = document.title
     const previousMeta = snapshotMeta()
+    const previousHrefLangLinks = snapshotHrefLangLinks()
     const previousCanonical = document.querySelector<HTMLLinkElement>(
       'link[rel="canonical"]'
     )?.href
@@ -334,6 +386,7 @@ export function BlogSeo(props: BlogSeoProps) {
     }
 
     upsertCanonical(canonicalUrl)
+    upsertHrefLangLinks(origin, path)
 
     const script = document.createElement('script')
     script.type = 'application/ld+json'
@@ -347,6 +400,7 @@ export function BlogSeo(props: BlogSeoProps) {
     return () => {
       document.title = previousTitle
       restoreMeta(previousMeta, previousCanonical)
+      restoreHrefLangLinks(previousHrefLangLinks)
       document.head
         .querySelectorAll('script[data-blog-seo="true"]')
         .forEach((node) => node.remove())

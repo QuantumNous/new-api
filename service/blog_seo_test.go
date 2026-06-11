@@ -18,6 +18,10 @@ func TestBuildBlogSitemapIncludesStaticCategoriesAndPosts(t *testing.T) {
 		`<loc>https://flatkey.ai/blog/category/gateway-comparisons</loc>`,
 		`<loc>https://flatkey.ai/blog/gateway-guide</loc>`,
 		`<lastmod>2026-06-09</lastmod>`,
+		`xmlns:xhtml="http://www.w3.org/1999/xhtml"`,
+		`<xhtml:link rel="alternate" hreflang="en" href="https://flatkey.ai/blog/gateway-guide"></xhtml:link>`,
+		`<xhtml:link rel="alternate" hreflang="zh" href="https://flatkey.ai/zh/blog/gateway-guide"></xhtml:link>`,
+		`<xhtml:link rel="alternate" hreflang="x-default" href="https://flatkey.ai/blog/gateway-guide"></xhtml:link>`,
 	} {
 		if !strings.Contains(sitemap, expected) {
 			t.Fatalf("expected sitemap to contain %q, got:\n%s", expected, sitemap)

@@ -7,54 +7,53 @@ import (
 )
 
 type sitemapURL struct {
-	Loc        string `xml:"loc"`
-	Lastmod    string `xml:"lastmod,omitempty"`
-	Changefreq string `xml:"changefreq,omitempty"`
-	Priority   string `xml:"priority,omitempty"`
+	Loc        string             `xml:"loc"`
+	Lastmod    string             `xml:"lastmod,omitempty"`
+	Changefreq string             `xml:"changefreq,omitempty"`
+	Priority   string             `xml:"priority,omitempty"`
+	Alternates []sitemapAlternate `xml:"xhtml:link,omitempty"`
+}
+
+type sitemapAlternate struct {
+	Rel      string `xml:"rel,attr"`
+	Hreflang string `xml:"hreflang,attr"`
+	Href     string `xml:"href,attr"`
 }
 
 type sitemapURLSet struct {
-	XMLName xml.Name     `xml:"urlset"`
-	Xmlns   string       `xml:"xmlns,attr"`
-	URLs    []sitemapURL `xml:"url"`
+	XMLName    xml.Name     `xml:"urlset"`
+	Xmlns      string       `xml:"xmlns,attr"`
+	XmlnsXHTML string       `xml:"xmlns:xhtml,attr"`
+	URLs       []sitemapURL `xml:"url"`
 }
 
 func BuildBlogSitemap(baseURL string, categories []BlogCategory, posts []BlogPost) string {
 	baseURL = normalizePublicBaseURL(baseURL)
-	urls := []sitemapURL{
-		{Loc: joinPublicURL(baseURL, "/"), Changefreq: "daily", Priority: "1.0"},
-		{Loc: joinPublicURL(baseURL, "/pricing"), Changefreq: "daily", Priority: "0.8"},
-		{Loc: joinPublicURL(baseURL, "/rankings"), Changefreq: "daily", Priority: "0.7"},
-		{Loc: joinPublicURL(baseURL, "/about"), Changefreq: "monthly", Priority: "0.5"},
-		{Loc: joinPublicURL(baseURL, "/blog"), Changefreq: "daily", Priority: "0.9"},
-	}
+	urls := make([]sitemapURL, 0)
+	urls = appendPublicSitemapURLs(urls, baseURL, "/", "", "daily", "1.0")
+	urls = appendPublicSitemapURLs(urls, baseURL, "/pricing", "", "daily", "0.8")
+	urls = appendPublicSitemapURLs(urls, baseURL, "/rankings", "", "daily", "0.7")
+	urls = appendPublicSitemapURLs(urls, baseURL, "/about", "", "monthly", "0.5")
+	urls = appendPublicSitemapURLs(urls, baseURL, "/blog", "", "daily", "0.9")
 
 	for _, category := range categories {
 		if strings.TrimSpace(category.Slug) == "" {
 			continue
 		}
-		urls = append(urls, sitemapURL{
-			Loc:        joinPublicURL(baseURL, "/blog/category/"+category.Slug),
-			Changefreq: "weekly",
-			Priority:   "0.7",
-		})
+		urls = appendPublicSitemapURLs(urls, baseURL, "/blog/category/"+category.Slug, "", "weekly", "0.7")
 	}
 
 	for _, post := range posts {
 		if strings.TrimSpace(post.Slug) == "" {
 			continue
 		}
-		urls = append(urls, sitemapURL{
-			Loc:        joinPublicURL(baseURL, "/blog/"+post.Slug),
-			Lastmod:    sitemapDate(post.Date),
-			Changefreq: "monthly",
-			Priority:   "0.8",
-		})
+		urls = appendPublicSitemapURLs(urls, baseURL, "/blog/"+post.Slug, sitemapDate(post.Date), "monthly", "0.8")
 	}
 
 	payload, err := xml.MarshalIndent(sitemapURLSet{
-		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
-		URLs:  urls,
+		Xmlns:      "http://www.sitemaps.org/schemas/sitemap/0.9",
+		XmlnsXHTML: "http://www.w3.org/1999/xhtml",
+		URLs:       urls,
 	}, "", "  ")
 	if err != nil {
 		return ""
@@ -111,6 +110,52 @@ func BuildLLMsTxt(baseURL string, categories []BlogCategory, posts []BlogPost) s
 	}
 
 	return builder.String()
+}
+
+var publicSitemapLocales = []string{"en", "zh", "es", "fr", "pt", "ru", "ja", "vi"}
+
+func appendPublicSitemapURLs(urls []sitemapURL, baseURL string, path string, lastmod string, changefreq string, priority string) []sitemapURL {
+	alternates := buildSitemapAlternates(baseURL, path)
+	for _, locale := range publicSitemapLocales {
+		urls = append(urls, sitemapURL{
+			Loc:        joinPublicURL(baseURL, localizePublicSitemapPath(path, locale)),
+			Lastmod:    lastmod,
+			Changefreq: changefreq,
+			Priority:   priority,
+			Alternates: alternates,
+		})
+	}
+	return urls
+}
+
+func buildSitemapAlternates(baseURL string, path string) []sitemapAlternate {
+	alternates := make([]sitemapAlternate, 0, len(publicSitemapLocales)+1)
+	for _, locale := range publicSitemapLocales {
+		alternates = append(alternates, sitemapAlternate{
+			Rel:      "alternate",
+			Hreflang: locale,
+			Href:     joinPublicURL(baseURL, localizePublicSitemapPath(path, locale)),
+		})
+	}
+	alternates = append(alternates, sitemapAlternate{
+		Rel:      "alternate",
+		Hreflang: "x-default",
+		Href:     joinPublicURL(baseURL, localizePublicSitemapPath(path, "en")),
+	})
+	return alternates
+}
+
+func localizePublicSitemapPath(path string, locale string) string {
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	if locale == "en" {
+		return path
+	}
+	if path == "/" {
+		return "/" + locale
+	}
+	return "/" + locale + path
 }
 
 func normalizePublicBaseURL(baseURL string) string {

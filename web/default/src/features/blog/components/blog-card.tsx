@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { CalendarDays } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { cn } from '@/lib/utils'
-import type { BlogPost } from '../types'
+import { Badge } from '@/components/ui/badge'
 import { formatBlogDate } from '../lib/format'
+import type { BlogPost } from '../types'
 
 interface BlogCardProps {
   post: BlogPost
@@ -30,12 +30,15 @@ interface BlogCardProps {
 }
 
 export function BlogCard(props: BlogCardProps) {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   const date = formatBlogDate(props.post.date, 'short')
 
   return (
     <Link
-      to='/blog/$slug'
-      params={{ slug: props.post.slug }}
+      to={localizePublicPath(`/blog/${props.post.slug}`, currentPublicLanguage)}
       className='border-border/70 bg-card group flex min-h-full flex-col overflow-hidden rounded-lg border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'
     >
       {props.post.cover ? (

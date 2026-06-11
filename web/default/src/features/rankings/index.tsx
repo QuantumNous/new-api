@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
@@ -34,8 +35,9 @@ const VALID_PERIODS: RankingPeriod[] = ['today', 'week', 'month', 'year', 'all']
 
 export function Rankings() {
   const { t } = useTranslation()
-  const search = useSearch({ from: '/rankings/' })
+  const search = useSearch({ strict: false })
   const navigate = useNavigate()
+  const currentPublicLanguage = getPublicPathLanguage(window.location.pathname)
 
   const period: RankingPeriod = VALID_PERIODS.includes(
     search.period as RankingPeriod
@@ -48,7 +50,7 @@ export function Rankings() {
 
   const handlePeriodChange = (next: RankingPeriod) => {
     navigate({
-      to: '/rankings',
+      to: localizePublicPath('/rankings', currentPublicLanguage),
       search: (prev) => ({ ...prev, period: next }),
     })
   }

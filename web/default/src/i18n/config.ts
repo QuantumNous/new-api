@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
+import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
 import en from './locales/en.json'
 import es from './locales/es.json'
 import fr from './locales/fr.json'
@@ -39,11 +40,19 @@ export const resources = {
   vi,
 } as const
 
+function getInitialLanguage() {
+  if (typeof window === 'undefined') return undefined
+  return isPublicWebsitePath(window.location.pathname)
+    ? getPublicPathLanguage(window.location.pathname)
+    : undefined
+}
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
+    lng: getInitialLanguage(),
     fallbackLng: 'en',
     supportedLngs: ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'],
     load: 'languageOnly', // Convert zh-CN -> zh

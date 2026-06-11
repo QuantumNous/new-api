@@ -22,20 +22,25 @@ import {
   createRootRouteWithContext,
   Outlet,
   redirect,
+  useLocation,
 } from '@tanstack/react-router'
+import i18n from '@/i18n/config'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { captureAdsAttribution } from '@/lib/analytics/attribution'
+import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
 import { ThemeCustomizationProvider } from '@/context/theme-customization-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
 import { saveAffiliateCode } from '@/features/auth/lib/storage'
-import { captureAdsAttribution } from '@/lib/analytics/attribution'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
 
 function RootComponent() {
+  const location = useLocation()
+
   // Load system configuration (logo, system name, etc.) from backend
   useSystemConfig({ autoLoad: true })
 
@@ -46,6 +51,15 @@ function RootComponent() {
     }
     captureAdsAttribution()
   }, [])
+
+  useEffect(() => {
+    if (!isPublicWebsitePath(location.pathname)) return
+
+    const language = getPublicPathLanguage(location.pathname)
+    if (i18n.language !== language) {
+      void i18n.changeLanguage(language)
+    }
+  }, [location.pathname])
 
   return (
     <ThemeCustomizationProvider>

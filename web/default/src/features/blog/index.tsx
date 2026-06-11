@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight, BookOpen, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -91,6 +92,10 @@ function BlogHero(props: {
 
 function BlogCategories() {
   const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   const result = useQuery({
     queryKey: ['blog-categories'],
     queryFn: getBlogCategories,
@@ -124,8 +129,10 @@ function BlogCategories() {
       {categories.map((category) => (
         <Link
           key={category.slug}
-          to='/blog/category/$slug'
-          params={{ slug: category.slug }}
+          to={localizePublicPath(
+            `/blog/category/${category.slug}`,
+            currentPublicLanguage
+          )}
           search={{ page: undefined, q: undefined }}
           className='border-border bg-card hover:border-primary/35 block rounded-lg border p-5 transition-colors'
         >
@@ -264,6 +271,10 @@ export function BlogListPage(props: BlogListPageProps) {
 
 export function BlogCategoryPage(props: BlogCategoryPageProps) {
   const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   const page = normalizePage(props.search.page)
   const query = props.search.q?.trim()
   const categoriesQuery = useQuery({
@@ -329,7 +340,10 @@ export function BlogCategoryPage(props: BlogCategoryPageProps) {
           <Button
             variant='ghost'
             render={
-              <Link to='/blog' search={{ page: undefined, q: undefined }} />
+              <Link
+                to={localizePublicPath('/blog', currentPublicLanguage)}
+                search={{ page: undefined, q: undefined }}
+              />
             }
           >
             <ArrowLeft className='size-4' />
@@ -365,6 +379,10 @@ export function BlogCategoryPage(props: BlogCategoryPageProps) {
 
 export function BlogPostPage(props: BlogPostPageProps) {
   const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   const postQuery = useQuery({
     queryKey: ['blog-post', props.slug],
     queryFn: () => getBlogPost(props.slug),
@@ -465,7 +483,10 @@ export function BlogPostPage(props: BlogPostPageProps) {
               <Button
                 variant='ghost'
                 render={
-                  <Link to='/blog' search={{ page: undefined, q: undefined }} />
+                  <Link
+                    to={localizePublicPath('/blog', currentPublicLanguage)}
+                    search={{ page: undefined, q: undefined }}
+                  />
                 }
               >
                 <ArrowLeft className='size-4' />
