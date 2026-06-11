@@ -16,10 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { api } from '@/lib/api'
 import { BLOG_PAGE_SIZE } from './constants'
-import type { ApiResponse, BlogListQuery, BlogListResult, BlogPost } from './types'
+import type {
+  ApiResponse,
+  BlogCategory,
+  BlogListQuery,
+  BlogListResult,
+  BlogPost,
+} from './types'
 
 function buildListParams(query: BlogListQuery) {
   const params: Record<string, string | number> = {
@@ -45,6 +50,13 @@ export async function getBlogList(
   const res = await api.get<ApiResponse<BlogListResult>>('/api/blog/list', {
     params: buildListParams(query),
   })
+  return res.data
+}
+
+export async function getBlogCategories(): Promise<
+  ApiResponse<BlogCategory[]>
+> {
+  const res = await api.get<ApiResponse<BlogCategory[]>>('/api/blog/categories')
   return res.data
 }
 
