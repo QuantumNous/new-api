@@ -4007,6 +4007,27 @@
     "内存:": "Memory:",
     "正在加载，请稍候...": "Loading, please wait...",
     "测试版": "Beta",
-    "不自动处理思考后缀的模型列表": "Models that do not automatically process thinking suffixes"
+    "不自动处理思考后缀的模型列表": "Models that do not automatically process thinking suffixes",
+    "验证失败": "Verification failed",
+    "开始验证失败": "Failed to start verification",
+    "Passkey 验证被取消": "Passkey verification was cancelled",
+    "Passkey 验证被取消或超时": "Passkey verification was cancelled or timed out",
+    "Passkey 验证状态无效": "Invalid Passkey verification state",
+    "不支持的验证方式: {{method}}": "Unsupported verification method: {{method}}",
+    "不支持的HTTP方法: {{method}}": "Unsupported HTTP method: {{method}}",
+    "Turnstile is enabled but site key is empty.": "Turnstile is enabled but the site key is empty.",
+    "Security Check": "Security Check",
+    "例如：https://workername.yourdomain.workers.dev": "Example: https://workername.yourdomain.workers.dev",
+    "LinuxDO Minimum Trust Level": "LinuxDO Minimum Trust Level",
+    "允许注册的最低信任等级": "Minimum trust level allowed for registration",
+    "刚刚": "Just now",
+    "{{count}} 分钟前": "{{count}} minutes ago",
+    "{{count}} 小时前": "{{count}} hours ago",
+    "{{count}} 天前": "{{count}} days ago",
+    "{{count}} 周前": "{{count}} weeks ago",
+    "{{count}} 个月前": "{{count}} months ago",
+    "1 年前": "1 year ago",
+    "额度预警通知": "Quota warning notification",
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "Your quota is almost exhausted. Current remaining quota: {{value}}"
   }
 }

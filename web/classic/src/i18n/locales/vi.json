@@ -4563,6 +4563,27 @@
     "内存:": "Memory:",
     "正在加载，请稍候...": "Loading, please wait...",
     "测试版": "Beta",
-    "不自动处理思考后缀的模型列表": "Mô hình không tự động xử lý hậu tố suy luận"
+    "不自动处理思考后缀的模型列表": "Mô hình không tự động xử lý hậu tố suy luận",
+    "验证失败": "Xác minh thất bại",
+    "开始验证失败": "Không thể bắt đầu xác minh",
+    "Passkey 验证被取消": "Xác minh Passkey đã bị hủy",
+    "Passkey 验证被取消或超时": "Xác minh Passkey đã bị hủy hoặc hết thời gian",
+    "Passkey 验证状态无效": "Trạng thái xác minh Passkey không hợp lệ",
+    "不支持的验证方式: {{method}}": "Phương thức xác minh không được hỗ trợ: {{method}}",
+    "不支持的HTTP方法: {{method}}": "Phương thức HTTP không được hỗ trợ: {{method}}",
+    "Turnstile is enabled but site key is empty.": "Turnstile đã bật nhưng site key đang trống.",
+    "Security Check": "Kiểm tra bảo mật",
+    "例如：https://workername.yourdomain.workers.dev": "Ví dụ: https://workername.yourdomain.workers.dev",
+    "LinuxDO Minimum Trust Level": "Cấp độ tin cậy LinuxDO tối thiểu",
+    "允许注册的最低信任等级": "Cấp độ tin cậy tối thiểu được phép đăng ký",
+    "刚刚": "Vừa xong",
+    "{{count}} 分钟前": "{{count}} phút trước",
+    "{{count}} 小时前": "{{count}} giờ trước",
+    "{{count}} 天前": "{{count}} ngày trước",
+    "{{count}} 周前": "{{count}} tuần trước",
+    "{{count}} 个月前": "{{count}} tháng trước",
+    "1 年前": "1 năm trước",
+    "额度预警通知": "Thông báo cảnh báo quota",
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "Quota của bạn sắp hết. Quota còn lại hiện tại: {{value}}"
   }
 }

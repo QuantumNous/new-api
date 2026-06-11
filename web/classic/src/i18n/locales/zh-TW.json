@@ -4008,6 +4008,27 @@
     "内存:": "内存:",
     "正在加载，请稍候...": "正在加载，请稍候...",
     "测试版": "测试版",
-    "不自动处理思考后缀的模型列表": "不自動處理思考後綴的模型列表"
+    "不自动处理思考后缀的模型列表": "不自動處理思考後綴的模型列表",
+    "验证失败": "驗證失敗",
+    "开始验证失败": "開始驗證失敗",
+    "Passkey 验证被取消": "Passkey 驗證已取消",
+    "Passkey 验证被取消或超时": "Passkey 驗證已取消或逾時",
+    "Passkey 验证状态无效": "Passkey 驗證狀態無效",
+    "不支持的验证方式: {{method}}": "不支援的驗證方式: {{method}}",
+    "不支持的HTTP方法: {{method}}": "不支援的 HTTP 方法: {{method}}",
+    "Turnstile is enabled but site key is empty.": "Turnstile 已啟用，但站點金鑰為空。",
+    "Security Check": "安全驗證",
+    "例如：https://workername.yourdomain.workers.dev": "例如：https://workername.yourdomain.workers.dev",
+    "LinuxDO Minimum Trust Level": "LinuxDO 最低信任等級",
+    "允许注册的最低信任等级": "允許註冊的最低信任等級",
+    "刚刚": "剛剛",
+    "{{count}} 分钟前": "{{count}} 分鐘前",
+    "{{count}} 小时前": "{{count}} 小時前",
+    "{{count}} 天前": "{{count}} 天前",
+    "{{count}} 周前": "{{count}} 週前",
+    "{{count}} 个月前": "{{count}} 個月前",
+    "1 年前": "1 年前",
+    "额度预警通知": "額度預警通知",
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "您的額度即將用盡，目前剩餘額度為 {{value}}"
   }
 }
