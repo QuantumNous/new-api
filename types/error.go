@@ -100,7 +100,7 @@ type NewAPIError struct {
 	Metadata       json.RawMessage
 }
 
-const PublicServiceUnavailableMessage = "Service Unavailable"
+const PublicServiceUnavailableMessage = "Service temporarily unavailable. Please try again later."
 
 func shouldMarkErrorCodeAsUpstream(errorCode ErrorCode) bool {
 	switch errorCode {

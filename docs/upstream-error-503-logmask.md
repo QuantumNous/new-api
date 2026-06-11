@@ -5,8 +5,8 @@ This branch keeps upstream-provider failures private from downstream users.
 ## Goal
 
 - Local New API errors stay unchanged.
-- Upstream-origin errors returned to downstream clients become generic `503 Service Unavailable`.
-- User-visible logs also show upstream-origin errors as generic `503 Service Unavailable`.
+- Upstream-origin errors returned to downstream clients become HTTP `503` with a generic service-unavailable message.
+- User-visible logs also show upstream-origin errors as HTTP `503` with the same generic message.
 - Admin/server logs and raw database records keep original details for troubleshooting.
 
 ## Downstream Behavior
@@ -16,7 +16,7 @@ When an upstream error happens, downstream OpenAI-compatible responses should lo
 ```json
 {
   "error": {
-    "message": "Service Unavailable (request id: ...)",
+    "message": "Service temporarily unavailable. Please try again later. (request id: ...)",
     "type": "new_api_error",
     "code": "service_unavailable"
   }
@@ -39,13 +39,13 @@ Local errors are not masked. For example, an invalid local token still returns:
 
 For ordinary user log APIs, upstream-origin error logs are masked:
 
-- `content` becomes `status_code=503, Service Unavailable`
+- `content` becomes `status_code=503, Service temporarily unavailable. Please try again later.`
 - `other.status_code` becomes `503`
-- `other.error_code` becomes `service_unavailable`
-- `other.error_type` becomes `new_api_error`
+- `other.error_code`, `other.error_type`, `other.client_status_code`, and `other.upstream_status_code` are hidden
 - channel fields and `upstream_request_id` are hidden from user-visible results
 
-Admin log APIs keep the original error details.
+Admin log APIs keep the original error details, including the real `status_code`; upstream errors also include
+`client_status_code=503` and `upstream_status_code` for troubleshooting.
 
 ## Main Files
 
@@ -56,7 +56,7 @@ Admin log APIs keep the original error details.
 
 - `controller/relay.go`
   - Applies the downstream masking policy at the final response boundary.
-  - Records `other.upstream_error` for error logs.
+  - Records `other.upstream_error`, `other.client_status_code`, and `other.upstream_status_code` for error logs.
 
 - `service/error.go`
   - Marks errors parsed from upstream non-2xx responses as upstream errors.

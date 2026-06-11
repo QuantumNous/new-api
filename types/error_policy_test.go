@@ -48,7 +48,7 @@ func TestApplyDownstreamNewAPIErrorPolicyMapsUpstreamStatusesToServiceUnavailabl
 			if got.StatusCode != http.StatusServiceUnavailable {
 				t.Fatalf("status = %d, want %d", got.StatusCode, http.StatusServiceUnavailable)
 			}
-			if got.Error() != "Service Unavailable (request id: req_upstream)" {
+			if got.Error() != "Service temporarily unavailable. Please try again later. (request id: req_upstream)" {
 				t.Fatalf("message = %q", got.Error())
 			}
 			if got.GetErrorCode() != ErrorCodeServiceUnavailable {
@@ -70,7 +70,7 @@ func TestApplyDownstreamNewAPIErrorPolicyMapsMarkedProviderError(t *testing.T) {
 		t.Fatalf("status = %d, want %d", got.StatusCode, http.StatusServiceUnavailable)
 	}
 	openAIError := got.ToOpenAIError()
-	if openAIError.Message != "Service Unavailable (request id: req_provider)" {
+	if openAIError.Message != "Service temporarily unavailable. Please try again later. (request id: req_provider)" {
 		t.Fatalf("message = %q", openAIError.Message)
 	}
 	if openAIError.Type != string(ErrorTypeNewAPIError) {

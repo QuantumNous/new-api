@@ -134,7 +134,7 @@ func TestRelayErrorHandlerMarksStructuredErrorAsUpstreamForDownstreamPolicy(t *t
 
 	require.NotNil(t, newAPIError)
 	require.Equal(t, http.StatusServiceUnavailable, responseError.StatusCode)
-	require.Equal(t, "Service Unavailable (request id: req_upstream)", responseError.Error())
+	require.Equal(t, "Service temporarily unavailable. Please try again later. (request id: req_upstream)", responseError.Error())
 	require.Equal(t, types.ErrorCodeServiceUnavailable, responseError.GetErrorCode())
 }
 

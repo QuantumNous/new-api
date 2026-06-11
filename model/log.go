@@ -118,8 +118,10 @@ func maskUserUpstreamErrorLog(log *Log, otherMap map[string]interface{}) {
 	log.UpstreamRequestId = ""
 
 	otherMap["status_code"] = http.StatusServiceUnavailable
-	otherMap["error_code"] = string(types.ErrorCodeServiceUnavailable)
-	otherMap["error_type"] = string(types.ErrorTypeNewAPIError)
+	delete(otherMap, "client_status_code")
+	delete(otherMap, "upstream_status_code")
+	delete(otherMap, "error_code")
+	delete(otherMap, "error_type")
 	delete(otherMap, "channel_id")
 	delete(otherMap, "channel_name")
 	delete(otherMap, "channel_type")

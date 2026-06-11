@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/types"
 )
 
 func TestFormatUserLogsMasksUpstreamError(t *testing.T) {
@@ -17,13 +16,15 @@ func TestFormatUserLogsMasksUpstreamError(t *testing.T) {
 		ChannelName:       "upstream-channel",
 		UpstreamRequestId: "upstream-req-123",
 		Other: common.MapToJsonStr(map[string]interface{}{
-			"status_code":    http.StatusForbidden,
-			"error_code":     "provider_quota_error",
-			"error_type":     "openai_error",
-			"upstream_error": true,
-			"channel_id":     12,
-			"channel_name":   "upstream-channel",
-			"channel_type":   1,
+			"status_code":          http.StatusForbidden,
+			"client_status_code":   http.StatusServiceUnavailable,
+			"upstream_status_code": http.StatusForbidden,
+			"error_code":           "provider_quota_error",
+			"error_type":           "openai_error",
+			"upstream_error":       true,
+			"channel_id":           12,
+			"channel_name":         "upstream-channel",
+			"channel_type":         1,
 			"admin_info": map[string]interface{}{
 				"use_channel": []int{12},
 			},
@@ -32,7 +33,7 @@ func TestFormatUserLogsMasksUpstreamError(t *testing.T) {
 
 	formatUserLogs(logs, 0)
 
-	if logs[0].Content != "status_code=503, Service Unavailable" {
+	if logs[0].Content != "status_code=503, Service temporarily unavailable. Please try again later." {
 		t.Fatalf("content = %q", logs[0].Content)
 	}
 	if logs[0].ChannelId != 0 {
@@ -49,8 +50,17 @@ func TestFormatUserLogsMasksUpstreamError(t *testing.T) {
 	if other["status_code"] != float64(http.StatusServiceUnavailable) {
 		t.Fatalf("status code = %v, want %d", other["status_code"], http.StatusServiceUnavailable)
 	}
-	if other["error_code"] != string(types.ErrorCodeServiceUnavailable) {
-		t.Fatalf("error code = %v, want %s", other["error_code"], types.ErrorCodeServiceUnavailable)
+	if _, ok := other["error_code"]; ok {
+		t.Fatal("error_code should be removed")
+	}
+	if _, ok := other["error_type"]; ok {
+		t.Fatal("error_type should be removed")
+	}
+	if _, ok := other["client_status_code"]; ok {
+		t.Fatal("client_status_code should be removed")
+	}
+	if _, ok := other["upstream_status_code"]; ok {
+		t.Fatal("upstream_status_code should be removed")
 	}
 	if _, ok := other["admin_info"]; ok {
 		t.Fatal("admin_info should be removed")

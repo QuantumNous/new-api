@@ -378,7 +378,15 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["error_type"] = err.GetErrorType()
 		other["error_code"] = err.GetErrorCode()
 		other["status_code"] = err.StatusCode
-		other["upstream_error"] = types.IsUpstreamError(err)
+		if types.IsUpstreamError(err) {
+			other["upstream_error"] = true
+			other["client_status_code"] = http.StatusServiceUnavailable
+			if err.StatusCode != 0 {
+				other["upstream_status_code"] = err.StatusCode
+			}
+		} else {
+			other["upstream_error"] = false
+		}
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
