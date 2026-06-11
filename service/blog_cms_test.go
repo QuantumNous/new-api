@@ -114,6 +114,43 @@ func TestFetchBlogPostMapsContent(t *testing.T) {
 	}
 }
 
+func TestFetchBlogPostPrefersMetaDescriptionForSummary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/n/blog/detailData" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"code": 200,
+			"data": [{
+				"ID": 34204,
+				"post_title": "OpenAI-Compatible API Migration",
+				"slug": "openai-compatible-api-migration",
+				"post_excerpt": "If your app already uses an OpenAI compatible API, moving to Flatkey should not start with a rewrite.",
+				"post_content": "<h2>Quick Answer</h2><p>Change the base URL.</p>",
+				"meta": {
+					"desc": "Move an OpenAI-compatible app to Flatkey: change the base URL, map model IDs, run smoke tests, verify logs, quotas, billing, and rollback."
+				}
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	post, err := FetchBlogPost(BlogPostParams{
+		CMSHost: server.URL,
+		Client:  server.Client(),
+		Slug:    "openai-compatible-api-migration",
+	})
+	if err != nil {
+		t.Fatalf("FetchBlogPost returned error: %v", err)
+	}
+
+	want := "Move an OpenAI-compatible app to Flatkey: change the base URL, map model IDs, run smoke tests, verify logs, quotas, billing, and rollback."
+	if post.Summary != want {
+		t.Fatalf("expected meta description summary %q, got %q", want, post.Summary)
+	}
+}
+
 func TestFetchBlogPostKeepsRequestedSlugWhenCMSDetailSlugIsEmpty(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/n/blog/detailData" {

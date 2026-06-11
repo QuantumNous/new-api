@@ -91,6 +91,7 @@ For commercial licensing, please contact support@quantumnous.com
   color: var(--foreground);
   font-weight: 650;
   line-height: 1.25;
+  scroll-margin-top: 7rem;
 }
 
 .blog-content h1 {

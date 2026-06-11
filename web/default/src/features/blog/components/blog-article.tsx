@@ -39,7 +39,7 @@ export function BlogArticle(props: BlogArticleProps) {
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <aside className='hidden lg:block'>
-        <BlogToc contentRef={contentRef} />
+        <BlogToc content={html} contentRef={contentRef} />
       </aside>
     </div>
   )

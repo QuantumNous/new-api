@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"embed"
 	"net/http"
 	"strings"
@@ -21,6 +22,24 @@ type ThemeAssets struct {
 	ClassicIndexPage []byte
 }
 
+const googleTagManagerID = "GTM-NKH9LPX9"
+
+var (
+	googleTagManagerHeadSnippet = []byte(`<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','` + googleTagManagerID + `');</script>
+<!-- End Google Tag Manager -->
+`)
+	googleTagManagerBodySnippet = []byte(`<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=` + googleTagManagerID + `"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+`)
+)
+
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
@@ -40,10 +59,48 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 			return
 		}
 		c.Header("Cache-Control", "no-cache")
+		indexPage := assets.DefaultIndexPage
 		if common.GetTheme() == "classic" {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
-		} else {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.DefaultIndexPage)
+			indexPage = assets.ClassicIndexPage
 		}
+		if shouldInjectGoogleTagManager(c.Request.URL.Path) {
+			indexPage = injectGoogleTagManager(indexPage)
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 	})
+}
+
+func shouldInjectGoogleTagManager(path string) bool {
+	if path == "" {
+		path = "/"
+	}
+	adminPrefixes := []string{
+		"/channels",
+		"/redemption-codes",
+		"/subscriptions",
+		"/system-settings",
+		"/users",
+		"/console/channel",
+		"/console/deployment",
+		"/console/models",
+		"/console/redemption",
+		"/console/setting",
+		"/console/subscription",
+		"/console/user",
+	}
+	for _, prefix := range adminPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return false
+		}
+	}
+	return true
+}
+
+func injectGoogleTagManager(indexPage []byte) []byte {
+	if bytes.Contains(indexPage, []byte(googleTagManagerID)) {
+		return indexPage
+	}
+	indexPage = bytes.Replace(indexPage, []byte("<head>"), append([]byte("<head>\n    "), googleTagManagerHeadSnippet...), 1)
+	indexPage = bytes.Replace(indexPage, []byte("<body>"), append([]byte("<body>\n    "), googleTagManagerBodySnippet...), 1)
+	return indexPage
 }

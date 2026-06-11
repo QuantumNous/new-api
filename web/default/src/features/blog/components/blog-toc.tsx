@@ -28,6 +28,7 @@ interface TocItem {
 }
 
 interface BlogTocProps {
+  content: string
   contentRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -67,7 +68,7 @@ export function BlogToc(props: BlogTocProps) {
     )
     headings.forEach((heading) => observerRef.current?.observe(heading))
     return () => observerRef.current?.disconnect()
-  }, [props.contentRef])
+  }, [props.content, props.contentRef])
 
   if (items.length < 2) {
     return null

@@ -181,7 +181,7 @@ function BlogCTA() {
         )}
       </p>
       <Button
-        className='bg-background text-foreground hover:bg-background/90 mt-7'
+        className='bg-background text-foreground hover:bg-background/90 hover:text-foreground mt-7'
         render={<Link to='/sign-up' />}
       >
         {t('Get started')}
