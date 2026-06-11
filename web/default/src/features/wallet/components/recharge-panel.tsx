@@ -104,7 +104,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
 
   const epayEnabled = topupInfo?.enable_online_topup ?? false
   const epayMethods = topupInfo?.pay_methods ?? []
-  const hasAlipay = false // Alipay not yet supported by current Epay integration
+  const hasAlipay = epayEnabled && epayMethods.some((m) => m.type === 'alipay')
   const hasWechat = epayEnabled && epayMethods.some((m) => m.type === 'wxpay')
 
   return (
