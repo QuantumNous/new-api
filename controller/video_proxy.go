@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -113,9 +114,10 @@ func VideoProxy(c *gin.Context) {
 		videoURL = task.GetResultURL()
 		if isHongniaoVideoChannel(baseURL, channel.Other) {
 			req.Header.Set("X-API-Key", channel.Key)
-		} else if strings.TrimSpace(videoURL) == "" {
+		} else if strings.TrimSpace(videoURL) == "" || videoURL == taskcommon.BuildProxyURL(task.TaskID) {
 			// 标准 OpenAI Video 上游（如漫小白）轮询响应不含直链，
-			// 回退到上游鉴权 content 端点代理下载
+			// ResultURL 会被填成本服务的对外代理地址（自指）；
+			// 回源时改用上游鉴权 content 端点代理下载
 			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", strings.TrimRight(baseURL, "/"), task.GetUpstreamTaskID())
 			req.Header.Set("Authorization", "Bearer "+channel.Key)
 		}
