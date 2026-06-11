@@ -293,6 +293,12 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	switch channel.Type {
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
+	case constant.ChannelTypeOpenAIVideo:
+		if isXBSoraModelsAPI(baseURL) {
+			url = xbSoraModelsURL(baseURL)
+		} else {
+			url = fmt.Sprintf("%s/v1/models", baseURL)
+		}
 	case constant.ChannelTypeZhipu_v4:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
 			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
@@ -329,6 +335,14 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	body, err := GetResponseBody(http.MethodGet, url, channel, headers)
 	if err != nil {
 		return nil, err
+	}
+
+	if channel.Type == constant.ChannelTypeOpenAIVideo && isXBSoraModelsAPI(baseURL) {
+		models, err := parseXBSoraModelIDs(body)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeModelNames(models), nil
 	}
 
 	var result OpenAIModelsResponse

@@ -340,6 +340,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
+	if isRetryableUpstreamQuotaError(openaiErr) {
+		return true
+	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
 		return false
@@ -353,8 +356,47 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+func isRetryableUpstreamQuotaError(openaiErr *types.NewAPIError) bool {
+	// 本地额度错误（调用方钱包不足等）均带 SkipRetry 标记，先排除；
+	// 上游透传的 OpenAI 风格错误会把 errorCode 设为上游 code（如
+	// insufficient_user_quota），不能用 ErrorCodeBadResponseStatusCode 过滤，
+	// 因此把上游 code 一并纳入关键词匹配。
+	if openaiErr == nil || types.IsSkipRetryError(openaiErr) {
+		return false
+	}
+	switch openaiErr.StatusCode {
+	case http.StatusBadRequest, http.StatusPaymentRequired, http.StatusForbidden:
+	default:
+		return false
+	}
+
+	message := openaiErr.Error() + " " + string(openaiErr.GetErrorCode())
+	return operation_setting.IsUpstreamQuotaErrorMessage(message)
+}
+
+// isRetryableUpstreamQuotaTaskError 视频任务版本：上游余额/额度不足时换渠道重试。
+func isRetryableUpstreamQuotaTaskError(taskErr *dto.TaskError) bool {
+	if taskErr == nil || taskErr.LocalError {
+		return false
+	}
+	switch taskErr.StatusCode {
+	case http.StatusBadRequest, http.StatusPaymentRequired, http.StatusForbidden:
+	default:
+		return false
+	}
+	message := taskErr.Message
+	if taskErr.Error != nil {
+		message += " " + taskErr.Error.Error()
+	}
+	return operation_setting.IsUpstreamQuotaErrorMessage(message)
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	// 余额/额度不足：渠道进入短暂冷却，冷却期内选路自动跳过，到期自动恢复
+	if isRetryableUpstreamQuotaError(err) {
+		model.SetChannelQuotaCooldown(channelError.ChannelId)
+	}
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
@@ -627,6 +669,9 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 		return true
 	}
 	if taskErr.StatusCode == 307 {
+		return true
+	}
+	if isRetryableUpstreamQuotaTaskError(taskErr) {
 		return true
 	}
 	if taskErr.StatusCode/100 == 5 {

@@ -134,6 +134,29 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'openai',
+    hints: {
+      baseUrl: 'e.g., https://api.bltcy.ai, https://api.ablai.top, https://xgapi.top, https://your-domain.com/api/v1',
+      key: 'API Key from relay provider',
+      models: 'veo3.1-fast,veo3.1,veo3.1-pro,sora-2,sora-2-pro,xb-sora2,openai-sora-2,sora-2-pro-text-to-video,sora-2-image-to-video',
+      other: 'OpenAI-compatible video generation relay (Veo/Sora via third-party API; xb-sora2 API uses X-API-Key)',
+    },
+  },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.marswave.ai/openapi',
+    hints: {
+      baseUrl: 'Default: https://api.marswave.ai/openapi',
+      key: 'ListenHub API Key',
+      models: 'gemini-3-pro-image-preview,gemini-3.1-flash-image-preview,gpt-image-2',
+      other: 'ListenHub image generation; upstream path is /v1/images/generation and this channel exposes /v1/images/generations.',
+    },
+  },
 }
 
 /**

@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -23,17 +24,97 @@ type HasImage interface {
 }
 
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
-	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
-
 	if strings.HasPrefix(baseURL, "https://gateway.ai.cloudflare.com") {
 		switch channelType {
 		case constant.ChannelTypeOpenAI:
-			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/v1"))
+			return joinRequestURL(baseURL, strings.TrimPrefix(requestURL, "/v1"))
 		case constant.ChannelTypeAzure:
-			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
+			return joinRequestURL(baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
 		}
 	}
-	return fullRequestURL
+	return joinRequestURL(baseURL, requestURL)
+}
+
+func joinRequestURL(baseURL string, requestURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	requestURL = strings.TrimSpace(requestURL)
+	if baseURL == "" {
+		return requestURL
+	}
+	if requestURL == "" {
+		return baseURL
+	}
+
+	request, err := url.Parse(requestURL)
+	if err != nil {
+		return simpleJoinRequestURL(baseURL, requestURL)
+	}
+	if request.IsAbs() {
+		return request.String()
+	}
+
+	if base, err := url.Parse(baseURL); err == nil {
+		overlap := overlappingPathSegments(base.Path, request.Path)
+		if overlap > 0 {
+			request.Path = trimLeadingPathSegments(request.Path, overlap)
+			request.RawPath = ""
+		}
+	}
+
+	relative := request.String()
+	if relative == "" {
+		return baseURL
+	}
+	if strings.HasPrefix(relative, "/") || strings.HasPrefix(relative, "?") || strings.HasPrefix(relative, "#") {
+		return baseURL + relative
+	}
+	return baseURL + "/" + relative
+}
+
+func simpleJoinRequestURL(baseURL string, requestURL string) string {
+	if strings.HasPrefix(requestURL, "/") {
+		return baseURL + requestURL
+	}
+	return baseURL + "/" + requestURL
+}
+
+func overlappingPathSegments(basePath string, requestPath string) int {
+	baseSegments := splitPathSegments(basePath)
+	requestSegments := splitPathSegments(requestPath)
+	maxOverlap := len(baseSegments)
+	if len(requestSegments) < maxOverlap {
+		maxOverlap = len(requestSegments)
+	}
+
+	for overlap := maxOverlap; overlap > 0; overlap-- {
+		matched := true
+		for i := 0; i < overlap; i++ {
+			if baseSegments[len(baseSegments)-overlap+i] != requestSegments[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return overlap
+		}
+	}
+	return 0
+}
+
+func splitPathSegments(path string) []string {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return nil
+	}
+	return strings.Split(path, "/")
+}
+
+func trimLeadingPathSegments(path string, count int) string {
+	segments := splitPathSegments(path)
+	if count >= len(segments) {
+		return ""
+	}
+	return "/" + strings.Join(segments[count:], "/")
 }
 
 func GetAPIVersion(c *gin.Context) string {
@@ -157,6 +238,16 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if hasInputReference {
 		action = constant.TaskActionGenerate
 	}
+
+	if isFramesModel(model) {
+		if hasInputReference {
+			action = constant.TaskActionGenerate
+		}
+		if req.AspectRatio != "" && !lo.Contains([]string{"9:16", "16:9"}, req.AspectRatio) {
+			return createTaskError(fmt.Errorf("aspect_ratio must be 9:16 or 16:9"), "invalid_aspect_ratio", http.StatusBadRequest, true)
+		}
+	}
+
 	if strings.HasPrefix(model, "sora-2") {
 
 		if size == "" {
@@ -173,12 +264,15 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {
 			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
 		}
-		// OtherRatios 已移到 Sora adaptor 的 EstimateBilling 中设置
 	}
 
 	storeTaskRequest(c, info, action, req)
 
 	return nil
+}
+
+func isFramesModel(model string) bool {
+	return strings.HasSuffix(model, "-frames") || strings.HasSuffix(model, "-components") || strings.Contains(model, "-frames-") || strings.Contains(model, "-components-")
 }
 
 func isKnownTaskField(field string) bool {
@@ -190,7 +284,10 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
-		"input_reference": true, // Sora 特有字段
+		"input_reference": true,
+		"aspect_ratio":    true,
+		"enhance_prompt":  true,
+		"enable_upsample": true,
 	}
 	return knownFields[field]
 }

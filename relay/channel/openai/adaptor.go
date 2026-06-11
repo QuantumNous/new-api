@@ -11,6 +11,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -427,6 +428,10 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations && isXGAPIImageChannel(info) {
+		request.Prompt = appendXGAPIImageAspectRatioToPrompt(request.Prompt, request)
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
@@ -565,6 +570,170 @@ func isJSONRequest(c *gin.Context) bool {
 		return false
 	}
 	return strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json")
+}
+
+func isXGAPIImageChannel(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	return containsXGAPIIdentifier(info.ChannelBaseUrl) || containsXGAPIIdentifier(info.ChannelOther)
+}
+
+func containsXGAPIIdentifier(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "xgapi") ||
+		strings.Contains(value, "xingguang") ||
+		strings.Contains(value, "星光")
+}
+
+func appendXGAPIImageAspectRatioToPrompt(prompt string, request dto.ImageRequest) string {
+	aspectRatio := xgAPIImageAspectRatioFromRequest(request)
+	if aspectRatio == "" || promptAlreadyMentionsAspectRatio(prompt, aspectRatio) {
+		return prompt
+	}
+
+	prompt = strings.TrimRight(prompt, " \t\r\n")
+	aspectRatioInstruction := fmt.Sprintf("Required image aspect ratio: %s.", aspectRatio)
+	if prompt == "" {
+		return aspectRatioInstruction
+	}
+	return prompt + "\n\n" + aspectRatioInstruction
+}
+
+func xgAPIImageAspectRatioFromRequest(request dto.ImageRequest) string {
+	if aspectRatio := aspectRatioFromImageExtraMap(request.Extra); aspectRatio != "" {
+		return aspectRatio
+	}
+	if aspectRatio := aspectRatioFromImageExtraBody(request.ExtraBody); aspectRatio != "" {
+		return aspectRatio
+	}
+	return aspectRatioFromImageSizeForPrompt(request.Size)
+}
+
+func aspectRatioFromImageExtraMap(extra map[string]json.RawMessage) string {
+	for _, key := range []string{"aspect_ratio", "aspectRatio", "ratio"} {
+		raw := extra[key]
+		if len(raw) == 0 {
+			continue
+		}
+		var aspectRatio string
+		if err := common.Unmarshal(raw, &aspectRatio); err == nil {
+			if aspectRatio = normalizeAspectRatio(aspectRatio); aspectRatio != "" {
+				return aspectRatio
+			}
+		}
+	}
+	return ""
+}
+
+func aspectRatioFromImageExtraBody(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var fields map[string]json.RawMessage
+	if err := common.Unmarshal(raw, &fields); err != nil {
+		return ""
+	}
+	if aspectRatio := aspectRatioFromImageExtraMap(fields); aspectRatio != "" {
+		return aspectRatio
+	}
+	for _, key := range []string{"xgapi", "image_config", "imageConfig"} {
+		if aspectRatio := aspectRatioFromImageExtraBody(fields[key]); aspectRatio != "" {
+			return aspectRatio
+		}
+	}
+	return ""
+}
+
+func normalizeAspectRatio(value string) string {
+	value = strings.TrimSpace(strings.ReplaceAll(value, "：", ":"))
+	if value == "" || !strings.Contains(value, ":") {
+		return ""
+	}
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 {
+		return ""
+	}
+	width, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil || width <= 0 {
+		return ""
+	}
+	height, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || height <= 0 {
+		return ""
+	}
+	divisor := greatestCommonDivisor(width, height)
+	return fmt.Sprintf("%d:%d", width/divisor, height/divisor)
+}
+
+func aspectRatioFromImageSizeForPrompt(size string) string {
+	size = strings.TrimSpace(strings.ToLower(strings.ReplaceAll(size, "×", "x")))
+	if size == "" {
+		return ""
+	}
+	if aspectRatio := normalizeAspectRatio(size); aspectRatio != "" {
+		return aspectRatio
+	}
+
+	switch size {
+	case "256x256", "512x512", "1024x1024":
+		return "1:1"
+	case "1792x1024":
+		return "16:9"
+	case "1024x1792":
+		return "9:16"
+	case "1536x1024", "1248x832":
+		return "3:2"
+	case "1024x1536", "832x1248":
+		return "2:3"
+	case "1152x864":
+		return "4:3"
+	case "864x1152":
+		return "3:4"
+	case "1344x576":
+		return "21:9"
+	}
+
+	parts := strings.Split(size, "x")
+	if len(parts) != 2 {
+		return ""
+	}
+	width, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil || width <= 0 {
+		return ""
+	}
+	height, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || height <= 0 {
+		return ""
+	}
+	divisor := greatestCommonDivisor(width, height)
+	return fmt.Sprintf("%d:%d", width/divisor, height/divisor)
+}
+
+func promptAlreadyMentionsAspectRatio(prompt string, aspectRatio string) bool {
+	prompt = strings.ToLower(strings.ReplaceAll(prompt, "：", ":"))
+	if strings.Contains(prompt, strings.ToLower(aspectRatio)) {
+		return true
+	}
+	for _, marker := range []string{"aspect ratio", "aspect-ratio", "宽高比", "画幅比例", "图片比例", "图像比例"} {
+		if strings.Contains(prompt, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func greatestCommonDivisor(a int, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a < 0 {
+		return -a
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
 }
 
 // detectImageMimeType determines the MIME type based on the file extension

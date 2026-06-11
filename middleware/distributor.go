@@ -38,6 +38,7 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		requiredEndpointType := getRequiredEndpointType(c)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -51,6 +52,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if requiredEndpointType != "" && !channelSupportsRequest(c, channel, modelRequest.Model, requiredEndpointType) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
 				return
 			}
 		} else {
@@ -110,15 +115,18 @@ func Distribute() func(c *gin.Context) {
 							autoGroups := service.GetUserAutoGroup(userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									affinityUsable = true
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
+									if requiredEndpointType == "" || channelSupportsRequest(c, preferred, modelRequest.Model, requiredEndpointType) {
+										selectGroup = g
+										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+										channel = preferred
+										affinityUsable = true
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
+										break
+									}
 								}
 							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) &&
+							(requiredEndpointType == "" || channelSupportsRequest(c, preferred, modelRequest.Model, requiredEndpointType)) {
 							channel = preferred
 							selectGroup = usingGroup
 							affinityUsable = true
@@ -131,12 +139,7 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
-					})
+					channel, selectGroup, err = getRandomSatisfiedEndpointChannel(c, usingGroup, modelRequest.Model, requiredEndpointType)
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
@@ -350,8 +353,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
+		c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+		c.Set("relay_mode", relayconstant.RelayModeImagesEdits)
 		contentType := c.ContentType()
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
 			req, err := getModelFromRequest(c)
@@ -399,6 +404,227 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	return &modelRequest, shouldSelectChannel, nil
 }
 
+func getRequiredEndpointType(c *gin.Context) constant.EndpointType {
+	relayMode, ok := c.Get("relay_mode")
+	if !ok {
+		return ""
+	}
+	mode, ok := relayMode.(int)
+	if !ok {
+		return ""
+	}
+	switch mode {
+	case relayconstant.RelayModeGemini:
+		return constant.EndpointTypeGemini
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return constant.EndpointTypeImageGeneration
+	default:
+		return ""
+	}
+}
+
+func channelSupportsEndpointType(channel *model.Channel, modelName string, endpointType constant.EndpointType) bool {
+	if endpointType == "" || channel == nil {
+		return true
+	}
+	endpointTypes := common.GetEndpointTypesByChannelType(channel.Type, modelName)
+	for _, candidate := range endpointTypes {
+		if candidate == endpointType {
+			return true
+		}
+	}
+	return false
+}
+
+func channelSupportsRequest(c *gin.Context, channel *model.Channel, modelName string, endpointType constant.EndpointType) bool {
+	if !channelSupportsEndpointType(channel, modelName, endpointType) {
+		return false
+	}
+	if endpointType == constant.EndpointTypeImageGeneration &&
+		isXGAPIChannel(channel) &&
+		requestHasImageReference(c) {
+		return false
+	}
+	return true
+}
+
+func isXGAPIChannel(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	return containsXGAPIIdentifier(channel.GetBaseURL()) ||
+		containsXGAPIIdentifier(channel.Other) ||
+		containsXGAPIIdentifier(channel.Name)
+}
+
+func containsXGAPIIdentifier(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "xgapi") ||
+		strings.Contains(value, "xingguang") ||
+		strings.Contains(value, "星光")
+}
+
+const contextKeyImageReferenceRequest = "_new_api_image_reference_request"
+
+func requestHasImageReference(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if cached, ok := c.Get(contextKeyImageReferenceRequest); ok {
+		hasReference, _ := cached.(bool)
+		return hasReference
+	}
+	hasReference := parseRequestHasImageReference(c)
+	c.Set(contextKeyImageReferenceRequest, hasReference)
+	return hasReference
+}
+
+func parseRequestHasImageReference(c *gin.Context) bool {
+	if strings.Contains(c.Request.Header.Get("Content-Type"), gin.MIMEMultipartPOSTForm) {
+		return multipartRequestHasImageReference(c)
+	}
+	var imageRequest dto.ImageRequest
+	if err := common.UnmarshalBodyReusable(c, &imageRequest); err != nil {
+		return false
+	}
+	return imageRequestHasReference(imageRequest)
+}
+
+func multipartRequestHasImageReference(c *gin.Context) bool {
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil || form == nil {
+		return false
+	}
+	for _, key := range imageReferenceFieldNames() {
+		if len(form.Value[key]) > 0 || len(form.File[key]) > 0 {
+			return true
+		}
+	}
+	for key, values := range form.Value {
+		if isImageReferenceFieldName(key) && len(values) > 0 {
+			return true
+		}
+	}
+	for key, files := range form.File {
+		if isImageReferenceFieldName(key) && len(files) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func imageRequestHasReference(request dto.ImageRequest) bool {
+	if rawJSONHasValue(request.Image) || rawJSONHasValue(request.Images) {
+		return true
+	}
+	for _, key := range imageReferenceFieldNames() {
+		if rawJSONHasValue(request.Extra[key]) {
+			return true
+		}
+	}
+	return rawObjectHasImageReference(request.ExtraBody)
+}
+
+func rawObjectHasImageReference(raw []byte) bool {
+	if !rawJSONHasValue(raw) {
+		return false
+	}
+	var fields map[string]any
+	if err := common.Unmarshal(raw, &fields); err != nil {
+		return false
+	}
+	for _, key := range imageReferenceFieldNames() {
+		if jsonValueHasMeaning(fields[key]) {
+			return true
+		}
+	}
+	for _, key := range []string{"listenhub", "xgapi", "imageConfig", "image_config"} {
+		if !jsonValueHasMeaning(fields[key]) {
+			continue
+		}
+		nested, err := common.Marshal(fields[key])
+		if err == nil && rawObjectHasImageReference(nested) {
+			return true
+		}
+	}
+	return false
+}
+
+func rawJSONHasValue(raw []byte) bool {
+	value := strings.TrimSpace(string(raw))
+	return value != "" &&
+		value != "null" &&
+		value != `""` &&
+		value != "[]" &&
+		value != "{}"
+}
+
+func jsonValueHasMeaning(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(typed) != ""
+	case []any:
+		return len(typed) > 0
+	case map[string]any:
+		return len(typed) > 0
+	default:
+		return true
+	}
+}
+
+func imageReferenceFieldNames() []string {
+	return []string{
+		"image",
+		"image[]",
+		"images",
+		"referenceImages",
+		"reference_images",
+		"input_image",
+		"input_images",
+		"inputReference",
+		"input_reference",
+	}
+}
+
+func isImageReferenceFieldName(name string) bool {
+	if slices.Contains(imageReferenceFieldNames(), name) {
+		return true
+	}
+	return strings.HasPrefix(name, "image[") ||
+		strings.HasPrefix(name, "images[") ||
+		strings.HasPrefix(name, "referenceImages[") ||
+		strings.HasPrefix(name, "reference_images[")
+}
+
+func getRandomSatisfiedEndpointChannel(c *gin.Context, usingGroup string, modelName string, endpointType constant.EndpointType) (*model.Channel, string, error) {
+	maxRetry := common.RetryTimes
+	if endpointType != "" && maxRetry < 5 {
+		maxRetry = 5
+	}
+	var lastSelectGroup string
+	for retry := 0; retry <= maxRetry; retry++ {
+		channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+			Ctx:        c,
+			ModelName:  modelName,
+			TokenGroup: usingGroup,
+			Retry:      common.GetPointer(retry),
+		})
+		lastSelectGroup = selectGroup
+		if err != nil {
+			return nil, selectGroup, err
+		}
+		if channel == nil {
+			return nil, selectGroup, nil
+		}
+		if channelSupportsRequest(c, channel, modelName, endpointType) {
+			return channel, selectGroup, nil
+		}
+	}
+	return nil, lastSelectGroup, nil
+}
+
 // 修复 #4834: GET /v1/video/generations/:task_id && /v1/video/:task_id 此前不解析 model，
 // 当 token 启用「可用模型限制」时，下游 modelLimitEnable 校验会因
 // modelRequest.Model 为空而误报 "This token has no access to model"。
@@ -432,6 +658,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+	common.SetContextKey(c, constant.ContextKeyChannelOther, channel.Other)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())

@@ -555,6 +555,83 @@
         "parameters": [],
         "requestBody": {
           "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "description": "模型名称",
+                    "example": "grok-imagine-1.0-video",
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "description": "提示词",
+                    "example": "A doctor speaking to camera in a clean clinic",
+                    "type": "string"
+                  },
+                  "images": {
+                    "description": "参考图片 URL 或 data:image/...;base64,... 数组。Grok/Qilin 渠道会在内部自动转换为 image_reference；新版 Grok 插件上限为 7 张。",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "aspect_ratio": {
+                    "description": "画幅比例。Grok/Qilin 渠道支持 9:16、16:9、1:1、4:3、3:4、21:9，并会自动映射到 size。",
+                    "example": "9:16",
+                    "type": "string"
+                  },
+                  "ratio": {
+                    "description": "兼容麒麟插件的画幅比例字段；未传 size 时按 aspect_ratio 同样规则映射。",
+                    "example": "9:16",
+                    "type": "string"
+                  },
+                  "size": {
+                    "description": "视频尺寸。Grok/Qilin 推荐 720x1280、1280x720、1024x1024；新版插件还映射 1152x864、864x1152、1680x720。",
+                    "example": "720x1280",
+                    "type": "string"
+                  },
+                  "seconds": {
+                    "description": "生成秒数。Grok 支持 6、10、15、20、30；20/30 秒会自动转长时长传输模型。",
+                    "example": "6",
+                    "type": "string"
+                  },
+                  "duration": {
+                    "description": "生成秒数，Grok/Qilin 会和 seconds 互补；20/30 秒会自动转长时长传输模型。",
+                    "example": 6,
+                    "type": "integer"
+                  },
+                  "resolution": {
+                    "description": "分辨率档位。Grok/Qilin 未传时默认 720p。",
+                    "example": "720p",
+                    "type": "string"
+                  },
+                  "quality": {
+                    "description": "Grok/Qilin 原生画质字段，未传时按 resolution 自动补 high 或 standard。",
+                    "example": "high",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "model",
+                  "prompt"
+                ]
+              },
+              "examples": {
+                "grokReference": {
+                  "summary": "Grok 参考图视频",
+                  "value": {
+                    "model": "grok-imagine-1.0-video",
+                    "prompt": "Use the provided reference image as the doctor identity. No subtitles.",
+                    "images": [
+                      "https://example.com/reference.png"
+                    ],
+                    "aspect_ratio": "9:16",
+                    "seconds": "6"
+                  }
+                }
+              }
+            },
             "multipart/form-data": {
               "schema": {
                 "type": "object",
