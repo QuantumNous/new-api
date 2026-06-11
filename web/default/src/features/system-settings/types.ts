@@ -317,6 +317,9 @@ export type OperationsSettings = {
   'monitor_setting.dingtalk_alert_webhook_url': string
   'monitor_setting.dingtalk_alert_secret': string
   'monitor_setting.dingtalk_alert_cooldown_minutes': number
+  'monitor_setting.ai_analysis_api_key': string
+  'monitor_setting.ai_analysis_base_url': string
+  'monitor_setting.ai_analysis_model': string
   'codex_model_governance_setting.enabled': boolean
   'codex_model_governance_setting.probe_enabled': boolean
   'codex_model_governance_setting.probe_interval_minutes': number

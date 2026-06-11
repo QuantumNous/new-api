@@ -110,6 +110,9 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Cooldown must be at least 1 minute'),
+      ai_analysis_api_key: z.string(),
+      ai_analysis_base_url: z.string(),
+      ai_analysis_model: z.string(),
     }),
     codex_model_governance_setting: z.object({
       enabled: z.boolean(),
@@ -173,6 +176,16 @@ const monitoringSchema = z
         message: 'Enter a valid http or https URL',
       })
     }
+
+    const aiAnalysisBaseURL =
+      values.monitor_setting.ai_analysis_base_url.trim()
+    if (aiAnalysisBaseURL !== '' && !isValidHttpUrl(aiAnalysisBaseURL)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['monitor_setting', 'ai_analysis_base_url'],
+        message: 'Enter a valid http or https URL',
+      })
+    }
   })
 
 type MonitoringFormValues = z.output<typeof monitoringSchema>
@@ -195,6 +208,9 @@ type MonitoringSettingsSectionProps = {
     'monitor_setting.dingtalk_alert_webhook_url': string
     'monitor_setting.dingtalk_alert_secret': string
     'monitor_setting.dingtalk_alert_cooldown_minutes': number
+    'monitor_setting.ai_analysis_api_key': string
+    'monitor_setting.ai_analysis_base_url': string
+    'monitor_setting.ai_analysis_model': string
     'codex_model_governance_setting.enabled': boolean
     'codex_model_governance_setting.probe_enabled': boolean
     'codex_model_governance_setting.probe_interval_minutes': number
@@ -225,6 +241,9 @@ type NormalizedMonitoringValues = {
   'monitor_setting.dingtalk_alert_webhook_url': string
   'monitor_setting.dingtalk_alert_secret': string
   'monitor_setting.dingtalk_alert_cooldown_minutes': number
+  'monitor_setting.ai_analysis_api_key': string
+  'monitor_setting.ai_analysis_base_url': string
+  'monitor_setting.ai_analysis_model': string
   'codex_model_governance_setting.enabled': boolean
   'codex_model_governance_setting.probe_enabled': boolean
   'codex_model_governance_setting.probe_interval_minutes': number
@@ -456,6 +475,11 @@ const buildFormDefaults = (
       defaults['monitor_setting.dingtalk_alert_secret'] ?? '',
     dingtalk_alert_cooldown_minutes:
       defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
+    ai_analysis_api_key:
+      defaults['monitor_setting.ai_analysis_api_key'] ?? '',
+    ai_analysis_base_url:
+      defaults['monitor_setting.ai_analysis_base_url'] ?? '',
+    ai_analysis_model: defaults['monitor_setting.ai_analysis_model'] ?? '',
   },
   codex_model_governance_setting: {
     enabled: defaults['codex_model_governance_setting.enabled'] ?? false,
@@ -518,6 +542,15 @@ const normalizeDefaults = (
   ).trim(),
   'monitor_setting.dingtalk_alert_cooldown_minutes':
     defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
+  'monitor_setting.ai_analysis_api_key': (
+    defaults['monitor_setting.ai_analysis_api_key'] ?? ''
+  ).trim(),
+  'monitor_setting.ai_analysis_base_url': (
+    defaults['monitor_setting.ai_analysis_base_url'] ?? ''
+  ).trim(),
+  'monitor_setting.ai_analysis_model': (
+    defaults['monitor_setting.ai_analysis_model'] ?? ''
+  ).trim(),
   'codex_model_governance_setting.enabled':
     defaults['codex_model_governance_setting.enabled'] ?? false,
   'codex_model_governance_setting.probe_enabled':
@@ -583,6 +616,12 @@ const normalizeFormValues = (
     values.monitor_setting.dingtalk_alert_secret.trim(),
   'monitor_setting.dingtalk_alert_cooldown_minutes':
     values.monitor_setting.dingtalk_alert_cooldown_minutes,
+  'monitor_setting.ai_analysis_api_key':
+    values.monitor_setting.ai_analysis_api_key.trim(),
+  'monitor_setting.ai_analysis_base_url':
+    values.monitor_setting.ai_analysis_base_url.trim(),
+  'monitor_setting.ai_analysis_model':
+    values.monitor_setting.ai_analysis_model.trim(),
   'codex_model_governance_setting.enabled':
     values.codex_model_governance_setting.enabled,
   'codex_model_governance_setting.probe_enabled':
@@ -678,7 +717,10 @@ export function MonitoringSettingsSection({
     const updates = (
       Object.keys(normalized) as Array<keyof NormalizedMonitoringValues>
     ).filter((key) => {
-      if (key === 'monitor_setting.dingtalk_alert_secret') {
+      if (
+        key === 'monitor_setting.dingtalk_alert_secret' ||
+        key === 'monitor_setting.ai_analysis_api_key'
+      ) {
         return normalized[key] !== ''
       }
       return !areMonitoringValuesEqual(
@@ -704,8 +746,10 @@ export function MonitoringSettingsSection({
     baselineRef.current = {
       ...normalized,
       'monitor_setting.dingtalk_alert_secret': '',
+      'monitor_setting.ai_analysis_api_key': '',
     }
     form.setValue('monitor_setting.dingtalk_alert_secret', '')
+    form.setValue('monitor_setting.ai_analysis_api_key', '')
   }
 
   return (
@@ -760,9 +804,7 @@ export function MonitoringSettingsSection({
                 </FormItem>
               )}
             />
-          </div>
 
-          <div className='grid gap-6 md:grid-cols-2'>
             <FormField
               control={form.control}
               name='monitor_setting.auto_test_channel_allowed_types'
@@ -815,6 +857,7 @@ export function MonitoringSettingsSection({
                 </FormItem>
               )}
             />
+
           </div>
 
           <div className='grid gap-6 md:grid-cols-2'>
@@ -907,6 +950,83 @@ export function MonitoringSettingsSection({
                   <FormDescription>
                     {t(
                       'Saved DingTalk secrets are not shown. Enter a new signing secret to update it, or leave blank to keep the current one.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='monitor_setting.ai_analysis_api_key'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Monitoring AI analysis API key')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='password'
+                      autoComplete='new-password'
+                      placeholder={t(
+                        'Enter a new API key, or leave blank to keep current'
+                      )}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Saved monitoring AI analysis API keys are not shown. Enter a new API key to update it, or leave blank to keep the current one.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.ai_analysis_base_url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Monitoring AI analysis base URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://api.openai.com/v1'
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Used for Codex official URL AI analysis. Enter a /v1 base URL or a full /responses endpoint.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='monitor_setting.ai_analysis_model'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Monitoring AI analysis model')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='gpt-5.4-mini'
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Model used to analyze official Codex notices for lifecycle changes.'
                     )}
                   </FormDescription>
                   <FormMessage />

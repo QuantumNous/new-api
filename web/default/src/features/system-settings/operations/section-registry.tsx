@@ -71,6 +71,12 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.dingtalk_alert_secret'],
           'monitor_setting.dingtalk_alert_cooldown_minutes':
             settings['monitor_setting.dingtalk_alert_cooldown_minutes'],
+          'monitor_setting.ai_analysis_api_key':
+            settings['monitor_setting.ai_analysis_api_key'],
+          'monitor_setting.ai_analysis_base_url':
+            settings['monitor_setting.ai_analysis_base_url'],
+          'monitor_setting.ai_analysis_model':
+            settings['monitor_setting.ai_analysis_model'],
           'codex_model_governance_setting.enabled':
             settings['codex_model_governance_setting.enabled'],
           'codex_model_governance_setting.probe_enabled':

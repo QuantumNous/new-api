@@ -1,9 +1,13 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,4 +23,178 @@ func TestExtractCodexOfficialNoticeFindingsMatchesConfiguredModels(t *testing.T)
 	require.Equal(t, model.CodexModelGovernanceSourceOfficialCodexNotice, findings[0].Source)
 	require.Equal(t, "retired", findings[0].MatchedRule)
 	require.Contains(t, findings[0].LastError, "gpt-5.3-codex")
+}
+
+func TestExtractCodexOfficialNoticeFindingsByAIUsesStructuredResponse(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/v1/responses", r.URL.Path)
+		require.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"output": [
+				{
+					"type": "message",
+					"content": [
+						{
+							"type": "output_text",
+							"text": "{\"findings\":[{\"model_name\":\"gpt-5.3-codex\",\"lifecycle_term\":\"retired\",\"evidence\":\"gpt-5.3-codex is retired for Codex users.\"}]}"
+						}
+					]
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
+
+	findings, err := ExtractCodexOfficialNoticeFindingsByAI(
+		"Codex update: gpt-5.3-codex is retired for Codex users. gpt-5.4-codex remains available.",
+		[]string{"gpt-5.3-codex", "gpt-5.4-codex"},
+		"https://example.com/codex/changelog",
+		"sk-test",
+	)
+
+	require.NoError(t, err)
+	require.Len(t, findings, 1)
+	require.Equal(t, "gpt-5.3-codex", findings[0].ModelName)
+	require.Equal(t, model.CodexModelGovernanceSourceOfficialCodexNotice, findings[0].Source)
+	require.Equal(t, "ai_analysis:retired", findings[0].MatchedRule)
+	require.Contains(t, findings[0].LastError, "retired for Codex users")
+}
+
+func TestExtractCodexOfficialNoticeFindingsByAIUsesConfiguredEndpointAndModel(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/custom/responses", r.URL.Path)
+		require.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
+
+		var request codexOfficialNoticeAIRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		require.Equal(t, "gpt-configured-monitor", request.Model)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"output_text": "{\"findings\":[{\"model_name\":\"gpt-5.3-codex\",\"lifecycle_term\":\"retired\",\"evidence\":\"gpt-5.3-codex is retired for Codex users.\"}]}"
+		}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", "http://127.0.0.1:9/env")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-env-monitor")
+
+	findings, err := ExtractCodexOfficialNoticeFindingsByAIWithOptions(
+		"Codex update: gpt-5.3-codex is retired for Codex users.",
+		[]string{"gpt-5.3-codex"},
+		"https://example.com/codex/changelog",
+		CodexOfficialNoticeAIOptions{
+			APIKey:  "sk-test",
+			BaseURL: server.URL + "/custom",
+			Model:   "gpt-configured-monitor",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, findings, 1)
+	require.Equal(t, "gpt-5.3-codex", findings[0].ModelName)
+	require.Equal(t, "ai_analysis:retired", findings[0].MatchedRule)
+}
+
+func TestExtractCodexOfficialNoticeFindingsByAIIgnoresModelsOutsideCandidateList(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"output_text": "{\"findings\":[{\"model_name\":\"gpt-invented-codex\",\"lifecycle_term\":\"retired\",\"evidence\":\"not in candidate list\"}]}"
+		}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
+
+	findings, err := ExtractCodexOfficialNoticeFindingsByAI(
+		"gpt-invented-codex is retired.",
+		[]string{"gpt-5.3-codex"},
+		"https://example.com/codex/changelog",
+		"sk-test",
+	)
+
+	require.NoError(t, err)
+	require.Empty(t, findings)
+}
+
+func TestExtractCodexOfficialNoticeFindingsByAIReturnsErrorOnMalformedResponse(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"output_text":"not json"}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
+
+	_, err := ExtractCodexOfficialNoticeFindingsByAI(
+		"gpt-5.3-codex is retired.",
+		[]string{"gpt-5.3-codex"},
+		"https://example.com/codex/changelog",
+		"sk-test",
+	)
+
+	require.Error(t, err)
+}
+
+func TestExtractCodexOfficialNoticeFindingsWithOptionalAIFallsBackToRulesWhenAIUnavailable(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"message":"temporary unavailable"}}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
+
+	findings, usedAI, err := ExtractCodexOfficialNoticeFindingsWithOptionalAI(
+		"Codex update: gpt-5.3-codex will be retired.",
+		[]string{"gpt-5.3-codex"},
+		[]string{"retired"},
+		"https://example.com/codex/changelog",
+		"sk-test",
+	)
+
+	require.True(t, usedAI)
+	require.Error(t, err)
+	require.Len(t, findings, 1)
+	require.Equal(t, "gpt-5.3-codex", findings[0].ModelName)
+	require.Equal(t, "retired", findings[0].MatchedRule)
+}
+
+func TestExtractCodexOfficialNoticeFindingsWithOptionalAIUsesRulesWithoutAPIKey(t *testing.T) {
+	findings, usedAI, err := ExtractCodexOfficialNoticeFindingsWithOptionalAI(
+		"Codex update: gpt-5.3-codex will be retired.",
+		[]string{"gpt-5.3-codex"},
+		[]string{"retired"},
+		"https://example.com/codex/changelog",
+		"",
+	)
+
+	require.False(t, usedAI)
+	require.NoError(t, err)
+	require.Len(t, findings, 1)
+	require.Equal(t, "gpt-5.3-codex", findings[0].ModelName)
+}
+
+func allowCodexOfficialNoticeAITestServer(t *testing.T) {
+	t.Helper()
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() {
+		*system_setting.GetFetchSetting() = original
+	})
+	system_setting.GetFetchSetting().EnableSSRFProtection = false
 }

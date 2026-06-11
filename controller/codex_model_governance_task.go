@@ -138,7 +138,20 @@ func runCodexOfficialNoticeMonitorOnce() {
 			common.SysError("Codex official notice monitor cannot fetch source: " + err.Error())
 			continue
 		}
-		findings := service.ExtractCodexOfficialNoticeFindings(body, modelNames, setting.OfficialLifecycleTerms)
+		findings, usedAI, err := service.ExtractCodexOfficialNoticeFindingsWithOptionalAIWithOptions(
+			body,
+			modelNames,
+			setting.OfficialLifecycleTerms,
+			sourceURL,
+			service.CodexOfficialNoticeAIOptions{
+				APIKey:  operation_setting.GetMonitorAIAnalysisAPIKey(),
+				BaseURL: operation_setting.GetMonitorAIAnalysisBaseURL(),
+				Model:   operation_setting.GetMonitorAIAnalysisModel(),
+			},
+		)
+		if usedAI && err != nil {
+			common.SysError("Codex official notice AI analysis failed, falling back to keyword rules: " + err.Error())
+		}
 		for _, finding := range findings {
 			if _, err := service.MoveCodexModelToPendingReview(finding); err != nil {
 				common.SysError(fmt.Sprintf("Codex official notice monitor failed to mark %s pending: %v", finding.ModelName, err))

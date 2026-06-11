@@ -33,6 +33,30 @@ func TestMonitorSettingLoadsDingTalkFieldsFromConfigMap(t *testing.T) {
 	require.Equal(t, 15.0, setting.DingTalkAlertCooldownMinutes)
 }
 
+func TestMonitorSettingLoadsAIAnalysisAPIKeyFromConfigMap(t *testing.T) {
+	setting := &MonitorSetting{}
+
+	err := config.UpdateConfigFromMap(setting, map[string]string{
+		"ai_analysis_api_key": "sk-monitor",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "sk-monitor", setting.AIAnalysisAPIKey)
+}
+
+func TestMonitorSettingLoadsAIAnalysisEndpointFieldsFromConfigMap(t *testing.T) {
+	setting := &MonitorSetting{}
+
+	err := config.UpdateConfigFromMap(setting, map[string]string{
+		"ai_analysis_base_url": "https://ai-gateway.example.com/v1",
+		"ai_analysis_model":    "gpt-monitor",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "https://ai-gateway.example.com/v1", setting.AIAnalysisBaseURL)
+	require.Equal(t, "gpt-monitor", setting.AIAnalysisModel)
+}
+
 func TestMonitorSettingLoadsChannelTypeFiltersFromConfigMap(t *testing.T) {
 	setting := &MonitorSetting{}
 
