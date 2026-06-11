@@ -34,7 +34,9 @@ func TestGetLogAttribution_ByUser(t *testing.T) {
 	truncateTables(t)
 	seedAttributionLogs(t)
 
-	total, rows, err := GetLogAttribution(AttributionFilter{Dimension: "user"})
+	// Start: 1 opts into full history (seed uses fixed epoch-era timestamps);
+	// without it the default time window would exclude the seeded rows.
+	total, rows, err := GetLogAttribution(AttributionFilter{Dimension: "user", Start: 1})
 	require.NoError(t, err)
 	assert.EqualValues(t, 180, total.Quota)
 	assert.EqualValues(t, 3, total.Count) // error log excluded
@@ -51,7 +53,7 @@ func TestGetLogAttribution_ByModel(t *testing.T) {
 	truncateTables(t)
 	seedAttributionLogs(t)
 
-	_, rows, err := GetLogAttribution(AttributionFilter{Dimension: "model"})
+	_, rows, err := GetLogAttribution(AttributionFilter{Dimension: "model", Start: 1})
 	require.NoError(t, err)
 	gpt, ok := findRow(rows, "gpt")
 	require.True(t, ok)
@@ -69,6 +71,7 @@ func TestGetLogAttribution_TokenDrillToModel(t *testing.T) {
 		Dimension: "token",
 		Sub:       "model",
 		ParentId:  "10",
+		Start:     1,
 	})
 	require.NoError(t, err)
 	assert.EqualValues(t, 120, total.Quota) // only token 10
@@ -85,7 +88,7 @@ func TestGetLogAttributionTrend_ByModel(t *testing.T) {
 	truncateTables(t)
 	seedAttributionLogs(t)
 
-	trend, err := GetLogAttributionTrend(AttributionFilter{Dimension: "model", Top: 5})
+	trend, err := GetLogAttributionTrend(AttributionFilter{Dimension: "model", Top: 5, Start: 1})
 	require.NoError(t, err)
 	require.Len(t, trend.Buckets, 2) // dayA, dayB
 	assert.Equal(t, int64(86400*100), trend.Buckets[0])
@@ -107,9 +110,32 @@ func TestGetLogAttribution_FilterByUsername(t *testing.T) {
 	truncateTables(t)
 	seedAttributionLogs(t)
 
-	total, rows, err := GetLogAttribution(AttributionFilter{Dimension: "model", Username: "bob"})
+	total, rows, err := GetLogAttribution(AttributionFilter{Dimension: "model", Username: "bob", Start: 1})
 	require.NoError(t, err)
 	assert.EqualValues(t, 60, total.Quota)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "gpt", rows[0].Key)
+}
+
+func TestNormalizeAttributionFilter_BoundsTopAndWindow(t *testing.T) {
+	// Oversized Top is hard-capped; missing Start gets a default lower bound.
+	got := normalizeAttributionFilter(AttributionFilter{Top: 99999})
+	assert.EqualValues(t, attributionMaxTop, got.Top)
+	assert.Positive(t, got.Start)
+
+	// Explicit Start and an under-cap Top are preserved as-is.
+	got = normalizeAttributionFilter(AttributionFilter{Top: 10, Start: 12345})
+	assert.EqualValues(t, 10, got.Top)
+	assert.EqualValues(t, 12345, got.Start)
+}
+
+func TestGetLogAttribution_DefaultWindowExcludesOldLogs(t *testing.T) {
+	truncateTables(t)
+	seedAttributionLogs(t) // fixed epoch-era timestamps, far outside the default window
+
+	// No Start provided => default time window excludes the ancient seeded rows.
+	total, rows, err := GetLogAttribution(AttributionFilter{Dimension: "user"})
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, total.Quota)
+	assert.Len(t, rows, 0)
 }

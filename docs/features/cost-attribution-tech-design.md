@@ -1,8 +1,7 @@
 # 成本归因（P1）— 技术设计文档
 
 > 配套需求文档：`cost-attribution.md`
-> 分支：`feature/ai-cost-radar`
-> 目标：在「使用日志」页新增「成本归因」Tab，按 用户 / 令牌 / 模型 三维聚合成本，支持组合下钻与趋势，纯读 `logs` 表，管理员鉴权，三库兼容。
+> 目标：在「数据看板」页新增「成本归因」Tab，按 用户 / 令牌 / 模型 三维聚合成本，支持组合下钻与趋势，纯读 `logs` 表，管理员鉴权，三库兼容。
 
 ---
 
@@ -10,7 +9,7 @@
 
 - **数据来源**：`logs` 表（位于 `LOG_DB`），仅统计 `type = LogTypeConsume`（=2）。**不新增表、不改 schema、不依赖 `request_details`。**
 - **后端**：新增聚合查询函数（`model/log.go`）+ 控制器（`controller/log.go`）+ 路由（`router/api-router.go`，挂 `logRoute` + `AdminAuth()`）。
-- **前端**：`web/default/src/features/usage-logs` 内新增「成本归因」Tab 视图，复用筛选状态、React Query、图表/表格组件、i18n。
+- **前端**：`web/default/src/features/dashboard` 内新增「成本归因」section（与 概览/模型调用分析/用户统计 并列，仅管理员），复用看板时间预设、React Query、VChart 主题、i18n。
 - **复用**：聚合的过滤条件复用现有 `GetAllLogs` / `SumUsedQuota` 的筛选语义（时间、用户名、令牌名、模型名、渠道、分组）。
 
 ---
@@ -231,19 +230,16 @@ logRoute.GET("/attribution/trend", middleware.AdminAuth(), controller.GetLogAttr
 
 ---
 
-## 7. 前端（`web/default/src/features/usage-logs`）
+## 7. 前端（`web/default/src/features/dashboard`）
 
 ### 7.1 结构
-- 在日志页主组件加 **Tab**：`日志明细`（现有）/ `成本归因`（新）。筛选栏状态上提，两个 Tab 共享。
-- 新增 `components/attribution/`：
-  - `attribution-view.tsx`：容器（维度选择器 + 卡片 + 趋势 + 排行表）。
-  - `attribution-summary.tsx`：汇总卡片。
-  - `attribution-table.tsx`：可展开行的排行表（展开触发下钻请求）。
-  - `attribution-trend.tsx`：趋势折线（复用项目现有图表库）。
+- 在看板 `section-registry.tsx` 注册 `attribution` section（`adminOnly`），与 概览/模型调用分析/用户统计 并列；`index.tsx` 加管理员门控、懒加载与渲染分支。
+- 新增 `components/attribution/attribution-charts.tsx`：容器组件（维度选择器 + 时间预设 + Top-N + 汇总卡片 + VChart 趋势 + 可展开下钻排行表）。
+- 新增 `lib/attribution-chart.ts`：按看板 VChart 约定构建趋势图 spec。
 
 ### 7.2 数据
-- `api.ts` 新增 `getLogAttribution(params)`、`getLogAttributionTrend(params)`。
-- React Query：`queryKey` 含维度 + 全部过滤条件；下钻用独立 query（`queryKey` 含 `parentId`），点击展开时 `enabled`。
+- `dashboard/api.ts` 新增 `getLogAttribution(params)`、`getLogAttributionTrend(params)`。
+- React Query：`queryKey` 含维度 + 时间范围；下钻用独立 query（`queryKey` 含 `parentKey`），点击展开时按需请求。
 
 ### 7.3 展示
 - 金额：`quota / QuotaPerUnit`，复用日志页现有金额格式化。
@@ -257,7 +253,7 @@ logRoute.GET("/attribution/trend", middleware.AdminAuth(), controller.GetLogAttr
 - `model/log.go`：新增 `AttributionFilter`、`GetLogAttribution`、`GetLogAttributionTrend` 及辅助函数。
 - `controller/log.go`：新增 `GetLogAttribution`、`GetLogAttributionTrend`。
 - `router/api-router.go`：注册 2 个路由（AdminAuth）。
-- `web/default/src/features/usage-logs/`：Tab + 归因视图组件 + `api.ts` + `types.ts`。
+- `web/default/src/features/dashboard/`：section 注册 + `components/attribution/attribution-charts.tsx` + `lib/attribution-chart.ts` + `api.ts` + `types.ts`。
 - `web/default/src/i18n/locales/*.json`：新增文案（6 语言）。
 - `docs/features/cost-attribution*.md`：本套文档。
 

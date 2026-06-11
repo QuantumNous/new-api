@@ -263,9 +263,23 @@ function RankingTable(props: {
                 <tr
                   className={cn(
                     'border-t',
-                    canDrill && 'hover:bg-muted/40 cursor-pointer'
+                    canDrill &&
+                      'hover:bg-muted/40 focus-visible:bg-muted/40 cursor-pointer outline-none'
                   )}
                   onClick={canDrill ? () => toggle(row.key) : undefined}
+                  onKeyDown={
+                    canDrill
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            toggle(row.key)
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={canDrill ? 0 : undefined}
+                  role={canDrill ? 'button' : undefined}
+                  aria-expanded={canDrill ? isOpen : undefined}
                 >
                   <td className='px-3 py-2'>
                     <div className='flex items-center gap-1.5'>

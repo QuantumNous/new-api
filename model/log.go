@@ -662,10 +662,33 @@ const attributionAggSelect = "COALESCE(SUM(quota),0) AS quota, " +
 	"COALESCE(SUM(completion_tokens),0) AS completion_tokens, " +
 	"COUNT(*) AS cnt"
 
+const (
+	// attributionMaxTop hard-caps how many ranked rows / trend series a single
+	// request may pull, so a crafted "top" value cannot force a huge scan/sort.
+	attributionMaxTop = 200
+	// attributionDefaultWindowSec bounds the lower time edge when the caller
+	// omits a start timestamp, avoiding a full consume-log history scan.
+	attributionDefaultWindowSec int64 = 30 * 86400
+)
+
+// normalizeAttributionFilter applies defensive bounds shared by all attribution
+// queries (totals / ranking / drill-down / trend): a hard Top cap and a default
+// time window when no start timestamp is provided.
+func normalizeAttributionFilter(f AttributionFilter) AttributionFilter {
+	if f.Top > attributionMaxTop {
+		f.Top = attributionMaxTop
+	}
+	if f.Start <= 0 {
+		f.Start = time.Now().Unix() - attributionDefaultWindowSec
+	}
+	return f
+}
+
 // GetLogAttribution returns the totals plus the per-key ranking for the chosen
 // dimension. When Sub+ParentId are set, it returns the breakdown of that parent
 // by the Sub dimension (e.g. one token's per-model composition).
 func GetLogAttribution(f AttributionFilter) (AttributionTotal, []AttributionRow, error) {
+	f = normalizeAttributionFilter(f)
 	var total AttributionTotal
 	drill := f.Sub != "" && f.ParentId != ""
 
@@ -724,6 +747,7 @@ func GetLogAttribution(f AttributionFilter) (AttributionTotal, []AttributionRow,
 // GetLogAttributionTrend returns a daily-bucketed quota series for the Top-N keys
 // of the primary dimension.
 func GetLogAttributionTrend(f AttributionFilter) (AttributionTrend, error) {
+	f = normalizeAttributionFilter(f)
 	out := AttributionTrend{Buckets: []int64{}, Series: []AttributionSeries{}}
 	keyCol, _, err := attributionColumns(f.Dimension)
 	if err != nil {
