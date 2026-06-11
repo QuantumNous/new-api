@@ -170,6 +170,92 @@ func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor,
 	}
 }
 
+func CountClaudeTokens(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (int, *types.NewAPIError) {
+	awsReq, awsCli, err := buildAwsCountTokensInput(c, info, requestBody)
+	if err != nil {
+		var newAPIError *types.NewAPIError
+		if errors.As(err, &newAPIError) {
+			return 0, newAPIError
+		}
+		return 0, types.NewErrorWithStatusCode(err, types.ErrorCodeBadRequestBody, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	ctx, cancel := newAwsInvokeContext()
+	defer cancel()
+
+	awsResp, err := awsCli.CountTokens(ctx, awsReq)
+	if err != nil {
+		statusCode := getAwsErrorStatusCode(err)
+		return 0, types.NewOpenAIError(errors.Wrap(err, "CountTokens"), types.ErrorCodeAwsInvokeError, statusCode)
+	}
+	if awsResp == nil || awsResp.InputTokens == nil {
+		return 0, types.NewErrorWithStatusCode(errors.New("empty CountTokens response"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	return int(*awsResp.InputTokens), nil
+}
+
+func buildAwsCountTokensInput(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*bedrockruntime.CountTokensInput, *bedrockruntime.Client, error) {
+	awsCli, err := newAwsClient(c, info)
+	if err != nil {
+		return nil, nil, types.NewError(err, types.ErrorCodeChannelAwsClientError)
+	}
+
+	awsModelId := getAwsCountTokensModelID(info.UpstreamModelName)
+	if !isAwsClaudeModel(awsModelId) {
+		return nil, nil, fmt.Errorf("AWS Bedrock count_tokens only supports Claude models, got %s", info.UpstreamModelName)
+	}
+
+	requestHeader := http.Header{}
+	adaptor := &Adaptor{}
+	if err := adaptor.SetupRequestHeader(c, &requestHeader, info); err != nil {
+		return nil, nil, types.NewError(err, types.ErrorCodeChannelAwsClientError)
+	}
+	headerOverride, err := channel.ResolveHeaderOverride(info, c)
+	if err != nil {
+		return nil, nil, err
+	}
+	for key, value := range headerOverride {
+		requestHeader.Set(key, value)
+	}
+
+	awsClaudeReq, err := formatRequest(requestBody, requestHeader)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "format aws count_tokens request fail")
+	}
+	body, err := buildAwsRequestBody(c, info, awsClaudeReq)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "marshal aws count_tokens request fail")
+	}
+
+	return &bedrockruntime.CountTokensInput{
+		ModelId: aws.String(awsModelId),
+		Input: &bedrockruntimeTypes.CountTokensInputMemberInvokeModel{
+			Value: bedrockruntimeTypes.InvokeModelTokensRequest{
+				Body: body,
+			},
+		},
+	}, awsCli, nil
+}
+
+func isAwsClaudeModel(modelId string) bool {
+	modelId = strings.ToLower(modelId)
+	return strings.Contains(modelId, "claude") && !isNovaModel(modelId)
+}
+
+func getAwsCountTokensModelID(requestModel string) string {
+	return normalizeAwsFoundationModelID(getAwsModelID(requestModel))
+}
+
+func normalizeAwsFoundationModelID(modelId string) string {
+	lowerModelId := strings.ToLower(modelId)
+	for _, prefix := range []string{"global.", "us.", "eu.", "apac.", "au."} {
+		if strings.HasPrefix(lowerModelId, prefix+"anthropic.") || strings.HasPrefix(lowerModelId, prefix+"amazon.") {
+			return modelId[len(prefix):]
+		}
+	}
+	return modelId
+}
+
 // buildAwsRequestBody prepares the payload for AWS requests, applying passthrough rules when enabled.
 func buildAwsRequestBody(c *gin.Context, info *relaycommon.RelayInfo, awsClaudeReq any) ([]byte, error) {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
