@@ -86,7 +86,12 @@
 
 ### 3.4 `GET /usage/transactions`（分页）
 
-**入参**：`start`、`end`（同上）；`page`（默认 1）；`page_size`（默认 **100**，上限 **500**，超出截断）。
+**入参**：
+
+- 推荐 cursor 模式：`start`、`end`（同上）；`limit`（上限 **1000**，超出截断）；`cursor`（上一页返回的 opaque cursor，首请求不传）。
+- 兼容 page 模式：`page`（默认 1）；`page_size`（默认 **100**，上限 **500**，超出截断）。
+
+当请求包含 `limit` 或 `cursor` 时走 cursor 模式；否则走旧 page 模式。
 
 **响应**：
 
@@ -109,12 +114,12 @@
       "metadata": { "channel_id": 34, "channel_name": "blockRun-claude-0603" }
     }
   ],
-  "pagination": { "page": 1, "page_size": 100, "total_pages": 1533, "total_count": 153284, "has_more": true },
+  "pagination": { "mode": "cursor", "limit": 1000, "next_cursor": "opaque-next-cursor", "has_more": true },
   "generated_at": "2026-06-01T10:20:00Z"
 }
 ```
 
-排序：`created_at ASC, id ASC`（稳定翻页）。
+排序：`created_at ASC, id ASC`（稳定翻页；`source_id` 即 `logs.id`）。
 
 ---
 
@@ -140,7 +145,7 @@
 | `status`（transactions） | 默认 `"success"`；`Other.stream_status.status=="error"` → `"error"` | |
 | `metadata`（transactions） | `{channel_id, channel_name}` | 放 new-api 确有的；**不含 chain** |
 | `generated_at` | 当前 UTC | RFC3339 |
-| `pagination`（transactions） | GORM `Count` + `Limit/Offset` | total_pages=⌈total/page_size⌉；has_more=page<total_pages |
+| `pagination`（transactions） | cursor 模式：`Limit(limit+1)` + `(created_at,id)` seek；page 兼容模式：GORM `Count` + `Limit/Offset` | cursor 模式不做深 offset；page 模式保留 total_pages=⌈total/page_size⌉ |
 
 - 成本字符串：`shopspring/decimal`，10 位小数。
 
@@ -154,14 +159,14 @@
 ### 5.2 做法
 - **共享**：token 守护、ISO 时间解析、BlockRun 渠道集合解析、`Other` 解析（缓存 token / upstream_model_name / stream_status）、成本换算（actual=Quota/500000）。
 - **summary**：GORM `Rows()` **流式扫描**范围内匹配行 → Go 侧逐行解析 `Other`、按 model_name / token_id 增量累加 `totals`/`by_model`/`by_api_key`（内存只与分组数有关，不随行数膨胀）。
-- **transactions**：GORM `Count` 取 total_count；`Order(created_at,id).Limit(page_size).Offset((page-1)*page_size)` 取当前页（≤500 行物化）→ 逐行解析 `Other` 组装明细 + 分页元信息。
+- **transactions**：推荐 cursor 模式，使用 `(created_at,id)` 作为稳定游标，`Order(created_at,id).Limit(limit+1)` 判断 `has_more`，返回 opaque `next_cursor`；旧 page 模式保留 `Count` + `Limit/Offset` 兼容已有调用。
 
 ### 5.3 性能与索引（已评审）
 - **命中索引**：查询 `WHERE type AND channel_id IN(...) AND created_at∈[start,end) ORDER BY created_at,id` 由现有 **`idx_created_at_id (created_at,id)`** 服务——`created_at` 前导列限定时间窗范围扫描，`ORDER BY` 被该索引覆盖**无 filesort**；`type`/`channel_id` 为残余过滤。`Count` 同走该索引。
 - **不新增索引**（已评审）：理论最优是 `(channel_id, created_at)` 复合索引，但需在生产巨大且高频写入的 `logs` 表上 ALTER 加索引（成本/锁风险），**本期不加**；靠 `idx_created_at_id` + 时间窗 + 流式足够。后续若 profiling 显示时间窗内非 blockrun 行占比过高再评估。
 - **列裁剪**：summary 仅 `SELECT model_name, token_id, token_name, prompt_tokens, completion_tokens, quota, other`，跳过 content/ip/username/upstream_request_id 等大列。
 - **范围上限**：`end-start` > **31 天** → 400（防超长区间扫描/OOM）。
-- **主要 CPU 成本**：逐行 `Other` JSON 解析（day 级范围可接受；范围上限兜底）。深翻页 OFFSET 有丢弃成本，对账偶发可接受，必要时后续改 keyset。
+- **主要 CPU 成本**：逐行 `Other` JSON 解析（day 级范围可接受；范围上限兜底）。高流量对账必须使用 cursor 模式，避免深翻页 OFFSET 丢弃成本。
 
 ---
 
@@ -185,10 +190,10 @@
 ## 7. 测试策略（SQLite 内存库，验证跨库可移植）
 
 - **认证**：未配 env→503、错 token→401、`Bearer` 正确→200。
-- **参数**：缺 start/end→400、end≤start→400、非法 ISO→400；`page_size>500` 截断为 500、缺省为 100。
+- **参数**：缺 start/end→400、end≤start→400、非法 ISO→400；cursor 模式缺 `limit` 或非法 cursor→400；`limit>1000` 截断为 1000；page 模式 `page_size>500` 截断为 500、缺省为 100。
 - **范围**：只统计 BlockRun 系渠道（类型名前缀 blockrun，大小写不敏感）；非 blockrun 渠道日志不计入。
 - **summary**：mock 多渠道多模型多 token 日志，断言 totals/by_model/by_api_key 分组、四类 token+total、缓存从 `Other` 解析、`actual_cost`=ΣQuota/500000、响应**不含** total_cost。
-- **transactions**：断言分页（total_count/total_pages/has_more）、排序、逐字段映射（transaction_id/model/requested_model/status/duration_ms/metadata）、缓存解析、**不含** total_cost/chain。
+- **transactions**：断言 cursor 分页（mode/limit/next_cursor/has_more）、旧 page 分页（total_count/total_pages/has_more）、排序、逐字段映射（source_id/model/requested_model/status/duration_ms/channel_id/channel_name）、缓存解析、**不含** total_cost/chain。
 
 ---
 
@@ -204,7 +209,7 @@
 | 6 | `provider` | 常量 `"flatkey-newapi"` |
 | 7 | `metadata` | 放 new-api 确有的 `{channel_id, channel_name}`，**不含 chain** |
 | 8 | `status` | 默认 `success`，`Other.stream_status` 标 error 时反映 `error` |
-| 9 | 分页 | `page` 默认 1；`page_size` 默认 100、上限 500；排序 `created_at,id` 升序 |
+| 9 | 分页 | 推荐 cursor 模式：`limit` 上限 1000、opaque `next_cursor`；兼容 page 模式：`page` 默认 1、`page_size` 默认 100/上限 500；排序 `created_at,id` 升序 |
 | 10 | 精度限制 | `created_at` 秒精度(`.000Z`)、`duration_ms`=use_time×1000（秒级） |
 | 11 | `transaction_id` | `"txn_" + 日志id` |
 | 12 | 性能 | 流式扫描(`Rows()`)+列裁剪；命中 `idx_created_at_id`，无 filesort |

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-10 -->
 
 # types
 
@@ -9,7 +9,7 @@
 ## Key Files
 | File | Description |
 |------|-------------|
-| `error.go` | **核心错误体系**。定义 `NewAPIError`、`OpenAIError`、`ClaudeError`；`ErrorType`（`new_api_error`/`openai_error`/`claude_error`/`midjourney_error`/`gemini_error`/`rerank_error`/`upstream_error`）和 `ErrorCode` 枚举（30+ 错误码，按 request/billing/channel/relay/response/data 分组）；构造函数 `NewError`、`NewOpenAIError`、`InitOpenAIError`、`NewErrorWithStatusCode`、`WithOpenAIError`、`WithClaudeError`；选项函数 `ErrOptionWithSkipRetry`、`ErrOptionWithNoRecordErrorLog`、`ErrOptionWithStatusCode`、`ErrOptionWithHideErrMsg`；判断函数 `IsSkipRetryError`、`IsChannelError`、`IsRecordErrorLog` |
+| `error.go` | **核心错误体系**。定义 `NewAPIError`、`OpenAIError`、`ClaudeError`；`ErrorType`（`new_api_error`/`openai_error`/`claude_error`/`midjourney_error`/`gemini_error`/`rerank_error`/`upstream_error`）和 `ErrorCode` 枚举（30+ 错误码，按 request/billing/channel/relay/response/data 分组）；新增错误码：`ErrorCodeModelOfficiallyUnsupported`（`model_officially_unsupported`，上游明确返回模型不支持，由模型可用性检测任务使用）、`ErrorCodeViolationFeeGrokCSAM`（`violation_fee.grok.csam`，Grok CSAM 违规费用）；构造函数 `NewError`、`NewOpenAIError`、`InitOpenAIError`、`NewErrorWithStatusCode`、`WithOpenAIError`、`WithClaudeError`；选项函数 `ErrOptionWithSkipRetry`、`ErrOptionWithNoRecordErrorLog`、`ErrOptionWithStatusCode`、`ErrOptionWithHideErrMsg`；判断函数 `IsSkipRetryError`、`IsChannelError`、`IsRecordErrorLog` |
 | `relay_format.go` | `RelayFormat` 字符串枚举，标识请求走哪条 relay 路径（`openai`、`claude`、`gemini`、`openai_responses`、`openai_responses_compaction`、`openai_audio`、`openai_image`、`openai_realtime`、`embedding`、`rerank`、`task`、`mj_proxy`） |
 | `file_source.go` | `FileSource` 类型及其枚举值，标识文件数据来源（URL、base64、上传等） |
 | `file_data.go` | 文件数据传递结构体 |
@@ -22,7 +22,7 @@
 ## For AI Agents
 
 ### Working In This Directory
-- **错误构造**：整个项目的错误处理统一使用 `types.NewAPIError` 体系。新增错误场景时，在 `error.go` 的 `ErrorCode` 块追加常量，再用 `types.NewError`/`types.NewOpenAIError` 构造，勿自行定义新错误类型。
+- **错误构造**：整个项目的错误处理统一使用 `types.NewAPIError` 体系。新增错误场景时，在 `error.go` 的 `ErrorCode` 块追加常量，再用 `types.NewError`/`types.NewOpenAIError` 构造，勿自行定义新错误类型。`ErrorCodeModelOfficiallyUnsupported` 专供模型可用性检测任务（`controller/model_availability_task.go`）使用，表示上游明确拒绝该模型。
 - **错误选项模式**：使用 `ErrOptionWithSkipRetry()`、`ErrOptionWithStatusCode()` 等函数式选项来定制错误行为，不直接修改 `NewAPIError` 字段。
 - **仅需错误码无来源错误时**：用 `InitOpenAIError(errorCode, statusCode, ops...)` 代替 `NewOpenAIError`，不传入原始 `error`。
 - **Rule 1**：`error.go` 内部调用 `common.MaskSensitiveInfo`，如需序列化错误，仍须走 `common.Marshal`。

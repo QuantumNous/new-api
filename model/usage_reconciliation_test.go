@@ -107,6 +107,14 @@ func TestQueryAndCountBlockRunUsageLogs(t *testing.T) {
 	if len(paged) != 1 || paged[0].ModelName != "m1" {
 		t.Fatalf("paged page1 = %v", paged)
 	}
+
+	after, err := QueryBlockRunUsageLogsAfterCursor(ids, 1000, 2000, 10, paged[0].CreatedAt, paged[0].Id)
+	if err != nil {
+		t.Fatalf("cursor page: %v", err)
+	}
+	if len(after) != 1 || after[0].ModelName != "m2" {
+		t.Fatalf("cursor page = %v, want [m2]", after)
+	}
 }
 
 func TestGetBlockRunEnabledModelChannels(t *testing.T) {

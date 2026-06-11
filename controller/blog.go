@@ -38,3 +38,12 @@ func GetBlogPost(c *gin.Context) {
 	}
 	common.ApiSuccess(c, result)
 }
+
+func GetBlogCategories(c *gin.Context) {
+	result, err := service.FetchBlogCategories(service.NewBlogCategoryParams())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}

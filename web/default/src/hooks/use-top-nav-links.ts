@@ -71,6 +71,11 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Console'), href: '/dashboard' })
   }
 
+  // Blog
+  if (modules?.blog !== false) {
+    links.push({ title: t('Blog'), href: '/blog' })
+  }
+
   // Pricing
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {

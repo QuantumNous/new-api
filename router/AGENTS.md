@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-10 -->
 
 # router
 
@@ -10,11 +10,11 @@ router 层是 new-api 分层架构（Router→Controller→Service→Model）的
 | File | Description |
 |------|-------------|
 | `main.go` | 根路由注册入口：`SetRouter()` 依次调用各子路由注册函数，并处理 `FRONTEND_BASE_URL` 环境变量（主节点忽略，slave 节点重定向到外部前端） |
-| `api-router.go` | `/api` 路由组：用户认证（注册/登录/OAuth/Passkey/2FA）、令牌管理、系统配置、日志查询、充值/订阅/支付 Webhook、渠道管理（管理员）、供应商/模型/部署管理、对账 token 用量、签到、排行榜、预填组、Codex OAuth/用量、性能/Perf-Metrics 等全部管理 API |
+| `api-router.go` | `/api` 路由组：用户认证（注册/登录/OAuth/Passkey/2FA）、令牌管理、系统配置、日志查询、充值/订阅/支付 Webhook、渠道管理（管理员）、供应商/模型/部署管理、对账 token 用量、签到、排行榜、预填组、Codex OAuth/用量、性能/Perf-Metrics 等全部管理 API；新增博客路由组（`/api/blog/list`、`/api/blog/detail/:slug`，匿名可访问）；新增发票资料路由（用户自助 `/user/invoice-profile`、补开发票 `/user/topup/:trade_no/invoice`、管理员 `/user/:id/invoice-profile`）；`/api/oauth/:provider` 统一路由支持 Google 等新增 OAuth 提供商 |
 | `relay-router.go` | `/v1`、`/v1beta` 路由组：AI 中继请求（chat completions、embeddings、images、audio、responses、realtime WebSocket、rerank），Gemini 原生格式（`/v1beta/models`），Claude 原生 `/v1/messages`，Playground（`/pg`） |
 | `dashboard.go` | `/dashboard` 路由组：OpenAI 兼容的 billing/subscription 接口，供第三方客户端查询余额 |
 | `video-router.go` | 视频相关路由：`/v1/videos/:task_id/content`（匿名视频代理，IP 限流）、`/v1/video/generations`（视频生成，需 TokenAuth+Distribute）、视频任务 fetch、Midjourney、任务查询等 |
-| `usage_reconciliation.go` | `/usage` 路由组：`SetUsageReconciliationRouter()` 挂载在根 Engine（非 `/api` 下），使用 `GlobalAPIRateLimit` + `UsageReconAuth` 静态 token 鉴权，暴露 `/usage/summary` 和 `/usage/transactions` |
+| `usage_reconciliation.go` | `/usage` 路由组：`SetUsageReconciliationRouter()` 挂载在根 Engine（非 `/api` 下），使用 `GlobalAPIRateLimit` + `UsageReconAuth` 静态 token 鉴权，暴露 `/usage/summary`、`/usage/transactions`、`/usage/validation`（新增：按模型+渠道交叉验证）、`/usage/models`（新增：返回所有启用模型的 BlockRun 定价信息） |
 | `web-router.go` | 静态前端文件服务（SPA），处理所有未匹配路由的 `NoRoute` 回退 |
 
 ## For AI Agents
@@ -32,7 +32,9 @@ router 层是 new-api 分层架构（Router→Controller→Service→Model）的
   - 静态 token 场景（对账）：`middleware.UsageReconAuth()`
 - 限流 middleware 按业务敏感度区分：注册/登录等敏感接口用 `middleware.CriticalRateLimit()`，全局 API 用 `middleware.GlobalAPIRateLimit()`，模型级别用 `middleware.ModelRequestRateLimit()`，视频代理下载用 `middleware.DownloadRateLimit()`，邮件验证用 `middleware.EmailVerificationRateLimit()`。
 - 不要在 router 层编写任何业务判断逻辑，条件路由（如按 Header 区分 OpenAI/Claude/Gemini 格式）是唯一允许的例外，且应保持简洁。
-- `usage_reconciliation.go` 中的 `/usage` 路由组挂载在根 Engine 而非 `/api` 下，是刻意设计——路径需精确为 `/usage/summary` 和 `/usage/transactions`，不要将其移入 `/api`。
+- `usage_reconciliation.go` 中的 `/usage` 路由组挂载在根 Engine 而非 `/api` 下，是刻意设计——路径需精确为 `/usage/summary`、`/usage/transactions`、`/usage/validation`、`/usage/models`，不要将其移入 `/api`。
+- 博客路由组（`/api/blog/list`、`/api/blog/detail/:slug`）位于匿名区（无鉴权），允许公开访问；新增博客接口时应保持匿名，不要误加 `UserAuth()`。
+- 注册新 OAuth 提供商时只需在 `oauth/` 包的 `init()` 中注册，路由层无需改动；`/oauth/:provider` 通配符路由统一分发到 `controller.HandleOAuth`，但 WeChat/Telegram 因协议差异保留独立路由（必须注册在通配符路由之前）。
 
 ### Testing Requirements
 - 构建验证：`go build ./...`

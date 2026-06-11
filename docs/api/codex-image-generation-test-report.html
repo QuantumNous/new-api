@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Codex 图像生成 API（gpt-image-2）· 生产环境测试报告</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--panel-2:#1e222b;--border:#2a2f3a;--text:#e6e9ef;--muted:#9aa3b2;--accent:#6ea8fe;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--code-bg:#0c0e13;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;font-size:15px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px 96px;}
+  header.hero{border-bottom:1px solid var(--border);background:linear-gradient(180deg,#141822,#0f1115);padding:44px 0 32px;}
+  header.hero .wrap{padding-bottom:0;}
+  .tag{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--green);border:1px solid #1f5234;background:#0f2417;padding:3px 10px;border-radius:999px;margin-bottom:14px;}
+  h1{font-size:28px;margin:0 0 8px;letter-spacing:-.02em;}
+  .sub{color:var(--muted);margin:0;max-width:74ch;}
+  h2{font-size:20px;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  h3{font-size:16px;margin:26px 0 10px;color:#cdd4e0;}
+  h4{font-size:13px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  p{margin:10px 0;}
+  code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--border);padding:1px 6px;border-radius:5px;color:#d9e0ec;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:10px 0;}
+  pre code{background:none;border:none;padding:0;color:#cfe3ff;}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;}
+  th,td{text-align:left;padding:9px 12px;border:1px solid var(--border);vertical-align:top;}
+  th{background:var(--panel-2);color:#cdd4e0;font-weight:600;}
+  td code{white-space:nowrap;}
+  .pass{color:var(--green);font-weight:700;}
+  .fail{color:var(--red);font-weight:700;}
+  .muted{color:var(--muted);}
+  .card{border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:18px 0;background:var(--panel);}
+  .card h3{margin-top:0;}
+  .pill{font-family:var(--mono);font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--border);}
+  .pill.ok{color:var(--green);border-color:#1f5234;background:#0f2417;}
+  .pill.warn{color:var(--amber);border-color:#5a4514;background:#241c0f;}
+  .method{font-family:var(--mono);font-weight:700;font-size:12px;padding:2px 8px;border-radius:5px;margin-right:6px;}
+  .post{background:#14321f;color:var(--green);border:1px solid #1f5234;}
+  .get{background:#102a3f;color:var(--accent);border:1px solid #1d4368;}
+  .path{font-family:var(--mono);font-size:13px;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+  .callout{border:1px solid var(--border);border-left-width:3px;border-radius:8px;padding:12px 16px;margin:14px 0;background:var(--panel);}
+  .callout.ok{border-left-color:var(--green);} .callout.info{border-left-color:var(--accent);} .callout.warn{border-left-color:var(--amber);}
+  .callout p:first-child{margin-top:0;} .callout p:last-child{margin-bottom:0;}
+  footer{border-top:1px solid var(--border);margin-top:60px;padding-top:18px;color:var(--muted);font-size:13px;}
+  .kpi{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0;}
+  .kpi div{flex:1;min-width:150px;border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--panel);}
+  .kpi .n{font-size:22px;font-weight:700;} .kpi .l{color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <span class="tag">✓ 全部通过 · 生产环境验证</span>
+  <h1>Codex 图像生成 API（gpt-image-2）— 测试报告</h1>
+  <p class="sub">对 Codex 渠道（ChatGPT 订阅 OAuth）经 <code>gpt-image-2</code> 提供图像生成能力在生产环境的端到端验证：标准 OpenAI 图像接口、文生图 / 图生图、按 token 计费（上游真实用量）、输入图计费、白标错误屏蔽、入参 fail-fast。所有令牌 / 凭证已从本报告中移除。</p>
+</div></header>
+
+<div class="wrap">
+
+  <h2>1. 概要</h2>
+  <div class="kpi">
+    <div><div class="n pass">4 / 4</div><div class="l">用例通过</div></div>
+    <div><div class="n">3</div><div class="l">真实出图（文生图×2 + 图生图×1）</div></div>
+    <div><div class="n">1</div><div class="l">入参反例（fail-fast）</div></div>
+    <div><div class="n pass">0</div><div class="l">阻塞缺陷</div></div>
+  </div>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>环境</td><td>生产 · <code>https://router.flatkey.ai</code></td></tr>
+    <tr><td>渠道</td><td>Codex（ChannelType 57），ChatGPT Pro 订阅 OAuth 账号</td></tr>
+    <tr><td>模型</td><td><code>gpt-image-2</code>（承载文本模型 <code>gpt-5.4</code>，对客户端透明）</td></tr>
+    <tr><td>服务版本</td><td>revision <code>newapi-20260610-102609-82b5405dbc8d</code>（含 codex 图像全部变更）</td></tr>
+    <tr><td>测试日期</td><td>2026-06-10</td></tr>
+    <tr><td>结论</td><td><span class="pass">通过</span> — 文生图 / 图生图均出真图，token 计费随质量分档、输入图成本计入、白标错误屏蔽、response_format 校验生效</td></tr>
+  </table>
+  <p class="muted">认证：所有请求头携带 <code>Authorization: Bearer &lt;API Key&gt;</code>（本报告已隐去）。计费数据取自服务端消费日志（请求 ID 已截断）。</p>
+
+  <h2>2. 入参反例（fail-fast 校验）</h2>
+  <div class="card">
+    <h3>反例 1 — 不支持的 response_format <span class="pill ok">PASS</span></h3>
+    <p><span class="method post">POST</span><span class="path">/v1/images/generations</span></p>
+    <div class="grid2">
+      <div><h4>请求</h4><pre><code>{
+  "model": "gpt-image-2",
+  "prompt": "x",
+  "response_format": "url"
+}</code></pre></div>
+      <div><h4>响应（提交即拒）</h4><pre><code>{
+  "error": {
+    "message": "codex image: response_format \"url\" not supported; codex image only supports b64_json",
+    "type": "new_api_error",
+    "code": "convert_request_failed"
+  }
+}</code></pre></div>
+    </div>
+    <p class="muted">✅ 转换阶段即拒绝，未发往上游、零成本，消息为本服务自有文案（不泄漏上游）。<span class="pill warn">备注</span> 当前返回 HTTP 500（语义上属客户端输入错误，宜为 400）—— 不影响功能，列为可改进项。</p>
+  </div>
+
+  <h2>3. 功能测试（生产实测）</h2>
+
+  <!-- A -->
+  <div class="card">
+    <h3>用例 A — 文生图 · 默认质量 <span class="pill ok">PASS</span></h3>
+    <h4>① 请求 · POST /v1/images/generations</h4>
+    <pre><code>{
+  "model": "gpt-image-2",
+  "prompt": "a simple green triangle on white background",
+  "size": "1024x1024"
+}</code></pre>
+    <h4>② 响应（b64 截断）</h4>
+    <pre><code>{
+  "created": 1781095...,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAA...&lt;765,295 字节 PNG, 1024x1024&gt;...RK5CYII=",
+      "revised_prompt": "A simple green triangle centered on a plain white background...",
+      "url": ""
+    }
+  ]
+}</code></pre>
+    <h4>③ 计费日志</h4>
+    <table>
+      <tr><th>检查点</th><th>结果</th></tr>
+      <tr><td>出图</td><td><span class="pass">✓</span> 1024×1024 PNG · 765,295 B · 耗时 17.0s</td></tr>
+      <tr><td>计费模式 / 来源</td><td class="pass">✓ 按 Token · 上游返回</td></tr>
+      <tr><td>Token 用量</td><td class="pass">✓ 输入 21 · 输出 196</td></tr>
+      <tr><td>费用</td><td class="pass">✓ $0.006442（= 21×$5.0505/M + 196×$32.3232/M）</td></tr>
+      <tr><td>品质</td><td>standard</td></tr>
+    </table>
+    <p class="muted">请求 ID（截断）：<code>2026061012524727…iCMvzrfC</code></p>
+  </div>
+
+  <!-- B -->
+  <div class="card">
+    <h3>用例 B — 文生图 · 高质量（quality=high） <span class="pill ok">PASS</span></h3>
+    <h4>① 请求 · POST /v1/images/generations</h4>
+    <pre><code>{
+  "model": "gpt-image-2",
+  "prompt": "a photorealistic red fox in a snowy forest at golden hour, highly detailed",
+  "size": "1024x1024",
+  "quality": "high"
+}</code></pre>
+    <h4>② 响应（b64 截断）</h4>
+    <pre><code>{
+  "created": 1781096...,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAA...&lt;1,696,588 字节 PNG, 1024x1024&gt;...",
+      "revised_prompt": "A photorealistic red fox in a snowy forest at golden hour...",
+      "url": ""
+    }
+  ]
+}</code></pre>
+    <h4>③ 计费日志</h4>
+    <table>
+      <tr><th>检查点</th><th>结果</th></tr>
+      <tr><td>出图</td><td><span class="pass">✓</span> 1024×1024 PNG · 1,696,588 B（更精细）· 耗时 1m6s</td></tr>
+      <tr><td>Token 用量随质量分档</td><td class="pass">✓ 输出 1,756（≈ 默认 196 的 9 倍）</td></tr>
+      <tr><td>费用</td><td class="pass">✓ $0.05688（= 24×$5.0505/M + 1756×$32.3232/M）</td></tr>
+      <tr><td>延迟在超时内</td><td class="pass">✓ 66s ≪ Cloud Run 3600s / 无 relay 超时</td></tr>
+      <tr><td>品质</td><td>high</td></tr>
+    </table>
+    <p class="muted">请求 ID（截断）：<code>20260610125306582211748268d9d6trlQgtL5</code></p>
+  </div>
+
+  <!-- C -->
+  <div class="card">
+    <h3>用例 C — 图生图 · 编辑（multipart edits） <span class="pill ok">PASS</span></h3>
+    <h4>① 请求 · POST /v1/images/edits（multipart/form-data）</h4>
+    <pre><code>curl {BASE}/v1/images/edits \
+  -H "Authorization: Bearer sk-xxxx" \
+  -F model=gpt-image-2 \
+  -F prompt="add a small yellow star in the center" \
+  -F image=@input.png        # 256x256 红色方块</code></pre>
+    <h4>② 响应（b64 截断）</h4>
+    <pre><code>{
+  "created": 1781096...,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAA...&lt;902,273 字节 PNG, 1254x1254&gt;...",
+      "revised_prompt": "Edit the provided image: add a small yellow five-pointed star exactly in the center of the red square background. Keep everything else unchanged.",
+      "url": ""
+    }
+  ]
+}</code></pre>
+    <h4>③ 计费日志</h4>
+    <table>
+      <tr><th>检查点</th><th>结果</th></tr>
+      <tr><td>出图（编辑生效）</td><td><span class="pass">✓</span> 1254×1254 PNG · 902,273 B · 耗时 45.0s</td></tr>
+      <tr><td>编辑意图正确</td><td class="pass">✓ revised_prompt 体现「红底 + 中心黄星，其余不变」</td></tr>
+      <tr><td><strong>输入图成本计入</strong></td><td class="pass">✓ 输入 291 token（纯文生图仅 ~21；多出的 ~256 即输入图 image-token）</td></tr>
+      <tr><td>费用</td><td class="pass">✓ $0.031046（= 291×$5.0505/M + 915×$32.3232/M）</td></tr>
+    </table>
+    <p class="muted">请求 ID（截断）：<code>202606101300224576576948268d9d6RJmRbIkQ</code></p>
+  </div>
+
+  <h2>4. 逐项核对清单</h2>
+  <table>
+    <tr><th>能力</th><th>结果</th><th>证据</th></tr>
+    <tr><td>文生图 /v1/images/generations</td><td class="pass">PASS</td><td>用例 A/B 真实出图</td></tr>
+    <tr><td>图生图 /v1/images/edits（multipart）</td><td class="pass">PASS</td><td>用例 C，编辑意图正确</td></tr>
+    <tr><td>计费：按 token，计费来源「上游返回」</td><td class="pass">PASS</td><td>三条均为真实 image-gen 用量，非兜底默认</td></tr>
+    <tr><td>计费随质量分档</td><td class="pass">PASS</td><td>输出 196（standard）→ 1756（high），约 9×</td></tr>
+    <tr><td>edits 输入图成本计入</td><td class="pass">PASS</td><td>edits 输入 291 vs 文生图 21（含输入图 ~256 image-token）</td></tr>
+    <tr><td>计费 math 自洽</td><td class="pass">PASS</td><td>三条总费用与「token × 单价」逐条吻合</td></tr>
+    <tr><td>白标：上游错误不外泄</td><td class="pass">PASS</td><td>response_format 拒绝为自有文案；上游失败仅回通用消息</td></tr>
+    <tr><td>入参 fail-fast（response_format=url）</td><td class="pass">PASS</td><td>提交即拒、未发上游</td></tr>
+    <tr><td>高质量延迟在超时内</td><td class="pass">PASS</td><td>high 66s ≪ Cloud Run 3600s</td></tr>
+  </table>
+
+  <h2>5. 观察与备注</h2>
+  <div class="callout ok"><p><strong>计费自洽：</strong>三条记录的总费用均与「输入 token × $5.0505/M + 输出 token × $32.3232/M」精确吻合（A $0.006442 / B $0.05688 / C $0.031046），且计费来源为「上游返回」——证明按真实 image-gen token 计费，未走兜底。</p></div>
+  <div class="callout info"><p><strong>edits 输入图计费：</strong>图生图的输入 token（291）显著高于纯文生图（~21），多出的 ~256 即输入图本身的 image-token——输入图成本被正确计入，符合预期。</p></div>
+  <div class="callout warn"><p><strong>定价提示：</strong>一张 <code>high</code> 质量图（输出 ~1756 token，$0.0569）约为默认质量（~196 token，$0.0064）的 <strong>9 倍</strong>。请据此设定 <code>gpt-image-2</code> 倍率，避免客户端自由请求高质量导致成本失控。</p></div>
+  <div class="callout warn"><p><strong>可改进项（非阻塞）：</strong>① <code>response_format=url</code> 拒绝当前返回 HTTP 500，语义上宜为 400；② 部分订阅档位上游可能将 <code>high</code> 实际降级为中等画质（账号档位行为，网关如实透传并按真实 token 计费）；③ <code>n&gt;1</code> 仅返回 1 张（上游图像工具不接受 <code>n</code>，已在文档约定）。</p></div>
+
+  <footer>Codex 图像生成 API（gpt-image-2）· 生产环境测试报告 · 生成于 2026-06-10 · 敏感凭证已脱敏</footer>
+</div>
+</body>
+</html>

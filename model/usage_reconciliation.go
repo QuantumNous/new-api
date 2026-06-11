@@ -157,3 +157,20 @@ func QueryBlockRunUsageLogsPaged(channelIDs []int, startUnix, endUnix int64, lim
 		Find(&logs).Error
 	return logs, err
 }
+
+// QueryBlockRunUsageLogsAfterCursor returns rows after the stable
+// (created_at,id) cursor. The caller should request limit+1 rows when it needs
+// to compute has_more without doing an offset scan.
+func QueryBlockRunUsageLogsAfterCursor(channelIDs []int, startUnix, endUnix int64, limit int, cursorCreatedAt int64, cursorID int) ([]*Log, error) {
+	if len(channelIDs) == 0 {
+		return []*Log{}, nil
+	}
+	var logs []*Log
+	err := blockRunUsageQuery(channelIDs, startUnix, endUnix).
+		Where("(created_at > ? OR (created_at = ? AND id > ?))", cursorCreatedAt, cursorCreatedAt, cursorID).
+		Select(usageReconLogColumns).
+		Order("created_at asc, id asc").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}

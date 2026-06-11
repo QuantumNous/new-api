@@ -39,6 +39,13 @@ export interface BlogListResult {
   pageSize: number
 }
 
+export interface BlogCategory {
+  id: number
+  slug: string
+  name: string
+  description?: string
+}
+
 export interface ApiResponse<T> {
   success: boolean
   message: string
