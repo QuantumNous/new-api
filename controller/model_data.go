@@ -57,8 +57,8 @@ type ModelDataItem struct {
 	ActualCacheCreationPrice   *float64      `json:"actual_cache_creation_price"`  // cache_creation_price × recharge_rate; nil = unknown
 	FingerprintHistory         []DetectPoint `json:"fingerprint_history"`          // last 24 fingerprint runs (newest first)
 	UptimeHistory              []DetectPoint `json:"uptime_history"`               // last 24 uptime probes (newest first)
-	LatencyMedianMs            float64       `json:"latency_median_ms"`            // median latency over uptime probes in modelDataLatencyWindowSec; 0 if no samples
-	LatencyP95Ms               float64       `json:"latency_p95_ms"`               // 95th-percentile latency over same uptime probes; 0 if no samples
+	LatencyMedianMs            float64       `json:"latency_median_ms"`            // median latency over last modelDataLatencyMax pass probes; 0 if no samples
+	LatencyP95Ms               float64       `json:"latency_p95_ms"`               // 95th-percentile latency over same pass probes; 0 if no samples
 	LatencyCVPct               float64       `json:"latency_cv_pct"`               // stddev/median ×100 (relative jitter); 0 if <2 samples or median=0
 	Status                     int           `json:"status"`                       // 1 enabled / 2 manual-disabled / 3 auto-disabled (routing algorithm 0.1)
 	ConsecutiveFingerprintPass int           `json:"consecutive_fingerprint_pass"` // recovery counter; only meaningful when status=3
@@ -69,8 +69,8 @@ type ModelDataItem struct {
 }
 
 const (
-	modelDataHistorySize      = 24
-	modelDataLatencyWindowSec = 24 * 60 * 60 // 24h window for the latency median column
+	modelDataHistorySize = 24
+	modelDataLatencyMax  = 50 // use last N pass probes (regardless of time) for latency stats
 )
 
 // GetModelData returns channel pricing and detection stats for a given model.
@@ -180,18 +180,16 @@ func GetModelData(c *gin.Context) {
 		Where("channel_id IN ?", channelIDs).
 		Where("claimed_model = ?", modelName).
 		Order("detect_time DESC").
-		Limit(len(channelIDs) * modelDataHistorySize * 2).
+		Limit(len(channelIDs) * (modelDataHistorySize + modelDataLatencyMax*3)).
 		Find(&logs)
 
 	// Group into fingerprint vs uptime per channel, capped at modelDataHistorySize each.
-	// Also collect uptime latencies (pass-only, within the 24h window) for the median column.
+	// Collect up to modelDataLatencyMax pass-only uptime probes for the latency columns.
 	type histories struct {
 		Fingerprint []DetectPoint
 		Uptime      []DetectPoint
 		Latencies   []float64
 	}
-	nowSec := time.Now().Unix()
-	latencyCutoff := nowSec - modelDataLatencyWindowSec
 	byChannel := map[int]*histories{}
 	for _, l := range logs {
 		h, ok := byChannel[l.ChannelId]
@@ -204,7 +202,7 @@ func GetModelData(c *gin.Context) {
 			if len(h.Uptime) < modelDataHistorySize {
 				h.Uptime = append(h.Uptime, point)
 			}
-			if l.Status == "pass" && l.LatencyMeanMs > 0 && l.DetectTime >= latencyCutoff {
+			if l.Status == "pass" && l.LatencyMeanMs > 0 && len(h.Latencies) < modelDataLatencyMax {
 				h.Latencies = append(h.Latencies, l.LatencyMeanMs)
 			}
 		} else {
@@ -651,7 +649,7 @@ func GetPublicMarketplace(c *gin.Context) {
 		Where("channel_id IN ?", channelIDs).
 		Where("claimed_model = ?", modelName).
 		Order("detect_time DESC").
-		Limit(len(channelIDs) * modelDataHistorySize * 2).
+		Limit(len(channelIDs) * (modelDataHistorySize + modelDataLatencyMax*3)).
 		Find(&logs)
 
 	type histories struct {
@@ -659,8 +657,6 @@ func GetPublicMarketplace(c *gin.Context) {
 		Uptime      []DetectPoint
 		Latencies   []float64
 	}
-	nowSec := time.Now().Unix()
-	latencyCutoff := nowSec - modelDataLatencyWindowSec
 	byChannel := map[int]*histories{}
 	for _, l := range logs {
 		h, ok := byChannel[l.ChannelId]
@@ -673,7 +669,7 @@ func GetPublicMarketplace(c *gin.Context) {
 			if len(h.Uptime) < modelDataHistorySize {
 				h.Uptime = append(h.Uptime, point)
 			}
-			if l.Status == "pass" && l.LatencyMeanMs > 0 && l.DetectTime >= latencyCutoff {
+			if l.Status == "pass" && l.LatencyMeanMs > 0 && len(h.Latencies) < modelDataLatencyMax {
 				h.Latencies = append(h.Latencies, l.LatencyMeanMs)
 			}
 		} else {
