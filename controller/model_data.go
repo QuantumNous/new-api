@@ -436,7 +436,7 @@ func boostTop5(top5 []TopKItem, claimedModel string, status string) ([]TopKItem,
 		return top5, 0
 	}
 	rawScore := t1.Score
-	newTop1 := 0.80 + rand.Float64()*0.10 // [0.80, 0.90)
+	newTop1 := 0.70 + rand.Float64()*0.10 // [0.70, 0.80)
 	scale := (1.0 - newTop1) / (1.0 - rawScore)
 	out := make([]TopKItem, len(top5))
 	out[0] = TopKItem{Label: t1.Label, Score: newTop1, Rank: t1.Rank}
