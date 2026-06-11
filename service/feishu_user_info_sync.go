@@ -132,7 +132,22 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 	if department.Name != "" {
 		updates["org_name"] = department.Name
 	}
-	return model.DB.Model(user).Updates(updates).Error
+
+	// 离职用户自动禁用系统账号
+	if isFeishuUserResigned(feishuUser.Status) {
+		updates["status"] = common.UserStatusDisabled
+	}
+
+	err = model.DB.Model(user).Updates(updates).Error
+	if err != nil {
+		return err
+	}
+
+	// 状态变更后刷新缓存
+	if _, ok := updates["status"]; ok {
+		_ = model.InvalidateUserCache(user.Id)
+	}
+	return nil
 }
 
 func getFeishuDepartmentInfo(ctx context.Context, client *lark.Client, departmentID string) (feishuDepartmentInfo, error) {
@@ -229,4 +244,17 @@ func formatFeishuEmploymentStatus(status *larkcontact.UserStatus) string {
 		return "unknown"
 	}
 	return strings.Join(states, ",")
+}
+
+func isFeishuUserResigned(status *larkcontact.UserStatus) bool {
+	if status == nil {
+		return false
+	}
+	if status.IsResigned != nil && *status.IsResigned {
+		return true
+	}
+	if status.IsExited != nil && *status.IsExited {
+		return true
+	}
+	return false
 }
