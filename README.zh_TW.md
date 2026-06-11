@@ -174,6 +174,7 @@ docker run --name new-api -d --restart always \
 | 🚀 部署指南 | [安裝文件](https://docs.newapi.pro/zh/docs/installation) |
 | ⚙️ 環境配置 | [環境變數](https://docs.newapi.pro/zh/docs/installation/config-maintenance/environment-variables) |
 | 📡 接口文件 | [API 文件](https://docs.newapi.pro/zh/docs/api) |
+| 🛠️ 開發指南 | [開發文檔](./docs/development/DEVELOPMENT.zh_TW.md) |
 | ❓ 常見問題 | [FAQ](https://docs.newapi.pro/zh/docs/support/faq) |
 | 💬 社群交流 | [交流管道](https://docs.newapi.pro/zh/docs/support/community-interaction) |
 

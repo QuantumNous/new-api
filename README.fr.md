@@ -174,6 +174,7 @@ docker run --name new-api -d --restart always \
 | 🚀 Guide de déploiement | [Documentation d'installation](https://docs.newapi.pro/en/docs/installation) |
 | ⚙️ Configuration de l'environnement | [Variables d'environnement](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables) |
 | 📡 Documentation de l'API | [Documentation de l'API](https://docs.newapi.pro/en/docs/api) |
+| 🛠️ Guide de développement | [Documentation de développement](./docs/development/DEVELOPMENT.fr.md) |
 | ❓ FAQ | [FAQ](https://docs.newapi.pro/en/docs/support/faq) |
 | 💬 Interaction avec la communauté | [Canaux de communication](https://docs.newapi.pro/en/docs/support/community-interaction) |
 
