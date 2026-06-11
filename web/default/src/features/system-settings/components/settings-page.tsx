@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { SystemOption } from '../types'
+import { SettingsCommandStrip } from './settings-command-strip'
 import { SettingsPageProvider } from './settings-page-context'
 
 type SettingsPageProps<
@@ -50,6 +51,7 @@ type SettingsPageProps<
 
 type SettingsPageFrameProps = {
   title: ReactNode
+  description: ReactNode
   children: ReactNode
 }
 
@@ -74,6 +76,9 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
             />
           </span>
         </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {props.description}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <div
             ref={setActionsContainer}
@@ -81,7 +86,10 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
           />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex w-full flex-col gap-4'>{props.children}</div>
+          <div className='flex w-full flex-col gap-4'>
+            <SettingsCommandStrip />
+            {props.children}
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
     </SettingsPageProvider>
@@ -125,7 +133,10 @@ export function SettingsPage<
 
   if (isLoading) {
     return (
-      <SettingsPageFrame title={t(sectionMeta.titleKey)}>
+      <SettingsPageFrame
+        title={t(sectionMeta.titleKey)}
+        description={t('Tune identity, access, billing, and operations controls for this gateway.')}
+      >
         <div className='text-muted-foreground flex min-h-40 items-center justify-center text-sm'>
           {t(loadingMessage)}
         </div>
@@ -140,7 +151,10 @@ export function SettingsPage<
   )
 
   return (
-    <SettingsPageFrame title={t(sectionMeta.titleKey)}>
+    <SettingsPageFrame
+      title={t(sectionMeta.titleKey)}
+      description={t('Tune identity, access, billing, and operations controls for this gateway.')}
+    >
       {sectionContent}
     </SettingsPageFrame>
   )

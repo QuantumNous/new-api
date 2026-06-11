@@ -49,40 +49,36 @@ export function HowItWorks() {
   ]
 
   return (
-    <section className='border-border/40 relative z-10 border-t px-6 py-24 md:py-32'>
+    <section className='content-auto border-border/40 relative z-10 border-t px-4 py-20 sm:px-6 md:py-28'>
       <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-16 text-center md:mb-20'>
-          <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('How It Works')}
-          </p>
-          <h2 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            {t('Three steps to get started')}
-          </h2>
+        <AnimateInView className='mb-14 text-center md:mb-20'>
+          <p className='marketing-section-label'>{t('How It Works')}</p>
+          <h2 className='marketing-section-title'>{t('Three steps to get started')}</h2>
         </AnimateInView>
 
-        <div className='grid gap-8 md:grid-cols-3 md:gap-12'>
+        <ol className='grid gap-6 md:grid-cols-3 md:gap-8'>
           {steps.map((step, i) => (
             <AnimateInView
               key={step.num}
+              as='li'
               delay={i * 150}
               animation='fade-up'
-              className='relative flex flex-col items-center text-center'
+              className='surface-console relative flex flex-col items-center rounded-2xl border p-7 text-center'
             >
               <div className='relative mb-6'>
                 <div className='text-muted-foreground border-border/50 bg-muted/30 flex size-16 items-center justify-center rounded-2xl border transition-colors'>
                   {step.icon}
                 </div>
                 <div className='bg-foreground text-background absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-xs font-bold'>
-                  {step.num}
+                  <span className='sr-only'>{`${t('Step')} ${step.num}`}</span>
+                  <span aria-hidden>{step.num}</span>
                 </div>
               </div>
               <h3 className='mb-2 text-base font-semibold'>{step.title}</h3>
-              <p className='text-muted-foreground max-w-[240px] text-sm leading-relaxed'>
-                {step.desc}
-              </p>
+              <p className='marketing-section-copy max-w-[260px]'>{step.desc}</p>
             </AnimateInView>
           ))}
-        </div>
+        </ol>
       </div>
     </section>
   )

@@ -35,6 +35,9 @@ export function SignUp() {
             {t('Create an account')}
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
+            {t('Create your gateway identity before generating keys and routing requests.')}
+          </p>
+          <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {t('Already have an account?')}{' '}
             <Link
               to='/sign-in'

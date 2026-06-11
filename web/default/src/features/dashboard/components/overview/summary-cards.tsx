@@ -28,11 +28,11 @@ import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import { OperationalMetricCard } from '@/components/operational-metric-card'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
-import { StatCard } from '../ui/stat-card'
 
 const SUMMARY_SPARKLINE_BUCKETS = 12
 
@@ -137,7 +137,7 @@ const HEALTH_CONFIG: Record<
 export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
-  const { status, loading } = useStatus()
+  const { status } = useStatus()
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const remainQuota = Number(user?.quota ?? 0)
@@ -234,14 +234,13 @@ export function SummaryCards() {
   })
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+    <div className='surface-glass overflow-hidden rounded-2xl shadow-none'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
         <div className='flex flex-col gap-3 p-4 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div className='flex flex-col gap-1'>
-              <h3 className='text-base font-semibold'>
-                {t('Usage at a glance')}
-              </h3>
+              <div className='operator-metric-label'>{t('Command center')}</div>
+              <h3 className='text-base font-semibold'>{t('Usage at a glance')}</h3>
               <p className='text-muted-foreground text-sm'>
                 {t('Monitor balance, usage, and request volume')}
               </p>
@@ -249,26 +248,20 @@ export function SummaryCards() {
           </div>
           <StaggerContainer className='grid gap-3 md:grid-cols-3'>
             {items.map((it) => (
-              <StaggerItem
-                key={it.key}
-                className='bg-background/60 rounded-xl border p-3'
-              >
-                <StatCard
-                  title={it.title}
+              <StaggerItem key={it.key}>
+                <OperationalMetricCard
+                  label={it.title}
                   value={it.value}
                   description={it.desc}
-                  icon={it.icon}
-                  tone={it.tone}
-                  sparkline={it.sparkline}
-                  sparklineVariant={it.sparklineVariant}
-                  loading={loading}
+                  icon={<it.icon className='size-4' aria-hidden='true' />}
+                  tone={it.key === 'todayUsage' ? 'warning' : 'neutral'}
                 />
               </StaggerItem>
             ))}
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div className='operator-rail-warning surface-console flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>

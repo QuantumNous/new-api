@@ -1,11 +1,15 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -30,6 +34,77 @@ const (
 	WebSearchMaxUsesMedium = 5
 	WebSearchMaxUsesHigh   = 10
 )
+
+func inferOpenAIFileMimeType(file *dto.MessageFile) string {
+	if file == nil {
+		return ""
+	}
+	if strings.HasPrefix(file.FileData, "data:") {
+		if idx := strings.Index(file.FileData, ";"); idx > len("data:") {
+			return file.FileData[len("data:"):idx]
+		}
+	}
+	if ext := filepath.Ext(file.FileName); ext != "" {
+		return mime.TypeByExtension(ext)
+	}
+	return ""
+}
+
+func buildClaudeMediaFromOpenAIImage(c *gin.Context, mediaMessage dto.MediaContent) (*dto.ClaudeMediaMessage, error) {
+	source := mediaMessage.ToFileSource()
+	if source == nil {
+		return nil, nil
+	}
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
+	if err != nil {
+		return nil, fmt.Errorf("get file data failed: %s", err.Error())
+	}
+	if !strings.HasPrefix(mimeType, "image/") {
+		return nil, nil
+	}
+	return &dto.ClaudeMediaMessage{
+		Type: "image",
+		Source: &dto.ClaudeMessageSource{
+			Type:      "base64",
+			MediaType: mimeType,
+			Data:      base64Data,
+		},
+	}, nil
+}
+
+func buildClaudeMediaFromOpenAIFile(c *gin.Context, mediaMessage dto.MediaContent) (*dto.ClaudeMediaMessage, error) {
+	file := mediaMessage.GetFile()
+	if file == nil || file.FileData == "" {
+		return nil, nil
+	}
+	source := types.NewFileSourceFromData(file.FileData, inferOpenAIFileMimeType(file))
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting file for Claude")
+	if err != nil {
+		return nil, fmt.Errorf("get file data failed: %s", err.Error())
+	}
+	switch {
+	case strings.HasPrefix(mimeType, "application/pdf"):
+		return &dto.ClaudeMediaMessage{
+			Type: "document",
+			Source: &dto.ClaudeMessageSource{
+				Type:      "base64",
+				MediaType: mimeType,
+				Data:      base64Data,
+			},
+		}, nil
+	case strings.HasPrefix(mimeType, "text/"):
+		decoded, err := base64.StdEncoding.DecodeString(base64Data)
+		if err != nil || !utf8.Valid(decoded) {
+			return nil, nil
+		}
+		return &dto.ClaudeMediaMessage{
+			Type: "text",
+			Text: common.GetPointer(string(decoded)),
+		}, nil
+	default:
+		return nil, nil
+	}
+}
 
 func stopReasonClaude2OpenAI(reason string) string {
 	return reasonmap.ClaudeStopReasonToOpenAIFinishReason(reason)
@@ -373,37 +448,29 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 				claudeMediaMessages := make([]dto.ClaudeMediaMessage, 0)
 				for _, mediaMessage := range message.ParseContent() {
 					switch mediaMessage.Type {
-					case "text":
+					case dto.ContentTypeText:
 						if mediaMessage.Text != "" {
 							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 								Type: "text",
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
-					default:
-						source := mediaMessage.ToFileSource()
-						if source == nil {
-							continue
-						}
-						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
+					case dto.ContentTypeImageURL:
+						claudeMediaMessage, err := buildClaudeMediaFromOpenAIImage(c, mediaMessage)
 						if err != nil {
-							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+							return nil, err
 						}
-						claudeMediaMessage := dto.ClaudeMediaMessage{
-							Source: &dto.ClaudeMessageSource{
-								Type: "base64",
-							},
+						if claudeMediaMessage != nil {
+							claudeMediaMessages = append(claudeMediaMessages, *claudeMediaMessage)
 						}
-						if strings.HasPrefix(mimeType, "application/pdf") {
-							claudeMediaMessage.Type = "document"
-						} else {
-							claudeMediaMessage.Type = "image"
+					case dto.ContentTypeFile:
+						claudeMediaMessage, err := buildClaudeMediaFromOpenAIFile(c, mediaMessage)
+						if err != nil {
+							return nil, err
 						}
-
-						claudeMediaMessage.Source.MediaType = mimeType
-						claudeMediaMessage.Source.Data = base64Data
-						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
-						continue
+						if claudeMediaMessage != nil {
+							claudeMediaMessages = append(claudeMediaMessages, *claudeMediaMessage)
+						}
 					}
 				}
 

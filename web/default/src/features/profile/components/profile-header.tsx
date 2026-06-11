@@ -40,7 +40,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
 
   if (loading) {
     return (
-      <div className='bg-card overflow-hidden rounded-lg border'>
+      <div className='surface-glass overflow-hidden rounded-2xl shadow-none'>
         <div className='p-4 sm:p-5'>
           <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left'>
             <Skeleton className='h-16 w-16 rounded-2xl' />

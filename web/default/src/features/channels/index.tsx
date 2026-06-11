@@ -22,6 +22,7 @@ import { ChannelsDialogs } from './components/channels-dialogs'
 import { ChannelsPrimaryButtons } from './components/channels-primary-buttons'
 import { ChannelsProvider } from './components/channels-provider'
 import { ChannelsTable } from './components/channels-table'
+import { ChannelsCommandStrip } from './components/channels-command-strip'
 
 export function Channels() {
   const { t } = useTranslation()
@@ -29,11 +30,17 @@ export function Channels() {
     <ChannelsProvider>
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Channels')}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Monitor upstream health, routing priority, balance, and model coverage from one operator surface.')}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <ChannelsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <ChannelsTable />
+          <div className='space-y-4'>
+            <ChannelsCommandStrip />
+            <ChannelsTable />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

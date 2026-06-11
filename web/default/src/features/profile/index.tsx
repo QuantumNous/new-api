@@ -26,6 +26,7 @@ import {
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { PasskeyCard } from './components/passkey-card'
+import { ProfileCommandStrip } from './components/profile-command-strip'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
@@ -51,6 +52,15 @@ export function Profile() {
         <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
           <CardStaggerItem>
             <ProfileHeader profile={profile} loading={loading} />
+          </CardStaggerItem>
+
+          <CardStaggerItem>
+            <ProfileCommandStrip
+              profile={profile}
+              loading={loading}
+              checkinEnabled={checkinEnabled}
+              canConfigureSidebar={canConfigureSidebar}
+            />
           </CardStaggerItem>
 
           <CardStaggerItem>

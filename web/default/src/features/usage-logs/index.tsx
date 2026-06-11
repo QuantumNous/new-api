@@ -30,6 +30,7 @@ import {
   useUsageLogsContext,
 } from './components/usage-logs-provider'
 import { UsageLogsTable } from './components/usage-logs-table'
+import { UsageLogsCommandStrip } from './components/usage-logs-command-strip'
 import {
   isUsageLogsSectionId,
   USAGE_LOGS_DEFAULT_SECTION,
@@ -114,8 +115,12 @@ function UsageLogsContent() {
         <SectionPageLayout.Title>
           {t(pageMeta.titleKey)}
         </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Review request traces, failures, token usage, and billing context without leaving the log surface.')}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
+            <UsageLogsCommandStrip logCategory={activeCategory} />
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
                 <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>

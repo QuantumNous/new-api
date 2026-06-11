@@ -160,14 +160,14 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
           .getColumn(props.searchKey!)
           ?.setFilterValue(event.target.value)
       }
-      className='w-full sm:w-[200px] lg:w-[240px]'
+      className='bg-background/80 w-full sm:w-[200px] lg:w-[240px]'
     />
   ) : (
     <Input
       placeholder={placeholder}
       value={props.table.getState().globalFilter ?? ''}
       onChange={(event) => props.table.setGlobalFilter(event.target.value)}
-      className='w-full sm:w-[200px] lg:w-[240px]'
+      className='bg-background/80 w-full sm:w-[200px] lg:w-[240px]'
     />
   )
 
@@ -246,7 +246,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
   if (hasLeftActions) {
     return (
-      <div className={cn('flex flex-col gap-2', props.className)}>
+      <div className={cn('surface-glass flex flex-col gap-2 rounded-xl p-3 shadow-none sm:p-4', props.className)}>
         <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
           {props.customSearch !== undefined ? props.customSearch : searchInput}
           {props.additionalSearch}
@@ -278,7 +278,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-2 sm:gap-3',
+        'surface-glass flex flex-wrap items-center gap-2 rounded-xl p-3 shadow-none sm:gap-3 sm:p-4',
         props.className
       )}
     >

@@ -57,6 +57,7 @@ export function TableSkeleton<TData>({
       {Array.from({ length: finalRowCount }, (_, rowIndex) => (
         <TableRow
           key={`${keyPrefix}-${rowIndex}`}
+          aria-hidden='true'
           className={cn(rowHeight, 'border-b')}
         >
           {visibleColumns.map((column, colIndex) => {

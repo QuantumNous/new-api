@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { DataStateSurface } from '@/components/data-state-surface'
 
 interface LoadingStateProps {
   className?: string
@@ -34,12 +34,15 @@ const sizeMap = {
 } as const
 
 export function LoadingState(props: LoadingStateProps) {
-  const { t } = useTranslation()
   const iconSize = sizeMap[props.size ?? 'md']
 
   if (props.inline) {
     return (
-      <span className={cn('inline-flex items-center gap-2', props.className)}>
+      <span
+        className={cn('inline-flex items-center gap-2', props.className)}
+        aria-busy='true'
+        aria-live='polite'
+      >
         <Loader2 className={cn(iconSize, 'animate-spin')} />
         {props.message != null && (
           <span className='text-muted-foreground text-sm'>{props.message}</span>
@@ -49,18 +52,11 @@ export function LoadingState(props: LoadingStateProps) {
   }
 
   return (
-    <div
-      className={cn(
-        'flex min-h-[200px] flex-col items-center justify-center gap-3',
-        props.className
-      )}
-    >
-      <div className='animate-spin'>
-        <Loader2 className={iconSize} />
-      </div>
-      <p className='text-muted-foreground text-sm'>
-        {props.message ?? t('Loading...')}
-      </p>
-    </div>
+    <DataStateSurface
+      variant='loading'
+      title={props.message}
+      className={props.className}
+      compact={props.size === 'sm'}
+    />
   )
 }

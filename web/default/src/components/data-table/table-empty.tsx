@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
+import { DataStateSurface } from '@/components/data-state-surface'
 import { TableRow, TableCell } from '@/components/ui/table'
 
 interface TableEmptyProps {
@@ -68,19 +62,19 @@ export function TableEmpty({
   const resolvedTitle = title ?? t('No Data')
   const resolvedDescription =
     description ?? t('No records found. Try adjusting your filters.')
+
   return (
     <TableRow>
-      <TableCell colSpan={colSpan} className='h-[400px] p-0'>
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant='icon'>
-              {icon || <Database className='size-6' />}
-            </EmptyMedia>
-            <EmptyTitle>{resolvedTitle}</EmptyTitle>
-            <EmptyDescription>{resolvedDescription}</EmptyDescription>
-          </EmptyHeader>
-          {children}
-        </Empty>
+      <TableCell colSpan={colSpan} className='h-[360px] p-3'>
+        <DataStateSurface
+          variant='search-empty'
+          icon={icon == null ? Database : undefined}
+          iconNode={icon}
+          title={resolvedTitle}
+          description={resolvedDescription}
+          primaryAction={children}
+          compact
+        />
       </TableCell>
     </TableRow>
   )

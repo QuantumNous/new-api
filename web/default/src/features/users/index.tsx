@@ -23,6 +23,7 @@ import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
+import { UsersCommandStrip } from './components/users-command-strip'
 
 function UsersContent() {
   const { t } = useTranslation()
@@ -32,11 +33,17 @@ function UsersContent() {
     <>
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Users')}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Manage user lifecycle, access level, quota risk, and account state from one operator surface.')}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <UsersPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <UsersTable />
+          <div className='space-y-4'>
+            <UsersCommandStrip />
+            <UsersTable />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
