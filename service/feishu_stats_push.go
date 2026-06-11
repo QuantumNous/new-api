@@ -65,31 +65,79 @@ func runFeishuStatsPushIfNeeded() {
 
 	// 每天凌晨 3:00 推送前一天日报
 	if hour == 3 && minute == 0 {
-		yesterday := now.AddDate(0, 0, -1)
-		start := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, now.Location())
-		end := start.AddDate(0, 0, 1).Add(-time.Second)
-		dateLabel := start.Format("2006-01-02")
-		pushStatsToFeishu("daily", dateLabel, start.Unix(), end.Unix())
+		req := BuildFeishuStatsPushRequest("daily", now)
+		pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
 	}
 
 	// 周一凌晨 3:30 推送上周周报
 	if weekday == time.Monday && hour == 3 && minute == 30 {
-		// 上周一 00:00 ~ 上周日 23:59:59
-		thisMonday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		lastMonday := thisMonday.AddDate(0, 0, -7)
-		lastSunday := thisMonday.Add(-time.Second)
-		dateLabel := lastMonday.Format("2006-01-02") + " ~ " + lastSunday.Format("2006-01-02")
-		pushStatsToFeishu("weekly", dateLabel, lastMonday.Unix(), lastSunday.Unix())
+		req := BuildFeishuStatsPushRequest("weekly", now)
+		pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
 	}
 
 	// 每月 1 号凌晨 4:00 推送上月月报
 	if day == 1 && hour == 4 && minute == 0 {
+		req := BuildFeishuStatsPushRequest("monthly", now)
+		pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
+	}
+}
+
+type FeishuStatsPushRequest struct {
+	Period         string `json:"period"`
+	Label          string `json:"label"`
+	StartTimestamp int64  `json:"start_timestamp"`
+	EndTimestamp   int64  `json:"end_timestamp"`
+	StartTime      string `json:"start_time"`
+	EndTime        string `json:"end_time"`
+}
+
+func BuildFeishuStatsPushRequest(period string, now time.Time) FeishuStatsPushRequest {
+	switch period {
+	case "daily":
+		yesterday := now.AddDate(0, 0, -1)
+		start := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, now.Location())
+		end := start.AddDate(0, 0, 1).Add(-time.Second)
+		return newFeishuStatsPushRequest(period, start.Format("2006-01-02"), start, end)
+	case "weekly":
+		thisMonday := startOfWeek(now)
+		lastMonday := thisMonday.AddDate(0, 0, -7)
+		lastSunday := thisMonday.Add(-time.Second)
+		label := lastMonday.Format("2006-01-02") + " ~ " + lastSunday.Format("2006-01-02")
+		return newFeishuStatsPushRequest(period, label, lastMonday, lastSunday)
+	case "monthly":
 		thisMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 		lastMonthStart := thisMonthStart.AddDate(0, -1, 0)
 		lastMonthEnd := thisMonthStart.Add(-time.Second)
-		dateLabel := lastMonthStart.Format("2006-01")
-		pushStatsToFeishu("monthly", dateLabel, lastMonthStart.Unix(), lastMonthEnd.Unix())
+		return newFeishuStatsPushRequest(period, lastMonthStart.Format("2006-01"), lastMonthStart, lastMonthEnd)
+	default:
+		return FeishuStatsPushRequest{Period: period}
 	}
+}
+
+func ManualPushFeishuStats(period string) FeishuStatsPushRequest {
+	req := BuildFeishuStatsPushRequest(period, time.Now())
+	pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
+	return req
+}
+
+func newFeishuStatsPushRequest(period, label string, start, end time.Time) FeishuStatsPushRequest {
+	return FeishuStatsPushRequest{
+		Period:         period,
+		Label:          label,
+		StartTimestamp: start.Unix(),
+		EndTimestamp:   end.Unix(),
+		StartTime:      start.Format(time.RFC3339),
+		EndTime:        end.Format(time.RFC3339),
+	}
+}
+
+func startOfWeek(t time.Time) time.Time {
+	dayStart := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	weekday := int(dayStart.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	return dayStart.AddDate(0, 0, 1-weekday)
 }
 
 func pushStatsToFeishu(period, dateLabel string, startTimestamp, endTimestamp int64) {

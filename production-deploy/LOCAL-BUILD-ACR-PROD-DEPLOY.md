@@ -210,6 +210,54 @@ sudo docker logs --tail=100 new-api
 [SYS] RepairBindGroupSubscriptions: completed
 ```
 
+### 6.6 手动触发飞书用量统计推送
+
+飞书统计推送默认由服务内置定时任务自动执行：
+
+- 每天凌晨 3:00：推送前一天日报
+- 每周一凌晨 3:30：推送上周周报
+- 每月 1 号凌晨 4:00：推送上月月报
+
+如需补数或验证生产推送，可使用管理员登录态/API Token 手动触发。接口会复用定时任务同一套逻辑，并先清空对应周期的 3 张多维表格，再写入最新统计数据。
+
+```bash
+# 手动推送昨天日报
+curl -X POST http://127.0.0.1:3000/api/user/feishu/stats/push/daily \
+  -H "Authorization: Bearer <管理员token>"
+
+# 手动推送上周周报
+curl -X POST http://127.0.0.1:3000/api/user/feishu/stats/push/weekly \
+  -H "Authorization: Bearer <管理员token>"
+
+# 手动推送上月月报
+curl -X POST http://127.0.0.1:3000/api/user/feishu/stats/push/monthly \
+  -H "Authorization: Bearer <管理员token>"
+```
+
+成功响应示例：
+
+```json
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "period": "daily",
+    "label": "2026-06-10",
+    "start_timestamp": 1781020800,
+    "end_timestamp": 1781107199,
+    "start_time": "2026-06-10T00:00:00+08:00",
+    "end_time": "2026-06-10T23:59:59+08:00"
+  }
+}
+```
+
+注意：执行前需确保已配置：
+
+```bash
+sudo docker exec -it postgres psql -U root -d "new-api" -c "INSERT INTO options (key, value) VALUES ('feishu.stats_base_token', 'TYyybwhZKa5wzMsHGKdcGnm9nvg') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;"
+cd /opt/production-deploy && sudo docker compose restart new-api
+```
+
 ---
 
 ## 7. 回退流程（失败快速恢复）

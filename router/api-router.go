@@ -160,6 +160,9 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/feishu/tokens", controller.AdminCreateTokenByFeishu)
 				adminRoute.POST("/feishu/tokens/batch", controller.AdminBatchCreateTokensByFeishu)
 				adminRoute.GET("/feishu/tokens", controller.AdminGetTokensByFeishu)
+				adminRoute.POST("/feishu/stats/push/daily", controller.ManualPushFeishuDailyStats)
+				adminRoute.POST("/feishu/stats/push/weekly", controller.ManualPushFeishuWeeklyStats)
+				adminRoute.POST("/feishu/stats/push/monthly", controller.ManualPushFeishuMonthlyStats)
 			}
 		}
 
