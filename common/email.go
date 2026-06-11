@@ -33,6 +33,51 @@ func getSMTPAuth() smtp.Auth {
 	return smtp.PlainAuth("", SMTPAccount, SMTPToken, SMTPServer)
 }
 
+func emailSiteURL() string {
+	from := SMTPFrom
+	if from == "" {
+		from = SMTPAccount
+	}
+	if parts := strings.Split(from, "@"); len(parts) == 2 && parts[1] != "" {
+		return "https://" + parts[1]
+	}
+	return "https://apimaster.ai"
+}
+
+func emailSupportAddress() string {
+	from := SMTPFrom
+	if from == "" {
+		from = SMTPAccount
+	}
+	if from != "" {
+		return from
+	}
+	return "support@apimaster.ai"
+}
+
+func appendEmailSignature(content string) string {
+	name := SystemName
+	if name == "" {
+		name = "APIMaster.ai"
+	}
+	site := emailSiteURL()
+	support := emailSupportAddress()
+	signature := fmt.Sprintf(
+		`<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b7280;">`+
+			`<p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#111827;">%s</p>`+
+			`<p style="margin:0 0 8px;">Unified API gateway for AI models</p>`+
+			`<p style="margin:0 0 8px;">`+
+			`<a href="%s" style="color:#2563eb;text-decoration:none;">%s</a>`+
+			` · `+
+			`<a href="mailto:%s" style="color:#2563eb;text-decoration:none;">%s</a>`+
+			`</p>`+
+			`<p style="margin:0;font-size:12px;color:#9ca3af;">This is an automated message from %s. For help, contact <a href="mailto:%s" style="color:#2563eb;text-decoration:none;">%s</a>.</p>`+
+			`</div>`,
+		name, site, site, support, support, name, support, support,
+	)
+	return content + signature
+}
+
 func SendEmail(subject string, receiver string, content string) error {
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount
@@ -44,6 +89,7 @@ func SendEmail(subject string, receiver string, content string) error {
 	if SMTPServer == "" && SMTPAccount == "" {
 		return fmt.Errorf("SMTP 服务器未配置")
 	}
+	content = appendEmailSignature(content)
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 	mail := []byte(fmt.Sprintf("To: %s\r\n"+
 		"From: %s <%s>\r\n"+
