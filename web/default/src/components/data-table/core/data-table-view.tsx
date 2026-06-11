@@ -46,7 +46,10 @@ export { DataTableRow } from './data-table-row'
 
 export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   const rows = props.rows ?? props.table.getRowModel().rows
-  const colSpan = props.table.getVisibleLeafColumns().length
+  const colSpan = React.useMemo(
+    () => props.table.getVisibleLeafColumns().length,
+    [props.table]
+  )
   const columnClassName = useResolvedColumnClassName(
     props.getColumnClassName,
     props.pinnedColumns
@@ -144,7 +147,7 @@ function SplitHeaderTableView<TData>({
     return () => {
       bodyScroller.removeEventListener('scroll', syncHeaderScroll)
     }
-  }, [rows.length, props.tableClassName, props.colgroup])
+  }, [rows.length]) // tableClassName / colgroup are styling — don't need to re-attach listener
 
   return (
     <div

@@ -53,7 +53,7 @@ type DataTableFacetedFilterProps<TData, TValue> = {
   singleSelect?: boolean
 }
 
-export function DataTableFacetedFilter<TData, TValue>({
+function DataTableFacetedFilterInner<TData, TValue>({
   column,
   title,
   options,
@@ -62,7 +62,11 @@ export function DataTableFacetedFilter<TData, TValue>({
   const { t } = useTranslation()
   const facets = column?.getFacetedUniqueValues()
   const filterValue = column?.getFilterValue() as string[] | undefined
-  const selectedValues = new Set(filterValue)
+  const selectedValues = React.useMemo(
+    () => new Set(filterValue),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterValue?.join(',')]
+  )
 
   return (
     <Popover>
@@ -197,3 +201,7 @@ export function DataTableFacetedFilter<TData, TValue>({
     </Popover>
   )
 }
+
+export const DataTableFacetedFilter = React.memo(
+  DataTableFacetedFilterInner
+) as typeof DataTableFacetedFilterInner

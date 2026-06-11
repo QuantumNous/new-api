@@ -143,6 +143,10 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const [expanded, setExpanded] = useState(false)
   const isSearchComposingRef = React.useRef(false)
   const lastCommittedSearchValueRef = React.useRef('')
+  const tableRef = React.useRef(props.table)
+  tableRef.current = props.table
+  const searchKeyRef = React.useRef(props.searchKey)
+  searchKeyRef.current = props.searchKey
 
   const filters = props.filters ?? []
   const hasExpandable = props.expandable != null
@@ -184,14 +188,14 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
       lastCommittedSearchValueRef.current = value
 
-      if (props.searchKey) {
-        props.table.getColumn(props.searchKey)?.setFilterValue(value)
+      if (searchKeyRef.current) {
+        tableRef.current.getColumn(searchKeyRef.current)?.setFilterValue(value)
         return
       }
 
-      props.table.setGlobalFilter(value)
+      tableRef.current.setGlobalFilter(value)
     },
-    [props.searchKey, props.table]
+    [] // stable — reads props via refs at call time
   )
 
   React.useEffect(() => {
@@ -261,19 +265,24 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     />
   )
 
-  const filterChips = filters.map((filter) => {
-    const column = props.table.getColumn(filter.columnId)
-    if (!column) return null
-    return (
-      <DataTableFacetedFilter
-        key={filter.columnId}
-        column={column}
-        title={filter.title}
-        options={filter.options}
-        singleSelect={filter.singleSelect}
-      />
-    )
-  })
+  const filterChips = React.useMemo(
+    () =>
+      filters.map((filter) => {
+        const column = props.table.getColumn(filter.columnId)
+        if (!column) return null
+        return (
+          <DataTableFacetedFilter
+            key={filter.columnId}
+            column={column}
+            title={filter.title}
+            options={filter.options}
+            singleSelect={filter.singleSelect}
+          />
+        )
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.filters, props.table]
+  )
 
   const handleReset = () => {
     isSearchComposingRef.current = false
