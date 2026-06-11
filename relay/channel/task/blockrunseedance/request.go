@@ -25,7 +25,9 @@ type createRequest struct {
 	GenerateAudio   *bool  `json:"generate_audio,omitempty"`
 	Seed            *int   `json:"seed,omitempty"`
 	Watermark       *bool  `json:"watermark,omitempty"`
-	ReturnLastFrame *bool  `json:"return_last_frame,omitempty"`
+	ReturnLastFrame    *bool    `json:"return_last_frame,omitempty"`
+	LastFrameURL       string   `json:"last_frame_url,omitempty"`
+	ReferenceImageURLs []string `json:"reference_image_urls,omitempty"`
 }
 
 // blockrunExtensions are non-official seedance fields a client may set to drive
@@ -50,9 +52,30 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 		ReturnLastFrame: seed.ReturnLastFrame,
 		RealFaceAssetID: ext.RealFaceAssetID,
 	}
-	// Image-to-video: first image_url wins (the gateway takes a single seed image).
-	if imgs := seed.Images(); len(imgs) > 0 {
-		body.ImageURL = imgs[0].URL
+	// Seed-image mapping (mutual exclusion enforced by validateSeedanceValues):
+	// first_frame/last_frame roles → image_url(+last_frame_url) interpolation;
+	// 2-9 plain/reference_image images → reference_image_urls (omni);
+	// a single plain image → image_url.
+	var first, last string
+	var refs []string
+	for _, m := range seed.Images() {
+		switch m.Role {
+		case dto.SeedanceRoleFirstFrame:
+			first = m.URL
+		case dto.SeedanceRoleLastFrame:
+			last = m.URL
+		default:
+			refs = append(refs, m.URL)
+		}
+	}
+	switch {
+	case first != "" || last != "":
+		body.ImageURL = first
+		body.LastFrameURL = last
+	case len(refs) == 1:
+		body.ImageURL = refs[0]
+	case len(refs) > 1:
+		body.ReferenceImageURLs = refs
 	}
 	return body
 }
@@ -91,11 +114,30 @@ func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensio
 	if len(seed.Audios()) > 0 {
 		return fmt.Errorf("audio input is not supported by this channel")
 	}
-	if len(seed.Images()) > 1 {
-		return fmt.Errorf("only a single seed image is supported")
+	var firstCount, lastCount, refCount int
+	for _, m := range seed.Images() {
+		switch m.Role {
+		case dto.SeedanceRoleFirstFrame:
+			firstCount++
+		case dto.SeedanceRoleLastFrame:
+			lastCount++
+		default:
+			refCount++
+		}
 	}
-	if seed.HasFirstLastFrame() {
-		return fmt.Errorf("first_frame/last_frame image roles are not supported")
+	if firstCount > 1 || lastCount > 1 {
+		return fmt.Errorf("at most one first_frame and one last_frame image are supported")
+	}
+	if lastCount == 1 && firstCount == 0 {
+		// Upstream interpolates from image_url to last_frame_url; never
+		// auto-promote a lone last_frame (vip SDK video.go hard-errors too).
+		return fmt.Errorf("last_frame requires a first_frame image as the starting frame")
+	}
+	if (firstCount > 0 || lastCount > 0) && refCount > 0 {
+		return fmt.Errorf("first_frame/last_frame cannot be combined with reference images")
+	}
+	if refCount > 9 {
+		return fmt.Errorf("at most 9 reference images are supported")
 	}
 	if err := validateResolution(seed.Resolution); err != nil {
 		return err

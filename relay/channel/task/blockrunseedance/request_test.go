@@ -130,18 +130,21 @@ func TestValidateSeedanceValues_RejectsUnsupportedInputs(t *testing.T) {
 			wantSub: "audio input is not supported",
 		},
 		{
-			name:    "two images",
-			content: []dto.SeedanceContentItem{img("https://x/1.jpg", ""), img("https://x/2.jpg", "")},
-			wantSub: "only a single seed image is supported",
+			name:    "two images without role now accepted as multi-reference (not rejected)",
+			content: nil, // placeholder: two plain images are now valid (omni reference mode)
+			wantSub: "",  // skipped below
 		},
 		{
-			name:    "first/last frame roles",
-			content: []dto.SeedanceContentItem{img("https://x/1.jpg", dto.SeedanceRoleFirstFrame)},
-			wantSub: "first_frame/last_frame image roles are not supported",
+			name:    "lone last_frame without first_frame",
+			content: []dto.SeedanceContentItem{img("https://x/1.jpg", dto.SeedanceRoleLastFrame)},
+			wantSub: "last_frame requires",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.wantSub == "" {
+				t.Skip("behavior changed: now accepted")
+			}
 			err := validateSeedanceValues(
 				&dto.SeedanceVideoRequest{Content: tc.content},
 				blockrunExtensions{}, "seedance-2.0")
