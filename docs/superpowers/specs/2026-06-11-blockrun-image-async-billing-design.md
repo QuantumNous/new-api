@@ -33,7 +33,7 @@
 
 ### D1 base SDK 升级（已完成验证，落地即 go.mod bump）
 
-`go.mod`：`github.com/BlockRunAI/blockrun-llm-go v0.11.0 → v0.17.0`。无代码改动（4 符号 API 兼容、x402.go 零 diff）。回归跑两个 blockrun 包测试。
+`go.mod`：`github.com/BlockRunAI/blockrun-llm-go v0.11.0 → v0.17.0`。**已在本 worktree 落地并验证**（commit `53fd1ebea`：全仓构建绿 + 两个 blockrun 包测试绿；4 符号 API 兼容、SDK x402.go 两版零 diff）。剩余工作仅为最终回归。注意：升级本身不带来代码减法——我们不采用 SDK `ImageClient`（架构上与 DoRequest→DoResponse 委派链不兼容），它仅作 D2 的参考实现。
 
 ### D2 图像 202 异步轮询（核心，`relay/channel/blockrun/adaptor.go`）
 
@@ -46,28 +46,39 @@
 ├─ 202 且 body 含 poll_url               → 进入轮询循环
 └─ 202 其它                              → 原样（DoResponse 走既有错误处理）
 
-轮询循环（参照 base v0.17.0 submitImageAndMaybePoll + 我们 seedance FetchTask）：
-  pollURL = ResolveReference(ChannelBaseUrl, poll_url)   // 复用 seedance absoluteURL 模式
-  循环（总预算 300s，间隔 3s，尊重 c.Request.Context() 取消）：
-    GET pollURL
-    → 402 → SignX402PaymentForImage 签名（900s 窗口上限，函数已有）
-            → 设 PAYMENT-SIGNATURE 与 X-PAYMENT 双头（对齐官方 SDK）→ 重试一次；
-            重试后仍 402 → 报错退出（防重复签名，对齐 chat/seedance 守卫）
-    → 200 且 data[] 非空（completed）→ 合成 200 http.Response（application/json）
-                                       交 DoResponse；并提取 price/tx_hash（见 D3）
-    → 202（queued / in_progress）→ sleep 3s 继续
-    → status=failed 或其它状态码 → NewAPIError（白标安全文案，如
-      "image generation failed upstream"），不暴露 BlockRun 字样原文
-  超时（300s 未见 completed）→ NewAPIError 超时文案
+轮询循环（对齐 base v0.17.0 submitImageAndMaybePoll 的「单签名复用」模型）：
+  pollURL = ResolveReference(ChannelBaseUrl, poll_url)
+  签名 = 提交跳已产生的 PAYMENT-SIGNATURE（DoRequest 已 stash 于 gin context，
+        adaptor.go ctxKeyPaymentSignature 机制现成；由 SignX402PaymentWithCaps +
+        maxImageAuthorizationWindowSeconds(900s) 签出。900s ≥ SDK 为轮询预留的
+        600s floor（image.go:301-304），覆盖 300s 预算绰绰有余）
+  循环（总预算 300s，间隔 3s）：
+    GET pollURL — 必须 http.NewRequestWithContext(c.Request.Context(), ...)，
+                  每轮携带同一 PAYMENT-SIGNATURE 与 X-PAYMENT 双头
+                  （对齐 SDK image.go:389 — SDK 轮询从不重签、也从无 402 分支）
+    → 200 且 body 为 completed 形状（data[] 非空）→ 合成 200 http.Response
+        （application/json）交 DoResponse
+    → 202（status ∈ queued / in_progress）→ sleep 3s 继续
+    → 504 → 视为瞬时抖动继续轮询（对齐 SDK image.go:420-429）
+    → 402 → 硬错误退出：签名被拒。绝不在轮询中重签——重签可能产生第二次
+        链上授权（资损风险）
+    → status=failed 或其它 → NewAPIError（白标文案如 "image generation
+        failed upstream"，不含上游品牌/host），不扣费
+  超时（300s 未见 completed）→ NewAPIError 超时文案，不扣费
 ```
 
-**资金安全**：依据事实基线 #2，未观察到 `completed` 即不结算——超时放弃与 failed 都不产生扣费；轮询路径无资损风险。每轮 402→重签（不复用签名），与 seedance 一致，不依赖签名窗口跨轮存活。
+**资金安全（双向）**：
+- **用户/钱包侧**：未观察到 `completed` 即不结算（基线 #2）——超时放弃、failed、客户端中途断开均不产生上游扣费。
+- **平台侧（critic 补充的反向缺口）**：首次观察到 `completed` 的瞬间链上结算即不可逆。自该时刻起**必须保证本地计费落账**：不得因客户端断开或写响应失败而跳过 `PostTextConsumeQuota`；且 completed 之后的任何错误必须带 `ErrOptionWithSkipRetry`，禁止外层渠道重试造成二次提交二次付费。
+- **签名模型**：单签名跨轮复用（900s 窗口覆盖全程 ~330s 最坏情形）；轮询中收到 402 按"签名被拒"硬失败，绝不重签。
 
-**阻塞时长**：最坏 ~30s 内联 + 300s 轮询 ≈ 5.5min << Cloud Run 3600s。图像无流式，阻塞安全。`http.Client` 单次轮询超时取 60s（与 SDK 一致），总预算由循环 deadline 控制。
+**阻塞时长与取消**：最坏 ~30s 内联 + 300s 轮询 ≈ 5.5min << Cloud Run 3600s。图像无流式，阻塞安全。`http.Client` 单轮超时 60s（与 SDK 一致），总预算由循环 deadline 控制。取消传播必须用 `c.Request.Context().Done()`——本仓未启用 gin `ContextWithFallback`，`c.Done()` 恒为 nil，禁止使用。并发占用风险见 §7。
 
 ### D3 结算数据落地（`price.amount` / `tx_hash` → 消费日志 other）
 
-- 新增 context key（`constant/` 包，如 `ContextKeyBlockRunSettlement`），D2 在拿到含结算信息的响应时 `c.Set(key, {price_amount, currency, tx_hash})`。`tx_hash` 优先取 `X-Payment-Receipt` 响应头，body `tx_hash` 兜底；`price` 取异步信封/completed 体内 `price.amount`（同步 200 快路径没有就不写，不造数）。
+- 新增 context key（`constant/` 包，如 `ContextKeyBlockRunSettlement`），D2 在拿到含结算信息的响应时 `c.Set(key, {price_amount, currency, tx_hash})`。
+- **price 来源 = 202 异步信封体**（D2 判别时本就要读该 body 提 `poll_url`，顺手提取 `price.amount` 并 stash）。**不假设 completed 体携带 price**——SDK `decodeImageResponse` 不解析 price，该假设未经证实（critic M2）。同步 200 快路径无 price 即不写，不造数。
+- `tx_hash` 优先取 completed/同步响应的 `X-Payment-Receipt` 头，body `tx_hash` 兜底。
 - `service/log_info_generate.go` 的 `GenerateTextOtherInfo` 末尾读取该 key，存在则叠加 `upstream_price_usd` / `upstream_tx_hash` 字段——沿用 `InjectTieredBillingInfo` 的叠加模式，零侵入 handler 链（`PostTextConsumeQuota` → `GenerateTextOtherInfo` → `RecordConsumeLogParams.Other`，机制现成于 `model/log.go:219`）。
 - **计费基准不变**：仍按后台模型价格结算。配价是上线 checklist 项（§6）。
 
@@ -83,7 +94,7 @@
 | `image_url` 组 / `reference_image_urls` / `real_face_asset_id` 同时出现 | — | fail-fast 互斥（对齐 vip v0.4.2 `buildVideoBody` 规则） |
 | `video_url` / `audio_url` | — | 维持 fail-fast（上游确实不支持） |
 
-`createRequest` 增加 `LastFrameURL string`、`ReferenceImageURLs []string`（`omitempty`；slice 空即省略，标量遵守 Rule 5 指针约定）。`last_frame_url` 需 `image_url` 同在（上游约束），缺首帧时 fail-fast。
+`createRequest` 增加 `LastFrameURL string`、`ReferenceImageURLs []string`（`omitempty`；slice 空即省略，标量遵守 Rule 5 指针约定）。`last_frame_url` 需 `image_url` 同在（上游约束）：有 `last_frame` 角色而无首帧时 **fail-fast 硬错，不自动把尾帧提升为首帧**（对齐 vip video.go:218-223）。
 
 ## 4. 错误处理
 
@@ -95,14 +106,16 @@
 
 **图像（`relay/channel/blockrun/adaptor_test.go` 扩展）**，httptest 假网关：
 1. 快路径 200 → 透传不变；
-2. 202+data[] → 改 200 透传（回归既有用例）；
-3. 202+poll_url → queued → in_progress → completed(200+data) → 客户端拿到 200+data；
-4. 轮询 402 → 签名重试 → 完成；重试后仍 402 → 报错；
-5. failed → 报错且文案白标；
-6. 超时（短预算注入）→ 报错；
-7. 相对 poll_url 解析为绝对；
-8. completed 缺 data → 报错；
-9. price/tx_hash 提取并入 context（含 `X-Payment-Receipt` 头优先）。
+2. 202+data[] → 改 200 透传（**重写 `TestNormalizeImageAccepted`**——旧测试断言"无条件 202→200"，与新判别语义冲突，必须替换而非追加）；
+3. 202+poll_url → queued → in_progress → completed(200+data) → 客户端拿到 200+data，且每轮 GET 均携带同一 PAYMENT-SIGNATURE/X-PAYMENT；
+4. 轮询收到 402 → **硬错误（不重签）**；
+5. 轮询收到 504 → 继续轮询直至 completed；
+6. failed → 报错且文案白标；
+7. 超时（短预算注入）→ 报错；
+8. 相对 poll_url 解析为绝对；
+9. completed 缺 data → 报错；
+10. `n>1` → 单次 completed body 返回全部 n 张图；
+11. price 自 202 信封提取、tx_hash 自 `X-Payment-Receipt` 头优先提取，入 context。
 
 **视频（`request_test.go` 扩展）**：首尾帧映射、多图→reference、>9 拒、三类 seed 互斥、缺首帧拒、video/audio 仍拒。
 
@@ -114,13 +127,17 @@
 
 1. **运营配价**：后台给 `openai/gpt-image-2` 等图像模型配按张价、`seedance-*` 配按次价（价格模式非倍率，≥ 上游成本+毛利）——否则 token=1 兜底继续以 quota≈3 结算。
 2. 部署后生产验证：慢图（>30s prompt）端到端拿图；图生图端到端；消费日志可见 `upstream_price_usd`/`upstream_tx_hash`。
+   **首次生产验证须抓取完整协议样本**（202 信封原文、每轮 poll 状态码、completed body），确认两个设计假设：① 轮询携带复用签名时是否从不 402；② price 是否确实只在 202 信封。若与假设不符，回修 D2/D3 再放量。
 3. 视频侧 PR #92 已合并，随本次部署一并生产验证 create→poll→content 全链路。
 
 ## 7. 风险与缓解
 
 | 风险 | 缓解 |
 |---|---|
-| 上游协议再变（信封字段/状态枚举与实测不符） | 判别失败兜底为"原样交 DoResponse 报错"，不会卡死；测试用例锚定当前协议 |
-| 客户端自身超时 < 我们轮询时长 | 客户端放弃不影响资金（未 completed 不结算）；文档注明最长等待 ~5.5min |
+| 上游协议再变（信封字段/状态枚举与实测不符） | 判别失败兜底为"原样交 DoResponse 报错"，不会卡死；测试用例锚定当前协议；首验抓包确认（§6.2） |
+| 轮询期上游意外返回 402（与 SDK 单签名模型不符） | 按"签名被拒"硬失败、绝不重签（重签=二次链上授权风险）；若生产抓包证实轮询确实要求重签，回评审签名策略 |
+| **completed 已结算但客户端已断开** → 平台已付上游、用户未计费 | completed 观察后视结算为既成事实：不因 ctx 取消跳过 `PostTextConsumeQuota`；其后错误一律带 `ErrOptionWithSkipRetry` 防外层重试二次付费 |
+| 内联阻塞下并发慢图占用 goroutine/连接池（每张慢图挂起一个 handler 最长 ~5.5min） | 本期接受（图像 QPS 低、Cloud Run 可横向扩容）；记录跟进项：必要时加 per-channel in-flight 上限 |
+| 客户端自身超时 < 我们轮询时长 | 客户端放弃不影响钱包资金（未 completed 不结算）；文档注明最长等待 ~5.5min |
 | `price.amount` 在同步快路径缺失 | 不造数，缺失即不写 other；对账以 tx_hash 为准 |
 | 升级 SDK 引入隐性行为变化 | 已验证 x402.go 零 diff + 全量构建/测试绿；仅 bump 不改调用 |
