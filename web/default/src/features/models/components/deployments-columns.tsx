@@ -253,7 +253,7 @@ export function useDeploymentsColumns(opts: {
           ''
 
         return (
-          <div className='flex items-center gap-1'>
+          <div className='-ml-2.5 flex items-center gap-1'>
             <Button
               variant='ghost'
               size='sm'
