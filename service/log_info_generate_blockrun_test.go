@@ -39,4 +39,13 @@ func TestAppendBlockRunSettlementInfo(t *testing.T) {
 	t.Run("nil ctx safe", func(t *testing.T) {
 		appendBlockRunSettlementInfo(nil, map[string]interface{}{})
 	})
+	t.Run("wrong value type → ignored, no panic", func(t *testing.T) {
+		c := newSettlementTestCtx()
+		c.Set(string(constant.ContextKeyBlockRunSettlement), "not-a-map")
+		other := map[string]interface{}{"model_price": 0.1}
+		appendBlockRunSettlementInfo(c, other)
+		if len(other) != 1 {
+			t.Fatalf("other mutated on wrong-type value: %v", other)
+		}
+	})
 }

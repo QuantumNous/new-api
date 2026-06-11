@@ -269,8 +269,11 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 // appendBlockRunSettlementInfo overlays upstream settlement signals captured by
 // the blockrun adaptor (price.amount from the 202 async envelope, on-chain
 // USDC tx hash) so the consume log can be reconciled against real cost.
+// Contract: the producer writing this map (the blockrun adaptor) MUST only use
+// "upstream_"-prefixed keys and MUST NOT overwrite keys already emitted by
+// GenerateTextOtherInfo (model_price, model_ratio, etc.).
 func appendBlockRunSettlementInfo(ctx *gin.Context, other map[string]interface{}) {
-	if ctx == nil {
+	if ctx == nil || other == nil {
 		return
 	}
 	v, ok := ctx.Get(string(constant.ContextKeyBlockRunSettlement))
