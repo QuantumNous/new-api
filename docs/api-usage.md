@@ -2,7 +2,7 @@
 
 本文档面向合作方接入和 AI agent 自动调用，覆盖视频生成、图片生成、图像编辑、文本对话、模型列表、错误处理和价格参考。所有接口兼容 OpenAI API 格式，可直接使用 OpenAI SDK 或兼容客户端调用。
 
-> **最后验证：2026-06-09**。当前分支已合并 `origin/main` 最新代码并重新部署远端服务；`/api/status`、`/v1/models`、视频推荐模型、SiliconFlow 图片模型，以及 `gpt-image-2` ListenHub 优先路由和 xgapi 图片兜底均已通过远端真实接口验证。
+> **最后验证：2026-06-11**。当前分支已部署 quota 冷却机制与漫小白（manxiaobai）渠道；`/api/status`、`/v1/models`、`gpt-image-2` xgapi 主路径与漫小白兜底轮换、`gpt-image-2` 漫小白参考图编辑、`gpt-image-2-1k` 高分档位、`gemini-3.1-flash-image-preview` 漫小白 Gemini 原生路径、`grok-imagine-video` 视频全流程（提交/轮询/下载）均已通过远端真实接口验证。
 
 ---
 
@@ -16,7 +16,7 @@
 | 内部测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
 | 测试 Key 额度 | 当前测试 Key 为本服务侧无限额度（unlimited_quota）；生产 Key 以实际配置为准 |
 
-当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成视频全模型回归测试；2026-06-06 再次合并 upstream 最新代码、重新部署远端服务，并完成 SiliconFlow 图片模型实测。
+当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成视频全模型回归测试；2026-06-06 再次合并 upstream 最新代码并完成 SiliconFlow 图片模型实测；2026-06-10 合并 upstream 27 commits 并部署 quota 冷却故障转移机制；2026-06-11 接入漫小白（manxiaobai）渠道并完成图片/参考图/视频全链路真实验证。
 
 所有请求必须在 HTTP Header 中携带 API Key：
 
@@ -45,7 +45,7 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 
 ---
 
-## 现有可用模型合集（2026-06-09）
+## 现有可用模型合集（2026-06-11）
 
 本节是给人和 AI agent 的快速索引。详细参数、轮询方式、错误处理和价格见后续章节。
 
@@ -55,8 +55,8 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 
 | 场景 | 上游推荐传参 | 内部处理 |
 |------|--------------|----------|
-| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 xgapi 直出生图（2026-06-10 起 ListenHub 上游余额耗尽，已降为兜底）；失败时自动重试其它可用 channel |
-| `gpt-image-2` 带参考图 | `model: "gpt-image-2"` + `image` / `images` | 仅 ListenHub 参考图接口支持；ListenHub 上游余额耗尽期间该路径不可用，充值后恢复。大体积 `data:image/...;base64,...` 参考图需压缩或改用 URL |
+| `gpt-image-2` 直接生图 | `model: "gpt-image-2"` | 优先走 xgapi 直出生图，漫小白为第一兜底（quota/失败自动转移并冷却坏渠道 10 分钟），ListenHub 垫底 |
+| `gpt-image-2` 带参考图 | `model: "gpt-image-2"` + `image` / `images`（或 `POST /v1/images/edits`） | 首选漫小白参考图接口（2026-06-11 真实验证，约 43 秒），ListenHub 为兜底。大体积 `data:image/...;base64,...` 参考图需压缩或改用 URL |
 | 历史图片别名 | `gpt-image-2(线路XF)` / `gr-image-2` / `nano-banana-pro` | 作为兼容别名映射到 xgapi 上游 `gpt-image-2` |
 | `grok-video-3` 视频 | `model: "grok-video-3"` | 走 LK888 视频 channel；`/v1/models` 已暴露该标准名 |
 
@@ -86,9 +86,9 @@ Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 | `gemini_3.0_pro_image_preview` | `POST /v1/images/generations` | 生图 | 约 58 秒 | `data[0].b64_json` | Apexer 高质量图片、产品图 |
 | `gemini_3.1_flash_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 65 秒 | `data[0].b64_json` | Apexer 快速高清输出 |
 | `gemini_3.0_pro_image_preview_4K` | `POST /v1/images/generations` | 生图 | 约 383 秒 | `data[0].b64_json` | Apexer 4K 高质量，耗时较长 |
-| `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 29-93 秒 | `data[0].b64_json` | 横线命名快速生图；当前主路径 Apexer（映射 `gemini_3.1_flash_image_preview`），ListenHub 为兜底 |
-| `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 58-67 秒 | `data[0].b64_json` | 横线命名高质量生图；当前主路径 Apexer（映射 `gemini_3.0_pro_image_preview`），ListenHub 为兜底 |
-| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 45-90 秒 | `data[0].url` | 当前主路径 xgapi 直出生图；ListenHub 余额耗尽期间降为兜底 |
+| `gemini-3.1-flash-image-preview` | `POST /v1/images/generations` | 生图 | 约 22-93 秒 | `data[0].b64_json` | 横线命名快速生图；主路径 Apexer（映射 `gemini_3.1_flash_image_preview`），漫小白第二兜底（Gemini 原生入口实测 22 秒），ListenHub 垫底 |
+| `gemini-3-pro-image-preview` | `POST /v1/images/generations` | 生图 | 约 58-67 秒 | `data[0].b64_json` | 横线命名高质量生图；主路径 Apexer（映射 `gemini_3.0_pro_image_preview`），漫小白第二兜底，ListenHub 垫底 |
+| `gpt-image-2` | `POST /v1/images/generations` | 生图 | 约 45-90 秒 | `data[0].url` | 主路径 xgapi 直出生图，漫小白第一兜底；带参考图走 `/v1/images/edits`（漫小白，约 43 秒） |
 | `gpt-image-2-1k` / `-2k` / `-4k` | `POST /v1/images/generations` | 生图（高分辨率档位） | 1k 实测约 138 秒 | `data[0].url` | 漫小白独家档位，已真实验证；需按档位传对应尺寸（如 1k 16:9 传 `1824x1024`，4k 传 `3840x2160`） |
 | `gpt-image-2(线路XF)` | `POST /v1/images/generations` | 生图 | 48-50 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
 | `gr-image-2` | `POST /v1/images/generations` | 生图 | 46-55 秒 | `data[0].url` | 映射到 xgapi `gpt-image-2` |
@@ -379,6 +379,7 @@ Grok 渠道注意事项：
 | `grok-video-3` | LK888 / AI 聚合站 | `task_fjCxJlZ18U0eQIQOfXy077K4HHMzNHum` | ✅ 完成并可下载 | 2026-06-07 复测完成，`/content` 返回 `video/mp4` |
 | `ss-sora-2` | Hongniao / Sora | `task_s4H8Mwn0LwsUMviZTWviEH2GVBHvC7V4` | ✅ 完成并可下载 | Sora 2 备用路径，约 3 分钟完成 |
 | `veo3.1-4k` | Apexer / Veo 4K | `task_mDFMyYk4fXPREqIZad9ZFTSNvEhQ46Wz` | ✅ 完成并可下载 | 4K 高质量，约 4 分钟完成，$1.5/次 |
+| `grok-imagine-video` | 漫小白 / Grok 1.0 | `task_hW0IUCjIRm4fpZjtyqiCKMaU1ZrgLcdL` | ✅ 完成并可下载 | 2026-06-11 验证，10s 视频约 2-3 分钟完成，$0.25/次；`seconds` 必须传字符串 |
 
 下载抽查结果：
 
@@ -389,6 +390,7 @@ Grok 渠道注意事项：
 | `grok-imagine-1.0-video` | `200` | `video/mp4` | 约 3.8 MB |
 | `ss-sora-2` | `200` | `video/mp4` | 约 7.8 MB |
 | `veo3.1-4k` | `200` | `video/mp4` | 约 23 MB |
+| `grok-imagine-video` | `200` | `video/mp4` | 约 18.5 MB |
 
 #### 可尝试但未逐一真实验证的同族模型
 
@@ -722,7 +724,7 @@ curl -s "${BASE_URL}/videos" \
 图片生成推荐使用 OpenAI 兼容的 **Images** 接口调用，统一入口是 `/v1/images/generations`；图像编辑使用 `/v1/images/edits`。当前内部主用三类模型：
 
 - 下划线模型：`gemini_3.*_image_preview`，走 Apexer OpenAI 兼容通道。
-- 横线模型：`gemini-3.*-image-preview` 当前主路径为 Apexer（model_mapping 映射到下划线命名），ListenHub 为兜底；`gpt-image-2` 当前优先走 xgapi 直出生图，ListenHub 余额耗尽期间降为兜底。
+- 横线模型：`gemini-3.*-image-preview` 主路径为 Apexer（model_mapping 映射到下划线命名），漫小白第二兜底，ListenHub 垫底；`gpt-image-2` 优先走 xgapi 直出生图，漫小白第一兜底，带参考图首选漫小白 edits。
 - SiliconFlow 模型：`Qwen/Qwen-Image`、`baidu/ERNIE-Image-Turbo`、`Tongyi-MAI/Z-Image` 和 `Qwen/Qwen-Image-Edit-2509`，返回 `data[0].url`。
 
 Chat Completions 形式仍保留兼容：部分上游会把图片 URL 放在 `choices[0].message.content` 的 Markdown 图片语法中返回。新接入和业务调用优先使用 Images 接口。
@@ -768,9 +770,10 @@ Authorization: Bearer <api-key>
 | `gemini_3.0_pro_image_preview` | Apexer OpenAI 兼容 | $0.3 | 约 58 秒 | `b64_json` | 高质量图片、产品图 |
 | `gemini_3.1_flash_image_preview_4K` | Apexer OpenAI 兼容 | $0.3 | 约 65 秒 | `b64_json` | 快速高清输出 |
 | `gemini_3.0_pro_image_preview_4K` | Apexer OpenAI 兼容 | $0.35 | 约 383 秒 | `b64_json` | 4K 高质量，耗时明显更长 |
-| `gemini-3.1-flash-image-preview` | ListenHub | $0.2 | 约 93 秒 | `b64_json` | 横线命名快速生图 |
-| `gemini-3-pro-image-preview` | ListenHub | $0.3 | 约 67 秒 | `b64_json` | 横线命名高质量生图 |
-| `gpt-image-2` | ListenHub / xgapi-images | $0.5 | 约 20-40 秒 | `b64_json` / `url` | 优先 ListenHub；xgapi 保留为直出生图兜底 |
+| `gemini-3.1-flash-image-preview` | Apexer 主路径 / 漫小白兜底 | $0.2 | 约 22-93 秒 | `b64_json` | 横线命名快速生图 |
+| `gemini-3-pro-image-preview` | Apexer 主路径 / 漫小白兜底 | $0.3 | 约 58-67 秒 | `b64_json` | 横线命名高质量生图 |
+| `gpt-image-2` | xgapi 主路径 / 漫小白兜底 | $0.5 | 约 45-90 秒 | `url` | 直出生图；带参考图走 `/v1/images/edits`（漫小白，约 43 秒） |
+| `gpt-image-2-1k` / `-2k` / `-4k` | 漫小白（manxiaobai） | $0.55 / $0.6 / $0.65 | 1k 实测约 138 秒 | `url` | 高分辨率档位，需按档位传对应尺寸 |
 | `gpt-image-2(线路XF)` | xgapi-images | $0.3 | 48-50 秒 | `url` | 映射到 xgapi `gpt-image-2` |
 | `gr-image-2` | xgapi-images | $0.3 | 46-55 秒 | `url` | 映射到 xgapi `gpt-image-2` |
 | `nano-banana` | bltcy-images | $0.18 | 8-9 秒 | `url` | 快速生图 |
@@ -1224,7 +1227,12 @@ Authorization: Bearer <api-key>
 | gemini_3.0_pro_image_preview_4K | 图片 | $0.35 | Apexer Pro 4K |
 | gemini_3.1_flash_image_preview | 图片 | $0.25 | Apexer Flash |
 | gemini_3.1_flash_image_preview_4K | 图片 | $0.3 | Apexer Flash 4K |
-| gpt-image-2 | 图片 | $0.5 | OpenAI 图片模型，当前 ListenHub 优先路由和 xgapi 兜底均已验证 |
+| gpt-image-2 | 图片 | $0.5 | OpenAI 图片模型，xgapi 主路径 + 漫小白兜底已验证；参考图走漫小白 edits |
+| gpt-image-2-1k | 图片 | $0.55 | 漫小白 1K 档位，已验证 |
+| gpt-image-2-2k | 图片 | $0.6 | 漫小白 2K 档位 |
+| gpt-image-2-4k | 图片 | $0.65 | 漫小白 4K 档位 |
+| grok-imagine-video | 视频 | $0.25 | 漫小白 Grok 1.0（10s），已验证 |
+| grok-imagine-video-1.5-preview | 视频 | $0.45 | 漫小白 Grok 1.5，必须参考图，预上传协议待验证 |
 | baidu/ERNIE-Image-Turbo | 图片 | 按后台配置 | SiliconFlow 快速通用生图 |
 | Qwen/Qwen-Image | 图片 | 按后台配置 | SiliconFlow Qwen 生图 |
 | Tongyi-MAI/Z-Image | 图片 | 按后台配置 | SiliconFlow 通义 Z-Image |
@@ -1269,6 +1277,12 @@ Authorization: Bearer <api-key>
 | Qwen/Qwen-Image | 按 SiliconFlow 账号计费 | SiliconFlow |
 | Tongyi-MAI/Z-Image | 按 SiliconFlow 账号计费 | SiliconFlow |
 | Qwen/Qwen-Image-Edit-2509 | 按 SiliconFlow 账号计费 | SiliconFlow |
+| gpt-image-2（漫小白线路） | $0.03 | 漫小白 manxiaobai |
+| gpt-image-2-1k / -2k / -4k | $0.05 / $0.06 / $0.07 | 漫小白 manxiaobai |
+| gemini-3-pro-image-preview（漫小白线路） | $0.125 | 漫小白 manxiaobai |
+| gemini-3.1-flash-image-preview（漫小白线路） | $0.1 | 漫小白 manxiaobai |
+| grok-imagine-video | $0.2 | 漫小白 manxiaobai |
+| grok-imagine-video-1.5-preview | $0.35 | 漫小白 manxiaobai |
 
 ### 已对接平台
 
