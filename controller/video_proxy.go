@@ -197,10 +197,20 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
+	// 回源上游是 LLM 渠道（OpenAI/Sora、Gemini、Vertex 等）的取流端点，
+	// 必须经 ShouldCopyUpstreamHeader 过滤，避免把上游内部 header 透传给下游。
 	for key, values := range resp.Header {
+		if !service.ShouldCopyUpstreamHeader(c, key, values) {
+			continue
+		}
 		for _, value := range values {
 			c.Writer.Header().Add(key, value)
 		}
+	}
+	// ShouldCopyUpstreamHeader 会拦下 Content-Length（缓冲路径里单独管理）；
+	// 这里 body 是原样流式转发，长度已知时显式补回。
+	if resp.ContentLength >= 0 {
+		c.Writer.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
 	}
 
 	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")

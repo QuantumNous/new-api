@@ -2,12 +2,14 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/gin-gonic/gin"
@@ -23,11 +25,25 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 	}
 }
 
+// blockedUpstreamHeaders lists upstream response headers (lowercase) that
+// expose provider-internal details and must never reach the client.
+var blockedUpstreamHeaders = map[string]struct{}{
+	"anthropic-organization-id":     {},
+	"access-control-expose-headers": {},
+}
+
+// blockedUpstreamHeaderPrefixes lists lowercase header-name prefixes that are
+// stripped as a family, e.g. all anthropic-ratelimit-* quota headers.
+var blockedUpstreamHeaderPrefixes = []string{
+	"anthropic-ratelimit-",
+}
+
 // ShouldCopyUpstreamHeader checks whether a given upstream response header
 // should be copied to the client response. It returns false for Content-Length
-// (managed separately) and X-Oneapi-Request-Id (to preserve the local instance
-// ID). When the upstream header is X-Oneapi-Request-Id, the value is captured
-// into the Gin context for later logging.
+// (managed separately), X-Oneapi-Request-Id (to preserve the local instance
+// ID), and provider-internal headers such as anthropic-ratelimit-*. When the
+// upstream header is X-Oneapi-Request-Id, the value is captured into the Gin
+// context for later logging.
 func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 	if strings.EqualFold(k, "Content-Length") {
 		return false
@@ -38,7 +54,35 @@ func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 		}
 		return false
 	}
+	lower := strings.ToLower(k)
+	if _, blocked := blockedUpstreamHeaders[lower]; blocked {
+		logBlockedUpstreamHeader(c, k, v)
+		return false
+	}
+	for _, prefix := range blockedUpstreamHeaderPrefixes {
+		if strings.HasPrefix(lower, prefix) {
+			logBlockedUpstreamHeader(c, k, v)
+			return false
+		}
+	}
 	return true
+}
+
+// logBlockedUpstreamHeader logs the name and values of an upstream header that
+// was stripped by the blocklist, so operators can audit what is being removed.
+// Controlled by LOG_BLOCKED_UPSTREAM_HEADERS (default true). Only blocklist
+// hits are logged; the Content-Length / X-Oneapi-Request-Id exclusions are not.
+func logBlockedUpstreamHeader(c *gin.Context, k string, v []string) {
+	if !constant.LogBlockedUpstreamHeaders {
+		return
+	}
+	// A typed-nil *gin.Context must not be passed to logger.LogInfo as a
+	// context.Context: gin's Context.Value would panic on the nil receiver.
+	var ctx context.Context
+	if c != nil {
+		ctx = c
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("blocked upstream header: %s: %s", k, strings.Join(v, ", ")))
 }
 
 func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
