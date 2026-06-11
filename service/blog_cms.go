@@ -117,6 +117,9 @@ type blogCMSRawPost struct {
 	CategoryName string `json:"category_name"`
 	CategorySlug string `json:"category_slug"`
 	DetailURL    string `json:"detailUrl"`
+	Meta         struct {
+		Description string `json:"desc"`
+	} `json:"meta"`
 }
 
 type blogCMSRawCategory struct {
@@ -542,7 +545,7 @@ func mapBlogCMSPost(raw blogCMSRawPost) BlogPost {
 		Title:        raw.PostTitle,
 		Slug:         raw.Slug,
 		Cover:        raw.TwitterImage,
-		Summary:      raw.PostExcerpt,
+		Summary:      firstNonEmpty(raw.Meta.Description, raw.PostExcerpt),
 		Date:         raw.PostDate,
 		Author:       raw.AuthorName,
 		CategoryID:   raw.CategoryID,
