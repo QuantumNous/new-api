@@ -124,8 +124,8 @@ const UNIT_OPTIONS = [
   { label: '天',   value: 'day',    toMinutes: (v: number) => v * 1440 },
 ]
 
-const DOT_COUNT = 24       // 2 rows × 12 cols
-const DOTS_PER_ROW = 12
+const DOT_COUNT = 10       // 2 rows × 5 cols
+const DOTS_PER_ROW = 5
 
 function minutesToUnit(minutes: number): { value: number; unit: string } {
   if (minutes % 1440 === 0) return { value: minutes / 1440, unit: 'day' }
