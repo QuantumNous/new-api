@@ -22,6 +22,7 @@ import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { formatBlogDate } from '../lib/format'
+import { buildBlogPostPath } from '../lib/routes'
 import type { BlogPost } from '../types'
 
 interface BlogCardProps {
@@ -38,7 +39,10 @@ export function BlogCard(props: BlogCardProps) {
 
   return (
     <Link
-      to={localizePublicPath(`/blog/${props.post.slug}`, currentPublicLanguage)}
+      to={localizePublicPath(
+        buildBlogPostPath(props.post.slug),
+        currentPublicLanguage
+      )}
       className='border-border/70 bg-card group flex min-h-full flex-col overflow-hidden rounded-lg border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg'
     >
       {props.post.cover ? (

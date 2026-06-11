@@ -52,15 +52,6 @@ export function LanguageSwitcher() {
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
-      if (isPublicWebsitePath(location.pathname)) {
-        await i18n.changeLanguage(code)
-        const pathname = localizePublicPath(location.pathname, code)
-        await navigate({
-          to: `${pathname}${window.location.search}${window.location.hash}`,
-        })
-        return
-      }
-
       await i18n.changeLanguage(code)
       if (user) {
         try {
@@ -68,6 +59,14 @@ export function LanguageSwitcher() {
         } catch {
           // Best-effort persistence; don't block the UI on failure
         }
+      }
+
+      if (isPublicWebsitePath(location.pathname)) {
+        const pathname = localizePublicPath(location.pathname, code)
+        await navigate({
+          to: `${pathname}${window.location.search}${window.location.hash}`,
+        })
+        return
       }
     },
     [i18n, location.pathname, navigate, user]

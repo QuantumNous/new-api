@@ -43,6 +43,8 @@ const PUBLIC_WEBSITE_PREFIXES = [
   '/user-agreement',
 ]
 
+const TRUSTED_PUBLIC_ORIGIN = 'https://flatkey.ai'
+
 export function isPublicLocale(
   value?: string | null
 ): value is InterfaceLanguageCode {
@@ -94,11 +96,22 @@ export type PublicHrefLangLink = {
   href: string
 }
 
+export function getTrustedPublicOrigin(origin: string): string {
+  try {
+    const parsedOrigin = new URL(origin).origin
+    if (parsedOrigin === TRUSTED_PUBLIC_ORIGIN) return parsedOrigin
+  } catch {
+    // Fall back to the canonical public origin for malformed runtime values.
+  }
+
+  return TRUSTED_PUBLIC_ORIGIN
+}
+
 export function buildPublicHrefLangLinks(
   origin: string,
   pathname: string
 ): PublicHrefLangLink[] {
-  const normalizedOrigin = origin.replace(/\/+$/, '')
+  const normalizedOrigin = getTrustedPublicOrigin(origin).replace(/\/+$/, '')
   const alternates = PUBLIC_HREFLANG_LOCALES.map((locale) => ({
     hrefLang: locale,
     href: `${normalizedOrigin}${localizePublicPath(pathname, locale)}`,

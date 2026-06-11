@@ -16,40 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { localizePublicPath } from '@/lib/public-locale'
 import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
 import { ModelDetails } from '@/features/pricing/components/model-details'
-
-const modelDetailsSearchSchema = z.object({
-  search: z.string().optional(),
-  sort: z.string().optional(),
-  vendor: z.string().optional(),
-  group: z.string().optional(),
-  quotaType: z.string().optional(),
-  endpointType: z.string().optional(),
-  tag: z.string().optional(),
-  tokenUnit: z.enum(['M', 'K']).optional(),
-  view: z.enum(['card', 'table']).optional().catch(undefined),
-  rechargePrice: z.boolean().optional(),
-})
+import { publicPricingSearchSchema } from '@/features/pricing/lib/public-search'
 
 export const Route = createFileRoute('/$locale/pricing/$modelId/')({
-  validateSearch: modelDetailsSearchSchema,
+  validateSearch: publicPricingSearchSchema,
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
 
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {
-      throw redirect({ to: '/' })
+      throw redirect({ to: localizePublicPath('/', args.params.locale) })
     }
     if (access.requireAuth) {
       const { auth } = useAuthStore.getState()
       if (!auth.user) {
         throw redirect({
-          to: '/sign-in',
+          to: localizePublicPath('/sign-in', args.params.locale),
           search: { redirect: args.location.href },
         })
       }

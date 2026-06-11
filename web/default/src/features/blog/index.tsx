@@ -39,6 +39,7 @@ import {
   normalizeBlogCategories,
 } from './constants'
 import { formatBlogDate } from './lib/format'
+import { buildBlogCategoryPath } from './lib/routes'
 
 interface BlogSearchState {
   page?: number
@@ -130,7 +131,7 @@ function BlogCategories() {
         <Link
           key={category.slug}
           to={localizePublicPath(
-            `/blog/category/${category.slug}`,
+            buildBlogCategoryPath(category.slug),
             currentPublicLanguage
           )}
           search={{ page: undefined, q: undefined }}

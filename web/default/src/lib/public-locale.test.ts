@@ -25,6 +25,7 @@ import {
   localizePublicPath,
   stripPathLocale,
 } from './public-locale'
+import { beforeLoadPublicLocaleRoute } from './public-locale-route'
 
 describe('public locale paths', () => {
   test('detects supported locale prefixes only', () => {
@@ -74,6 +75,37 @@ describe('public locale paths', () => {
         { hrefLang: 'vi', href: 'https://flatkey.ai/vi/blog/example' },
         { hrefLang: 'x-default', href: 'https://flatkey.ai/blog/example' },
       ]
+    )
+  })
+
+  test('uses trusted public origin for hreflang alternates', () => {
+    const links = buildPublicHrefLangLinks(
+      'https://phishing.example',
+      '/zh/blog/example'
+    )
+
+    assert.equal(links[0].href, 'https://flatkey.ai/blog/example')
+  })
+
+  test('preserves hash when redirecting default locale URLs', () => {
+    assert.throws(
+      () =>
+        beforeLoadPublicLocaleRoute({
+          params: { locale: 'en' },
+          location: {
+            href: '/en/blog/example?utm=1#intro',
+            pathname: '/en/blog/example',
+            search: { utm: '1' },
+            hash: '#intro',
+          },
+        }),
+      (error: unknown) => {
+        assert.equal(
+          (error as { options?: { hash?: string } }).options?.hash,
+          '#intro'
+        )
+        return true
+      }
     )
   })
 })

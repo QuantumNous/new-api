@@ -16,39 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { redirect } from '@tanstack/react-router'
-import {
-  DEFAULT_PUBLIC_LOCALE,
-  isPublicLocale,
-  stripPathLocale,
-} from './public-locale'
 
-type PublicLocaleBeforeLoadArgs = {
-  params: {
-    locale?: string
-  }
-  location: {
-    hash?: string
-    href: string
-    pathname: string
-    search: Record<string, unknown>
-  }
+export function buildBlogPostPath(slug: string): string {
+  return `/blog/${encodeURIComponent(slug)}`
 }
 
-export function beforeLoadPublicLocaleRoute(
-  args: PublicLocaleBeforeLoadArgs
-): void {
-  const locale = args.params.locale
-
-  if (!isPublicLocale(locale)) {
-    throw redirect({ to: '/404' })
-  }
-
-  if (locale === DEFAULT_PUBLIC_LOCALE) {
-    throw redirect({
-      to: stripPathLocale(args.location.pathname),
-      search: args.location.search,
-      hash: args.location.hash,
-    })
-  }
+export function buildBlogCategoryPath(slug: string): string {
+  return `/blog/category/${encodeURIComponent(slug)}`
 }
