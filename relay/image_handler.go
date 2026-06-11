@@ -44,6 +44,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	adaptor.Init(info)
 
+	// The settlement key may survive a previous failed attempt on this same
+	// gin.Context (the relay retry loop reuses it). Clear it so the
+	// bill-through guard below only ever sees signals from THIS attempt.
+	delete(c.Keys, string(constant.ContextKeyBlockRunSettlement))
+
 	var requestBody io.Reader
 
 	// codex 图像必须走 ConvertImageRequest 合成 Responses + image_generation body：
