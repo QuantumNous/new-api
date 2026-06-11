@@ -10,6 +10,11 @@ import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const PLAYGROUND_NAV_ITEMS = [
   {
+    key: 'console',
+    labelKey: '控制台',
+    to: '/console',
+  },
+  {
     key: 'playground',
     labelKey: '操练场',
     to: '/console/playground',
@@ -124,6 +129,7 @@ const PlaygroundHeaderBar = ({
                 <NavLink
                   key={item.key}
                   to={item.to}
+                  end={item.key === 'console'}
                   className={({ isActive }) =>
                     `app-header-nav-link playground-header-nav-link flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out px-2 py-3 ${
                       isActive ? 'is-active' : ''
