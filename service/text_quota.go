@@ -371,12 +371,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
-		logger.LogError(ctx, "error settling billing: "+err.Error())
+		logger.LogError(ctx, "error settling billing: "+err.Error()+"; billing webhook skipped")
+	} else {
+		// Airbotix / DeepRouter: dispatch per-tenant billing webhook (no-op if the
+		// tenant doesn't have BillingWebhookURL set). Async, never blocks response.
+		dispatchAirbotixBilling(ctx, relayInfo, usage, summary.Quota)
 	}
-
-	// Airbotix / DeepRouter: dispatch per-tenant billing webhook (no-op if the
-	// tenant doesn't have BillingWebhookURL set). Async, never blocks response.
-	dispatchAirbotixBilling(ctx, relayInfo, usage, summary.Quota)
 
 	// DeepRouter auto top-up (OpenAI-style low-balance auto-charge).
 	// Fire-and-forget; the function is internally idempotent via Redis SETNX
