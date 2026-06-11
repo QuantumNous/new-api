@@ -234,6 +234,14 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if request.Model == "" {
 		return nil, errors.New("blockrun: image model is required")
 	}
+	// BlockRun's image endpoints don't understand stream/partial_images: SSE is
+	// synthesized locally (image_stream.go). Record the intent, then strip both
+	// so they never reach the upstream body.
+	if request.Stream != nil && *request.Stream {
+		info.IsStream = true
+	}
+	request.Stream = nil
+	request.PartialImages = nil
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		// OpenAI-compatible text-to-image: pass the request through unchanged.
@@ -354,6 +362,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 // Note on /v1/messages/count_tokens: there is no RelayMode for count_tokens in
 // relay/constant, so that path cannot route to this adaptor today — out of scope.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if isImageStreamMode(c, info) {
+		return streamImageResponse(c, resp, info)
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	}

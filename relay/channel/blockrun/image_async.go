@@ -108,6 +108,13 @@ func resolveImageResult(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	if isImageStreamMode(c, info) {
 		stop := startImageHeartbeat(c)
 		defer stop()
+		final, perr := pollImageJob(c, info, probe.PollURL, paymentSignature)
+		if perr != nil {
+			// Stream already started — surface the failure as a whitelabel SSE
+			// error event since the 200 status can no longer change.
+			writeImageStreamError(c, "image generation failed or timed out")
+		}
+		return final, perr
 	}
 	return pollImageJob(c, info, probe.PollURL, paymentSignature)
 }
@@ -299,7 +306,3 @@ func mergeSettlement(c *gin.Context, kv map[string]interface{}) {
 	}
 	c.Set(string(constant.ContextKeyBlockRunSettlement), merged)
 }
-
-// Placeholder until image_stream.go (Task 5) provides the real implementations.
-func isImageStreamMode(_ *gin.Context, _ *relaycommon.RelayInfo) bool { return false }
-func startImageHeartbeat(_ *gin.Context) func()                      { return func() {} }

@@ -26,7 +26,7 @@ type ImageRequest struct {
 	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
 	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
-	// Stream            bool            `json:"stream,omitempty"`
+	Stream            *bool           `json:"stream,omitempty"` // image streaming opt-in (Rule 5 pointer)
 	Images        json.RawMessage `json:"images,omitempty"`
 	Mask          json.RawMessage `json:"mask,omitempty"`
 	InputFidelity json.RawMessage `json:"input_fidelity,omitempty"`
