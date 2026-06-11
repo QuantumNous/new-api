@@ -113,6 +113,11 @@ func VideoProxy(c *gin.Context) {
 		videoURL = task.GetResultURL()
 		if isHongniaoVideoChannel(baseURL, channel.Other) {
 			req.Header.Set("X-API-Key", channel.Key)
+		} else if strings.TrimSpace(videoURL) == "" {
+			// 标准 OpenAI Video 上游（如漫小白）轮询响应不含直链，
+			// 回退到上游鉴权 content 端点代理下载
+			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", strings.TrimRight(baseURL, "/"), task.GetUpstreamTaskID())
+			req.Header.Set("Authorization", "Bearer "+channel.Key)
 		}
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
