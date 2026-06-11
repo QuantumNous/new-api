@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"sort"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -8,6 +10,40 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func getSortedUsableGroupNames(usableGroup map[string]string) []string {
+	groups := make([]string, 0, len(usableGroup))
+	for group := range usableGroup {
+		if group != "" {
+			groups = append(groups, group)
+		}
+	}
+	sort.Strings(groups)
+	return groups
+}
+
+func filterEnableGroupsByUsableGroups(enableGroups []string, usableGroup map[string]string, usableGroupNames []string) []string {
+	if common.StringsContains(enableGroups, "all") {
+		return append([]string(nil), usableGroupNames...)
+	}
+
+	groups := make([]string, 0, len(enableGroups))
+	seen := make(map[string]struct{}, len(enableGroups))
+	for _, group := range enableGroups {
+		if group == "" {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		if _, ok := usableGroup[group]; !ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		groups = append(groups, group)
+	}
+	return groups
+}
 
 func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string]string) []model.Pricing {
 	if len(pricing) == 0 {
@@ -17,18 +53,15 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 		return []model.Pricing{}
 	}
 
+	usableGroupNames := getSortedUsableGroupNames(usableGroup)
 	filtered := make([]model.Pricing, 0, len(pricing))
 	for _, item := range pricing {
-		if common.StringsContains(item.EnableGroup, "all") {
-			filtered = append(filtered, item)
+		enableGroups := filterEnableGroupsByUsableGroups(item.EnableGroup, usableGroup, usableGroupNames)
+		if len(enableGroups) == 0 {
 			continue
 		}
-		for _, group := range item.EnableGroup {
-			if _, ok := usableGroup[group]; ok {
-				filtered = append(filtered, item)
-				break
-			}
-		}
+		item.EnableGroup = enableGroups
+		filtered = append(filtered, item)
 	}
 	return filtered
 }

@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 type AuthLayoutProps = {
   children: React.ReactNode
@@ -31,7 +32,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const { systemName, loading } = useSystemConfig()
 
   return (
-    <div className='auth-landing relative grid min-h-svh max-w-none overflow-hidden bg-[linear-gradient(180deg,#fbfbff_0%,#f6f3ff_44%,#ffffff_100%)] text-foreground dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_44%,#03040b_100%)] dark:text-white'>
+    <div className='auth-landing text-foreground relative grid min-h-svh max-w-none overflow-hidden bg-[linear-gradient(180deg,#fbfbff_0%,#f6f3ff_44%,#ffffff_100%)] dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_44%,#03040b_100%)] dark:text-white'>
       <div
         aria-hidden
         className='pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(109,40,217,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(109,40,217,0.07)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-50 dark:bg-[linear-gradient(to_right,rgba(167,139,250,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(167,139,250,0.07)_1px,transparent_1px)] dark:opacity-45'
@@ -59,6 +60,9 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           </h1>
         )}
       </Link>
+      <div className='absolute top-4 right-4 z-10 sm:top-8 sm:right-8'>
+        <LanguageSwitcher />
+      </div>
       <div className='relative z-10 container flex items-center pt-20 sm:pt-0'>
         <div className='mx-auto flex w-full flex-col justify-center space-y-2 rounded-3xl border border-violet-200/60 bg-white/82 px-5 py-8 shadow-[0_28px_100px_-54px_rgba(91,33,182,0.42)] backdrop-blur-xl sm:w-[520px] sm:p-10 dark:border-violet-300/12 dark:bg-white/[0.035] dark:shadow-[0_28px_100px_-48px_rgba(124,58,237,0.62)]'>
           {children}

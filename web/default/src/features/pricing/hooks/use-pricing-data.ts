@@ -20,6 +20,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useStatus } from '@/hooks/use-status'
 import { getPricing } from '../api'
+import { getAvailableGroups } from '../lib/model-helpers'
 
 export function usePricingData() {
   const { status } = useStatus()
@@ -44,6 +45,8 @@ export function usePricingData() {
     if (!data?.data || !data?.vendors) return []
 
     const vendorMap = new Map(data.vendors.map((v) => [v.id, v]))
+    const usableGroup = data.usable_group ?? {}
+    const groupRatio = data.group_ratio ?? {}
 
     return data.data.map((model) => {
       const vendor = model.vendor_id
@@ -51,11 +54,12 @@ export function usePricingData() {
         : undefined
       return {
         ...model,
+        enable_groups: getAvailableGroups(model, usableGroup),
         key: model.model_name,
         vendor_name: vendor?.name,
         vendor_icon: vendor?.icon,
         vendor_description: vendor?.description,
-        group_ratio: data.group_ratio,
+        group_ratio: groupRatio,
       }
     })
   }, [data])

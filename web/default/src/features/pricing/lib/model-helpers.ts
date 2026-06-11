@@ -33,10 +33,18 @@ export function getAvailableGroups(
   const modelEnableGroups = Array.isArray(model.enable_groups)
     ? model.enable_groups
     : []
+  const usableGroups = Object.keys(usableGroup).filter(
+    (g) => !EXCLUDED_GROUPS.includes(g)
+  )
 
-  return Object.keys(usableGroup)
+  if (modelEnableGroups.includes('all')) {
+    return usableGroups
+  }
+
+  const usableGroupSet = new Set(usableGroups)
+  return modelEnableGroups
     .filter((g) => !EXCLUDED_GROUPS.includes(g))
-    .filter((g) => modelEnableGroups.includes(g))
+    .filter((g) => usableGroupSet.has(g))
 }
 
 /**

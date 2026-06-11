@@ -31,8 +31,8 @@ import zh from './locales/zh.json'
 
 export const resources = {
   en,
-  zh,
   es,
+  zh,
   fr,
   pt,
   ru,
