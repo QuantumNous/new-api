@@ -233,3 +233,38 @@ func TestPollMultiImageCompleted(t *testing.T) {
 		t.Fatalf("n>1 images lost: %s", b)
 	}
 }
+
+func TestPollEnvelopeNumericPriceAmount(t *testing.T) {
+	shrinkPoll(t, 2*time.Second)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"created":5,"data":[{"url":"http://img/np.png"}]}`))
+	}))
+	defer srv.Close()
+	c := newImageGinCtx(t)
+	// price.amount drifted from string to JSON number — the async path must
+	// still reach the poll loop and normalize the amount for settlement.
+	envelope := `{"status":"queued","poll_url":"` + srv.URL + `/p","price":{"amount":0.063,"currency":"USD"}}`
+	r, err := resolveImageResult(c, imageInfo(srv.URL), fakeResp(202, envelope, nil), "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.StatusCode != 200 {
+		t.Fatalf("numeric price.amount broke async path: %d", r.StatusCode)
+	}
+	b, _ := io.ReadAll(r.Body)
+	if !bytes.Contains(b, []byte("np.png")) {
+		t.Fatalf("missing image: %s", b)
+	}
+	v, ok := c.Get("blockrun_settlement")
+	if !ok {
+		t.Fatal("settlement not captured")
+	}
+	m := v.(map[string]interface{})
+	if m["upstream_price_usd"] != "0.063" {
+		t.Fatalf("numeric amount normalized wrong: %v", m)
+	}
+	if m["upstream_price_currency"] != "USD" {
+		t.Fatalf("currency lost: %v", m)
+	}
+}

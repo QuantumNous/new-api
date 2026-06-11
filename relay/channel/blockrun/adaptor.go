@@ -312,9 +312,11 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		return nil, fmt.Errorf("blockrun: get request url: %w", urlErr)
 	}
 
-	// Synchronous image endpoints advertise a longer authorization window (BlockRun
-	// holds the request open while generating), so raise the window cap for them;
-	// chat keeps the default 300s window. Amount cap stays at the default $1.
+	// Image endpoints (sync fast path or async 202+poll) advertise a longer
+	// authorization window — the same signature must stay valid through
+	// generation, whether the request is held open or polled — so raise the
+	// window cap for them; chat keeps the default 300s window. Amount cap
+	// stays at the default $1.
 	var paymentB64 string
 	var signErr error
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {

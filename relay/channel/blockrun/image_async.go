@@ -2,10 +2,12 @@ package blockrun
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,8 +50,10 @@ type imageBodyProbe struct {
 	Status  string `json:"status"`
 	PollURL string `json:"poll_url"`
 	TxHash  string `json:"tx_hash"`
-	Price   struct {
-		Amount   string `json:"amount"`
+	// Amount is documented as a decimal string but kept drift-immune (any) so
+	// a numeric amount can never fail the envelope parse and lose poll_url.
+	Price struct {
+		Amount   any    `json:"amount"`
 		Currency string `json:"currency"`
 	} `json:"price"`
 }
@@ -85,10 +89,10 @@ func resolveImageResult(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, err
 	}
 	var probe imageBodyProbe
-	if uerr := common.Unmarshal(body, &probe); uerr != nil {
-		// Unintelligible 202 — hand back unchanged for the generic error path.
-		return rewrapResponse(resp, body), nil
-	}
+	// best-effort: fields default to zero on partial parse; an unintelligible
+	// 202 then falls through both branches below and is handed back unchanged
+	// for the generic error path.
+	_ = common.Unmarshal(body, &probe)
 	if probe.hasImage() {
 		// Fast-path quirk: a successful synchronous result delivered with 202.
 		out := rewrapResponse(resp, body)
@@ -100,7 +104,7 @@ func resolveImageResult(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return rewrapResponse(resp, body), nil
 	}
 	// Slow path: async envelope. price.amount only reliably exists HERE.
-	captureEnvelopePrice(c, probe.Price.Amount, probe.Price.Currency)
+	captureEnvelopePrice(c, priceAmountString(probe.Price.Amount), probe.Price.Currency)
 	if isImageStreamMode(c, info) {
 		stop := startImageHeartbeat(c)
 		defer stop()
@@ -129,15 +133,25 @@ func pollImageJob(c *gin.Context, info *relaycommon.RelayInfo, pollPath, payment
 	}
 	deadline := time.Now().Add(imagePollBudget)
 	for {
-		resp, perr := doImagePoll(c, client, pollURL, paymentSignature)
+		// Bound each round (connect + headers + body) by the overall poll
+		// budget: the shared relay client may have no Timeout (RelayTimeout=0),
+		// so without a per-request deadline a single hung GET could outlive the
+		// budget. Deriving from the request context keeps client disconnects
+		// interrupting an in-flight poll immediately. cancel() must run only
+		// after the body is consumed — cancelling earlier aborts the read.
+		reqCtx, cancel := context.WithDeadline(c.Request.Context(), deadline)
+		resp, perr := doImagePoll(reqCtx, client, pollURL, paymentSignature)
 		if perr != nil {
+			cancel()
 			return nil, perr
 		}
 		body, rerr := readAndCloseBody(resp)
+		cancel()
 		if rerr != nil {
 			return nil, rerr
 		}
 		var probe imageBodyProbe
+		// best-effort: status/data fields default to zero on partial parse.
 		_ = common.Unmarshal(body, &probe)
 
 		switch resp.StatusCode {
@@ -153,10 +167,7 @@ func pollImageJob(c *gin.Context, info *relaycommon.RelayInfo, pollPath, payment
 				tx = probe.TxHash
 			}
 			captureTxHash(c, tx)
-			out := rewrapResponse(resp, body)
-			out.StatusCode = http.StatusOK
-			out.Status = "200 OK"
-			return out, nil
+			return rewrapResponse(resp, body), nil
 		case http.StatusAccepted:
 			if probe.Status == "failed" {
 				return nil, fmt.Errorf("blockrun: image generation failed upstream")
@@ -165,9 +176,12 @@ func pollImageJob(c *gin.Context, info *relaycommon.RelayInfo, pollPath, payment
 		case http.StatusGatewayTimeout:
 			// Transient gateway hiccup (SDK reference treats 504 as continue).
 		case http.StatusPaymentRequired:
+			if paymentSignature == "" {
+				return nil, fmt.Errorf("blockrun: upstream returned an async image job but no payment signature is available (free/proxy path); cannot poll a 402-gated job")
+			}
 			return nil, fmt.Errorf("blockrun: poll rejected the reused payment signature (402); refusing to re-sign mid-poll")
 		default:
-			return nil, fmt.Errorf("blockrun: image poll failed with status %d", resp.StatusCode)
+			return nil, fmt.Errorf("blockrun: image poll failed with status %d: %.512s", resp.StatusCode, string(body))
 		}
 
 		if time.Now().After(deadline) {
@@ -181,10 +195,11 @@ func pollImageJob(c *gin.Context, info *relaycommon.RelayInfo, pollPath, payment
 	}
 }
 
-// doImagePoll performs one signed poll GET bound to the request context so a
-// client disconnect interrupts an in-flight poll immediately.
-func doImagePoll(c *gin.Context, client *http.Client, pollURL, signature string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, pollURL, nil)
+// doImagePoll performs one signed poll GET bound to ctx (the request context
+// plus the poll-budget deadline) so a client disconnect or budget exhaustion
+// interrupts an in-flight poll immediately.
+func doImagePoll(ctx context.Context, client *http.Client, pollURL, signature string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +255,22 @@ func captureTxHash(c *gin.Context, tx string) {
 		return
 	}
 	mergeSettlement(c, map[string]interface{}{"upstream_tx_hash": tx})
+}
+
+// priceAmountString normalizes the envelope's price.amount — documented as a
+// decimal string, tolerated as a JSON number in case upstream drifts — into
+// the string form stored in the settlement context.
+func priceAmountString(v any) string {
+	switch a := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return a
+	case float64: // encoding/json decodes JSON numbers in an `any` field to float64
+		return strconv.FormatFloat(a, 'f', -1, 64)
+	default: // e.g. json.Number, should a future decoder enable UseNumber
+		return fmt.Sprintf("%v", a)
+	}
 }
 
 func captureEnvelopePrice(c *gin.Context, amount, currency string) {
