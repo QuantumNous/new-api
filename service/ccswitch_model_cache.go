@@ -14,8 +14,6 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
-const ccSwitchRecentModelsPerVendor = 3
-
 type ccSwitchModelCatalogEntry struct {
 	dto.CCSwitchModelOption
 	EnableGroups []string
@@ -33,11 +31,8 @@ var (
 	buildCCSwitchModelCatalogFunc   = buildCCSwitchModelCatalog
 )
 
-func GetCCSwitchModels(userID int, tokenID int, keyword string) (*dto.CCSwitchModelsResponse, error) {
-	if _, err := model.GetTokenByIds(tokenID, userID); err != nil {
-		return nil, err
-	}
-	user, err := model.GetUserCache(userID)
+func GetCCSwitchModelOptionsForUser(userID int) ([]dto.CCSwitchModelOption, error) {
+	user, err := model.GetUserById(userID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -47,36 +42,14 @@ func GetCCSwitchModels(userID int, tokenID int, keyword string) (*dto.CCSwitchMo
 	}
 
 	usableGroups := GetUserUsableGroups(user.Group)
-	keyword = strings.ToLower(strings.TrimSpace(keyword))
-	filtered := make([]ccSwitchModelCatalogEntry, 0, len(entries))
+	items := make([]dto.CCSwitchModelOption, 0, len(entries))
 	for _, entry := range entries {
 		if !ccSwitchModelAvailableToUser(entry.EnableGroups, usableGroups) {
 			continue
 		}
-		if keyword != "" && !strings.Contains(strings.ToLower(entry.Name), keyword) {
-			continue
-		}
-		filtered = append(filtered, entry)
-	}
-
-	if keyword == "" {
-		vendorCounts := make(map[int]int)
-		recent := filtered[:0]
-		for _, entry := range filtered {
-			if vendorCounts[entry.VendorID] >= ccSwitchRecentModelsPerVendor {
-				continue
-			}
-			vendorCounts[entry.VendorID]++
-			recent = append(recent, entry)
-		}
-		filtered = recent
-	}
-
-	items := make([]dto.CCSwitchModelOption, 0, len(filtered))
-	for _, entry := range filtered {
 		items = append(items, entry.CCSwitchModelOption)
 	}
-	return &dto.CCSwitchModelsResponse{Items: items}, nil
+	return items, nil
 }
 
 func InvalidateCCSwitchModelCache() {
@@ -88,6 +61,9 @@ func InvalidateCCSwitchModelCache() {
 func StartCCSwitchModelCacheRefreshTask() {
 	ccSwitchModelCacheTaskOnce.Do(func() {
 		gopool.Go(func() {
+			if err := refreshCCSwitchModelCatalog(); err != nil {
+				logger.LogWarn(context.Background(), "failed to refresh CC Switch model cache: "+err.Error())
+			}
 			for {
 				timer := time.NewTimer(time.Until(nextCCSwitchModelCacheRefresh(time.Now())))
 				<-timer.C
@@ -100,7 +76,7 @@ func StartCCSwitchModelCacheRefreshTask() {
 }
 
 func nextCCSwitchModelCacheRefresh(now time.Time) time.Time {
-	return time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	return now.Truncate(time.Hour).Add(time.Hour)
 }
 
 func getCCSwitchModelCatalog() ([]ccSwitchModelCatalogEntry, error) {
@@ -136,6 +112,8 @@ func refreshCCSwitchModelCatalog() error {
 		return err
 	}
 	ccSwitchModelCatalog.Lock()
+	ccSwitchModelCatalog.entries = nil
+	ccSwitchModelCatalog.initialized = false
 	ccSwitchModelCatalog.entries = entries
 	ccSwitchModelCatalog.initialized = true
 	ccSwitchModelCatalog.Unlock()
@@ -143,15 +121,15 @@ func refreshCCSwitchModelCatalog() error {
 }
 
 func buildCCSwitchModelCatalog() ([]ccSwitchModelCatalogEntry, error) {
-	pricing := model.GetPricing()
+	abilities, err := model.GetAllEnableAbilityWithChannels()
+	if err != nil {
+		return nil, err
+	}
 	metadata, err := model.GetAllModelsMetadata()
 	if err != nil {
 		return nil, err
 	}
-	createdTimeByName := make(map[string]int64, len(metadata))
-	for _, item := range metadata {
-		createdTimeByName[item.ModelName] = item.CreatedTime
-	}
+	metadataByModelName := buildCCSwitchModelMetadataMap(metadata, abilities)
 
 	vendors, err := model.GetAllVendorsMetadata()
 	if err != nil {
@@ -162,35 +140,218 @@ func buildCCSwitchModelCatalog() ([]ccSwitchModelCatalogEntry, error) {
 		vendorNames[vendor.Id] = vendor.Name
 	}
 
-	entries := make([]ccSwitchModelCatalogEntry, 0, len(pricing))
-	seen := make(map[string]struct{}, len(pricing))
-	for _, item := range pricing {
-		if _, ok := seen[item.ModelName]; ok {
+	groupsByModelName := make(map[string]map[string]struct{}, len(abilities))
+	for _, ability := range abilities {
+		modelName := strings.TrimSpace(ability.Model)
+		groupName := strings.TrimSpace(ability.Group)
+		if modelName == "" || groupName == "" {
 			continue
 		}
-		seen[item.ModelName] = struct{}{}
-		vendorName := strings.TrimSpace(vendorNames[item.VendorID])
+		groups, ok := groupsByModelName[modelName]
+		if !ok {
+			groups = make(map[string]struct{})
+			groupsByModelName[modelName] = groups
+		}
+		groups[groupName] = struct{}{}
+	}
+
+	entries := make([]ccSwitchModelCatalogEntry, 0, len(groupsByModelName))
+	for modelName, groupSet := range groupsByModelName {
+		meta := metadataByModelName[modelName]
+		vendorID := 0
+		createdTime := int64(0)
+		if meta != nil {
+			vendorID = meta.VendorID
+			createdTime = meta.CreatedTime
+		}
+		vendorName := strings.TrimSpace(vendorNames[vendorID])
+		if vendorName == "" {
+			vendorName = inferCCSwitchVendorName(modelName)
+		}
 		if vendorName == "" {
 			vendorName = "Other"
 		}
 		entries = append(entries, ccSwitchModelCatalogEntry{
 			CCSwitchModelOption: dto.CCSwitchModelOption{
-				Name:        item.ModelName,
-				VendorID:    item.VendorID,
+				Name:        modelName,
+				VendorID:    vendorID,
 				VendorName:  vendorName,
-				CreatedTime: createdTimeByName[item.ModelName],
+				CreatedTime: createdTime,
 			},
-			EnableGroups: append([]string(nil), item.EnableGroup...),
+			EnableGroups: sortedCCSwitchModelGroups(groupSet),
 		})
 	}
 
+	sortCCSwitchModelCatalog(entries)
+	return entries, nil
+}
+
+func buildCCSwitchModelMetadataMap(metadata []model.Model, abilities []model.AbilityWithChannel) map[string]*model.Model {
+	exact := make(map[string]*model.Model, len(metadata))
+	prefix := make([]*model.Model, 0)
+	contains := make([]*model.Model, 0)
+	suffix := make([]*model.Model, 0)
+	for i := range metadata {
+		item := &metadata[i]
+		switch item.NameRule {
+		case model.NameRulePrefix:
+			prefix = append(prefix, item)
+		case model.NameRuleContains:
+			contains = append(contains, item)
+		case model.NameRuleSuffix:
+			suffix = append(suffix, item)
+		default:
+			exact[item.ModelName] = item
+		}
+	}
+
+	for _, ability := range abilities {
+		modelName := strings.TrimSpace(ability.Model)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := exact[modelName]; ok {
+			continue
+		}
+		if item := matchCCSwitchModelMetadata(modelName, prefix, strings.HasPrefix); item != nil {
+			exact[modelName] = item
+			continue
+		}
+		if item := matchCCSwitchModelMetadata(modelName, contains, strings.Contains); item != nil {
+			exact[modelName] = item
+			continue
+		}
+		if item := matchCCSwitchModelMetadata(modelName, suffix, strings.HasSuffix); item != nil {
+			exact[modelName] = item
+		}
+	}
+	return exact
+}
+
+func matchCCSwitchModelMetadata(modelName string, candidates []*model.Model, match func(string, string) bool) *model.Model {
+	for _, item := range candidates {
+		if item.ModelName != "" && match(modelName, item.ModelName) {
+			return item
+		}
+	}
+	return nil
+}
+
+func sortedCCSwitchModelGroups(groupSet map[string]struct{}) []string {
+	groups := make([]string, 0, len(groupSet))
+	for group := range groupSet {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+	return groups
+}
+
+func inferCCSwitchVendorName(modelName string) string {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	if modelName == "" {
+		return ""
+	}
+	for _, rule := range ccSwitchVendorInferenceRules {
+		if strings.Contains(modelName, rule.Pattern) {
+			return rule.VendorName
+		}
+	}
+	return ""
+}
+
+type ccSwitchVendorInferenceRule struct {
+	Pattern    string
+	VendorName string
+}
+
+var ccSwitchVendorInferenceRules = []ccSwitchVendorInferenceRule{
+	{Pattern: "gpt", VendorName: "OpenAI"},
+	{Pattern: "dall-e", VendorName: "OpenAI"},
+	{Pattern: "whisper", VendorName: "OpenAI"},
+	{Pattern: "o1", VendorName: "OpenAI"},
+	{Pattern: "o3", VendorName: "OpenAI"},
+	{Pattern: "o4", VendorName: "OpenAI"},
+	{Pattern: "claude", VendorName: "Anthropic"},
+}
+
+func sortCCSwitchModelCatalog(entries []ccSwitchModelCatalogEntry) {
+	vendorLatest := make(map[string]int64)
+	for _, entry := range entries {
+		vendorKey := ccSwitchVendorSortKey(entry.VendorName)
+		if entry.CreatedTime > vendorLatest[vendorKey] {
+			vendorLatest[vendorKey] = entry.CreatedTime
+		}
+	}
+
 	sort.Slice(entries, func(i, j int) bool {
+		leftVendor := ccSwitchVendorSortKey(entries[i].VendorName)
+		rightVendor := ccSwitchVendorSortKey(entries[j].VendorName)
+		if leftVendor != rightVendor {
+			if vendorLatest[leftVendor] != vendorLatest[rightVendor] {
+				return vendorLatest[leftVendor] > vendorLatest[rightVendor]
+			}
+			return leftVendor < rightVendor
+		}
 		if entries[i].CreatedTime != entries[j].CreatedTime {
 			return entries[i].CreatedTime > entries[j].CreatedTime
 		}
 		return strings.ToLower(entries[i].Name) < strings.ToLower(entries[j].Name)
 	})
-	return entries, nil
+}
+
+func ccSwitchVendorSortKey(vendorName string) string {
+	vendorName = strings.TrimSpace(vendorName)
+	if vendorName == "" {
+		return "other"
+	}
+	return strings.ToLower(vendorName)
+}
+
+func selectDefaultCCSwitchModel(items []dto.CCSwitchModelOption) string {
+	preferredIndex := -1
+	latestIndex := -1
+	for i := range items {
+		if latestIndex < 0 || ccSwitchModelIsNewerDefault(items[i], items[latestIndex], false) {
+			latestIndex = i
+		}
+		if ccSwitchDefaultVendorPriority(items[i].VendorName) < 2 {
+			if preferredIndex < 0 || ccSwitchModelIsNewerDefault(items[i], items[preferredIndex], true) {
+				preferredIndex = i
+			}
+		}
+	}
+	if preferredIndex >= 0 {
+		return items[preferredIndex].Name
+	}
+	if latestIndex >= 0 {
+		return items[latestIndex].Name
+	}
+	return CCSwitchDefaultModel
+}
+
+func ccSwitchModelIsNewerDefault(candidate dto.CCSwitchModelOption, current dto.CCSwitchModelOption, preferOpenAI bool) bool {
+	if candidate.CreatedTime != current.CreatedTime {
+		return candidate.CreatedTime > current.CreatedTime
+	}
+	if preferOpenAI {
+		candidatePriority := ccSwitchDefaultVendorPriority(candidate.VendorName)
+		currentPriority := ccSwitchDefaultVendorPriority(current.VendorName)
+		if candidatePriority != currentPriority {
+			return candidatePriority < currentPriority
+		}
+	}
+	return strings.ToLower(candidate.Name) < strings.ToLower(current.Name)
+}
+
+func ccSwitchDefaultVendorPriority(vendorName string) int {
+	switch strings.ToLower(strings.TrimSpace(vendorName)) {
+	case "openai":
+		return 0
+	case "anthropic":
+		return 1
+	default:
+		return 2
+	}
 }
 
 func ccSwitchModelAvailableToUser(modelGroups []string, usableGroups map[string]string) bool {

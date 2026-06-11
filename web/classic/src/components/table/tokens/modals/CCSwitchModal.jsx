@@ -32,25 +32,14 @@ const emptyModelSelection = () => ({
 export default function CCSwitchModal({ visible, onClose, tokenId }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [modelsLoading, setModelsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [options, setOptions] = useState(null);
-  const [modelItems, setModelItems] = useState([]);
   const [target, setTarget] = useState('codex');
   const [modelsByTarget, setModelsByTarget] = useState({
     codex: emptyModelSelection(),
     claude: emptyModelSelection(),
   });
   const [modelKeyword, setModelKeyword] = useState('');
-  const [debouncedKeyword, setDebouncedKeyword] = useState('');
-
-  useEffect(() => {
-    const timer = window.setTimeout(
-      () => setDebouncedKeyword(modelKeyword.trim()),
-      250,
-    );
-    return () => window.clearTimeout(timer);
-  }, [modelKeyword]);
 
   useEffect(() => {
     if (!visible || !tokenId) return;
@@ -74,13 +63,12 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
           codex: { ...emptyModelSelection(), model: mainModel },
           claude: {
             model: mainModel,
-            haiku_model: nextOptions.default_haiku_model || '',
-            sonnet_model: nextOptions.default_sonnet_model || '',
-            opus_model: nextOptions.default_opus_model || '',
+            haiku_model: '',
+            sonnet_model: '',
+            opus_model: '',
           },
         });
         setModelKeyword('');
-        setDebouncedKeyword('');
       })
       .catch((error) => {
         if (active) Toast.error(error.message || t('加载失败'));
@@ -94,48 +82,29 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
     };
   }, [visible, tokenId, t]);
 
-  useEffect(() => {
-    if (!visible || !tokenId) return;
-
-    let active = true;
-    setModelsLoading(true);
-    API.get(`/api/token/${tokenId}/ccswitch/models`, {
-      params: debouncedKeyword ? { keyword: debouncedKeyword } : undefined,
-    })
-      .then((response) => {
-        if (!active) return;
-        const payload = response.data || {};
-        if (!payload.success) {
-          throw new Error(payload.message || t('加载失败'));
-        }
-        setModelItems(payload.data?.items || []);
-      })
-      .catch((error) => {
-        if (active) Toast.error(error.message || t('加载失败'));
-      })
-      .finally(() => {
-        if (active) setModelsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [visible, tokenId, debouncedKeyword, t]);
-
   const targetOptions = useMemo(
-    () =>
-      (options?.targets || []).map((item) => ({
-        label: item.label,
-        value: item.key,
-        disabled: !item.enabled,
-      })),
+    () => options?.targets || [],
     [options?.targets],
   );
 
+  const filteredModelItems = useMemo(() => {
+    const words = modelKeyword
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+    const items = options?.models || [];
+    if (words.length === 0) return items;
+    return items.filter((item) => {
+      const lowerName = item.name.toLowerCase();
+      return words.every((word) => lowerName.includes(word));
+    });
+  }, [modelKeyword, options?.models]);
+
   const modelOptions = useMemo(() => {
     const grouped = new Map();
-    for (const item of modelItems) {
-      const key = `${item.vendor_id}:${item.vendor_name}`;
+    for (const item of filteredModelItems) {
+      const key = item.vendor_name || t('其他');
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key).push(item);
     }
@@ -143,7 +112,7 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
     const result = [];
     for (const [key, items] of grouped.entries()) {
       result.push({
-        label: items[0]?.vendor_name || t('其他'),
+        label: key,
         value: `__vendor_${key}`,
         disabled: true,
       });
@@ -152,7 +121,7 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
       }
     }
     return result;
-  }, [modelItems, t]);
+  }, [filteredModelItems, t]);
 
   const activeModels = modelsByTarget[target] || emptyModelSelection();
 
@@ -202,8 +171,8 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
   };
 
   const renderModelSelect = (field, label, optional = false) => (
-    <div key={field}>
-      <div className='mb-1 text-sm'>{label}</div>
+    <div key={field} className='rounded-lg bg-gray-50 p-3'>
+      <div className='mb-2 text-sm font-medium'>{label}</div>
       <Select
         value={activeModels[field] || undefined}
         optionList={modelOptions}
@@ -214,9 +183,8 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
         }}
         filter={selectFilter}
         style={{ width: '100%' }}
-		placeholder={optional ? t('Follow primary model') : t('请选择模型')}
-        emptyContent={modelsLoading ? t('加载中...') : t('暂无数据')}
-        loading={modelsLoading}
+        placeholder={optional ? t('Follow primary model') : t('请选择模型')}
+        emptyContent={t('暂无数据')}
         showClear={optional}
         searchable
       />
@@ -239,33 +207,53 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
         <Typography.Text type='tertiary'>{t('加载中...')}</Typography.Text>
       ) : (
         <div className='flex flex-col gap-4'>
-          <div className='rounded-lg border p-3'>
-            <div className='mb-3'>
-              <div className='text-xs text-gray-500'>{t('名称')}</div>
-              <div className='break-all font-medium'>
-                {options?.token?.name || '-'}
+          <section className='rounded-lg bg-gray-50 p-4'>
+            <div className='mb-3 text-sm font-semibold'>{t('当前令牌')}</div>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+              <div>
+                <div className='text-xs text-gray-500'>{t('令牌名称')}</div>
+                <div className='break-all font-medium'>
+                  {options?.token?.name || '-'}
+                </div>
+              </div>
+              <div>
+                <div className='text-xs text-gray-500'>API Key</div>
+                <div className='break-all font-medium'>
+                  {options?.token?.masked_key || '-'}
+                </div>
               </div>
             </div>
-            <div>
-              <div className='text-xs text-gray-500'>API Key</div>
-              <div className='break-all font-medium'>
-                {options?.token?.masked_key || '-'}
-              </div>
-            </div>
-          </div>
+          </section>
 
-          <div>
-            <div className='mb-1 text-sm'>{t('应用')}</div>
-            <Select
-              value={target || undefined}
-              optionList={targetOptions}
-              onChange={(value) => {
-                setTarget(value);
-                setModelKeyword('');
-              }}
-              style={{ width: '100%' }}
-            />
-          </div>
+          <section>
+            <div className='mb-2 text-sm font-medium'>{t('应用')}</div>
+            <div className='grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1'>
+              {targetOptions.map((item) => {
+                const selected = item.key === target;
+                return (
+                  <button
+                    key={item.key}
+                    type='button'
+                    disabled={!item.enabled}
+                    className={[
+                      'h-9 rounded-md px-3 text-sm font-medium transition-colors',
+                      selected
+                        ? 'bg-white text-gray-950 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900',
+                      !item.enabled ? 'cursor-not-allowed opacity-50' : '',
+                    ].join(' ')}
+                    onClick={() => {
+                      if (!item.enabled) return;
+                      setTarget(item.key === 'claude' ? 'claude' : 'codex');
+                      setModelKeyword('');
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
           {renderModelSelect('model', t('主模型'))}
           {target === 'claude' && (

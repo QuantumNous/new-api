@@ -112,10 +112,8 @@ export interface CCSwitchImportOptions {
   token: CCSwitchImportToken
   default_target: string
   default_model: string
-  default_haiku_model?: string
-  default_sonnet_model?: string
-  default_opus_model?: string
   targets: CCSwitchImportTarget[]
+  models: CCSwitchModelOption[]
 }
 
 export interface CCSwitchImportLinkRequest {
@@ -135,10 +133,6 @@ export interface CCSwitchModelOption {
   vendor_id: number
   vendor_name: string
   created_time: number
-}
-
-export interface CCSwitchModelsResponse {
-  items: CCSwitchModelOption[]
 }
 
 // ============================================================================

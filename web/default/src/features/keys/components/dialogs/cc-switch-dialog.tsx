@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
+import { Bot, Code2, KeyRound, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -28,12 +28,8 @@ import { Dialog } from '@/components/dialog'
 import {
   createCCSwitchImportLink,
   getCCSwitchImportOptions,
-  getCCSwitchModels,
 } from '../../api'
-import type {
-  CCSwitchImportTarget,
-  CCSwitchModelOption,
-} from '../../types'
+import type { CCSwitchModelOption } from '../../types'
 
 interface CCSwitchDialogProps {
   open: boolean
@@ -58,11 +54,9 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
   const [modelsByTarget, setModelsByTarget] = useState<
     Record<TargetKey, ModelSelection>
   >({ codex: emptyModelSelection(), claude: emptyModelSelection() })
-  const [targetExpanded, setTargetExpanded] = useState(false)
   const [expandedModelField, setExpandedModelField] =
     useState<ModelField | null>(null)
   const [modelKeyword, setModelKeyword] = useState('')
-  const [debouncedKeyword, setDebouncedKeyword] = useState('')
   const [showLaunchHelp, setShowLaunchHelp] = useState(false)
 
   const optionsQuery = useQuery({
@@ -72,24 +66,6 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
       return getCCSwitchImportOptions(props.tokenId)
     },
     enabled: props.open && Boolean(props.tokenId),
-  })
-
-  useEffect(() => {
-    const timer = window.setTimeout(
-      () => setDebouncedKeyword(modelKeyword.trim()),
-      250
-    )
-    return () => window.clearTimeout(timer)
-  }, [modelKeyword])
-
-  const modelsQuery = useQuery({
-    queryKey: ['ccswitch-models', props.tokenId, debouncedKeyword],
-    queryFn: async () => {
-      if (!props.tokenId) throw new Error('Missing token id')
-      return getCCSwitchModels(props.tokenId, debouncedKeyword)
-    },
-    enabled: props.open && Boolean(props.tokenId),
-    staleTime: 5 * 60 * 1000,
   })
 
   const options = optionsQuery.data?.data
@@ -105,15 +81,13 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
       codex: { ...emptyModelSelection(), model: mainModel },
       claude: {
         model: mainModel,
-        haiku_model: options.default_haiku_model || '',
-        sonnet_model: options.default_sonnet_model || '',
-        opus_model: options.default_opus_model || '',
+        haiku_model: '',
+        sonnet_model: '',
+        opus_model: '',
       },
     })
-    setTargetExpanded(false)
     setExpandedModelField(null)
     setModelKeyword('')
-    setDebouncedKeyword('')
     setShowLaunchHelp(false)
   }, [options, props.open, props.tokenId])
 
@@ -139,20 +113,34 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
     [options?.targets, selectedTarget]
   )
 
+  const filteredModels = useMemo(() => {
+    const words = modelKeyword
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+    const items = options?.models ?? []
+    if (words.length === 0) return items
+    return items.filter((item) => {
+      const lowerName = item.name.toLowerCase()
+      return words.every((word) => lowerName.includes(word))
+    })
+  }, [modelKeyword, options?.models])
+
   const groupedModels = useMemo(() => {
     const groups = new Map<string, CCSwitchModelOption[]>()
-    for (const item of modelsQuery.data?.data?.items ?? []) {
-      const key = `${item.vendor_id}:${item.vendor_name}`
+    for (const item of filteredModels) {
+      const key = item.vendor_name || t('Other')
       const group = groups.get(key) ?? []
       group.push(item)
       groups.set(key, group)
     }
     return [...groups.entries()].map(([key, items]) => ({
       key,
-      vendorName: items[0]?.vendor_name || t('Other'),
+      vendorName: key,
       items,
     }))
-  }, [modelsQuery.data?.data?.items, t])
+  }, [filteredModels, t])
 
   const canImport =
     Boolean(selectedTargetConfig?.enabled) &&
@@ -198,7 +186,6 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
 
   const openModelPicker = (field: ModelField) => {
     setExpandedModelField((current) => (current === field ? null : field))
-    setTargetExpanded(false)
     setModelKeyword('')
   }
 
@@ -219,19 +206,19 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
         <Input
           value={modelKeyword}
           onChange={(event) => setModelKeyword(event.target.value)}
-          placeholder={t('Enter model name')}
+          placeholder={t('Enter model name, e.g. codex / sonnet / qwen')}
           className='pl-8'
         />
       </div>
       <div className='text-muted-foreground flex items-center justify-between text-xs'>
         <span>
-          {debouncedKeyword
+          {modelKeyword.trim()
             ? t('Search results')
             : t('Recommended / Recently added')}
         </span>
         <span>
           {t('{{count}} matches', {
-            count: modelsQuery.data?.data?.items?.length ?? 0,
+            count: filteredModels.length,
           })}
         </span>
       </div>
@@ -239,8 +226,6 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
         groups={groupedModels}
         selectedModel={activeModels[field]}
         defaultModel={options?.default_model}
-        loading={modelsQuery.isLoading || modelsQuery.isFetching}
-        failed={modelsQuery.isError || modelsQuery.data?.success === false}
         onSelect={(model) => setModel(field, model)}
       />
     </div>
@@ -262,42 +247,55 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
   } else if (options) {
     bodyContent = (
       <div className='space-y-4'>
-        <section className='bg-muted/40 rounded-lg border p-4'>
-          <h3 className='mb-3 text-sm font-semibold'>{t('Current token')}</h3>
-          <div className='space-y-3'>
-            <TokenField label={t('Name')} value={options.token.name} />
+        <section className='bg-muted/40 rounded-lg p-4'>
+          <div className='mb-3 flex items-center gap-2'>
+            <div className='bg-background text-muted-foreground flex size-7 items-center justify-center rounded-md'>
+              <KeyRound className='size-4' />
+            </div>
+            <h3 className='text-sm font-semibold'>{t('Current token')}</h3>
+          </div>
+          <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]'>
+            <TokenField label={t('Token Name')} value={options.token.name} />
             <TokenField label={t('API Key')} value={options.token.masked_key} />
           </div>
         </section>
 
-        <SettingSection
-          label={t('Import target')}
-          value={selectedTargetConfig?.label || selectedTarget}
-          expanded={targetExpanded}
-          onToggle={() => {
-            setTargetExpanded((value) => !value)
-            setExpandedModelField(null)
-          }}
-        >
-          <div className='space-y-2 pt-3'>
-            {options.targets.map((target) => (
-              <TargetOption
-                key={target.key}
-                target={target}
-                selected={target.key === selectedTarget}
-                onSelect={() => {
-                  if (!target.enabled) return
-                  setSelectedTarget(
-                    target.key === 'claude' ? 'claude' : 'codex'
-                  )
-                  setTargetExpanded(false)
-                  setExpandedModelField(null)
-                  setShowLaunchHelp(false)
-                }}
-              />
-            ))}
+        <section className='space-y-2'>
+          <div className='text-muted-foreground text-xs font-medium'>
+            {t('Import target')}
           </div>
-        </SettingSection>
+          <div className='bg-muted/50 grid grid-cols-2 gap-1 rounded-lg p-1'>
+            {options.targets.map((target) => {
+              const TargetIcon = target.key === 'claude' ? Bot : Code2
+              const selected = target.key === selectedTarget
+              return (
+                <button
+                  key={target.key}
+                  type='button'
+                  disabled={!target.enabled}
+                  className={cn(
+                    'flex h-9 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+                    selected
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                    !target.enabled && 'cursor-not-allowed opacity-50'
+                  )}
+                  onClick={() => {
+                    if (!target.enabled) return
+                    setSelectedTarget(
+                      target.key === 'claude' ? 'claude' : 'codex'
+                    )
+                    setExpandedModelField(null)
+                    setShowLaunchHelp(false)
+                  }}
+                >
+                  <TargetIcon className='size-4' />
+                  <span className='truncate'>{target.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
 
         <SettingSection
           label={t('Primary Model')}
@@ -382,25 +380,9 @@ function ModelList(props: {
   }>
   selectedModel: string
   defaultModel?: string
-  loading: boolean
-  failed: boolean
   onSelect: (model: string) => void
 }) {
   const { t } = useTranslation()
-  if (props.loading) {
-    return (
-      <div className='text-muted-foreground rounded-lg border p-4 text-center text-sm'>
-        {t('Loading...')}
-      </div>
-    )
-  }
-  if (props.failed) {
-    return (
-      <div className='text-destructive rounded-lg border p-4 text-center text-sm'>
-        {t('Failed to load import options')}
-      </div>
-    )
-  }
   if (props.groups.length === 0) {
     return (
       <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
@@ -409,10 +391,10 @@ function ModelList(props: {
     )
   }
   return (
-    <div className='max-h-72 space-y-4 overflow-y-auto pr-1'>
+    <div className='bg-background max-h-72 overflow-y-auto rounded-lg border'>
       {props.groups.map((group) => (
-        <div key={group.key} className='space-y-2'>
-          <div className='text-muted-foreground px-1 text-xs font-semibold'>
+        <div key={group.key}>
+          <div className='bg-muted/50 text-muted-foreground px-3 py-1.5 text-xs font-semibold'>
             {group.vendorName}
           </div>
           {group.items.map((item) => (
@@ -420,9 +402,9 @@ function ModelList(props: {
               key={item.name}
               type='button'
               className={cn(
-                'hover:bg-muted flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                'hover:bg-muted/70 flex h-10 w-full items-center justify-between gap-3 border-t px-3 text-left text-sm transition-colors',
                 item.name === props.selectedModel &&
-                  'border-primary bg-primary/5'
+                  'bg-primary/5 text-primary hover:bg-primary/10'
               )}
               onClick={() => props.onSelect(item.name)}
             >
@@ -442,7 +424,7 @@ function ModelList(props: {
 
 function TokenField(props: { label: string; value: string }) {
   return (
-    <div className='min-w-0 space-y-1'>
+    <div className='min-w-0 space-y-1.5'>
       <div className='text-muted-foreground text-xs'>{props.label}</div>
       <div className='break-all text-sm font-medium'>{props.value || '-'}</div>
     </div>
@@ -458,48 +440,21 @@ function SettingSection(props: {
 }) {
   const { t } = useTranslation()
   return (
-    <section className='rounded-lg border'>
+    <section className='bg-muted/40 rounded-lg ring-1 ring-border/50'>
       <div className='flex items-center justify-between gap-3 p-4'>
         <div className='min-w-0 space-y-1'>
           <div className='text-muted-foreground text-xs'>{props.label}</div>
           <div className='truncate text-sm font-semibold'>{props.value}</div>
         </div>
-        <Button variant='link' onClick={props.onToggle}>
+        <Button variant='secondary' size='sm' onClick={props.onToggle}>
           {props.expanded ? t('Collapse') : t('Change')}
         </Button>
       </div>
       {props.expanded ? (
-        <div className='border-t px-4 pb-4'>{props.children}</div>
+        <div className='border-border/60 border-t px-4 pb-4'>
+          {props.children}
+        </div>
       ) : null}
     </section>
-  )
-}
-
-function TargetOption(props: {
-  target: CCSwitchImportTarget
-  selected: boolean
-  onSelect: () => void
-}) {
-  const { t } = useTranslation()
-  let statusText = t(props.target.disabled_reason || 'Coming soon')
-  if (props.target.enabled) {
-    statusText = props.selected ? t('Selected') : t('Supported')
-  }
-  return (
-    <button
-      type='button'
-      disabled={!props.target.enabled}
-      className={cn(
-        'flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-        props.target.enabled
-          ? 'hover:bg-muted'
-          : 'bg-muted/40 text-muted-foreground cursor-not-allowed',
-        props.selected && 'border-primary bg-primary/5'
-      )}
-      onClick={props.onSelect}
-    >
-      <span className='font-medium'>{props.target.label}</span>
-      <span className='text-muted-foreground text-xs'>{statusText}</span>
-    </button>
   )
 }

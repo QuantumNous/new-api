@@ -281,8 +281,6 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
-		&CCSwitchImportLog{},
-		&UserCCSwitchPreference{},
 	)
 	if err != nil {
 		return err
@@ -332,8 +330,6 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
-		{&CCSwitchImportLog{}, "CCSwitchImportLog"},
-		{&UserCCSwitchPreference{}, "UserCCSwitchPreference"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

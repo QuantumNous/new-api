@@ -15,13 +15,11 @@ type CCSwitchImportTarget struct {
 }
 
 type CCSwitchImportOptionsResponse struct {
-	Token              CCSwitchImportToken    `json:"token"`
-	DefaultTarget      string                 `json:"default_target"`
-	DefaultModel       string                 `json:"default_model"`
-	DefaultHaikuModel  string                 `json:"default_haiku_model,omitempty"`
-	DefaultSonnetModel string                 `json:"default_sonnet_model,omitempty"`
-	DefaultOpusModel   string                 `json:"default_opus_model,omitempty"`
-	Targets            []CCSwitchImportTarget `json:"targets"`
+	Token         CCSwitchImportToken    `json:"token"`
+	DefaultTarget string                 `json:"default_target"`
+	DefaultModel  string                 `json:"default_model"`
+	Targets       []CCSwitchImportTarget `json:"targets"`
+	Models        []CCSwitchModelOption  `json:"models"`
 }
 
 type CCSwitchImportLinkRequest struct {
@@ -41,8 +39,4 @@ type CCSwitchModelOption struct {
 	VendorID    int    `json:"vendor_id"`
 	VendorName  string `json:"vendor_name"`
 	CreatedTime int64  `json:"created_time"`
-}
-
-type CCSwitchModelsResponse struct {
-	Items []CCSwitchModelOption `json:"items"`
 }

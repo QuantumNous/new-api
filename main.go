@@ -119,7 +119,7 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
-	// CC Switch model catalog refreshes independently at local midnight.
+	// CC Switch import model catalog refreshes once on startup and then hourly.
 	service.StartCCSwitchModelCacheRefreshTask()
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)

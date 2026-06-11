@@ -23,20 +23,6 @@ func GetTokenCCSwitchImportOptions(c *gin.Context) {
 	common.ApiSuccess(c, options)
 }
 
-func GetTokenCCSwitchModels(c *gin.Context) {
-	tokenId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	response, err := service.GetCCSwitchModels(c.GetInt("id"), tokenId, c.Query("keyword"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, response)
-}
-
 func CreateTokenCCSwitchImportLink(c *gin.Context) {
 	tokenId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -53,12 +54,10 @@ type ccSwitchImportOptionsResponse struct {
 		MaskedKey string `json:"masked_key"`
 		BaseURL   string `json:"base_url"`
 	} `json:"token"`
-	DefaultTarget      string                     `json:"default_target"`
-	DefaultModel       string                     `json:"default_model"`
-	DefaultHaikuModel  string                     `json:"default_haiku_model"`
-	DefaultSonnetModel string                     `json:"default_sonnet_model"`
-	DefaultOpusModel   string                     `json:"default_opus_model"`
-	Targets            []dto.CCSwitchImportTarget `json:"targets"`
+	DefaultTarget string                     `json:"default_target"`
+	DefaultModel  string                     `json:"default_model"`
+	Targets       []dto.CCSwitchImportTarget `json:"targets"`
+	Models        []dto.CCSwitchModelOption  `json:"models"`
 }
 
 type ccSwitchImportLinkResponse struct {
@@ -124,7 +123,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	if err := db.AutoMigrate(&model.Token{}, &model.CCSwitchImportLog{}, &model.UserCCSwitchPreference{}); err != nil {
+	if err := db.AutoMigrate(&model.Token{}); err != nil {
 		t.Fatalf("failed to migrate token table: %v", err)
 	}
 }
@@ -134,7 +133,57 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 
 	db := openTokenControllerTestDB(t)
 	migrateTokenControllerTestDB(t, db)
+	if err := db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}); err != nil {
+		t.Fatalf("failed to migrate CC Switch import option dependencies: %v", err)
+	}
+	seedTokenControllerUser(t, db, 1, "default")
+	seedTokenControllerUser(t, db, 2, "default")
+	service.InvalidateCCSwitchModelCache()
+	t.Cleanup(service.InvalidateCCSwitchModelCache)
 	return db
+}
+
+func seedTokenControllerUser(t *testing.T, db *gorm.DB, id int, group string) {
+	t.Helper()
+
+	user := &model.User{
+		Id:       id,
+		Username: fmt.Sprintf("token-user-%d", id),
+		Password: "password",
+		Group:    group,
+		Status:   common.UserStatusEnabled,
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create token test user %d: %v", id, err)
+	}
+}
+
+func seedCCSwitchModelOption(t *testing.T, db *gorm.DB, modelName string, vendorName string, createdTime int64, group string) {
+	t.Helper()
+
+	vendor := &model.Vendor{Name: vendorName, Status: common.UserStatusEnabled}
+	if err := db.Create(vendor).Error; err != nil {
+		t.Fatalf("failed to create CC Switch test vendor: %v", err)
+	}
+	channel := &model.Channel{Name: vendorName + " channel", Key: "test-key", Status: common.ChannelStatusEnabled}
+	if err := db.Create(channel).Error; err != nil {
+		t.Fatalf("failed to create CC Switch test channel: %v", err)
+	}
+	modelMeta := &model.Model{
+		ModelName:   modelName,
+		VendorID:    vendor.Id,
+		Status:      common.UserStatusEnabled,
+		CreatedTime: createdTime,
+		NameRule:    model.NameRuleExact,
+	}
+	if err := db.Create(modelMeta).Error; err != nil {
+		t.Fatalf("failed to create CC Switch test model metadata: %v", err)
+	}
+	ability := &model.Ability{Group: group, Model: modelName, ChannelId: channel.Id, Enabled: true}
+	if err := db.Create(ability).Error; err != nil {
+		t.Fatalf("failed to create CC Switch test ability: %v", err)
+	}
+	service.InvalidateCCSwitchModelCache()
 }
 
 func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*gorm.DB, *bool) {
@@ -614,6 +663,7 @@ func TestGetTokenCCSwitchImportOptionsMasksKey(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	setServerAddressForTest(t, "https://ignored.example.com/")
 	token := seedToken(t, db, 1, "codex token", "raw-secret-token-value")
+	seedCCSwitchModelOption(t, db, "gpt-test-latest", "OpenAI", 20, "default")
 
 	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-options", nil, 1)
 	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
@@ -640,44 +690,17 @@ func TestGetTokenCCSwitchImportOptionsMasksKey(t *testing.T) {
 	if options.DefaultTarget != "codex" {
 		t.Fatalf("expected default target codex, got %q", options.DefaultTarget)
 	}
-	if options.DefaultModel != "gpt-5.5" {
-		t.Fatalf("expected default model gpt-5.5, got %q", options.DefaultModel)
+	if options.DefaultModel != "gpt-test-latest" {
+		t.Fatalf("expected default model from import cache, got %q", options.DefaultModel)
 	}
 	if len(options.Targets) != 2 || options.Targets[0].Key != "codex" || !options.Targets[0].Enabled || options.Targets[1].Key != "claude" || !options.Targets[1].Enabled {
 		t.Fatalf("expected Codex and Claude Code targets to be enabled, got %+v", options.Targets)
 	}
+	if len(options.Models) != 1 || options.Models[0].Name != "gpt-test-latest" || options.Models[0].VendorName != "OpenAI" {
+		t.Fatalf("expected import model options from cache, got %+v", options.Models)
+	}
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("import options leaked raw token key: %s", recorder.Body.String())
-	}
-}
-
-func TestGetTokenCCSwitchImportOptionsUsesPreference(t *testing.T) {
-	db := setupTokenControllerTestDB(t)
-	setServerAddressForTest(t, "https://api.xistree.hk/")
-	token := seedToken(t, db, 1, "preferred-token", "preference-key")
-	if err := model.UpsertUserCCSwitchPreference(&model.UserCCSwitchPreference{
-		UserId:     1,
-		LastTarget: "codex",
-		LastModel:  "custom-last-model",
-		UpdatedAt:  10,
-	}); err != nil {
-		t.Fatalf("failed to seed preference: %v", err)
-	}
-
-	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id)+"/ccswitch/import-options", nil, 1)
-	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
-	GetTokenCCSwitchImportOptions(ctx)
-
-	response := decodeAPIResponse(t, recorder)
-	if !response.Success {
-		t.Fatalf("expected import options to succeed, got message: %s", response.Message)
-	}
-	var options ccSwitchImportOptionsResponse
-	if err := common.Unmarshal(response.Data, &options); err != nil {
-		t.Fatalf("failed to decode import options: %v", err)
-	}
-	if options.DefaultModel != "custom-last-model" {
-		t.Fatalf("expected preference model, got %q", options.DefaultModel)
 	}
 }
 
@@ -702,7 +725,7 @@ func TestCreateTokenCCSwitchImportLinkRequiresOwnership(t *testing.T) {
 	}
 }
 
-func TestCreateTokenCCSwitchImportLinkBuildsEncodedURLAndRecordsAudit(t *testing.T) {
+func TestCreateTokenCCSwitchImportLinkBuildsEncodedURL(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	setServerAddressForTest(t, "https://api.xistree.hk/")
 	token := seedToken(t, db, 1, "token name / ? &= value", "secret-token-key")
@@ -744,8 +767,8 @@ func TestCreateTokenCCSwitchImportLinkBuildsEncodedURLAndRecordsAudit(t *testing
 	if query.Get("apiKey") != "sk-secret-token-key" {
 		t.Fatalf("expected normalized api key, got %q", query.Get("apiKey"))
 	}
-	if query.Get("name") != token.Name {
-		t.Fatalf("expected encoded token name round trip, got %q", query.Get("name"))
+	if query.Get("name") != "Xistree" {
+		t.Fatalf("expected fixed CC Switch provider name, got %q", query.Get("name"))
 	}
 	if query.Get("model") != "gpt 5.5 / ? &= model" {
 		t.Fatalf("expected encoded model round trip, got %q", query.Get("model"))
@@ -753,29 +776,9 @@ func TestCreateTokenCCSwitchImportLinkBuildsEncodedURLAndRecordsAudit(t *testing
 	if query.Get("wire_api") != "responses" || query.Get("requires_openai_auth") != "true" {
 		t.Fatalf("expected Codex provider defaults, got %s", link.URL)
 	}
-
-	var importLog model.CCSwitchImportLog
-	if err := db.First(&importLog, "user_id = ? AND token_id = ?", 1, token.Id).Error; err != nil {
-		t.Fatalf("failed to load import log: %v", err)
-	}
-	if importLog.Target != "codex" || importLog.Model != "gpt 5.5 / ? &= model" {
-		t.Fatalf("unexpected import log: %+v", importLog)
-	}
-	logDump := fmt.Sprintf("%+v", importLog)
-	if strings.Contains(logDump, token.Key) || strings.Contains(logDump, "ccswitch://") {
-		t.Fatalf("import log leaked sensitive data: %s", logDump)
-	}
-
-	preference, err := model.GetUserCCSwitchPreference(1)
-	if err != nil {
-		t.Fatalf("failed to load preference: %v", err)
-	}
-	if preference == nil || preference.LastTarget != "codex" || preference.LastModel != "gpt 5.5 / ? &= model" {
-		t.Fatalf("unexpected import preference: %+v", preference)
-	}
 }
 
-func TestCreateTokenCCSwitchClaudeLinkFallsBackAndRecordsModels(t *testing.T) {
+func TestCreateTokenCCSwitchClaudeLinkFallsBackAndKeepsCodexParamsSeparate(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	setServerAddressForTest(t, "https://ignored.example.com/")
 	token := seedToken(t, db, 1, "claude token", "claude-secret")
@@ -806,26 +809,14 @@ func TestCreateTokenCCSwitchClaudeLinkFallsBackAndRecordsModels(t *testing.T) {
 	if query.Get("app") != "claude" || query.Get("endpoint") != "https://api.xistree.hk/" {
 		t.Fatalf("unexpected Claude provider parameters: %s", link.URL)
 	}
+	if query.Get("name") != "Xistree" {
+		t.Fatalf("expected fixed CC Switch provider name, got %q", query.Get("name"))
+	}
 	if query.Get("model") != "claude-main" || query.Get("haikuModel") != "claude-haiku" || query.Get("sonnetModel") != "claude-main" || query.Get("opusModel") != "claude-opus" {
 		t.Fatalf("unexpected Claude model parameters: %s", link.URL)
 	}
 	if query.Get("wire_api") != "" || query.Get("requires_openai_auth") != "" {
 		t.Fatalf("Codex-only parameters leaked into Claude link: %s", link.URL)
-	}
-
-	var importLog model.CCSwitchImportLog
-	if err := db.First(&importLog, "user_id = ? AND token_id = ?", 1, token.Id).Error; err != nil {
-		t.Fatalf("failed to load Claude import log: %v", err)
-	}
-	if importLog.HaikuModel != "claude-haiku" || importLog.SonnetModel != "claude-main" || importLog.OpusModel != "claude-opus" {
-		t.Fatalf("unexpected Claude import log: %+v", importLog)
-	}
-	preference, err := model.GetUserCCSwitchPreference(1)
-	if err != nil {
-		t.Fatalf("failed to load Claude preference: %v", err)
-	}
-	if preference == nil || preference.LastHaikuModel != "claude-haiku" || preference.LastSonnetModel != "" || preference.LastOpusModel != "claude-opus" {
-		t.Fatalf("unexpected Claude preference: %+v", preference)
 	}
 }
 

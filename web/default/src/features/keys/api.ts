@@ -27,7 +27,6 @@ import type {
   CCSwitchImportLinkRequest,
   CCSwitchImportLinkResponse,
   CCSwitchImportOptions,
-  CCSwitchModelsResponse,
 } from './types'
 
 // ============================================================================
@@ -134,16 +133,5 @@ export async function createCCSwitchImportLink(
   data: CCSwitchImportLinkRequest
 ): Promise<ApiResponse<CCSwitchImportLinkResponse>> {
   const res = await api.post(`/api/token/${id}/ccswitch/import-link`, data)
-  return res.data
-}
-
-export async function getCCSwitchModels(
-  id: number,
-  keyword = ''
-): Promise<ApiResponse<CCSwitchModelsResponse>> {
-  const res = await api.get(`/api/token/${id}/ccswitch/models`, {
-    params: keyword ? { keyword } : undefined,
-    disableDuplicate: true,
-  })
   return res.data
 }

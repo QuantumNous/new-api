@@ -5,15 +5,15 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 )
 
 const (
-	CCSwitchDefaultTarget = "codex"
-	CCSwitchDefaultModel  = "gpt-5.5"
-	CCSwitchEndpoint      = "https://api.xistree.hk/"
+	CCSwitchDefaultTarget  = "codex"
+	CCSwitchDefaultModel   = "gpt-5.5"
+	CCSwitchEndpoint       = "https://api.xistree.hk/"
+	CCSwitchProviderName   = "Xistree"
 )
 
 type ccSwitchTargetConfig struct {
@@ -34,26 +34,11 @@ func GetCCSwitchImportOptions(userId int, tokenId int) (*dto.CCSwitchImportOptio
 	if err != nil {
 		return nil, err
 	}
-	preference, err := model.GetUserCCSwitchPreference(userId)
+	models, err := GetCCSwitchModelOptionsForUser(userId)
 	if err != nil {
 		return nil, err
 	}
-	defaultTarget := CCSwitchDefaultTarget
-	defaultModel := CCSwitchDefaultModel
-	defaultHaikuModel := ""
-	defaultSonnetModel := ""
-	defaultOpusModel := ""
-	if preference != nil {
-		if target, ok := findCCSwitchTarget(preference.LastTarget); ok && target.Enabled {
-			defaultTarget = target.Key
-		}
-		if strings.TrimSpace(preference.LastModel) != "" {
-			defaultModel = strings.TrimSpace(preference.LastModel)
-		}
-		defaultHaikuModel = strings.TrimSpace(preference.LastHaikuModel)
-		defaultSonnetModel = strings.TrimSpace(preference.LastSonnetModel)
-		defaultOpusModel = strings.TrimSpace(preference.LastOpusModel)
-	}
+	defaultModel := selectDefaultCCSwitchModel(models)
 
 	return &dto.CCSwitchImportOptionsResponse{
 		Token: dto.CCSwitchImportToken{
@@ -62,16 +47,14 @@ func GetCCSwitchImportOptions(userId int, tokenId int) (*dto.CCSwitchImportOptio
 			MaskedKey: token.GetMaskedKey(),
 			BaseURL:   CCSwitchEndpoint,
 		},
-		DefaultTarget:      defaultTarget,
-		DefaultModel:       defaultModel,
-		DefaultHaikuModel:  defaultHaikuModel,
-		DefaultSonnetModel: defaultSonnetModel,
-		DefaultOpusModel:   defaultOpusModel,
-		Targets:            getCCSwitchTargetDTOs(),
+		DefaultTarget: CCSwitchDefaultTarget,
+		DefaultModel:  defaultModel,
+		Targets:       getCCSwitchTargetDTOs(),
+		Models:        models,
 	}, nil
 }
 
-func CreateCCSwitchImportLink(userId int, tokenId int, request dto.CCSwitchImportLinkRequest, ip string, userAgent string) (*dto.CCSwitchImportLinkResponse, error) {
+func CreateCCSwitchImportLink(userId int, tokenId int, request dto.CCSwitchImportLinkRequest, _ string, _ string) (*dto.CCSwitchImportLinkResponse, error) {
 	target, ok := findCCSwitchTarget(request.Target)
 	if !ok {
 		return nil, errors.New("unsupported CC Switch import target")
@@ -91,7 +74,7 @@ func CreateCCSwitchImportLink(userId int, tokenId int, request dto.CCSwitchImpor
 	params := url.Values{}
 	params.Set("resource", "provider")
 	params.Set("app", target.App)
-	params.Set("name", token.Name)
+	params.Set("name", CCSwitchProviderName)
 	params.Set("endpoint", CCSwitchEndpoint)
 	params.Set("apiKey", normalizeCCSwitchAPIKey(token.GetFullKey()))
 	params.Set("model", selectedModel)
@@ -112,47 +95,6 @@ func CreateCCSwitchImportLink(userId int, tokenId int, request dto.CCSwitchImpor
 		params.Set("haikuModel", haikuModel)
 		params.Set("sonnetModel", sonnetModel)
 		params.Set("opusModel", opusModel)
-	}
-
-	now := common.GetTimestamp()
-	lastHaikuModel := strings.TrimSpace(request.HaikuModel)
-	lastSonnetModel := strings.TrimSpace(request.SonnetModel)
-	lastOpusModel := strings.TrimSpace(request.OpusModel)
-	if target.Key == "codex" {
-		preference, preferenceErr := model.GetUserCCSwitchPreference(userId)
-		if preferenceErr != nil {
-			return nil, preferenceErr
-		}
-		if preference != nil {
-			lastHaikuModel = preference.LastHaikuModel
-			lastSonnetModel = preference.LastSonnetModel
-			lastOpusModel = preference.LastOpusModel
-		}
-	}
-	if err := model.UpsertUserCCSwitchPreference(&model.UserCCSwitchPreference{
-		UserId:          userId,
-		LastTarget:      target.Key,
-		LastModel:       selectedModel,
-		LastHaikuModel:  lastHaikuModel,
-		LastSonnetModel: lastSonnetModel,
-		LastOpusModel:   lastOpusModel,
-		UpdatedAt:       now,
-	}); err != nil {
-		return nil, err
-	}
-	if err := model.CreateCCSwitchImportLog(&model.CCSwitchImportLog{
-		UserId:      userId,
-		TokenId:     token.Id,
-		Target:      target.Key,
-		Model:       selectedModel,
-		HaikuModel:  haikuModel,
-		SonnetModel: sonnetModel,
-		OpusModel:   opusModel,
-		CreatedAt:   now,
-		Ip:          ip,
-		UserAgent:   userAgent,
-	}); err != nil {
-		return nil, err
 	}
 
 	return &dto.CCSwitchImportLinkResponse{

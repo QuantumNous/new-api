@@ -63,7 +63,7 @@ func setCCSwitchModelCatalogForTest(entries []ccSwitchModelCatalogEntry, initial
 	ccSwitchModelCatalog.Unlock()
 }
 
-func TestGetCCSwitchModelsReturnsRecentPerVendorAndSearchesAll(t *testing.T) {
+func TestGetCCSwitchModelOptionsForUserUsesSnapshotAndUserGroups(t *testing.T) {
 	setupCCSwitchModelCacheTest(t)
 	entries := []ccSwitchModelCatalogEntry{
 		{CCSwitchModelOption: dto.CCSwitchModelOption{Name: "vendor-a-newest", VendorID: 1, VendorName: "Vendor A", CreatedTime: 40}, EnableGroups: []string{"group-a"}},
@@ -75,33 +75,65 @@ func TestGetCCSwitchModelsReturnsRecentPerVendorAndSearchesAll(t *testing.T) {
 	}
 	setCCSwitchModelCatalogForTest(entries, true)
 
-	recent, err := GetCCSwitchModels(1, 1, "")
+	items, err := GetCCSwitchModelOptionsForUser(1)
 	if err != nil {
-		t.Fatalf("failed to get recent models: %v", err)
+		t.Fatalf("failed to get model options: %v", err)
 	}
-	if len(recent.Items) != 4 {
-		t.Fatalf("expected three Vendor A models and one Vendor B model, got %+v", recent.Items)
+	if len(items) != 5 {
+		t.Fatalf("expected all group-a models from the cached snapshot, got %+v", items)
 	}
-	for _, item := range recent.Items {
-		if item.Name == "vendor-a-oldest-searchable" || item.Name == "forbidden-model" {
-			t.Fatalf("unexpected model in recent results: %+v", item)
+	for _, item := range items {
+		if item.Name == "forbidden-model" {
+			t.Fatalf("unexpected forbidden model in results: %+v", item)
 		}
-	}
-
-	searched, err := GetCCSwitchModels(1, 1, "OLDEST")
-	if err != nil {
-		t.Fatalf("failed to search models: %v", err)
-	}
-	if len(searched.Items) != 1 || searched.Items[0].Name != "vendor-a-oldest-searchable" {
-		t.Fatalf("expected full case-insensitive search to find old model, got %+v", searched.Items)
 	}
 }
 
-func TestGetCCSwitchModelsRequiresTokenOwnership(t *testing.T) {
+func TestGetCCSwitchModelOptionsForUserRequiresUser(t *testing.T) {
 	setupCCSwitchModelCacheTest(t)
 	setCCSwitchModelCatalogForTest(nil, true)
-	if _, err := GetCCSwitchModels(2, 1, ""); err == nil {
-		t.Fatal("expected token ownership check to fail")
+	if _, err := GetCCSwitchModelOptionsForUser(2); err == nil {
+		t.Fatal("expected missing user to fail")
+	}
+}
+
+func TestSortCCSwitchModelCatalogGroupsByVendorAndCreatedTime(t *testing.T) {
+	entries := []ccSwitchModelCatalogEntry{
+		{CCSwitchModelOption: dto.CCSwitchModelOption{Name: "vendor-a-older", VendorName: "Vendor A", CreatedTime: 30}},
+		{CCSwitchModelOption: dto.CCSwitchModelOption{Name: "vendor-c-model", VendorName: "Vendor C", CreatedTime: 20}},
+		{CCSwitchModelOption: dto.CCSwitchModelOption{Name: "vendor-a-newer", VendorName: "Vendor A", CreatedTime: 40}},
+		{CCSwitchModelOption: dto.CCSwitchModelOption{Name: "vendor-b-model", VendorName: "Vendor B", CreatedTime: 50}},
+	}
+	sortCCSwitchModelCatalog(entries)
+	got := []string{entries[0].Name, entries[1].Name, entries[2].Name, entries[3].Name}
+	want := []string{"vendor-b-model", "vendor-a-newer", "vendor-a-older", "vendor-c-model"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected sorted order %+v, got %+v", want, got)
+		}
+	}
+}
+
+func TestSelectDefaultCCSwitchModelPrefersOpenAIAndAnthropic(t *testing.T) {
+	items := []dto.CCSwitchModelOption{
+		{Name: "vendor-newest", VendorName: "Vendor", CreatedTime: 99},
+		{Name: "claude-latest", VendorName: "Anthropic", CreatedTime: 20},
+		{Name: "gpt-latest", VendorName: "OpenAI", CreatedTime: 20},
+	}
+	if got := selectDefaultCCSwitchModel(items); got != "gpt-latest" {
+		t.Fatalf("expected OpenAI tie-breaker, got %q", got)
+	}
+
+	items = []dto.CCSwitchModelOption{
+		{Name: "vendor-old", VendorName: "Vendor A", CreatedTime: 10},
+		{Name: "vendor-new", VendorName: "Vendor B", CreatedTime: 30},
+	}
+	if got := selectDefaultCCSwitchModel(items); got != "vendor-new" {
+		t.Fatalf("expected latest non-preferred model, got %q", got)
+	}
+
+	if got := selectDefaultCCSwitchModel(nil); got != CCSwitchDefaultModel {
+		t.Fatalf("expected fallback default model, got %q", got)
 	}
 }
 
@@ -125,12 +157,12 @@ func TestCCSwitchModelCacheFallsBackToPreviousSnapshot(t *testing.T) {
 	}
 }
 
-func TestNextCCSwitchModelCacheRefreshUsesLocalMidnight(t *testing.T) {
+func TestNextCCSwitchModelCacheRefreshUsesLocalTopOfHour(t *testing.T) {
 	location := time.FixedZone("test-zone", 8*60*60)
-	now := time.Date(2026, 6, 11, 23, 59, 30, 0, location)
+	now := time.Date(2026, 6, 11, 14, 23, 30, 0, location)
 	next := nextCCSwitchModelCacheRefresh(now)
-	want := time.Date(2026, 6, 12, 0, 0, 0, 0, location)
+	want := time.Date(2026, 6, 11, 15, 0, 0, 0, location)
 	if !next.Equal(want) || next.Location() != location {
-		t.Fatalf("expected local midnight %v, got %v", want, next)
+		t.Fatalf("expected local top of hour %v, got %v", want, next)
 	}
 }
