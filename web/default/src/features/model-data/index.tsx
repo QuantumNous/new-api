@@ -440,6 +440,29 @@ export function ModelDataPage() {
   const [pricingRefreshMsg, setPricingRefreshMsg] = useState<string>('')
   const [hubRefreshing, setHubRefreshing] = useState(false)
   const [hubRefreshMsg, setHubRefreshMsg] = useState<string>('')
+  // modelId → true if fingerprint_enabled OR uptime_enabled (for tab dot style)
+  const [tabDetectEnabled, setTabDetectEnabled] = useState<Record<string, boolean>>({})
+
+  // Fetch detect config for all tabs once on mount to show filled/hollow dots
+  useEffect(() => {
+    Promise.all(
+      MODEL_TABS.map((tab) =>
+        api
+          .get('/api/admin/model-detect-config', {
+            params: { model: tab.modelId },
+            skipErrorHandler: true,
+          } as Parameters<typeof api.get>[1])
+          .then((res) => ({
+            modelId: tab.modelId,
+            enabled: !!(res.data?.data?.fingerprint_enabled || res.data?.data?.uptime_enabled),
+          }))
+          .catch(() => ({ modelId: tab.modelId, enabled: false }))
+      )
+    ).then((results) => {
+      setTabDetectEnabled(Object.fromEntries(results.map((r) => [r.modelId, r.enabled])))
+    })
+  }, [])
+
   // Per-channel detecting state: "channelId-modelId" → true while in-flight
   // Keyed by both channel and model so different model tabs don't share detecting state.
   const [detectingChannels, setDetectingChannels] = useState<Record<string, boolean>>({})
@@ -593,6 +616,10 @@ export function ModelDataPage() {
     (patch: Partial<DetectConfig>) => {
       const next = { ...config, ...patch }
       setConfig(next)
+      setTabDetectEnabled((prev) => ({
+        ...prev,
+        [activeModel]: !!(next.fingerprint_enabled || next.uptime_enabled),
+      }))
       setConfigLoading(true)
       api
         .post('/api/admin/model-detect-config', {
@@ -691,7 +718,11 @@ export function ModelDataPage() {
                   >
                     <span
                       className='size-1.5 shrink-0 rounded-full'
-                      style={{ backgroundColor: tab.accent, boxShadow: active ? `0 0 6px ${tab.accent}` : undefined }}
+                      style={
+                        tabDetectEnabled[tab.modelId]
+                          ? { backgroundColor: tab.accent, boxShadow: active ? `0 0 6px ${tab.accent}` : undefined }
+                          : { border: `1.5px solid ${tab.accent}`, backgroundColor: 'transparent' }
+                      }
                     />
                     {tab.label}
                   </button>
