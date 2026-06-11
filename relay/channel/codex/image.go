@@ -358,6 +358,23 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if p < 0 {
 		p = 0
 	}
+	// 已知限制 / 后续增强（刻意不做，2026-06-10）：
+	// 上游 image_gen 其实返回了图像/文本 token 细分
+	// （input_tokens_details.image_tokens / text_tokens，edit 实测输入图约 256 image_token）。
+	// 这里只透出"合计" PromptTokens，没有设 usage.PromptTokensDetails.ImageTokens，
+	// 因此计费引擎对输入一律按文本输入价计，渠道配置的「图像输入价格」对本路径不生效。
+	// 不做的原因：
+	//   1) 输入仅占总成本约 5%，图像价($8)与文本价($5)的差异 ≈ 总账单的 0.15%，收益极小；
+	//   2) 暗坑：relay/helper/price.go 取 imageRatio 时丢弃了 GetImageRatio 的 ok 标志
+	//      （imageRatio, _ = GetImageRatio(...)），模型未配图像倍率时默认 0。一旦在此透出
+	//      ImageTokens，text_quota.go 会把这些 token 从合计中减去再 ×imageRatio(=0)，
+	//      导致输入图被算成"免费" → 少收费。
+	// 若将来要让「图像输入价格」精确生效，安全顺序：
+	//   a) 先给 gpt-image-2 配「图像输入价格」（如 $8/M，imageRatio≈1.6 对齐官方）；
+	//   b) 把 price.go 的 imageRatio 未配兜底由 0 改为 1（防免费），评估对其他渠道的影响；
+	//   c) 再在此读取 input_tokens_details.image_tokens / text_tokens，设
+	//      usage.PromptTokensDetails.ImageTokens / TextTokens；
+	//   d) e2e 校验 edits 账单（尤其确认输入图不再被算成 0）。
 	usage := &dto.Usage{
 		PromptTokens:     p,
 		CompletionTokens: comp,

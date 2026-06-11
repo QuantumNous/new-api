@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Codex 图像生成 API（gpt-image-2）· 使用文档</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #6ea8fe;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --code-bg: #0c0e13;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.7; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #141822, #0f1115);
+    padding: 48px 0 36px;
+  }
+  header.hero .wrap { padding-bottom: 0; }
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 12px;
+    color: var(--accent); border: 1px solid #2d3d5e; background: #14213a;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 14px;
+  }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0; max-width: 70ch; }
+  h2 {
+    font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 16px; margin: 28px 0 10px; color: #cdd4e0; }
+  h4 { font-size: 14px; margin: 18px 0 8px; color: #b6bdca; }
+  p { margin: 10px 0; }
+  code {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: #d9e0ec;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 14px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: #cfe3ff; }
+  .method {
+    font-family: var(--mono); font-weight: 700; font-size: 12px;
+    padding: 2px 8px; border-radius: 5px; margin-right: 8px; vertical-align: middle;
+  }
+  .post { background: #14321f; color: var(--green); border: 1px solid #1f5234; }
+  .get  { background: #102a3f; color: var(--accent); border: 1px solid #1d4368; }
+  .path { font-family: var(--mono); font-size: 14px; color: #e6e9ef; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: #cdd4e0; font-weight: 600; }
+  td code { white-space: nowrap; }
+  .req { color: var(--red); font-weight: 700; }
+  .opt { color: var(--muted); }
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel);
+  }
+  .callout.info { border-left-color: var(--accent); }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout.ok   { border-left-color: var(--green); }
+  .callout p:first-child { margin-top: 0; } .callout p:last-child { margin-bottom: 0; }
+  .pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin: 24px 0; }
+  .toc ul { margin: 6px 0; padding-left: 20px; columns: 2; }
+  .toc li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  footer { border-top: 1px solid var(--border); margin-top: 64px; padding-top: 20px; color: var(--muted); font-size: 13px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">图像生成 API · 标准 OpenAI 接口</span>
+    <h1>Codex 图像生成 API（gpt-image-2）</h1>
+    <p class="sub">通过标准 OpenAI 图像接口（<code>/v1/images/generations</code> 与 <code>/v1/images/edits</code>）调用 <code>gpt-image-2</code> 生成或编辑图片。请求/响应与 OpenAI Images API 兼容，可直接迁移；结果以 <code>b64_json</code> 形式返回，并按上游真实用量（image token）按量计费。</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="toc">
+    <strong>目录</strong>
+    <ul>
+      <li><a href="#overview">1. 概览</a></li>
+      <li><a href="#auth">2. 认证</a></li>
+      <li><a href="#endpoints">3. 接口一览</a></li>
+      <li><a href="#generations">4. 文生图</a></li>
+      <li><a href="#edits">5. 图生图（编辑）</a></li>
+      <li><a href="#quality">6. 质量与计费</a></li>
+      <li><a href="#limits">7. 限制与约定</a></li>
+      <li><a href="#errors">8. 错误</a></li>
+      <li><a href="#example">9. 完整示例</a></li>
+    </ul>
+  </div>
+
+  <h2 id="overview">1. 概览</h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>可用模型</td><td><code>gpt-image-2</code>（以你的服务实际开放的模型名为准）</td></tr>
+    <tr><td>调用模式</td><td>同步：一次请求直接返回图片（无需轮询）</td></tr>
+    <tr><td>能力</td><td>文生图（generations）、图生图 / 局部编辑（edits，支持可选 mask）</td></tr>
+    <tr><td>请求格式</td><td>与官方 OpenAI Images API 一致：generations 为 JSON，edits 为 <code>multipart/form-data</code></td></tr>
+    <tr><td>结果交付</td><td>图片以 <strong>base64</strong> 返回（<code>data[].b64_json</code>），附 <code>revised_prompt</code>（模型改写后的提示词）</td></tr>
+    <tr><td>计费</td><td>按 token（上游真实 image-gen 用量），随 <code>quality</code> / <code>size</code> 自动分档</td></tr>
+  </table>
+  <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://your-api-host</code>。</p>
+
+  <h2 id="auth">2. 认证</h2>
+  <p>所有请求需在请求头携带访问令牌：</p>
+  <pre><code>Authorization: Bearer sk-xxxxxxxxxxxxxxxx</code></pre>
+
+  <h2 id="endpoints">3. 接口一览</h2>
+  <table>
+    <tr><th>方法 &amp; 路径</th><th>说明</th><th>Content-Type</th><th>鉴权</th></tr>
+    <tr><td><span class="method post">POST</span><span class="path">/v1/images/generations</span></td><td>文生图</td><td><code>application/json</code></td><td>Bearer</td></tr>
+    <tr><td><span class="method post">POST</span><span class="path">/v1/images/edits</span></td><td>图生图 / 编辑（含可选 mask）</td><td><code>multipart/form-data</code></td><td>Bearer</td></tr>
+  </table>
+  <div class="callout info">
+    <p>要让某个 codex 渠道提供图像能力，需在该渠道的「模型」列表中加入 <code>gpt-image-2</code>。承载该图像请求的内部文本模型默认 <code>gpt-5.4</code>，可在渠道设置 / 全局设置中覆盖，对客户端透明。</p>
+  </div>
+
+  <h2 id="generations">4. 文生图</h2>
+  <p><span class="method post">POST</span><span class="path">{BASE}/v1/images/generations</span></p>
+
+  <h3>请求参数（JSON Body）</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>固定 <code>gpt-image-2</code></td></tr>
+    <tr><td><code>prompt</code></td><td>string</td><td class="req">必填</td><td>图像描述</td></tr>
+    <tr><td><code>size</code></td><td>string</td><td class="opt">可选</td><td>输出尺寸，如 <code>1024x1024</code></td></tr>
+    <tr><td><code>quality</code></td><td>string</td><td class="opt">可选</td><td>画质档位：<code>low</code> / <code>medium</code> / <code>high</code>（不传由上游默认）。档位越高 token / 费用越多，见第 6 节</td></tr>
+    <tr><td><code>background</code></td><td>string</td><td class="opt">可选</td><td>背景处理，如 <code>transparent</code> / <code>opaque</code>（透传上游）</td></tr>
+    <tr><td><code>output_format</code></td><td>string</td><td class="opt">可选</td><td>图片格式，如 <code>png</code> / <code>jpeg</code> / <code>webp</code>（透传上游）</td></tr>
+    <tr><td><code>output_compression</code></td><td>int</td><td class="opt">可选</td><td>压缩级别（透传上游）</td></tr>
+    <tr><td><code>moderation</code></td><td>string</td><td class="opt">可选</td><td>内容审核档位（透传上游）</td></tr>
+    <tr><td><code>response_format</code></td><td>string</td><td class="opt">可选</td><td>仅支持 <code>b64_json</code>（默认）。传 <code>url</code> 会被拒绝，见第 7 节</td></tr>
+    <tr><td><code>n</code></td><td>int</td><td class="opt">可选</td><td><strong>不生效</strong>：每次请求固定返回 1 张，见第 7 节</td></tr>
+  </table>
+
+  <h3>请求示例</h3>
+  <pre><code>curl {BASE}/v1/images/generations \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "a photorealistic red fox in a snowy forest at golden hour, highly detailed",
+    "size": "1024x1024",
+    "quality": "high"
+  }'</code></pre>
+
+  <h3>响应</h3>
+  <pre><code>{
+  "created": 1781096207,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAA...（base64 编码的 PNG）...RK5CYII=",
+      "revised_prompt": "A photorealistic red fox sitting in a snowy forest at golden hour...",
+      "url": ""
+    }
+  ]
+}</code></pre>
+  <div class="callout ok">
+    <p>图片在 <code>data[0].b64_json</code>（base64）。<code>url</code> 字段恒为空字符串——本接口只回 base64，不提供托管 URL。<code>revised_prompt</code> 为模型实际使用的改写提示词。</p>
+  </div>
+
+  <h2 id="edits">5. 图生图（编辑）</h2>
+  <p><span class="method post">POST</span><span class="path">{BASE}/v1/images/edits</span> · <code>multipart/form-data</code></p>
+
+  <h3>表单字段</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>model</code></td><td>text</td><td class="req">必填</td><td>固定 <code>gpt-image-2</code></td></tr>
+    <tr><td><code>prompt</code></td><td>text</td><td class="req">必填</td><td>编辑指令</td></tr>
+    <tr><td><code>image</code></td><td>file</td><td class="req">必填</td><td>待编辑图片（PNG / JPEG / WEBP）。多图可用 <code>image[]</code> / <code>image[0]</code>…</td></tr>
+    <tr><td><code>mask</code></td><td>file</td><td class="opt">可选</td><td>蒙版图：透明区域为待重绘区域。提供后做局部重绘（inpainting）</td></tr>
+    <tr><td><code>size</code></td><td>text</td><td class="opt">可选</td><td>输出尺寸</td></tr>
+    <tr><td><code>quality</code></td><td>text</td><td class="opt">可选</td><td>画质档位，同第 4 节</td></tr>
+  </table>
+  <div class="callout warn">
+    <p>若提供了 <code>mask</code> 但服务端无法读取它（损坏 / 超限），请求会<strong>直接报错</strong>，不会退化成整图编辑——避免「编辑结果错误却照常计费」。</p>
+  </div>
+
+  <h3>请求示例</h3>
+  <pre><code>curl {BASE}/v1/images/edits \
+  -H "Authorization: Bearer sk-xxxx" \
+  -F model=gpt-image-2 \
+  -F prompt="add a small yellow star in the center" \
+  -F image=@input.png \
+  -F mask=@mask.png</code></pre>
+
+  <h3>响应</h3>
+  <pre><code>{
+  "created": 1781096428,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAA...（编辑后的 PNG, base64）...",
+      "revised_prompt": "Edit the provided image: add a small yellow five-pointed star exactly in the center...",
+      "url": ""
+    }
+  ]
+}</code></pre>
+  <div class="callout info"><p>edits 的输入图本身也会计入 token 用量（<code>image_gen.input_tokens</code> 含输入图 image-token），因此 edits 的输入 token 通常高于纯文生图。</p></div>
+
+  <h2 id="quality">6. 质量与计费</h2>
+  <p>计费按 <strong>token</strong>：上游返回的 image-gen 用量（input + output image-token），随 <code>quality</code> / <code>size</code> 自动分档。下表为 1024×1024 的实测量级（具体单价由你的服务倍率配置决定）：</p>
+  <table>
+    <tr><th>quality</th><th>输出 image-token（约）</th><th>相对成本</th><th>典型耗时</th></tr>
+    <tr><td><code>standard</code> / 默认</td><td>~196</td><td>1×（基准）</td><td>~17–19s</td></tr>
+    <tr><td><code>high</code></td><td>~1700+</td><td>≈ 9×</td><td>~60–70s</td></tr>
+    <tr><td>edits（含输入图）</td><td>输入 ~256 + 输出按档</td><td>输入图额外计入</td><td>~45s</td></tr>
+  </table>
+  <div class="callout warn"><p><strong>定价注意：</strong>一张 <code>high</code> 质量图的成本约为默认质量的 <strong>9 倍</strong>。若客户端可自由指定 <code>quality:high</code>，请据此设定合理倍率，避免成本失控。</p></div>
+  <div class="callout info"><p>部分订阅档位上游可能将 <code>high</code> 实际降级为中等画质——这是上游账号档位行为，网关如实透传 <code>quality</code> 并按上游返回的真实 token 计费。</p></div>
+
+  <h2 id="limits">7. 限制与约定</h2>
+  <table>
+    <tr><th>约定</th><th>说明</th></tr>
+    <tr><td>每请求 1 张</td><td>上游图像工具不接受 <code>n</code> 参数，故 <code>n&gt;1</code> 仍只返回 1 张（不报错）。需要多张请多次调用</td></tr>
+    <tr><td>仅 <code>b64_json</code></td><td>不提供托管 URL；<code>response_format:"url"</code> 会被拒绝（HTTP 400）</td></tr>
+    <tr><td>模型前缀</td><td>图像接口要求 <code>gpt-image-*</code> 模型；其他模型名会被拒绝</td></tr>
+    <tr><td>白标</td><td>上游错误不透传给客户端：失败时仅返回通用错误消息，上游品牌 / host / 内部模型名不外泄</td></tr>
+    <tr><td>高质量延迟</td><td><code>high</code> 出图可达 ~60–70s，请确保客户端 / 代理 / 网关超时足够（建议 ≥150s）</td></tr>
+  </table>
+
+  <h2 id="errors">8. 错误</h2>
+  <p>请求 / 提交阶段错误走标准错误体：</p>
+  <pre><code>{ "error": { "message": "...", "type": "...", "code": "..." } }</code></pre>
+  <table>
+    <tr><th>典型场景</th><th>说明</th></tr>
+    <tr><td><code>response_format:"url"</code></td><td>HTTP 400：<code>codex image: response_format "url" not supported; codex image only supports b64_json</code></td></tr>
+    <tr><td>非 <code>gpt-image-*</code> 模型</td><td>图像接口要求 gpt-image-* 模型</td></tr>
+    <tr><td>edits 缺少 <code>image</code></td><td>multipart 中未提供图片文件</td></tr>
+    <tr><td>上游失败（4xx/5xx）</td><td>返回通用错误消息（白标），详情记录在服务端日志</td></tr>
+    <tr><td>额度不足</td><td>请求被拒</td></tr>
+  </table>
+
+  <h2 id="example">9. 完整示例（文生图 → 落地为图片文件）</h2>
+  <pre><code>#!/usr/bin/env bash
+BASE="https://your-api-host"
+TOKEN="sk-xxxxxxxxxxxxxxxx"
+
+# 文生图，取出 b64 并解码为 PNG
+curl -sS "$BASE/v1/images/generations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-image-2",
+    "prompt": "a cute corgi puppy sitting on grass",
+    "size": "1024x1024"
+  }' \
+| jq -r '.data[0].b64_json' \
+| base64 -d > output.png
+
+echo "saved -> output.png"</code></pre>
+
+  <footer>
+    Codex 图像生成 API（gpt-image-2）· 接口使用文档。
+  </footer>
+</div>
+</body>
+</html>

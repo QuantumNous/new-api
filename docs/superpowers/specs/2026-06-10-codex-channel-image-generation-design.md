@@ -132,3 +132,10 @@ POST /v1/images/generations|edits  (model=gpt-image-2)
 - 不做 codex CLI 文本请求自动注入 image_generation 工具(sub2api 的"路径 B");本设计只做图像接口。
 - 不做 url 形式返回、不做 partial_images 流式回传(只回最终图)。
 - 不做承载模型多级 fallback。
+
+## 9. 已知限制 / 后续增强(刻意不做,2026-06-10)
+**图像输入 token 不按「图像输入价格」计费。** 上游 `image_gen` 返回了图像/文本 token 细分(`input_tokens_details.image_tokens / text_tokens`,edit 实测输入图约 256 image_token),但 `RelayImageOverCodex` 只透出合计 `PromptTokens`、未设 `usage.PromptTokensDetails.ImageTokens`,故计费引擎对输入一律按文本输入价计,渠道的「图像输入价格」对本路径不生效。
+
+不做原因:① 输入仅占总成本约 5%,图像价($8)与文本价($5)差异 ≈ 总账单 0.15%,收益极小;② 暗坑——`relay/helper/price.go` 取 imageRatio 时丢弃 `GetImageRatio` 的 ok 标志(`imageRatio, _ = ...`),模型未配图像倍率时默认 **0**;一旦透出 `ImageTokens`,`text_quota.go` 会把这些 token 从合计减去再 `×imageRatio(=0)` → 输入图被算成"免费",**少收费**。
+
+将来要让「图像输入价格」精确生效的安全顺序:(a) 先给 gpt-image-2 配「图像输入价格」(如 $8/M,imageRatio≈1.6);(b) 把 price.go 的 imageRatio 未配兜底由 0 改 1(防免费,需评估对其他渠道影响);(c) 在 `RelayImageOverCodex` 设 `PromptTokensDetails.ImageTokens / TextTokens`;(d) e2e 校验 edits 账单。代码内同一备注见 `relay/channel/codex/image.go`(usage 赋值处)。

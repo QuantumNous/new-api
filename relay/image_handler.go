@@ -63,6 +63,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
+			// 适配器已显式带状态码的错误，原样透传（保留其 4xx/5xx 语义）。
+			if apiErr, ok := err.(*types.NewAPIError); ok {
+				return apiErr
+			}
+			// codex 图像的 ConvertImageRequest 错误均为入参校验类（response_format /
+			// 模型前缀 / 缺少 image / mask 读取失败），属客户端输入错误，返回 400 而非 500。
+			if codexImagePath {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
