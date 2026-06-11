@@ -33,25 +33,19 @@ import {
   type RowSelectionState,
   type VisibilityState,
   type SortingState,
-  flexRender,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
-  useReactTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { Copy, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DataTableBulkActions,
   DataTableToolbar,
   DataTablePagination,
+  DataTableRow,
+  DataTableView,
+  useDataTable,
 } from '@/components/data-table'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { safeJsonParse } from '../utils/json-parser'
@@ -424,17 +418,15 @@ const ModelRatioVisualEditorComponent = forwardRef<
     [handleEdit, handleDelete, t]
   )
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: models,
     columns,
-    state: {
-      sorting,
-      columnFilters,
-      globalFilter,
-      columnVisibility,
-      pagination,
-      rowSelection,
-    },
+    sorting,
+    columnFilters,
+    globalFilter,
+    columnVisibility,
+    pagination,
+    rowSelection,
     enableRowSelection: true,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -443,12 +435,6 @@ const ModelRatioVisualEditorComponent = forwardRef<
     onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     autoResetPageIndex: false,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     globalFilterFn: (row, _columnId, filterValue) => {
       const searchValue = String(filterValue).toLowerCase()
       return row.original.name.toLowerCase().includes(searchValue)
@@ -629,6 +615,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     [editorOpen, persistPricingData]
   )
 
+  const hasRows = table.getRowModel().rows.length > 0
+
   return (
     <div className='flex flex-col gap-4'>
       <div className='grid h-[clamp(720px,calc(100vh-12rem),900px)] min-h-0 gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'>
@@ -667,82 +655,64 @@ const ModelRatioVisualEditorComponent = forwardRef<
             }
           />
 
-          {table.getRowModel().rows.length === 0 ? (
+          {!hasRows ? (
             <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
               {table.getState().globalFilter
                 ? t('No models match your search')
                 : t('No models configured. Use Add model to get started.')}
             </div>
           ) : (
-            <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
-              <table className='w-full caption-bottom text-sm tabular-nums'>
-                <thead>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id} className='border-b'>
-                      {headerGroup.headers.map((header) => (
-                        <th
-                          key={header.id}
-                          colSpan={header.colSpan}
-                          className={cn(
-                            'bg-background text-foreground sticky top-0 z-10 h-10 px-2 text-left align-middle text-sm font-medium whitespace-nowrap',
-                            header.column.id === 'actions' &&
-                              'right-0 z-30 w-24 min-w-24 shadow-[-10px_0_14px_-14px_hsl(var(--foreground))]'
-                          )}
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      data-state={row.getIsSelected() ? 'selected' : undefined}
-                      className={
-                        editData?.name === row.original.name
-                          ? 'bg-muted/45 hover:bg-muted/50 data-[state=selected]:bg-muted group border-b transition-colors'
-                          : 'hover:bg-muted/50 data-[state=selected]:bg-muted group border-b transition-colors'
-                      }
-                      onClick={(event) => {
-                        const target = event.target as HTMLElement
-                        if (target.closest('button, [role="checkbox"]')) return
-                        handleEdit(row.original)
-                      }}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className={cn(
-                            'p-2 align-middle text-sm whitespace-nowrap',
-                            cell.column.id === 'actions' &&
-                              (editData?.name === row.original.name
-                                ? 'bg-muted/45 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted sticky right-0 z-10 w-24 min-w-24 shadow-[-10px_0_14px_-14px_hsl(var(--foreground))]'
-                                : 'bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted sticky right-0 z-10 w-24 min-w-24 shadow-[-10px_0_14px_-14px_hsl(var(--foreground))]')
-                          )}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTableView
+              table={table}
+              containerClassName='min-h-0 flex-1 rounded-md'
+              tableContainerClassName='h-full'
+              tableClassName='min-w-[852px] table-fixed'
+              tableHeaderClassName='[&_tr]:border-b-0'
+              splitHeaderScrollClassName='h-full'
+              bodyContainerClassName='[scrollbar-gutter:stable]'
+              splitHeader
+              pinnedColumns={[
+                {
+                  columnId: 'actions',
+                  side: 'right',
+                  className: 'w-24 min-w-24',
+                },
+              ]}
+              colgroup={
+                <colgroup>
+                  <col className='w-9' />
+                  <col className='w-[300px]' />
+                  <col className='w-[120px]' />
+                  <col className='w-[300px]' />
+                  <col className='w-24' />
+                </colgroup>
+              }
+              renderRow={(row, { getCellClassName }) => (
+                <DataTableRow
+                  key={row.id}
+                  row={row}
+                  className={
+                    editData?.name === row.original.name
+                      ? 'bg-muted/45 hover:bg-muted/50 data-[state=selected]:bg-muted group'
+                      : 'group'
+                  }
+                  getColumnClassName={(columnId) =>
+                    columnId === 'actions' &&
+                    editData?.name === row.original.name
+                      ? getCellClassName(columnId, 'bg-muted')
+                      : getCellClassName(columnId)
+                  }
+                  onClick={(event) => {
+                    const target = event.target as HTMLElement
+                    if (target.closest('button, [role="checkbox"]')) return
+                    handleEdit(row.original)
+                  }}
+                />
+              )}
+            />
           )}
 
-          {table.getRowModel().rows.length > 0 && (
-            <DataTablePagination table={table} />
-          )}
+          {hasRows && <DataTablePagination table={table} />}
         </div>
 
         <div className='hidden min-h-0 min-w-0 md:block'>

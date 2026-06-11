@@ -163,7 +163,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				if err != nil {
 					return nil, fmt.Errorf("invalid stream value: %w", err)
 				}
-				imageRequest.Stream = stream
+				imageRequest.Stream = common.GetPointer(stream)
 			}
 			if imageValue := formData.Get("image"); imageValue != "" {
 				imageRequest.Image, _ = common.Marshal(imageValue)

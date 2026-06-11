@@ -71,6 +71,7 @@ export function buildModelRatioColumns({
       ),
       enableSorting: false,
       enableHiding: false,
+      size: 40,
       meta: { label: t('Select') },
     },
     {
@@ -79,16 +80,22 @@ export function buildModelRatioColumns({
         <DataTableColumnHeader column={column} title={t('Model name')} />
       ),
       cell: ({ row }) => (
-        <div className='flex items-center gap-2 font-medium'>
-          {row.getValue('name')}
+        <div className='flex min-w-0 items-center gap-2 font-medium'>
+          <span className='min-w-0 truncate'>{row.getValue('name')}</span>
           {row.original.billingMode === 'tiered_expr' && (
-            <StatusBadge label={t('Tiered')} variant='info' copyable={false} />
+            <StatusBadge
+              label={t('Tiered')}
+              variant='info'
+              copyable={false}
+              className='shrink-0'
+            />
           )}
           {row.original.hasConflict && (
             <StatusBadge
               label={t('Conflict')}
               variant='danger'
               copyable={false}
+              className='shrink-0'
             />
           )}
         </div>
@@ -119,11 +126,11 @@ export function buildModelRatioColumns({
         <DataTableColumnHeader column={column} title={t('Price summary')} />
       ),
       cell: ({ row }) => (
-        <div className='flex min-w-[180px] flex-col gap-1'>
-          <span className='font-medium'>
+        <div className='flex min-w-0 flex-col gap-1'>
+          <span className='truncate font-medium'>
             {getPriceSummary(row.original, t)}
           </span>
-          <span className='text-muted-foreground max-w-[320px] truncate text-xs'>
+          <span className='text-muted-foreground truncate text-xs'>
             {getPriceDetail(row.original, t)}
           </span>
         </div>
@@ -136,7 +143,7 @@ export function buildModelRatioColumns({
     },
     {
       id: 'actions',
-      header: () => <div className='text-right'>{t('Actions')}</div>,
+      header: () => <div>{t('Actions')}</div>,
       cell: ({ row }) => (
         <div className='flex justify-end gap-2'>
           <Button

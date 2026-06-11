@@ -17,12 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
-import {
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
 import { Loader2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
@@ -35,14 +29,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { DataTablePagination } from '@/components/data-table/pagination'
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'
@@ -180,15 +170,14 @@ export function UpstreamRatioSyncTable({
     handleBulkUnselect
   )
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: filteredData,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.key,
-    initialState: {
-      pagination: { pageSize: 10 },
-    },
+    initialPagination: { pageIndex: 0, pageSize: 10 },
+    withFilteredRowModel: false,
+    withSortedRowModel: false,
+    withFacetedRowModel: false,
   })
 
   if (dataSource.length === 0) {
@@ -258,53 +247,15 @@ export function UpstreamRatioSyncTable({
         </Select>
       </div>
 
-      <div className='overflow-hidden rounded-md border'>
-        <div className='overflow-x-auto'>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className='align-top'>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className='align-top'>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className='align-top'>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className='h-24 text-center'
-                  >
-                    {t('No results found')}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+      <DataTableView
+        table={table}
+        containerClassName='rounded-md'
+        tableContainerClassName='overflow-x-auto'
+        getColumnClassName={() => 'align-top'}
+        getRowClassName={() => 'align-top'}
+        emptyContent={t('No results found')}
+        emptyCellClassName='h-24 text-center'
+      />
 
       <DataTablePagination table={table} />
     </div>

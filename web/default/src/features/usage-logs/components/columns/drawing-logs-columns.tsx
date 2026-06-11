@@ -95,8 +95,8 @@ export function useDrawingLogsColumns(
         const submitTime = row.getValue('submit_time') as number
 
         return (
-          <div className='flex flex-col gap-0.5'>
-            <span className='font-mono text-xs tabular-nums'>
+          <div className='flex min-w-0 flex-col gap-0.5'>
+            <span className='truncate font-mono text-xs tabular-nums'>
               {formatTimestampToDate(submitTime)}
             </span>
             <StatusBadge
@@ -108,6 +108,7 @@ export function useDrawingLogsColumns(
           </div>
         )
       },
+      size: 180,
       meta: { label: t('Submit Time') },
     },
   ]

@@ -36,9 +36,9 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.id,
         id: 'id',
-        meta: { label: 'ID', mobileHidden: true },
+        meta: { label: t('ID'), mobileHidden: true },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title='ID' />
+          <DataTableColumnHeader column={column} title={t('ID')} />
         ),
         cell: ({ row }) => <TableId value={row.original.plan.id} />,
         size: 60,
@@ -103,7 +103,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
             {formatResetPeriod(row.original.plan, t)}
           </span>
         ),
-        size: 80,
+        size: 100,
       },
       {
         accessorFn: (row) => row.plan.sort_order,
@@ -117,7 +117,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
             {row.original.plan.sort_order}
           </span>
         ),
-        size: 80,
+        size: 100,
       },
       {
         accessorFn: (row) => row.plan.enabled,
@@ -188,7 +188,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
             </span>
           )
         },
-        size: 100,
+        size: 150,
       },
       {
         id: 'upgrade_group',
@@ -205,7 +205,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           }
           return <GroupBadge group={group} />
         },
-        size: 100,
+        size: 120,
       },
       {
         id: 'actions',

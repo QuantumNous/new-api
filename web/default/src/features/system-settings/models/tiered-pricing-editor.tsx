@@ -464,7 +464,7 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
         </SelectContent>
       </Select>
       <Select
-        items={[...OPS.map((op) => ({ value: op, label: op }))]}
+        items={OPS.map((op) => ({ value: op, label: op }))}
         value={condition.op}
         onValueChange={(value) =>
           onChange({ ...condition, op: value as TierConditionInput['op'] })
