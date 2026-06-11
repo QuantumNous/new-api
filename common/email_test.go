@@ -107,6 +107,12 @@ func (s *fakeSMTPServer) serve() {
 				return
 			}
 		case upperCommand == "STARTTLS":
+			if encrypted || !s.advertiseSTARTTLS {
+				if err := writeSMTPLine(rw, "502 5.5.1 STARTTLS not supported"); err != nil {
+					return
+				}
+				continue
+			}
 			select {
 			case s.startTLSCommands <- command:
 			default:
