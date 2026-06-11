@@ -15,6 +15,11 @@ var NotifyLimitCount int
 var NotificationLimitDurationMinute int
 var GenerateDefaultToken bool
 var ErrorLogEnabled bool
+
+// LogBlockedUpstreamHeaders controls whether blocklist-stripped upstream
+// response headers (name and value) are logged for auditing. Default true;
+// set LOG_BLOCKED_UPSTREAM_HEADERS=false to disable.
+var LogBlockedUpstreamHeaders = true
 var TaskQueryLimit int
 var TaskTimeoutMinutes int
 
