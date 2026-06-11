@@ -95,6 +95,62 @@ func GetLogByKey(c *gin.Context) {
 	})
 }
 
+func parseAttributionFilter(c *gin.Context) model.AttributionFilter {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	top, _ := strconv.Atoi(c.Query("top"))
+	return model.AttributionFilter{
+		Dimension: c.Query("dimension"),
+		Sub:       c.Query("sub"),
+		ParentId:  c.Query("parent_id"),
+		Start:     startTimestamp,
+		End:       endTimestamp,
+		Username:  c.Query("username"),
+		TokenName: c.Query("token_name"),
+		ModelName: c.Query("model_name"),
+		Channel:   channel,
+		Group:     c.Query("group"),
+		Top:       top,
+	}
+}
+
+// GetLogAttribution returns cost attribution (totals + ranking) for a dimension,
+// with optional one-level drill-down. Admin-only (enforced by router middleware).
+func GetLogAttribution(c *gin.Context) {
+	f := parseAttributionFilter(c)
+	total, rows, err := model.GetLogAttribution(f)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"dimension": f.Dimension,
+			"total":     total,
+			"rows":      rows,
+		},
+	})
+}
+
+// GetLogAttributionTrend returns a daily quota trend for the Top-N keys of a
+// dimension. Admin-only.
+func GetLogAttributionTrend(c *gin.Context) {
+	f := parseAttributionFilter(c)
+	trend, err := model.GetLogAttributionTrend(f)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    trend,
+	})
+}
+
 func GetLogsStat(c *gin.Context) {
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)

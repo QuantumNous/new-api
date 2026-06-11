@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -529,6 +531,303 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	tx.Where("type = ?", LogTypeConsume).Scan(&token)
 	return token
+}
+
+// ===== Cost attribution (P1) =====
+//
+// Aggregates consume logs (type = LogTypeConsume) by user / token / model,
+// with optional one-level drill-down (e.g. token -> model) and a daily trend.
+// Reads only the logs table; independent of the request-detail logging toggle.
+
+// AttributionFilter carries the same filter semantics as the log list query.
+type AttributionFilter struct {
+	Dimension string // primary dimension: user / token / model
+	Sub       string // optional drill-down dimension: user / token / model
+	ParentId  string // primary key value when Sub is set
+	Start     int64
+	End       int64
+	Username  string
+	TokenName string
+	ModelName string
+	Channel   int
+	Group     string
+	Top       int
+}
+
+type AttributionTotal struct {
+	Quota            int64 `json:"quota" gorm:"column:quota"`
+	PromptTokens     int64 `json:"prompt_tokens" gorm:"column:prompt_tokens"`
+	CompletionTokens int64 `json:"completion_tokens" gorm:"column:completion_tokens"`
+	Count            int64 `json:"count" gorm:"column:cnt"`
+}
+
+type AttributionRow struct {
+	Key              string `json:"key" gorm:"column:g_key"`
+	Label            string `json:"label" gorm:"column:g_label"`
+	Quota            int64  `json:"quota" gorm:"column:quota"`
+	PromptTokens     int64  `json:"prompt_tokens" gorm:"column:prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens" gorm:"column:completion_tokens"`
+	Count            int64  `json:"count" gorm:"column:cnt"`
+}
+
+type AttributionSeries struct {
+	Key    string  `json:"key"`
+	Label  string  `json:"label"`
+	Points []int64 `json:"points"`
+}
+
+type AttributionTrend struct {
+	Buckets []int64             `json:"buckets"`
+	Series  []AttributionSeries `json:"series"`
+}
+
+type attributionTrendPoint struct {
+	Key    string `gorm:"column:g_key"`
+	Bucket int64  `gorm:"column:bucket"`
+	Quota  int64  `gorm:"column:quota"`
+}
+
+// attributionColumns maps a dimension to its (groupKey, displayLabel) columns.
+func attributionColumns(dim string) (string, string, error) {
+	switch dim {
+	case "user":
+		return "user_id", "username", nil
+	case "token":
+		return "token_id", "token_name", nil
+	case "model":
+		return "model_name", "model_name", nil
+	}
+	return "", "", errors.New("invalid attribution dimension")
+}
+
+// attributionEqValue returns the parent-id bound with the right Go type so that
+// PostgreSQL (strict typing) compares int columns to ints, not strings.
+func attributionEqValue(dim string, v string) (interface{}, error) {
+	if dim == "model" {
+		return v, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return nil, errors.New("invalid parent id")
+	}
+	return n, nil
+}
+
+// attributionKeyValues converts string keys back to the column's native type for
+// an IN (...) clause (int columns for user/token, text for model).
+func attributionKeyValues(dim string, keys []string) (interface{}, error) {
+	if dim == "model" {
+		return keys, nil
+	}
+	ints := make([]int, 0, len(keys))
+	for _, k := range keys {
+		n, err := strconv.Atoi(k)
+		if err != nil {
+			return nil, errors.New("invalid attribution key")
+		}
+		ints = append(ints, n)
+	}
+	return ints, nil
+}
+
+func attributionBase(f AttributionFilter) (*gorm.DB, error) {
+	tx := LOG_DB.Table("logs").Where("type = ?", LogTypeConsume)
+	var err error
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", f.ModelName); err != nil {
+		return nil, err
+	}
+	if tx, err = applyExplicitLogTextFilter(tx, "username", f.Username); err != nil {
+		return nil, err
+	}
+	if f.TokenName != "" {
+		tx = tx.Where("token_name = ?", f.TokenName)
+	}
+	// Always bound the lower time edge so totals/ranking/drill/trend never scan
+	// the full consume-log history; fall back to a default window when the caller
+	// omits a start timestamp.
+	start := f.Start
+	if start <= 0 {
+		start = time.Now().Unix() - attributionDefaultWindowSec
+	}
+	tx = tx.Where("created_at >= ?", start)
+	if f.End != 0 {
+		tx = tx.Where("created_at <= ?", f.End)
+	}
+	if f.Channel != 0 {
+		tx = tx.Where("channel_id = ?", f.Channel)
+	}
+	if f.Group != "" {
+		tx = tx.Where(logGroupCol+" = ?", f.Group)
+	}
+	return tx, nil
+}
+
+const attributionAggSelect = "COALESCE(SUM(quota),0) AS quota, " +
+	"COALESCE(SUM(prompt_tokens),0) AS prompt_tokens, " +
+	"COALESCE(SUM(completion_tokens),0) AS completion_tokens, " +
+	"COUNT(*) AS cnt"
+
+const (
+	// attributionMaxTop hard-caps how many ranked rows / trend series a single
+	// request may pull, so a crafted "top" value cannot force a huge scan/sort.
+	attributionMaxTop = 200
+	// attributionDefaultWindowSec bounds the lower time edge when the caller
+	// omits a start timestamp, avoiding a full consume-log history scan.
+	attributionDefaultWindowSec int64 = 30 * 86400
+)
+
+// normalizeAttributionFilter hard-caps Top so a crafted request cannot force a
+// huge scan/sort. The lower time-window bound is enforced in attributionBase so
+// every query path (totals / ranking / drill-down / trend) is bounded.
+func normalizeAttributionFilter(f AttributionFilter) AttributionFilter {
+	if f.Top > attributionMaxTop {
+		f.Top = attributionMaxTop
+	}
+	return f
+}
+
+// GetLogAttribution returns the totals plus the per-key ranking for the chosen
+// dimension. When Sub+ParentId are set, it returns the breakdown of that parent
+// by the Sub dimension (e.g. one token's per-model composition).
+func GetLogAttribution(f AttributionFilter) (AttributionTotal, []AttributionRow, error) {
+	f = normalizeAttributionFilter(f)
+	var total AttributionTotal
+	drill := f.Sub != "" && f.ParentId != ""
+
+	tq, err := attributionBase(f)
+	if err != nil {
+		return total, nil, err
+	}
+	if drill {
+		pcol, _, perr := attributionColumns(f.Dimension)
+		if perr != nil {
+			return total, nil, perr
+		}
+		pv, verr := attributionEqValue(f.Dimension, f.ParentId)
+		if verr != nil {
+			return total, nil, verr
+		}
+		tq = tq.Where(pcol+" = ?", pv)
+	}
+	if err = tq.Select(attributionAggSelect).Scan(&total).Error; err != nil {
+		return total, nil, err
+	}
+
+	groupDim := f.Dimension
+	if drill {
+		groupDim = f.Sub
+	}
+	keyCol, labelCol, err := attributionColumns(groupDim)
+	if err != nil {
+		return total, nil, err
+	}
+
+	rq, err := attributionBase(f)
+	if err != nil {
+		return total, nil, err
+	}
+	if drill {
+		pcol, _, _ := attributionColumns(f.Dimension)
+		pv, verr := attributionEqValue(f.Dimension, f.ParentId)
+		if verr != nil {
+			return total, nil, verr
+		}
+		rq = rq.Where(pcol+" = ?", pv)
+	}
+	top := f.Top
+	if top <= 0 {
+		top = 50
+	}
+	sel := fmt.Sprintf("%s AS g_key, MAX(%s) AS g_label, %s", keyCol, labelCol, attributionAggSelect)
+	var rows []AttributionRow
+	if err = rq.Select(sel).Group(keyCol).Order("quota DESC").Limit(top).Scan(&rows).Error; err != nil {
+		return total, nil, err
+	}
+	return total, rows, nil
+}
+
+// GetLogAttributionTrend returns a daily-bucketed quota series for the Top-N keys
+// of the primary dimension.
+func GetLogAttributionTrend(f AttributionFilter) (AttributionTrend, error) {
+	f = normalizeAttributionFilter(f)
+	out := AttributionTrend{Buckets: []int64{}, Series: []AttributionSeries{}}
+	keyCol, _, err := attributionColumns(f.Dimension)
+	if err != nil {
+		return out, err
+	}
+
+	topFilter := f
+	topFilter.Sub = ""
+	topFilter.ParentId = ""
+	if topFilter.Top <= 0 {
+		topFilter.Top = 5
+	}
+	_, rows, err := GetLogAttribution(topFilter)
+	if err != nil {
+		return out, err
+	}
+	if len(rows) == 0 {
+		return out, nil
+	}
+	keys := make([]string, 0, len(rows))
+	labelByKey := make(map[string]string, len(rows))
+	for _, r := range rows {
+		keys = append(keys, r.Key)
+		labelByKey[r.Key] = r.Label
+	}
+	keyVals, err := attributionKeyValues(f.Dimension, keys)
+	if err != nil {
+		return out, err
+	}
+
+	bucketExpr := rankingBucketExpr(86400)
+	bq, err := attributionBase(f)
+	if err != nil {
+		return out, err
+	}
+	sel := fmt.Sprintf("%s AS g_key, %s AS bucket, COALESCE(SUM(quota),0) AS quota", keyCol, bucketExpr)
+	var points []attributionTrendPoint
+	if err = bq.Select(sel).
+		Where(keyCol+" IN ?", keyVals).
+		Group(fmt.Sprintf("%s, %s", keyCol, bucketExpr)).
+		Order("bucket ASC").
+		Scan(&points).Error; err != nil {
+		return out, err
+	}
+
+	bucketSeen := make(map[int64]bool)
+	for _, p := range points {
+		bucketSeen[p.Bucket] = true
+	}
+	buckets := make([]int64, 0, len(bucketSeen))
+	for b := range bucketSeen {
+		buckets = append(buckets, b)
+	}
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i] < buckets[j] })
+	bucketIdx := make(map[int64]int, len(buckets))
+	for i, b := range buckets {
+		bucketIdx[b] = i
+	}
+	quotaByKey := make(map[string]map[int64]int64, len(keys))
+	for _, p := range points {
+		m := quotaByKey[p.Key]
+		if m == nil {
+			m = make(map[int64]int64)
+			quotaByKey[p.Key] = m
+		}
+		m[p.Bucket] = p.Quota
+	}
+	for _, k := range keys {
+		pts := make([]int64, len(buckets))
+		if m := quotaByKey[k]; m != nil {
+			for b, q := range m {
+				pts[bucketIdx[b]] = q
+			}
+		}
+		out.Series = append(out.Series, AttributionSeries{Key: k, Label: labelByKey[k], Points: pts})
+	}
+	out.Buckets = buckets
+	return out, nil
 }
 
 func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64, error) {

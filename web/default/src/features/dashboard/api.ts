@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import type { QuotaDataItem, UptimeGroupResult } from './types'
+import type {
+  AttributionParams,
+  GetAttributionResponse,
+  GetAttributionTrendResponse,
+  QuotaDataItem,
+  UptimeGroupResult,
+} from './types'
 
 // ============================================================================
 // Dashboard APIs
@@ -65,6 +71,36 @@ export async function getUserQuotaDataByUsers(params: {
 export async function getUptimeStatus() {
   const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
     '/api/uptime/status'
+  )
+  return res.data
+}
+
+// ----------------------------------------------------------------------------
+// Cost Attribution (admin only)
+// ----------------------------------------------------------------------------
+
+function buildAttributionQuery(params: AttributionParams): string {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.append(key, String(value))
+    }
+  })
+  return search.toString()
+}
+
+export async function getLogAttribution(
+  params: AttributionParams
+): Promise<GetAttributionResponse> {
+  const res = await api.get(`/api/log/attribution?${buildAttributionQuery(params)}`)
+  return res.data
+}
+
+export async function getLogAttributionTrend(
+  params: AttributionParams
+): Promise<GetAttributionTrendResponse> {
+  const res = await api.get(
+    `/api/log/attribution/trend?${buildAttributionQuery(params)}`
   )
   return res.data
 }

@@ -113,6 +113,64 @@ export interface ProcessedUserChartData {
 }
 
 // ============================================================================
+// Cost Attribution Types (admin only)
+// ============================================================================
+
+export type AttributionDimension = 'user' | 'token' | 'model'
+
+export interface AttributionParams {
+  dimension: AttributionDimension
+  sub?: AttributionDimension
+  parent_id?: string
+  start_timestamp?: number
+  end_timestamp?: number
+  top?: number
+}
+
+export interface AttributionTotal {
+  quota: number
+  prompt_tokens: number
+  completion_tokens: number
+  count: number
+}
+
+export interface AttributionRow {
+  key: string
+  label: string
+  quota: number
+  prompt_tokens: number
+  completion_tokens: number
+  count: number
+}
+
+export interface GetAttributionResponse {
+  success: boolean
+  message?: string
+  data?: {
+    dimension: AttributionDimension
+    total: AttributionTotal
+    rows: AttributionRow[]
+  }
+}
+
+export interface AttributionSeries {
+  key: string
+  label: string
+  points: number[]
+}
+
+export interface AttributionTrend {
+  buckets: number[]
+  series: AttributionSeries[]
+}
+
+export interface GetAttributionTrendResponse {
+  success: boolean
+  message?: string
+  data?: AttributionTrend
+}
+
+// ============================================================================
 // Announcement Types
 // ============================================================================
 
