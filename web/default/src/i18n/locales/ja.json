@@ -529,7 +529,6 @@
     "Batch enable failed": "一括有効化に失敗しました",
     "Batch processing failed": "一括処理に失敗しました",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "一括上流モデル更新を処理しました：{{channels}} チャネル、{{added}} 個追加、{{removed}} 個削除、{{fails}} 個失敗",
-    "before it becomes chaos": "混乱になる前に",
     "Best for single-tenant deployments. Pricing and billing options stay hidden.": "シングルテナント環境に最適です。料金設定や請求オプションは非表示になります。",
     "Best TTFT": "最良 TTFT",
     "Billable input tokens": "課金対象の入力トークン",
@@ -791,7 +790,6 @@
     "Comma-separated model names (leave empty to keep current)": "カンマ区切りのモデル名 (空欄のままにすると現在の設定を維持)",
     "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo": "カンマ区切りのモデル名、例: gpt-4,gpt-3.5-turbo",
     "Command": "コマンド",
-    "Command the model traffic layer": "モデルのトラフィック層を指揮",
     "Common": "共通",
     "Common Keys": "よく使うキー",
     "Common Logs": "一般的なログ",
@@ -1781,7 +1779,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -4546,6 +4544,7 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
+    "Zyphorix API": "Zyphorix API",
     "Zoom": "ズーム"
   }
 }

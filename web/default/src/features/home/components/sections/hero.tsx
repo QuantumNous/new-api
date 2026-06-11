@@ -107,11 +107,7 @@ export function Hero(props: HeroProps) {
           </div>
 
           <h1 className='max-w-2xl text-[clamp(2.35rem,4.7vw,3.8rem)] leading-[1.05] font-bold tracking-tight'>
-            {t('Command the model traffic layer')}
-            <br />
-            <span className='text-gradient-brand'>
-              {t('before it becomes chaos')}
-            </span>
+            {t('Zyphorix API')}
           </h1>
 
           <p className='text-muted-foreground/85 mt-5 max-w-xl text-base leading-relaxed md:text-[15px]'>

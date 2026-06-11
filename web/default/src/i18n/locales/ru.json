@@ -529,7 +529,6 @@
     "Batch enable failed": "Пакетное включение не удалось",
     "Batch processing failed": "Пакетная обработка не удалась",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Пакетное обновление моделей: {{channels}} каналов, {{added}} добавлено, {{removed}} удалено, {{fails}} ошибок",
-    "before it becomes chaos": "пока все не стало хаосом",
     "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Лучший вариант для однопользовательских развёртываний. Опции ценообразования и биллинга будут скрыты.",
     "Best TTFT": "Лучший TTFT",
     "Billable input tokens": "Оплачиваемые входные токены",
@@ -791,7 +790,6 @@
     "Comma-separated model names (leave empty to keep current)": "Названия моделей, разделенные запятыми (оставьте пустым, чтобы сохранить текущие)",
     "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo": "Имена моделей, разделённые запятыми, например, gpt-4,gpt-3.5-turbo",
     "Command": "Команда",
-    "Command the model traffic layer": "Управляйте слоем трафика моделей",
     "Common": "Общие",
     "Common Keys": "Часто используемые ключи",
     "Common Logs": "Общие журналы",
@@ -1781,7 +1779,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -4546,6 +4544,7 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Zyphorix API": "Zyphorix API",
     "Zoom": "Zoom"
   }
 }

@@ -529,7 +529,6 @@
     "Batch enable failed": "Batch enable failed",
     "Batch processing failed": "Batch processing failed",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed",
-    "before it becomes chaos": "before it becomes chaos",
     "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Best for single-tenant deployments. Pricing and billing options stay hidden.",
     "Best TTFT": "Best TTFT",
     "Billable input tokens": "Billable input tokens",
@@ -791,7 +790,6 @@
     "Comma-separated model names (leave empty to keep current)": "Comma-separated model names (leave empty to keep current)",
     "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo": "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo",
     "Command": "Command",
-    "Command the model traffic layer": "Command the model traffic layer",
     "Common": "Common",
     "Common Keys": "Common Keys",
     "Common Logs": "Common Logs",
@@ -1781,7 +1779,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4546,6 +4544,7 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Zyphorix API": "Zyphorix API",
     "Zoom": "Zoom"
   }
 }

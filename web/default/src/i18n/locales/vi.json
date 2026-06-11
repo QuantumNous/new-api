@@ -529,7 +529,6 @@
     "Batch enable failed": "Kích hoạt hàng loạt thất bại",
     "Batch processing failed": "Xử lý hàng loạt thất bại",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Đã áp dụng cập nhật hàng loạt mô hình upstream: {{channels}} kênh, {{added}} đã thêm, {{removed}} đã xóa, {{fails}} thất bại",
-    "before it becomes chaos": "truoc khi tro nen hon loan",
     "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Phù hợp nhất cho triển khai đơn người dùng. Các tùy chọn giá và thanh toán sẽ được ẩn.",
     "Best TTFT": "TTFT tốt nhất",
     "Billable input tokens": "Token đầu vào tính phí",
@@ -791,7 +790,6 @@
     "Comma-separated model names (leave empty to keep current)": "Tên mô hình phân tách bằng dấu phẩy (để trống để giữ nguyên hiện tại)",
     "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo": "Tên mô hình được phân tách bằng dấu phẩy, ví dụ: gpt-4,gpt-3.5-turbo",
     "Command": "Lệnh",
-    "Command the model traffic layer": "Dieu phoi lop luu luong mo hinh",
     "Common": "Chung",
     "Common Keys": "Khóa thường dùng",
     "Common Logs": "Logarit thập phân",
@@ -1781,7 +1779,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Buộc phản hồi JSON hợp lệ về cú pháp",
@@ -4546,6 +4544,7 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Zyphorix API": "Zyphorix API",
     "Zoom": "Zoom"
   }
 }

@@ -529,7 +529,6 @@
     "Batch enable failed": "Échec de l'activation par lots",
     "Batch processing failed": "Échec du traitement par lot",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "Mises à jour par lot des modèles en amont appliquées : {{channels}} canaux, {{added}} ajoutés, {{removed}} supprimés, {{fails}} échoués",
-    "before it becomes chaos": "avant que tout ne derive",
     "Best for single-tenant deployments. Pricing and billing options stay hidden.": "Idéal pour les déploiements mono-utilisateur. Les options de tarification et de facturation restent masquées.",
     "Best TTFT": "Meilleur TTFT",
     "Billable input tokens": "Tokens d’entrée facturables",
@@ -791,7 +790,6 @@
     "Comma-separated model names (leave empty to keep current)": "Noms de modèles séparés par des virgules (laissez vide pour conserver l'actuel)",
     "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo": "Noms de modèles séparés par des virgules, p. ex., gpt-4,gpt-3.5-turbo",
     "Command": "Commande",
-    "Command the model traffic layer": "Pilotez la couche de trafic des modeles",
     "Common": "Commun",
     "Common Keys": "Clés courantes",
     "Common Logs": "Journaux courants",
@@ -1781,7 +1779,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Imposer une réponse JSON syntaxiquement valide",
@@ -4546,6 +4544,7 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Zyphorix API": "Zyphorix API",
     "Zoom": "Zoom"
   }
 }

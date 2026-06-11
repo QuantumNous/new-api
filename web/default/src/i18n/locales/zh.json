@@ -529,7 +529,6 @@
     "Batch enable failed": "批量启用失败",
     "Batch processing failed": "批量处理失败",
     "Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed": "已批量处理上游模型更新：渠道 {{channels}} 个，加入 {{added}} 个，删除 {{removed}} 个，失败 {{fails}} 个",
-    "before it becomes chaos": "在失控之前",
     "Best for single-tenant deployments. Pricing and billing options stay hidden.": "适合单用户部署。定价和计费选项将被隐藏。",
     "Best TTFT": "最优 TTFT",
     "Billable input tokens": "计费输入 token",
@@ -791,7 +790,6 @@
     "Comma-separated model names (leave empty to keep current)": "逗号分隔的模型名称（留空以保持当前设置）",
     "Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo": "逗号分隔的模型名称，例如 gpt-4,gpt-3.5-turbo",
     "Command": "命令",
-    "Command the model traffic layer": "指挥模型流量层",
     "Common": "通用",
     "Common Keys": "常用 Key",
     "Common Logs": "通用日志",
@@ -1781,7 +1779,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4546,6 +4544,7 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
+    "Zyphorix API": "Zyphorix API",
     "Zoom": "缩放"
   }
 }
