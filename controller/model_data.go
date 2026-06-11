@@ -73,7 +73,8 @@ type ModelDataItem struct {
 const (
 	modelDataHistorySize = 24
 	modelDataLatencyMax  = 50   // use last N pass probes (regardless of time) for latency stats
-	boostThresholdMin    = 0.40 // boost top1 when score ∈ [0.40, 0.80) and top1 == claimed model
+	boostThresholdMin    = 0.40 // boost top1 when score ∈ [boostThresholdMin, boostThresholdPass) and top1 == claimed model
+	boostThresholdPass   = 0.70 // normal verify_threshold in Flask; scores ≥ this are already "good pass", no boost needed
 )
 
 // GetModelData returns channel pricing and detection stats for a given model.
@@ -415,9 +416,10 @@ func modelDataExtractClientExclusive(setting *string) string {
 }
 
 // boostTop5 raises top1 score to a random value in [0.80, 0.90) when top1 matches the
-// claimed model and the raw score is in [boostThresholdMin, 0.80). Remaining items are
-// scaled proportionally so all scores still sum to 1.0. Raw data is never written to DB —
-// this transform happens only at read time for the admin model-data view.
+// claimed model and the raw score is in [boostThresholdMin, boostThresholdPass).
+// Scores ≥ boostThresholdPass are already in the normal "pass" range and left unchanged.
+// Remaining items are scaled proportionally so all scores still sum to 1.0.
+// Raw data is never written to DB — this transform happens only at read time for the admin view.
 // Returns (adjusted slice, raw top1 score); rawScore==0 means no boost was applied.
 func boostTop5(top5 []TopKItem, claimedModel string) ([]TopKItem, float64) {
 	if len(top5) == 0 {
@@ -427,7 +429,7 @@ func boostTop5(top5 []TopKItem, claimedModel string) ([]TopKItem, float64) {
 	if !strings.EqualFold(t1.Label, claimedModel) {
 		return top5, 0
 	}
-	if t1.Score < boostThresholdMin || t1.Score >= 0.80 {
+	if t1.Score < boostThresholdMin || t1.Score >= boostThresholdPass {
 		return top5, 0
 	}
 	rawScore := t1.Score
