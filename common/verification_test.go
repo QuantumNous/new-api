@@ -69,6 +69,9 @@ func TestVerifyCodeWithKeyRedisCrossInstance(t *testing.T) {
 	if VerifyCodeWithKey("a@b.com", "000000", EmailVerificationPurpose) {
 		t.Fatal("expected wrong code to fail")
 	}
+	if VerifyCodeWithKey("a@b.com", "123456", PasswordResetPurpose) {
+		t.Fatal("expected different purpose to fail")
+	}
 
 	DeleteKey("a@b.com", EmailVerificationPurpose)
 	if VerifyCodeWithKey("a@b.com", "123456", EmailVerificationPurpose) {
@@ -82,6 +85,11 @@ func TestVerifyCodeWithKeyRedisExpiry(t *testing.T) {
 
 	RegisterVerificationCodeWithKey("a@b.com", "123456", EmailVerificationPurpose)
 	resetVerificationMap()
+
+	// must verify via Redis first, so the expiry below exercises the real TTL
+	if !VerifyCodeWithKey("a@b.com", "123456", EmailVerificationPurpose) {
+		t.Fatal("expected code to verify before expiry")
+	}
 
 	mr.FastForward(time.Duration(VerificationValidMinutes)*time.Minute + time.Second)
 	if VerifyCodeWithKey("a@b.com", "123456", EmailVerificationPurpose) {
@@ -101,5 +109,23 @@ func TestVerifyCodeWithKeyRedisDownFallback(t *testing.T) {
 	RegisterVerificationCodeWithKey("a@b.com", "123456", EmailVerificationPurpose)
 	if !VerifyCodeWithKey("a@b.com", "123456", EmailVerificationPurpose) {
 		t.Fatal("expected memory fallback to verify when Redis is down")
+	}
+}
+
+// RedisEnabled defaults to true before InitRedisClient runs, leaving RDB nil;
+// the verification functions must use the memory path instead of panicking.
+func TestVerifyCodeWithKeyNilRDBFallsBackToMemory(t *testing.T) {
+	prevEnabled, prevRDB := RedisEnabled, RDB
+	RedisEnabled, RDB = true, nil
+	t.Cleanup(func() { RedisEnabled, RDB = prevEnabled, prevRDB })
+	resetVerificationMap()
+
+	RegisterVerificationCodeWithKey("a@b.com", "123456", EmailVerificationPurpose)
+	if !VerifyCodeWithKey("a@b.com", "123456", EmailVerificationPurpose) {
+		t.Fatal("expected memory path to work with nil RDB")
+	}
+	DeleteKey("a@b.com", EmailVerificationPurpose)
+	if VerifyCodeWithKey("a@b.com", "123456", EmailVerificationPurpose) {
+		t.Fatal("expected deleted code to fail")
 	}
 }
