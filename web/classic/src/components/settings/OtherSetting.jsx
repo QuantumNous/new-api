@@ -27,6 +27,7 @@ import {
   Modal,
   Space,
   Card,
+  Select,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
 import { marked } from 'marked';
@@ -48,6 +49,7 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    'theme.frontend': 'classic',
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -280,10 +282,17 @@ const OtherSetting = () => {
     }
   };
 
-  const switchToDefaultFrontend = () => {
+  const [currentTheme, setCurrentTheme] = useState('classic');
+
+  const switchFrontendTheme = (theme) => {
+    const themeLabels = {
+      default: t('Default (New Frontend)'),
+      classic: t('Classic (Legacy Frontend)'),
+      enterprise: t('Enterprise Style'),
+    };
     Modal.confirm({
-      title: t('切换到新版前端'),
-      content: t('切换后页面会自动刷新，并进入新版前端。是否继续？'),
+      title: t('切换前端主题'),
+      content: t('切换后页面会自动刷新。是否继续？'),
       okText: t('确认切换'),
       cancelText: t('取消'),
       onOk: async () => {
@@ -294,19 +303,19 @@ const OtherSetting = () => {
           }));
           const res = await API.put('/api/option/', {
             key: 'theme.frontend',
-            value: 'default',
+            value: theme,
           });
           const { success, message } = res.data;
           if (!success) {
             showError(message);
             return;
           }
-          showSuccess(t('已切换到新版前端，正在刷新页面'));
+          showSuccess(t('已切换到 {{theme}}，正在刷新页面', { theme: themeLabels[theme] }));
           setTimeout(() => {
             window.location.reload();
           }, 600);
         } catch (error) {
-          console.error('切换新版前端失败', error);
+          console.error('切换前端主题失败', error);
           showError(t('切换失败，请稍后重试'));
         } finally {
           setLoadingInput((loadingInput) => ({
@@ -329,6 +338,9 @@ const OtherSetting = () => {
         }
       });
       setInputs(newInputs);
+      if (newInputs['theme.frontend']) {
+        setCurrentTheme(newInputs['theme.frontend']);
+      }
       formAPISettingGeneral.current.setValues(newInputs);
       formAPIPersonalization.current.setValues(newInputs);
     } else {
@@ -382,11 +394,21 @@ const OtherSetting = () => {
                     >
                       {t('检查更新')}
                     </Button>
+                    <Select
+                      value={currentTheme}
+                      onChange={(value) => setCurrentTheme(value)}
+                      style={{ width: 180 }}
+                      optionList={[
+                        { value: 'default', label: t('Default (New Frontend)') },
+                        { value: 'classic', label: t('Classic (Legacy Frontend)') },
+                        { value: 'enterprise', label: t('Enterprise Style') },
+                      ]}
+                    />
                     <Button
-                      onClick={switchToDefaultFrontend}
+                      onClick={() => switchFrontendTheme(currentTheme)}
                       loading={loadingInput['FrontendTheme']}
                     >
-                      {t('切换到新版前端')}
+                      {t('切换前端主题')}
                     </Button>
                   </Space>
                 </Col>
