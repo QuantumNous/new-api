@@ -494,7 +494,9 @@ func updateAllChannelsBalance() error {
 		} else {
 			// err is nil & balance <= 0 means quota is used up
 			if balance <= 0 {
-				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "余额不足")
+				chErr := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan())
+				service.NotifyUpstreamRecharge(*chErr, nil)
+				service.DisableChannel(*chErr, "余额不足")
 			}
 		}
 		time.Sleep(common.RequestInterval)
