@@ -321,6 +321,18 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				// (R2.7); billing/EstimateRequestToken are untouched.
 				InputTokens:  CalibrateAnthropicInputTokens(info.GetEstimatePromptTokens(), info.OriginModelName),
 				OutputTokens: 0,
+				// NOTE (PR2b, cache_creation-always-present): the official
+				// message_start always carries a nested cache_creation{} object
+				// even at 0. dto.ClaudeUsage.CacheCreation and its inner fields
+				// are all `omitempty` (the struct is shared with message_delta,
+				// which must NOT carry cache_creation), so this conversion path
+				// currently omits cache_creation when there is no prompt cache.
+				// The B2B deployments (top/code.taluna.ai) go through the Claude
+				// direct-passthrough path (relay-claude.go), not this conversion
+				// path, and that path emits the always-present cache_creation{}
+				// via normalizeClaudeUsageFields. Forcing it here would require
+				// non-omitempty inner fields that would leak into message_delta,
+				// so it is intentionally left to a follow-up.
 			},
 		}
 		msg.SetContent(make([]any, 0))

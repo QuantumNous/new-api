@@ -37,7 +37,14 @@ func checkWriter(writer io.Writer) stringWriter {
 // W3C Working Draft 29 October 2009
 // http://www.w3.org/TR/2009/WD-eventsource-20091029/
 
-var writeContentType = []string{"text/event-stream"}
+// writeContentType carries the charset so the Content-Type set on every SSE
+// line matches the official Anthropic / OpenAI shape ("text/event-stream;
+// charset=utf-8"). CustomEvent.Render -> WriteContentType writes this on every
+// flushed line and would otherwise clobber the charset set once by
+// SetEventStreamHeaders. charset is standard and harmless for all SSE
+// protocols (OpenAI/Claude/Gemini), so this is applied unconditionally (no
+// flag).
+var writeContentType = []string{"text/event-stream; charset=utf-8"}
 var noCache = []string{"no-cache"}
 
 var fieldReplacer = strings.NewReplacer(

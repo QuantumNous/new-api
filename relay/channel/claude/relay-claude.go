@@ -757,6 +757,84 @@ func patchClaudeTopLevelIdentity(data []byte, info *relaycommon.RelayInfo) []byt
 	return []byte(s)
 }
 
+// normalizeClaudeUsageFields rewrites the usage object at usagePrefix (e.g.
+// "message.usage" for a streaming message_start, or "usage" for a message_delta
+// / non-stream top-level response) toward the official api.anthropic.com usage
+// schema, operating directly on the raw upstream JSON bytes (R2.3, passthrough
+// path R2.6). Guarded by AnthropicResponseNormalize.
+//
+// new-api's upstream (OpenRouter via nested new-api, PR#2155) emits two flat
+// accounting aliases that the official Anthropic schema does not have:
+//
+//	claude_cache_creation_5_m_tokens  == cache_creation.ephemeral_5m_input_tokens
+//	claude_cache_creation_1_h_tokens  == cache_creation.ephemeral_1h_input_tokens
+//
+// We always delete the two flat aliases. For message_start only (addCacheCreation
+// true) we additionally write the nested official cache_creation{} object using
+// the alias values — and we keep it even when the values are 0, matching the
+// official message_start which always carries cache_creation{}. For message_delta
+// (addCacheCreation false) the official shape has neither the aliases nor the
+// nested object, so we only strip the aliases.
+//
+// Translation is lossless: the information in the flat aliases is preserved in
+// the nested object on message_start.
+func normalizeClaudeUsageFields(data string, usagePrefix string, addCacheCreation bool) string {
+	if !constant.AnthropicResponseNormalize || data == "" {
+		return data
+	}
+	if !gjson.Get(data, usagePrefix).Exists() {
+		return data
+	}
+
+	cache5m := int(gjson.Get(data, usagePrefix+".claude_cache_creation_5_m_tokens").Int())
+	cache1h := int(gjson.Get(data, usagePrefix+".claude_cache_creation_1_h_tokens").Int())
+
+	if patched, err := sjson.Delete(data, usagePrefix+".claude_cache_creation_5_m_tokens"); err == nil {
+		data = patched
+	}
+	if patched, err := sjson.Delete(data, usagePrefix+".claude_cache_creation_1_h_tokens"); err == nil {
+		data = patched
+	}
+
+	if addCacheCreation {
+		// Official message_start always carries cache_creation{}, even at 0.
+		if patched, err := sjson.Set(data, usagePrefix+".cache_creation.ephemeral_5m_input_tokens", cache5m); err == nil {
+			data = patched
+		}
+		if patched, err := sjson.Set(data, usagePrefix+".cache_creation.ephemeral_1h_input_tokens", cache1h); err == nil {
+			data = patched
+		}
+	}
+
+	return data
+}
+
+// maybeRecalcClaudeMessageStartInputTokens replaces usage.input_tokens at
+// usagePrefix with new-api's locally re-estimated + per-model-calibrated value
+// when (a) normalization is enabled and (b) info.ChannelId is in the configured
+// recalc allowlist (R2.7 / item 3). Used only for message_start (and the
+// non-stream top-level response, which carries the start-time usage). The
+// message_delta input_tokens is the upstream's real value and must NOT be touched.
+//
+// This only rewrites the forwarded display bytes; EstimateRequestToken and the
+// billing pre-deduction path are untouched (settlement reads message_delta usage).
+func maybeRecalcClaudeMessageStartInputTokens(data string, usagePrefix string, info *relaycommon.RelayInfo) string {
+	if !constant.AnthropicResponseNormalize || data == "" || info == nil {
+		return data
+	}
+	if _, ok := constant.AnthropicRecalcInputTokensChannels[info.ChannelId]; !ok {
+		return data
+	}
+	if !gjson.Get(data, usagePrefix+".input_tokens").Exists() {
+		return data
+	}
+	recalc := service.CalibrateAnthropicInputTokens(info.GetEstimatePromptTokens(), info.OriginModelName)
+	if patched, err := sjson.Set(data, usagePrefix+".input_tokens", recalc); err == nil {
+		data = patched
+	}
+	return data
+}
+
 func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 	if localValue <= 0 {
 		return data
@@ -873,12 +951,24 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			// Normalize model/id toward the Anthropic shape before forwarding
 			// the bytes to the client (R2.1/R2.2, passthrough path R2.6).
 			data = patchClaudeMessageStartIdentity(data, info)
+			// Normalize usage toward the official schema: strip the flat
+			// claude_cache_creation_* aliases and add the nested cache_creation{}
+			// (R2.3). message_start usage lives under "message.usage".
+			data = normalizeClaudeUsageFields(data, "message.usage", true)
+			// Optionally recompute message_start.input_tokens locally for
+			// allowlisted channels (R2.7 / item 3).
+			data = maybeRecalcClaudeMessageStartInputTokens(data, "message.usage", info)
 		} else if claudeResponse.Type == "message_delta" {
 			// 确保 message_delta 的 usage 包含完整的 input_tokens 和 cache 相关字段
 			// 解决 AWS Bedrock 等上游返回的 message_delta 缺少这些字段的问题
 			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
+			// Strip the flat claude_cache_creation_* aliases from message_delta
+			// usage; the official delta carries neither the aliases nor the
+			// nested cache_creation{} (R2.3). input_tokens here is the upstream's
+			// real value and is left untouched.
+			data = normalizeClaudeUsageFields(data, "usage", false)
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
@@ -993,6 +1083,14 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		// Normalize model/id toward the Anthropic shape before forwarding the
 		// raw upstream bytes to the client (R2.1/R2.2, passthrough path R2.6).
 		responseData = patchClaudeTopLevelIdentity(data, info)
+		// Normalize the top-level usage toward the official schema (strip flat
+		// aliases, add nested cache_creation{}) — the non-stream response is a
+		// complete message, treated like message_start for usage shape (R2.3).
+		normalized := normalizeClaudeUsageFields(string(responseData), "usage", true)
+		// Optionally recompute input_tokens locally for allowlisted channels
+		// (R2.7 / item 3).
+		normalized = maybeRecalcClaudeMessageStartInputTokens(normalized, "usage", info)
+		responseData = []byte(normalized)
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
