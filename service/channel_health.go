@@ -15,7 +15,7 @@ const (
 	channelMinSamples         = 10
 	channelFaultCountThreshold = 5
 	channelFaultRateThreshold  = 0.30
-	channelConsecutiveFault    = 3
+	channelConsecutiveFault    = 5
 	channelRateLimitThreshold  = 8
 	channelRechargeFuzzyCount  = 3
 )

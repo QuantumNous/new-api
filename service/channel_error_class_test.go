@@ -71,10 +71,10 @@ func TestEvaluateChannelHealth_consecutive502(t *testing.T) {
 		return e
 	}
 
-	action, _ := EvaluateChannelHealth(ch, make502())
-	require.Equal(t, HealthSkip, action)
-	action, _ = EvaluateChannelHealth(ch, make502())
-	require.Equal(t, HealthSkip, action)
+	for i := 0; i < 4; i++ {
+		action, _ := EvaluateChannelHealth(ch, make502())
+		require.Equal(t, HealthSkip, action, "attempt %d should skip", i+1)
+	}
 	action, reason := EvaluateChannelHealth(ch, make502())
 	require.Equal(t, HealthDisableWindow, action)
 	require.Contains(t, reason, "502")
