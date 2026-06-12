@@ -14,6 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env.dr13"
 
 if [[ -f "$ENV_FILE" ]]; then
+  # Strip Windows CRLF before sourcing so the script works on all platforms.
+  sed -i 's/\r//' "$ENV_FILE"
   set -a
   # shellcheck source=/dev/null
   source "$ENV_FILE"
