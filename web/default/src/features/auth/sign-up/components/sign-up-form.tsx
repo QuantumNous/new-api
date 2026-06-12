@@ -28,6 +28,7 @@ import {
   trackSignupConversion,
   ensureGtagLoaded,
 } from '@/lib/analytics/gtag'
+import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
@@ -178,6 +179,8 @@ export function SignUpForm({
       if (res?.success) {
         // Fire Google Ads signup conversion (no-op unless configured via env).
         trackSignupConversion()
+        // Fire TikTok / Meta / X signup conversions (no-op unless configured).
+        trackPixelsSignup()
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })

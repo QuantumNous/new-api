@@ -279,6 +279,7 @@
 |------|------|
 | `attribution.ts` | 落地页归因采集：从 URL 提取 `utm_*`、`gclid`、`gad_*`、`hsa_*`、`aff`、`lng` 等参数并持久化到 localStorage（key：`ads:attribution`），后续注册时随请求上报 |
 | `gtag.ts` | 轻量 Google Ads / GA4 转化追踪工具；通过 `VITE_GADS_CONVERSION_ID` 与 `VITE_GADS_SIGNUP_SEND_TO` 环境变量启用，未配置时所有函数降级为 no-op；提供 `trackSignupConversion()` 等事件上报函数 |
+| `pixels.ts` | 多渠道广告 pixel（TikTok / Meta / X）；按渠道通过 `VITE_TIKTOK_PIXEL_ID` / `VITE_META_PIXEL_ID` / `VITE_X_PIXEL_ID`(+`VITE_X_SIGNUP_EVENT_ID`) 启用，未配置即 no-op；`ensurePixelsLoaded()` 落地页埋 PageView，`trackPixelsSignup()` 注册成功触发 CompleteRegistration。与 `gtag.ts` 同样 4 个调用点（home / sign-up 页 + password / oauth 注册成功）|
 
 注册漏斗中，注册成功后会调用 `trackSignupConversion()` 上报 Google Ads 转化。不需要 Google Ads 的部署忽略上述两个环境变量即可，不影响构建。
 

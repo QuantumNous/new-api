@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
+import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 
@@ -133,6 +134,7 @@ function OAuthCallback() {
         })
         if (result === 'success' && signupProvider && !isBindingFlow) {
           trackSignupConversion()
+          trackPixelsSignup()
           trackAdsFunnelEvent('flatkey_signup_success', {
             method: 'oauth',
             provider,

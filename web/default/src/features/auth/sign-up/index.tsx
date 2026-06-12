@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect } from 'react'
 import { useStatus } from '@/hooks/use-status'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
+import { ensurePixelsLoaded } from '@/lib/analytics/pixels'
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
@@ -30,6 +31,7 @@ export function SignUp() {
   const { status } = useStatus()
 
   useEffect(() => {
+    ensurePixelsLoaded()
     trackAdsFunnelEvent('flatkey_signup_page_view', {
       path: window.location.pathname,
       lng: new URLSearchParams(window.location.search).get('lng') || undefined,
