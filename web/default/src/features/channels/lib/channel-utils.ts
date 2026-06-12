@@ -334,6 +334,23 @@ export function balanceDisplayToUsd(display: number): number {
 }
 
 /**
+ * Live remaining balance in USD: stored balance minus quota consumed since it
+ * was last set (balance_snapshot). Falls back to the stored balance when the
+ * snapshot was never stamped.
+ */
+export function channelLiveBalanceUsd(channel: {
+  balance?: number | null
+  used_quota?: number | null
+  balance_snapshot?: number | null
+}): number {
+  const balance = channel.balance || 0
+  const snapshot = channel.balance_snapshot
+  if (snapshot == null) return balance
+  const { config } = getCurrencyDisplay()
+  return balance - ((channel.used_quota || 0) - snapshot) / config.quotaPerUnit
+}
+
+/**
  * Get balance status color
  */
 export function getBalanceVariant(

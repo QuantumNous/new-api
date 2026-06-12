@@ -54,6 +54,7 @@ import { TruncatedText } from '@/components/truncated-text'
 import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
+  channelLiveBalanceUsd,
   formatBalance,
   formatRelativeTime,
   formatResponseTime,
@@ -289,7 +290,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isTagRow = isTagAggregateRow(channel)
-  const balance = channel.balance || 0
+  const balance = channelLiveBalanceUsd(channel)
   const usedQuota = channel.used_quota || 0
   const [isUpdating, setIsUpdating] = useState(false)
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)

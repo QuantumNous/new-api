@@ -979,6 +979,10 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if channel.Balance != 0 && channel.Balance != originChannel.Balance {
+		// re-stamp balance_snapshot/balance_updated_time alongside the manually edited balance
+		channel.UpdateBalance(channel.Balance)
+	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
 	channel.Key = ""
@@ -1215,6 +1219,7 @@ func CopyChannel(c *gin.Context) {
 	if resetBalance {
 		clone.Balance = 0
 		clone.UsedQuota = 0
+		clone.BalanceSnapshot = nil
 	}
 
 	// insert
