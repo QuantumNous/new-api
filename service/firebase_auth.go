@@ -19,6 +19,7 @@ import (
 )
 
 const firebaseCertsURL = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+const defaultFirebaseProjectID = "taluna-4c20f"
 
 type FirebaseUserInfo struct {
 	UID           string
@@ -49,7 +50,7 @@ var firebaseCertCache = struct {
 }
 
 func VerifyFirebaseIDToken(ctx context.Context, idToken string) (*FirebaseUserInfo, error) {
-	projectID := strings.TrimSpace(common.GetEnvOrDefaultString("FIREBASE_PROJECT_ID", ""))
+	projectID := strings.TrimSpace(common.GetEnvOrDefaultString("FIREBASE_PROJECT_ID", defaultFirebaseProjectID))
 	if projectID == "" {
 		return nil, errors.New("FIREBASE_PROJECT_ID is not configured")
 	}
