@@ -62,6 +62,10 @@ export type SiteSettings = {
   NoticeForcePopup: boolean
   SystemName: string
   Logo: string
+  QQGroupEnabled: boolean
+  QQGroupNumber: string
+  QQGroupQRCodeURLLight: string
+  QQGroupQRCodeURLDark: string
   Footer: string
   About: string
   HomePageContent: string

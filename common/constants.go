@@ -135,6 +135,11 @@ var WeChatServerAddress = ""
 var WeChatServerToken = ""
 var WeChatAccountQRCodeImageURL = ""
 
+var QQGroupEnabled = false
+var QQGroupNumber = ""
+var QQGroupQRCodeURLLight = ""
+var QQGroupQRCodeURLDark = ""
+
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
 

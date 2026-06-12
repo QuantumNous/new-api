@@ -23,6 +23,7 @@ import {
   type CurrencyDisplayType,
   type SystemConfig,
   DEFAULT_CURRENCY_CONFIG,
+  DEFAULT_QQ_GROUP_CONFIG,
 } from '@/stores/system-config-store'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
@@ -46,6 +47,10 @@ interface StatusApiResponse {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    qq_group_enabled?: boolean
+    qq_group_number?: string
+    qq_group_qrcode_url_light?: string
+    qq_group_qrcode_url_dark?: string
   }
 }
 
@@ -98,6 +103,16 @@ export function mapStatusDataToConfig(
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
     currency,
+    qqGroup: {
+      enabled: data.qq_group_enabled ?? DEFAULT_QQ_GROUP_CONFIG.enabled,
+      number: data.qq_group_number?.trim() ?? DEFAULT_QQ_GROUP_CONFIG.number,
+      qrcodeUrlLight:
+        data.qq_group_qrcode_url_light?.trim() ??
+        DEFAULT_QQ_GROUP_CONFIG.qrcodeUrlLight,
+      qrcodeUrlDark:
+        data.qq_group_qrcode_url_dark?.trim() ??
+        DEFAULT_QQ_GROUP_CONFIG.qrcodeUrlDark,
+    },
   }
 }
 

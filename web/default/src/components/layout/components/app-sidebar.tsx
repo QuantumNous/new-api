@@ -24,9 +24,15 @@ import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
-import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
+import { QQGroupQRCodePanel } from './qq-group-floating-button'
 
 /**
  * Application sidebar component
@@ -69,6 +75,9 @@ export function AppSidebar() {
           return <NavGroup key={key} {...props} />
         })}
       </SidebarContent>
+      <SidebarFooter className='pb-10'>
+        <QQGroupQRCodePanel />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

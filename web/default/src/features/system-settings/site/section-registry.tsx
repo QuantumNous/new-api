@@ -28,6 +28,7 @@ import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { QQGroupSection } from './qq-group-section'
 
 const SITE_SECTIONS = [
   {
@@ -62,6 +63,21 @@ const SITE_SECTIONS = [
       <NoticeSection
         defaultValue={settings.Notice ?? ''}
         defaultForcePopup={settings.NoticeForcePopup === true}
+      />
+    ),
+  },
+  {
+    id: 'qq-group',
+    titleKey: 'QQ Group',
+    descriptionKey: 'Configure the global QQ group entry for users',
+    build: (settings: SiteSettings) => (
+      <QQGroupSection
+        defaultValues={{
+          QQGroupEnabled: settings.QQGroupEnabled,
+          QQGroupNumber: settings.QQGroupNumber,
+          QQGroupQRCodeURLLight: settings.QQGroupQRCodeURLLight,
+          QQGroupQRCodeURLDark: settings.QQGroupQRCodeURLDark,
+        }}
       />
     ),
   },

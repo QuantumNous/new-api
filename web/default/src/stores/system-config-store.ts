@@ -37,6 +37,13 @@ export interface CurrencyConfig {
   customCurrencyExchangeRate: number
 }
 
+export interface QQGroupConfig {
+  enabled: boolean
+  number: string
+  qrcodeUrlLight: string
+  qrcodeUrlDark: string
+}
+
 export interface SystemConfig {
   systemName: string
   logo: string
@@ -44,6 +51,7 @@ export interface SystemConfig {
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
   currency: CurrencyConfig
+  qqGroup: QQGroupConfig
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -53,6 +61,13 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   usdExchangeRate: 1,
   customCurrencySymbol: '¤',
   customCurrencyExchangeRate: 1,
+}
+
+export const DEFAULT_QQ_GROUP_CONFIG: QQGroupConfig = {
+  enabled: false,
+  number: '',
+  qrcodeUrlLight: '',
+  qrcodeUrlDark: '',
 }
 
 interface SystemConfigState {
@@ -75,6 +90,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
         systemName: DEFAULT_SYSTEM_NAME,
         logo: DEFAULT_LOGO,
         currency: { ...DEFAULT_CURRENCY_CONFIG },
+        qqGroup: { ...DEFAULT_QQ_GROUP_CONFIG },
       },
       loading: true,
       loadedLogoUrl: DEFAULT_LOGO,
@@ -86,6 +102,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             currency: {
               ...state.config.currency,
               ...(newConfig.currency ?? {}),
+            },
+            qqGroup: {
+              ...state.config.qqGroup,
+              ...(newConfig.qqGroup ?? {}),
             },
           },
         })),
