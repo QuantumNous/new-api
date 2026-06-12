@@ -33,6 +33,7 @@ type User struct {
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
+	FirebaseBaseId   string         `json:"firebase_base_id" gorm:"column:firebase_base_id;index"`
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
@@ -662,6 +663,13 @@ func (user *User) FillUserByOidcId() error {
 	return nil
 }
 
+func (user *User) FillUserByFirebaseBaseId() error {
+	if user.FirebaseBaseId == "" {
+		return errors.New("firebase base id 为空！")
+	}
+	return DB.Where(User{FirebaseBaseId: user.FirebaseBaseId}).First(user).Error
+}
+
 func (user *User) FillUserByWeChatId() error {
 	if user.WeChatId == "" {
 		return errors.New("WeChat id 为空！")
@@ -699,6 +707,10 @@ func IsDiscordIdAlreadyTaken(discordId string) bool {
 
 func IsOidcIdAlreadyTaken(oidcId string) bool {
 	return DB.Where("oidc_id = ?", oidcId).Find(&User{}).RowsAffected == 1
+}
+
+func IsFirebaseBaseIdAlreadyTaken(firebaseBaseId string) bool {
+	return DB.Unscoped().Where("firebase_base_id = ?", firebaseBaseId).Find(&User{}).RowsAffected == 1
 }
 
 func IsTelegramIdAlreadyTaken(telegramId string) bool {
