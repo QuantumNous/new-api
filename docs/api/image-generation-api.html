@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Codex 图像生成 API（gpt-image-2）· 使用文档</title>
+<title>图像生成 API（OpenAI 兼容）· 使用文档</title>
 <style>
   :root {
     --bg: #0f1115;
@@ -94,8 +94,8 @@
 <header class="hero">
   <div class="wrap">
     <span class="tag">图像生成 API · 标准 OpenAI 接口</span>
-    <h1>Codex 图像生成 API（gpt-image-2）</h1>
-    <p class="sub">通过标准 OpenAI 图像接口（<code>/v1/images/generations</code> 与 <code>/v1/images/edits</code>）调用 <code>gpt-image-2</code> 生成或编辑图片。请求/响应与 OpenAI Images API 兼容，可直接迁移；结果以 <code>b64_json</code> 形式返回，并按上游真实用量（image token）按量计费。</p>
+    <h1>图像生成 API（OpenAI 兼容）</h1>
+    <p class="sub">通过标准 OpenAI 图像接口（<code>/v1/images/generations</code> 与 <code>/v1/images/edits</code>）生成或编辑图片。请求/响应与 OpenAI Images API 兼容，标准 OpenAI SDK 可直接迁移；结果统一以 <code>b64_json</code> 形式返回。模型名以你的服务实际开放为准（如 <code>gpt-image-2</code> 或 <code>openai/gpt-image-2</code>）。</p>
   </div>
 </header>
 
@@ -109,22 +109,23 @@
       <li><a href="#endpoints">3. 接口一览</a></li>
       <li><a href="#generations">4. 文生图</a></li>
       <li><a href="#edits">5. 图生图（编辑）</a></li>
-      <li><a href="#quality">6. 质量与计费</a></li>
-      <li><a href="#limits">7. 限制与约定</a></li>
-      <li><a href="#errors">8. 错误</a></li>
-      <li><a href="#example">9. 完整示例</a></li>
+      <li><a href="#stream">6. 流式响应（可选）</a></li>
+      <li><a href="#quality">7. 计费与质量</a></li>
+      <li><a href="#limits">8. 限制与约定</a></li>
+      <li><a href="#errors">9. 错误</a></li>
+      <li><a href="#example">10. 完整示例</a></li>
     </ul>
   </div>
 
   <h2 id="overview">1. 概览</h2>
   <table>
     <tr><th>项</th><th>值</th></tr>
-    <tr><td>可用模型</td><td><code>gpt-image-2</code>（以你的服务实际开放的模型名为准）</td></tr>
-    <tr><td>调用模式</td><td>同步：一次请求直接返回图片（无需轮询）</td></tr>
+    <tr><td>可用模型</td><td>以你的服务实际开放的模型名为准（如 <code>gpt-image-2</code> / <code>openai/gpt-image-2</code>）</td></tr>
+    <tr><td>调用模式</td><td>同步：一次请求直接返回图片，客户端无需轮询（慢图由网关内部处理，对客户端透明）。可选 <code>stream:true</code> 增量返回，见第 6 节</td></tr>
     <tr><td>能力</td><td>文生图（generations）、图生图 / 局部编辑（edits，支持可选 mask）</td></tr>
     <tr><td>请求格式</td><td>与官方 OpenAI Images API 一致：generations 为 JSON，edits 为 <code>multipart/form-data</code></td></tr>
-    <tr><td>结果交付</td><td>图片以 <strong>base64</strong> 返回（<code>data[].b64_json</code>），附 <code>revised_prompt</code>（模型改写后的提示词）</td></tr>
-    <tr><td>计费</td><td>按 token（上游真实 image-gen 用量），随 <code>quality</code> / <code>size</code> 自动分档</td></tr>
+    <tr><td>结果交付</td><td>图片统一以 <strong>base64</strong> 返回（<code>data[].b64_json</code>，<code>url</code> 为空），附 <code>revised_prompt</code>（模型改写后的提示词）</td></tr>
+    <tr><td>计费</td><td>按量计费（按张或按 token，取决于服务/渠道配置）；具体单价见控制台 / 套餐</td></tr>
   </table>
   <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://your-api-host</code>。</p>
 
@@ -139,7 +140,7 @@
     <tr><td><span class="method post">POST</span><span class="path">/v1/images/edits</span></td><td>图生图 / 编辑（含可选 mask）</td><td><code>multipart/form-data</code></td><td>Bearer</td></tr>
   </table>
   <div class="callout info">
-    <p>要让某个 codex 渠道提供图像能力，需在该渠道的「模型」列表中加入 <code>gpt-image-2</code>。承载该图像请求的内部文本模型默认 <code>gpt-5.4</code>，可在渠道设置 / 全局设置中覆盖，对客户端透明。</p>
+    <p>要让某个渠道提供图像能力，需在该渠道的「模型」列表中加入对应的图像模型名（如 <code>gpt-image-2</code> / <code>openai/gpt-image-2</code>）。上游的承载/计费细节对客户端透明。</p>
   </div>
 
   <h2 id="generations">4. 文生图</h2>
@@ -148,16 +149,17 @@
   <h3>请求参数（JSON Body）</h3>
   <table>
     <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
-    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>固定 <code>gpt-image-2</code></td></tr>
+    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>图像模型名（如 <code>gpt-image-2</code> / <code>openai/gpt-image-2</code>，以服务开放为准）</td></tr>
     <tr><td><code>prompt</code></td><td>string</td><td class="req">必填</td><td>图像描述</td></tr>
+    <tr><td><code>stream</code></td><td>bool</td><td class="opt">可选</td><td><code>true</code> 时以 SSE 增量返回（最终事件携带图片）；不传为同步返回。见第 6 节</td></tr>
     <tr><td><code>size</code></td><td>string</td><td class="opt">可选</td><td>输出尺寸，如 <code>1024x1024</code></td></tr>
     <tr><td><code>quality</code></td><td>string</td><td class="opt">可选</td><td>画质档位：<code>low</code> / <code>medium</code> / <code>high</code>（不传由上游默认）。档位越高 token / 费用越多，见第 6 节</td></tr>
     <tr><td><code>background</code></td><td>string</td><td class="opt">可选</td><td>背景处理，如 <code>transparent</code> / <code>opaque</code>（透传上游）</td></tr>
     <tr><td><code>output_format</code></td><td>string</td><td class="opt">可选</td><td>图片格式，如 <code>png</code> / <code>jpeg</code> / <code>webp</code>（透传上游）</td></tr>
     <tr><td><code>output_compression</code></td><td>int</td><td class="opt">可选</td><td>压缩级别（透传上游）</td></tr>
     <tr><td><code>moderation</code></td><td>string</td><td class="opt">可选</td><td>内容审核档位（透传上游）</td></tr>
-    <tr><td><code>response_format</code></td><td>string</td><td class="opt">可选</td><td>仅支持 <code>b64_json</code>（默认）。传 <code>url</code> 会被拒绝，见第 7 节</td></tr>
-    <tr><td><code>n</code></td><td>int</td><td class="opt">可选</td><td><strong>不生效</strong>：每次请求固定返回 1 张，见第 7 节</td></tr>
+    <tr><td><code>response_format</code></td><td>string</td><td class="opt">可选</td><td>结果恒以 <code>b64_json</code> 返回；<code>url</code> 不提供（见第 8 节）</td></tr>
+    <tr><td><code>n</code></td><td>int</td><td class="opt">可选</td><td>返回张数，按张计费；个别模型 / 渠道恒返 1 张（见第 8 节）</td></tr>
   </table>
 
   <h3>请求示例</h3>
@@ -192,7 +194,7 @@
   <h3>表单字段</h3>
   <table>
     <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
-    <tr><td><code>model</code></td><td>text</td><td class="req">必填</td><td>固定 <code>gpt-image-2</code></td></tr>
+    <tr><td><code>model</code></td><td>text</td><td class="req">必填</td><td>图像模型名（如 <code>gpt-image-2</code> / <code>openai/gpt-image-2</code>，以服务开放为准）</td></tr>
     <tr><td><code>prompt</code></td><td>text</td><td class="req">必填</td><td>编辑指令</td></tr>
     <tr><td><code>image</code></td><td>file</td><td class="req">必填</td><td>待编辑图片（PNG / JPEG / WEBP）。多图可用 <code>image[]</code> / <code>image[0]</code>…</td></tr>
     <tr><td><code>mask</code></td><td>file</td><td class="opt">可选</td><td>蒙版图：透明区域为待重绘区域。提供后做局部重绘（inpainting）</td></tr>
@@ -222,42 +224,52 @@
     }
   ]
 }</code></pre>
-  <div class="callout info"><p>edits 的输入图本身也会计入 token 用量（<code>image_gen.input_tokens</code> 含输入图 image-token），因此 edits 的输入 token 通常高于纯文生图。</p></div>
+  <div class="callout info"><p>edits 的输入图本身也会计入用量，因此 edits 通常比纯文生图更贵。</p></div>
 
-  <h2 id="quality">6. 质量与计费</h2>
-  <p>计费按 <strong>token</strong>：上游返回的 image-gen 用量（input + output image-token），随 <code>quality</code> / <code>size</code> 自动分档。下表为 1024×1024 的实测量级（具体单价由你的服务倍率配置决定）：</p>
+  <h2 id="stream">6. 流式响应（可选）</h2>
+  <p>在 generations / edits 请求中加 <code>"stream": true</code>，响应即为 <code>text/event-stream</code>（SSE）。连接建立后服务端会在生成期间发送心跳保活，生成完成时推送终态事件、最后以 <code>data: [DONE]</code> 结束。适合慢图（避免客户端 / 代理在长生成期间超时断开）。</p>
   <table>
-    <tr><th>quality</th><th>输出 image-token（约）</th><th>相对成本</th><th>典型耗时</th></tr>
-    <tr><td><code>standard</code> / 默认</td><td>~196</td><td>1×（基准）</td><td>~17–19s</td></tr>
-    <tr><td><code>high</code></td><td>~1700+</td><td>≈ 9×</td><td>~60–70s</td></tr>
-    <tr><td>edits（含输入图）</td><td>输入 ~256 + 输出按档</td><td>输入图额外计入</td><td>~45s</td></tr>
+    <tr><th>事件</th><th>说明</th></tr>
+    <tr><td><code>image_generation.completed</code></td><td>文生图完成；<code>data</code> 字段携带图片（<code>b64_json</code>），多图各一条</td></tr>
+    <tr><td><code>image_edit.completed</code></td><td>图生图（edits）完成，同上</td></tr>
+    <tr><td><code>[DONE]</code></td><td>流结束标记</td></tr>
   </table>
-  <div class="callout warn"><p><strong>定价注意：</strong>一张 <code>high</code> 质量图的成本约为默认质量的 <strong>9 倍</strong>。若客户端可自由指定 <code>quality:high</code>，请据此设定合理倍率，避免成本失控。</p></div>
-  <div class="callout info"><p>部分订阅档位上游可能将 <code>high</code> 实际降级为中等画质——这是上游账号档位行为，网关如实透传 <code>quality</code> 并按上游返回的真实 token 计费。</p></div>
+  <p class="muted">不传 <code>stream</code> 即为同步：一次请求阻塞到出图，无需关心上述事件。流式是否可用以服务 / 渠道为准。</p>
 
-  <h2 id="limits">7. 限制与约定</h2>
+  <h2 id="quality">7. 计费与质量</h2>
+  <p>计费按你的服务 / 渠道配置（<strong>按张</strong>或<strong>按 token</strong>）；最终单价见控制台 / 套餐。成本与耗时随 <code>quality</code> / <code>size</code> 上升：</p>
+  <table>
+    <tr><th>quality</th><th>相对成本</th><th>典型耗时（1024×1024）</th></tr>
+    <tr><td><code>standard</code> / 默认</td><td>1×（基准）</td><td>~17–30s</td></tr>
+    <tr><td><code>high</code></td><td>显著更高（可达数倍）</td><td>~60–70s</td></tr>
+    <tr><td>edits（含输入图）</td><td>输入图额外计入</td><td>~45s</td></tr>
+  </table>
+  <div class="callout warn"><p><strong>定价注意：</strong><code>high</code> 质量图成本可达默认质量的数倍。若客户端可自由指定 <code>quality:high</code>，请据此设定合理价格 / 倍率，避免成本失控。</p></div>
+  <div class="callout info"><p>部分上游账号档位可能将 <code>high</code> 实际降级为中等画质——网关如实透传 <code>quality</code> 并按上游真实用量计费。</p></div>
+
+  <h2 id="limits">8. 限制与约定</h2>
   <table>
     <tr><th>约定</th><th>说明</th></tr>
-    <tr><td>每请求 1 张</td><td>上游图像工具不接受 <code>n</code> 参数，故 <code>n&gt;1</code> 仍只返回 1 张（不报错）。需要多张请多次调用</td></tr>
-    <tr><td>仅 <code>b64_json</code></td><td>不提供托管 URL；<code>response_format:"url"</code> 会被拒绝（HTTP 400）</td></tr>
-    <tr><td>模型前缀</td><td>图像接口要求 <code>gpt-image-*</code> 模型；其他模型名会被拒绝</td></tr>
+    <tr><td><code>n</code> 多张</td><td>多数模型按 <code>n</code> 返回对应张数并按张计费；个别模型 / 渠道恒返 1 张（不报错）。如需确定行为，建议 <code>n=1</code> 多次调用</td></tr>
+    <tr><td>仅 <code>b64_json</code></td><td>结果统一以 base64 返回，不提供托管 URL；<code>response_format:"url"</code> 不生效（视渠道为忽略或拒绝）</td></tr>
+    <tr><td>模型名</td><td>需使用服务实际开放的图像模型名（如 <code>gpt-image-2</code> / <code>openai/gpt-image-2</code>）；其他模型名会被拒绝</td></tr>
     <tr><td>白标</td><td>上游错误不透传给客户端：失败时仅返回通用错误消息，上游品牌 / host / 内部模型名不外泄</td></tr>
-    <tr><td>高质量延迟</td><td><code>high</code> 出图可达 ~60–70s，请确保客户端 / 代理 / 网关超时足够（建议 ≥150s）</td></tr>
+    <tr><td>高质量延迟</td><td><code>high</code> 出图可达 ~60–70s，请确保客户端 / 代理 / 网关超时足够（建议 ≥150s，或用 <code>stream:true</code> 保活）</td></tr>
   </table>
 
-  <h2 id="errors">8. 错误</h2>
+  <h2 id="errors">9. 错误</h2>
   <p>请求 / 提交阶段错误走标准错误体：</p>
   <pre><code>{ "error": { "message": "...", "type": "...", "code": "..." } }</code></pre>
   <table>
     <tr><th>典型场景</th><th>说明</th></tr>
-    <tr><td><code>response_format:"url"</code></td><td>HTTP 400：<code>codex image: response_format "url" not supported; codex image only supports b64_json</code></td></tr>
-    <tr><td>非 <code>gpt-image-*</code> 模型</td><td>图像接口要求 gpt-image-* 模型</td></tr>
+    <tr><td><code>response_format:"url"</code></td><td>不生效：结果恒为 <code>b64_json</code>（视渠道忽略该参数或返回 HTTP 400）</td></tr>
+    <tr><td>未开放的模型名</td><td>需使用服务开放的图像模型名，否则被拒</td></tr>
     <tr><td>edits 缺少 <code>image</code></td><td>multipart 中未提供图片文件</td></tr>
     <tr><td>上游失败（4xx/5xx）</td><td>返回通用错误消息（白标），详情记录在服务端日志</td></tr>
     <tr><td>额度不足</td><td>请求被拒</td></tr>
   </table>
 
-  <h2 id="example">9. 完整示例（文生图 → 落地为图片文件）</h2>
+  <h2 id="example">10. 完整示例（文生图 → 落地为图片文件）</h2>
   <pre><code>#!/usr/bin/env bash
 BASE="https://your-api-host"
 TOKEN="sk-xxxxxxxxxxxxxxxx"
@@ -277,7 +289,7 @@ curl -sS "$BASE/v1/images/generations" \
 echo "saved -> output.png"</code></pre>
 
   <footer>
-    Codex 图像生成 API（gpt-image-2）· 接口使用文档。
+    图像生成 API（OpenAI 兼容）· 接口使用文档。
   </footer>
 </div>
 </body>
