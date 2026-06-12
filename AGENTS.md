@@ -110,3 +110,12 @@ Do NOT scatter custom logic into upstream files (`controller/`, `model/`, `servi
 - `middleware/smart_router.go` — wires `internal/smart_router_client/` into the request pipeline
 
 See `AIRBOTIX.md` for the upstream-sync workflow.
+
+### Rule 9: No Secrets in Code
+
+**Never** commit API keys, bearer tokens, or credentials of any kind into source files.
+
+- DeepRouter bearer tokens (`sk-...`), Anthropic keys (`sk-ant-...`), OpenAI keys, AWS access keys, Google API keys — all must come from environment variables.
+- Test scripts that need real tokens: use env vars and fail loudly when unset (see `bin/run-dr13-human-test.sh` as the reference pattern).
+- For local convenience wrappers that export your personal dev tokens, name the file `*.local.sh` — it is gitignored and will never be committed.
+- The pre-commit hook in `.githooks/pre-commit` enforces this automatically. New contributors must activate it once with: `git config core.hooksPath .githooks`
