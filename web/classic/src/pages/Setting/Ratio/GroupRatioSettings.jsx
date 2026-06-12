@@ -26,6 +26,7 @@ import {
   Radio,
   RadioGroup,
   Row,
+  Select,
   SideSheet,
   Spin,
   Switch,
@@ -53,6 +54,7 @@ const { Text, Title, Paragraph } = Typography;
 const OPTION_KEYS = [
   'GroupRatio',
   'UserUsableGroups',
+  'HiddenGroups',
   'GroupGroupRatio',
   'group_ratio_setting.group_special_usable_group',
   'AutoGroups',
@@ -77,6 +79,7 @@ export default function GroupRatioSettings(props) {
   const [inputs, setInputs] = useState({
     GroupRatio: '',
     UserUsableGroups: '',
+    HiddenGroups: '',
     GroupGroupRatio: '',
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
@@ -189,6 +192,32 @@ export default function GroupRatioSettings(props) {
           groupRatio={inputs.GroupRatio}
           userUsableGroups={inputs.UserUsableGroups}
           onChange={handleGroupTableChange}
+        />
+      </Form.Section>
+
+      <Form.Section text={t('隐藏分组')}>
+        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+          {t('选中的分组不会出现在用户创建令牌和 Playground 的分组下拉框中；不影响已有令牌的使用')}
+        </Text>
+        <Select
+          multiple
+          filter
+          style={{ width: '100%', maxWidth: 480 }}
+          placeholder={t('选择需要隐藏的分组')}
+          optionList={groupNames.map((name) => ({ label: name, value: name }))}
+          value={
+            inputs.HiddenGroups
+              ? inputs.HiddenGroups.split(',')
+                  .map((v) => v.trim())
+                  .filter(Boolean)
+              : []
+          }
+          onChange={(value) =>
+            setInputs((prev) => ({
+              ...prev,
+              HiddenGroups: (value || []).join(','),
+            }))
+          }
         />
       </Form.Section>
 
@@ -313,6 +342,22 @@ export default function GroupRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs((prev) => ({ ...prev, UserUsableGroups: value }))
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('隐藏分组')}
+              placeholder={t('逗号分隔的分组名称，例如：svip,internal')}
+              extraText={t(
+                '这些分组不会出现在用户创建令牌和 Playground 的分组下拉框中，留空则不隐藏；隐藏不影响已有令牌的使用',
+              )}
+              field={'HiddenGroups'}
+              autosize={{ minRows: 2, maxRows: 4 }}
+              onChange={(value) =>
+                setInputs((prev) => ({ ...prev, HiddenGroups: value }))
               }
             />
           </Col>

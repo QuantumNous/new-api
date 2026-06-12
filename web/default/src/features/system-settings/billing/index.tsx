@@ -54,6 +54,7 @@ const defaultBillingSettings: BillingSettings = {
   TopupGroupRatio: '',
   GroupRatio: '',
   UserUsableGroups: '',
+  HiddenGroups: '',
   GroupGroupRatio: '',
   AutoGroups: '',
   DefaultUseAutoGroup: false,
