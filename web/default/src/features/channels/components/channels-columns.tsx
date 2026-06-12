@@ -641,7 +641,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             : undefined
 
         return (
-          <div className='flex items-center gap-2'>
+          <div className='flex min-w-0 max-w-full items-center gap-2 overflow-hidden'>
             {isMultiKey && (
               <TooltipProvider delay={100}>
                 <Tooltip>
@@ -656,12 +656,24 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 </Tooltip>
               </TooltipProvider>
             )}
-            <ProviderBadge
-              iconKey={iconName}
-              label={typeName}
-              copyable={false}
-              showDot={false}
-            />
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div className='min-w-0 max-w-full overflow-hidden' />
+                  }
+                >
+                  <ProviderBadge
+                    iconKey={iconName}
+                    label={typeName}
+                    copyable={false}
+                    showDot={false}
+                    className='min-w-0 max-w-full overflow-hidden'
+                  />
+                </TooltipTrigger>
+                <TooltipContent side='top'>{typeName}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {isIonet && (
               <TooltipProvider delay={100}>
                 <Tooltip>
@@ -711,7 +723,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         if (!value || value.length === 0 || value.includes('all')) return true
         return value.includes(String(row.getValue(id)))
       },
-      size: 140,
+      size: 220,
       enableSorting: false,
     },
 
