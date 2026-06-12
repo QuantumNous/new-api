@@ -9,8 +9,9 @@ package relay
 // Behaviours (all gated by policy.Decision from middleware/policy.go):
 //   - EnforceModelWhitelist: reject early with HTTP 400 if request.Model is
 //     not on kids.EligibleModels. Runs in every relay handler.
-//   - InjectChildSafePrompt: prepend (or replace, when KidsMode=true) the
-//     child-safe system prompt. Chat-shaped endpoints only.
+//   - SystemPromptFor: prepend (or replace, when KidsMode=true) the per-profile
+//     system prompt. Chat-shaped endpoints only.
+//   - RunInputFilter: reject entry input text that matches the profile denylist.
 //   - StripIdentifying: clear User / SafetyIdentifier / Metadata.user_id.
 //     Applied per-format where these fields exist.
 //   - EnforceZDR + OpenAI-family channel: force Store=false. OpenAI shapes
@@ -19,7 +20,6 @@ package relay
 // See internal/kids and internal/policy for the source semantics.
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -55,6 +55,19 @@ func rejectAirbotixModel(model string) *types.NewAPIError {
 	)
 }
 
+func rejectAirbotixInput(deny *policy.InputDeny) *types.NewAPIError {
+	reason := "policy_input_blocked"
+	if deny != nil {
+		reason = deny.Reason()
+	}
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("%s", reason),
+		types.ErrorCodeInvalidRequest,
+		http.StatusUnprocessableEntity,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
 // checkAirbotixModelWhitelist is the minimal universal guard: every relay
 // handler calls this after request parsing to enforce kids.EligibleModels.
 // Returns non-nil error to abort the request; nil means continue.
@@ -69,21 +82,24 @@ func checkAirbotixModelWhitelist(c *gin.Context, model string) *types.NewAPIErro
 	return rejectAirbotixModel(model)
 }
 
-// prependKidsSystemPrompt mutates request.Messages so that the child-safe
+// prependProfileSystemPrompt mutates request.Messages so that the profile
 // system prompt is the effective system message seen by upstream.
 //
 // kidsMode=true is a hard constraint: any incoming system message is replaced.
-// kidsMode=false (i.e. kid-safe profile alone) is softer: prepend only if no
+// kidsMode=false (i.e. profile alone) is softer: prepend only if no
 // system message exists.
-func prependKidsSystemPrompt(request *dto.GeneralOpenAIRequest, kidsMode bool) {
+func prependProfileSystemPrompt(request *dto.GeneralOpenAIRequest, decision policy.Decision) {
 	if request == nil {
 		return
 	}
+	prompt, ok := policy.SystemPromptFor(decision)
+	if !ok {
+		return
+	}
 	role := request.GetSystemRoleName()
-	prompt := kids.ChildSafeSystemPrompt()
 	for i, m := range request.Messages {
 		if m.Role == role || m.Role == "system" || m.Role == "developer" {
-			if kidsMode {
+			if decision.KidsMode {
 				request.Messages[i].Role = role
 				request.Messages[i].SetStringContent(prompt)
 			}
@@ -108,6 +124,60 @@ func isOpenAIFamilyChannel(channelType int) bool {
 	return false
 }
 
+func rawJSON(v any) []byte {
+	data, err := common.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func collectGeneralOpenAIInputTexts(request *dto.GeneralOpenAIRequest) []string {
+	if request == nil {
+		return nil
+	}
+	texts := make([]string, 0, len(request.Messages)+3)
+	for _, message := range request.Messages {
+		if message.Role == "user" || message.Role == "" {
+			texts = append(texts, message.StringContent())
+		}
+	}
+	texts = append(texts, collectAnyText(request.Prompt)...)
+	texts = append(texts, collectAnyText(request.Input)...)
+	if request.Instruction != "" {
+		texts = append(texts, request.Instruction)
+	}
+	return texts
+}
+
+func collectAnyText(value any) []string {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case string:
+		return []string{v}
+	case []string:
+		return v
+	case []any:
+		texts := make([]string, 0, len(v))
+		for _, item := range v {
+			texts = append(texts, collectAnyText(item)...)
+		}
+		return texts
+	case map[string]any:
+		var texts []string
+		if text, ok := v["text"].(string); ok {
+			texts = append(texts, text)
+		}
+		if content, ok := v["content"]; ok {
+			texts = append(texts, collectAnyText(content)...)
+		}
+		return texts
+	default:
+		return nil
+	}
+}
+
 // applyAirbotixPolicy is the single mutation entry-point called from TextHelper.
 // Returns a non-nil reject string when the model whitelist check denies the
 // request; otherwise mutates request in place and returns "".
@@ -118,15 +188,18 @@ func applyAirbotixPolicy(decision policy.Decision, channelType int, request *dto
 	if decision.EnforceModelWhitelist && !kids.IsModelEligible(request.Model) {
 		return "model_not_eligible_for_kids_mode: " + request.Model
 	}
-	if decision.InjectChildSafePrompt {
-		prependKidsSystemPrompt(request, decision.KidsMode)
+	if deny := policy.CheckInput(decision, collectGeneralOpenAIInputTexts(request)...); deny != nil {
+		return deny.Reason()
+	}
+	if _, ok := policy.SystemPromptFor(decision); ok {
+		prependProfileSystemPrompt(request, decision)
 	}
 	if decision.StripIdentifying {
 		request.User = nil
 		request.SafetyIdentifier = nil
 	}
 	if decision.EnforceZDR && isOpenAIFamilyChannel(channelType) {
-		request.Store = json.RawMessage("false")
+		request.Store = rawJSON(false)
 	}
 	return ""
 }
@@ -154,10 +227,12 @@ func applyAirbotixPolicyToClaude(c *gin.Context, request *dto.ClaudeRequest) *ty
 	if d.EnforceModelWhitelist && !kids.IsModelEligible(request.Model) {
 		return rejectAirbotixModel(request.Model)
 	}
-	if d.InjectChildSafePrompt {
-		prompt := kids.ChildSafeSystemPrompt()
+	if deny := policy.CheckInput(d, collectClaudeInputTexts(request)...); deny != nil {
+		return rejectAirbotixInput(deny)
+	}
+	if prompt, ok := policy.SystemPromptFor(d); ok {
 		// kids_mode is hard: replace whatever the client sent.
-		// kid-safe profile alone is soft: only fill if empty.
+		// profile alone is soft: only fill if empty.
 		if d.KidsMode || request.System == nil {
 			request.System = prompt
 		} else if s, isStr := request.System.(string); isStr && s == "" {
@@ -191,11 +266,14 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 	if d.EnforceModelWhitelist && !kids.IsModelEligible(request.Model) {
 		return rejectAirbotixModel(request.Model)
 	}
-	if d.InjectChildSafePrompt {
-		promptJSON, mErr := common.Marshal(kids.ChildSafeSystemPrompt())
+	if deny := policy.CheckInput(d, collectResponsesInputTexts(request)...); deny != nil {
+		return rejectAirbotixInput(deny)
+	}
+	if prompt, ok := policy.SystemPromptFor(d); ok {
+		promptJSON, mErr := common.Marshal(prompt)
 		if mErr == nil {
 			if d.KidsMode || len(request.Instructions) == 0 || string(request.Instructions) == "null" {
-				request.Instructions = json.RawMessage(promptJSON)
+				request.Instructions = promptJSON
 			}
 		}
 	}
@@ -204,7 +282,7 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 		request.SafetyIdentifier = nil
 	}
 	if d.EnforceZDR && isOpenAIFamilyChannel(channelType) {
-		request.Store = json.RawMessage("false")
+		request.Store = rawJSON(false)
 	}
 	return nil
 }
@@ -229,15 +307,66 @@ func applyAirbotixPolicyToGemini(c *gin.Context, model string, request *dto.Gemi
 	if request == nil {
 		return nil
 	}
-	if d.InjectChildSafePrompt {
+	if deny := policy.CheckInput(d, collectGeminiInputTexts(request)...); deny != nil {
+		return rejectAirbotixInput(deny)
+	}
+	if prompt, ok := policy.SystemPromptFor(d); ok {
 		if d.KidsMode || request.SystemInstructions == nil {
 			request.SystemInstructions = &dto.GeminiChatContent{
 				Role: "system",
 				Parts: []dto.GeminiPart{
-					{Text: kids.ChildSafeSystemPrompt()},
+					{Text: prompt},
 				},
 			}
 		}
 	}
 	return nil
+}
+
+func collectClaudeInputTexts(request *dto.ClaudeRequest) []string {
+	if request == nil {
+		return nil
+	}
+	texts := make([]string, 0, len(request.Messages)+1)
+	if request.Prompt != "" {
+		texts = append(texts, request.Prompt)
+	}
+	for _, message := range request.Messages {
+		if message.Role == "user" || message.Role == "" {
+			texts = append(texts, message.GetStringContent())
+		}
+	}
+	return texts
+}
+
+func collectResponsesInputTexts(request *dto.OpenAIResponsesRequest) []string {
+	if request == nil {
+		return nil
+	}
+	inputs := request.ParseInput()
+	texts := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		if input.Text != "" {
+			texts = append(texts, input.Text)
+		}
+	}
+	return texts
+}
+
+func collectGeminiInputTexts(request *dto.GeminiChatRequest) []string {
+	if request == nil {
+		return nil
+	}
+	var texts []string
+	for _, content := range request.Contents {
+		if content.Role != "" && content.Role != "user" {
+			continue
+		}
+		for _, part := range content.Parts {
+			if part.Text != "" {
+				texts = append(texts, part.Text)
+			}
+		}
+	}
+	return texts
 }
