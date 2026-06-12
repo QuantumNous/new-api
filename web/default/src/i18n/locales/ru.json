@@ -4491,7 +4491,10 @@
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Если у источника нет /api/pricing, используется публичная цена модели romaapi × данный коэффициент как запасной вариант; оставьте пустым или 0 для отключения",
         "Country": "Страна",
         "Order No. / Email / UID": "Номер заказа / Email / UID",
-        "Payment issue? Contact us": "Проблема с оплатой? Свяжитесь с нами"
+        "Payment issue? Contact us": "Проблема с оплатой? Свяжитесь с нами",
+        "Having trouble with payment?": "Проблемы с оплатой?",
+        "Our team is ready to help on Telegram": "Наша команда готова помочь в Telegram",
+        "Get help on Telegram": "Получить помощь в Telegram"
     },
     "在线使用": "Песочница",
     "推广有礼": "Партнёрам",

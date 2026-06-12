@@ -4491,6 +4491,9 @@
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Quando o upstream não possui /api/pricing, usa o preço do modelo público do romaapi × esta taxa como fallback; deixe em branco ou 0 para desativar",
         "Country": "País",
         "Order No. / Email / UID": "Nº do pedido / E-mail / UID",
-        "Payment issue? Contact us": "Problema no pagamento? Entre em contato"
+        "Payment issue? Contact us": "Problema no pagamento? Entre em contato",
+        "Having trouble with payment?": "Problemas com o pagamento?",
+        "Our team is ready to help on Telegram": "Nossa equipe está pronta para ajudar no Telegram",
+        "Get help on Telegram": "Obter ajuda no Telegram"
     }
 }
