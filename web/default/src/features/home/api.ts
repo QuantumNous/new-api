@@ -30,7 +30,7 @@ import type { HomePageContentResponse } from './types'
 export async function getHomePageContent(): Promise<HomePageContentResponse> {
   const res = await api.get('/api/home_page_content', {
     skipErrorHandler: true,
-    timeout: 3500,
+    timeout: 1500,
   })
   return res.data
 }

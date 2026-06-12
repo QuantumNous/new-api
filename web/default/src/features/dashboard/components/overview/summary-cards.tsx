@@ -36,7 +36,7 @@ import type { QuotaDataItem } from '@/features/dashboard/types'
 
 const SUMMARY_SPARKLINE_BUCKETS = 12
 
-type SummarySparklineKey = 'balance' | 'usage' | 'requests'
+type SummarySparklineKey = 'usage' | 'requests'
 
 function getBucketIndex(
   timestamp: number,
@@ -51,7 +51,6 @@ function getBucketIndex(
 
 function buildSummarySparklines(
   data: QuotaDataItem[],
-  currentBalance: number,
   start: number,
   end: number
 ): Record<SummarySparklineKey, number[]> {
@@ -70,19 +69,7 @@ function buildSummarySparklines(
     requests[index] += Number(item.count) || 0
   }
 
-  let balance = currentBalance
-  const balanceTrend = Array.from(
-    { length: SUMMARY_SPARKLINE_BUCKETS },
-    () => 0
-  )
-
-  for (let index = SUMMARY_SPARKLINE_BUCKETS - 1; index >= 0; index--) {
-    balanceTrend[index] = Math.max(0, balance)
-    balance += usage[index]
-  }
-
   return {
-    balance: balanceTrend,
     usage,
     requests,
   }
@@ -183,12 +170,10 @@ export function SummaryCards() {
     () =>
       buildSummarySparklines(
         usageTrendQuery.data?.data ?? [],
-        remainQuota,
         summaryTimeRange.start_timestamp,
         summaryTimeRange.end_timestamp
       ),
     [
-      remainQuota,
       summaryTimeRange.end_timestamp,
       summaryTimeRange.start_timestamp,
       usageTrendQuery.data?.data,
@@ -255,6 +240,8 @@ export function SummaryCards() {
                   description={it.desc}
                   icon={<it.icon className='size-4' aria-hidden='true' />}
                   tone={it.key === 'todayUsage' ? 'warning' : 'neutral'}
+                  sparkline={it.sparkline}
+                  sparklineVariant={it.sparklineVariant}
                 />
               </StaggerItem>
             ))}

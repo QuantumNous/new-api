@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type OperationalTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
@@ -29,15 +29,109 @@ interface OperationalMetricCardProps {
   icon?: ReactNode
   tone?: OperationalTone
   action?: ReactNode
+  sparkline?: number[]
+  sparklineVariant?: 'bars' | 'line'
   className?: string
 }
 
 const toneClassName: Record<OperationalTone, string> = {
-  neutral: 'operator-rail-active',
+  neutral: 'operator-rail-neutral',
   success: 'operator-rail-active',
   warning: 'operator-rail-warning',
   danger: 'operator-rail-danger',
-  info: 'operator-rail-active',
+  info: 'operator-rail-info',
+}
+
+function normalizeSparkline(values?: number[]): number[] {
+  if (!values?.length) return []
+
+  const sanitized = values.map((value) => Math.max(0, Number(value) || 0))
+  const max = Math.max(...sanitized)
+  if (max <= 0) return sanitized.map(() => 0)
+
+  return sanitized.map((value) => Math.max(8, (value / max) * 100))
+}
+
+function buildLineSparkline(values?: number[]) {
+  if (!values?.length) return null
+
+  const sanitized = values.map((value) => Math.max(0, Number(value) || 0))
+  const width = 160
+  const height = 32
+  const padding = 3
+  const max = Math.max(...sanitized)
+  const min = Math.min(...sanitized)
+  const range = max - min
+
+  const points = sanitized.map((value, index) => {
+    const x =
+      sanitized.length === 1
+        ? width / 2
+        : (index / (sanitized.length - 1)) * width
+    const normalized = range > 0 ? (value - min) / range : max > 0 ? 0.5 : 0
+    const y = height - padding - normalized * (height - padding * 2)
+
+    return { x, y }
+  })
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ')
+  const firstPoint = points[0]
+  const lastPoint = points[points.length - 1]
+  const areaPath = `${linePath} L ${lastPoint.x} ${height} L ${firstPoint.x} ${height} Z`
+
+  return { areaPath, linePath }
+}
+
+function MetricSparkline(props: {
+  values?: number[]
+  variant?: 'bars' | 'line'
+}) {
+  const rawGradientId = useId()
+  const gradientId = `operational-metric-line-${rawGradientId.replace(/:/g, '')}`
+
+  if (props.variant === 'line') {
+    const paths = buildLineSparkline(props.values)
+    if (!paths) return <div className='h-8' aria-hidden='true' />
+
+    return (
+      <div className='text-muted-foreground/70 h-8 overflow-hidden rounded-lg' aria-hidden='true'>
+        <svg viewBox='0 0 160 32' preserveAspectRatio='none' className='size-full'>
+          <defs>
+            <linearGradient id={gradientId} x1='0' x2='0' y1='0' y2='1'>
+              <stop offset='0%' stopColor='currentColor' stopOpacity='0.2' />
+              <stop offset='100%' stopColor='currentColor' stopOpacity='0' />
+            </linearGradient>
+          </defs>
+          <path d={paths.areaPath} fill={`url(#${gradientId})`} />
+          <path
+            d={paths.linePath}
+            fill='none'
+            stroke='currentColor'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth='2'
+            vectorEffect='non-scaling-stroke'
+          />
+        </svg>
+      </div>
+    )
+  }
+
+  const bars = normalizeSparkline(props.values)
+
+  return (
+    <div className='flex h-8 items-end gap-1' aria-hidden='true'>
+      {bars.map((height, index) => (
+        <span
+          key={`metric-spark-${index}`}
+          className='bg-muted-foreground/25 flex-1 rounded-t-sm'
+          style={{ height: `${height}%` }}
+        />
+      ))}
+    </div>
+  )
 }
 
 export function OperationalMetricCard(props: OperationalMetricCardProps) {
@@ -77,6 +171,14 @@ export function OperationalMetricCard(props: OperationalMetricCardProps) {
             </div>
           )}
           {props.action}
+        </div>
+      )}
+      {props.sparkline != null && (
+        <div className='mt-3'>
+          <MetricSparkline
+            values={props.sparkline}
+            variant={props.sparklineVariant}
+          />
         </div>
       )}
     </div>

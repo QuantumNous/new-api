@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCORSDoesNotAllowWildcardCredentials(t *testing.T) {
+func TestCORSAllowsCredentialedOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(CORS())
@@ -25,8 +25,8 @@ func TestCORSDoesNotAllowWildcardCredentials(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusNoContent, recorder.Code)
-	require.Equal(t, "*", recorder.Header().Get("Access-Control-Allow-Origin"))
-	require.Empty(t, recorder.Header().Get("Access-Control-Allow-Credentials"))
+	require.Equal(t, "https://client.example.com", recorder.Header().Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "true", recorder.Header().Get("Access-Control-Allow-Credentials"))
 }
 
 func TestPoweredBySetsSecurityHeaders(t *testing.T) {

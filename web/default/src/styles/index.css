@@ -355,8 +355,16 @@ For commercial licensing, please contact support@quantumnous.com
       0 0 24px color-mix(in oklch, var(--brand-signal) 18%, transparent);
   }
 
+  .operator-rail-neutral {
+    box-shadow: inset 3px 0 0 var(--border);
+  }
+
   .operator-rail-active {
     box-shadow: inset 3px 0 0 var(--status-active);
+  }
+
+  .operator-rail-info {
+    box-shadow: inset 3px 0 0 var(--brand-route);
   }
 
   .operator-rail-warning {
@@ -690,52 +698,6 @@ For commercial licensing, please contact support@quantumnous.com
     transition: background-color 120ms ease;
   }
 
-  /* Table row animation is intentionally opt-in: data-heavy pages should paint
-   * immediately instead of scheduling staggered transforms for every row. */
-  [data-table-animate='true'] [data-slot='table'] tbody tr {
-    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(2) {
-    animation-delay: 25ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(3) {
-    animation-delay: 50ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(4) {
-    animation-delay: 75ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(5) {
-    animation-delay: 100ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(6) {
-    animation-delay: 125ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(7) {
-    animation-delay: 150ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(8) {
-    animation-delay: 175ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(9) {
-    animation-delay: 200ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(10) {
-    animation-delay: 225ms;
-  }
-  [data-table-animate='true'] [data-slot='table'] tbody tr:nth-child(n + 11) {
-    animation-delay: 250ms;
-  }
-}
-
-@keyframes tableRowEnter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Tabular numbers for data-heavy contexts */

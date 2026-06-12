@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
@@ -169,13 +169,26 @@ interface HeroTerminalDemoProps {
 export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
+  const timeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current != null) {
+        window.clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleSelect = (index: number) => {
     if (index === activeIndex) return
+    if (timeoutRef.current != null) {
+      window.clearTimeout(timeoutRef.current)
+    }
     setTransitioning(true)
-    window.setTimeout(() => {
+    timeoutRef.current = window.setTimeout(() => {
       setActiveIndex(index)
       setTransitioning(false)
+      timeoutRef.current = null
     }, TRANSITION_MS)
   }
 

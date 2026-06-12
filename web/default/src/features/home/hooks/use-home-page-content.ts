@@ -58,7 +58,8 @@ export function useHomePageContent(): HomePageContentResult {
         if (!mounted) return
         // eslint-disable-next-line no-console
         console.error('Failed to load home page content:', error)
-        setContent(cached || '')
+        // Keep the cached/default home page visible when the backend is unavailable.
+        setContent((current) => current || cached || '')
       } finally {
         if (mounted) {
           setIsLoaded(true)
