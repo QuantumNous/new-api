@@ -43,6 +43,14 @@ func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 	return json.Unmarshal([]byte(jsonStr), &userUsableGroups)
 }
 
+// IsUserUsableGroup checks whether a group name exists in the configured user groups.
+func IsUserUsableGroup(groupName string) bool {
+	userUsableGroupsMutex.RLock()
+	defer userUsableGroupsMutex.RUnlock()
+	_, ok := userUsableGroups[groupName]
+	return ok
+}
+
 func GetUsableGroupDescription(groupName string) string {
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()
