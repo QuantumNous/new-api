@@ -43,7 +43,7 @@ interface FooterProps {
 
 const NEW_API_FOOTER_ATTRIBUTION_KEY = [
   'footer',
-  'new' + 'api',
+  'top' + 'api' + 'model',
   'projectAttributionSuffix',
 ].join('.')
 
@@ -128,12 +128,12 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
     <span className='text-muted-foreground/45'>
       &copy; {props.currentYear}{' '}
       <a
-        href='https://github.com/QuantumNous/new-api'
+        href='https://www.topapimodel.com/'
         target='_blank'
         rel='noopener noreferrer'
         className='text-foreground/70 hover:text-foreground font-medium transition-colors'
       >
-        {t('New API')}
+        {t('Top API Model')}
       </a>
       . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
     </span>
@@ -158,7 +158,7 @@ export function Footer(props: FooterProps) {
   } = useSystemConfig()
 
   const displayLogo = systemLogo || props.logo || '/logo.png'
-  const displayName = systemName || props.name || 'New API'
+  const displayName = systemName || props.name || 'Top API Model'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
@@ -169,15 +169,15 @@ export function Footer(props: FooterProps) {
         links: [
           {
             text: t('footer.columns.about.links.aboutProject'),
-            href: 'https://docs.newapi.pro/wiki/project-introduction/',
+            href: 'https://www.topapimodel.com/',
           },
           {
             text: t('footer.columns.about.links.contact'),
-            href: 'https://docs.newapi.pro/support/community-interaction/',
+            href: 'https://www.topapimodel.com/',
           },
           {
             text: t('footer.columns.about.links.features'),
-            href: 'https://docs.newapi.pro/wiki/features-introduction/',
+            href: 'https://www.topapimodel.com/',
           },
         ],
       },
@@ -186,15 +186,15 @@ export function Footer(props: FooterProps) {
         links: [
           {
             text: t('footer.columns.docs.links.quickStart'),
-            href: 'https://docs.newapi.pro/getting-started/',
+            href: 'https://www.topapimodel.com/',
           },
           {
             text: t('footer.columns.docs.links.installation'),
-            href: 'https://docs.newapi.pro/installation/',
+            href: 'https://www.topapimodel.com/',
           },
           {
             text: t('footer.columns.docs.links.apiDocs'),
-            href: 'https://docs.newapi.pro/api/',
+            href: 'https://www.topapimodel.com/',
           },
         ],
       },
@@ -203,15 +203,15 @@ export function Footer(props: FooterProps) {
         links: [
           {
             text: t('footer.columns.related.links.oneApi'),
-            href: 'https://github.com/songquanpeng/one-api',
+            href: 'https://www.topapimodel.com/',
           },
           {
             text: t('footer.columns.related.links.midjourney'),
-            href: 'https://github.com/novicezk/midjourney-proxy',
+            href: 'https://www.topapimodel.com/',
           },
           {
             text: t('footer.columns.related.links.newApiKeyTool'),
-            href: 'https://github.com/Calcium-Ion/new-api-key-tool',
+            href: 'https://www.topapimodel.com/',
           },
         ],
       },
@@ -264,7 +264,7 @@ export function Footer(props: FooterProps) {
               </span>
             </Link>
             <p className='text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed'>
-              {t('Powerful API Management Platform')}
+              {t('Unified AI API Platform')}
             </p>
           </div>
 

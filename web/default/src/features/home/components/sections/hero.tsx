@@ -47,7 +47,7 @@ export function Hero(props: HeroProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
   const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+    (status?.docs_link as string | undefined) || 'https://www.topapimodel.com/'
 
   const renderDocsButton = () => {
     const isExternal = docsUrl.startsWith('http')
@@ -109,17 +109,17 @@ export function Hero(props: HeroProps) {
               <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
               <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
             </span>
-            <span>{t('AI Application Infrastructure Foundation')}</span>
+            <span>{t('Next-Generation AI Infrastructure')}</span>
           </div>
 
           <h1
             className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Unified API Gateway for')}
+            {t('Access GPT, Claude, Gemini & More')}
             <br />
             <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-              {t('Vast Range of AI Models')}
+              {t('One API forv Every AI Model')}
             </span>
           </h1>
           <p
@@ -127,7 +127,7 @@ export function Hero(props: HeroProps) {
             style={{ animationDelay: '120ms' }}
           >
             {t(
-              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
+              'Access GPT, Claude, Gemini, and hundreds of AI models through a single unified API. Build, manage, and scale AI applications effortlessly.'
             )}
           </p>
 
@@ -178,7 +178,7 @@ export function Hero(props: HeroProps) {
               </span>
               <p className='text-muted-foreground/60 text-xs leading-relaxed'>
                 {t(
-                  'Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.'
+                  'Compatible with popular AI clients and developer tools.'
                 )}
               </p>
             </div>
