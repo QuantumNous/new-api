@@ -59,7 +59,6 @@ interface Props {
   enableCreem?: boolean
   enableWaffoPancake?: boolean
   enableOnlineTopUp?: boolean
-  enableBalancePay?: boolean
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
@@ -107,8 +106,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     Math.ceil(Number(plan.price_amount || 0) * quotaPerUnit)
   )
   const userQuota = Math.max(0, Number(props.userQuota || 0))
-  const showBalancePay = props.enableBalancePay !== false
-  const allowBalancePay = plan.allow_balance_pay !== false
+  const showBalancePay = plan.allow_balance_pay !== false
   const hasAvailablePayment = hasAnyPayment || showBalancePay
   const insufficientBalance = userQuota < balanceCost
   const limitReached =
@@ -231,10 +229,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
   }
 
   const handlePayBalance = async () => {
-    if (!allowBalancePay) {
-      toast.error(t('This plan does not allow balance redemption'))
-      return
-    }
     setPaying(true)
     try {
       const res = await paySubscriptionBalance({ plan_id: plan.id })
@@ -341,27 +335,15 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <span className='text-muted-foreground'>{t('Available')}</span>
               <span>{formatQuota(userQuota)}</span>
             </div>
-            {!allowBalancePay ? (
+            {insufficientBalance && (
               <Alert variant='destructive'>
-                <AlertDescription>
-                  {t('This plan does not allow balance redemption')}
-                </AlertDescription>
+                <AlertDescription>{t('Insufficient balance')}</AlertDescription>
               </Alert>
-            ) : (
-              insufficientBalance && (
-                <Alert variant='destructive'>
-                  <AlertDescription>
-                    {t('Insufficient balance')}
-                  </AlertDescription>
-                </Alert>
-              )
             )}
             <Button
               variant='outline'
               onClick={handlePayBalance}
-              disabled={
-                paying || limitReached || !allowBalancePay || insufficientBalance
-              }
+              disabled={paying || limitReached || insufficientBalance}
             >
               {t('Pay with Balance')}
             </Button>
@@ -448,7 +430,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
           <Alert>
             <AlertDescription>
               {t(
-                'Online payment is not enabled. Please contact the administrator.'
+                'Online recharge is not enabled. Please contact the administrator.'
               )}
             </AlertDescription>
           </Alert>

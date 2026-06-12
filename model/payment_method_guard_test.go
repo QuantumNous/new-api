@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,36 +156,6 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T
 
 	topUp := GetTopUpByTradeNo("sub-guard-order")
 	assert.Nil(t, topUp)
-}
-
-func TestPurchaseSubscriptionWithBalance_RespectsGlobalToggle(t *testing.T) {
-	truncateTables(t)
-
-	original := operation_setting.SubscriptionBalancePayEnabled
-	operation_setting.SubscriptionBalancePayEnabled = false
-	t.Cleanup(func() {
-		operation_setting.SubscriptionBalancePayEnabled = original
-	})
-
-	originalQuotaPerUnit := common.QuotaPerUnit
-	common.QuotaPerUnit = 1000
-	t.Cleanup(func() {
-		common.QuotaPerUnit = originalQuotaPerUnit
-	})
-
-	insertUserForPaymentGuardTest(t, 204, 20000)
-	plan := insertSubscriptionPlanForPaymentGuardTest(t, 302)
-
-	err := PurchaseSubscriptionWithBalance(204, plan.Id)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "系统未启用订阅余额支付")
-	assert.Zero(t, countUserSubscriptionsForPaymentGuardTest(t, 204))
-	assert.Equal(t, 20000, getUserQuotaForPaymentGuardTest(t, 204))
-
-	operation_setting.SubscriptionBalancePayEnabled = true
-	require.NoError(t, PurchaseSubscriptionWithBalance(204, plan.Id))
-	assert.Equal(t, int64(1), countUserSubscriptionsForPaymentGuardTest(t, 204))
-	assert.Equal(t, 10010, getUserQuotaForPaymentGuardTest(t, 204))
 }
 
 func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) {

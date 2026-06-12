@@ -37,8 +37,6 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
-          SubscriptionBalancePayEnabled:
-            settings.SubscriptionBalancePayEnabled,
         }}
       />
     ),
