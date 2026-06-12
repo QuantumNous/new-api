@@ -21,7 +21,6 @@ import { Eye, Info, Pencil, Settings2, Timer, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
-import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { getDeploymentStatusConfig } from '../constants'
@@ -45,10 +44,8 @@ export function useDeploymentsColumns(opts: {
   return [
     {
       accessorKey: 'id',
-      meta: { label: t('ID'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('ID')} />
-      ),
+      header: t('ID'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const id = row.original.id
         return <TableId value={id} />
@@ -59,10 +56,8 @@ export function useDeploymentsColumns(opts: {
       id: 'name',
       accessorFn: (row) =>
         row.container_name || row.deployment_name || row.name || '',
-      meta: { label: t('Name'), mobileTitle: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
-      ),
+      header: t('Name'),
+      meta: { mobileTitle: true },
       cell: ({ getValue }) => {
         const name = String(getValue() || '-') || '-'
         return (
@@ -79,8 +74,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
       header: t('Status'),
+      meta: { mobileBadge: true },
       cell: ({ row }) => {
         const raw = row.original.status
         const key = normalizeDeploymentStatus(raw)
@@ -114,7 +109,6 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'provider',
-      meta: { label: t('Provider') },
       header: t('Provider'),
       cell: ({ row }) => {
         const provider = row.original.provider
@@ -134,7 +128,6 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'time_remaining',
-      meta: { label: t('Time remaining') },
       header: t('Time remaining'),
       cell: ({ row }) => {
         const status = normalizeDeploymentStatus(row.original.status)
@@ -185,8 +178,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       id: 'hardware',
-      meta: { label: t('Hardware'), mobileHidden: true },
       header: t('Hardware'),
+      meta: { mobileHidden: true },
       accessorFn: (row) =>
         row.hardware_info || row.hardware_name || row.brand_name || '',
       cell: ({ row }) => {
@@ -220,10 +213,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'created_at',
-      meta: { label: t('Created'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
-      ),
+      header: t('Created'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const ts =
           typeof row.original.created_at === 'number'

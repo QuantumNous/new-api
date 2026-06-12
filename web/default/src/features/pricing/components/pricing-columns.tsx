@@ -88,7 +88,6 @@ export function usePricingColumns(
     // Type column
     {
       accessorKey: 'quota_type',
-      meta: { label: t('Type') },
       header: t('Type'),
       cell: ({ row }) => {
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
@@ -233,7 +232,6 @@ export function usePricingColumns(
     // Cached price column (Vercel AI Gateway style)
     {
       id: 'cached_price',
-      meta: { label: t('Cached') },
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
@@ -308,7 +306,6 @@ export function usePricingColumns(
     // Vendor column
     {
       accessorKey: 'vendor_name',
-      meta: { label: t('Vendor') },
       header: t('Vendor'),
       cell: ({ row }) => {
         const model = row.original
@@ -337,7 +334,6 @@ export function usePricingColumns(
     // Tags column
     {
       accessorKey: 'tags',
-      meta: { label: t('Tags') },
       header: t('Tags'),
       cell: ({ row }) => {
         const tags = parseTags(row.original.tags)
@@ -362,7 +358,6 @@ export function usePricingColumns(
     // Endpoints column
     {
       accessorKey: 'supported_endpoint_types',
-      meta: { label: t('Endpoints') },
       header: t('Endpoints'),
       cell: ({ row }) => {
         const endpoints = row.original.supported_endpoint_types || []
@@ -387,7 +382,6 @@ export function usePricingColumns(
     // Enable Groups column
     {
       accessorKey: 'enable_groups',
-      meta: { label: t('Groups') },
       header: t('Groups'),
       cell: ({ row }) => {
         const groups = row.original.enable_groups || []

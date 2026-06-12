@@ -45,7 +45,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableColumnHeader, BadgeListCell } from '@/components/data-table'
+import { BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
 import { StatusBadge } from '@/components/status-badge'
@@ -460,10 +460,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // ID column
     {
       accessorKey: 'id',
-      meta: { label: t('ID'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='ID' />
-      ),
+      header: t('ID'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const id = row.getValue('id') as number
         return <TableId value={id} />
@@ -474,10 +472,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Name column
     {
       accessorKey: 'name',
-      meta: { label: t('Name'), mobileTitle: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
-      ),
+      header: t('Name'),
+      meta: { mobileTitle: true },
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
         const name = row.getValue('name') as string
@@ -587,7 +583,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Type column
     {
       accessorKey: 'type',
-      meta: { label: t('Type') },
       header: t('Type'),
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
@@ -702,8 +697,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Status column
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
       header: t('Status'),
+      meta: { mobileBadge: true },
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
         const status = row.getValue('status') as number
@@ -824,8 +819,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Models column
     {
       accessorKey: 'models',
-      meta: { label: t('Models'), mobileHidden: true },
       header: t('Models'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const models = row.getValue('models') as string
         const modelArray = parseModelsList(models)
@@ -850,8 +845,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Group column
     {
       accessorKey: 'group',
-      meta: { label: t('Groups'), mobileHidden: true },
       header: t('Groups'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const group = row.getValue('group') as string
         const groupArray = parseGroupsList(group)
@@ -876,8 +871,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Tag column
     {
       accessorKey: 'tag',
-      meta: { label: t('Tag'), mobileHidden: true },
       header: t('Tag'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const tag = row.getValue('tag') as string | null
         if (!tag)
@@ -892,10 +887,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Priority column
     {
       accessorKey: 'priority',
-      meta: { label: t('Priority'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Priority')} />
-      ),
+      header: t('Priority'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => <PriorityCell channel={row.original} />,
       size: 100,
     },
@@ -903,8 +896,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Weight column
     {
       accessorKey: 'weight',
-      meta: { label: t('Weight'), mobileHidden: true },
       header: t('Weight'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
       enableSorting: false,
@@ -913,10 +906,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Balance column (Used/Remaining)
     {
       accessorKey: 'balance',
-      meta: { label: t('Used / Remaining') },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Used / Remaining')} />
-      ),
+      header: t('Used / Remaining'),
       cell: ({ row }) => <BalanceCell channel={row.original} />,
       size: 180,
     },
@@ -924,10 +914,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Response Time column
     {
       accessorKey: 'response_time',
-      meta: { label: t('Response'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Response')} />
-      ),
+      header: t('Response'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const responseTime = row.getValue('response_time') as number
         const config = getResponseTimeConfig(responseTime)
@@ -947,10 +935,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Test Time column
     {
       accessorKey: 'test_time',
-      meta: { label: t('Last Tested'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Last Tested')} />
-      ),
+      header: t('Last Tested'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const testTime = row.getValue('test_time') as number
 

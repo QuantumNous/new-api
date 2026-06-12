@@ -45,10 +45,10 @@ interface MobileCardListProps<TData> {
 }
 
 function getCellLabel<TData>(cell: Cell<TData, unknown>): string | null {
-  const meta = cell.column.columnDef.meta
+  const { header, meta } = cell.column.columnDef
+  if (typeof header === 'string') return header
   if (meta?.label) return meta.label
-  const header = cell.column.columnDef.header
-  return typeof header === 'string' ? header : null
+  return null
 }
 
 function renderCellContent<TData>(cell: Cell<TData, unknown>): React.ReactNode {

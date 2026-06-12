@@ -27,7 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableColumnHeader, BadgeListCell } from '@/components/data-table'
+import { BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
 import { StatusBadge } from '@/components/status-badge'
@@ -91,10 +91,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // ID column
     {
       accessorKey: 'id',
-      meta: { label: t('ID'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='ID' />
-      ),
+      header: t('ID'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const id = row.getValue('id') as number
         return <TableId value={id} />
@@ -105,8 +103,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Icon column
     {
       accessorKey: 'icon',
-      meta: { label: t('Icon'), mobileHidden: true },
       header: t('Icon'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const model = row.original
         const iconKey =
@@ -129,10 +127,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Model Name column
     {
       accessorKey: 'model_name',
-      meta: { label: t('Model Name'), mobileTitle: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Model Name')} />
-      ),
+      header: t('Model Name'),
+      meta: { mobileTitle: true },
       cell: ({ row }) => {
         const name = row.getValue('model_name') as string
         return (
@@ -151,10 +147,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Name Rule column
     {
       accessorKey: 'name_rule',
-      meta: { label: t('Match Type') },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Match Type')} />
-      ),
+      header: t('Match Type'),
       cell: ({ row }) => {
         const rule = row.getValue('name_rule') as 0 | 1 | 2 | 3
         const model = row.original
@@ -214,8 +207,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Status column
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
       header: t('Status'),
+      meta: { mobileBadge: true },
       cell: ({ row }) => {
         const status = row.getValue('status') as number
         const config =
@@ -244,7 +237,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Vendor column
     {
       accessorKey: 'vendor_id',
-      meta: { label: t('Vendor') },
       header: t('Vendor'),
       cell: ({ row }) => {
         const vendorId = row.getValue('vendor_id') as number
@@ -267,8 +259,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Description column
     {
       accessorKey: 'description',
-      meta: { label: t('Description'), mobileHidden: true },
       header: t('Description'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const description = row.getValue('description') as string
         const modelName = row.getValue('model_name') as string
@@ -284,8 +276,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Tags column
     {
       accessorKey: 'tags',
-      meta: { label: t('Tags'), mobileHidden: true },
       header: t('Tags'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const tags = row.getValue('tags') as string
         const tagArray = parseModelTags(tags)
@@ -304,8 +296,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Endpoints column
     {
       accessorKey: 'endpoints',
-      meta: { label: t('Endpoints'), mobileHidden: true },
       header: t('Endpoints'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const endpoints = row.getValue('endpoints') as string
         const endpointArray = formatEndpointsDisplay(endpoints)
@@ -324,8 +316,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Bound Channels column
     {
       accessorKey: 'bound_channels',
-      meta: { label: t('Bound Channels'), mobileHidden: true },
       header: t('Bound Channels'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const channels = row.getValue('bound_channels') as Array<{
           id: number
@@ -353,10 +345,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Enable Groups column
     {
       accessorKey: 'enable_groups',
-      meta: { label: t('Enable Groups'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Enable Groups')} />
-      ),
+      header: t('Enable Groups'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const groups = row.getValue('enable_groups') as string[]
         return (
@@ -374,8 +364,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Quota Types column
     {
       accessorKey: 'quota_types',
-      meta: { label: t('Quota Types'), mobileHidden: true },
       header: t('Quota Types'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]
         return (
@@ -408,8 +398,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Sync Official column
     {
       accessorKey: 'sync_official',
-      meta: { label: t('Official Sync'), mobileHidden: true },
       header: t('Official Sync'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const syncOfficial = row.getValue('sync_official') as number
         return (
@@ -435,10 +425,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Created Time column
     {
       accessorKey: 'created_time',
-      meta: { label: t('Created'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
-      ),
+      header: t('Created'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const timestamp = row.getValue('created_time') as number
         return (
@@ -453,10 +441,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Updated Time column
     {
       accessorKey: 'updated_time',
-      meta: { label: t('Updated'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Updated')} />
-      ),
+      header: t('Updated'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const timestamp = row.getValue('updated_time') as number
         return (
