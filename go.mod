@@ -80,6 +80,7 @@ require (
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/supranational/blst v0.3.13 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
+	gorm.io/hints v1.1.2 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
