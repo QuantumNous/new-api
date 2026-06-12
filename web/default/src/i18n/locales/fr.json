@@ -4490,7 +4490,8 @@
         "Recharge Rate": "Taux de Recharge",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Lorsque l'amont n'a pas de /api/pricing, utiliser le prix du modèle public romaapi × ce ratio comme solution de secours ; laisser vide ou 0 pour désactiver",
         "Country": "Pays",
-        "Order No. / Email / UID": "N° de commande / Email / UID"
+        "Order No. / Email / UID": "N° de commande / Email / UID",
+        "Payment issue? Contact us": "Problème de paiement ? Contactez-nous"
     },
     "在线使用": "Playground",
     "推广有礼": "Parrainage",

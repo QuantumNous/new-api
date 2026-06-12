@@ -4494,7 +4494,8 @@
         "Recharge Rate": "Tasa de Recarga",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Cuando el upstream no tiene /api/pricing, usar el precio del modelo público de romaapi × este ratio como alternativa; dejar en blanco o 0 para desactivar",
         "Country": "País",
-        "Order No. / Email / UID": "N° de pedido / Email / UID"
+        "Order No. / Email / UID": "N° de pedido / Email / UID",
+        "Payment issue? Contact us": "¿Problema con el pago? Contáctenos"
     },
     "在线使用": "Playground",
     "推广有礼": "Afiliados",

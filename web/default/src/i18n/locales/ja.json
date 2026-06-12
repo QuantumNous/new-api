@@ -4490,7 +4490,8 @@
         "Recharge Rate": "チャージレート",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "上流に /api/pricing がない場合、romaapi の公開モデル価格×この比率をフォールバックとして使用します。空白または0で無効",
         "Country": "国",
-        "Order No. / Email / UID": "注文番号 / メール / UID"
+        "Order No. / Email / UID": "注文番号 / メール / UID",
+        "Payment issue? Contact us": "お支払いに問題がありますか？お問い合わせ"
     },
     "在线使用": "プレイグラウンド",
     "推广有礼": "アフィリエイト",

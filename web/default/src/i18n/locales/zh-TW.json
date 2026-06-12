@@ -4490,6 +4490,7 @@
         "Recharge Rate": "充值費率",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "當上游無 /api/pricing 時，以 romaapi 公開模型價格乘以此比例作為備用；留空或填 0 則停用",
         "Country": "國家",
-        "Order No. / Email / UID": "訂單號 / 郵箱 / UID"
+        "Order No. / Email / UID": "訂單號 / 郵箱 / UID",
+        "Payment issue? Contact us": "支付遇到問題？聯絡我們"
     }
 }

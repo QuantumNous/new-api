@@ -4490,7 +4490,8 @@
         "Recharge Rate": "Tỷ lệ nạp tiền",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Khi upstream không có /api/pricing, sử dụng giá mô hình công khai của romaapi × tỷ lệ này làm dự phòng; để trống hoặc 0 để tắt",
         "Country": "Quốc gia",
-        "Order No. / Email / UID": "Mã đơn hàng / Email / UID"
+        "Order No. / Email / UID": "Mã đơn hàng / Email / UID",
+        "Payment issue? Contact us": "Vấn đề thanh toán? Liên hệ chúng tôi"
     },
     "在线使用": "Dùng trực tuyến",
     "推广有礼": "Giới thiệu",

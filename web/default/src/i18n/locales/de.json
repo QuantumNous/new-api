@@ -4490,6 +4490,7 @@
         "Recharge Rate": "Aufladerate",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Wenn der Upstream kein /api/pricing hat, wird der öffentliche romaapi-Modellpreis × dieses Verhältnis als Fallback verwendet; leer lassen oder 0 zum Deaktivieren",
         "Country": "Land",
-        "Order No. / Email / UID": "Bestellnr. / E-Mail / UID"
+        "Order No. / Email / UID": "Bestellnr. / E-Mail / UID",
+        "Payment issue? Contact us": "Zahlungsproblem? Kontaktieren Sie uns"
     }
 }

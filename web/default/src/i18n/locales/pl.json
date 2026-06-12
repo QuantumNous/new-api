@@ -4490,6 +4490,7 @@
         "Recharge Rate": "Kurs doładowania",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Gdy upstream nie ma /api/pricing, użyj publicznej ceny modelu romaapi × ten współczynnik jako wartość zastępczą; pozostaw puste lub 0, aby wyłączyć",
         "Country": "Kraj",
-        "Order No. / Email / UID": "Nr zamówienia / E-mail / UID"
+        "Order No. / Email / UID": "Nr zamówienia / E-mail / UID",
+        "Payment issue? Contact us": "Problem z płatnością? Skontaktuj się z nami"
     }
 }

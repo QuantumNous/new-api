@@ -4494,7 +4494,8 @@
         "Recharge Rate": "충전 비율",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "업스트림에 /api/pricing이 없을 경우, romaapi 공개 모델 가격 × 이 비율을 대체값으로 사용합니다. 비활성화하려면 비워두거나 0으로 설정하세요",
         "Country": "국가",
-        "Order No. / Email / UID": "주문번호 / 이메일 / UID"
+        "Order No. / Email / UID": "주문번호 / 이메일 / UID",
+        "Payment issue? Contact us": "결제 문제가 있으신가요? 문의하기"
     },
     "在线使用": "플레이그라운드",
     "推广有礼": "제휴 추천",

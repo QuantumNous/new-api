@@ -4494,7 +4494,8 @@
         "Recharge Rate": "Tarif Isi Ulang",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Saat upstream tidak memiliki /api/pricing, gunakan harga model publik romaapi × rasio ini sebagai cadangan; biarkan kosong atau 0 untuk menonaktifkan",
         "Country": "Negara",
-        "Order No. / Email / UID": "No. Pesanan / Email / UID"
+        "Order No. / Email / UID": "No. Pesanan / Email / UID",
+        "Payment issue? Contact us": "Masalah pembayaran? Hubungi kami"
     },
     "在线使用": "Playground",
     "推广有礼": "Afiliasi",
