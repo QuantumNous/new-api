@@ -38,7 +38,6 @@ import {
   Eraser,
   Plus,
   Eye,
-  Link2,
   RefreshCw,
   Code,
   Route,
@@ -148,7 +147,6 @@ import {
 } from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
-import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import {
   MissingModelsConfirmationDialog,
@@ -281,7 +279,6 @@ export function ChannelMutateDrawer({
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
-  const [codexOAuthDialogOpen, setCodexOAuthDialogOpen] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
   const initialModelsRef = useRef<string[]>([])
@@ -1988,26 +1985,12 @@ export function ChannelMutateDrawer({
                       {currentType === 57 && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                            <div className='flex flex-col gap-0.5'>
-                              <div className='text-sm font-semibold'>
-                                {t('Codex Authorization')}
-                              </div>
-                              <div className='text-muted-foreground text-xs'>
-                                {t(
-                                  'Codex channels use an OAuth JSON credential as the key.'
-                                )}
-                              </div>
+                            <div className='text-muted-foreground text-xs'>
+                              {t(
+                                'Codex channels use an OAuth JSON credential as the key.'
+                              )}
                             </div>
                             <div className='flex flex-wrap items-center gap-2'>
-                              <Button
-                                type='button'
-                                variant='outline'
-                                size='sm'
-                                onClick={() => setCodexOAuthDialogOpen(true)}
-                              >
-                                <Link2 className='mr-2 h-4 w-4' />
-                                {t('Authorize')}
-                              </Button>
                               {isEditing && channelId && (
                                 <Button
                                   type='button'
@@ -2028,23 +2011,8 @@ export function ChannelMutateDrawer({
                               )}
                             </div>
                           </div>
-                          <Alert>
-                            <AlertDescription>
-                              {t(
-                                'If authorization succeeds, the generated JSON will be inserted into the key field. You still need to save the channel to persist it.'
-                              )}
-                            </AlertDescription>
-                          </Alert>
                         </div>
                       )}
-
-                      <CodexOAuthDialog
-                        open={codexOAuthDialogOpen}
-                        onOpenChange={setCodexOAuthDialogOpen}
-                        onKeyGenerated={(key) => {
-                          form.setValue('key', key, { shouldDirty: true })
-                        }}
-                      />
 
                       {isEditing && isMultiKeyChannel && (
                         <FormField
