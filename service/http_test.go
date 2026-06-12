@@ -40,6 +40,8 @@ func TestShouldCopyUpstreamHeaderBlocksProviderInternalHeaders(t *testing.T) {
 		"Anthropic-Ratelimit-Tokens-Limit",
 		"access-control-expose-headers",
 		"Access-Control-Expose-Headers",
+		"x-new-api-version",
+		"X-New-Api-Version",
 	}
 	for _, h := range blocked {
 		if ShouldCopyUpstreamHeader(nil, h, []string{"x"}) {

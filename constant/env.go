@@ -20,6 +20,16 @@ var ErrorLogEnabled bool
 // response headers (name and value) are logged for auditing. Default true;
 // set LOG_BLOCKED_UPSTREAM_HEADERS=false to disable.
 var LogBlockedUpstreamHeaders = true
+
+// AnthropicResponseNormalize controls whether Claude-protocol relay responses
+// are normalized toward the official api.anthropic.com shape. When true (the
+// default), the client-facing response carries an Anthropic-style
+// "request-id: req_..." header instead of "X-Oneapi-Request-Id". When false,
+// behavior falls back to emitting "X-Oneapi-Request-Id" as before. Disable via
+// ANTHROPIC_RESPONSE_NORMALIZE=false. Default true is safe for B2B deployments
+// (top/code.taluna.ai); the internal id is still recorded in context/logs for
+// traceability regardless of this flag.
+var AnthropicResponseNormalize = true
 var TaskQueryLimit int
 var TaskTimeoutMinutes int
 

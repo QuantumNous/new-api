@@ -561,8 +561,16 @@ type ClaudeUsage struct {
 	OutputTokens             int                       `json:"output_tokens"`
 	CacheCreation            *ClaudeCacheCreationUsage `json:"cache_creation,omitempty"`
 	// claude cache 1h
-	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
-	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
+	//
+	// These two fields are new-api-internal accounting fields (not part of the
+	// official api.anthropic.com usage schema — see research §2/§5.3). They carry
+	// "omitempty" so they never leak into the client-facing Anthropic response
+	// when zero; official prompt-cache usage is expressed via CacheCreation{}
+	// (ephemeral_5m/1h_input_tokens) instead. Internal billing reads dto.Usage
+	// (openai_response.go), not this struct, so omitempty here does not affect
+	// quota/tiered-settle logic.
+	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens,omitempty"`
+	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens,omitempty"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 
@@ -106,6 +107,19 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	scanner.Buffer(make([]byte, InitialScannerBufferSize), getScannerBufferSize())
 	scanner.Split(bufio.ScanLines)
+	// For Claude-protocol relay responses, normalize the client-facing headers
+	// (request-id) toward the Anthropic shape before the SSE headers are
+	// written. Must run before SetEventStreamHeaders flushes the header block.
+	//
+	// Gate on info.RelayFormat (the *client-facing* protocol), NOT
+	// GetFinalRequestRelayFormat() (the *upstream* protocol): on the primary
+	// OpenRouter path a /v1/messages request is converted to OpenAI upstream,
+	// so the final upstream format is OpenAI even though the client spoke
+	// Claude. The request-id header is about what the client sees, so it must
+	// fire whenever the client used the Claude protocol (research §5.1).
+	if info != nil && info.RelayFormat == types.RelayFormatClaude {
+		FinalizeAnthropicResponseHeaders(c)
+	}
 	SetEventStreamHeaders(c)
 
 	ctx, cancel := context.WithCancel(context.Background())

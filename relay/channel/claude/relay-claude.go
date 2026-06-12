@@ -691,6 +691,72 @@ func patchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 	return data
 }
 
+// patchClaudeMessageStartIdentity normalizes the model name and message id in
+// a raw upstream Claude "message_start" SSE/JSON payload toward the official
+// Anthropic shape (R2.1/R2.2, direct passthrough path R2.6).
+//
+// On the direct passthrough path (claude-type channel forwarding upstream
+// bytes verbatim) the upstream — e.g. OpenRouter's /v1/messages compat
+// endpoint or a nested new-api — still returns the OpenRouter slug as
+// "message.model" and a "gen-..." id as "message.id". We rewrite only those
+// two fields with gjson/sjson, leaving the rest of the bytes untouched (same
+// surgical approach as patchClaudeMessageDeltaUsageData).
+//
+// NOTE: input_tokens is intentionally NOT calibrated here. The per-model
+// calibration factor (R2.7) corrects new-api's own cl100k estimator used on
+// the OpenAI->Claude conversion path; on the direct passthrough path the
+// message_start.input_tokens is whatever the upstream supplies (real
+// OpenRouter gives 0, a nested new-api gives its own estimate), so applying
+// the cl100k correction factor would be wrong. We only patch model/id here.
+func patchClaudeMessageStartIdentity(data string, info *relaycommon.RelayInfo) string {
+	if !constant.AnthropicResponseNormalize || data == "" || info == nil {
+		return data
+	}
+
+	if info.OriginModelName != "" {
+		if gjson.Get(data, "message.model").Exists() {
+			if patched, err := sjson.Set(data, "message.model", info.OriginModelName); err == nil {
+				data = patched
+			}
+		}
+	}
+
+	if upstreamID := gjson.Get(data, "message.id"); upstreamID.Exists() {
+		if patched, err := sjson.Set(data, "message.id", common.EncodeAnthropicMessageID(upstreamID.String())); err == nil {
+			data = patched
+		}
+	}
+
+	return data
+}
+
+// patchClaudeTopLevelIdentity normalizes the model name and message id in a raw
+// upstream non-stream Claude response payload (top-level "model"/"id" fields,
+// as opposed to the nested "message.*" of a streaming message_start). Same
+// passthrough-path normalization as patchClaudeMessageStartIdentity (R2.1/R2.2).
+func patchClaudeTopLevelIdentity(data []byte, info *relaycommon.RelayInfo) []byte {
+	if !constant.AnthropicResponseNormalize || len(data) == 0 || info == nil {
+		return data
+	}
+	s := string(data)
+
+	if info.OriginModelName != "" {
+		if gjson.Get(s, "model").Exists() {
+			if patched, err := sjson.Set(s, "model", info.OriginModelName); err == nil {
+				s = patched
+			}
+		}
+	}
+
+	if upstreamID := gjson.Get(s, "id"); upstreamID.Exists() {
+		if patched, err := sjson.Set(s, "id", common.EncodeAnthropicMessageID(upstreamID.String())); err == nil {
+			s = patched
+		}
+	}
+
+	return []byte(s)
+}
+
 func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 	if localValue <= 0 {
 		return data
@@ -804,6 +870,9 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			if claudeResponse.Message != nil {
 				info.UpstreamModelName = claudeResponse.Message.Model
 			}
+			// Normalize model/id toward the Anthropic shape before forwarding
+			// the bytes to the client (R2.1/R2.2, passthrough path R2.6).
+			data = patchClaudeMessageStartIdentity(data, info)
 		} else if claudeResponse.Type == "message_delta" {
 			// 确保 message_delta 的 usage 包含完整的 input_tokens 和 cache 相关字段
 			// 解决 AWS Bedrock 等上游返回的 message_delta 缺少这些字段的问题
@@ -921,11 +990,20 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		responseData = data
+		// Normalize model/id toward the Anthropic shape before forwarding the
+		// raw upstream bytes to the client (R2.1/R2.2, passthrough path R2.6).
+		responseData = patchClaudeTopLevelIdentity(data, info)
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
 		c.Set("claude_web_search_requests", claudeResponse.Usage.ServerToolUse.WebSearchRequests)
+	}
+
+	// Normalize the client-facing headers (request-id) toward the Anthropic
+	// shape for the non-stream Claude response path, before IOCopyBytesGracefully
+	// writes the header block.
+	if info.RelayFormat == types.RelayFormatClaude {
+		helper.FinalizeAnthropicResponseHeaders(c)
 	}
 
 	service.IOCopyBytesGracefully(c, httpResp, responseData)

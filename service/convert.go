@@ -297,13 +297,29 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeNone
 	}
 	if info.SendResponseCount == 1 {
+		// Normalize the message_start identity/model toward the official
+		// Anthropic shape (R2.1/R2.2): the client should see the model name it
+		// requested (info.OriginModelName), not the upstream OpenRouter slug
+		// (e.g. "anthropic/claude-4.6-opus-..."), and a deterministic "msg_"
+		// id instead of the OpenRouter "gen-..." id. When normalization is
+		// disabled we fall back to the raw upstream values.
+		msgModel := openAIResponse.Model
+		msgID := openAIResponse.Id
+		if constant.AnthropicResponseNormalize {
+			if info.OriginModelName != "" {
+				msgModel = info.OriginModelName
+			}
+			msgID = common.EncodeAnthropicMessageID(openAIResponse.Id)
+		}
 		msg := &dto.ClaudeMediaMessage{
-			Id:    openAIResponse.Id,
-			Model: openAIResponse.Model,
+			Id:    msgID,
+			Model: msgModel,
 			Type:  "message",
 			Role:  "assistant",
 			Usage: &dto.ClaudeUsage{
-				InputTokens:  info.GetEstimatePromptTokens(),
+				// Display-only per-model calibration of the cl100k estimate
+				// (R2.7); billing/EstimateRequestToken are untouched.
+				InputTokens:  CalibrateAnthropicInputTokens(info.GetEstimatePromptTokens(), info.OriginModelName),
 				OutputTokens: 0,
 			},
 		}
@@ -607,11 +623,22 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.ClaudeResponse {
 	var stopReason string
 	contents := make([]dto.ClaudeMediaMessage, 0)
+	// Mirror the streaming normalization (R2.1/R2.2) for the non-stream path:
+	// client-requested model name + deterministic "msg_" id, with fallback to
+	// the raw upstream values when normalization is disabled.
+	respModel := openAIResponse.Model
+	respID := openAIResponse.Id
+	if constant.AnthropicResponseNormalize {
+		if info.OriginModelName != "" {
+			respModel = info.OriginModelName
+		}
+		respID = common.EncodeAnthropicMessageID(openAIResponse.Id)
+	}
 	claudeResponse := &dto.ClaudeResponse{
-		Id:    openAIResponse.Id,
+		Id:    respID,
 		Type:  "message",
 		Role:  "assistant",
-		Model: openAIResponse.Model,
+		Model: respModel,
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)

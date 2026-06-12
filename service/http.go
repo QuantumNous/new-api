@@ -30,6 +30,10 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 var blockedUpstreamHeaders = map[string]struct{}{
 	"anthropic-organization-id":     {},
 	"access-control-expose-headers": {},
+	// x-new-api-version is emitted by nested new-api upstreams (e.g. the
+	// guanli build, research §5.2). It exposes our internal build tag and must
+	// never be forwarded to the client.
+	"x-new-api-version": {},
 }
 
 // blockedUpstreamHeaderPrefixes lists lowercase header-name prefixes that are

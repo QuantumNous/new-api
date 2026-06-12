@@ -150,6 +150,8 @@ func initConstantEnv() {
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 	// 剔除上游内部 header 时是否记录被剔除的 header 名和值，默认开启
 	constant.LogBlockedUpstreamHeaders = GetEnvOrDefaultBool("LOG_BLOCKED_UPSTREAM_HEADERS", true)
+	// 是否将 Claude 协议 relay 响应归一化为 Anthropic 官方形态（request-id 头等），默认开启
+	constant.AnthropicResponseNormalize = GetEnvOrDefaultBool("ANTHROPIC_RESPONSE_NORMALIZE", true)
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
