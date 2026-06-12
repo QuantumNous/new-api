@@ -44,21 +44,8 @@ interface MobileCardListProps<TData> {
   getRowClassName?: (row: Row<TData>) => string | undefined
 }
 
-interface MobileColumnMeta {
-  label?: string
-  mobileTitle?: boolean
-  mobileBadge?: boolean
-  mobileHidden?: boolean
-}
-
-function getCellMeta<TData>(
-  cell: Cell<TData, unknown>
-): MobileColumnMeta | undefined {
-  return cell.column.columnDef.meta as MobileColumnMeta | undefined
-}
-
 function getCellLabel<TData>(cell: Cell<TData, unknown>): string | null {
-  const meta = getCellMeta(cell)
+  const meta = cell.column.columnDef.meta
   if (meta?.label) return meta.label
   const header = cell.column.columnDef.header
   return typeof header === 'string' ? header : null
@@ -131,7 +118,7 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
 
   // Read each cell's meta once, then reuse for all categorisation checks.
   const cellMetas = React.useMemo(
-    () => allCells.map(getCellMeta),
+    () => allCells.map((c) => c.column.columnDef.meta),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allCells.map((c) => c.id).join(',')]
   )
@@ -202,7 +189,7 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
     .filter((cell) => cell.column.id !== 'select')
 
   const cellMetas = React.useMemo(
-    () => allCells.map(getCellMeta),
+    () => allCells.map((c) => c.column.columnDef.meta),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allCells.map((c) => c.id).join(',')]
   )
@@ -282,7 +269,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   const hasCompactMeta = React.useMemo(
     () =>
       visibleColumns.some((col) => {
-        const meta = col.columnDef.meta as MobileColumnMeta | undefined
+        const meta = col.columnDef.meta
         return meta?.mobileTitle || meta?.mobileBadge
       }),
     [visibleColumns]
