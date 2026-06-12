@@ -1208,6 +1208,7 @@
     "Discount rate must be greater than 0": "Tỷ lệ giảm giá phải lớn hơn 0",
     "Discount Rate:": "Tỷ lệ chiết khấu:",
     "Discount ratio for cache hits.": "Tỷ lệ chiết khấu cho lượt truy cập bộ nhớ đệm thành công.",
+    "Disclaimer: Personal use only. Do not distribute or share any credentials. This channel has prerequisites and requires prior setup; use it only if you understand the flow and risks, and comply with OpenAI's terms and policies. Credentials and configuration are for Codex CLI integration only, and are not intended for any other client, platform, or channel.": "Tuyên bố miễn trừ: Chỉ dùng cho mục đích cá nhân. Không phân phối hoặc chia sẻ bất kỳ thông tin xác thực nào. Kênh này có điều kiện tiên quyết và yêu cầu thiết lập trước; chỉ sử dụng khi bạn hiểu rõ quy trình và rủi ro, và tuân thủ điều khoản và chính sách của OpenAI. Thông tin xác thực và cấu hình chỉ dành cho tích hợp Codex CLI, không áp dụng cho các client, nền tảng hoặc kênh khác.",
     "Discouraged": "Tuyệt vọng",
     "Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.": "Khám phá các mô hình AI được tuyển chọn, so sánh giá và khả năng, rồi chọn mô hình phù hợp cho từng kịch bản.",
     "Discover the leading models in each domain": "Khám phá các mô hình hàng đầu trong từng lĩnh vực",

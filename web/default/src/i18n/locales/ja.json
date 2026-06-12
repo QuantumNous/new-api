@@ -1208,6 +1208,7 @@
     "Discount rate must be greater than 0": "割引率は 0 より大きくなければなりません",
     "Discount Rate:": "割引率:",
     "Discount ratio for cache hits.": "キャッシュヒットに対する割引率。",
+    "Disclaimer: Personal use only. Do not distribute or share any credentials. This channel has prerequisites and requires prior setup; use it only if you understand the flow and risks, and comply with OpenAI's terms and policies. Credentials and configuration are for Codex CLI integration only, and are not intended for any other client, platform, or channel.": "免責事項：個人利用に限ります。認証情報を配布・共有しないでください。このチャネルには前提条件があり、事前の設定が必要です。手順とリスクを理解した上で利用し、OpenAI の利用規約および関連ポリシーを遵守してください。認証情報と設定は Codex CLI 連携専用であり、他のクライアント、プラットフォーム、またはチャネルでは利用できません。",
     "Discouraged": "非推奨",
     "Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.": "厳選された AI モデルを見つけ、価格と機能を比較し、あらゆるシナリオに適したモデルを選択できます。",
     "Discover the leading models in each domain": "各分野をリードするモデルを発見",

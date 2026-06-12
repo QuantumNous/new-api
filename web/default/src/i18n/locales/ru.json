@@ -1208,6 +1208,7 @@
     "Discount rate must be greater than 0": "Ставка скидки должна быть больше 0",
     "Discount Rate:": "Ставка скидки:",
     "Discount ratio for cache hits.": "Коэффициент скидки для попаданий в кэш.",
+    "Disclaimer: Personal use only. Do not distribute or share any credentials. This channel has prerequisites and requires prior setup; use it only if you understand the flow and risks, and comply with OpenAI's terms and policies. Credentials and configuration are for Codex CLI integration only, and are not intended for any other client, platform, or channel.": "Предупреждение: только для личного использования. Не распространяйте и не передавайте учетные данные. Для этого канала требуются предварительные условия и начальная настройка; используйте его только если понимаете процедуру и риски, и соблюдайте условия и политики OpenAI. Учетные данные и конфигурация предназначены только для интеграции с Codex CLI и не предназначены для других клиентов, платформ или каналов.",
     "Discouraged": "Не рекомендуется",
     "Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.": "Откройте для себя подобранные AI-модели, сравнивайте цены и возможности и выбирайте подходящую модель для каждого сценария.",
     "Discover the leading models in each domain": "Откройте для себя ведущие модели в каждой области",

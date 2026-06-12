@@ -1208,6 +1208,7 @@
     "Discount rate must be greater than 0": "折扣率必须大于 0",
     "Discount Rate:": "折扣率：",
     "Discount ratio for cache hits.": "缓存命中时的折扣比例。",
+    "Disclaimer: Personal use only. Do not distribute or share any credentials. This channel has prerequisites and requires prior setup; use it only if you understand the flow and risks, and comply with OpenAI's terms and policies. Credentials and configuration are for Codex CLI integration only, and are not intended for any other client, platform, or channel.": "免责声明：仅限个人使用，请勿分发或共享任何凭证。该渠道存在前置条件与使用门槛，请在充分了解流程与风险后使用，并遵守 OpenAI 的相关条款与政策。相关凭证与配置仅限接入 Codex CLI 使用，不适用于其他客户端、平台或渠道。",
     "Discouraged": "不推荐",
     "Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.": "探索精选 AI 模型，清晰比较价格与能力，为不同场景选择合适的模型。",
     "Discover the leading models in each domain": "发掘各个领域的领先模型",
