@@ -1,10 +1,18 @@
 import React from 'react';
-import { Button, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Modal,
+  SplitButtonGroup,
+  Tag,
+  Typography,
+} from '@douyinfe/semi-ui';
+import { IconTreeTriangleDown } from '@douyinfe/semi-icons';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import {
   PREPARATION_STATUS,
   PREPARATION_STATUS_LABELS,
 } from '../../../hooks/channels/useChannelPreparationsData';
+import { renderResponseTime } from '../channels/ChannelsColumnDefs';
 
 const statusColor = {
   [PREPARATION_STATUS.PENDING]: 'blue',
@@ -35,6 +43,9 @@ export const getPreparationColumns = ({
   openEdit,
   promotePreparation,
   deletePreparation,
+  testPreparation,
+  setCurrentTestChannel,
+  setShowModelTestModal,
 }) => [
   {
     title: 'ID',
@@ -69,6 +80,13 @@ export const getPreparationColumns = ({
         {t(PREPARATION_STATUS_LABELS[value] || '未知')}
       </Tag>
     ),
+  },
+  {
+    title: t('响应时间'),
+    dataIndex: 'response_time',
+    key: 'response_time',
+    width: 110,
+    render: (value) => renderResponseTime(value ?? 0, t),
   },
   {
     title: t('分组'),
@@ -122,11 +140,41 @@ export const getPreparationColumns = ({
     title: t('操作'),
     key: 'operate',
     fixed: 'right',
-    width: 210,
+    width: 320,
     render: (_, record) => {
       const pending = record.status === PREPARATION_STATUS.PENDING;
       return (
-        <Space>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 8,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <SplitButtonGroup
+            className='overflow-hidden'
+            aria-label={t('测试候选渠道操作项目组')}
+            style={{ display: 'inline-flex', flexShrink: 0 }}
+          >
+            <Button
+              size='small'
+              type='tertiary'
+              onClick={() => testPreparation(record, '')}
+            >
+              {t('测试')}
+            </Button>
+            <Button
+              size='small'
+              type='tertiary'
+              icon={<IconTreeTriangleDown />}
+              onClick={() => {
+                setCurrentTestChannel({ ...record, models: record.models || '' });
+                setShowModelTestModal(true);
+              }}
+            />
+          </SplitButtonGroup>
           <Button
             size='small'
             theme='outline'
@@ -164,7 +212,7 @@ export const getPreparationColumns = ({
           >
             {t('删除')}
           </Button>
-        </Space>
+        </div>
       );
     },
   },

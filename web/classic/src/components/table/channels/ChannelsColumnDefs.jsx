@@ -217,7 +217,7 @@ const renderMultiKeyStatus = (status, keySize, enabledKeySize, t) => {
   }
 };
 
-const renderResponseTime = (responseTime, t) => {
+export const renderResponseTime = (responseTime, t) => {
   let time = responseTime / 1000;
   time = time.toFixed(2) + t(' 秒');
   if (responseTime === 0) {

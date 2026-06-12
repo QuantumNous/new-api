@@ -2,8 +2,10 @@ package controller
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -175,6 +177,60 @@ func GetChannelPreparation(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, preparation.ToResponse())
+}
+
+func TestChannelPreparation(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var preparation model.ChannelPreparation
+	if err := model.DB.First(&preparation, "id = ?", id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	applyChannelPreparationDefaults(&preparation)
+	channel := preparation.ToChannel()
+	testModel := c.Query("model")
+	endpointType := c.Query("endpoint_type")
+	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	testUserID, err := resolveChannelTestUserID(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tik := time.Now()
+	result := testChannel(channel, testUserID, testModel, endpointType, isStream)
+	if result.localErr != nil {
+		resp := gin.H{
+			"success": false,
+			"message": result.localErr.Error(),
+			"time":    0.0,
+		}
+		if result.newAPIError != nil {
+			resp["error_code"] = result.newAPIError.GetErrorCode()
+		}
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	milliseconds := time.Since(tik).Milliseconds()
+	go preparation.UpdateResponseTime(milliseconds)
+	consumedTime := float64(milliseconds) / 1000.0
+	if result.newAPIError != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success":    false,
+			"message":    result.newAPIError.Error(),
+			"time":       consumedTime,
+			"error_code": result.newAPIError.GetErrorCode(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"time":    consumedTime,
+	})
 }
 
 func AddChannelPreparation(c *gin.Context) {

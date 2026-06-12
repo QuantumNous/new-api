@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -24,6 +25,8 @@ type ChannelPreparation struct {
 	Weight             *uint   `json:"weight" gorm:"default:0"`
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
 	UpdatedTime        int64   `json:"updated_time" gorm:"bigint"`
+	TestTime           int64   `json:"test_time" gorm:"bigint;default:0"`
+	ResponseTime       int     `json:"response_time" gorm:"default:0"`
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"`
@@ -58,6 +61,8 @@ type ChannelPreparationResponse struct {
 	Weight             *uint   `json:"weight"`
 	CreatedTime        int64   `json:"created_time"`
 	UpdatedTime        int64   `json:"updated_time"`
+	TestTime           int64   `json:"test_time"`
+	ResponseTime       int     `json:"response_time"`
 	BaseURL            *string `json:"base_url"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"`
@@ -108,6 +113,8 @@ func (p *ChannelPreparation) NormalizeForCreate() {
 	p.Status = ChannelPreparationStatusPending
 	p.CreatedTime = now
 	p.UpdatedTime = now
+	p.TestTime = 0
+	p.ResponseTime = 0
 	p.PromotedTime = nil
 	p.PromotedChannelId = nil
 	if strings.TrimSpace(p.Group) == "" {
@@ -124,6 +131,8 @@ func (p *ChannelPreparation) NormalizeForUpdate(existing *ChannelPreparation) {
 	p.Status = existing.Status
 	p.CreatedTime = existing.CreatedTime
 	p.UpdatedTime = common.GetTimestamp()
+	p.TestTime = existing.TestTime
+	p.ResponseTime = existing.ResponseTime
 	p.PromotedTime = existing.PromotedTime
 	p.PromotedChannelId = existing.PromotedChannelId
 	if strings.TrimSpace(p.Key) == "" {
@@ -160,6 +169,8 @@ func (p *ChannelPreparation) ToResponse() ChannelPreparationResponse {
 		Weight:             p.Weight,
 		CreatedTime:        p.CreatedTime,
 		UpdatedTime:        p.UpdatedTime,
+		TestTime:           p.TestTime,
+		ResponseTime:       p.ResponseTime,
 		BaseURL:            p.BaseURL,
 		Other:              p.Other,
 		Balance:            p.Balance,
@@ -209,6 +220,8 @@ func (p *ChannelPreparation) ToChannel() *Channel {
 		TestModel:          p.TestModel,
 		Status:             common.ChannelStatusEnabled,
 		Name:               p.Name,
+		TestTime:           p.TestTime,
+		ResponseTime:       p.ResponseTime,
 		Weight:             p.Weight,
 		BaseURL:            p.BaseURL,
 		Other:              p.Other,
@@ -226,6 +239,16 @@ func (p *ChannelPreparation) ToChannel() *Channel {
 		HeaderOverride:     p.HeaderOverride,
 		Remark:             p.Remark,
 		OtherSettings:      p.OtherSettings,
+	}
+}
+
+func (p *ChannelPreparation) UpdateResponseTime(responseTime int64) {
+	err := DB.Model(p).Select("response_time", "test_time").Updates(ChannelPreparation{
+		TestTime:     common.GetTimestamp(),
+		ResponseTime: int(responseTime),
+	}).Error
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update preparation response time: preparation_id=%d, error=%v", p.Id, err))
 	}
 }
 

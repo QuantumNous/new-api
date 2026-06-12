@@ -3891,6 +3891,8 @@
     "通道 ${name} 余额更新成功！": "Cập nhật hạn ngạch kênh ${name} thành công!",
     "通道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。": "Kênh ${name} kiểm tra thành công, mô hình ${model} mất ${time.toFixed(2)} giây.",
     "通道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。": "Kênh ${name} kiểm tra thành công, mất ${time.toFixed(2)} giây.",
+    "候选渠道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。": "Kênh ứng viên ${name} kiểm tra thành công, mất ${time.toFixed(2)} giây.",
+    "候选渠道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。": "Kênh ứng viên ${name} kiểm tra thành công, mô hình ${model} mất ${time.toFixed(2)} giây.",
     "通道 ID": "ID kênh",
     "通道测试": "Kiểm tra kênh",
     "通道状态": "Trạng thái kênh",

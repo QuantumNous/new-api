@@ -3399,6 +3399,8 @@
     "通道 ${name} 余额更新成功！": "通道 ${name} 餘額更新成功！",
     "通道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。": "通道 ${name} 測試成功，模型 ${model} 耗時 ${time.toFixed(2)} 秒。",
     "通道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。": "通道 ${name} 測試成功，耗時 ${time.toFixed(2)} 秒。",
+    "候选渠道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。": "候選通道 ${name} 測試成功，耗時 ${time.toFixed(2)} 秒。",
+    "候选渠道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。": "候選通道 ${name} 測試成功，模型 ${model} 耗時 ${time.toFixed(2)} 秒。",
     "速率限制设置": "速率限制設定",
     "逻辑": "",
     "邀请": "邀請",

@@ -23,6 +23,9 @@ const PreparationTable = ({
   openEdit,
   promotePreparation,
   deletePreparation,
+  testPreparation,
+  setCurrentTestChannel,
+  setShowModelTestModal,
 }) => {
   const columns = useMemo(
     () =>
@@ -31,8 +34,19 @@ const PreparationTable = ({
         openEdit,
         promotePreparation,
         deletePreparation,
+        testPreparation,
+        setCurrentTestChannel,
+        setShowModelTestModal,
       }),
-    [t, openEdit, promotePreparation, deletePreparation],
+    [
+      t,
+      openEdit,
+      promotePreparation,
+      deletePreparation,
+      testPreparation,
+      setCurrentTestChannel,
+      setShowModelTestModal,
+    ],
   );
 
   return (

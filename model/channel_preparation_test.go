@@ -51,6 +51,77 @@ func setupChannelPreparationModelTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+func TestChannelPreparationUpdateResponseTimeOnlyTouchesTestFields(t *testing.T) {
+	setupChannelPreparationModelTestDB(t)
+
+	preparation := ChannelPreparation{
+		Type:         1,
+		Key:          "sk-test",
+		Name:         "candidate",
+		Status:       ChannelPreparationStatusPending,
+		Group:        "default",
+		UpdatedTime:  12345,
+		TestTime:     111,
+		ResponseTime: 222,
+	}
+	require.NoError(t, DB.Create(&preparation).Error)
+
+	before := common.GetTimestamp()
+	preparation.UpdateResponseTime(3456)
+
+	var got ChannelPreparation
+	require.NoError(t, DB.First(&got, "id = ?", preparation.Id).Error)
+	require.Equal(t, 3456, got.ResponseTime)
+	require.GreaterOrEqual(t, got.TestTime, before)
+	require.LessOrEqual(t, got.TestTime, common.GetTimestamp())
+	require.Equal(t, ChannelPreparationStatusPending, got.Status)
+	require.Equal(t, "sk-test", got.Key)
+	require.Equal(t, int64(12345), got.UpdatedTime)
+}
+
+func TestChannelPreparationNormalizePreservesAndResetsTestFields(t *testing.T) {
+	existing := &ChannelPreparation{
+		Id:           7,
+		Status:       ChannelPreparationStatusPending,
+		CreatedTime:  100,
+		UpdatedTime:  200,
+		Key:          "existing-key",
+		Group:        "vip",
+		TestTime:     300,
+		ResponseTime: 456,
+	}
+	input := ChannelPreparation{Key: "", Group: ""}
+	input.NormalizeForUpdate(existing)
+	require.Equal(t, existing.Id, input.Id)
+	require.Equal(t, existing.Key, input.Key)
+	require.Equal(t, int64(300), input.TestTime)
+	require.Equal(t, 456, input.ResponseTime)
+
+	createInput := ChannelPreparation{TestTime: 300, ResponseTime: 456}
+	createInput.NormalizeForCreate()
+	require.Zero(t, createInput.TestTime)
+	require.Zero(t, createInput.ResponseTime)
+}
+
+func TestChannelPreparationResponseAndToChannelIncludeTestFields(t *testing.T) {
+	preparation := ChannelPreparation{
+		Type:         1,
+		Key:          "sk-test",
+		Name:         "candidate",
+		Group:        "default",
+		TestTime:     300,
+		ResponseTime: 456,
+	}
+
+	response := preparation.ToResponse()
+	require.Equal(t, int64(300), response.TestTime)
+	require.Equal(t, 456, response.ResponseTime)
+
+	channel := preparation.ToChannel()
+	require.Equal(t, int64(300), channel.TestTime)
+	require.Equal(t, 456, channel.ResponseTime)
+}
+
 func TestGetChannelPreparationsFiltersGroupByExactToken(t *testing.T) {
 	setupChannelPreparationModelTestDB(t)
 
