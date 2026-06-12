@@ -64,6 +64,7 @@ func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.
 		MatchedRule:        `The '([^']+)' model is not supported when using Codex with a ChatGPT account\.`,
 		LastError:          "access_token secret-token sk-sensitive",
 		AffectedChannelIDs: "11,12",
+		AbilitiesDisabled:  true,
 		DetectedAt:         time.Date(2026, 6, 10, 12, 0, 0, 0, time.Local).Unix(),
 	}
 
@@ -73,8 +74,27 @@ func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.
 	require.Contains(t, content, "Model: gpt-5.3-codex")
 	require.Contains(t, content, "Status: unsupported_pending_review")
 	require.Contains(t, content, "Affected Channels: 2 (11,12)")
+	require.Contains(t, content, "Auto Disabled: yes")
 	require.NotContains(t, content, "secret-token")
 	require.NotContains(t, content, "sk-sensitive")
+}
+
+func TestBuildDingTalkCodexModelGovernanceAlertContentHighlightsNotDisabled(t *testing.T) {
+	record := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.4-codex",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:             model.CodexModelGovernanceSourceOfficialCodexNotice,
+		MatchedRule:        "ai_analysis:deprecated",
+		LastError:          "gpt-5.4-codex is deprecated",
+		AffectedChannelIDs: "21",
+		AbilitiesDisabled:  false,
+	}
+
+	content := BuildDingTalkCodexModelGovernanceAlertContent(record)
+
+	require.Contains(t, content, "Auto Disabled: no")
+	require.Contains(t, content, "MODEL IS STILL SERVING")
+	require.Contains(t, content, "review and disable it as soon as possible")
 }
 
 func TestNotifyDingTalkCodexModelGovernanceSkipsWhenMonitorAlertDisabled(t *testing.T) {

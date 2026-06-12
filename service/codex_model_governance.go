@@ -11,6 +11,7 @@ const (
 	CodexModelGovernanceReviewActionConfirmRemove = "confirm_remove"
 	CodexModelGovernanceReviewActionRestore       = "restore"
 	CodexModelGovernanceReviewActionIgnore        = "ignore"
+	CodexModelGovernanceReviewActionDisable       = "disable"
 )
 
 type CodexModelUnsupportedFinding struct {
@@ -23,6 +24,14 @@ type CodexModelUnsupportedFinding struct {
 
 var notifyDingTalkCodexModelGovernance = NotifyDingTalkCodexModelGovernance
 
+// codexFindingShouldAutoDisable returns true only for probe findings: a probe
+// error is first-hand evidence from the upstream API, while official notice
+// and AI findings are inferred from fetched text and must wait for a human
+// decision before any routing change.
+func codexFindingShouldAutoDisable(source string) bool {
+	return source == model.CodexModelGovernanceSourceProbe
+}
+
 func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model.CodexModelGovernanceRecord, error) {
 	modelName := strings.TrimSpace(finding.ModelName)
 	if modelName == "" {
@@ -32,12 +41,14 @@ func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model
 	if err != nil {
 		return nil, err
 	}
+	source := strings.TrimSpace(finding.Source)
 	record, err := model.UpsertCodexModelGovernancePending(model.CodexModelGovernancePendingInput{
 		ModelName:          modelName,
-		Source:             strings.TrimSpace(finding.Source),
+		Source:             source,
 		MatchedRule:        strings.TrimSpace(finding.MatchedRule),
 		LastError:          strings.TrimSpace(finding.LastError),
 		AffectedChannelIDs: finding.AffectedChannelIDs,
+		DisableAbilities:   codexFindingShouldAutoDisable(source),
 	})
 	if err != nil {
 		return record, err
@@ -80,6 +91,10 @@ func codexModelGovernanceStatusForReviewAction(action string) (string, error) {
 		return model.CodexModelGovernanceStatusActive, nil
 	case CodexModelGovernanceReviewActionIgnore:
 		return model.CodexModelGovernanceStatusIgnored, nil
+	case CodexModelGovernanceReviewActionDisable:
+		// Disable keeps the record pending: the model-layer pending-review
+		// transition disables abilities and marks abilities_disabled.
+		return model.CodexModelGovernanceStatusUnsupportedPendingReview, nil
 	default:
 		return "", fmt.Errorf("unsupported Codex model governance review action: %s", action)
 	}

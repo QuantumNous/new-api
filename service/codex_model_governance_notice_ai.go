@@ -131,6 +131,11 @@ func ExtractCodexOfficialNoticeFindingsWithOptionalAIWithOptions(content string,
 	}
 	findings, err := ExtractCodexOfficialNoticeFindingsByAIWithOptions(content, modelNames, sourceURL, options)
 	if err != nil {
+		// Degrade to the keyword path so coverage never pauses while the AI
+		// endpoint is down. Official-notice findings only alert and wait for
+		// human review (they never auto-disable), so the worst case of the
+		// coarser rules is extra pending records, not a service impact. The
+		// non-nil error tells the caller to log the downgrade explicitly.
 		return ExtractCodexOfficialNoticeFindings(content, modelNames, terms), true, err
 	}
 	return findings, true, nil

@@ -149,7 +149,7 @@ func TestExtractCodexOfficialNoticeFindingsByAIReturnsErrorOnMalformedResponse(t
 	require.Error(t, err)
 }
 
-func TestExtractCodexOfficialNoticeFindingsWithOptionalAIFallsBackToRulesWhenAIUnavailable(t *testing.T) {
+func TestExtractCodexOfficialNoticeFindingsWithOptionalAIDowngradesToRulesWhenAIUnavailable(t *testing.T) {
 	allowCodexOfficialNoticeAITestServer(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -170,6 +170,9 @@ func TestExtractCodexOfficialNoticeFindingsWithOptionalAIFallsBackToRulesWhenAIU
 
 	require.True(t, usedAI)
 	require.Error(t, err)
+	// AI failure degrades to the keyword path so coverage never pauses.
+	// Official-notice findings only alert (never auto-disable), so the
+	// coarser rules cannot cause a service impact.
 	require.Len(t, findings, 1)
 	require.Equal(t, "gpt-5.3-codex", findings[0].ModelName)
 	require.Equal(t, "retired", findings[0].MatchedRule)

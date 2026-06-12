@@ -1067,7 +1067,10 @@ export function MonitoringSettingsSection({
                   <SettingsSwitchContent>
                     <FormLabel>{t('Probe Codex models')}</FormLabel>
                     <FormDescription>
-                      {t('Lightweight checks run only against Codex channels.')}
+                      {t('Lightweight checks run only against Codex channels.')}{' '}
+                      {t(
+                        'Note: automatic routing disable does not take effect when MEMORY_CACHE_ENABLED is on; rely on alerts and manual review in that mode.'
+                      )}
                     </FormDescription>
                   </SettingsSwitchContent>
                   <FormControl>

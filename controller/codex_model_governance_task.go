@@ -150,7 +150,7 @@ func runCodexOfficialNoticeMonitorOnce() {
 			},
 		)
 		if usedAI && err != nil {
-			common.SysError("Codex official notice AI analysis failed, falling back to keyword rules: " + err.Error())
+			common.SysError(fmt.Sprintf("Codex official notice AI analysis failed, downgraded to keyword rules and applied %d finding(s): %v", len(findings), err))
 		}
 		for _, finding := range findings {
 			if _, err := service.MoveCodexModelToPendingReview(finding); err != nil {

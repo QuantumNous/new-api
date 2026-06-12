@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, RotateCcw, ShieldAlert, XCircle } from 'lucide-react'
+import {
+  CheckCircle2,
+  RotateCcw,
+  ShieldAlert,
+  ShieldOff,
+  XCircle,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -57,8 +63,8 @@ const formatTimestamp = (timestamp: number): string => {
   return new Date(timestamp * 1000).toLocaleString()
 }
 
-const formatChannelIds = (channelIds: number[]): string => {
-  if (channelIds.length === 0) return '-'
+const formatChannelIds = (channelIds: number[] | null | undefined): string => {
+  if (!channelIds || channelIds.length === 0) return '-'
   return channelIds.map((id) => `#${id}`).join(', ')
 }
 
@@ -83,6 +89,17 @@ type GovernanceReviewRowProps = {
 function GovernanceReviewRow(props: GovernanceReviewRowProps) {
   const { t } = useTranslation()
   const actionButtons: ReviewActionButton[] = [
+    // Only offer one-click disable while the model is still serving.
+    ...(!props.record.abilities_disabled
+      ? [
+          {
+            action: 'disable',
+            label: t('Disable model'),
+            variant: 'destructive',
+            icon: ShieldOff,
+          } satisfies ReviewActionButton,
+        ]
+      : []),
     {
       action: 'confirm_remove',
       label: t('Confirm removal'),
@@ -124,7 +141,14 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
         </div>
       </TableCell>
       <TableCell className='align-top'>
-        <Badge variant='secondary'>{t(props.record.status)}</Badge>
+        <div className='flex flex-col gap-1.5'>
+          <Badge variant='secondary'>{t(props.record.status)}</Badge>
+          {props.record.abilities_disabled ? (
+            <Badge variant='outline'>{t('Routing disabled')}</Badge>
+          ) : (
+            <Badge variant='destructive'>{t('Still serving')}</Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell className='min-w-40 align-top whitespace-normal'>
         {formatChannelIds(props.record.affected_channel_ids)}
@@ -191,7 +215,10 @@ export function CodexModelGovernance() {
     }) =>
       reviewCodexModelGovernanceRecord(variables.record.id, {
         action: variables.action,
-        note: notesById[variables.record.id] ?? '',
+        // Same fallback chain as the Textarea so an untouched prefilled
+        // note is preserved instead of being overwritten with ''.
+        note:
+          notesById[variables.record.id] ?? variables.record.review_note ?? '',
       }),
     onMutate: (variables) => {
       setPendingReview({

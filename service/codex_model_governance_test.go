@@ -93,8 +93,8 @@ func TestMoveCodexModelToPendingReviewReturnsNotifierErrorAfterStateChange(t *te
 
 	record, err := MoveCodexModelToPendingReview(CodexModelUnsupportedFinding{
 		ModelName: "gpt-5.4-codex",
-		Source:    model.CodexModelGovernanceSourceOfficialCodexNotice,
-		LastError: "official notice",
+		Source:    model.CodexModelGovernanceSourceProbe,
+		LastError: "probe error",
 	})
 
 	require.Error(t, err)
@@ -103,6 +103,64 @@ func TestMoveCodexModelToPendingReviewReturnsNotifierErrorAfterStateChange(t *te
 	var disabledAbility model.Ability
 	require.NoError(t, model.DB.First(&disabledAbility, "channel_id = ? AND model = ?", 12, "gpt-5.4-codex").Error)
 	require.False(t, disabledAbility.Enabled)
+}
+
+func TestMoveCodexModelToPendingReviewOfficialNoticeAlertsWithoutDisabling(t *testing.T) {
+	setupCodexModelGovernanceServiceDB(t)
+	insertCodexModelGovernanceServiceChannel(t, 14, "gpt-5.4-codex")
+	originalNotifier := notifyDingTalkCodexModelGovernance
+	t.Cleanup(func() {
+		notifyDingTalkCodexModelGovernance = originalNotifier
+	})
+	var notified []string
+	notifyDingTalkCodexModelGovernance = func(record *model.CodexModelGovernanceRecord) error {
+		notified = append(notified, record.ModelName)
+		return nil
+	}
+
+	record, err := MoveCodexModelToPendingReview(CodexModelUnsupportedFinding{
+		ModelName: "gpt-5.4-codex",
+		Source:    model.CodexModelGovernanceSourceOfficialCodexNotice,
+		LastError: "gpt-5.4-codex is deprecated",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.Equal(t, model.CodexModelGovernanceStatusUnsupportedPendingReview, record.Status)
+	require.False(t, record.AbilitiesDisabled)
+	require.Equal(t, []string{"gpt-5.4-codex"}, notified)
+
+	var ability model.Ability
+	require.NoError(t, model.DB.First(&ability, "channel_id = ? AND model = ?", 14, "gpt-5.4-codex").Error)
+	require.True(t, ability.Enabled, "official notice findings must not auto-disable abilities")
+}
+
+func TestReviewCodexModelGovernanceDisableActionDisablesAndKeepsPending(t *testing.T) {
+	setupCodexModelGovernanceServiceDB(t)
+	insertCodexModelGovernanceServiceChannel(t, 15, "gpt-5.4-codex")
+	originalNotifier := notifyDingTalkCodexModelGovernance
+	t.Cleanup(func() {
+		notifyDingTalkCodexModelGovernance = originalNotifier
+	})
+	notifyDingTalkCodexModelGovernance = func(record *model.CodexModelGovernanceRecord) error { return nil }
+
+	record, err := MoveCodexModelToPendingReview(CodexModelUnsupportedFinding{
+		ModelName: "gpt-5.4-codex",
+		Source:    model.CodexModelGovernanceSourceOfficialCodexNotice,
+	})
+	require.NoError(t, err)
+	require.False(t, record.AbilitiesDisabled)
+
+	require.NoError(t, ReviewCodexModelGovernance(record.ID, CodexModelGovernanceReviewActionDisable, 1001, "operator confirmed"))
+
+	updated, err := model.GetCodexModelGovernanceRecord(record.ID)
+	require.NoError(t, err)
+	require.Equal(t, model.CodexModelGovernanceStatusUnsupportedPendingReview, updated.Status)
+	require.True(t, updated.AbilitiesDisabled)
+
+	var ability model.Ability
+	require.NoError(t, model.DB.First(&ability, "channel_id = ? AND model = ?", 15, "gpt-5.4-codex").Error)
+	require.False(t, ability.Enabled)
 }
 
 func TestReviewCodexModelGovernanceMapsActionsToModelStatuses(t *testing.T) {

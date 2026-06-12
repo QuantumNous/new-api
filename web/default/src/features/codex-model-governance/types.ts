@@ -26,6 +26,7 @@ export type CodexModelGovernanceReviewAction =
   | 'confirm_remove'
   | 'restore'
   | 'ignore'
+  | 'disable'
 
 export type CodexModelGovernanceRecord = {
   id: number
@@ -35,6 +36,7 @@ export type CodexModelGovernanceRecord = {
   matched_rule: string
   last_error: string
   affected_channel_ids: number[]
+  abilities_disabled: boolean
   detected_at: number
   last_checked_at: number
   reviewed_at: number

@@ -223,16 +223,28 @@ func BuildDingTalkCodexModelGovernanceAlertContent(record *model.CodexModelGover
 		detectedAt = time.Unix(record.DetectedAt, 0).Format("2006-01-02 15:04:05")
 	}
 	channelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
-	return strings.Join([]string{
+	autoDisabled := "no"
+	if record.AbilitiesDisabled {
+		autoDisabled = "yes"
+	}
+	lines := []string{
 		"Codex model governance alert",
 		fmt.Sprintf("Model: %s", sanitizeDingTalkAlertText(record.ModelName)),
 		fmt.Sprintf("Status: %s", sanitizeDingTalkAlertText(record.Status)),
 		fmt.Sprintf("Source: %s", sanitizeDingTalkAlertText(record.Source)),
 		fmt.Sprintf("Matched Rule: %s", sanitizeDingTalkAlertText(record.MatchedRule)),
 		fmt.Sprintf("Affected Channels: %d (%s)", len(channelIDs), sanitizeDingTalkAlertText(record.AffectedChannelIDs)),
+		fmt.Sprintf("Auto Disabled: %s", autoDisabled),
 		fmt.Sprintf("Reason: %s", sanitizeDingTalkAlertText(record.LastError)),
 		fmt.Sprintf("Detected At: %s", detectedAt),
-	}, "\n")
+	}
+	if !record.AbilitiesDisabled && record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview {
+		lines = append(lines,
+			"!! MODEL IS STILL SERVING USER REQUESTS !!",
+			"Please review and disable it as soon as possible in the Codex model governance page.",
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func sanitizeDingTalkAlertText(value string) string {

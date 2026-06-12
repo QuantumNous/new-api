@@ -32,6 +32,7 @@ type CodexModelGovernanceRecord struct {
 	MatchedRule        string `json:"matched_rule" gorm:"type:varchar(255)"`
 	LastError          string `json:"last_error" gorm:"type:text"`
 	AffectedChannelIDs string `json:"affected_channel_ids" gorm:"type:text"`
+	AbilitiesDisabled  bool   `json:"abilities_disabled" gorm:"default:false"`
 	DetectedAt         int64  `json:"detected_at" gorm:"bigint;index"`
 	LastCheckedAt      int64  `json:"last_checked_at" gorm:"bigint;index"`
 	ReviewedAt         int64  `json:"reviewed_at" gorm:"bigint"`
@@ -48,6 +49,11 @@ type CodexModelGovernancePendingInput struct {
 	LastError          string
 	AffectedChannelIDs []int
 	LastCheckedAt      int64
+	// DisableAbilities controls whether affected Codex abilities are disabled
+	// when the record enters pending review. Probe findings carry first-hand
+	// upstream error evidence and disable immediately; official notice and AI
+	// findings only alert and wait for a human decision.
+	DisableAbilities bool
 }
 
 func encodeCodexModelGovernanceChannelIDs(channelIDs []int) string {
@@ -131,6 +137,7 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 			MatchedRule:        strings.TrimSpace(input.MatchedRule),
 			LastError:          strings.TrimSpace(input.LastError),
 			AffectedChannelIDs: encodeCodexModelGovernanceChannelIDs(affectedChannelIDs),
+			AbilitiesDisabled:  input.DisableAbilities,
 			DetectedAt:         now,
 			LastCheckedAt:      lastCheckedAt,
 			CreatedTime:        now,
@@ -153,6 +160,11 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 			"last_checked_at":      lastCheckedAt,
 			"updated_time":         now,
 		}
+		// Never downgrade: once abilities were disabled (by a probe finding or
+		// an operator), an alert-only finding must not flip the flag back.
+		if input.DisableAbilities {
+			updates["abilities_disabled"] = true
+		}
 		if err := DB.Model(&CodexModelGovernanceRecord{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
 			return nil, err
 		}
@@ -161,8 +173,10 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 		}
 	}
 
-	if err := DisableCodexModelAbilities(modelName, affectedChannelIDs); err != nil {
-		return &record, err
+	if input.DisableAbilities {
+		if err := DisableCodexModelAbilities(modelName, affectedChannelIDs); err != nil {
+			return &record, err
+		}
 	}
 	return &record, nil
 }
@@ -350,14 +364,23 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 	nextStatus := strings.TrimSpace(status)
 	channelIDs := decodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
 	changed := false
+	abilitiesDisabled := record.AbilitiesDisabled
 	switch nextStatus {
 	case CodexModelGovernanceStatusActive:
+		// A removed record has already had the model stripped from
+		// channels.models; restoring abilities would silently do nothing.
+		// Fail loudly so the operator re-adds the model to channel config.
+		if record.Status == CodexModelGovernanceStatusRemoved {
+			tx.Rollback()
+			return fmt.Errorf("model %s has been removed from channel configuration; re-add it to the affected channels manually before restoring", record.ModelName)
+		}
 		actionChanged, err := restoreCodexModelAbilitiesWithDB(tx, record.ModelName, channelIDs)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 		changed = changed || actionChanged
+		abilitiesDisabled = false
 	case CodexModelGovernanceStatusRemoved:
 		actionChanged, err := removeCodexModelFromChannelsWithDB(tx, record.ModelName, channelIDs)
 		if err != nil {
@@ -365,6 +388,7 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 			return err
 		}
 		changed = changed || actionChanged
+		abilitiesDisabled = true
 	case CodexModelGovernanceStatusIgnored:
 	case CodexModelGovernanceStatusUnsupportedPendingReview:
 		actionChanged, err := setCodexModelAbilityEnabledWithDB(tx, record.ModelName, channelIDs, false)
@@ -373,6 +397,7 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 			return err
 		}
 		changed = changed || actionChanged
+		abilitiesDisabled = true
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported codex model governance status: %s", status)
@@ -380,11 +405,12 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 
 	now := common.GetTimestamp()
 	if err := tx.Model(&CodexModelGovernanceRecord{}).Where("id = ?", id).Updates(map[string]any{
-		"status":       nextStatus,
-		"reviewed_at":  now,
-		"reviewed_by":  reviewerID,
-		"review_note":  strings.TrimSpace(note),
-		"updated_time": now,
+		"status":             nextStatus,
+		"abilities_disabled": abilitiesDisabled,
+		"reviewed_at":        now,
+		"reviewed_by":        reviewerID,
+		"review_note":        strings.TrimSpace(note),
+		"updated_time":       now,
 	}).Error; err != nil {
 		tx.Rollback()
 		return err

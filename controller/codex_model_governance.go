@@ -18,6 +18,7 @@ type codexModelGovernanceRecordResponse struct {
 	MatchedRule        string `json:"matched_rule"`
 	LastError          string `json:"last_error"`
 	AffectedChannelIDs []int  `json:"affected_channel_ids"`
+	AbilitiesDisabled  bool   `json:"abilities_disabled"`
 	DetectedAt         int64  `json:"detected_at"`
 	LastCheckedAt      int64  `json:"last_checked_at"`
 	ReviewedAt         int64  `json:"reviewed_at"`
@@ -85,6 +86,11 @@ func TestCodexModelGovernanceRule(c *gin.Context) {
 }
 
 func buildCodexModelGovernanceRecordResponse(record model.CodexModelGovernanceRecord) codexModelGovernanceRecordResponse {
+	channelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	if channelIDs == nil {
+		// keep JSON as [] instead of null so frontend .length/.map never crash
+		channelIDs = []int{}
+	}
 	return codexModelGovernanceRecordResponse{
 		ID:                 record.ID,
 		ModelName:          record.ModelName,
@@ -92,7 +98,8 @@ func buildCodexModelGovernanceRecordResponse(record model.CodexModelGovernanceRe
 		Source:             record.Source,
 		MatchedRule:        record.MatchedRule,
 		LastError:          record.LastError,
-		AffectedChannelIDs: model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs),
+		AffectedChannelIDs: channelIDs,
+		AbilitiesDisabled:  record.AbilitiesDisabled,
 		DetectedAt:         record.DetectedAt,
 		LastCheckedAt:      record.LastCheckedAt,
 		ReviewedAt:         record.ReviewedAt,
