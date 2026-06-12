@@ -47,7 +47,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -228,8 +227,12 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 // ConvertImageRequest dispatches by image relay mode. Text-to-image
 // (generations) is an OpenAI-compatible JSON passthrough → /v1/images/generations.
-// Image-to-image (edits) is mapped to BlockRun's /v1/images/image2image body
-// (JSON + base64 data URI); multipart binary uploads are not supported.
+// Image-to-image (edits) accepts a standard OpenAI multipart/form-data request
+// (binary files in `image` / `image[]` / `mask` fields); new-api reads the files,
+// base64-encodes them, and forwards a JSON body to BlockRun's
+// /v1/images/image2image. The upstream wire format (JSON + base64 data URI) is
+// unchanged; only the client-facing interface changed from JSON+base64 to standard
+// OpenAI multipart.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if request.Model == "" {
 		return nil, errors.New("blockrun: image model is required")
@@ -247,36 +250,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		// OpenAI-compatible text-to-image: pass the request through unchanged.
 		return a.openaiAdaptor.ConvertImageRequest(c, info, request)
 	case relayconstant.RelayModeImagesEdits:
-		return buildImage2ImageBody(&request)
+		return buildImage2ImageEditBody(c, &request)
 	default:
 		return nil, errors.New("blockrun: unsupported image relay mode")
 	}
-}
-
-// buildImage2ImageBody validates an inbound OpenAI-style edit request and returns
-// it for a JSON passthrough to BlockRun's /v1/images/image2image. The source image
-// lives under the `image` key (dto.ImageRequest tag): a single base64 data URI as
-// a string, or an array for multi-image fusion. All modeled dto.ImageRequest fields
-// (quality, response_format, size, n, …) are forwarded; note that any unknown
-// client fields land in ImageRequest.Extra, which ImageRequest.MarshalJSON does
-// NOT re-emit, so they are dropped. Two fail-fast guards apply: a usable `image`
-// is required (multipart binary uploads are not supported — it must be a JSON
-// base64 data URI), and `mask` cannot be combined with multiple source images
-// (BlockRun constraint).
-func buildImage2ImageBody(req *dto.ImageRequest) (any, error) {
-	image := req.Image // json.RawMessage: a base64 data URI string or an array
-	// Reject absent / explicit-null / empty-string image. A raw len() check would
-	// accept `null` (4 bytes) and `""` (2 bytes) and pay the upstream for an
-	// imageless request; JsonRawMessageToString normalises both to "".
-	if common.JsonRawMessageToString(image) == "" {
-		return nil, errors.New("blockrun: image2image requires `image` as a base64 data URI string (or an array for fusion) in a JSON body; multipart upload is not supported")
-	}
-	// Treat an explicit JSON null mask as absent so it doesn't falsely trip the
-	// mask-vs-multi-image guard.
-	if common.JsonRawMessageToString(req.Mask) != "" && common.GetJsonType(image) == "array" {
-		return nil, errors.New("blockrun: `mask` cannot be combined with multiple source images")
-	}
-	return *req, nil
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
@@ -358,13 +335,18 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 // DoResponse delegates to the native handler for the inbound format so the
 // upstream bytes are returned without reshaping. Claude inbound → native Claude
 // SSE/JSON (thinking signatures, native content blocks, cache tokens); OpenAI
-// inbound → native OpenAI chat.completion shape.
+// inbound → native OpenAI chat.completion shape. Image modes are handled first:
+// streaming images go through streamImageResponse; non-streaming images go
+// through imageJSONResponseB64 (downloads URL→base64 for whitelabelling).
 //
 // Note on /v1/messages/count_tokens: there is no RelayMode for count_tokens in
 // relay/constant, so that path cannot route to this adaptor today — out of scope.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	if isImageStreamMode(c, info) {
 		return streamImageResponse(c, resp, info)
+	}
+	if isImageMode(info) {
+		return imageJSONResponseB64(c, resp, info)
 	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return a.claudeAdaptor.DoResponse(c, resp, info)
