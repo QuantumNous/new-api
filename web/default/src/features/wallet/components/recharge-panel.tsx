@@ -16,16 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Bitcoin, CreditCard, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CryptoDepositModal } from './crypto-deposit-modal'
-import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess } from '../api'
+import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory } from '../api'
 import { GLASS_CARD_CLS } from '../constants'
 import type { TopupInfo } from '../types'
+
+const HINT_LS_KEY = 'payment_hint_shown'
+const HINT_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
 const PRESET_AMOUNTS = [10, 50, 100, 500, 1000, 5000]
 
@@ -42,8 +46,30 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
   const [epayLoading, setEpayLoading] = useState<string | null>(null)
   const [paypalLoading, setPaypalLoading] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
+  const [showHint, setShowHint] = useState(false)
 
   const effectiveAmount = customAmount ? parseFloat(customAmount) || 0 : selectedAmount
+
+  const checkAndMaybeShowHint = useCallback(async () => {
+    const last = localStorage.getItem(HINT_LS_KEY)
+    if (last && Date.now() - Number(last) < HINT_COOLDOWN_MS) return
+    try {
+      const res = await getUserBillingHistory(1, 20, undefined, 'pending')
+      if (!res.success || !res.data?.items) return
+      const tenMinAgo = Date.now() / 1000 - 10 * 60
+      const recent = res.data.items.filter((r) => r.create_time > tenMinAgo)
+      if (recent.length < 2) return
+      setShowHint(true)
+      localStorage.setItem(HINT_LS_KEY, String(Date.now()))
+    } catch {
+      // silent
+    }
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('focus', checkAndMaybeShowHint)
+    return () => window.removeEventListener('focus', checkAndMaybeShowHint)
+  }, [checkAndMaybeShowHint])
 
   useEffect(() => {
     getTopupInfo()
@@ -309,14 +335,29 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
 
             </div>
 
-            {effectiveAmount > 0 && (
-              <p className='text-muted-foreground mt-2 text-xs'>
-                {t('You will pay')}:{' '}
-                <span className='font-mono font-semibold text-cyan-600'>
-                  ${effectiveAmount.toFixed(2)}
-                </span>
-              </p>
-            )}
+            <div className='mt-3 flex items-center justify-between'>
+              {effectiveAmount > 0
+                ? (
+                  <p className='text-muted-foreground text-xs'>
+                    {t('You will pay')}:{' '}
+                    <span className='font-mono font-semibold text-cyan-600'>
+                      ${effectiveAmount.toFixed(2)}
+                    </span>
+                  </p>
+                )
+                : <span />}
+              <a
+                href='https://t.me/apimasterai/73'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='flex items-center gap-1.5 rounded-full bg-[#229ED9]/10 px-3 py-1.5 text-xs font-semibold text-[#229ED9] transition-colors hover:bg-[#229ED9]/20'
+              >
+                <svg viewBox='0 0 24 24' className='size-3.5 shrink-0 fill-current' aria-hidden='true'>
+                  <path d='M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z'/>
+                </svg>
+                {t('Payment issue? Contact us')}
+              </a>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -330,6 +371,34 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
           onSuccess()
         }}
       />
+
+      <Dialog open={showHint} onOpenChange={setShowHint}>
+        <DialogContent className='max-w-sm text-center' showCloseButton>
+          <DialogHeader className='items-center gap-3'>
+            <div className='flex size-12 items-center justify-center rounded-full bg-[#229ED9]/10'>
+              <svg viewBox='0 0 24 24' className='size-6 fill-[#229ED9]' aria-hidden='true'>
+                <path d='M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z'/>
+              </svg>
+            </div>
+            <DialogTitle className='text-base'>{t('Having trouble with payment?')}</DialogTitle>
+            <DialogDescription className='text-sm'>
+              {t('Our team is ready to help on Telegram')}
+            </DialogDescription>
+          </DialogHeader>
+          <a
+            href='https://t.me/apimasterai/73'
+            target='_blank'
+            rel='noopener noreferrer'
+            onClick={() => setShowHint(false)}
+            className='mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[#229ED9] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1a8abf]'
+          >
+            <svg viewBox='0 0 24 24' className='size-4 fill-white' aria-hidden='true'>
+              <path d='M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z'/>
+            </svg>
+            {t('Get help on Telegram')}
+          </a>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

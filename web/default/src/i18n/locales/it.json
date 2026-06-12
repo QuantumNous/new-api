@@ -4490,6 +4490,10 @@
         "Recharge Rate": "Tasso di Ricarica",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Quando l'upstream non dispone di /api/pricing, utilizza il prezzo del modello pubblico romaapi × questo rapporto come fallback; lascia vuoto o 0 per disabilitare",
         "Country": "Paese",
-        "Order No. / Email / UID": "N. ordine / Email / UID"
+        "Order No. / Email / UID": "N. ordine / Email / UID",
+        "Payment issue? Contact us": "Problema di pagamento? Contattaci",
+        "Having trouble with payment?": "Problemi con il pagamento?",
+        "Our team is ready to help on Telegram": "Il nostro team è pronto ad aiutarti su Telegram",
+        "Get help on Telegram": "Ottieni aiuto su Telegram"
     }
 }

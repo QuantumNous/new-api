@@ -4490,7 +4490,11 @@
         "Fetch Groups": "Fetch Groups",
         "Recharge Rate": "Recharge Rate",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable",
-        "Country": "Country"
+        "Country": "Country",
+        "Payment issue? Contact us": "Payment issue? Contact us",
+        "Having trouble with payment?": "Having trouble with payment?",
+        "Our team is ready to help on Telegram": "Our team is ready to help on Telegram",
+        "Get help on Telegram": "Get help on Telegram"
     },
     "在线使用": "Playground",
     "推广有礼": "Affiliate",

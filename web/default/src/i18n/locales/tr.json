@@ -4490,6 +4490,10 @@
         "Recharge Rate": "Yükleme Oranı",
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "Upstream'de /api/pricing yoksa, romaapi genel model fiyatı × bu oran yedek olarak kullanılır; devre dışı bırakmak için boş bırakın veya 0 girin",
         "Country": "Ülke",
-        "Order No. / Email / UID": "Sipariş No. / E-posta / UID"
+        "Order No. / Email / UID": "Sipariş No. / E-posta / UID",
+        "Payment issue? Contact us": "Ödeme sorunu mu? Bize ulaşın",
+        "Having trouble with payment?": "Ödeme sorunuyla mı karşılaştınız?",
+        "Our team is ready to help on Telegram": "Ekibimiz Telegram'da yardıma hazır",
+        "Get help on Telegram": "Telegram'dan yardım alın"
     }
 }

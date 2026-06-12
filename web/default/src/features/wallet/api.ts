@@ -230,7 +230,8 @@ export async function transferAffiliateQuota(
 export async function getUserBillingHistory(
   page: number,
   pageSize: number,
-  keyword?: string
+  keyword?: string,
+  status?: string
 ): Promise<ApiResponse<BillingHistoryResponse>> {
   const params = new URLSearchParams({
     p: page.toString(),
@@ -238,6 +239,9 @@ export async function getUserBillingHistory(
   })
   if (keyword) {
     params.append('keyword', keyword)
+  }
+  if (status) {
+    params.append('status', status)
   }
   const res = await api.get(`/api/user/topup/self?${params.toString()}`)
   return res.data

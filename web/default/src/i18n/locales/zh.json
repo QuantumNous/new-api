@@ -4492,6 +4492,10 @@
         "When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable": "当上游无 /api/pricing 时，用 romaapi 公开模型价格 × 此倍率作为回退定价；留空或 0 表示不启用",
         "User Price Ratio": "用户价格倍率",
         "User final price = procurement price × this ratio. Leave blank or 1.0 for no markup. Affects actual billing and marketplace display.": "用户最终价格 = 采购价 × 此倍率。留空或填 1.0 表示不加价。影响实际计费与模型广场展示价格。",
-        "Country": "国家"
+        "Country": "国家",
+        "Payment issue? Contact us": "支付遇到问题？联系我们",
+        "Having trouble with payment?": "支付遇到问题了？",
+        "Our team is ready to help on Telegram": "我们的团队在 Telegram 随时为你解答",
+        "Get help on Telegram": "前往 Telegram 求助"
     }
 }
