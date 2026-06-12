@@ -630,6 +630,15 @@ export function ChannelMutateDrawer({
   }, [currentType, isEditing, form])
 
   useEffect(() => {
+    if (currentType !== 45 || currentBaseUrl !== 'doubao-coding-plan') return
+
+    form.setValue('base_url', 'https://ark.cn-beijing.volces.com', {
+      shouldDirty: false,
+      shouldValidate: true,
+    })
+  }, [currentBaseUrl, currentType, form])
+
+  useEffect(() => {
     if (isEditing || supportsMultiKeyAddMode) return
     if (multiKeyMode && multiKeyMode !== 'single') {
       form.setValue('multi_key_mode', 'single', {
@@ -1699,15 +1708,13 @@ export function ChannelMutateDrawer({
                                     'https://ark.ap-southeast.bytepluses.com'
                                   ),
                                 },
-                                {
-                                  value: 'doubao-coding-plan',
-                                  label: t('Doubao Coding Plan'),
-                                },
                               ]}
                               onValueChange={field.onChange}
                               value={
-                                field.value ||
-                                'https://ark.cn-beijing.volces.com'
+                                field.value === 'doubao-coding-plan'
+                                  ? 'https://ark.cn-beijing.volces.com'
+                                  : field.value ||
+                                    'https://ark.cn-beijing.volces.com'
                               }
                             >
                               <FormControl>
@@ -1724,9 +1731,6 @@ export function ChannelMutateDrawer({
                                     {t(
                                       'https://ark.ap-southeast.bytepluses.com'
                                     )}
-                                  </SelectItem>
-                                  <SelectItem value='doubao-coding-plan'>
-                                    {t('Doubao Coding Plan')}
                                   </SelectItem>
                                 </SelectGroup>
                               </SelectContent>
