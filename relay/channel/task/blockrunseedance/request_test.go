@@ -198,13 +198,15 @@ func TestValidateSeedanceValues_AcceptsSupported(t *testing.T) {
 }
 
 func TestValidateResolution(t *testing.T) {
-	// Widened allowlist incl. 540p/1K/2K, case-insensitive.
-	for _, r := range []string{"", "360p", "480p", "540p", "720p", "1080p", "1k", "1K", "2k", "2K", "4k", "4K", "720P", "540P"} {
+	// Allowlist aligned to BlockRun's documented seedance set, case-insensitive.
+	for _, r := range []string{"", "360p", "480p", "720p", "1080p", "4k", "4K", "720P", "1080P"} {
 		if err := validateResolution(r); err != nil {
 			t.Fatalf("validateResolution(%q) should pass: %v", r, err)
 		}
 	}
-	for _, r := range []string{"999p", "8k", "foo"} {
+	// 540p / 1K / 2K are NOT in BlockRun's documented set — reject them locally so
+	// the x402 pre-sign never burns on an upstream 4xx.
+	for _, r := range []string{"999p", "8k", "foo", "540p", "540P", "1k", "1K", "2k", "2K"} {
 		if err := validateResolution(r); err == nil {
 			t.Fatalf("validateResolution(%q) should fail", r)
 		}

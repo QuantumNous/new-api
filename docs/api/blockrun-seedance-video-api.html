@@ -135,7 +135,7 @@
     <tr><td>文生视频（text）</td><td><span class="b b-ok">✅ 支持</span></td><td>纯提示词生成</td></tr>
     <tr><td>图生视频（单图 <code>image_url</code>，无 role）</td><td><span class="b b-ok">✅ 支持</span></td><td>单张种子图，图生视频模式</td></tr>
     <tr><td>角色 / 真人一致（<code>real_face_asset_id</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>透传已有 <code>ta_</code> 资产；仅 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>；与图片输入互斥</td></tr>
-    <tr><td>分辨率（<code>resolution</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td><code>360p</code> / <code>480p</code> / <code>540p</code> / <code>720p</code> / <code>1080p</code> / <code>1K</code> / <code>2K</code> / <code>4K</code></td></tr>
+    <tr><td>分辨率（<code>resolution</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td><code>360p</code> / <code>480p</code> / <code>720p</code> / <code>1080p</code> / <code>4K</code>（默认 720p）</td></tr>
     <tr><td>时长（<code>duration</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>秒；默认值 / 上限由所选模型决定（不传用模型默认）</td></tr>
     <tr><td>同步音频（<code>generate_audio</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>是否生成同步音频</td></tr>
     <tr><td>画面比例（<code>aspect_ratio</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>客户端字段名 <code>ratio</code>，值 <code>adaptive</code> / <code>16:9</code> / <code>9:16</code> / <code>1:1</code> / <code>4:3</code> / <code>3:4</code> / <code>21:9</code> / <code>9:21</code></td></tr>
@@ -191,7 +191,7 @@
     <tr><th>字段</th><th>类型</th><th>必填</th><th>状态</th><th>说明</th></tr>
     <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td><span class="b b-ok">✅</span></td><td><code>seedance-2.0</code> / <code>seedance-2.0-fast</code> / <code>seedance-1.5-pro</code>（以服务开放的名称为准）</td></tr>
     <tr><td><code>content</code></td><td>array</td><td class="req">必填</td><td><span class="b b-ok">✅</span></td><td>多模态输入数组，见下「content 元素」。至少含一条文本，或一张图片</td></tr>
-    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td><code>360p</code> / <code>480p</code> / <code>540p</code> / <code>720p</code> / <code>1080p</code> / <code>1K</code> / <code>2K</code> / <code>4K</code>（大小写不敏感）。其他值<strong>提交报错</strong></td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td><code>360p</code> / <code>480p</code> / <code>720p</code> / <code>1080p</code> / <code>4K</code>（默认 720p，大小写不敏感）。其他值<strong>提交报错</strong></td></tr>
     <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>时长（秒）；默认值 / 上限由所选模型决定；不传用模型默认</td></tr>
     <tr><td><code>generate_audio</code></td><td>bool</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>是否生成同步音频</td></tr>
     <tr><td><code>real_face_asset_id</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>顶层字段。角色 / 真人一致资产（<code>ta_</code> 前缀）。<strong>仅</strong> <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>；与图片输入<strong>互斥</strong>；资产需线下预先持有（本服务不提供登记）</td></tr>
@@ -318,7 +318,7 @@
     <tr><td>只给 <code>last_frame</code> 不给 <code>first_frame</code></td><td><code>last_frame requires a first_frame image as the starting frame</code></td><td>补一张 <code>first_frame</code></td></tr>
     <tr><td>首尾帧与参考图混用</td><td><code>first_frame/last_frame cannot be combined with reference images</code></td><td>只用一种图像输入模式</td></tr>
     <tr><td>多图 / 显式 <code>reference_image</code> 用于 <code>seedance-1.5-pro</code></td><td><code>reference images (omni) are only supported on seedance-2.0 / seedance-2.0-fast</code></td><td>换 2.0 / 2.0-fast，或用单张无 role 图</td></tr>
-    <tr><td>不支持的 <code>resolution</code></td><td><code>unsupported resolution ...</code></td><td>用 360p/480p/540p/720p/1080p/1K/2K/4K</td></tr>
+    <tr><td>不支持的 <code>resolution</code></td><td><code>unsupported resolution ...</code></td><td>用 360p/480p/720p/1080p/4K</td></tr>
     <tr><td><code>real_face_asset_id</code> 用于 <code>seedance-1.5-pro</code></td><td><code>real_face_asset_id is only supported on seedance-2.0 / seedance-2.0-fast</code></td><td>换 2.0 / 2.0-fast</td></tr>
     <tr><td><code>real_face_asset_id</code> 与图片同时传</td><td><code>image input and real_face_asset_id are mutually exclusive</code></td><td>二选一</td></tr>
     <tr><td><code>real_face_asset_id</code> 格式错误</td><td><code>real_face_asset_id must start with 'ta_'</code></td><td>使用合法 <code>ta_</code> 资产</td></tr>
