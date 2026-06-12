@@ -22,7 +22,7 @@
 // amount, recipient, and validity window of every signature. A compromised
 // BlockRun (or a MITM if TLS is broken) could craft a 402 that authorises a
 // year-long drain to an attacker address. SignX402Payment enforces strict
-// bounds (max 5-minute window, Base USDC asset only, ≤1 USDC per call) before
+// bounds (max 5-minute window, Base USDC asset only, ≤5 USDC per call) before
 // signing. See x402.go.
 //
 // The private key never leaves the process — only the signature is transmitted.
@@ -325,7 +325,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	// authorization window — the same signature must stay valid through
 	// generation, whether the request is held open or polled — so raise the
 	// window cap for them; chat keeps the default 300s window. Amount cap
-	// stays at the default $1.
+	// stays at the default $5.
 	var paymentB64 string
 	var signErr error
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {

@@ -55,12 +55,15 @@ const (
 	expectedNetworkBaseSepoli = "eip155:84532"
 )
 
-// maxAmountAtomicUSDC caps the per-call charge to 1 USDC (6 decimals).
-// Any single Chat Completions call charging >$1 indicates a bug or an
-// attempt at fund extraction — refuse to sign. Tune if you legitimately
-// run high-cost models per call. Stored as a *big.Int constructed once at
-// package init so we never have to handle a parse failure at request time.
-var maxAmountAtomicUSDC = big.NewInt(1_000_000)
+// maxAmountAtomicUSDC caps the per-call charge to 5 USDC (6 decimals).
+// Any single Chat Completions call charging >$5 indicates a bug or an
+// attempt at fund extraction — refuse to sign. Raised from $1 after the
+// 2026-06-10 incident: legitimate large-context claude-sonnet-4-6 calls
+// were quoted $1.15–$1.18 by upstream and got rejected. Tune if you
+// legitimately run higher-cost models per call. Stored as a *big.Int
+// constructed once at package init so we never have to handle a parse
+// failure at request time.
+var maxAmountAtomicUSDC = big.NewInt(5_000_000)
 
 // SignX402Payment parses the 402 response's payment requirements, validates
 // the upstream-supplied parameters against this gateway's trust policy, signs
@@ -75,7 +78,7 @@ func SignX402Payment(resp *http.Response, privateKeyHex, resourceURLFallback str
 }
 
 // SignX402PaymentWithLimits is SignX402Payment with a caller-supplied per-call
-// USDC cap (atomic units, 6 decimals). Video calls legitimately exceed the $1
+// USDC cap (atomic units, 6 decimals). Video calls legitimately exceed the $5
 // chat cap, so the video channel passes a higher ceiling here while reusing the
 // exact same network/asset/window/payTo trust-boundary checks (default window).
 func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFallback string, maxAmountAtomic *big.Int) (string, error) {
@@ -120,7 +123,7 @@ func SignX402PaymentWithCaps(resp *http.Response, privateKeyHex, resourceURLFall
 }
 
 // validatePaymentOption rejects any 402 advertisement outside our trust policy
-// using the default $1 chat cap. Centralised here so the rules are easy to audit
+// using the default $5 chat cap. Centralised here so the rules are easy to audit
 // and bypass-impossible.
 func validatePaymentOption(opt *blockrunSDK.PaymentOption) error {
 	return validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC)

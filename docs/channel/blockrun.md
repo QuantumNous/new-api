@@ -121,7 +121,7 @@ x402 是个"两跳"协议：客户端先发不带签名的请求，服务器回 
    │     · network 白名单           │
    │     · asset == Base USDC v2    │
    │     · payTo 合法 ETH 地址      │
-   │     · amount ≤ 1 USDC          │
+   │     · amount ≤ 5 USDC          │
    │  3. EIP-712 typed-data hash:   │
    │     domain = {USD Coin, 2,     │
    │              8453, USDC addr}  │
@@ -239,7 +239,7 @@ relay/channel/blockrun/
 | `Network` | 严格等于 `eip155:8453` 或 `eip155:84532` | 拒签（不允许其他链）|
 | `Asset` | `strings.EqualFold` 等于 `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | 拒签（不允许其他 ERC-20）|
 | `PayTo` | 0x 前缀 + 40 hex 字符 | 拒签 |
-| `Amount` | `big.Int` 解析后为正、≤ 1_000_000（1 USDC）| 拒签 |
+| `Amount` | `big.Int` 解析后为正、≤ 5_000_000（5 USDC）| 拒签 |
 
 所有校验路径都有单测覆盖（24 个 reject case 涵盖前导零、零宽空格、null byte、科学计数法、负数、超界等 bypass 尝试）。
 
