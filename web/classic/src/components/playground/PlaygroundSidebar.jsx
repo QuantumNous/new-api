@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo, useState } from 'react';
-import { Input, Typography } from '@douyinfe/semi-ui';
+import { Input } from '@douyinfe/semi-ui';
 import {
   TerminalSquare,
   MessageCircleMore,
@@ -220,28 +220,6 @@ const PlaygroundSidebar = ({
         className={`new-playground-sidebar ${isMobile ? 'is-mobile' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`}
       >
         <>
-          <div className='new-playground-sidebar-header'>
-            <div className='new-playground-brand'>
-              {renderBrandMark()}
-              <div className='new-playground-brand-copy'>
-                <Typography.Title heading={5} className='!mb-0 brand-title'>
-                  {t('操练场')}
-                </Typography.Title>
-              </div>
-            </div>
-
-            <div className='new-playground-sidebar-header-actions'>
-              <button
-                type='button'
-                className='sidebar-icon-button'
-                aria-label={isMobile ? t('关闭侧边栏') : t('收起侧边栏')}
-                onClick={handlePrimaryToggle}
-              >
-                <PanelRightOpen size={17} />
-              </button>
-            </div>
-          </div>
-
           <button
             type='button'
             className='new-chat-button'
