@@ -37,6 +37,7 @@ export function ProviderBadge({
 
   return (
     <div
+      data-slot='provider-badge'
       className={cn(
         'flex min-w-0 max-w-full items-center gap-1.5',
         className
@@ -47,7 +48,10 @@ export function ProviderBadge({
         label={label}
         autoColor={label}
         size='sm'
-        className='min-w-0 shrink overflow-hidden'
+        className={cn(
+          'min-w-0 shrink overflow-hidden',
+          !icon && 'pl-0'
+        )}
         {...badgeProps}
       />
     </div>
