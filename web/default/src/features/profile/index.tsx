@@ -70,7 +70,7 @@ export function Profile() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>个人资料</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Profile')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='mx-auto w-full max-w-5xl space-y-6'>
           <div className='flex items-center gap-5'>
@@ -87,10 +87,10 @@ export function Profile() {
               )}
               <div className='mt-2 flex gap-2'>
                 <Button variant='outline' size='sm' className='h-8 text-xs'>
-                  Change Avatar
+                  {t('Change Avatar')}
                 </Button>
                 <Button variant='ghost' size='sm' className='h-8 text-xs'>
-                  Login QR Code
+                  {t('Login QR Code')}
                 </Button>
               </div>
             </div>
@@ -98,17 +98,17 @@ export function Profile() {
 
           <Tabs defaultValue='basic' className='w-full'>
             <TabsList className='grid w-full grid-cols-3'>
-              <TabsTrigger value='basic'>Basic Info</TabsTrigger>
-              <TabsTrigger value='security'>Security</TabsTrigger>
-              <TabsTrigger value='oauth'>OAuth Bindings</TabsTrigger>
+              <TabsTrigger value='basic'>{t('Basic Info')}</TabsTrigger>
+              <TabsTrigger value='security'>{t('Security')}</TabsTrigger>
+              <TabsTrigger value='oauth'>{t('OAuth Bindings')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value='basic' className='mt-4 space-y-4'>
               <div className='bg-card rounded-[8px] border p-5 shadow-sm'>
-                <h3 className='mb-4 text-sm font-semibold'>Basic Information</h3>
+                <h3 className='mb-4 text-sm font-semibold'>{t('Basic Information')}</h3>
                 <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
                   <div className='space-y-1.5'>
-                    <Label className='text-xs'>Username</Label>
+                    <Label className='text-xs'>{t('Username')}</Label>
                     <Input
                       value={profile?.username || ''}
                       readOnly
@@ -116,7 +116,7 @@ export function Profile() {
                     />
                   </div>
                   <div className='space-y-1.5'>
-                    <Label className='text-xs'>Display Name</Label>
+                    <Label className='text-xs'>{t('Display Name')}</Label>
                     <Input
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
@@ -124,7 +124,7 @@ export function Profile() {
                     />
                   </div>
                   <div className='space-y-1.5'>
-                    <Label className='text-xs'>Email</Label>
+                    <Label className='text-xs'>{t('Email')}</Label>
                     <Input
                       value={profile?.email || ''}
                       readOnly
@@ -132,7 +132,7 @@ export function Profile() {
                     />
                   </div>
                   <div className='space-y-1.5'>
-                    <Label className='text-xs'>Group</Label>
+                    <Label className='text-xs'>{t('Group')}</Label>
                     <Input
                       value={profile?.group || ''}
                       readOnly
@@ -168,11 +168,10 @@ export function Profile() {
               {canConfigureSidebar && (
                 <div className='bg-card rounded-[8px] border p-5 shadow-sm'>
                   <h3 className='mb-2 text-sm font-semibold'>
-                    Sidebar Settings
+                    {t('Sidebar Settings')}
                   </h3>
                   <p className='text-muted-foreground text-xs'>
-                    Sidebar module configuration is available in the settings
-                    panel.
+                    {t('Sidebar module configuration is available in the settings panel.')}
                   </p>
                 </div>
               )}

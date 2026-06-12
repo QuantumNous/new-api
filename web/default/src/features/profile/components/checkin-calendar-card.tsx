@@ -218,7 +218,15 @@ export function CheckinCalendarCard({
     return days
   }, [currentMonth])
 
-  const weekDays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+  const weekDays = [
+    t('Su'),
+    t('Mo'),
+    t('Tu'),
+    t('We'),
+    t('Th'),
+    t('Fr'),
+    t('Sa'),
+  ]
 
   if (!checkinEnabled) {
     return null
