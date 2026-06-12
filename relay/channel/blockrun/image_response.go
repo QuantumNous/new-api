@@ -16,15 +16,21 @@ import (
 
 // ensureImageB64 fills item.B64Json by downloading item.Url when only a URL is
 // present (whitelabel: the client receives bytes, never the upstream CDN host),
-// then blanks the URL. On download failure it degrades — keep the URL, log a
-// warning — because the upstream charge already happened and failing a paid,
-// completed generation is worse than a rare whitelabel leak.
+// then blanks the URL. When bytes are already present it still blanks any URL so
+// the two never ship together (defends against an upstream that returns both).
+// On download failure it degrades — keep the URL, log a warning — because the
+// upstream charge already happened and failing a paid, completed generation is
+// worse than a rare whitelabel leak.
 //
 // Note: this deliberately overrides response_format=url — BlockRun image
 // results are always delivered as b64_json so the upstream CDN host is never
 // exposed to the client. This is a conscious whitelabel trade-off.
 func ensureImageB64(c *gin.Context, info *relaycommon.RelayInfo, item *dto.ImageData) {
-	if item.B64Json != "" || item.Url == "" {
+	if item.B64Json != "" {
+		item.Url = "" // never expose the CDN host alongside bytes already in hand
+		return
+	}
+	if item.Url == "" {
 		return
 	}
 	b64, err := downloadImageAsBase64(c, info, item.Url)

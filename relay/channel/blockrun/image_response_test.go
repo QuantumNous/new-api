@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 
@@ -125,6 +126,23 @@ func TestImageJSONResponseB64_B64AlreadyPresent(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "aGVsbG8=") {
 		t.Fatalf("b64_json must be passed through unchanged: %s", w.Body.String())
+	}
+}
+
+// TestEnsureImageB64_ClearsURLWhenB64Present asserts that when bytes are already
+// in hand, any upstream CDN url is blanked so b64 and url never ship together
+// (defends the whitelabel invariant against an upstream that returns both).
+func TestEnsureImageB64_ClearsURLWhenB64Present(t *testing.T) {
+	c, _ := newImageJSONCtx(t)
+	item := dto.ImageData{B64Json: "aGk=", Url: "https://cdn.upstream.example/x.png"}
+
+	ensureImageB64(c, imageJSONInfo(), &item)
+
+	if item.Url != "" {
+		t.Fatalf("url must be cleared when b64 is already present, got %q", item.Url)
+	}
+	if item.B64Json != "aGk=" {
+		t.Fatalf("b64 must be preserved unchanged, got %q", item.B64Json)
 	}
 }
 

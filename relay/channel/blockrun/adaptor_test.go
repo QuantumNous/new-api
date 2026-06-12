@@ -465,6 +465,66 @@ func TestConvertImageRequest_EditMaskWithSingleImageAllowed(t *testing.T) {
 	}
 }
 
+// TestConvertImageRequest_EditTooManyImagesRejected asserts the per-request
+// source-image count cap (maxImageEditImages): more than the cap is rejected with
+// a clear client error rather than silently fusing dozens of images.
+func TestConvertImageRequest_EditTooManyImagesRejected(t *testing.T) {
+	imgs := make([][]byte, maxImageEditImages+1)
+	for i := range imgs {
+		imgs[i] = pngBytes(byte(i))
+	}
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit", nil, imgs, nil)
+
+	_, err := (&Adaptor{}).ConvertImageRequest(c, editInfo(), dto.ImageRequest{Model: "openai/gpt-image-2"})
+	if err == nil {
+		t.Fatalf("expected rejection for more than %d source images", maxImageEditImages)
+	}
+	if !strings.Contains(err.Error(), "at most") {
+		t.Fatalf("error should mention the cap, got %v", err)
+	}
+}
+
+// TestCollectMultipartFiles_NumericBracketOrder asserts that image[N] indexed
+// fields are ordered by NUMERIC index, so image[10] follows image[2]. A plain
+// string sort would put image[10] before image[2] and scramble fusion order.
+func TestCollectMultipartFiles_NumericBracketOrder(t *testing.T) {
+	mf := &multipart.Form{File: map[string][]*multipart.FileHeader{
+		"image[10]": {{Filename: "ten"}},
+		"image[2]":  {{Filename: "two"}},
+		"image[0]":  {{Filename: "zero"}},
+	}}
+	out := collectMultipartFiles(mf, "image")
+	var got []string
+	for _, fh := range out {
+		got = append(got, fh.Filename)
+	}
+	want := "zero,two,ten"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("numeric bracket order expected [%s], got %v", want, got)
+	}
+}
+
+// TestCollectMultipartFiles_PlainBeforeBracketAndNonNumericLast locks the overall
+// ordering contract: bare `image`, then `image[]`, then numeric `image[N]`, then
+// any non-numeric bracket name (stable lexicographic) last.
+func TestCollectMultipartFiles_PlainBeforeBracketAndNonNumericLast(t *testing.T) {
+	mf := &multipart.Form{File: map[string][]*multipart.FileHeader{
+		"image":    {{Filename: "plain"}},
+		"image[]":  {{Filename: "arr"}},
+		"image[1]": {{Filename: "one"}},
+		"image[x]": {{Filename: "nonnum"}},
+	}}
+	out := collectMultipartFiles(mf, "image")
+	var got []string
+	for _, fh := range out {
+		got = append(got, fh.Filename)
+	}
+	want := "plain,arr,one,nonnum"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("ordering expected [%s], got %v", want, got)
+	}
+}
+
 // TestSetupRequestHeader_ImageForcesJSON asserts that for image relay modes the
 // outbound Content-Type is forced to application/json — the edits body is always
 // JSON, so a multipart inbound Content-Type must NOT be copied through verbatim.
