@@ -23,6 +23,7 @@ import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { ensureGtagLoaded, trackAdsFunnelEvent } from '@/lib/analytics/gtag'
+import { ensurePixelsLoaded } from '@/lib/analytics/pixels'
 import {
   CTA,
   Features,
@@ -42,6 +43,7 @@ export function Home() {
 
   useEffect(() => {
     void ensureGtagLoaded()
+    ensurePixelsLoaded()
     trackAdsFunnelEvent('flatkey_landing_view', {
       path: window.location.pathname,
       lng: new URLSearchParams(window.location.search).get('lng') || undefined,
