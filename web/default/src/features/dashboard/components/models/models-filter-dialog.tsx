@@ -53,6 +53,8 @@ interface ModelsFilterProps {
   preferences: DashboardChartPreferences
   onFilterChange: (filters: DashboardFilters) => void
   onReset: () => void
+  titleKey?: string
+  descriptionKey?: string
 }
 
 /**
@@ -145,8 +147,11 @@ export function ModelsFilter(props: ModelsFilterProps) {
           {t('Filter')}
         </Button>
       }
-      title={t('Model Analytics Filters')}
-      description={t('Filter the model analytics view by time range and user.')}
+      title={t(props.titleKey ?? 'Model Analytics Filters')}
+      description={t(
+        props.descriptionKey ??
+          'Filter the model analytics view by time range and user.'
+      )}
       contentClassName='max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-lg'
       contentHeight='min(48vh, 460px)'
       footerClassName='grid grid-cols-2 gap-2 sm:flex'
