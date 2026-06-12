@@ -12,7 +12,7 @@
 - 新建/维护只供 CC Switch 导入使用的服务内模型缓存。
 - 默认应用固定为 Codex，默认模型从同一份用户可用模型数据中选择。
 - 停用导入审计表和用户偏好表的代码使用与 AutoMigrate 注册，不自动删除旧数据库表。
-- 调整默认前端和经典前端弹窗文案与样式。
+- 调整默认前端和经典前端弹窗文案与样式，并对“导入 CC Switch”弹窗做限定范围内的 UI 调衡。
 
 ## 修改文件
 
@@ -26,8 +26,8 @@
 | `model/main.go`、`model/ccswitch_import.go` | 移除旧表 AutoMigrate 注册并删除旧表 Model 文件 |
 | `controller/model_meta.go`、`controller/vendor_meta.go` | 移除模型/供应商写操作后对旧导入缓存的即时失效调用，缓存改由启动和整点刷新 |
 | `controller/token_test.go`、`service/ccswitch_model_cache_test.go` | 更新测试断言到新缓存、固定供应商名和不写旧表逻辑 |
-| `web/default/src/features/keys/` | 默认前端改为只请求一次 `import-options`，本地筛选模型，调整令牌名称/API Key 样式 |
-| `web/classic/src/components/table/tokens/modals/CCSwitchModal.jsx` | 经典前端同样改为本地筛选模型，默认 Codex，调整文案与样式 |
+| `web/default/src/features/keys/` | 默认前端改为只请求一次 `import-options`，本地筛选模型，调整令牌名称/API Key 样式，并优化应用分段选择、模型列表和信息层级 |
+| `web/classic/src/components/table/tokens/modals/CCSwitchModal.jsx` | 经典前端同样改为本地筛选模型，默认 Codex，调整文案与样式，并优化弹窗内视觉层级 |
 | `web/classic/src/i18n/locales/*.json` | 补充经典前端 `当前令牌` 翻译 |
 | `docs/change-log.md`、`docs/project-map.md`、`docs/windows-docker-development.md`、`docs/changes/2026-06-10-ccswitch-token-import.md` | 更新活跃维护文档，并标注旧表逻辑已废弃 |
 | `docs/changes/2026-06-11-ccswitch-import-adjustment-plan.md` | 保存执行计划 |
@@ -40,6 +40,7 @@
 - 模型缓存启动时刷新一次，之后按本地时间每个整点刷新；刷新失败保留旧快照。
 - 默认模型优先选择 OpenAI/Anthropic 中添加时间最新的模型，同时间优先 OpenAI；没有这两类渠道时选择全量最新；没有模型时使用 `gpt-5.5`。
 - 导入到 CC Switch 的供应商名称固定为 `Xistree`，不再使用令牌名称。
+- 默认前端和经典前端的导入弹窗视觉更统一：令牌信息使用浅底信息区，应用选择使用分段控件，模型选择区保持浅底和更清晰的选择层级。
 - 旧的 `ccswitch_import_logs` 与 `user_ccswitch_preferences` 表不再由当前代码读写或迁移；已存在旧表不自动删除。
 
 ## 验证结果
