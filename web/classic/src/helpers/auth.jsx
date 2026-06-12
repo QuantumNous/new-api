@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { history } from './history';
+import { canViewAdmin } from './utils';
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -55,8 +56,8 @@ export function AdminRoute({ children }) {
     return <Navigate to='/login' state={{ from: history.location }} />;
   }
   try {
-    const user = JSON.parse(raw);
-    if (user && typeof user.role === 'number' && user.role >= 10) {
+    JSON.parse(raw);
+    if (canViewAdmin()) {
       return children;
     }
   } catch (e) {

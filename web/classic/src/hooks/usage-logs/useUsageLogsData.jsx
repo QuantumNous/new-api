@@ -23,7 +23,7 @@ import { Modal } from '@douyinfe/semi-ui';
 import {
   API,
   getTodayStartTimestamp,
-  isAdmin,
+  canViewAdmin,
   showError,
   showSuccess,
   timestamp2string,
@@ -76,7 +76,7 @@ export const useLogsData = () => {
   const [logType, setLogType] = useState(0);
 
   // User and admin
-  const isAdminUser = isAdmin();
+  const isAdminUser = canViewAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
   const STORAGE_KEY = isAdminUser
     ? 'logs-table-columns-admin'

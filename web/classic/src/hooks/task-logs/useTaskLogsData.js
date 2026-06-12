@@ -23,7 +23,7 @@ import { Modal } from '@douyinfe/semi-ui';
 import {
   API,
   copy,
-  isAdmin,
+  canViewAdmin,
   showError,
   showSuccess,
   timestamp2string,
@@ -58,7 +58,7 @@ export const useTaskLogsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
 
   // User and admin
-  const isAdminUser = isAdmin();
+  const isAdminUser = canViewAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
   const STORAGE_KEY = isAdminUser
     ? 'task-logs-table-columns-admin'

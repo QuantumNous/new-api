@@ -65,6 +65,7 @@ export const getUserStatusOptions = (t: (key: string) => string) => [
 
 export const USER_ROLE = {
   USER: 1,
+  READ_ONLY_ADMIN: 9,
   ADMIN: 10,
   ROOT: 100,
 } as const
@@ -80,6 +81,11 @@ export const USER_ROLES = {
     value: USER_ROLE.ADMIN,
     icon: Users,
   },
+  [USER_ROLE.READ_ONLY_ADMIN]: {
+    labelKey: 'Read-only Admin',
+    value: USER_ROLE.READ_ONLY_ADMIN,
+    icon: Users,
+  },
   [USER_ROLE.ROOT]: {
     labelKey: 'Root',
     value: USER_ROLE.ROOT,
@@ -89,6 +95,11 @@ export const USER_ROLES = {
 
 export const getUserRoleOptions = (t: (key: string) => string) => [
   { label: t('User'), value: String(USER_ROLE.USER), icon: User },
+  {
+    label: t('Read-only Admin'),
+    value: String(USER_ROLE.READ_ONLY_ADMIN),
+    icon: Users,
+  },
   { label: t('Admin'), value: String(USER_ROLE.ADMIN), icon: Users },
   { label: t('Root'), value: String(USER_ROLE.ROOT), icon: Shield },
 ]

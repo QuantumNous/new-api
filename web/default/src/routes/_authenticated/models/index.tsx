@@ -18,14 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+import { canViewAdminArea } from '@/lib/roles'
 import { MODELS_DEFAULT_SECTION } from '@/features/models/section-registry'
 
 export const Route = createFileRoute('/_authenticated/models/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
 
-    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+    if (!auth.user || !canViewAdminArea(auth.user.role)) {
       throw redirect({
         to: '/403',
       })

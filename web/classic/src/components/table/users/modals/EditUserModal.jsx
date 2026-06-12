@@ -93,6 +93,7 @@ const EditUserModal = (props) => {
     quota: 0,
     quota_amount: 0,
     group: 'default',
+    role: 1,
     remark: '',
   });
 
@@ -365,6 +366,20 @@ const EditUserModal = (props) => {
                           allowAdditions
                           search
                           rules={[{ required: true, message: t('请选择分组') }]}
+                        />
+                      </Col>
+
+                      <Col span={24}>
+                        <Form.Select
+                          field='role'
+                          label={t('角色')}
+                          placeholder={t('请选择角色')}
+                          optionList={[
+                            { label: t('普通用户'), value: 1 },
+                            { label: t('只读管理员'), value: 9 },
+                            { label: t('管理员'), value: 10 },
+                          ]}
+                          rules={[{ required: true, message: t('请选择角色') }]}
                         />
                       </Col>
 
