@@ -11,9 +11,20 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+// allowLocalDownloads disables SSRF protection for the duration of a test so the
+// b64-download path can reach the httptest server on 127.0.0.1 (production
+// default blocks private IPs). Restores the prior setting on cleanup.
+func allowLocalDownloads(t *testing.T) {
+	t.Helper()
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = false
+}
 
 func TestConvertImageRequestStreamStripped(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -75,6 +86,7 @@ func TestStreamImageResponseCompletedEvent(t *testing.T) {
 
 func TestStreamImageResponseUrlFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	allowLocalDownloads(t)
 	img := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("PNGBYTES"))
 	}))
@@ -97,8 +109,43 @@ func TestStreamImageResponseUrlFallback(t *testing.T) {
 	}
 }
 
+func TestStreamImageResponseSSRFBlockedDegrades(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	// SSRF protection ON (production default): a private-IP image URL must be
+	// blocked before the request, and streamImageResponse degrades to emitting
+	// the url rather than erroring (settlement already committed).
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = true
+	system_setting.GetFetchSetting().AllowPrivateIp = false
+
+	img := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("PNGBYTES"))
+	}))
+	defer img.Close()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations, IsStream: true,
+		ChannelMeta: &relaycommon.ChannelMeta{}}
+	resp := fakeResp(200, `{"created":9,"data":[{"url":"`+img.URL+`/a.png"}]}`, nil)
+
+	_, apiErr := streamImageResponse(c, resp, info)
+	if apiErr != nil {
+		t.Fatal("SSRF block must degrade, not error (settlement committed)")
+	}
+	if !strings.Contains(w.Body.String(), img.URL) {
+		t.Fatalf("blocked download must degrade to the url: %s", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "UE5HQllURVM=") {
+		t.Fatalf("private-IP image must NOT be fetched: %s", w.Body.String())
+	}
+}
+
 func TestStreamImageResponseUrlDownloadDegrades(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	allowLocalDownloads(t)
 	img := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

@@ -312,7 +312,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	// never reads the body), so drain & close the body NOW to return this
 	// connection to the pool. A defer here would pin the connection for the
 	// whole retry leg — which for slow images includes a minutes-long poll.
-	_, _ = io.Copy(io.Discard, firstResp.Body)
+	// Bound the drain: a misbehaving/huge 402 body must not stall the retry.
+	_, _ = io.CopyN(io.Discard, firstResp.Body, 512<<10)
 	_ = firstResp.Body.Close()
 
 	fullURL, urlErr := a.GetRequestURL(info)

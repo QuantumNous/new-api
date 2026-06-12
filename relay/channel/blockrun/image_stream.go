@@ -1,6 +1,7 @@
 package blockrun
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +24,11 @@ import (
 // imageHeartbeatInterval paces SSE keep-alive comments while the upstream
 // generates. 10s sits safely under common LB idle timeouts. Var for tests.
 var imageHeartbeatInterval = 10 * time.Second
+
+// imageDownloadTimeout bounds a single upstream-image fetch on the b64-synthesis
+// path so a slow/hung CDN cannot occupy the request goroutine indefinitely when
+// the shared relay client has no Timeout (RelayTimeout=0).
+const imageDownloadTimeout = 60 * time.Second
 
 func isImageStreamMode(c *gin.Context, info *relaycommon.RelayInfo) bool {
 	return c != nil && isImageMode(info) && info.IsStream
@@ -140,10 +147,15 @@ func writeImageStreamError(c *gin.Context, msg string) {
 // base64-encoded, bounded by maxImageBodyBytes. Also a whitelabel win: the
 // client receives bytes, not the upstream CDN URL.
 //
-// Trust note: imageURL comes from the already-paid, trusted upstream (same
-// trust boundary as the response body itself). If this helper is ever reused
-// for a lower-trust upstream, add host allowlist validation first (SSRF).
+// The image URL is upstream-supplied, so it is run through the global SSRF
+// filter before the request (a tampered/compromised upstream must not steer a
+// server-side GET at internal/metadata addresses), and the fetch is bounded by
+// imageDownloadTimeout independent of the shared client's (possibly zero) Timeout.
 func downloadImageAsBase64(c *gin.Context, info *relaycommon.RelayInfo, imageURL string) (string, error) {
+	fs := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(imageURL, fs.EnableSSRFProtection, fs.AllowPrivateIp, fs.DomainFilterMode, fs.IpFilterMode, fs.DomainList, fs.IpList, fs.AllowedPorts, fs.ApplyIPFilterForDomain); err != nil {
+		return "", fmt.Errorf("blockrun: image download url blocked: %w", err)
+	}
 	client, err := service.GetHttpClientWithProxy(info.ChannelSetting.Proxy)
 	if err != nil {
 		return "", err
@@ -151,7 +163,9 @@ func downloadImageAsBase64(c *gin.Context, info *relaycommon.RelayInfo, imageURL
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, imageURL, nil)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), imageDownloadTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
 	if err != nil {
 		return "", err
 	}

@@ -458,7 +458,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		// 写入所有非文件字段
 		if mf != nil {
 			for key, values := range mf.Value {
-				if key == "model" {
+				// stream / partial_images are stripped from the struct path above;
+				// the multipart edits path forwards raw form fields, so filter them
+				// here too — upstreams that don't synthesize streaming would 400.
+				if key == "model" || key == "stream" || key == "partial_images" {
 					continue
 				}
 				for _, value := range values {

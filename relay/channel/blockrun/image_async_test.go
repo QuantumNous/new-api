@@ -130,6 +130,29 @@ func TestPollLifecycleQueuedInProgressCompleted(t *testing.T) {
 	}
 }
 
+func TestAbsolutePollURLHostPin(t *testing.T) {
+	const base = "https://gw.example.com"
+	if got, err := absolutePollURL(base, "/api/v1/x"); err != nil || got != "https://gw.example.com/api/v1/x" {
+		t.Fatalf("relative same-host should resolve: %q %v", got, err)
+	}
+	if got, err := absolutePollURL(base, "https://gw.example.com/p"); err != nil || got != "https://gw.example.com/p" {
+		t.Fatalf("absolute same-host should pass: %q %v", got, err)
+	}
+	// Cross-host absolute poll_url must be rejected: each poll carries the
+	// wallet X-Payment signature, so a tampered upstream must not redirect it.
+	if _, err := absolutePollURL(base, "https://evil.example.net/p"); err == nil {
+		t.Fatal("cross-host poll_url must be rejected (SSRF + payment-sig exfil)")
+	}
+	// Scheme-relative //host that escapes to another host must be rejected too.
+	if _, err := absolutePollURL(base, "//evil.example.net/p"); err == nil {
+		t.Fatal("scheme-relative cross-host poll_url must be rejected")
+	}
+	// Non-http(s) scheme must be rejected.
+	if _, err := absolutePollURL(base, "file:///etc/passwd"); err == nil {
+		t.Fatal("non-http poll_url scheme must be rejected")
+	}
+}
+
 func TestPollRelativePollURL(t *testing.T) {
 	shrinkPoll(t, time.Second)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

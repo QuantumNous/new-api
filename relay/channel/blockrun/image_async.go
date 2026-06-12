@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -238,19 +239,29 @@ func doImagePoll(ctx context.Context, client *http.Client, pollURL, signature st
 // absolutePollURL resolves a possibly-relative poll_url against the channel
 // base. IsAbs (not a scheme prefix check) so scheme-relative "//host/path"
 // URLs resolve against the base scheme — matching the seedance video channel.
+//
+// Security: each poll carries the wallet's X-Payment signature, so the resolved
+// URL is host-pinned to the channel base. BlockRun's poll_url is always the same
+// gateway (relative or same-host absolute); pinning blocks a tampered/compromised
+// upstream from redirecting the signed request to an attacker host (SSRF + payment
+// signature exfiltration). Only http/https is allowed.
 func absolutePollURL(base, ref string) (string, error) {
-	r, err := url.Parse(ref)
-	if err != nil {
-		return "", fmt.Errorf("blockrun: parse poll_url: %w", err)
-	}
-	if r.IsAbs() {
-		return ref, nil
-	}
 	b, err := url.Parse(base)
 	if err != nil {
 		return "", fmt.Errorf("blockrun: parse channel base url: %w", err)
 	}
-	return b.ResolveReference(r).String(), nil
+	r, err := url.Parse(ref)
+	if err != nil {
+		return "", fmt.Errorf("blockrun: parse poll_url: %w", err)
+	}
+	resolved := b.ResolveReference(r) // for an absolute ref this yields ref itself
+	if resolved.Scheme != "http" && resolved.Scheme != "https" {
+		return "", fmt.Errorf("blockrun: poll_url scheme %q not allowed", resolved.Scheme)
+	}
+	if !strings.EqualFold(resolved.Host, b.Host) {
+		return "", fmt.Errorf("blockrun: poll_url host %q does not match channel host %q", resolved.Host, b.Host)
+	}
+	return resolved.String(), nil
 }
 
 func readAndCloseBody(resp *http.Response) ([]byte, error) {
