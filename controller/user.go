@@ -214,13 +214,21 @@ func RequestEmailLoginCode(c *gin.Context) {
 		ttlMin = 1
 	}
 	subject := fmt.Sprintf("Your %s sign-in code: %s", common.SystemName, code)
+	// Full HTML document with enough body text: a bare <div> trips
+	// SpamAssassin HTML_MIME_NO_HTML_TAG, and short bodies combined with
+	// Mailtrap's open-tracking pixel trip HTML_IMAGE_ONLY_08.
 	content := fmt.Sprintf(
-		`<div style="font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#333;">`+
-			`<p>Use this code to sign in to %s:</p>`+
-			`<p style="font-size:32px;font-weight:600;letter-spacing:6px;margin:24px 0;">%s</p>`+
-			`<p style="color:#666;">This code expires in %d minutes. If you didn't request it, ignore this email.</p>`+
-			`<p style="color:#999;margin-top:32px;">— %s</p>`+
-			`</div>`,
+		`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Sign-in code</title></head>`+
+			`<body style="margin:0;padding:24px;background:#fafafa;">`+
+			`<div style="max-width:480px;margin:0 auto;font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.6;color:#333;background:#fff;border:1px solid #eee;border-radius:8px;padding:32px;">`+
+			`<p style="margin:0 0 8px;">Hello,</p>`+
+			`<p style="margin:0 0 8px;">You requested to sign in to your %s account. Enter the verification code below to continue:</p>`+
+			`<p style="font-size:32px;font-weight:600;letter-spacing:6px;margin:24px 0;text-align:center;">%s</p>`+
+			`<p style="color:#666;margin:0 0 8px;">This code expires in %d minutes and can only be used once. For your security, never share it with anyone — our team will never ask you for it.</p>`+
+			`<p style="color:#666;margin:0 0 8px;">If you didn't request this code, you can safely ignore this email; no changes will be made to your account.</p>`+
+			`<p style="color:#999;margin:32px 0 0;">— The %s team</p>`+
+			`</div>`+
+			`</body></html>`,
 		common.SystemName, code, ttlMin, common.SystemName,
 	)
 	// Fire-and-forget: log failures but return success:true to avoid leaking
