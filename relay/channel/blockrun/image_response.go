@@ -3,6 +3,7 @@ package blockrun
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -18,6 +19,10 @@ import (
 // then blanks the URL. On download failure it degrades — keep the URL, log a
 // warning — because the upstream charge already happened and failing a paid,
 // completed generation is worse than a rare whitelabel leak.
+//
+// Note: this deliberately overrides response_format=url — BlockRun image
+// results are always delivered as b64_json so the upstream CDN host is never
+// exposed to the client. This is a conscious whitelabel trade-off.
 func ensureImageB64(c *gin.Context, info *relaycommon.RelayInfo, item *dto.ImageData) {
 	if item.B64Json != "" || item.Url == "" {
 		return
@@ -53,6 +58,7 @@ func imageJSONResponseB64(c *gin.Context, resp *http.Response, info *relaycommon
 		return nil, types.NewError(merr, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.Header().Set("Content-Length", strconv.Itoa(len(out)))
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(out)
 	return &dto.Usage{}, nil

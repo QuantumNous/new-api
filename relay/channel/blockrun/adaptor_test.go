@@ -284,6 +284,30 @@ func editInfo() *relaycommon.RelayInfo {
 // pngBytes returns a minimal 1-byte payload used as fake PNG data in tests.
 func pngBytes(seed byte) []byte { return []byte{seed} }
 
+// TestConvertImageRequest_EditNumericFieldsTyped asserts n is forwarded upstream
+// as a JSON number and watermark as a bool — sourced from the typed request
+// fields (parsed in valid_request.go), NOT the stringified multipart values. A
+// raw form passthrough would send "n":"9" and break the upstream wire contract.
+func TestConvertImageRequest_EditNumericFieldsTyped(t *testing.T) {
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit it",
+		map[string]string{"n": "9", "watermark": "false"}, // raw form values must be ignored
+		[][]byte{pngBytes(1)}, nil)
+	n := uint(2)
+	wm := true
+	out, err := (&Adaptor{}).ConvertImageRequest(c, editInfo(),
+		dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit it", N: &n, Watermark: &wm})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	body := out.(map[string]any)
+	if v, ok := body["n"].(uint); !ok || v != 2 {
+		t.Fatalf("n must be the typed uint 2 (a JSON number), got %T %v", body["n"], body["n"])
+	}
+	if v, ok := body["watermark"].(bool); !ok || !v {
+		t.Fatalf("watermark must be the typed bool true, got %T %v", body["watermark"], body["watermark"])
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Edit tests — multipart/form-data (standard OpenAI interface)
 // ---------------------------------------------------------------------------

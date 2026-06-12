@@ -64,12 +64,23 @@ func buildImage2ImageEditBody(c *gin.Context, request *dto.ImageRequest) (any, e
 			continue
 		}
 		switch k {
-		case "model", "image", "mask", "stream", "partial_images":
-			continue // set explicitly below, or must not leak upstream
+		case "model", "image", "mask", "stream", "partial_images", "n", "watermark":
+			// model/image/mask set explicitly below; stream/partial_images must
+			// not leak upstream; n/watermark are NON-string — forwarding the raw
+			// form value would send "n":"2" / "watermark":"true". They are set
+			// from the typed request fields (parsed in valid_request.go) so the
+			// upstream wire types match the generations path.
+			continue
 		}
 		body[k] = vs[0]
 	}
 	body["model"] = request.Model // post model-mapping name
+	if request.N != nil {
+		body["n"] = *request.N
+	}
+	if request.Watermark != nil {
+		body["watermark"] = *request.Watermark
+	}
 	if len(imageURIs) == 1 {
 		body["image"] = imageURIs[0]
 	} else {
@@ -123,6 +134,11 @@ func multipartFilesToDataURIs(files []*multipart.FileHeader) ([]string, error) {
 		mimeType := fh.Header.Get("Content-Type")
 		if mimeType == "" {
 			mimeType = http.DetectContentType(data)
+		}
+		if !strings.HasPrefix(mimeType, "image/") {
+			// A missing/unsniffable type yields application/octet-stream, which
+			// an image model rejects. Default to PNG (the upstream re-encodes).
+			mimeType = "image/png"
 		}
 		out = append(out, "data:"+mimeType+";base64,"+base64.StdEncoding.EncodeToString(data))
 	}
