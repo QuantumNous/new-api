@@ -36,8 +36,9 @@ const (
 	maxAuthorizationWindowSeconds = 300
 
 	// maxImageAuthorizationWindowSeconds is the raised window cap for the
-	// SYNCHRONOUS image endpoints (/v1/images/generations, /v1/images/image2image).
-	// BlockRun keeps the request open while it generates and advertises a longer
+	// image endpoints (/v1/images/generations, /v1/images/image2image), sync
+	// fast path and async 202+poll alike. BlockRun needs the signature valid
+	// through generation (held-open request or poll window) and advertises a longer
 	// validBefore (observed 600s) to cover generation time, so the 300s chat cap
 	// would reject every image 402. 15 minutes covers the observed window with
 	// margin. The extra exposure is bounded: an ERC-3009 authorization is

@@ -44,6 +44,18 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	adaptor.Init(info)
 
+	// The settlement key may survive a previous failed attempt on this same
+	// gin.Context (the relay retry loop reuses it). Clear it so the
+	// bill-through guard below only ever sees signals from THIS attempt.
+	delete(c.Keys, string(constant.ContextKeyBlockRunSettlement))
+
+	// info is likewise shared across retry attempts: a prior blockrun attempt
+	// may have set IsStream=true in its ConvertImageRequest. Image requests
+	// always start non-streaming (dto.ImageRequest carries no stream state into
+	// GenRelayInfo), so reset and let this attempt's converter / Content-Type
+	// sniff re-derive it.
+	info.IsStream = false
+
 	var requestBody io.Reader
 
 	// codex 图像必须走 ConvertImageRequest 合成 Responses + image_generation body：
@@ -109,6 +121,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		// Once any bytes have reached the client (e.g. the blockrun image-stream
+		// heartbeat / SSE error event), a retry can never produce a clean
+		// response — it would replay a whole relay onto the same stream.
+		if c.Writer.Written() {
+			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+		}
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	var httpResp *http.Response
@@ -130,9 +148,33 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		return newAPIError
+		// BlockRun settlement is irreversible the moment a poll observes
+		// "completed". If cost signals were captured, the upstream has been (or
+		// will be) charged — a late client disconnect / body-write failure must
+		// not skip local billing, and retrying would double-pay. Bill through.
+		//
+		// Key presence here implies settlement really happened: the async poll
+		// loop runs inside DoRequest, so an envelope price captured without the
+		// poll ever observing "completed" exits via the DoRequest error path
+		// above and never reaches this guard. Reaching DoResponse with the key
+		// set means the poll saw "completed" (or a sync response already
+		// carried a payment receipt).
+		//
+		// Tradeoff: swallowing the error means the client may receive a hollow
+		// 200 (empty body). That is intentional — billing correctness beats
+		// delivery, because surfacing the error would trigger a channel retry
+		// and a second upstream payment. The request id in the warn log keeps
+		// the incident traceable.
+		if _, settled := c.Get(string(constant.ContextKeyBlockRunSettlement)); settled {
+			logger.LogWarn(c, fmt.Sprintf("blockrun image: upstream settled but response delivery failed, billing anyway (user=%d channel=%d model=%s): %s", info.UserId, info.ChannelId, info.OriginModelName, newAPIError.Error()))
+			if usage == nil {
+				usage = &dto.Usage{}
+			}
+		} else {
+			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
+		}
 	}
 
 	imageN := uint(1)
@@ -144,6 +186,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// calculation (both price-based and ratio-based paths).
 	// Adaptors may have already set a more accurate count from the
 	// upstream response; only set the default when they haven't.
+	// On the bill-through path (settlement captured but delivery failed) the
+	// client-requested n still applies on purpose: the upstream settles the
+	// request as submitted, so we charge for what was submitted, not for what
+	// was delivered.
 	if info.PriceData.UsePrice { // only price model use N ratio
 		if _, hasN := info.PriceData.OtherRatios["n"]; !hasN {
 			info.PriceData.AddOtherRatio("n", float64(imageN))

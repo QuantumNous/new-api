@@ -37,6 +37,11 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	// Image streaming is not supported on this passthrough; new-api only
+	// synthesizes SSE for channels that opt in (e.g. blockrun). Strip so the
+	// upstream never sees it (restores pre-Stream-field behavior).
+	request.Stream = nil
+	request.PartialImages = nil
 	return request, nil
 }
 

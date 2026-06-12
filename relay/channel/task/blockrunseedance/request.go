@@ -15,17 +15,19 @@ type createRequest struct {
 	// Prompt is always sent (no omitempty) to match the upstream client, which
 	// always includes a "prompt" key — even for an image-only request where the
 	// prompt is empty (FIX #9).
-	Prompt          string `json:"prompt"`
-	Model           string `json:"model"`
-	ImageURL        string `json:"image_url,omitempty"`
-	RealFaceAssetID string `json:"real_face_asset_id,omitempty"`
-	DurationSeconds *int   `json:"duration_seconds,omitempty"`
-	Resolution      string `json:"resolution,omitempty"`
-	AspectRatio     string `json:"aspect_ratio,omitempty"`
-	GenerateAudio   *bool  `json:"generate_audio,omitempty"`
-	Seed            *int   `json:"seed,omitempty"`
-	Watermark       *bool  `json:"watermark,omitempty"`
-	ReturnLastFrame *bool  `json:"return_last_frame,omitempty"`
+	Prompt             string   `json:"prompt"`
+	Model              string   `json:"model"`
+	ImageURL           string   `json:"image_url,omitempty"`
+	RealFaceAssetID    string   `json:"real_face_asset_id,omitempty"`
+	DurationSeconds    *int     `json:"duration_seconds,omitempty"`
+	Resolution         string   `json:"resolution,omitempty"`
+	AspectRatio        string   `json:"aspect_ratio,omitempty"`
+	GenerateAudio      *bool    `json:"generate_audio,omitempty"`
+	Seed               *int     `json:"seed,omitempty"`
+	Watermark          *bool    `json:"watermark,omitempty"`
+	ReturnLastFrame    *bool    `json:"return_last_frame,omitempty"`
+	LastFrameURL       string   `json:"last_frame_url,omitempty"`
+	ReferenceImageURLs []string `json:"reference_image_urls,omitempty"`
 }
 
 // blockrunExtensions are non-official seedance fields a client may set to drive
@@ -50,9 +52,37 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 		ReturnLastFrame: seed.ReturnLastFrame,
 		RealFaceAssetID: ext.RealFaceAssetID,
 	}
-	// Image-to-video: first image_url wins (the gateway takes a single seed image).
-	if imgs := seed.Images(); len(imgs) > 0 {
-		body.ImageURL = imgs[0].URL
+	// Seed-image mapping (mutual exclusion enforced by validateSeedanceValues):
+	// first_frame/last_frame roles → image_url(+last_frame_url) interpolation;
+	// 2-9 reference images, or a single image EXPLICITLY role=reference_image,
+	// → reference_image_urls (omni); a single plain image → image_url.
+	var first, last string
+	var refs []string
+	var explicitRef bool
+	for _, m := range seed.Images() {
+		switch m.Role {
+		case dto.SeedanceRoleFirstFrame:
+			first = m.URL
+		case dto.SeedanceRoleLastFrame:
+			last = m.URL
+		default:
+			if m.Role == dto.SeedanceRoleReferenceImage {
+				explicitRef = true
+			}
+			refs = append(refs, m.URL)
+		}
+	}
+	switch {
+	case first != "" || last != "":
+		body.ImageURL = first
+		body.LastFrameURL = last
+	case len(refs) == 1 && !explicitRef:
+		// A single plain image is an image-to-video seed. An explicit
+		// reference_image role keeps omni reference semantics even alone —
+		// image_url and reference_image_urls drive different generation modes.
+		body.ImageURL = refs[0]
+	case len(refs) >= 1:
+		body.ReferenceImageURLs = refs
 	}
 	return body
 }
@@ -83,19 +113,49 @@ func validateResolution(r string) error {
 // validateSeedanceValues fails fast on value-domain violations so an upstream
 // 4xx never burns a pre-charge. pseudoModel is the client-facing model name.
 func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensions, pseudoModel string) error {
-	// BlockRun Seedance only supports text-to-video and single-image-to-video.
-	// Reject any input mode this channel cannot serve before the asset block.
+	// BlockRun Seedance supports text-to-video, single-image-to-video,
+	// first/last-frame interpolation, and multi-reference (omni) generation.
+	// Reject input modes this channel cannot serve before the asset block.
 	if len(seed.Videos()) > 0 {
 		return fmt.Errorf("video input is not supported by this channel")
 	}
 	if len(seed.Audios()) > 0 {
 		return fmt.Errorf("audio input is not supported by this channel")
 	}
-	if len(seed.Images()) > 1 {
-		return fmt.Errorf("only a single seed image is supported")
+	var firstCount, lastCount, refCount int
+	var explicitRef bool
+	for _, m := range seed.Images() {
+		switch m.Role {
+		case dto.SeedanceRoleFirstFrame:
+			firstCount++
+		case dto.SeedanceRoleLastFrame:
+			lastCount++
+		default:
+			if m.Role == dto.SeedanceRoleReferenceImage {
+				explicitRef = true
+			}
+			refCount++
+		}
 	}
-	if seed.HasFirstLastFrame() {
-		return fmt.Errorf("first_frame/last_frame image roles are not supported")
+	if firstCount > 1 || lastCount > 1 {
+		return fmt.Errorf("at most one first_frame and one last_frame image are supported")
+	}
+	if lastCount == 1 && firstCount == 0 {
+		// Upstream interpolates from image_url to last_frame_url; never
+		// auto-promote a lone last_frame (vip SDK video.go hard-errors too).
+		return fmt.Errorf("last_frame requires a first_frame image as the starting frame")
+	}
+	if (firstCount > 0 || lastCount > 0) && refCount > 0 {
+		return fmt.Errorf("first_frame/last_frame cannot be combined with reference images")
+	}
+	if refCount > 9 {
+		return fmt.Errorf("at most 9 reference images are supported")
+	}
+	if (refCount > 1 || (refCount == 1 && explicitRef)) && !supportsOmniReference(pseudoModel) {
+		// reference_image_urls is Seedance 2.0 only (vip SDK video.go); gate it
+		// like real_face. Single-image-to-video and first/last-frame
+		// interpolation remain available on all models.
+		return fmt.Errorf("reference images (omni) are only supported on seedance-2.0 / seedance-2.0-fast")
 	}
 	if err := validateResolution(seed.Resolution); err != nil {
 		return err

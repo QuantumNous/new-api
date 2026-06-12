@@ -234,6 +234,14 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if request.Model == "" {
 		return nil, errors.New("blockrun: image model is required")
 	}
+	// BlockRun's image endpoints don't understand stream/partial_images: SSE is
+	// synthesized locally (image_stream.go). Record the intent, then strip both
+	// so they never reach the upstream body.
+	if request.Stream != nil && *request.Stream {
+		info.IsStream = true
+	}
+	request.Stream = nil
+	request.PartialImages = nil
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		// OpenAI-compatible text-to-image: pass the request through unchanged.
@@ -295,24 +303,29 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		return nil, err
 	}
 	if firstResp.StatusCode != http.StatusPaymentRequired {
-		normalizeImageAccepted(firstResp, info)
-		return firstResp, nil
+		// Free/proxy path (no 402): there is no signature to reuse on a poll;
+		// resolveImageResult passes "" and a slow-path poll will surface the
+		// upstream 402 as a hard error, which is the correct operator signal.
+		return resolveImageResult(c, info, firstResp, "")
 	}
-	// 402 — drain & close the first response so the connection can be reused,
-	// then sign and retry on the same code path.
-	defer func() {
-		_, _ = io.Copy(io.Discard, firstResp.Body)
-		_ = firstResp.Body.Close()
-	}()
+	// 402 — the payment requirements live in the HEADERS (extractPaymentRequired
+	// never reads the body), so drain & close the body NOW to return this
+	// connection to the pool. A defer here would pin the connection for the
+	// whole retry leg — which for slow images includes a minutes-long poll.
+	// Bound the drain: a misbehaving/huge 402 body must not stall the retry.
+	_, _ = io.CopyN(io.Discard, firstResp.Body, 512<<10)
+	_ = firstResp.Body.Close()
 
 	fullURL, urlErr := a.GetRequestURL(info)
 	if urlErr != nil {
 		return nil, fmt.Errorf("blockrun: get request url: %w", urlErr)
 	}
 
-	// Synchronous image endpoints advertise a longer authorization window (BlockRun
-	// holds the request open while generating), so raise the window cap for them;
-	// chat keeps the default 300s window. Amount cap stays at the default $1.
+	// Image endpoints (sync fast path or async 202+poll) advertise a longer
+	// authorization window — the same signature must stay valid through
+	// generation, whether the request is held open or polled — so raise the
+	// window cap for them; chat keeps the default 300s window. Amount cap
+	// stays at the default $1.
 	var paymentB64 string
 	var signErr error
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
@@ -339,26 +352,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		_ = retryResp.Body.Close()
 		return nil, fmt.Errorf("blockrun: payment signature rejected by upstream (status 402 after signing): %s", string(body))
 	}
-	normalizeImageAccepted(retryResp, info)
-	return retryResp, nil
-}
-
-// normalizeImageAccepted rewrites a 202 Accepted to 200 OK for image relay modes.
-// BlockRun's synchronous image endpoints (/v1/images/generations,
-// /v1/images/image2image) return 202 with the generated image already in the body
-// (confirmed: a ~30s synchronous generation returns 202, body carries data[].url
-// / b64_json). The generic ImageHelper only treats 200 as success and would
-// otherwise reject it as a "bad response status code". Only image relay modes and
-// only a 202 are touched; everything else is left as-is. Mirrors the seedance
-// task adaptor's 202 normalization.
-func normalizeImageAccepted(resp *http.Response, info *relaycommon.RelayInfo) {
-	if resp == nil || resp.StatusCode != http.StatusAccepted {
-		return
-	}
-	if info != nil && (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
-		resp.StatusCode = http.StatusOK
-		resp.Status = "200 OK"
-	}
+	return resolveImageResult(c, info, retryResp, paymentB64)
 }
 
 // DoResponse delegates to the native handler for the inbound format so the
@@ -369,6 +363,9 @@ func normalizeImageAccepted(resp *http.Response, info *relaycommon.RelayInfo) {
 // Note on /v1/messages/count_tokens: there is no RelayMode for count_tokens in
 // relay/constant, so that path cannot route to this adaptor today — out of scope.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if isImageStreamMode(c, info) {
+		return streamImageResponse(c, resp, info)
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	}

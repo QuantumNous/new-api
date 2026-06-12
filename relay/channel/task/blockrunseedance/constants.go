@@ -59,3 +59,17 @@ func supportsRealFaceAsset(model string) bool {
 		return false
 	}
 }
+
+// supportsOmniReference reports whether the upstream model accepts
+// reference_image_urls (omni reference generation). The vip SDK documents the
+// field as Seedance 2.0 only; gate it like real_face so an upstream 4xx never
+// reaches the pre-charge. Accepts pseudo and wire names (see above).
+func supportsOmniReference(model string) bool {
+	switch model {
+	case "seedance-2.0", "seedance-2.0-fast",
+		"bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
+		return true
+	default:
+		return false
+	}
+}
