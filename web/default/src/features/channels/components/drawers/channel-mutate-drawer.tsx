@@ -370,6 +370,7 @@ export function ChannelMutateDrawer({
   const currentName = form.watch('name')
   const currentModelMapping = form.watch('model_mapping')
   const awsKeyType = form.watch('aws_key_type')
+  const vertexKeyType = form.watch('vertex_key_type')
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
@@ -396,6 +397,15 @@ export function ChannelMutateDrawer({
   const isBatchMode =
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
+  const supportsMultiKeyAddMode =
+    currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
+  const addModeOptions = useMemo(
+    () =>
+      supportsMultiKeyAddMode
+        ? ADD_MODE_OPTIONS
+        : ADD_MODE_OPTIONS.filter((option) => option.value === 'single'),
+    [supportsMultiKeyAddMode]
+  )
 
   // Get all models list
   const allModelsList = useMemo(
@@ -618,6 +628,16 @@ export function ChannelMutateDrawer({
       }
     }
   }, [currentType, isEditing, form])
+
+  useEffect(() => {
+    if (isEditing || supportsMultiKeyAddMode) return
+    if (multiKeyMode && multiKeyMode !== 'single') {
+      form.setValue('multi_key_mode', 'single', {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    }
+  }, [form, isEditing, multiKeyMode, supportsMultiKeyAddMode])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -1547,7 +1567,7 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
-                        {form.watch('vertex_key_type') === 'json' && (
+                        {vertexKeyType === 'json' && (
                           <FormItem>
                             <FormLabel>
                               {t('Service account JSON file(s)')}
@@ -1803,7 +1823,7 @@ export function ChannelMutateDrawer({
                               <FormLabel>{t('Add Mode')}</FormLabel>
                               <Select
                                 items={[
-                                  ...ADD_MODE_OPTIONS.map((option) => ({
+                                  ...addModeOptions.map((option) => ({
                                     value: option.value,
                                     label: t(option.label),
                                   })),
@@ -1818,7 +1838,7 @@ export function ChannelMutateDrawer({
                                 </FormControl>
                                 <SelectContent alignItemWithTrigger={false}>
                                   <SelectGroup>
-                                    {ADD_MODE_OPTIONS.map((option) => (
+                                    {addModeOptions.map((option) => (
                                       <SelectItem
                                         key={option.value}
                                         value={option.value}
@@ -1830,7 +1850,11 @@ export function ChannelMutateDrawer({
                                 </SelectContent>
                               </Select>
                               <FormDescription>
-                                {t(FIELD_DESCRIPTIONS.BATCH_ADD)}
+                                {t(
+                                  supportsMultiKeyAddMode
+                                    ? FIELD_DESCRIPTIONS.BATCH_ADD
+                                    : FIELD_DESCRIPTIONS.KEY
+                                )}
                               </FormDescription>
                               <FormMessage />
                             </FormItem>
