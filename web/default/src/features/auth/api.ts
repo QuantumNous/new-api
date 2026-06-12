@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
+import { api } from '@/lib/api'
 import type {
   LoginPayload,
   LoginResponse,
@@ -91,7 +92,11 @@ export async function getOAuthState(): Promise<string> {
     typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
   const adsAttribution = getAdsAttributionPayload()
   const res = await api.get('/api/oauth/state', {
-    params: { aff, ads_attribution: adsAttribution || undefined },
+    params: {
+      aff,
+      ads_attribution: adsAttribution || undefined,
+      ...getGAMeasurementIdentifiers(),
+    },
   })
   if (res.data?.success) return res.data.data
   return ''
@@ -109,9 +114,16 @@ export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
-  })
+  const res = await api.post(
+    `/api/user/register`,
+    {
+      ...payload,
+      ...getGAMeasurementIdentifiers(),
+    },
+    {
+      params: { turnstile: payload.turnstile ?? '' },
+    }
+  )
   return res.data
 }
 

@@ -267,6 +267,8 @@ func Register(c *gin.Context) {
 		}
 	}
 
+	sendSignUpSuccessGA(c.Request.Context(), insertedUser.Id, inviterId, "password", user.GAClientID, user.GASessionID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

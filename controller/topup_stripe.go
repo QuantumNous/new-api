@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -48,6 +49,8 @@ type StripePayRequest struct {
 	InvoiceRequested bool `json:"invoice_requested,omitempty"`
 	// InvoiceProfile is snapshotted to the local order when InvoiceRequested is true.
 	InvoiceProfile *model.InvoiceProfileFields `json:"invoice_profile,omitempty"`
+	GAClientID     string                      `json:"ga_client_id,omitempty"`
+	GASessionID    string                      `json:"ga_session_id,omitempty"`
 }
 
 type StripeAdaptor struct {
@@ -141,6 +144,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,
 		PaymentProvider: model.PaymentProviderStripe,
+		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
@@ -500,10 +505,13 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 
-	err := model.Recharge(referenceId, customerId, callerIp)
+	recharged, err := model.Recharge(referenceId, customerId, callerIp)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
 		return
+	}
+	if recharged {
+		sendPaymentSuccessGA(ctx, model.GetTopUpByTradeNo(referenceId))
 	}
 
 	syncStripePaymentInvoice(ctx, event, referenceId, customerId)

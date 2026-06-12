@@ -140,6 +140,10 @@ export interface CreemPaymentRequest {
   product_id: string
   /** Payment method identifier */
   payment_method: 'creem'
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -256,6 +260,10 @@ export interface PaymentRequest {
   invoice_requested?: boolean
   /** Company invoice profile snapshot */
   invoice_profile?: InvoiceProfile
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 export interface PaymentOptions {
@@ -271,6 +279,10 @@ export interface WaffoPaymentRequest {
   amount: number
   /** Optional server-side Waffo payment method index */
   pay_method_index?: number
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -279,6 +291,10 @@ export interface WaffoPaymentRequest {
 export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -287,6 +303,10 @@ export interface WaffoPancakePaymentRequest {
 export interface PaddlePaymentRequest {
   /** Topup amount */
   amount: number
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**

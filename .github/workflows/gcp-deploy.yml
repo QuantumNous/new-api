@@ -113,6 +113,8 @@ jobs:
           PADDLE_LIVE_API_KEY: ${{ secrets.PADDLE_LIVE_API_KEY }}
           PADDLE_LIVE_CLIENT_TOKEN: ${{ secrets.PADDLE_LIVE_CLIENT_TOKEN }}
           PADDLE_LIVE_WEBHOOK_SECRET: ${{ secrets.PADDLE_LIVE_WEBHOOK_SECRET }}
+          GA_MEASURE_PROTOCOL_API_SECRET: ${{ secrets.GA_MEASURE_PROTOCOL_API_SECRET }}
+          GA_MESSUREMENT_ID: ${{ secrets.GA_MESSUREMENT_ID }}
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
@@ -122,7 +124,8 @@ jobs:
             PADDLE_SANDBOX_PRODUCT_ID PADDLE_SANDBOX_CURRENCY PADDLE_SANDBOX_UNIT_PRICE PADDLE_SANDBOX_MIN_TOPUP \
             PADDLE_SANDBOX_API_KEY PADDLE_SANDBOX_CLIENT_TOKEN PADDLE_SANDBOX_WEBHOOK_SECRET \
             PADDLE_LIVE_PRODUCT_ID PADDLE_LIVE_CURRENCY PADDLE_LIVE_UNIT_PRICE PADDLE_LIVE_MIN_TOPUP \
-            PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET; do
+            PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
+            GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")

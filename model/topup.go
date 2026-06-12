@@ -22,6 +22,8 @@ type TopUp struct {
 	GatewayTradeNo  string          `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
 	PaymentMethod   string          `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string          `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	GAClientID      string          `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
+	GASessionID     string          `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
 	CreateTime      int64           `json:"create_time"`
 	CompleteTime    int64           `json:"complete_time"`
 	Status          string          `json:"status"`
@@ -172,9 +174,9 @@ func AttachPaddleGatewayTradeNo(tradeNo string, userId int, gatewayTradeNo strin
 	return ErrTopUpStatusInvalid
 }
 
-func Recharge(referenceId string, customerId string, callerIp string) (err error) {
+func Recharge(referenceId string, customerId string, callerIp string) (bool, error) {
 	if referenceId == "" {
-		return errors.New("未提供支付单号")
+		return false, errors.New("未提供支付单号")
 	}
 
 	var quotaToAdd int
@@ -186,7 +188,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		refCol = `"trade_no"`
 	}
 
-	err = DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
@@ -231,7 +233,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 
 	if err != nil {
 		common.SysError("topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return false, errors.New("充值失败，请稍后重试")
 	}
 
 	if credited {
@@ -241,7 +243,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 	}
 
-	return nil
+	return credited, nil
 }
 
 // topUpQueryWindowSeconds 限制充值记录查询的时间窗口（秒）。
@@ -542,12 +544,13 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	return nil
 }
 
-func RechargeWaffo(tradeNo string, callerIp string) (err error) {
+func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 	if tradeNo == "" {
-		return errors.New("未提供支付单号")
+		return false, errors.New("未提供支付单号")
 	}
 
 	var quotaToAdd int
+	var credited bool
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -555,7 +558,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		refCol = `"trade_no"`
 	}
 
-	err = DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
@@ -590,27 +593,29 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
+		credited = true
 		return nil
 	})
 
 	if err != nil {
 		common.SysError("waffo topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return false, errors.New("充值失败，请稍后重试")
 	}
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 	}
 
-	return nil
+	return credited, nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string) (bool, error) {
 	if tradeNo == "" {
-		return errors.New("未提供支付单号")
+		return false, errors.New("未提供支付单号")
 	}
 
 	var quotaToAdd int
+	var credited bool
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -618,7 +623,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		refCol = `"trade_no"`
 	}
 
-	err = DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
@@ -651,32 +656,34 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return err
 		}
 
+		credited = true
 		return nil
 	})
 
 	if err != nil {
 		common.SysError("waffo pancake topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return false, errors.New("充值失败，请稍后重试")
 	}
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 
-	return nil
+	return credited, nil
 }
 
-func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo string, callerIp string) (err error) {
+func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo string, callerIp string) (bool, error) {
 	if tradeNo == "" {
-		return errors.New("未提供支付单号")
+		return false, errors.New("未提供支付单号")
 	}
 	expectedGatewayTradeNo = strings.TrimSpace(expectedGatewayTradeNo)
 
 	var quotaToAdd int
+	var credited bool
 	topUp := &TopUp{}
 	completeTime := common.GetTimestamp()
 
-	err = DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		refCol := "`trade_no`"
 		if common.UsingPostgreSQL {
 			refCol = `"trade_no"`
@@ -753,6 +760,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			return err
 		}
 
+		credited = true
 		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
 		if expectedGatewayTradeNo != "" && storedGatewayTradeNo == "" {
@@ -764,17 +772,17 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 
 	if err != nil {
 		if isCompletedPaddleTopUp(tradeNo, expectedUserId, expectedGatewayTradeNo) {
-			return nil
+			return false, nil
 		}
 		common.SysError("paddle topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return false, errors.New("充值失败，请稍后重试")
 	}
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Paddle充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPaddle)
 	}
 
-	return nil
+	return credited, nil
 }
 
 func isCompletedPaddleTopUp(tradeNo string, expectedUserId int, expectedGatewayTradeNo string) bool {
