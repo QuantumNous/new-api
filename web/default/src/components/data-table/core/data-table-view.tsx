@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { type Row } from '@tanstack/react-table'
+import { type Row, type Table as TanstackTable } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import {
@@ -166,22 +166,13 @@ function SplitHeaderTableView<TData>({
 }
 
 function useResolvedColumnClassName<TData>(
-  table: import('@tanstack/react-table').Table<TData>,
+  table: TanstackTable<TData>,
   getColumnClassName?: DataTableColumnClassName,
   pinnedColumns?: DataTablePinnedColumn[]
 ) {
   const allPinnedColumns = React.useMemo(() => {
-    const fromMeta: DataTablePinnedColumn[] = table
-      .getAllColumns()
-      .filter((col) => col.columnDef.meta?.pinned)
-      .map((col) => ({
-        columnId: col.id,
-        side: col.columnDef.meta!.pinned!,
-      }))
-    if (!fromMeta.length) return pinnedColumns
-    if (!pinnedColumns?.length) return fromMeta
-    const explicitIds = new Set(pinnedColumns.map((p) => p.columnId))
-    return [...pinnedColumns, ...fromMeta.filter((p) => !explicitIds.has(p.columnId))]
+    const metaPinnedColumns = getMetaPinnedColumns(table)
+    return mergePinnedColumns(pinnedColumns, metaPinnedColumns)
   }, [table, pinnedColumns])
 
   const pinnedColumnById = React.useMemo(
@@ -194,6 +185,41 @@ function useResolvedColumnClassName<TData>(
       getResolvedColumnClassNameFromMap(getColumnClassName, pinnedColumnById),
     [getColumnClassName, pinnedColumnById]
   )
+}
+
+function getMetaPinnedColumns<TData>(
+  table: TanstackTable<TData>
+): DataTablePinnedColumn[] {
+  return table.getAllColumns().flatMap((column) => {
+    const side = column.columnDef.meta?.pinned
+    if (!side) return []
+
+    return [{ columnId: column.id, side }]
+  })
+}
+
+function mergePinnedColumns(
+  explicitPinnedColumns: DataTablePinnedColumn[] | undefined,
+  metaPinnedColumns: DataTablePinnedColumn[]
+): DataTablePinnedColumn[] | undefined {
+  if (!metaPinnedColumns.length) {
+    return explicitPinnedColumns
+  }
+
+  if (!explicitPinnedColumns?.length) {
+    return metaPinnedColumns
+  }
+
+  const explicitColumnIds = new Set(
+    explicitPinnedColumns.map((column) => column.columnId)
+  )
+
+  return [
+    ...explicitPinnedColumns,
+    ...metaPinnedColumns.filter(
+      (column) => !explicitColumnIds.has(column.columnId)
+    ),
+  ]
 }
 
 function getTableSizing<TData>(props: DataTableViewProps<TData>): {
