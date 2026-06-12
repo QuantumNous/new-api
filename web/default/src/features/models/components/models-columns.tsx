@@ -137,7 +137,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant='neutral'
             copyText={name}
             size='sm'
-            className='font-mono'
+            className='-ml-1.5 font-mono'
           />
         )
       },
@@ -170,6 +170,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
                 | 'info'
             }
             size='sm'
+            className='-ml-1.5'
           />
         )
 
@@ -220,6 +221,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -408,6 +410,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             variant={syncOfficial === 1 ? 'success' : 'warning'}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },

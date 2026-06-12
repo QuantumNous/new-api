@@ -98,6 +98,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
               label={t('Expired')}
               variant='warning'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -113,6 +114,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             label={t(statusConfig.labelKey)}
             variant={statusConfig.variant}
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -164,6 +166,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             label={formatQuota(quota)}
             variant='neutral'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -194,6 +197,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
               label={t('Never')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }

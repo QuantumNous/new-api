@@ -298,6 +298,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
         size='sm'
         copyable={false}
         showDot={false}
+        className='-ml-1.5'
       />
     )
   }
@@ -594,6 +595,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               variant='blue'
               size='sm'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -716,6 +718,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 variant='success'
                 size='sm'
                 copyable={false}
+                className='-ml-1.5'
               />
             )
           } else {
@@ -725,6 +728,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 variant='neutral'
                 size='sm'
                 copyable={false}
+                className='-ml-1.5'
               />
             )
           }
@@ -802,6 +806,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -878,7 +883,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         if (!tag)
           return <span className='text-muted-foreground text-xs'>-</span>
 
-        return <StatusBadge label={tag} autoColor={tag} size='sm' />
+        return <StatusBadge label={tag} autoColor={tag} size='sm' className='-ml-1.5' />
       },
       size: 120,
       enableSorting: false,
@@ -926,6 +931,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },

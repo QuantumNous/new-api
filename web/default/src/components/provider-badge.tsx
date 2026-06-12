@@ -36,9 +36,15 @@ export function ProviderBadge({
   const icon = iconKey ? getLobeIcon(iconKey, iconSize) : null
 
   return (
-    <div className={cn('flex items-center gap-1.5', className)}>
+    <div data-slot='provider-badge' className={cn('flex items-center gap-1.5', className)}>
       {icon}
-      <StatusBadge label={label} autoColor={label} size='sm' {...badgeProps} />
+      <StatusBadge
+        label={label}
+        autoColor={label}
+        size='sm'
+        className={!icon ? 'pl-0' : undefined}
+        {...badgeProps}
+      />
     </div>
   )
 }

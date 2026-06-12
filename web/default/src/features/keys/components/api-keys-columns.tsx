@@ -115,6 +115,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             label={t(statusConfig.label)}
             variant={statusConfig.variant}
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -142,6 +143,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
               label={t('Unlimited')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -283,6 +285,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
               label={t('Never')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }

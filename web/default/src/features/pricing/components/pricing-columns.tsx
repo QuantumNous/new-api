@@ -96,6 +96,7 @@ export function usePricingColumns(
             label={isTokenBased ? t('Token') : t('Request')}
             variant={isTokenBased ? 'info' : 'neutral'}
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },

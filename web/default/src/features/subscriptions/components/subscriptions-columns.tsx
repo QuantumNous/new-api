@@ -115,12 +115,14 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
               label={t('Enable')}
               variant='success'
               copyable={false}
+              className='-ml-1.5'
             />
           ) : (
             <StatusBadge
               label={t('Disable')}
               variant='neutral'
               copyable={false}
+              className='-ml-1.5'
             />
           ),
         size: 80,

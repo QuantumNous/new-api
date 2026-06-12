@@ -25,6 +25,7 @@ import {
 } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { StatusBadgeTypeContext } from '@/components/status-badge'
 import { cn } from '@/lib/utils'
 import {
   Empty,
@@ -139,12 +140,14 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
       {/* Row 1: Title + Badge */}
       <div className='flex items-center justify-between gap-2'>
         {titleCell && (
-          <div className='min-w-0 flex-1 overflow-hidden text-sm font-medium'>
+          <div className='min-w-0 flex-1 text-sm font-medium [&_[data-slot=status-badge]]:max-w-full [&_[data-slot=status-badge]]:whitespace-normal'>
             {renderCellContent(titleCell)}
           </div>
         )}
         {badgeCell && (
-          <div className='shrink-0'>{renderCellContent(badgeCell)}</div>
+          <div className='flex-none [&_[data-slot=status-badge]]:max-w-none'>
+            {renderCellContent(badgeCell)}
+          </div>
         )}
       </div>
 
@@ -160,8 +163,10 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
                     {label}
                   </div>
                 )}
-                <div className='min-w-0 overflow-hidden text-xs'>
-                  {renderCellContent(cell) ?? '-'}
+                <div className='min-w-0 overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+                  <StatusBadgeTypeContext.Provider value='text'>
+                    {renderCellContent(cell) ?? '-'}
+                  </StatusBadgeTypeContext.Provider>
                 </div>
               </div>
             )
@@ -203,12 +208,13 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
     <>
       {contentCells.map((cell) => {
         const label = getCellLabel(cell)
-        const content = renderCellContent(cell)
 
         if (!label) {
           return (
-            <div key={cell.id} className='flex justify-end overflow-hidden'>
-              {content}
+            <div key={cell.id} className='flex justify-end overflow-hidden [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+              <StatusBadgeTypeContext.Provider value='text'>
+                {renderCellContent(cell)}
+              </StatusBadgeTypeContext.Provider>
             </div>
           )
         }
@@ -221,8 +227,10 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
             <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
               {label}
             </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs'>
-              {content ?? '-'}
+            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+              <StatusBadgeTypeContext.Provider value='text'>
+                {renderCellContent(cell) ?? '-'}
+              </StatusBadgeTypeContext.Provider>
             </div>
           </div>
         )
