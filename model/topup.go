@@ -207,8 +207,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
-	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodStripe)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodStripe)
 
 	return nil
 }
@@ -262,8 +261,7 @@ func RechargePayPal(referenceId string, callerIp string) (err error) {
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 PayPal 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPayPal)
-	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodPayPal)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodPayPal)
 
 	return nil
 }
@@ -611,8 +609,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
-	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodCreem)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodCreem)
 
 	return nil
 }
@@ -675,8 +672,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
-		ProcessAffCommission(topUp.UserId, quotaToAdd)
-		NotifyPaymentSuccess(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
 	}
 
 	return nil
@@ -738,10 +734,18 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
-		NotifyPaymentSuccess(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
 	}
 
 	return nil
+}
+
+// OnTopupSucceeded is the single hook called after every successful topup.
+// Centralises affiliate commission + Feishu notification so new payment methods
+// only need one call here instead of wiring each individually.
+func OnTopupSucceeded(userId int, quotaAdded int, paymentMethod string) {
+	ProcessAffCommission(userId, quotaAdded)
+	NotifyPaymentSuccess(userId, quotaAdded, paymentMethod)
 }
 
 // NotifyPaymentSuccess sends a Feishu card to the ops group on successful payment.

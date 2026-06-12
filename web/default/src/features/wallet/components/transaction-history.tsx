@@ -33,9 +33,9 @@ import type { TopupStatus } from '../types'
 const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
 
 const STATUS_TABS = [
-  { value: '', label: '全部' },
-  { value: 'success', label: '成功' },
-  { value: 'pending', label: '待支付' },
+  { value: '', labelKey: 'All' },
+  { value: 'success', labelKey: 'Success' },
+  { value: 'pending', labelKey: 'Awaiting Payment' },
 ] as const
 
 // Crypto path stores amount as raw quota units; Epay stores USD dollar integer
@@ -129,7 +129,7 @@ export function TransactionHistory() {
               </span>
             )}
             <Input
-              placeholder={isAdmin ? '订单号 / 邮箱 / UID' : t('Search by order number...')}
+              placeholder={isAdmin ? t('Order No. / Email / UID') : t('Search by order number...')}
               value={keyword}
               onChange={(e) => handleSearch(e.target.value)}
               className='h-8 w-full sm:w-52 text-sm'
@@ -148,7 +148,7 @@ export function TransactionHistory() {
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
@@ -161,8 +161,8 @@ export function TransactionHistory() {
             <thead>
               <tr className='border-y bg-muted/30 text-xs text-muted-foreground'>
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Order No.')}</th>
-                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>用户名</th>}
-                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />国家</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>{t('Username')}</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />{t('Country')}</th>}
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Payment Method')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Recharge Amount')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Amount Paid')}</th>
