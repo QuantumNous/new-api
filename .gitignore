@@ -41,8 +41,9 @@ skills-lock.json
 # playwright-mcp tool runs leave logs/snapshots here — not source
 .playwright-mcp/
 
-# Local-only run scripts that may contain personal dev tokens or env overrides.
-# Commit *.sh for shared scripts; use *.local.sh for your local convenience wrappers.
-bin/*.local.sh
+# Local-only env files with real credentials — never committed.
+# Commit *.example files only; the real files are gitignored.
+bin/.env.*
+!bin/.env.*.example
 .env.local
 .env.*.local

@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# Run DR-13 human test with current token set.
-# Set the required environment variables before running:
+# Run DR-13 human test.
 #
-#   export RPM_KEY="sk-..."
-#   export TPM_KEY="sk-..."
-#   export MONTHLY_KEY="sk-..."
-#   export ROOT_KEY="sk-..."
-#   export RPM1_KEY="sk-..."
-#   export MONTHLY1_KEY="sk-..."
-#   export COMBO_KEY="sk-..."
-#   export COMBO_TOKEN_ID=<id>      # token DB id for COMBO_KEY
-#   export MONTHLY1_TOKEN_ID=<id>   # token DB id for MONTHLY1_KEY
-#   export MONTHLY_TOKEN_ID=<id>    # token DB id for MONTHLY_KEY
-#   export BASE_URL="http://localhost:3000"  # optional, defaults to localhost:3000
+# Setup (one-time):
+#   cp bin/.env.dr13.example bin/.env.dr13
+#   # edit bin/.env.dr13 and fill in your real keys
 #
-# Or pass them inline:
-#   RPM_KEY=sk-... ROOT_KEY=sk-... ... bash bin/run-dr13-human-test.sh
+# Then just run:
+#   bash bin/run-dr13-human-test.sh
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/.env.dr13"
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$ENV_FILE"
+  set +a
+else
+  echo "ERROR: $ENV_FILE not found."
+  echo "Run: cp bin/.env.dr13.example bin/.env.dr13  then fill in your keys."
+  exit 1
+fi
 
 required_vars=(RPM_KEY TPM_KEY MONTHLY_KEY ROOT_KEY RPM1_KEY MONTHLY1_KEY COMBO_KEY
                COMBO_TOKEN_ID MONTHLY1_TOKEN_ID MONTHLY_TOKEN_ID)
@@ -26,8 +31,7 @@ for v in "${required_vars[@]}"; do
   [[ -z "${!v:-}" ]] && missing+=("$v")
 done
 if [[ ${#missing[@]} -gt 0 ]]; then
-  echo "ERROR: missing required env vars: ${missing[*]}"
-  echo "See the header of this script for instructions."
+  echo "ERROR: missing vars in .env.dr13: ${missing[*]}"
   exit 1
 fi
 
@@ -41,4 +45,4 @@ docker compose exec redis redis-cli DEL \
   "tq:monthly:${MONTHLY_TOKEN_ID}:${YYYYMM}" > /dev/null 2>&1
 echo "  [reset] Monthly counters cleared for COMBO/MONTHLY1/MONTHLY tokens"
 
-bash "$(dirname "$0")/test-dr13-human.sh"
+bash "${SCRIPT_DIR}/test-dr13-human.sh"
