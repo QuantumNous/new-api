@@ -20,6 +20,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import {
+  getPublicPathLanguage,
+  isPublicWebsitePath,
+  localizePublicPath,
+  stripPathLocale,
+} from '@/lib/public-locale'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -90,11 +96,24 @@ export function PublicHeader(props: PublicHeaderProps) {
   const notifications = useNotifications()
   const routerState = useRouterState()
   const pathname = routerState.location.pathname
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
 
   const user = auth.user
   const isAuthenticated = !!user
   const displaySiteName = customSiteName || systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  const localizedHomeUrl = isPublicWebsitePath(homeUrl)
+    ? localizePublicPath(homeUrl, currentPublicLanguage)
+    : homeUrl
+
+  const getLocalizedHref = useCallback(
+    (href: string) => {
+      return isPublicWebsitePath(href)
+        ? localizePublicPath(href, currentPublicLanguage)
+        : href
+    },
+    [currentPublicLanguage]
+  )
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -153,13 +172,14 @@ export function PublicHeader(props: PublicHeaderProps) {
 
       if (link.requiresAuth) {
         event.preventDefault()
+        const href = getLocalizedHref(link.href)
         if (closeMobile) {
           setMobileOpen(false)
         }
         setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS)
         setAuthPromptTarget({
           title: t(link.title),
-          href: link.href,
+          href,
         })
         return
       }
@@ -168,7 +188,7 @@ export function PublicHeader(props: PublicHeaderProps) {
         setMobileOpen(false)
       }
     },
-    [t]
+    [getLocalizedHref, t]
   )
 
   return (
@@ -190,7 +210,7 @@ export function PublicHeader(props: PublicHeaderProps) {
           >
             {/* Logo */}
             <Link
-              to={homeUrl}
+              to={localizedHomeUrl}
               className='group flex shrink-0 items-center gap-2.5'
             >
               <div className='flex h-11 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-[1.02]'>
@@ -215,7 +235,8 @@ export function PublicHeader(props: PublicHeaderProps) {
             {/* Desktop nav */}
             <div className='hidden items-center gap-0.5 sm:flex'>
               {links.map((link, i) => {
-                const isActive = pathname === link.href
+                const href = getLocalizedHref(link.href)
+                const isActive = stripPathLocale(pathname) === link.href
                 if (link.external) {
                   return (
                     <a
@@ -238,7 +259,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                 return (
                   <Link
                     key={i}
-                    to={link.href}
+                    to={href}
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
@@ -347,7 +368,8 @@ export function PublicHeader(props: PublicHeaderProps) {
         <div className='flex h-full flex-col justify-between px-8 pt-20 pb-10'>
           <nav className='flex flex-col gap-1'>
             {links.map((link, i) => {
-              const isActive = pathname === link.href
+              const href = getLocalizedHref(link.href)
+              const isActive = stripPathLocale(pathname) === link.href
               const linkClassName = cn(
                 'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
                 mobileOpen
@@ -379,7 +401,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               return (
                 <Link
                   key={i}
-                  to={link.href}
+                  to={href}
                   disabled={link.disabled}
                   onClick={(event) => handleNavLinkClick(event, link, true)}
                   className={linkClassName}

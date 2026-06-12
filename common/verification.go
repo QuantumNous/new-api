@@ -1,10 +1,14 @@
 package common
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -32,7 +36,30 @@ func GenerateVerificationCode(length int) string {
 	return code[:length]
 }
 
+func verificationRedisKey(key string, purpose string) string {
+	return fmt.Sprintf("verification:%s:%s", purpose, key)
+}
+
+// RDB stays nil until InitRedisClient even though RedisEnabled defaults to
+// true, so guard both (same as PublishConfigChanged in redis_pubsub.go).
+func verificationRedisUsable() bool {
+	return RedisEnabled && RDB != nil
+}
+
+// Codes must be stored in Redis when it is enabled: with multiple instances
+// behind a load balancer, the instance that verifies a code is usually not
+// the one that generated it, so the in-memory map only works single-instance.
+//
+// These call RDB directly instead of the RedisSet/RedisGet wrappers: codes
+// are credentials, and the wrappers log keys and values in debug mode.
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
+	if verificationRedisUsable() {
+		err := RDB.Set(context.Background(), verificationRedisKey(key, purpose), code, time.Duration(VerificationValidMinutes)*time.Minute).Err()
+		if err == nil {
+			return
+		}
+		SysError("failed to store verification code in Redis, falling back to memory: " + err.Error())
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap[purpose+key] = verificationValue{
@@ -45,6 +72,17 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
+	if verificationRedisUsable() {
+		storedCode, err := RDB.Get(context.Background(), verificationRedisKey(key, purpose)).Result()
+		if err == nil {
+			return code == storedCode
+		}
+		if !errors.Is(err, redis.Nil) {
+			SysError("failed to read verification code from Redis: " + err.Error())
+		}
+		// fall through to the in-memory map, which may hold codes stored
+		// there when a Redis write failed
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	value, okay := verificationMap[purpose+key]
@@ -56,6 +94,11 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 }
 
 func DeleteKey(key string, purpose string) {
+	if verificationRedisUsable() {
+		if err := RDB.Del(context.Background(), verificationRedisKey(key, purpose)).Err(); err != nil {
+			SysError("failed to delete verification code from Redis: " + err.Error())
+		}
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)

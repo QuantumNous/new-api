@@ -87,12 +87,15 @@ function PaginationLink({
 
 function PaginationPrevious({
   className,
-  text = 'Previous',
+  text,
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
+  const { t } = useTranslation()
+  const resolvedText = text ?? t('Previous')
+
   return (
     <PaginationLink
-      aria-label='Go to previous page'
+      aria-label={t('Go to previous page')}
       size='default'
       className={cn('pl-1.5!', className)}
       {...props}
@@ -102,24 +105,27 @@ function PaginationPrevious({
         strokeWidth={2}
         data-icon='inline-start'
       />
-      <span className='hidden sm:block'>{text}</span>
+      <span className='hidden sm:block'>{resolvedText}</span>
     </PaginationLink>
   )
 }
 
 function PaginationNext({
   className,
-  text = 'Next',
+  text,
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
+  const { t } = useTranslation()
+  const resolvedText = text ?? t('Next')
+
   return (
     <PaginationLink
-      aria-label='Go to next page'
+      aria-label={t('Go to next page')}
       size='default'
       className={cn('pr-1.5!', className)}
       {...props}
     >
-      <span className='hidden sm:block'>{text}</span>
+      <span className='hidden sm:block'>{resolvedText}</span>
       <HugeiconsIcon
         icon={ArrowRight01Icon}
         strokeWidth={2}

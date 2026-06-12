@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-18 | Updated: 2026-06-08 -->
+<!-- Generated: 2026-05-18 | Updated: 2026-06-10 -->
 
 # i18n
 
@@ -11,7 +11,7 @@
 - 后端：YAML 格式，嵌入到 Go 二进制，通过 `go:embed` 加载
 - 前端：JSON 格式，由 i18next 在浏览器运行时加载
 
-当前支持语言：`zh-CN`（简体中文）、`zh-TW`（繁体中文）、`en`（英文，默认回退语言）。
+当前支持语言：`zh-CN`（简体中文）、`zh-TW`（繁体中文）、`en`（英文，默认回退语言）、`pt`（葡萄牙语，2026-06-10 新增）。
 
 ## Key Files
 
@@ -22,22 +22,23 @@
 | `locales/zh-CN.yaml` | 简体中文翻译文件 |
 | `locales/zh-TW.yaml` | 繁体中文翻译文件 |
 | `locales/en.yaml` | 英文翻译文件 |
+| `locales/pt.yaml` | 葡萄牙语翻译文件（2026-06-10 新增） |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- 所有翻译消息键定义在 `keys.go` 中，添加新消息时先在此文件定义常量，再在三个 YAML 文件中同步添加翻译。
+- 所有翻译消息键定义在 `keys.go` 中，添加新消息时先在此文件定义常量，再在四个 YAML 文件中同步添加翻译。
 - `T(c *gin.Context, key string, args ...map[string]any)` 是 controller 层的主入口，自动从 gin context 提取用户语言。
 - 语言检测优先级（`GetLangFromContext`）：用户设置 > 懒加载用户 DB 语言 > `Accept-Language` 请求头 > 默认 English。
 - `SetUserLangLoader(loader)` 由 `model` 包在初始化时注入，避免 `i18n → model` 的循环依赖。
 - 翻译文件通过 `//go:embed locales/*.yaml` 编译时嵌入二进制，无需运行时文件系统访问，修改 YAML 后须重新编译生效。
-- 新增语言支持时：在 `i18n.go` 的 `SupportedLanguages()`、`normalizeLang()` 和 `localizers` 初始化中同步添加。
+- 新增语言支持时：在 `i18n.go` 的 `SupportedLanguages()`、`normalizeLang()`、`Init()` 的文件加载列表和 `localizers` 初始化映射中同步添加，并在 `locales/` 下新建对应 YAML 文件。当前四语言：`zh-CN`、`zh-TW`、`en`、`pt`（`pt` 的 `normalizeLang` 规则覆盖 `pt-*`/`pt_*` 所有变体）。
 
 ### Testing Requirements
 
 - 目前无独立单元测试文件。
-- 新增翻译键时，手动验证三个语言文件均已添加对应翻译条目，避免 key-not-found 回退到消息键本身。
+- 新增翻译键时，手动验证四个语言文件（`zh-CN`、`zh-TW`、`en`、`pt`）均已添加对应翻译条目，避免 key-not-found 回退到消息键本身。
 - 修改 `normalizeLang()` 时，验证各语言标签变体（`zh`、`zh-cn`、`zh-Hans`）均能正确归一化。
 
 ### Common Patterns

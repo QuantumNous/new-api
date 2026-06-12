@@ -26,6 +26,7 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  UserInvoiceProfile,
 } from './types'
 
 // ============================================================================
@@ -138,6 +139,25 @@ export async function resetUserPasskey(id: number): Promise<ApiResponse> {
  */
 export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/user/${id}/2fa`)
+  return res.data
+}
+
+export async function getUserInvoiceProfile(
+  id: number
+): Promise<ApiResponse<UserInvoiceProfile | null>> {
+  const res = await api.get(`/api/user/${id}/invoice-profile`, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function updateUserInvoiceProfile(
+  id: number,
+  data: UserInvoiceProfile
+): Promise<ApiResponse<UserInvoiceProfile>> {
+  const res = await api.put(`/api/user/${id}/invoice-profile`, data, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

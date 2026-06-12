@@ -1,5 +1,7 @@
 github.com/BlockRunAI/blockrun-llm-go v0.11.0 h1:6JT6KO8pp8hKehdNamTlLgpDhrZn4YOsnpr7w36bRUM=
 github.com/BlockRunAI/blockrun-llm-go v0.11.0/go.mod h1:di8carn7SxW3YaJ6jw2r3N91cMadiUWBNwq9V1pV6JE=
+github.com/BlockRunAI/blockrun-llm-go v0.17.0 h1:Myd8E+OS6XiGTkzzBl9W2EVFe+fO3uNYnEJtGrRIjEA=
+github.com/BlockRunAI/blockrun-llm-go v0.17.0/go.mod h1:di8carn7SxW3YaJ6jw2r3N91cMadiUWBNwq9V1pV6JE=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/Calcium-Ion/go-epay v0.0.4 h1:C96M7WfRLadcIVscWzwLiYs8etI1wrDmtFMuK2zP22A=

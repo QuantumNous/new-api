@@ -29,6 +29,12 @@ import (
 // would create an import cycle (service already imports taskcommon).
 //
 // See "新增 seedance 系渠道适配器 SOP" in relay/channel/task/AGENTS.md.
+// seedanceRequestContextKey caches the *dto.SeedanceVideoRequest parsed by
+// BindSeedanceRequest so read-only consumers later in the same request (e.g. a
+// channel's EstimateBilling) can reuse it via GetSeedanceRequest instead of
+// re-decoding the body.
+const seedanceRequestContextKey = "seedance_request"
+
 func BindSeedanceRequest(c *gin.Context, info *relaycommon.RelayInfo, action string) (*dto.SeedanceVideoRequest, error) {
 	var req dto.SeedanceVideoRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
@@ -54,5 +60,24 @@ func BindSeedanceRequest(c *gin.Context, info *relaycommon.RelayInfo, action str
 	}
 
 	relaycommon.StoreTaskRequest(c, info, action, taskReq)
+	c.Set(seedanceRequestContextKey, &req)
+	return &req, nil
+}
+
+// GetSeedanceRequest returns the seedance request parsed by BindSeedanceRequest
+// earlier in the same request, avoiding a redundant body decode for read-only
+// consumers (e.g. a channel's EstimateBilling). If no bound request is cached —
+// e.g. the consumer runs in isolation or before Bind — it decodes the reusable
+// body once as a fallback. The body stays reusable either way.
+func GetSeedanceRequest(c *gin.Context) (*dto.SeedanceVideoRequest, error) {
+	if v, ok := c.Get(seedanceRequestContextKey); ok {
+		if req, ok := v.(*dto.SeedanceVideoRequest); ok && req != nil {
+			return req, nil
+		}
+	}
+	var req dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+		return nil, err
+	}
 	return &req, nil
 }

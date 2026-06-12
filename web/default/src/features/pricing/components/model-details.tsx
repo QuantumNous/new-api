@@ -22,6 +22,7 @@ import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, Code2, HeartPulse, Info, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -269,9 +270,7 @@ function ModelHeader(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
-  const modelIcon = modelIconKey
-    ? getLobeIcon(modelIconKey, 20)
-    : null
+  const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const description = model.description || model.vendor_description || null
   const tags = parseTags(model.tags)
   const isSpecialExpression =
@@ -1026,9 +1025,14 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
 
 export function ModelDetails() {
   const { t } = useTranslation()
-  const { modelId } = useParams({ from: '/pricing/$modelId/' })
-  const search = useSearch({ from: '/pricing/$modelId/' })
+  const params = useParams({ strict: false })
+  const search = useSearch({ strict: false })
   const navigate = useNavigate()
+  const modelId =
+    typeof params.modelId === 'string' ? params.modelId : undefined
+  const tokenUnitSearchValue = search.tokenUnit
+  const showRechargePrice = search.rechargePrice === true
+  const currentPublicLanguage = getPublicPathLanguage(window.location.pathname)
 
   const {
     models,
@@ -1042,7 +1046,7 @@ export function ModelDetails() {
   } = usePricingData()
 
   const tokenUnit: TokenUnit =
-    search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
+    tokenUnitSearchValue === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
@@ -1050,7 +1054,10 @@ export function ModelDetails() {
   }, [models, modelId])
 
   const handleBack = () => {
-    navigate({ to: '/pricing', search })
+    navigate({
+      to: localizePublicPath('/pricing', currentPublicLanguage),
+      search,
+    })
   }
 
   if (isLoading) {
@@ -1117,7 +1124,7 @@ export function ModelDetails() {
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
-          showRechargePrice={search.rechargePrice ?? false}
+          showRechargePrice={showRechargePrice}
           endpointMap={
             (endpointMap as Record<
               string,

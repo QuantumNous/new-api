@@ -16,42 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { BlogCategory } from './types'
 
 export const BLOG_PAGE_SIZE = 18
 
-export const BLOG_CATEGORIES = [
-  {
-    id: 6,
-    slug: 'voice-of-customer',
-    name: 'Voice of Customer',
-    description:
-      'Signals from customers, reviews, and support conversations that improve product decisions.',
-  },
-  {
-    id: 7,
-    slug: 'marketing',
-    name: 'Marketing',
-    description:
-      'Growth strategy, positioning, and customer language for AI-first teams.',
-  },
-  {
-    id: 8,
-    slug: 'e-commerce',
-    name: 'Ecommerce',
-    description:
-      'Marketplace operations, commerce automation, and buyer insight workflows.',
-  },
-  {
-    id: 134,
-    slug: 'economic-academy',
-    name: 'Economic Academy',
-    description:
-      'Practical guides for turning operational data into business decisions.',
-  },
-] as const
+export function normalizeBlogCategories(
+  categories: BlogCategory[]
+): Required<BlogCategory>[] {
+  return categories.map((category) => ({
+    ...category,
+    description: category.description || '',
+  }))
+}
 
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number]
-
-export function getBlogCategory(slug: string): BlogCategory | undefined {
-  return BLOG_CATEGORIES.find((category) => category.slug === slug)
+export function getBlogCategory(
+  categories: BlogCategory[] | undefined,
+  slug: string
+): Required<BlogCategory> | undefined {
+  return normalizeBlogCategories(categories ?? []).find(
+    (category) => category.slug === slug
+  )
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -280,6 +281,80 @@ func TestUsageTransactions(t *testing.T) {
 	}
 	if strings.Contains(body, "total_cost") || strings.Contains(body, "chain") {
 		t.Fatalf("must not contain total_cost or chain: %s", body)
+	}
+}
+
+func TestUsageTransactionsCursorPagination(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 34, 100, "blockRun-claude-0603")
+
+	l1 := seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "key-a", ModelName: "m1",
+		PromptTokens: 1, Quota: 10, CreatedAt: 1100, RequestId: "req_1"})
+	l2 := seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "key-a", ModelName: "m2",
+		PromptTokens: 2, Quota: 20, CreatedAt: 1100, RequestId: "req_2"})
+	l3 := seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "key-a", ModelName: "m3",
+		PromptTokens: 3, Quota: 30, CreatedAt: 1200, RequestId: "req_3"})
+
+	code, m, body := doUsageGET(t, usageEngine(),
+		"/usage/transactions?period=day&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&limit=2")
+	if code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", code, body)
+	}
+	txns := m["transactions"].([]interface{})
+	if len(txns) != 2 {
+		t.Fatalf("txns len=%d body=%s", len(txns), body)
+	}
+	if txns[0].(map[string]interface{})["source_id"] != strconv.Itoa(l1.Id) ||
+		txns[1].(map[string]interface{})["source_id"] != strconv.Itoa(l2.Id) {
+		t.Fatalf("first cursor page order=%v", txns)
+	}
+	pg := m["pagination"].(map[string]interface{})
+	if pg["mode"] != "cursor" || pg["limit"].(float64) != 2 || pg["has_more"] != true {
+		t.Fatalf("cursor pagination=%v", pg)
+	}
+	if _, ok := pg["total_count"]; ok {
+		t.Fatalf("cursor pagination should not return diagnostic total_count: %v", pg)
+	}
+	nextCursor, ok := pg["next_cursor"].(string)
+	if !ok || nextCursor == "" {
+		t.Fatalf("missing next_cursor: %v", pg)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(),
+		"/usage/transactions?period=day&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&limit=2&cursor="+url.QueryEscape(nextCursor))
+	if code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", code, body)
+	}
+	txns = m["transactions"].([]interface{})
+	if len(txns) != 1 || txns[0].(map[string]interface{})["source_id"] != strconv.Itoa(l3.Id) {
+		t.Fatalf("second cursor page=%v", txns)
+	}
+	pg = m["pagination"].(map[string]interface{})
+	if pg["mode"] != "cursor" || pg["has_more"] != false {
+		t.Fatalf("second cursor pagination=%v", pg)
+	}
+	if _, ok := pg["next_cursor"]; ok {
+		t.Fatalf("next_cursor should be omitted when exhausted: %v", pg)
+	}
+}
+
+func TestUsageTransactionsCursorRejectsMismatchedWindow(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 34, 100, "blockRun-claude-0603")
+	seedUsageLog(t, &model.Log{ChannelId: 34, ModelName: "m1", CreatedAt: 1100})
+	seedUsageLog(t, &model.Log{ChannelId: 34, ModelName: "m2", CreatedAt: 1200})
+
+	code, m, body := doUsageGET(t, usageEngine(),
+		"/usage/transactions?start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&limit=1")
+	if code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", code, body)
+	}
+	cursor := m["pagination"].(map[string]interface{})["next_cursor"].(string)
+
+	code, _, body = doUsageGET(t, usageEngine(),
+		"/usage/transactions?start=1970-01-01T00:16:41Z&end=1970-01-01T00:33:20Z&limit=1&cursor="+url.QueryEscape(cursor))
+	if code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s, want 400", code, body)
 	}
 }
 

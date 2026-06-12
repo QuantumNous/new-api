@@ -50,6 +50,9 @@ const CONVERSION_ID = import.meta.env.VITE_GADS_CONVERSION_ID as
 const SIGNUP_SEND_TO = import.meta.env.VITE_GADS_SIGNUP_SEND_TO as
   | string
   | undefined
+const GA_MEASUREMENT_ID =
+  (import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined) ||
+  'G-30RCEP2CVH'
 
 let loaderPromise: Promise<void> | null = null
 
@@ -126,4 +129,51 @@ export function trackAdsFunnelEvent(
       /* tracking must never break product UX */
     }
   })
+}
+
+export interface GAMeasurementIdentifiers {
+  ga_client_id?: string
+  ga_session_id?: string
+}
+
+function getCookieValue(name: string): string {
+  if (typeof document === 'undefined') return ''
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${escapedName}=([^;]*)`)
+  )
+  if (!match) return ''
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
+}
+
+function parseGAClientID(cookieValue: string): string | undefined {
+  const parts = cookieValue.split('.')
+  if (parts.length < 4) return undefined
+  const clientID = parts.slice(-2).join('.')
+  return /^\d+\.\d+$/.test(clientID) ? clientID : undefined
+}
+
+function parseGASessionID(cookieValue: string): string | undefined {
+  const gs2Match = cookieValue.match(/(?:^|[.$])s(\d+)(?:[.$]|$)/)
+  if (gs2Match?.[1]) return gs2Match[1]
+
+  const parts = cookieValue.split('.')
+  if (parts.length >= 3 && /^GS\d+$/.test(parts[0]) && /^\d+$/.test(parts[2])) {
+    return parts[2]
+  }
+  return undefined
+}
+
+export function getGAMeasurementIdentifiers(): GAMeasurementIdentifiers {
+  const gaClientID = parseGAClientID(getCookieValue('_ga'))
+  const cookieSuffix = GA_MEASUREMENT_ID.replace(/^G-/, '').replace(/-/g, '_')
+  const gaSessionID = parseGASessionID(getCookieValue(`_ga_${cookieSuffix}`))
+  return {
+    ...(gaClientID ? { ga_client_id: gaClientID } : {}),
+    ...(gaSessionID ? { ga_session_id: gaSessionID } : {}),
+  }
 }

@@ -69,6 +69,8 @@ export type PaddlePaymentResponse = ApiResponse<
   | string
 >
 export type PaddleTopUpStatusResponse = ApiResponse<PaddleTopUpStatus>
+export type InvoiceProfileResponse = ApiResponse<InvoiceProfile | null>
+export type RequestInvoiceResponse = ApiResponse<PaymentInvoice | null>
 
 export interface PaddleTopUpStatus {
   order_id: string
@@ -78,6 +80,40 @@ export interface PaddleTopUpStatus {
   money: number
   create_time: number
   complete_time?: number
+}
+
+export interface InvoiceProfile {
+  company_name: string
+  billing_email: string
+  tax_id_type?: string
+  tax_id?: string
+  country: string
+  state?: string
+  city?: string
+  address_line1: string
+  address_line2?: string
+  postal_code?: string
+  phone?: string
+}
+
+export interface PaymentInvoice {
+  invoice_requested: boolean
+  company_name?: string
+  billing_email?: string
+  tax_id_type?: string
+  tax_id?: string
+  country?: string
+  state?: string
+  city?: string
+  address_line1?: string
+  address_line2?: string
+  postal_code?: string
+  phone?: string
+  stripe_invoice_id?: string
+  stripe_invoice_number?: string
+  stripe_invoice_url?: string
+  stripe_invoice_pdf?: string
+  invoice_status?: string
 }
 
 /**
@@ -104,6 +140,10 @@ export interface CreemPaymentRequest {
   product_id: string
   /** Payment method identifier */
   payment_method: 'creem'
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -216,6 +256,19 @@ export interface PaymentRequest {
   success_url?: string
   /** Optional redirect URL after cancelled hosted checkout */
   cancel_url?: string
+  /** Whether Stripe should create a company invoice */
+  invoice_requested?: boolean
+  /** Company invoice profile snapshot */
+  invoice_profile?: InvoiceProfile
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
+}
+
+export interface PaymentOptions {
+  invoiceRequested?: boolean
+  invoiceProfile?: InvoiceProfile
 }
 
 /**
@@ -226,6 +279,10 @@ export interface WaffoPaymentRequest {
   amount: number
   /** Optional server-side Waffo payment method index */
   pay_method_index?: number
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -234,6 +291,10 @@ export interface WaffoPaymentRequest {
 export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -242,6 +303,10 @@ export interface WaffoPancakePaymentRequest {
 export interface PaddlePaymentRequest {
   /** Topup amount */
   amount: number
+  /** GA4 client_id captured from browser cookies */
+  ga_client_id?: string
+  /** GA4 session_id captured from browser cookies */
+  ga_session_id?: string
 }
 
 /**
@@ -317,6 +382,8 @@ export interface TopupRecord {
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  /** Optional invoice snapshot for this order */
+  invoice?: PaymentInvoice
 }
 
 /**

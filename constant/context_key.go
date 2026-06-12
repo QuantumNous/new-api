@@ -66,4 +66,10 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// ContextKeyBlockRunSettlement carries upstream cost signals captured by the
+	// blockrun image adaptor (price from the 202 async envelope, on-chain tx hash
+	// from X-Payment-Receipt). Value type: map[string]interface{}. Surfaced into
+	// the consume-log "other" map by service.GenerateTextOtherInfo.
+	ContextKeyBlockRunSettlement ContextKey = "blockrun_settlement"
 )

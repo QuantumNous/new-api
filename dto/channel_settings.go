@@ -7,6 +7,8 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// ImageCarrierModel 覆盖该渠道图像出图的承载文本模型（留空=用全局/默认）。仅 codex 渠道使用。
+	ImageCarrierModel string `json:"image_carrier_model,omitempty"`
 }
 
 type VertexKeyType string

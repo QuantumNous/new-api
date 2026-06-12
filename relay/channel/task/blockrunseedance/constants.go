@@ -4,7 +4,7 @@ package blockrunseedance
 const ChannelName = "blockrun-seedance"
 
 // maxAmountAtomicUSDCVideo caps a single video x402 charge to 10 USDC (6 decimals).
-// Seedance per-second pricing can exceed the $1 chat cap (e.g. 2.0 @ ~$0.30/s ×10s
+// Seedance per-second pricing can exceed the $5 chat cap (e.g. 2.0 @ ~$0.30/s ×10s
 // = $3); $10 is a generous ceiling that still refuses an obviously-malicious 402.
 const maxAmountAtomicUSDCVideo = 10_000_000
 
@@ -51,6 +51,20 @@ func upstreamModel(name string) (string, bool) {
 // both the whitelabel pseudo names and the wire names so an operator mapping
 // that targets the upstream id keeps the asset capability.
 func supportsRealFaceAsset(model string) bool {
+	switch model {
+	case "seedance-2.0", "seedance-2.0-fast",
+		"bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
+		return true
+	default:
+		return false
+	}
+}
+
+// supportsOmniReference reports whether the upstream model accepts
+// reference_image_urls (omni reference generation). The vip SDK documents the
+// field as Seedance 2.0 only; gate it like real_face so an upstream 4xx never
+// reaches the pre-charge. Accepts pseudo and wire names (see above).
+func supportsOmniReference(model string) bool {
 	switch model {
 	case "seedance-2.0", "seedance-2.0-fast",
 		"bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":

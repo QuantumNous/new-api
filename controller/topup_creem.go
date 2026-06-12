@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"io"
 	"net/http"
@@ -50,6 +51,8 @@ func verifyCreemSignature(payload string, signature string, secret string) bool 
 type CreemPayRequest struct {
 	ProductId     string `json:"product_id"`
 	PaymentMethod string `json:"payment_method"`
+	GAClientID    string `json:"ga_client_id,omitempty"`
+	GASessionID   string `json:"ga_session_id,omitempty"`
 }
 
 type CreemProduct struct {
@@ -109,9 +112,12 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 		UserId:          id,
 		Amount:          selectedProduct.Quota, // 充值额度
 		Money:           selectedProduct.Price, // 支付金额
+		PaymentCurrency: selectedProduct.Currency,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
+		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
@@ -355,6 +361,7 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem 充值成功 trade_no=%s creem_order_id=%s quota=%d money=%.2f client_ip=%s", referenceId, event.Object.Order.Id, topUp.Amount, topUp.Money, c.ClientIP()))
+	sendPaymentSuccessGA(c.Request.Context(), model.GetTopUpByTradeNo(referenceId))
 	c.Status(http.StatusOK)
 }
 

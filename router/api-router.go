@@ -34,6 +34,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			blogRoute.GET("/list", controller.GetBlogList)
 			blogRoute.GET("/detail/:slug", controller.GetBlogPost)
+			blogRoute.GET("/categories", controller.GetBlogCategories)
 		}
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
@@ -101,6 +102,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/aff", controller.GetAffCode)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				selfRoute.POST("/topup/:trade_no/invoice", middleware.CriticalRateLimit(), controller.RequestStripeTopUpInvoice)
+				selfRoute.GET("/invoice-profile", controller.GetSelfInvoiceProfile)
+				selfRoute.PUT("/invoice-profile", controller.UpdateSelfInvoiceProfile)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)
@@ -141,6 +145,8 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
+				adminRoute.GET("/:id/invoice-profile", controller.AdminGetUserInvoiceProfile)
+				adminRoute.PUT("/:id/invoice-profile", controller.AdminUpdateUserInvoiceProfile)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
 				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
 				adminRoute.GET("/:id", controller.GetUser)

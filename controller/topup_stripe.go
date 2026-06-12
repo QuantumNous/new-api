@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -21,7 +22,11 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
+	stripecustomer "github.com/stripe/stripe-go/v81/customer"
+	stripeinvoice "github.com/stripe/stripe-go/v81/invoice"
+	stripeinvoiceitem "github.com/stripe/stripe-go/v81/invoiceitem"
 	stripeprice "github.com/stripe/stripe-go/v81/price"
+	stripetaxid "github.com/stripe/stripe-go/v81/taxid"
 	"github.com/stripe/stripe-go/v81/webhook"
 	"github.com/thanhpk/randstr"
 )
@@ -40,6 +45,12 @@ type StripePayRequest struct {
 	// CancelURL is the optional custom URL to redirect when payment is canceled.
 	// If empty, defaults to the server's console topup page.
 	CancelURL string `json:"cancel_url,omitempty"`
+	// InvoiceRequested enables Stripe invoice creation for this Checkout Session.
+	InvoiceRequested bool `json:"invoice_requested,omitempty"`
+	// InvoiceProfile is snapshotted to the local order when InvoiceRequested is true.
+	InvoiceProfile *model.InvoiceProfileFields `json:"invoice_profile,omitempty"`
+	GAClientID     string                      `json:"ga_client_id,omitempty"`
+	GASessionID    string                      `json:"ga_session_id,omitempty"`
 }
 
 type StripeAdaptor struct {
@@ -107,6 +118,22 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
+	var invoiceFields model.InvoiceProfileFields
+	var invoiceRequested bool
+	if req.InvoiceRequested {
+		if req.InvoiceProfile == nil {
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Invoice profile is required"})
+			return
+		}
+		fields, err := validateInvoiceProfile(*req.InvoiceProfile)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+			return
+		}
+		invoiceFields = fields
+		invoiceRequested = true
+	}
+
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
 
@@ -117,6 +144,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,
 		PaymentProvider: model.PaymentProviderStripe,
+		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
@@ -127,22 +156,195 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, payMoney, req.SuccessURL, req.CancelURL)
+	if invoiceRequested {
+		profile := &model.UserInvoiceProfile{
+			UserId:               id,
+			InvoiceProfileFields: invoiceFields,
+		}
+		if err := model.SaveUserInvoiceProfile(profile); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 保存用户开票资料失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "保存开票资料失败"})
+			return
+		}
+		paymentInvoice := &model.PaymentInvoice{
+			TradeNo:              referenceId,
+			UserId:               id,
+			OrderType:            model.PaymentOrderTypeTopUp,
+			PaymentProvider:      model.PaymentProviderStripe,
+			InvoiceRequested:     true,
+			InvoiceProfileFields: invoiceFields,
+			StripeCustomerId:     strings.TrimSpace(user.StripeCustomer),
+			InvoiceStatus:        model.PaymentInvoiceStatusRequested,
+		}
+		if err := model.CreatePaymentInvoiceSnapshot(paymentInvoice); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建开票快照失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建开票快照失败"})
+			return
+		}
+	}
+
+	checkoutSession, paymentCurrency, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, payMoney, req.SuccessURL, req.CancelURL, invoiceRequested)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
 		_ = topUp.Update()
+		if invoiceRequested {
+			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
+	if checkoutSession != nil {
+		topUp.GatewayTradeNo = strings.TrimSpace(checkoutSession.ID)
+		topUp.PaymentCurrency = strings.ToUpper(strings.TrimSpace(paymentCurrency))
+		if err := topUp.Update(); err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe 更新充值订单支付网关信息失败 trade_no=%s session_id=%s error=%q", referenceId, checkoutSession.ID, err.Error()))
+		}
+	}
+	if invoiceRequested && checkoutSession != nil {
+		customerId := strings.TrimSpace(user.StripeCustomer)
+		if checkoutSession.Customer != nil && strings.TrimSpace(checkoutSession.Customer.ID) != "" {
+			customerId = strings.TrimSpace(checkoutSession.Customer.ID)
+		}
+		if err := model.UpdatePaymentInvoiceStripeSession(referenceId, customerId, checkoutSession.ID); err != nil && !errors.Is(err, model.ErrPaymentInvoiceNotFound) {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe 更新 Checkout Session 到开票快照失败 trade_no=%s session_id=%s error=%q", referenceId, checkoutSession.ID, err.Error()))
+		}
+	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Stripe 充值订单创建成功 user_id=%d trade_no=%s amount=%d normalized_amount=%d money=%.2f", id, referenceId, req.Amount, normalizedAmount, payMoney))
+	if checkoutSession == nil || strings.TrimSpace(checkoutSession.URL) == "" {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe Checkout Session 缺少支付链接 user_id=%d trade_no=%s", id, referenceId))
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
+		if invoiceRequested {
+			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
-			"pay_link": payLink,
+			"pay_link": checkoutSession.URL,
 		},
 	})
+}
+
+func RequestStripeTopUpInvoice(c *gin.Context) {
+	tradeNo := strings.TrimSpace(c.Param("trade_no"))
+	if tradeNo == "" {
+		common.ApiErrorMsg(c, "Top-up order not found")
+		return
+	}
+
+	var req model.InvoiceProfileFields
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "Invalid request parameters")
+		return
+	}
+	fields, err := validateInvoiceProfile(req)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	userId := c.GetInt("id")
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil || topUp.UserId != userId {
+		common.ApiErrorMsg(c, "Top-up order not found")
+		return
+	}
+	if topUp.PaymentProvider != model.PaymentProviderStripe {
+		common.ApiErrorMsg(c, "Only Stripe top-ups support invoices")
+		return
+	}
+	if topUp.Status != common.TopUpStatusSuccess {
+		common.ApiErrorMsg(c, "Invoice can only be requested after payment succeeds")
+		return
+	}
+
+	existingInvoice, err := model.GetPaymentInvoiceByTradeNo(tradeNo)
+	if err != nil && !errors.Is(err, model.ErrPaymentInvoiceNotFound) {
+		common.ApiError(c, err)
+		return
+	}
+	if existingInvoice != nil && strings.TrimSpace(existingInvoice.StripeInvoiceId) != "" {
+		common.ApiSuccess(c, existingInvoice)
+		return
+	}
+
+	user, err := model.GetUserById(userId, false)
+	if err != nil || user == nil {
+		common.ApiErrorMsg(c, "User not found")
+		return
+	}
+
+	profile := &model.UserInvoiceProfile{
+		UserId:               userId,
+		InvoiceProfileFields: fields,
+	}
+	if err := model.SaveUserInvoiceProfile(profile); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 补开发票保存用户开票资料失败 user_id=%d trade_no=%s error=%q", userId, tradeNo, err.Error()))
+		common.ApiErrorMsg(c, "Failed to save invoice profile")
+		return
+	}
+
+	if existingInvoice == nil {
+		paymentInvoice := &model.PaymentInvoice{
+			TradeNo:                 tradeNo,
+			UserId:                  userId,
+			OrderType:               model.PaymentOrderTypeTopUp,
+			PaymentProvider:         model.PaymentProviderStripe,
+			InvoiceRequested:        true,
+			InvoiceProfileFields:    fields,
+			StripeCustomerId:        strings.TrimSpace(user.StripeCustomer),
+			StripeCheckoutSessionId: strings.TrimSpace(topUp.GatewayTradeNo),
+			InvoiceStatus:           model.PaymentInvoiceStatusPending,
+		}
+		if err := model.CreatePaymentInvoiceSnapshot(paymentInvoice); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 补开发票创建开票快照失败 user_id=%d trade_no=%s error=%q", userId, tradeNo, err.Error()))
+			common.ApiErrorMsg(c, "Failed to request invoice")
+			return
+		}
+	} else {
+		if err := model.UpdatePaymentInvoiceProfile(tradeNo, fields, model.PaymentInvoiceStatusPending); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 补开发票更新开票快照失败 user_id=%d trade_no=%s error=%q", userId, tradeNo, err.Error()))
+			common.ApiErrorMsg(c, "Failed to request invoice")
+			return
+		}
+		_ = model.UpdatePaymentInvoiceStripeSession(tradeNo, strings.TrimSpace(user.StripeCustomer), strings.TrimSpace(topUp.GatewayTradeNo))
+	}
+
+	stripeInv, err := createPaidStripeTopUpInvoice(c.Request.Context(), topUp, user, fields)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 补开发票失败 user_id=%d trade_no=%s error=%q", userId, tradeNo, err.Error()))
+		_ = model.UpdatePaymentInvoiceStatus(tradeNo, model.PaymentInvoiceStatusFailed)
+		common.ApiErrorMsg(c, "Failed to request invoice")
+		return
+	}
+
+	update := stripeInvoiceUpdateFromInvoice(stripeInv, model.StripeInvoiceUpdate{
+		StripeCheckoutSessionId: strings.TrimSpace(topUp.GatewayTradeNo),
+	})
+	if update.StripeCustomerId == "" {
+		update.StripeCustomerId = strings.TrimSpace(user.StripeCustomer)
+	}
+	if err := model.UpdatePaymentInvoiceStripeInvoice(tradeNo, update); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 补开发票回写失败 user_id=%d trade_no=%s invoice_id=%s error=%q", userId, tradeNo, update.StripeInvoiceId, err.Error()))
+		common.ApiError(c, err)
+		return
+	}
+
+	invoice, err := model.GetPaymentInvoiceByTradeNo(tradeNo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, invoice)
 }
 
 func RequestStripeAmount(c *gin.Context) {
@@ -273,6 +475,9 @@ func sessionAsyncPaymentFailed(ctx context.Context, event stripe.Event, callerIp
 		logger.LogError(ctx, fmt.Sprintf("Stripe 标记充值订单失败状态失败 trade_no=%s client_ip=%s error=%q", referenceId, callerIp, err.Error()))
 		return
 	}
+	if err := model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed); err != nil && !errors.Is(err, model.ErrPaymentInvoiceNotFound) {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 标记开票失败状态失败 trade_no=%s client_ip=%s error=%q", referenceId, callerIp, err.Error()))
+	}
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值订单已标记为失败 trade_no=%s client_ip=%s", referenceId, callerIp))
 }
 
@@ -292,6 +497,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		"event_type":   string(event.Type),
 	}
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, ""); err == nil {
+		syncStripePaymentInvoice(ctx, event, referenceId, customerId)
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe 订阅订单处理成功 trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
@@ -299,12 +505,16 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 
-	err := model.Recharge(referenceId, customerId, callerIp)
+	recharged, err := model.Recharge(referenceId, customerId, callerIp)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
 		return
 	}
+	if recharged {
+		sendPaymentSuccessGA(ctx, model.GetTopUpByTradeNo(referenceId))
+	}
 
+	syncStripePaymentInvoice(ctx, event, referenceId, customerId)
 	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)
 	currency := strings.ToUpper(event.GetObjectValue("currency"))
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值成功 trade_no=%s amount_total=%.2f currency=%s event_type=%s client_ip=%s", referenceId, total/100, currency, string(event.Type), callerIp))
@@ -343,8 +553,232 @@ func sessionExpired(ctx context.Context, event stripe.Event) {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值订单过期处理失败 trade_no=%s error=%q", referenceId, err.Error()))
 		return
 	}
+	if err := model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusExpired); err != nil && !errors.Is(err, model.ErrPaymentInvoiceNotFound) {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 标记开票过期状态失败 trade_no=%s error=%q", referenceId, err.Error()))
+	}
 
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值订单已过期 trade_no=%s", referenceId))
+}
+
+func syncStripePaymentInvoice(ctx context.Context, event stripe.Event, referenceId string, customerId string) {
+	if _, err := model.GetPaymentInvoiceByTradeNo(referenceId); err != nil {
+		if !errors.Is(err, model.ErrPaymentInvoiceNotFound) {
+			logger.LogWarn(ctx, fmt.Sprintf("Stripe 查询开票快照失败 trade_no=%s error=%q", referenceId, err.Error()))
+		}
+		return
+	}
+
+	sessionId := strings.TrimSpace(event.GetObjectValue("id"))
+	invoiceId := strings.TrimSpace(event.GetObjectValue("invoice"))
+	update := model.StripeInvoiceUpdate{
+		StripeCustomerId:        customerId,
+		StripeCheckoutSessionId: sessionId,
+		StripeInvoiceId:         invoiceId,
+		InvoiceStatus:           model.PaymentInvoiceStatusPending,
+	}
+
+	if invoiceId != "" {
+		stripe.Key = setting.StripeApiSecret
+		inv, err := stripeinvoice.Get(invoiceId, nil)
+		if err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("Stripe 获取 invoice 失败 trade_no=%s invoice_id=%s error=%q", referenceId, invoiceId, err.Error()))
+		} else if inv != nil {
+			update = stripeInvoiceUpdateFromInvoice(inv, update)
+		}
+	}
+
+	if err := model.UpdatePaymentInvoiceStripeInvoice(referenceId, update); err != nil && !errors.Is(err, model.ErrPaymentInvoiceNotFound) {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 更新开票快照失败 trade_no=%s invoice_id=%s error=%q", referenceId, invoiceId, err.Error()))
+	}
+}
+
+func stripeInvoiceUpdateFromInvoice(inv *stripe.Invoice, update model.StripeInvoiceUpdate) model.StripeInvoiceUpdate {
+	if inv == nil {
+		return update
+	}
+	if inv.Customer != nil && strings.TrimSpace(inv.Customer.ID) != "" {
+		update.StripeCustomerId = strings.TrimSpace(inv.Customer.ID)
+	}
+	update.StripeInvoiceId = strings.TrimSpace(inv.ID)
+	update.StripeInvoiceNumber = inv.Number
+	update.StripeInvoiceUrl = inv.HostedInvoiceURL
+	update.StripeInvoicePdf = inv.InvoicePDF
+	update.InvoiceStatus = mapStripeInvoiceStatus(inv.Status)
+	return update
+}
+
+func mapStripeInvoiceStatus(status stripe.InvoiceStatus) string {
+	switch status {
+	case stripe.InvoiceStatusPaid:
+		return model.PaymentInvoiceStatusPaid
+	case stripe.InvoiceStatusVoid, stripe.InvoiceStatusUncollectible:
+		return model.PaymentInvoiceStatusFailed
+	case stripe.InvoiceStatusDraft, stripe.InvoiceStatusOpen:
+		return model.PaymentInvoiceStatusPending
+	default:
+		return model.PaymentInvoiceStatusPending
+	}
+}
+
+func createPaidStripeTopUpInvoice(ctx context.Context, topUp *model.TopUp, user *model.User, fields model.InvoiceProfileFields) (*stripe.Invoice, error) {
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		return nil, fmt.Errorf("无效的Stripe API密钥")
+	}
+
+	stripe.Key = setting.StripeApiSecret
+	customerId, err := ensureStripeInvoiceCustomer(topUp, user, fields)
+	if err != nil {
+		return nil, err
+	}
+	if customerId == "" {
+		return nil, errors.New("Stripe customer is unavailable")
+	}
+
+	if err := ensureStripeCustomerTaxID(ctx, customerId, fields); err != nil {
+		return nil, err
+	}
+
+	currency := strings.ToLower(strings.TrimSpace(topUp.PaymentCurrency))
+	if currency == "" {
+		templatePrice, err := stripeprice.Get(setting.StripePriceId, nil)
+		if err != nil {
+			return nil, err
+		}
+		if templatePrice == nil || templatePrice.Currency == "" {
+			return nil, errors.New("Stripe Price 币种无效")
+		}
+		currency = strings.ToLower(string(templatePrice.Currency))
+	}
+	minorAmount, err := stripeMinorUnitAmount(topUp.Money, currency)
+	if err != nil {
+		return nil, err
+	}
+
+	inv, err := stripeinvoice.New(&stripe.InvoiceParams{
+		AutoAdvance:      stripe.Bool(false),
+		CollectionMethod: stripe.String(string(stripe.InvoiceCollectionMethodChargeAutomatically)),
+		Customer:         stripe.String(customerId),
+		Metadata: map[string]string{
+			"trade_no": topUp.TradeNo,
+			"source":   "new-api",
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = stripeinvoiceitem.New(&stripe.InvoiceItemParams{
+		Amount:      stripe.Int64(minorAmount),
+		Currency:    stripe.String(currency),
+		Customer:    stripe.String(customerId),
+		Description: stripe.String(fmt.Sprintf("Wallet top-up %s", topUp.TradeNo)),
+		Invoice:     stripe.String(inv.ID),
+		Metadata: map[string]string{
+			"trade_no": topUp.TradeNo,
+			"source":   "new-api",
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	finalized, err := stripeinvoice.FinalizeInvoice(inv.ID, &stripe.InvoiceFinalizeInvoiceParams{})
+	if err != nil {
+		return nil, err
+	}
+	paid, err := stripeinvoice.Pay(finalized.ID, &stripe.InvoicePayParams{
+		PaidOutOfBand: stripe.Bool(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return paid, nil
+}
+
+func ensureStripeInvoiceCustomer(topUp *model.TopUp, user *model.User, fields model.InvoiceProfileFields) (string, error) {
+	customerId := strings.TrimSpace(user.StripeCustomer)
+	if customerId == "" && topUp != nil && strings.TrimSpace(topUp.GatewayTradeNo) != "" {
+		checkoutSession, err := session.Get(strings.TrimSpace(topUp.GatewayTradeNo), nil)
+		if err != nil {
+			return "", err
+		}
+		if checkoutSession != nil && checkoutSession.Customer != nil {
+			customerId = strings.TrimSpace(checkoutSession.Customer.ID)
+		}
+	}
+
+	params := stripeCustomerParamsForInvoice(user, fields)
+	if customerId == "" {
+		customer, err := stripecustomer.New(params)
+		if err != nil {
+			return "", err
+		}
+		if customer == nil || strings.TrimSpace(customer.ID) == "" {
+			return "", errors.New("Stripe customer is unavailable")
+		}
+		return strings.TrimSpace(customer.ID), nil
+	}
+
+	if _, err := stripecustomer.Update(customerId, params); err != nil {
+		return "", err
+	}
+	return customerId, nil
+}
+
+func stripeCustomerParamsForInvoice(user *model.User, fields model.InvoiceProfileFields) *stripe.CustomerParams {
+	params := &stripe.CustomerParams{
+		Address: &stripe.AddressParams{
+			City:       stripe.String(fields.City),
+			Country:    stripe.String(fields.Country),
+			Line1:      stripe.String(fields.AddressLine1),
+			Line2:      stripe.String(fields.AddressLine2),
+			PostalCode: stripe.String(fields.PostalCode),
+			State:      stripe.String(fields.State),
+		},
+		Email: stripe.String(fields.BillingEmail),
+		Name:  stripe.String(fields.CompanyName),
+		Metadata: map[string]string{
+			"source": "new-api",
+		},
+	}
+	if strings.TrimSpace(fields.Phone) != "" {
+		params.Phone = stripe.String(fields.Phone)
+	}
+	if user != nil && strings.TrimSpace(user.Email) != "" {
+		params.Metadata["user_email"] = strings.TrimSpace(user.Email)
+	}
+	return params
+}
+
+func ensureStripeCustomerTaxID(ctx context.Context, customerId string, fields model.InvoiceProfileFields) error {
+	taxIDType := strings.TrimSpace(fields.TaxIDType)
+	taxIDValue := strings.TrimSpace(fields.TaxID)
+	if customerId == "" || taxIDType == "" || taxIDValue == "" {
+		return nil
+	}
+
+	iter := stripetaxid.List(&stripe.TaxIDListParams{
+		Customer: stripe.String(customerId),
+	})
+	for iter.Next() {
+		existing := iter.TaxID()
+		if existing != nil && string(existing.Type) == taxIDType && strings.TrimSpace(existing.Value) == taxIDValue {
+			return nil
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	if _, err := stripetaxid.New(&stripe.TaxIDParams{
+		Customer: stripe.String(customerId),
+		Type:     stripe.String(taxIDType),
+		Value:    stripe.String(taxIDValue),
+	}); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 创建 customer tax id 失败 customer_id=%s tax_id_type=%s error=%q", customerId, taxIDType, err.Error()))
+		return err
+	}
+	return nil
 }
 
 // genStripeLink generates a Stripe Checkout session URL for payment.
@@ -360,22 +794,22 @@ func sessionExpired(ctx context.Context, event stripe.Event) {
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, amount int64, payMoney float64, successURL string, cancelURL string) (string, error) {
+func genStripeLink(referenceId string, customerId string, email string, amount int64, payMoney float64, successURL string, cancelURL string, invoiceRequested bool) (*stripe.CheckoutSession, string, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
-		return "", fmt.Errorf("无效的Stripe API密钥")
+		return nil, "", fmt.Errorf("无效的Stripe API密钥")
 	}
 
 	stripe.Key = setting.StripeApiSecret
 	templatePrice, err := stripeprice.Get(setting.StripePriceId, nil)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	if templatePrice == nil || templatePrice.Currency == "" {
-		return "", fmt.Errorf("Stripe Price 币种无效")
+		return nil, "", fmt.Errorf("Stripe Price 币种无效")
 	}
 	minorAmount, err := stripeMinorUnitAmount(payMoney, string(templatePrice.Currency))
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	// Use custom URLs if provided, otherwise use defaults
@@ -410,12 +844,35 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		params.Customer = stripe.String(customerId)
 	}
 
-	result, err := session.New(params)
-	if err != nil {
-		return "", err
+	if invoiceRequested {
+		params.BillingAddressCollection = stripe.String(string(stripe.CheckoutSessionBillingAddressCollectionRequired))
+		params.TaxIDCollection = &stripe.CheckoutSessionTaxIDCollectionParams{
+			Enabled:  stripe.Bool(true),
+			Required: stripe.String(string(stripe.CheckoutSessionTaxIDCollectionRequiredNever)),
+		}
+		params.InvoiceCreation = &stripe.CheckoutSessionInvoiceCreationParams{
+			Enabled: stripe.Bool(true),
+			InvoiceData: &stripe.CheckoutSessionInvoiceCreationInvoiceDataParams{
+				Metadata: map[string]string{
+					"trade_no": referenceId,
+					"source":   "new-api",
+				},
+			},
+		}
+		if customerId != "" {
+			params.CustomerUpdate = &stripe.CheckoutSessionCustomerUpdateParams{
+				Name:    stripe.String("auto"),
+				Address: stripe.String("auto"),
+			}
+		}
 	}
 
-	return result.URL, nil
+	result, err := session.New(params)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return result, string(templatePrice.Currency), nil
 }
 
 func validateStripeRedirectURL(c *gin.Context, rawURL string) error {

@@ -49,6 +49,7 @@ import {
 const headerNavSchema = z.object({
   home: z.boolean(),
   console: z.boolean(),
+  blog: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
@@ -71,6 +72,8 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.console === undefined
       ? HEADER_NAV_DEFAULT.console
       : Boolean(config.console),
+  blog:
+    config.blog === undefined ? HEADER_NAV_DEFAULT.blog : Boolean(config.blog),
   pricingEnabled:
     config.pricing?.enabled === undefined
       ? HEADER_NAV_DEFAULT.pricing.enabled
@@ -117,6 +120,7 @@ export function HeaderNavigationSection({
       ...config,
       home: values.home,
       console: values.console,
+      blog: values.blog,
       docs: values.docs,
       about: values.about,
       pricing: {
@@ -160,6 +164,11 @@ export function HeaderNavigationSection({
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
+    },
+    {
+      key: 'blog',
+      title: t('Blog'),
+      description: t('Public blog and implementation guides.'),
     },
     {
       key: 'docs',

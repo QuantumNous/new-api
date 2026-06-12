@@ -7,10 +7,10 @@ import "testing"
 // (identity) instead of failing the lookup and burning the request.
 func TestUpstreamModel_IdentityWireNames(t *testing.T) {
 	cases := map[string]string{
-		"seedance-2.0":              "bytedance/seedance-2.0",
-		"seedance-2.0-fast":         "bytedance/seedance-2.0-fast",
-		"seedance-1.5-pro":          "bytedance/seedance-1.5-pro",
-		"bytedance/seedance-2.0":    "bytedance/seedance-2.0",
+		"seedance-2.0":                "bytedance/seedance-2.0",
+		"seedance-2.0-fast":           "bytedance/seedance-2.0-fast",
+		"seedance-1.5-pro":            "bytedance/seedance-1.5-pro",
+		"bytedance/seedance-2.0":      "bytedance/seedance-2.0",
 		"bytedance/seedance-2.0-fast": "bytedance/seedance-2.0-fast",
 		"bytedance/seedance-1.5-pro":  "bytedance/seedance-1.5-pro",
 	}

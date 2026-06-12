@@ -41,6 +41,9 @@ import type {
   PaddlePaymentRequest,
   PaddlePaymentResponse,
   PaddleTopUpStatusResponse,
+  InvoiceProfile,
+  InvoiceProfileResponse,
+  RequestInvoiceResponse,
 } from './types'
 
 // ============================================================================
@@ -120,6 +123,41 @@ export async function requestStripePayment(
   const res = await api.post('/api/user/stripe/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Get current user's default invoice profile
+ */
+export async function getInvoiceProfile(): Promise<InvoiceProfileResponse> {
+  const res = await api.get('/api/user/invoice-profile')
+  return res.data
+}
+
+/**
+ * Save current user's default invoice profile
+ */
+export async function updateInvoiceProfile(
+  request: InvoiceProfile
+): Promise<InvoiceProfileResponse> {
+  const res = await api.put('/api/user/invoice-profile', request)
+  return res.data
+}
+
+/**
+ * Request a Stripe invoice for a paid top-up order.
+ */
+export async function requestTopupInvoice(
+  tradeNo: string,
+  request: InvoiceProfile
+): Promise<RequestInvoiceResponse> {
+  const res = await api.post(
+    `/api/user/topup/${encodeURIComponent(tradeNo)}/invoice`,
+    request,
+    {
+      skipBusinessError: true,
+    } as Record<string, unknown>
+  )
   return res.data
 }
 

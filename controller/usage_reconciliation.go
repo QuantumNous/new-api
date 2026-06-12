@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/base64"
 	"net/http"
 	"sort"
 	"strconv"
@@ -21,6 +22,7 @@ const (
 	usageReconMaxRange      = 31 * 24 * time.Hour
 	usageTxnDefaultPageSize = 100
 	usageTxnMaxPageSize     = 500
+	usageTxnMaxCursorLimit  = 1000
 	usageReconMsLayout      = "2006-01-02T15:04:05.000Z07:00"
 )
 
@@ -85,11 +87,14 @@ type usageTransaction struct {
 }
 
 type usagePagination struct {
-	Page       int   `json:"page"`
-	PageSize   int   `json:"page_size"`
-	TotalPages int64 `json:"total_pages"`
-	TotalCount int64 `json:"total_count"`
-	HasMore    bool  `json:"has_more"`
+	Mode       string `json:"mode,omitempty"`
+	Page       int    `json:"page,omitempty"`
+	PageSize   int    `json:"page_size,omitempty"`
+	Limit      int    `json:"limit,omitempty"`
+	NextCursor string `json:"next_cursor,omitempty"`
+	TotalPages int64  `json:"total_pages,omitempty"`
+	TotalCount *int64 `json:"total_count,omitempty"`
+	HasMore    bool   `json:"has_more"`
 }
 
 type usageTransactionsResponse struct {
@@ -145,6 +150,15 @@ type usageValidationResponse struct {
 	ByModel     []usageValidationByModel   `json:"by_model"`
 	ByChannel   []usageValidationByChannel `json:"by_channel"`
 	GeneratedAt string                     `json:"generated_at"`
+}
+
+type usageTransactionCursor struct {
+	Version   int   `json:"v"`
+	Start     int64 `json:"start"`
+	End       int64 `json:"end"`
+	Channels  []int `json:"channels"`
+	CreatedAt int64 `json:"created_at"`
+	ID        int   `json:"id"`
 }
 
 // ---- shared helpers ----
@@ -261,7 +275,51 @@ func blockRunChannelIDs(channels map[int]model.BlockRunChannel) []int {
 	for id := range channels {
 		ids = append(ids, id)
 	}
+	sort.Ints(ids)
 	return ids
+}
+
+func encodeUsageTransactionCursor(startUnix, endUnix int64, channelIDs []int, log *model.Log) (string, error) {
+	cursor := usageTransactionCursor{
+		Version:   1,
+		Start:     startUnix,
+		End:       endUnix,
+		Channels:  append([]int(nil), channelIDs...),
+		CreatedAt: log.CreatedAt,
+		ID:        log.Id,
+	}
+	data, err := common.Marshal(cursor)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(data), nil
+}
+
+func decodeUsageTransactionCursor(raw string, startUnix, endUnix int64, channelIDs []int) (usageTransactionCursor, bool) {
+	var cursor usageTransactionCursor
+	data, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return cursor, false
+	}
+	if err := common.Unmarshal(data, &cursor); err != nil {
+		return cursor, false
+	}
+	if cursor.Version != 1 || cursor.Start != startUnix || cursor.End != endUnix || !sameIntSlice(cursor.Channels, channelIDs) {
+		return cursor, false
+	}
+	return cursor, true
+}
+
+func sameIntSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func buildUsageModelPrice(modelName string, ch model.BlockRunChannel, modelRatios map[string]float64) usageModelPrice {
@@ -521,6 +579,10 @@ func GetUsageTransactions(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if c.Query("limit") != "" || c.Query("cursor") != "" {
+		getUsageTransactionsCursor(c, startUnix, endUnix, startT, endT)
+		return
+	}
 	page := parseUsagePositiveInt(c.Query("page"), 1)
 	pageSize := parseUsagePositiveInt(c.Query("page_size"), usageTxnDefaultPageSize)
 	if pageSize > usageTxnMaxPageSize {
@@ -545,6 +607,95 @@ func GetUsageTransactions(c *gin.Context) {
 		return
 	}
 
+	var totalPages int64
+	if pageSize > 0 {
+		totalPages = (total + int64(pageSize) - 1) / int64(pageSize)
+	}
+	c.JSON(http.StatusOK, usageTransactionsResponse{
+		Provider:     usageReconProvider,
+		Period:       usagePeriodLabel(c),
+		Start:        usageFormatTime(startT),
+		End:          usageFormatTime(endT),
+		Transactions: buildUsageTransactions(logs, channels),
+		Pagination: usagePagination{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalPages: totalPages,
+			TotalCount: &total,
+			HasMore:    int64(page)*int64(pageSize) < total,
+		},
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
+func getUsageTransactionsCursor(c *gin.Context, startUnix, endUnix int64, startT, endT time.Time) {
+	limitRaw := c.Query("limit")
+	if limitRaw == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit is required for cursor pagination"})
+		return
+	}
+	limit, err := strconv.Atoi(limitRaw)
+	if err != nil || limit < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
+		return
+	}
+	if limit > usageTxnMaxCursorLimit {
+		limit = usageTxnMaxCursorLimit
+	}
+
+	channels, err := model.GetBlockRunChannels()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query channels failed"})
+		return
+	}
+	ids := blockRunChannelIDs(channels)
+
+	var cursor usageTransactionCursor
+	if rawCursor := c.Query("cursor"); rawCursor != "" {
+		var ok bool
+		cursor, ok = decodeUsageTransactionCursor(rawCursor, startUnix, endUnix, ids)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cursor"})
+			return
+		}
+	}
+
+	logs, err := model.QueryBlockRunUsageLogsAfterCursor(ids, startUnix, endUnix, limit+1, cursor.CreatedAt, cursor.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query failed"})
+		return
+	}
+
+	hasMore := len(logs) > limit
+	if hasMore {
+		logs = logs[:limit]
+	}
+	nextCursor := ""
+	if hasMore && len(logs) > 0 {
+		nextCursor, err = encodeUsageTransactionCursor(startUnix, endUnix, ids, logs[len(logs)-1])
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "encode cursor failed"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, usageTransactionsResponse{
+		Provider:     usageReconProvider,
+		Period:       usagePeriodLabel(c),
+		Start:        usageFormatTime(startT),
+		End:          usageFormatTime(endT),
+		Transactions: buildUsageTransactions(logs, channels),
+		Pagination: usagePagination{
+			Mode:       "cursor",
+			Limit:      limit,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
+		},
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
+func buildUsageTransactions(logs []*model.Log, channels map[int]model.BlockRunChannel) []usageTransaction {
 	txns := make([]usageTransaction, 0, len(logs))
 	for _, log := range logs {
 		other := parseUsageOther(log.Other)
@@ -572,26 +723,7 @@ func GetUsageTransactions(c *gin.Context) {
 			DurationMs:          int64(log.UseTime) * 1000,
 		})
 	}
-
-	var totalPages int64
-	if pageSize > 0 {
-		totalPages = (total + int64(pageSize) - 1) / int64(pageSize)
-	}
-	c.JSON(http.StatusOK, usageTransactionsResponse{
-		Provider:     usageReconProvider,
-		Period:       usagePeriodLabel(c),
-		Start:        usageFormatTime(startT),
-		End:          usageFormatTime(endT),
-		Transactions: txns,
-		Pagination: usagePagination{
-			Page:       page,
-			PageSize:   pageSize,
-			TotalPages: totalPages,
-			TotalCount: total,
-			HasMore:    int64(page)*int64(pageSize) < total,
-		},
-		GeneratedAt: usageFormatTime(time.Now()),
-	})
+	return txns
 }
 
 // GetUsageModels serves GET /usage/models.

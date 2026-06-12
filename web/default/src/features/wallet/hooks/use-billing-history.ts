@@ -24,9 +24,10 @@ import {
   getUserBillingHistory,
   getAllBillingHistory,
   completeOrder,
+  requestTopupInvoice,
   isApiSuccess,
 } from '../api'
-import type { TopupRecord } from '../types'
+import type { InvoiceProfile, TopupRecord } from '../types'
 
 // ============================================================================
 // Billing History Hook
@@ -50,6 +51,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [requestingInvoice, setRequestingInvoice] = useState(false)
 
   /**
    * Fetch billing history
@@ -66,7 +68,9 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
         setTotal(response.data.total || 0)
       } else {
         toast.error(
-          response.message || i18next.t('Failed to load billing history')
+          response.message
+            ? i18next.t(response.message)
+            : i18next.t('Failed to load billing history')
         )
         setRecords([])
         setTotal(0)
@@ -101,7 +105,11 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
           await fetchBillingHistory()
           return true
         } else {
-          toast.error(response.message || i18next.t('Failed to complete order'))
+          toast.error(
+            response.message
+              ? i18next.t(response.message)
+              : i18next.t('Failed to complete order')
+          )
           return false
         }
       } catch (error) {
@@ -114,6 +122,38 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
       }
     },
     [isAdmin, fetchBillingHistory]
+  )
+
+  /**
+   * Request an invoice for a paid Stripe order.
+   */
+  const handleRequestInvoice = useCallback(
+    async (tradeNo: string, invoiceProfile: InvoiceProfile) => {
+      setRequestingInvoice(true)
+      try {
+        const response = await requestTopupInvoice(tradeNo, invoiceProfile)
+        if (isApiSuccess(response)) {
+          toast.success(i18next.t('Invoice requested successfully'))
+          await fetchBillingHistory()
+          return true
+        }
+
+        toast.error(
+          response.message
+            ? i18next.t(response.message)
+            : i18next.t('Failed to request invoice')
+        )
+        return false
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to request invoice:', error)
+        toast.error(i18next.t('Failed to request invoice'))
+        return false
+      } finally {
+        setRequestingInvoice(false)
+      }
+    },
+    [fetchBillingHistory]
   )
 
   /**
@@ -152,11 +192,13 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     keyword,
     loading,
     completing,
+    requestingInvoice,
     isAdmin,
     handlePageChange,
     handlePageSizeChange,
     handleSearch,
     handleCompleteOrder,
+    handleRequestInvoice,
     refresh: fetchBillingHistory,
   }
 }
