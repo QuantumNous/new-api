@@ -8,12 +8,20 @@ import (
 	"mime/multipart"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
 
 	"github.com/gin-gonic/gin"
 )
+
+// maxImageEditImages caps the number of source images accepted per edit request,
+// matching OpenAI's gpt-image-1 limit. The request body itself is already bounded
+// by MaxRequestBodyMB (DecompressRequestMiddleware) and each file by
+// maxImageBodyBytes; this is the per-request count guard on top of those — it
+// also returns a clear client error instead of silently fusing dozens of images.
+const maxImageEditImages = 16
 
 // buildImage2ImageEditBody converts a standard OpenAI multipart/form-data image
 // edit request into BlockRun's /v1/images/image2image JSON body. The client
@@ -40,6 +48,9 @@ func buildImage2ImageEditBody(c *gin.Context, request *dto.ImageRequest) (any, e
 	imageFiles := collectMultipartFiles(mf, "image")
 	if len(imageFiles) == 0 {
 		return nil, errors.New("blockrun: image2image requires at least one `image` file")
+	}
+	if len(imageFiles) > maxImageEditImages {
+		return nil, fmt.Errorf("blockrun: image2image accepts at most %d source images, got %d", maxImageEditImages, len(imageFiles))
 	}
 	imageURIs, err := multipartFilesToDataURIs(imageFiles)
 	if err != nil {
@@ -93,7 +104,11 @@ func buildImage2ImageEditBody(c *gin.Context, request *dto.ImageRequest) (any, e
 }
 
 // collectMultipartFiles gathers files posted under `field`, `field[]`, or
-// `field[N]` (OpenAI array notation), sorted for deterministic fusion order.
+// `field[N]` (OpenAI array notation), in deterministic fusion order. Indexed
+// `field[N]` names are ordered by their NUMERIC index, not lexicographically, so
+// `image[10]` follows `image[2]` (a plain string sort would invert them and
+// scramble multi-image fusion order). Non-numeric indices fall back to a stable
+// lexicographic order and sort after the numeric ones.
 func collectMultipartFiles(mf *multipart.Form, field string) []*multipart.FileHeader {
 	var out []*multipart.FileHeader
 	out = append(out, mf.File[field]...)
@@ -104,11 +119,37 @@ func collectMultipartFiles(mf *multipart.Form, field string) []*multipart.FileHe
 			bracket = append(bracket, name)
 		}
 	}
-	sort.Strings(bracket)
+	sort.SliceStable(bracket, func(i, j int) bool {
+		ni, oki := bracketIndex(field, bracket[i])
+		nj, okj := bracketIndex(field, bracket[j])
+		if oki && okj {
+			return ni < nj
+		}
+		if oki != okj {
+			return oki // numeric indices sort before non-numeric ones
+		}
+		return bracket[i] < bracket[j] // both non-numeric: stable lexicographic
+	})
 	for _, name := range bracket {
 		out = append(out, mf.File[name]...)
 	}
 	return out
+}
+
+// bracketIndex extracts N from a "field[N]" form name. It returns (N, true) only
+// when N is a non-negative base-10 integer; any other inner value (empty,
+// negative, non-numeric) yields (0, false) so the caller can fall back to a
+// lexicographic ordering.
+func bracketIndex(field, name string) (int, bool) {
+	inner := strings.TrimSuffix(strings.TrimPrefix(name, field+"["), "]")
+	if inner == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(inner)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 // multipartFilesToDataURIs reads each uploaded file (bounded by maxImageBodyBytes)
