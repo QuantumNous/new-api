@@ -63,6 +63,12 @@ export const PAYMENT_METHOD_NAMES: Record<string, string> = {
   alipay: 'Alipay',
   wxpay: 'WeChat Pay',
   waffo: 'Waffo',
+  waffo_pancake: 'Waffo (Pancake)',
+  creem: 'Creem',
+  crypto: 'Crypto (USDT)',
+  custom1: 'Custom 1',
+  custom2: 'Custom 2',
+  custom3: 'Custom 3',
 }
 
 /**

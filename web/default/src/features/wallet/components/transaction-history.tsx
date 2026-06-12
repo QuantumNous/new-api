@@ -32,6 +32,12 @@ import type { TopupStatus } from '../types'
 // Epay methods store money in CNY; everything else is USD
 const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
 
+const STATUS_TABS = [
+  { value: '', label: '全部' },
+  { value: 'success', label: '成功' },
+  { value: 'pending', label: '待支付' },
+] as const
+
 // Crypto path stores amount as raw quota units; Epay stores USD dollar integer
 const QUOTA_PER_USD = 500_000
 
@@ -97,10 +103,12 @@ export function TransactionHistory() {
     page,
     pageSize,
     keyword,
+    statusFilter,
     loading,
     isAdmin,
     handlePageChange,
     handleSearch,
+    handleStatusChange,
   } = useBillingHistory({ initialPageSize: 10 })
   const colCount = isAdmin ? 8 : 6
 
@@ -121,13 +129,30 @@ export function TransactionHistory() {
               </span>
             )}
             <Input
-              placeholder={t('Search by order number...')}
+              placeholder={isAdmin ? '订单号 / 邮箱 / UID' : t('Search by order number...')}
               value={keyword}
               onChange={(e) => handleSearch(e.target.value)}
               className='h-8 w-full sm:w-52 text-sm'
             />
           </div>
         </div>
+        {isAdmin && (
+          <div className='mt-2 flex gap-1'>
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => handleStatusChange(tab.value)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  statusFilter === tab.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className='p-0'>
