@@ -47,6 +47,7 @@ const behaviorSchema = z.object({
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
+  SubscriptionBalancePayEnabled: z.boolean(),
 })
 
 type BehaviorFormValues = z.infer<typeof behaviorSchema>
@@ -159,6 +160,31 @@ export function SystemBehaviorSection({
                   <FormLabel>{t('Self-Use Mode')}</FormLabel>
                   <FormDescription>
                     {t('Optimize system for self-hosted single-user usage')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='SubscriptionBalancePayEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Allow subscription balance payment')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Allow users to purchase subscriptions with their account balance'
+                    )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>

@@ -59,6 +59,7 @@ interface Props {
   enableCreem?: boolean
   enableWaffoPancake?: boolean
   enableOnlineTopUp?: boolean
+  enableBalancePay?: boolean
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
@@ -106,7 +107,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     Math.ceil(Number(plan.price_amount || 0) * quotaPerUnit)
   )
   const userQuota = Math.max(0, Number(props.userQuota || 0))
+  const showBalancePay = props.enableBalancePay !== false
   const allowBalancePay = plan.allow_balance_pay !== false
+  const hasAvailablePayment = hasAnyPayment || showBalancePay
   const insufficientBalance = userQuota < balanceCost
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
@@ -328,38 +331,42 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </Alert>
         )}
 
-        <div className='flex flex-col gap-2 rounded-md border p-3'>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Required')}</span>
-            <span>{formatQuota(balanceCost)}</span>
-          </div>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Available')}</span>
-            <span>{formatQuota(userQuota)}</span>
-          </div>
-          {!allowBalancePay ? (
-            <Alert variant='destructive'>
-              <AlertDescription>
-                {t('This plan does not allow balance redemption')}
-              </AlertDescription>
-            </Alert>
-          ) : (
-            insufficientBalance && (
+        {showBalancePay && (
+          <div className='flex flex-col gap-2 rounded-md border p-3'>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Required')}</span>
+              <span>{formatQuota(balanceCost)}</span>
+            </div>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Available')}</span>
+              <span>{formatQuota(userQuota)}</span>
+            </div>
+            {!allowBalancePay ? (
               <Alert variant='destructive'>
-                <AlertDescription>{t('Insufficient balance')}</AlertDescription>
+                <AlertDescription>
+                  {t('This plan does not allow balance redemption')}
+                </AlertDescription>
               </Alert>
-            )
-          )}
-          <Button
-            variant='outline'
-            onClick={handlePayBalance}
-            disabled={
-              paying || limitReached || !allowBalancePay || insufficientBalance
-            }
-          >
-            {t('Pay with Balance')}
-          </Button>
-        </div>
+            ) : (
+              insufficientBalance && (
+                <Alert variant='destructive'>
+                  <AlertDescription>
+                    {t('Insufficient balance')}
+                  </AlertDescription>
+                </Alert>
+              )
+            )}
+            <Button
+              variant='outline'
+              onClick={handlePayBalance}
+              disabled={
+                paying || limitReached || !allowBalancePay || insufficientBalance
+              }
+            >
+              {t('Pay with Balance')}
+            </Button>
+          </div>
+        )}
 
         {hasAnyPayment && (
           <div className='space-y-3'>
@@ -435,6 +442,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
               </div>
             )}
           </div>
+        )}
+
+        {!hasAvailablePayment && (
+          <Alert>
+            <AlertDescription>
+              {t(
+                'Online payment is not enabled. Please contact the administrator.'
+              )}
+            </AlertDescription>
+          </Alert>
         )}
       </div>
     </Dialog>
