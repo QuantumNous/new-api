@@ -1,24 +1,44 @@
 #!/usr/bin/env bash
 # Run DR-13 human test with current token set.
-# Edit the keys below when tokens change.
+# Set the required environment variables before running:
+#
+#   export RPM_KEY="sk-..."
+#   export TPM_KEY="sk-..."
+#   export MONTHLY_KEY="sk-..."
+#   export ROOT_KEY="sk-..."
+#   export RPM1_KEY="sk-..."
+#   export MONTHLY1_KEY="sk-..."
+#   export COMBO_KEY="sk-..."
+#   export COMBO_TOKEN_ID=<id>      # token DB id for COMBO_KEY
+#   export MONTHLY1_TOKEN_ID=<id>   # token DB id for MONTHLY1_KEY
+#   export MONTHLY_TOKEN_ID=<id>    # token DB id for MONTHLY_KEY
+#   export BASE_URL="http://localhost:3000"  # optional, defaults to localhost:3000
+#
+# Or pass them inline:
+#   RPM_KEY=sk-... ROOT_KEY=sk-... ... bash bin/run-dr13-human-test.sh
 
-export RPM_KEY="sk-3YPwBEJ2XJqRV3pcmEKpENgJep5vdKbzxr4M3lLt9uozcPqY"
-export TPM_KEY="sk-NloE6t0iqSRiqlospCzcP2nY9UvdeCUUfmPsv5UtIqfCFIYF"
-export MONTHLY_KEY="sk-Exj1lG0ESvJLgaxV2MzZX9STImI2t39lKwm4QhcsPCLbXMlN"
-export ROOT_KEY="sk-gUPAOZwklx6nsa61im7haCvzRdw43tEYI3yHRUgsGQFdmo3g"
-export RPM1_KEY="sk-ipmPi83LvPwhjzuxDrWcyCflVI7E14FLgZzmqiVlDzQJVjFF"
-export MONTHLY1_KEY="sk-ABn8v3Li5O7yvqJdgKul8BbI3nR4Rj7Hrwr8PyG9joLGD1w8"
-export COMBO_KEY="sk-QUtxSaYBglOgum40aiQXuuOkwCCgcmg1ssSCJYtYi3vVDZu4"
-export BASE_URL="http://localhost:3000"
+set -euo pipefail
+
+required_vars=(RPM_KEY TPM_KEY MONTHLY_KEY ROOT_KEY RPM1_KEY MONTHLY1_KEY COMBO_KEY
+               COMBO_TOKEN_ID MONTHLY1_TOKEN_ID MONTHLY_TOKEN_ID)
+missing=()
+for v in "${required_vars[@]}"; do
+  [[ -z "${!v:-}" ]] && missing+=("$v")
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo "ERROR: missing required env vars: ${missing[*]}"
+  echo "See the header of this script for instructions."
+  exit 1
+fi
+
+export BASE_URL="${BASE_URL:-http://localhost:3000}"
 
 # Reset monthly counters before each run so the test is repeatable.
-# Token IDs: 16=COMBO, 20=MONTHLY1, 21=MONTHLY
-# Monthly counters are permanent; without this reset, re-runs exhaust the quota.
 YYYYMM=$(date +%Y%m)
 docker compose exec redis redis-cli DEL \
-  "tq:monthly:16:${YYYYMM}" \
-  "tq:monthly:20:${YYYYMM}" \
-  "tq:monthly:21:${YYYYMM}" > /dev/null 2>&1
+  "tq:monthly:${COMBO_TOKEN_ID}:${YYYYMM}" \
+  "tq:monthly:${MONTHLY1_TOKEN_ID}:${YYYYMM}" \
+  "tq:monthly:${MONTHLY_TOKEN_ID}:${YYYYMM}" > /dev/null 2>&1
 echo "  [reset] Monthly counters cleared for COMBO/MONTHLY1/MONTHLY tokens"
 
 bash "$(dirname "$0")/test-dr13-human.sh"
