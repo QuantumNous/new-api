@@ -4,22 +4,19 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/service"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
 
 func withRecalcChannels(t *testing.T, ids ...int) {
 	t.Helper()
-	orig := constant.AnthropicRecalcInputTokensChannels
-	set := map[int]struct{}{}
-	for _, id := range ids {
-		set[id] = struct{}{}
-	}
-	constant.AnthropicRecalcInputTokensChannels = set
-	t.Cleanup(func() { constant.AnthropicRecalcInputTokensChannels = orig })
+	settings := model_setting.GetClaudeSettings()
+	orig := settings.RecalcInputTokensChannels
+	settings.RecalcInputTokensChannels = append([]int(nil), ids...)
+	t.Cleanup(func() { settings.RecalcInputTokensChannels = orig })
 }
 
 func TestNormalizeClaudeUsageFields_MessageStartTranslatesAliases(t *testing.T) {

@@ -101,6 +101,13 @@ const MODELS_SECTIONS = [
               settings['claude.thinking_adapter_enabled'],
             thinking_adapter_budget_tokens_percentage:
               settings['claude.thinking_adapter_budget_tokens_percentage'],
+            response_normalize_enabled:
+              settings['claude.response_normalize_enabled'],
+            recalc_input_tokens_channels:
+              settings['claude.recalc_input_tokens_channels'],
+            input_token_calibration:
+              settings['claude.input_token_calibration'],
+            sse_padding_enabled: settings['claude.sse_padding_enabled'],
           },
         }}
       />

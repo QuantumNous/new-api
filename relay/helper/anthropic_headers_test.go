@@ -6,15 +6,23 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 )
 
+// setNormalize flips ClaudeSettings.ResponseNormalizeEnabled for a test and
+// restores it on cleanup (test-state isolation).
+func setNormalize(t *testing.T, enabled bool) {
+	t.Helper()
+	settings := model_setting.GetClaudeSettings()
+	old := settings.ResponseNormalizeEnabled
+	settings.ResponseNormalizeEnabled = enabled
+	t.Cleanup(func() { settings.ResponseNormalizeEnabled = old })
+}
+
 func TestFinalizeAnthropicResponseHeadersEnabled(t *testing.T) {
-	old := constant.AnthropicResponseNormalize
-	constant.AnthropicResponseNormalize = true
-	defer func() { constant.AnthropicResponseNormalize = old }()
+	setNormalize(t, true)
 
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set(common.RequestIdKey, "internal-id-xyz")
@@ -38,9 +46,7 @@ func TestFinalizeAnthropicResponseHeadersEnabled(t *testing.T) {
 }
 
 func TestFinalizeAnthropicResponseHeadersDisabled(t *testing.T) {
-	old := constant.AnthropicResponseNormalize
-	constant.AnthropicResponseNormalize = false
-	defer func() { constant.AnthropicResponseNormalize = old }()
+	setNormalize(t, false)
 
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set(common.RequestIdKey, "internal-id-xyz")
@@ -57,9 +63,7 @@ func TestFinalizeAnthropicResponseHeadersDisabled(t *testing.T) {
 }
 
 func TestFinalizeAnthropicResponseHeadersIdempotent(t *testing.T) {
-	old := constant.AnthropicResponseNormalize
-	constant.AnthropicResponseNormalize = true
-	defer func() { constant.AnthropicResponseNormalize = old }()
+	setNormalize(t, true)
 
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Set(common.RequestIdKey, "internal-id-xyz")
@@ -75,9 +79,7 @@ func TestFinalizeAnthropicResponseHeadersIdempotent(t *testing.T) {
 }
 
 func TestFinalizeAnthropicResponseHeadersNoInternalID(t *testing.T) {
-	old := constant.AnthropicResponseNormalize
-	constant.AnthropicResponseNormalize = true
-	defer func() { constant.AnthropicResponseNormalize = old }()
+	setNormalize(t, true)
 
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Writer.Header().Set(common.RequestIdKey, "internal-id-xyz")

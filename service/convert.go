@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/samber/lo"
 )
 
@@ -305,7 +306,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		// disabled we fall back to the raw upstream values.
 		msgModel := openAIResponse.Model
 		msgID := openAIResponse.Id
-		if constant.AnthropicResponseNormalize {
+		if model_setting.GetClaudeSettings().ResponseNormalizeEnabled {
 			if info.OriginModelName != "" {
 				msgModel = info.OriginModelName
 			}
@@ -640,7 +641,7 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	// the raw upstream values when normalization is disabled.
 	respModel := openAIResponse.Model
 	respID := openAIResponse.Id
-	if constant.AnthropicResponseNormalize {
+	if model_setting.GetClaudeSettings().ResponseNormalizeEnabled {
 		if info.OriginModelName != "" {
 			respModel = info.OriginModelName
 		}

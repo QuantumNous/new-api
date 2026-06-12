@@ -3,15 +3,18 @@ package service
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 )
 
+// withNormalize flips ClaudeSettings.ResponseNormalizeEnabled for the duration
+// of a test and restores it afterward (test-state isolation).
 func withNormalize(t *testing.T, enabled bool) {
 	t.Helper()
-	orig := constant.AnthropicResponseNormalize
-	constant.AnthropicResponseNormalize = enabled
-	t.Cleanup(func() { constant.AnthropicResponseNormalize = orig })
+	settings := model_setting.GetClaudeSettings()
+	orig := settings.ResponseNormalizeEnabled
+	settings.ResponseNormalizeEnabled = enabled
+	t.Cleanup(func() { settings.ResponseNormalizeEnabled = orig })
 }
 
 func TestCalibrateAnthropicInputTokens_PerModelFactors(t *testing.T) {
@@ -29,7 +32,7 @@ func TestCalibrateAnthropicInputTokens_PerModelFactors(t *testing.T) {
 		{"opus-4-7 family ×1.27", 1026, "claude-opus-4-7", 1303},
 		{"opus-4-8 family ×1.27", 1026, "claude-opus-4-8", 1303},
 		// upstream slug form still matches via substring
-		{"opus-4-6 slug substring", 1026, "anthropic/claude-4.6-opus-20260205-opus-4-6", 862},
+		{"opus-4-6 slug substring", 1026, "anthropic/claude-4.6-opus-20260205-claude-opus-4-6", 862},
 		// unknown model -> unchanged
 		{"unknown model ×1.0", 1026, "claude-sonnet-4-5", 1026},
 		{"empty model ×1.0", 1026, "", 1026},
@@ -58,10 +61,11 @@ func TestCalibrateAnthropicInputTokens_NormalizeDisabled(t *testing.T) {
 	assert.Equal(t, 1026, CalibrateAnthropicInputTokens(1026, "claude-opus-4-6"))
 }
 
-func TestLookupInputTokenCalibrationFactor(t *testing.T) {
-	assert.Equal(t, 0.84, lookupInputTokenCalibrationFactor("claude-opus-4-6"))
-	assert.Equal(t, 1.27, lookupInputTokenCalibrationFactor("claude-opus-4-7"))
-	assert.Equal(t, 1.27, lookupInputTokenCalibrationFactor("claude-opus-4-8"))
-	assert.Equal(t, 1.0, lookupInputTokenCalibrationFactor("claude-opus-4-9"))
-	assert.Equal(t, 1.0, lookupInputTokenCalibrationFactor(""))
+func TestGetInputTokenCalibrationFactor(t *testing.T) {
+	settings := model_setting.GetClaudeSettings()
+	assert.Equal(t, 0.84, settings.GetInputTokenCalibrationFactor("claude-opus-4-6"))
+	assert.Equal(t, 1.27, settings.GetInputTokenCalibrationFactor("claude-opus-4-7"))
+	assert.Equal(t, 1.27, settings.GetInputTokenCalibrationFactor("claude-opus-4-8"))
+	assert.Equal(t, 1.0, settings.GetInputTokenCalibrationFactor("claude-opus-4-9"))
+	assert.Equal(t, 1.0, settings.GetInputTokenCalibrationFactor(""))
 }

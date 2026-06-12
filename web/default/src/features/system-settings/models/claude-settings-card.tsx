@@ -74,6 +74,26 @@ const schema = z.object({
       .number()
       .min(0.1, { message: 'Must be at least 0.1' })
       .max(1, { message: 'Must be 1 or less' }),
+    response_normalize_enabled: z.boolean(),
+    sse_padding_enabled: z.boolean(),
+    recalc_input_tokens_channels: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON',
+        })
+      }
+    }),
+    input_token_calibration: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON',
+        })
+      }
+    }),
   }),
 })
 
@@ -85,6 +105,10 @@ type FlatClaudeSettings = {
   'claude.default_max_tokens': string
   'claude.thinking_adapter_enabled': boolean
   'claude.thinking_adapter_budget_tokens_percentage': number
+  'claude.response_normalize_enabled': boolean
+  'claude.sse_padding_enabled': boolean
+  'claude.recalc_input_tokens_channels': string
+  'claude.input_token_calibration': string
 }
 
 type ClaudeSettingsCardProps = {
@@ -106,6 +130,15 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
     'claude.thinking_adapter_budget_tokens_percentage': Number(
       defaultValues.claude.thinking_adapter_budget_tokens_percentage
     ),
+    'claude.response_normalize_enabled':
+      defaultValues.claude.response_normalize_enabled,
+    'claude.sse_padding_enabled': defaultValues.claude.sse_padding_enabled,
+    'claude.recalc_input_tokens_channels': normalizeJsonString(
+      defaultValues.claude.recalc_input_tokens_channels
+    ),
+    'claude.input_token_calibration': normalizeJsonString(
+      defaultValues.claude.input_token_calibration
+    ),
   })
 
   const buildFormDefaults = (
@@ -121,6 +154,14 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
       thinking_adapter_enabled: values.claude.thinking_adapter_enabled,
       thinking_adapter_budget_tokens_percentage:
         values.claude.thinking_adapter_budget_tokens_percentage,
+      response_normalize_enabled: values.claude.response_normalize_enabled,
+      sse_padding_enabled: values.claude.sse_padding_enabled,
+      recalc_input_tokens_channels: formatJsonForTextarea(
+        values.claude.recalc_input_tokens_channels
+      ),
+      input_token_calibration: formatJsonForTextarea(
+        values.claude.input_token_calibration
+      ),
     },
   })
 
@@ -146,6 +187,15 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
       'claude.thinking_adapter_budget_tokens_percentage': Number(
         defaultValues.claude.thinking_adapter_budget_tokens_percentage
       ),
+      'claude.response_normalize_enabled':
+        defaultValues.claude.response_normalize_enabled,
+      'claude.sse_padding_enabled': defaultValues.claude.sse_padding_enabled,
+      'claude.recalc_input_tokens_channels': normalizeJsonString(
+        defaultValues.claude.recalc_input_tokens_channels
+      ),
+      'claude.input_token_calibration': normalizeJsonString(
+        defaultValues.claude.input_token_calibration
+      ),
     }
 
     form.reset(buildFormDefaults(defaultValues))
@@ -162,6 +212,15 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
       'claude.thinking_adapter_enabled': values.claude.thinking_adapter_enabled,
       'claude.thinking_adapter_budget_tokens_percentage':
         values.claude.thinking_adapter_budget_tokens_percentage,
+      'claude.response_normalize_enabled':
+        values.claude.response_normalize_enabled,
+      'claude.sse_padding_enabled': values.claude.sse_padding_enabled,
+      'claude.recalc_input_tokens_channels': normalizeJsonString(
+        values.claude.recalc_input_tokens_channels
+      ),
+      'claude.input_token_calibration': normalizeJsonString(
+        values.claude.input_token_calibration
+      ),
     }
 
     const updates = (
@@ -224,7 +283,93 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
             )}
           />
 
+          <FormField
+            control={form.control}
+            name='claude.input_token_calibration'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Input Token Calibration')}</FormLabel>
+                <FormControl>
+                  <Textarea rows={5} {...field} />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Per-model calibration factors applied to the message_start input_tokens estimate (substring match, longest key wins; unmatched models use 1.0).'
+                  )}{' '}
+                  {`{ "claude-opus-4-6": 0.84, "claude-opus-4-7": 1.27, "claude-opus-4-8": 1.27 }`}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='claude.recalc_input_tokens_channels'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Recalculate Input Tokens Channels')}</FormLabel>
+                <FormControl>
+                  <Textarea rows={3} {...field} />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Channel IDs whose Claude passthrough message_start input_tokens are recomputed locally instead of trusting the upstream value. JSON array of integers, e.g.'
+                  )}{' '}
+                  {`[7, 14]`}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <SettingsControlGroup>
+            <FormField
+              control={form.control}
+              name='claude.response_normalize_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Response Normalization')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Normalize Claude-protocol relay responses toward the official Anthropic shape: request-id header, internal-header stripping, model/id/usage normalization, and input_tokens calibration.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='claude.sse_padding_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('SSE Padding')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Append a random run of trailing spaces to each SSE data line to randomize event byte length (token length side-channel defense). Can be disabled independently for strict clients.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name='claude.thinking_adapter_enabled'

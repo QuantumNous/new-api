@@ -41,6 +41,11 @@ const defaultModelSettings: ModelSettings = {
   'claude.default_max_tokens': '',
   'claude.thinking_adapter_enabled': true,
   'claude.thinking_adapter_budget_tokens_percentage': 0.8,
+  'claude.response_normalize_enabled': true,
+  'claude.recalc_input_tokens_channels': '[]',
+  'claude.input_token_calibration':
+    '{"claude-opus-4-6":0.84,"claude-opus-4-7":1.27,"claude-opus-4-8":1.27}',
+  'claude.sse_padding_enabled': true,
   'grok.violation_deduction_enabled': true,
   'grok.violation_deduction_amount': 0.05,
   ModelPrice: '',

@@ -150,10 +150,6 @@ func initConstantEnv() {
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 	// 剔除上游内部 header 时是否记录被剔除的 header 名和值，默认开启
 	constant.LogBlockedUpstreamHeaders = GetEnvOrDefaultBool("LOG_BLOCKED_UPSTREAM_HEADERS", true)
-	// 是否将 Claude 协议 relay 响应归一化为 Anthropic 官方形态（request-id 头等），默认开启
-	constant.AnthropicResponseNormalize = GetEnvOrDefaultBool("ANTHROPIC_RESPONSE_NORMALIZE", true)
-	// 在 Claude 直通路径下，对哪些渠道的 message_start.input_tokens 用本地估算重算（逗号分隔渠道 ID），空=不启用
-	constant.AnthropicRecalcInputTokensChannels = parseIntSetEnv("ANTHROPIC_RECALC_INPUT_TOKENS_CHANNELS")
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
@@ -184,27 +180,4 @@ func initConstantEnv() {
 		}
 	}
 	constant.TrustedRedirectDomains = trustedDomains
-}
-
-// parseIntSetEnv parses a comma-separated list of integers from the given env
-// var into a set (map[int]struct{}). Blank entries and non-integer entries are
-// skipped. An unset/empty env var yields an empty (non-nil) set.
-func parseIntSetEnv(env string) map[int]struct{} {
-	set := map[int]struct{}{}
-	raw := GetEnvOrDefaultString(env, "")
-	if raw == "" {
-		return set
-	}
-	for _, part := range strings.Split(raw, ",") {
-		trimmed := strings.TrimSpace(part)
-		if trimmed == "" {
-			continue
-		}
-		id, err := strconv.Atoi(trimmed)
-		if err != nil {
-			continue
-		}
-		set[id] = struct{}{}
-	}
-	return set
 }

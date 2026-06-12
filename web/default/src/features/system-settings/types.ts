@@ -153,6 +153,10 @@ export type ModelSettings = {
   'claude.default_max_tokens': string
   'claude.thinking_adapter_enabled': boolean
   'claude.thinking_adapter_budget_tokens_percentage': number
+  'claude.response_normalize_enabled': boolean
+  'claude.recalc_input_tokens_channels': string
+  'claude.input_token_calibration': string
+  'claude.sse_padding_enabled': boolean
   'grok.violation_deduction_enabled': boolean
   'grok.violation_deduction_amount': number
   ModelPrice: string

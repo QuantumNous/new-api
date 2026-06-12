@@ -709,7 +709,7 @@ func patchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 // OpenRouter gives 0, a nested new-api gives its own estimate), so applying
 // the cl100k correction factor would be wrong. We only patch model/id here.
 func patchClaudeMessageStartIdentity(data string, info *relaycommon.RelayInfo) string {
-	if !constant.AnthropicResponseNormalize || data == "" || info == nil {
+	if !model_setting.GetClaudeSettings().ResponseNormalizeEnabled || data == "" || info == nil {
 		return data
 	}
 
@@ -735,7 +735,7 @@ func patchClaudeMessageStartIdentity(data string, info *relaycommon.RelayInfo) s
 // as opposed to the nested "message.*" of a streaming message_start). Same
 // passthrough-path normalization as patchClaudeMessageStartIdentity (R2.1/R2.2).
 func patchClaudeTopLevelIdentity(data []byte, info *relaycommon.RelayInfo) []byte {
-	if !constant.AnthropicResponseNormalize || len(data) == 0 || info == nil {
+	if !model_setting.GetClaudeSettings().ResponseNormalizeEnabled || len(data) == 0 || info == nil {
 		return data
 	}
 	s := string(data)
@@ -761,7 +761,7 @@ func patchClaudeTopLevelIdentity(data []byte, info *relaycommon.RelayInfo) []byt
 // "message.usage" for a streaming message_start, or "usage" for a message_delta
 // / non-stream top-level response) toward the official api.anthropic.com usage
 // schema, operating directly on the raw upstream JSON bytes (R2.3, passthrough
-// path R2.6). Guarded by AnthropicResponseNormalize.
+// path R2.6). Guarded by ClaudeSettings.ResponseNormalizeEnabled.
 //
 // new-api's upstream (OpenRouter via nested new-api, PR#2155) emits two flat
 // accounting aliases that the official Anthropic schema does not have:
@@ -779,7 +779,7 @@ func patchClaudeTopLevelIdentity(data []byte, info *relaycommon.RelayInfo) []byt
 // Translation is lossless: the information in the flat aliases is preserved in
 // the nested object on message_start.
 func normalizeClaudeUsageFields(data string, usagePrefix string, addCacheCreation bool) string {
-	if !constant.AnthropicResponseNormalize || data == "" {
+	if !model_setting.GetClaudeSettings().ResponseNormalizeEnabled || data == "" {
 		return data
 	}
 	if !gjson.Get(data, usagePrefix).Exists() {
@@ -819,10 +819,10 @@ func normalizeClaudeUsageFields(data string, usagePrefix string, addCacheCreatio
 // This only rewrites the forwarded display bytes; EstimateRequestToken and the
 // billing pre-deduction path are untouched (settlement reads message_delta usage).
 func maybeRecalcClaudeMessageStartInputTokens(data string, usagePrefix string, info *relaycommon.RelayInfo) string {
-	if !constant.AnthropicResponseNormalize || data == "" || info == nil {
+	if !model_setting.GetClaudeSettings().ResponseNormalizeEnabled || data == "" || info == nil {
 		return data
 	}
-	if _, ok := constant.AnthropicRecalcInputTokensChannels[info.ChannelId]; !ok {
+	if !model_setting.GetClaudeSettings().ShouldRecalcInputTokens(info.ChannelId) {
 		return data
 	}
 	if !gjson.Get(data, usagePrefix+".input_tokens").Exists() {

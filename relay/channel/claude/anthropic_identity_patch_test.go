@@ -5,17 +5,18 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
 
 func withNormalize(t *testing.T, enabled bool) {
 	t.Helper()
-	orig := constant.AnthropicResponseNormalize
-	constant.AnthropicResponseNormalize = enabled
-	t.Cleanup(func() { constant.AnthropicResponseNormalize = orig })
+	settings := model_setting.GetClaudeSettings()
+	orig := settings.ResponseNormalizeEnabled
+	settings.ResponseNormalizeEnabled = enabled
+	t.Cleanup(func() { settings.ResponseNormalizeEnabled = orig })
 }
 
 func TestPatchClaudeMessageStartIdentity_NormalizesModelAndID(t *testing.T) {

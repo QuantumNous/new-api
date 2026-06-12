@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -30,15 +30,15 @@ const anthropicSSEPaddingMax = 15
 // (0x20) to append to a Claude SSE data line, randomizing its byte length to
 // break the "ciphertext-fragment length ↔ token content" correlation (R3).
 //
-// It only emits padding when AnthropicResponseNormalize is enabled; otherwise
-// it returns "" so the wire format is byte-identical to the pre-normalize
-// behavior (R3.3 rollback). The length is uniformly random in the closed
-// range so it is never a fixed/predictable value (R3.4). Only spaces are
+// It only emits padding when the independent SsePaddingEnabled switch (R3.3) is
+// on; otherwise it returns "" so the wire format is byte-identical to the
+// pre-normalize behavior (R3.3 rollback). The length is uniformly random in the
+// closed range so it is never a fixed/predictable value (R3.4). Only spaces are
 // used, which are insignificant after a JSON value and so do not affect
 // client JSON parsing (R3.2). math/rand's top-level generator is safe for
 // concurrent use, matching the concurrent SSE writers here.
 func anthropicSSEPadding() string {
-	if !constant.AnthropicResponseNormalize {
+	if !model_setting.GetClaudeSettings().SsePaddingEnabled {
 		return ""
 	}
 	n := rand.Intn(anthropicSSEPaddingMax + 1)
@@ -93,7 +93,7 @@ func SetEventStreamHeaders(c *gin.Context) {
 // FinalizeAnthropicResponseHeaders rewrites the client-facing response headers
 // for a Claude-protocol relay response toward the api.anthropic.com shape.
 //
-// When AnthropicResponseNormalize is enabled it:
+// When response normalization is enabled it:
 //   - removes the internal X-Oneapi-Request-Id header (R1.2);
 //   - emits "request-id: req_<encoded>" where <encoded> is a deterministic,
 //     time-ordered re-encoding of the internal request id (R1.1), and logs the
@@ -109,7 +109,7 @@ func FinalizeAnthropicResponseHeaders(c *gin.Context) {
 	if c == nil || c.Writer == nil {
 		return
 	}
-	if !constant.AnthropicResponseNormalize {
+	if !model_setting.GetClaudeSettings().ResponseNormalizeEnabled {
 		return
 	}
 	if _, done := c.Get("anthropic_request_id_set"); done {
