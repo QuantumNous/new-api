@@ -18,7 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Select, Toast, Typography } from '@douyinfe/semi-ui';
+import {
+  Banner,
+  Modal,
+  Select,
+  Spin,
+  Toast,
+  Typography,
+} from '@douyinfe/semi-ui';
+import {
+  IconCode,
+  IconDesktop,
+  IconKey,
+  IconTickCircle,
+} from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, selectFilter } from '../../../../helpers';
 
@@ -29,9 +42,31 @@ const emptyModelSelection = () => ({
   opus_model: '',
 });
 
+const targetDetails = {
+  codex: {
+    descriptionKey: '导入到 Codex 桌面端使用',
+    importButtonKey: '导入到 Codex',
+    manualTaskKeys: [
+      '开启「需要本地路由映射」',
+      '开启「Codex 路由启用」',
+      '开启「切换第三方时保留官方登录」',
+    ],
+  },
+  claude: {
+    descriptionKey: '导入到 Claude Code 插件使用',
+    importButtonKey: '导入到 Claude Code',
+    manualTaskKeys: [
+      '开启「应用到 Claude Code 插件」',
+      '开启「跳过 Claude Code 初次安装确认」',
+      '开启「Claude 路由启用」',
+    ],
+  },
+};
+
 export default function CCSwitchModal({ visible, onClose, tokenId }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [options, setOptions] = useState(null);
   const [target, setTarget] = useState('codex');
@@ -46,6 +81,8 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
 
     let active = true;
     setLoading(true);
+    setLoadError('');
+    setOptions(null);
     API.get(`/api/token/${tokenId}/ccswitch/import-options`)
       .then((response) => {
         if (!active) return;
@@ -71,7 +108,7 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
         setModelKeyword('');
       })
       .catch((error) => {
-        if (active) Toast.error(error.message || t('加载失败'));
+        if (active) setLoadError(error.message || t('加载失败'));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -124,6 +161,7 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
   }, [filteredModelItems, t]);
 
   const activeModels = modelsByTarget[target] || emptyModelSelection();
+  const activeTargetDetails = targetDetails[target] || targetDetails.codex;
 
   const setModel = (field, value) => {
     setModelsByTarget((current) => ({
@@ -171,8 +209,10 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
   };
 
   const renderModelSelect = (field, label, optional = false) => (
-    <div key={field} className='rounded-lg bg-gray-50 p-3'>
-      <div className='mb-2 text-sm font-medium'>{label}</div>
+    <div key={field} className='min-w-0'>
+      <div className='mb-1.5 text-xs font-medium text-[var(--semi-color-text-2)]'>
+        {label}
+      </div>
       <Select
         value={activeModels[field] || undefined}
         optionList={modelOptions}
@@ -197,74 +237,156 @@ export default function CCSwitchModal({ visible, onClose, tokenId }) {
       visible={visible}
       onCancel={onClose}
       onOk={handleSubmit}
-      okText={t('导入')}
+      okText={t(activeTargetDetails.importButtonKey)}
       cancelText={t('取消')}
       confirmLoading={submitting}
       maskClosable={false}
-      width={520}
+      closeOnEsc
+      centered
+      width='min(640px, calc(100vw - 32px))'
+      bodyStyle={{
+        maxHeight: 'calc(100vh - 190px)',
+        overflowY: 'auto',
+        padding: '16px 24px',
+      }}
+      okButtonProps={{
+        disabled:
+          loading || Boolean(loadError) || !options || !activeModels.model,
+      }}
     >
-      {loading ? (
-        <Typography.Text type='tertiary'>{t('加载中...')}</Typography.Text>
-      ) : (
-        <div className='flex flex-col gap-4'>
-          <section className='rounded-lg bg-gray-50 p-4'>
-            <div className='mb-3 text-sm font-semibold'>{t('当前令牌')}</div>
-            <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-              <div>
-                <div className='text-xs text-gray-500'>{t('令牌名称')}</div>
-                <div className='break-all font-medium'>
-                  {options?.token?.name || '-'}
+      <div className='flex flex-col gap-4'>
+        <Typography.Text type='tertiary'>
+          {t('选择应用和模型，生成当前令牌的导入配置。')}
+        </Typography.Text>
+
+        {loading ? (
+          <div className='flex min-h-52 items-center justify-center'>
+            <Spin size='large' tip={t('加载中...')} />
+          </div>
+        ) : loadError ? (
+          <Banner type='danger' title={t('加载失败')} description={loadError} />
+        ) : !options ? (
+          <Banner type='warning' title={t('暂无数据')} />
+        ) : (
+          <>
+            <section className='flex flex-col gap-3 rounded-lg border border-[var(--semi-color-border)] bg-[var(--semi-color-fill-0)] px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4'>
+              <div className='flex shrink-0 items-center gap-2'>
+                <span className='flex h-8 w-8 items-center justify-center rounded-md border border-[var(--semi-color-border)] bg-[var(--semi-color-bg-0)] text-[var(--semi-color-text-2)]'>
+                  <IconKey />
+                </span>
+                <div className='text-sm font-semibold'>{t('当前令牌')}</div>
+              </div>
+              <div className='grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:gap-4'>
+                <div className='min-w-0'>
+                  <div className='text-xs text-[var(--semi-color-text-2)]'>
+                    {t('令牌名称')}
+                  </div>
+                  <div className='break-all text-sm font-medium'>
+                    {options.token?.name || '-'}
+                  </div>
+                </div>
+                <div className='min-w-0'>
+                  <div className='text-xs text-[var(--semi-color-text-2)]'>
+                    API Key
+                  </div>
+                  <div className='break-all text-sm font-medium'>
+                    {options.token?.masked_key || '-'}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className='text-xs text-gray-500'>API Key</div>
-                <div className='break-all font-medium'>
-                  {options?.token?.masked_key || '-'}
-                </div>
+            </section>
+
+            <section>
+              <div className='mb-2 text-sm font-medium'>{t('应用')}</div>
+              <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
+                {targetOptions.map((item) => {
+                  const targetKey = item.key === 'claude' ? 'claude' : 'codex';
+                  const selected = item.key === target;
+                  const TargetIcon =
+                    targetKey === 'claude' ? IconCode : IconDesktop;
+                  return (
+                    <button
+                      key={item.key}
+                      type='button'
+                      disabled={!item.enabled}
+                      aria-pressed={selected}
+                      className={[
+                        'rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--semi-color-primary-light-active)]',
+                        selected
+                          ? 'border-[var(--semi-color-primary)] bg-[var(--semi-color-primary-light-default)] shadow-sm'
+                          : 'border-[var(--semi-color-border)] bg-[var(--semi-color-bg-0)] hover:bg-[var(--semi-color-fill-0)]',
+                        !item.enabled ? 'cursor-not-allowed opacity-50' : '',
+                      ].join(' ')}
+                      onClick={() => {
+                        if (!item.enabled) return;
+                        setTarget(targetKey);
+                        setModelKeyword('');
+                      }}
+                    >
+                      <div className='flex items-start gap-3'>
+                        <span
+                          className={[
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-md',
+                            selected
+                              ? 'bg-[var(--semi-color-primary-light-hover)] text-[var(--semi-color-primary)]'
+                              : 'bg-[var(--semi-color-fill-0)] text-[var(--semi-color-text-2)]',
+                          ].join(' ')}
+                        >
+                          <TargetIcon />
+                        </span>
+                        <div className='min-w-0 flex-1'>
+                          <div className='truncate text-sm font-semibold text-[var(--semi-color-text-0)]'>
+                            {item.label}
+                          </div>
+                          <div className='mt-1 text-xs leading-5 text-[var(--semi-color-text-2)]'>
+                            {t(targetDetails[targetKey].descriptionKey)}
+                          </div>
+                        </div>
+                        {selected ? (
+                          <IconTickCircle className='mt-0.5 shrink-0 text-[var(--semi-color-primary)]' />
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section>
-            <div className='mb-2 text-sm font-medium'>{t('应用')}</div>
-            <div className='grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1'>
-              {targetOptions.map((item) => {
-                const selected = item.key === target;
-                return (
-                  <button
-                    key={item.key}
-                    type='button'
-                    disabled={!item.enabled}
-                    className={[
-                      'h-9 rounded-md px-3 text-sm font-medium transition-colors',
-                      selected
-                        ? 'bg-white text-gray-950 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-900',
-                      !item.enabled ? 'cursor-not-allowed opacity-50' : '',
-                    ].join(' ')}
-                    onClick={() => {
-                      if (!item.enabled) return;
-                      setTarget(item.key === 'claude' ? 'claude' : 'codex');
-                      setModelKeyword('');
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+            <section className='rounded-lg border border-[var(--semi-color-border)] bg-[var(--semi-color-bg-0)] p-3'>
+              {renderModelSelect('model', t('主模型'))}
+              {target === 'claude' ? (
+                <div className='mt-3 border-t border-[var(--semi-color-border)] pt-3'>
+                  <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                    {renderModelSelect('haiku_model', t('Haiku 模型'), true)}
+                    {renderModelSelect('sonnet_model', t('Sonnet 模型'), true)}
+                    {renderModelSelect('opus_model', t('Opus 模型'), true)}
+                  </div>
+                </div>
+              ) : null}
+            </section>
 
-          {renderModelSelect('model', t('主模型'))}
-          {target === 'claude' && (
-            <>
-              {renderModelSelect('haiku_model', t('Haiku 模型'), true)}
-              {renderModelSelect('sonnet_model', t('Sonnet 模型'), true)}
-              {renderModelSelect('opus_model', t('Opus 模型'), true)}
-            </>
-          )}
-        </div>
-      )}
+            <Banner
+              type='info'
+              title={t('需要到 CC Switch 中手动开启')}
+              description={
+                <ol className='mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3'>
+                  {activeTargetDetails.manualTaskKeys.map((taskKey, index) => (
+                    <li
+                      key={taskKey}
+                      className='flex min-w-0 items-start gap-2 text-sm text-[var(--semi-color-text-0)]'
+                    >
+                      <span className='flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--semi-color-primary-light-default)] px-1 text-xs font-semibold text-[var(--semi-color-primary)]'>
+                        {index + 1}
+                      </span>
+                      <span className='leading-5'>{t(taskKey)}</span>
+                    </li>
+                  ))}
+                </ol>
+              }
+            />
+          </>
+        )}
+      </div>
     </Modal>
   );
 }

@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>导入 CC Switch</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --mask: rgba(15, 23, 42, 0.36);
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --surface-3: #eef4ff;
+      --text: #111827;
+      --muted: #6b7280;
+      --subtle: #9ca3af;
+      --line: #e5e7eb;
+      --line-strong: #d8dee8;
+      --primary: #2563eb;
+      --primary-strong: #1d4ed8;
+      --primary-soft: #eff6ff;
+      --primary-line: #bfdbfe;
+      --success: #0f9f6e;
+      --shadow: 0 24px 70px rgba(15, 23, 42, 0.22), 0 8px 24px rgba(15, 23, 42, 0.08);
+      --radius-xl: 22px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 12% 10%, rgba(37, 99, 235, 0.18), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(16, 185, 129, 0.12), transparent 24%),
+        var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 32px 18px;
+    }
+
+    .page-shell {
+      width: min(960px, 100%);
+      height: 650px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow: 0 20px 80px rgba(15, 23, 42, 0.12);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .fake-page {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.42)),
+        repeating-linear-gradient(90deg, rgba(148,163,184,.13) 0 1px, transparent 1px 90px);
+      filter: blur(0.1px);
+    }
+
+    .mask {
+      position: absolute;
+      inset: 0;
+      background: var(--mask);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .modal {
+      width: min(528px, 100%);
+      max-height: min(88vh, 620px);
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255,255,255,.9);
+    }
+
+    .modal-header {
+      padding: 22px 24px 16px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      border-bottom: 1px solid #f0f2f6;
+    }
+
+    .title-wrap { min-width: 0; }
+
+    .title {
+      margin: 0;
+      font-size: 21px;
+      line-height: 1.25;
+      font-weight: 760;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 7px 0 0;
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .close-btn {
+      border: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 11px;
+      background: #f3f4f6;
+      color: #4b5563;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      transition: .18s ease;
+    }
+
+    .close-btn:hover { background: #e5e7eb; color: #111827; }
+
+    .modal-body {
+      padding: 18px 24px 10px;
+      overflow: auto;
+    }
+
+    .section + .section { margin-top: 18px; }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 9px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .small-link {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: var(--primary);
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+
+    .token-card {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff, #fbfcff);
+      border-radius: var(--radius-lg);
+      display: grid;
+      gap: 11px;
+    }
+
+    .token-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .token-name {
+      font-size: 16px;
+      font-weight: 760;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #047857;
+      font-size: 12px;
+      font-weight: 650;
+      flex: 0 0 auto;
+    }
+
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--success);
+    }
+
+    .field-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 12px;
+      align-items: center;
+      font-size: 13.5px;
+    }
+
+    .kv .k { color: var(--muted); }
+    .kv .v {
+      min-width: 0;
+      color: #1f2937;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 560;
+    }
+
+    .url-pill {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      max-width: 100%;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: #f3f6fb;
+      border: 1px solid #e7edf7;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .app-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: #fff;
+      padding: 13px 13px 12px;
+      cursor: pointer;
+      transition: .18s ease;
+      min-height: 82px;
+      position: relative;
+    }
+
+    .app-card:hover {
+      border-color: #c7d2fe;
+      background: #fbfdff;
+      transform: translateY(-1px);
+    }
+
+    .app-card.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .app-top {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .app-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      font-weight: 800;
+      font-size: 13px;
+      flex: 0 0 auto;
+    }
+
+    .app-card[data-app="claude"] .app-icon {
+      background: linear-gradient(135deg, #7c3aed, #ec4899);
+    }
+
+    .app-name {
+      font-size: 14.5px;
+      font-weight: 740;
+    }
+
+    .app-desc {
+      margin: 8px 0 0 39px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .check {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 12px;
+    }
+
+    .app-card.active .check {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+
+    .manual-card {
+      border: 1px solid var(--primary-line);
+      background: linear-gradient(180deg, #f8fbff, #f4f8ff);
+      border-radius: var(--radius-lg);
+      padding: 14px 15px;
+    }
+
+    .manual-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 11px;
+    }
+
+    .manual-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 750;
+      color: #1e40af;
+    }
+
+    .manual-title .dot-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      background: #dbeafe;
+      color: #2563eb;
+      font-size: 14px;
+    }
+
+    .manual-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #dbeafe;
+      color: #3b82f6;
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .task {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.82);
+      border: 1px solid rgba(191,219,254,.65);
+      font-size: 13.5px;
+      color: #1f2937;
+    }
+
+    .task-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 12px;
+      font-weight: 760;
+      flex: 0 0 auto;
+    }
+
+    .combo {
+      position: relative;
+    }
+
+    .combo-input-wrap {
+      position: relative;
+    }
+
+    .combo-input {
+      width: 100%;
+      height: 44px;
+      border-radius: 13px;
+      border: 1px solid var(--line-strong);
+      background: #f9fafb;
+      color: #111827;
+      outline: none;
+      padding: 0 42px 0 13px;
+      font-size: 14.5px;
+      transition: .16s ease;
+    }
+
+    .combo-input:focus {
+      background: #fff;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.11);
+    }
+
+    .combo-arrow {
+      position: absolute;
+      right: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6b7280;
+      pointer-events: none;
+      font-size: 14px;
+    }
+
+    .combo-help {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+
+    .combo-error {
+      margin: 7px 0 0;
+      color: #dc2626;
+      font-size: 12.5px;
+      display: none;
+    }
+
+    .dropdown {
+      display: none;
+      position: absolute;
+      z-index: 10;
+      top: calc(100% + 7px);
+      left: 0;
+      right: 0;
+      max-height: 198px;
+      overflow: auto;
+      background: #fff;
+      border: 1px solid #d9e2ef;
+      border-radius: 14px;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+      padding: 6px;
+    }
+
+    .combo.open .dropdown { display: block; }
+
+    .option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13.5px;
+      color: #111827;
+    }
+
+    .option:hover, .option.active {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .option .source {
+      color: #94a3b8;
+      font-size: 12px;
+      flex: 0 0 auto;
+    }
+
+    .empty-option {
+      padding: 18px 10px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .footer {
+      padding: 15px 24px 20px;
+      border-top: 1px solid #f0f2f6;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      background: rgba(255,255,255,.92);
+    }
+
+    .btn {
+      height: 40px;
+      border: 0;
+      border-radius: 13px;
+      padding: 0 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .btn-secondary:hover { background: #e5e7eb; }
+
+    .btn-primary {
+      min-width: 132px;
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+    }
+
+    .btn-primary:hover { background: var(--primary-strong); transform: translateY(-1px); }
+    .btn-primary:disabled {
+      background: #cbd5e1;
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    @media (max-width: 560px) {
+      body { padding: 0; }
+      .page-shell { height: 100vh; border-radius: 0; }
+      .mask { padding: 14px; }
+      .modal { max-height: 94vh; border-radius: 20px; }
+      .modal-header { padding: 20px 18px 14px; }
+      .modal-body { padding: 16px 18px 8px; }
+      .footer { padding: 13px 18px 18px; }
+      .app-grid { grid-template-columns: 1fr; }
+      .kv { grid-template-columns: 66px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell" aria-label="弹窗展示背景">
+    <div class="fake-page"></div>
+    <div class="mask">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header class="modal-header">
+          <div class="title-wrap">
+            <h1 class="title" id="modal-title">导入 CC Switch</h1>
+            <p class="subtitle">选择应用和模型，生成当前令牌的导入配置。</p>
+          </div>
+          <button class="close-btn" aria-label="关闭">×</button>
+        </header>
+
+        <div class="modal-body">
+          <section class="section">
+            <div class="section-head">
+              <div class="section-title">当前令牌</div>
+            </div>
+            <div class="token-card">
+              <div class="token-top">
+                <div class="token-name">aaa</div>
+                <div class="badge">可用</div>
+              </div>
+              <div class="field-grid">
+                <div class="kv">
+                  <div class="k">API Key</div>
+                  <div class="v">QZnp********xK28</div>
+                </div>
+                <div class="kv">
+                  <div class="k">请求地址</div>
+                  <div class="v"><span class="url-pill">https://api.xistree.hk/</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div class="section-title">应用</div>
+            </div>
+            <div class="app-grid" id="appGrid">
+              <button class="app-card active" type="button" data-app="codex" aria-pressed="true">
+                <span class="check">✓</span>
+                <div class="app-top">
+                  <div class="app-icon">C</div>
+                  <div class="app-name">Codex</div>
+                </div>
+                <p class="app-desc">导入到 Codex 桌面端使用</p>
+              </button>
+              <button class="app-card" type="button" data-app="claude" aria-pressed="false">
+                <span class="check"></span>
+                <div class="app-top">
+                  <div class="app-icon">CC</div>
+                  <div class="app-name">Claude Code</div>
+                </div>
+                <p class="app-desc">导入到 Claude Code 插件使用</p>
+              </button>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div class="section-title">主模型</div>
+            </div>
+            <div class="combo" id="modelCombo">
+              <div class="combo-input-wrap">
+                <input
+                  class="combo-input"
+                  id="modelInput"
+                  value="gpt-5.3-codex"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-label="主模型"
+                  aria-expanded="false"
+                  aria-controls="modelDropdown"
+                />
+                <span class="combo-arrow">⌄</span>
+              </div>
+              <div class="dropdown" id="modelDropdown" role="listbox"></div>
+              <p class="combo-help">可输入关键词筛选缓存模型列表，最终只能选择一个模型。</p>
+              <p class="combo-error" id="modelError">请选择列表中的一个模型。</p>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="manual-card">
+              <div class="manual-top">
+                <div class="manual-title"><span class="dot-icon">✓</span><span id="manualTitle">需要到 CC Switch 中手动开启</span></div>
+              </div>
+              <div class="task-list" id="taskList"></div>
+            </div>
+          </section>
+        </div>
+
+        <footer class="footer">
+          <button class="btn btn-secondary" type="button">取消</button>
+          <button class="btn btn-primary" type="button" id="importBtn">导入到 Codex</button>
+        </footer>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const appTips = {
+      codex: {
+        button: '导入到 Codex',
+        tasks: [
+          '开启「需要本地路由映射」',
+          '开启「Codex 路由启用」',
+          '开启「切换第三方时保留官方登录」'
+        ]
+      },
+      claude: {
+        button: '导入到 Claude Code',
+        tasks: [
+          '开启「应用到 Claude Code 插件」',
+          '开启「跳过 Claude Code 初次安装确认」',
+          '开启「Claude 路由启用」'
+        ]
+      }
+    };
+
+    const cachedModels = [
+      { name: 'gpt-5.3-codex', source: '缓存' },
+      { name: 'gpt-5.3', source: '缓存' },
+      { name: 'gpt-5.3-mini', source: '缓存' },
+      { name: 'gpt-5.2-codex', source: '缓存' },
+      { name: 'claude-sonnet-4.5', source: '缓存' },
+      { name: 'claude-opus-4.1', source: '缓存' },
+      { name: 'deepseek-v3.2', source: '缓存' },
+      { name: 'qwen3-coder-plus', source: '缓存' },
+      { name: 'kimi-k2-thinking', source: '缓存' }
+    ];
+
+    const appCards = Array.from(document.querySelectorAll('.app-card'));
+    const taskList = document.getElementById('taskList');
+    const importBtn = document.getElementById('importBtn');
+    const combo = document.getElementById('modelCombo');
+    const input = document.getElementById('modelInput');
+    const dropdown = document.getElementById('modelDropdown');
+    const error = document.getElementById('modelError');
+
+    let selectedApp = 'codex';
+    let selectedModel = input.value;
+
+    function renderTasks() {
+      const config = appTips[selectedApp];
+      taskList.innerHTML = config.tasks.map((item, index) => `
+        <div class="task">
+          <span class="task-num">${index + 1}</span>
+          <span>${item}</span>
+        </div>
+      `).join('');
+      importBtn.textContent = config.button;
+    }
+
+    function fuzzyMatch(modelName, query) {
+      const source = modelName.toLowerCase();
+      const target = query.trim().toLowerCase();
+      if (!target) return true;
+      if (source.includes(target)) return true;
+      let cursor = 0;
+      for (const char of target) {
+        cursor = source.indexOf(char, cursor);
+        if (cursor === -1) return false;
+        cursor += 1;
+      }
+      return true;
+    }
+
+    function renderModels() {
+      const query = input.value;
+      const results = cachedModels.filter(model => fuzzyMatch(model.name, query));
+      if (!results.length) {
+        dropdown.innerHTML = '<div class="empty-option">没有匹配的缓存模型</div>';
+        return;
+      }
+      dropdown.innerHTML = results.map(model => `
+        <div class="option ${model.name === selectedModel ? 'active' : ''}" role="option" data-model="${model.name}">
+          <span>${model.name}</span>
+          <span class="source">${model.source}</span>
+        </div>
+      `).join('');
+    }
+
+    function openDropdown() {
+      renderModels();
+      combo.classList.add('open');
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeDropdown() {
+      combo.classList.remove('open');
+      input.setAttribute('aria-expanded', 'false');
+    }
+
+    function validateModel() {
+      const exact = cachedModels.find(model => model.name === input.value.trim());
+      selectedModel = exact ? exact.name : null;
+      error.style.display = exact ? 'none' : 'block';
+      importBtn.disabled = !exact;
+      renderModels();
+    }
+
+    appCards.forEach(card => {
+      card.addEventListener('click', () => {
+        selectedApp = card.dataset.app;
+        appCards.forEach(item => {
+          const active = item === card;
+          item.classList.toggle('active', active);
+          item.setAttribute('aria-pressed', String(active));
+          item.querySelector('.check').textContent = active ? '✓' : '';
+        });
+        renderTasks();
+      });
+    });
+
+    input.addEventListener('focus', openDropdown);
+    input.addEventListener('click', openDropdown);
+    input.addEventListener('input', () => {
+      selectedModel = null;
+      openDropdown();
+      validateModel();
+    });
+
+    dropdown.addEventListener('mousedown', event => {
+      const option = event.target.closest('.option');
+      if (!option) return;
+      input.value = option.dataset.model;
+      selectedModel = option.dataset.model;
+      validateModel();
+      closeDropdown();
+    });
+
+    document.addEventListener('mousedown', event => {
+      if (!combo.contains(event.target)) closeDropdown();
+    });
+
+    renderTasks();
+    renderModels();
+    validateModel();
+  </script>
+</body>
+</html>

@@ -371,7 +371,7 @@
     "Append to existing keys": "追加到现有密钥",
     "Append value to array / string / object end": "把值追加到数组/字符串/对象末尾",
     "appended": "已追加",
-    "Application": "应用",
+    "Application": "??",
     "Applied {{name}} pricing to {{count}} models": "已将 {{name}} 的定价应用到 {{count}} 个模型",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "适用于自定义补全端点。模型 → 比例的 JSON 映射。",
     "Apply All Upstream Updates": "应用所有上游更新",
@@ -4560,6 +4560,18 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Choose an application and model to generate the import configuration for this token.": "????????????????????",
+    "Use this token in the Codex desktop app": "??? Codex ?????",
+    "Use this token in the Claude Code plugin": "??? Claude Code ????",
+    "Import to Codex": "??? Codex",
+    "Import to Claude Code": "??? Claude Code",
+    "Enable these options in CC Switch manually": "??? CC Switch ?????",
+    "Enable local route mapping": "????????????",
+    "Enable Codex route": "???Codex ?????",
+    "Keep official login when switching third-party": "????????????????",
+    "Apply to Claude Code plugin": "?????? Claude Code ???",
+    "Skip Claude Code initial install confirmation": "????? Claude Code ???????",
+    "Enable Claude route": "???Claude ?????"
   }
 }

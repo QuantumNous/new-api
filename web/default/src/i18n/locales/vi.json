@@ -371,7 +371,7 @@
     "Append to existing keys": "Add to existing keys",
     "Append value to array / string / object end": "Thêm giá trị vào cuối mảng / chuỗi / đối tượng",
     "appended": "đã thêm vào cuối, được phụ lục",
-    "Application": "Ứng dụng",
+    "Application": "?ng d?ng",
     "Applied {{name}} pricing to {{count}} models": "Đã áp dụng giá của {{name}} cho {{count}} mô hình",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "Áp dụng cho các điểm cuối hoàn thành tùy chỉnh. Bản đồ JSON của mô hình → tỷ lệ.",
     "Apply All Upstream Updates": "Áp dụng Tất cả Cập nhật Upstream",
@@ -4560,6 +4560,18 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Choose an application and model to generate the import configuration for this token.": "Ch?n ?ng d?ng v? model ?? t?o c?u h?nh nh?p cho m? n?y.",
+    "Use this token in the Codex desktop app": "D?ng m? n?y trong ?ng d?ng Codex tr?n m?y t?nh",
+    "Use this token in the Claude Code plugin": "D?ng m? n?y trong plugin Claude Code",
+    "Import to Codex": "Nh?p v?o Codex",
+    "Import to Claude Code": "Nh?p v?o Claude Code",
+    "Enable these options in CC Switch manually": "B?t th? c?ng c?c t?y ch?n n?y trong CC Switch",
+    "Enable local route mapping": "B?t ?nh x? ??nh tuy?n c?c b?",
+    "Enable Codex route": "B?t ??nh tuy?n Codex",
+    "Keep official login when switching third-party": "Gi? ??ng nh?p ch?nh th?c khi chuy?n sang b?n th? ba",
+    "Apply to Claude Code plugin": "?p d?ng cho plugin Claude Code",
+    "Skip Claude Code initial install confirmation": "B? qua x?c nh?n c?i ??t l?n ??u c?a Claude Code",
+    "Enable Claude route": "B?t ??nh tuy?n Claude"
   }
 }

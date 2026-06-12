@@ -4560,6 +4560,18 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Choose an application and model to generate the import configuration for this token.": "Choose an application and model to generate the import configuration for this token.",
+    "Use this token in the Codex desktop app": "Use this token in the Codex desktop app",
+    "Use this token in the Claude Code plugin": "Use this token in the Claude Code plugin",
+    "Import to Codex": "Import to Codex",
+    "Import to Claude Code": "Import to Claude Code",
+    "Enable these options in CC Switch manually": "Enable these options in CC Switch manually",
+    "Enable local route mapping": "Enable local route mapping",
+    "Enable Codex route": "Enable Codex route",
+    "Keep official login when switching third-party": "Keep official login when switching third-party",
+    "Apply to Claude Code plugin": "Apply to Claude Code plugin",
+    "Skip Claude Code initial install confirmation": "Skip Claude Code initial install confirmation",
+    "Enable Claude route": "Enable Claude route"
   }
 }
