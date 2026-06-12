@@ -4,7 +4,7 @@ package blockrunseedance
 const ChannelName = "blockrun-seedance"
 
 // maxAmountAtomicUSDCVideo caps a single video x402 charge to 10 USDC (6 decimals).
-// Seedance per-second pricing can exceed the $1 chat cap (e.g. 2.0 @ ~$0.30/s ×10s
+// Seedance per-second pricing can exceed the $5 chat cap (e.g. 2.0 @ ~$0.30/s ×10s
 // = $3); $10 is a generous ceiling that still refuses an obviously-malicious 402.
 const maxAmountAtomicUSDCVideo = 10_000_000
 

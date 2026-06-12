@@ -100,7 +100,7 @@ VIP 包不是普通版的替代,而是**建在普通版之上**(其 `go.mod` 直
 
 1. `channel.DoApiRequest` 发起(无签名)→ 期待 402
 2. 解析 `Payment-Required` / `X-Payment-Required` / `Www-Authenticate: X402 ...`
-3. `validatePaymentOption` 白名单校验(**保留**:≤300s 窗口、Base USDC、≤1 USDC 上限)
+3. `validatePaymentOption` 白名单校验(**保留**:≤300s 窗口、Base USDC、≤5 USDC 上限)
 4. `CreatePaymentPayload` 做 EIP-712 签名
 5. `c.Set(ctxKeyPaymentSignature, b64)` → 再发一次 → 200
 6. 若仍 402:显式 error,不再循环(防资损)

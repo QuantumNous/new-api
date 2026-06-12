@@ -158,7 +158,7 @@ func buildImage2ImageBody(req *dto.ImageRequest) (any, error) {
 ## 5. 风险与边界
 
 1. **GitNexus 影响分析(已跑)**:`GetRequestURL` upstream 仅被 blockrun 自身 `DoRequest` 调用,**风险 LOW,改动局限 Blockrun 模块**,无跨模块/跨流程影响。
-2. **x402 单笔上限**:`x402.go` 强制 ≤1 USDC/次。若 `n` 较大且单价高(如 `nano-banana-pro` × n),可能逼近/超上限导致签名被拒。建议文档提示用户控制 `n`,或后续按 `n` 做预校验。
+2. **x402 单笔上限**:`x402.go` 强制 ≤5 USDC/次(2026-06-12 由 $1 上调)。若 `n` 较大且单价高(如 `nano-banana-pro` × n),可能逼近/超上限导致签名被拒。建议文档提示用户控制 `n`,或后续按 `n` 做预校验。
 3. **白标 / 响应 URL**:BlockRun 图像响应可能返回其 GCS 镜像 URL(`ImageData.BackedUp`)。直接透传会暴露上游 host。建议:
    - 文档推荐客户端用 `response_format=b64_json`(返回 base64,不暴露 host);或
    - Phase 2 再评估是否需要代理图片(参考 task 渠道的 content 代理思路)。
