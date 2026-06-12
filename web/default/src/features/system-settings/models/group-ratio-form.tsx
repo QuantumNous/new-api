@@ -63,6 +63,7 @@ type GroupFormValues = {
   GroupRatio: string
   TopupGroupRatio: string
   UserUsableGroups: string
+  HiddenGroups: string
   GroupGroupRatio: string
   AutoGroups: string
   DefaultUseAutoGroup: boolean
@@ -155,6 +156,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
             <FormField
               control={form.control}
+              name='HiddenGroups'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Hidden groups')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={2} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Comma-separated group names hidden from the token creation and playground group selectors. Hiding does not disable the group.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name='DefaultUseAutoGroup'
               render={({ field }) => (
                 <SettingsSwitchItem>
@@ -229,6 +249,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON map of group → description exposed when users create API keys.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='HiddenGroups'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Hidden groups')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={2} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Comma-separated group names hidden from the token creation and playground group selectors. Hiding does not disable the group.'
                     )}
                   </FormDescription>
                   <FormMessage />
