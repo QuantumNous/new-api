@@ -76,8 +76,9 @@ jobs:
           go test ./internal/... -count=1 -race -timeout 60s
           go test ./model/ -run 'TestUser_Airbotix' -count=1 -timeout 60s
           # kids_mode relay layer: all constraints incl. max_tokens cap and model
-          # whitelist gate (DR-12). See docs/kids-coverage-matrix.md.
-          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist' -count=1 -race -timeout 60s
+          # whitelist gate (DR-12). TestKidsModeCoverageMatrix enforces that every
+          # function listed in docs/kids-coverage-matrix.md actually exists.
+          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
           # Smart-router integration: catalog endpoint pricing math, kids
           # pre-filter, brand map, input validation, cross-model fallback,
           # internal-token auth, ResolveAutoModel hot path.

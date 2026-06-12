@@ -4,7 +4,7 @@ Every hard constraint that kids_mode enforces, with the layer that owns it and
 the test file/function that covers it. **CI fails if any row in the Relay column
 loses coverage** — see `.github/workflows/airbotix-internal.yml`.
 
-Last updated: 2026-06-10  
+Last updated: 2026-06-12  
 Tracks: DR-12 | References: DRS-27, DRS-28, DRS-29, DRS-30, DRS-31
 
 ---
@@ -126,7 +126,6 @@ DB error (defensive pass-through).
 |---|---|---|
 | HTTP-level integration test (httptest mock provider, full relay stack) | Planned — Phase 2.5 | — |
 | ZDR equivalent for Anthropic provider (no `store: false` in Anthropic API) | Accepted gap — metadata strip + prompt control is sufficient for Phase 1 | DRS-31 |
-| Middleware DB error path (userId>0, GetUserById fails → passthrough) | GORM panics on nil DB; needs real DB in CI. The defensive code is in `middleware/policy.go:35-43` | — |
 
 ---
 
@@ -140,8 +139,9 @@ every PR that touches `internal/**`, `middleware/policy.go`,
 # Core helpers
 go test ./internal/... -count=1 -race -timeout 60s
 
-# Relay layer (all constraints incl. max_tokens cap)
-go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist' -count=1 -race -timeout 60s
+# Relay layer (all constraints incl. max_tokens cap) + matrix enforcement
+# TestKidsModeCoverageMatrix fails CI if a function listed in this file doesn't exist.
+go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
 
 # Middleware layer
 go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
