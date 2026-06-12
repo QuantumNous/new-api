@@ -207,8 +207,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
-	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodStripe)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodStripe)
 
 	return nil
 }
@@ -262,10 +261,30 @@ func RechargePayPal(referenceId string, callerIp string) (err error) {
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 PayPal 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPayPal)
-	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodPayPal)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodPayPal)
 
 	return nil
+}
+
+func containsAt(s string) bool {
+	for _, c := range s {
+		if c == '@' {
+			return true
+		}
+	}
+	return false
+}
+
+func isDigitOnly(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // topUpQueryWindowSeconds 限制充值记录查询的时间窗口（秒）。
@@ -313,7 +332,8 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 }
 
 // GetAllTopUps 获取全平台的充值记录（管理员使用，不限制时间窗口）
-func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+// status 为空字符串时不过滤状态
+func GetAllTopUps(status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -324,12 +344,17 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 		}
 	}()
 
-	if err = tx.Model(&TopUp{}).Count(&total).Error; err != nil {
+	query := tx.Model(&TopUp{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	if err = query.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	if err = tx.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -385,8 +410,9 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 	return topups, total, nil
 }
 
-// SearchAllTopUps 按订单号搜索全平台充值记录（管理员使用，不限制时间窗口）
-func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+// SearchAllTopUps 按订单号 / 邮箱 / UID 搜索全平台充值记录（管理员使用，不限制时间窗口）
+// keyword 可以是订单号前缀、用户邮箱（含 @）、或纯数字 UID
+func SearchAllTopUps(keyword string, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -404,7 +430,21 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 			tx.Rollback()
 			return nil, 0, perr
 		}
-		query = query.Where("trade_no LIKE ? ESCAPE '!'", pattern)
+		// Search by email: join users table when keyword contains '@'
+		if len(keyword) > 1 && keyword[0] != '@' && (containsAt(keyword) || isDigitOnly(keyword)) {
+			if isDigitOnly(keyword) {
+				// UID search
+				query = query.Where("user_id = ?", keyword)
+			} else {
+				// Email search via subquery
+				query = query.Where("user_id IN (SELECT id FROM users WHERE email LIKE ? ESCAPE '!')", pattern)
+			}
+		} else {
+			query = query.Where("trade_no LIKE ? ESCAPE '!'", pattern)
+		}
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
 	}
 
 	if err = query.Limit(searchTopUpCountHardLimit).Count(&total).Error; err != nil {
@@ -569,8 +609,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
-	ProcessAffCommission(topUp.UserId, int(quota))
-	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodCreem)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodCreem)
 
 	return nil
 }
@@ -633,8 +672,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
-		ProcessAffCommission(topUp.UserId, quotaToAdd)
-		NotifyPaymentSuccess(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
 	}
 
 	return nil
@@ -696,10 +734,18 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
-		NotifyPaymentSuccess(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
 	}
 
 	return nil
+}
+
+// OnTopupSucceeded is the single hook called after every successful topup.
+// Centralises affiliate commission + Feishu notification so new payment methods
+// only need one call here instead of wiring each individually.
+func OnTopupSucceeded(userId int, quotaAdded int, paymentMethod string) {
+	ProcessAffCommission(userId, quotaAdded)
+	NotifyPaymentSuccess(userId, quotaAdded, paymentMethod)
 }
 
 // NotifyPaymentSuccess sends a Feishu card to the ops group on successful payment.

@@ -32,6 +32,12 @@ import type { TopupStatus } from '../types'
 // Epay methods store money in CNY; everything else is USD
 const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
 
+const STATUS_TABS = [
+  { value: '', labelKey: 'All' },
+  { value: 'success', labelKey: 'Success' },
+  { value: 'pending', labelKey: 'Awaiting Payment' },
+] as const
+
 // Crypto path stores amount as raw quota units; Epay stores USD dollar integer
 const QUOTA_PER_USD = 500_000
 
@@ -97,10 +103,12 @@ export function TransactionHistory() {
     page,
     pageSize,
     keyword,
+    statusFilter,
     loading,
     isAdmin,
     handlePageChange,
     handleSearch,
+    handleStatusChange,
   } = useBillingHistory({ initialPageSize: 10 })
   const colCount = isAdmin ? 8 : 6
 
@@ -121,13 +129,30 @@ export function TransactionHistory() {
               </span>
             )}
             <Input
-              placeholder={t('Search by order number...')}
+              placeholder={isAdmin ? t('Order No. / Email / UID') : t('Search by order number...')}
               value={keyword}
               onChange={(e) => handleSearch(e.target.value)}
               className='h-8 w-full sm:w-52 text-sm'
             />
           </div>
         </div>
+        {isAdmin && (
+          <div className='mt-2 flex gap-1'>
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => handleStatusChange(tab.value)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  statusFilter === tab.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {t(tab.labelKey)}
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className='p-0'>
@@ -136,8 +161,8 @@ export function TransactionHistory() {
             <thead>
               <tr className='border-y bg-muted/30 text-xs text-muted-foreground'>
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Order No.')}</th>
-                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>用户名</th>}
-                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />国家</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>{t('Username')}</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />{t('Country')}</th>}
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Payment Method')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Recharge Amount')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Amount Paid')}</th>

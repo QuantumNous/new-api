@@ -260,7 +260,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                   </div>
                   <div className='min-w-0'>
                     <div className='truncate text-sm font-semibold text-gray-800'>{t('Alipay')}</div>
-                    <div className='truncate text-[11px] text-gray-400'>支付宝</div>
+                    <div className='truncate text-[11px] text-gray-400'>{t('Alipay')}</div>
                   </div>
                 </button>
               )}
@@ -288,7 +288,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                   </div>
                   <div className='min-w-0'>
                     <div className='truncate text-sm font-semibold text-gray-800'>{t('WeChat Pay')}</div>
-                    <div className='truncate text-[11px] text-gray-400'>微信支付</div>
+                    <div className='truncate text-[11px] text-gray-400'>{t('WeChat Pay')}</div>
                   </div>
                 </button>
               )}
