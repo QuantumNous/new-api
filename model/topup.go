@@ -51,6 +51,37 @@ var (
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
 
+// FormatPaymentMethodLabel returns a human-readable payment method name for ops notifications.
+func FormatPaymentMethodLabel(method string) string {
+	switch method {
+	case PaymentMethodPayPal:
+		return "PayPal"
+	case PaymentMethodStripe:
+		return "Stripe"
+	case "alipay":
+		return "支付宝"
+	case "wxpay":
+		return "微信支付"
+	case PaymentMethodCreem:
+		return "Creem"
+	case PaymentMethodWaffo:
+		return "Waffo"
+	case PaymentMethodWaffoPancake:
+		return "Waffo Pancake"
+	case "crypto":
+		return "加密货币"
+	case "epay":
+		return "易支付"
+	case "admin":
+		return "管理员补单"
+	default:
+		if method == "" {
+			return "未知"
+		}
+		return method
+	}
+}
+
 func (topUp *TopUp) Insert() error {
 	var err error
 	err = DB.Create(topUp).Error
@@ -232,6 +263,7 @@ func RechargePayPal(referenceId string, callerIp string) (err error) {
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 PayPal 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPayPal)
 	ProcessAffCommission(topUp.UserId, int(quota))
+	NotifyPaymentSuccess(topUp.UserId, int(quota), PaymentMethodPayPal)
 
 	return nil
 }
@@ -692,11 +724,12 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 			country = "—"
 		}
 		usdAmount := float64(quotaAdded) / common.QuotaPerUnit
+		methodLabel := FormatPaymentMethodLabel(paymentMethod)
 		lines := []string{
 			fmt.Sprintf("用户：%s", email),
 			fmt.Sprintf("金额：$%.2f", usdAmount),
 			fmt.Sprintf("国家：%s", country),
-			fmt.Sprintf("方式：%s", paymentMethod),
+			fmt.Sprintf("方式：%s", methodLabel),
 		}
 		_ = common.SendFeishuCard(chatID, "💰 付款成功", lines)
 	}()
