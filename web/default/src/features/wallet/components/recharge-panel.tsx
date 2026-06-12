@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CryptoDepositModal } from './crypto-deposit-modal'
-import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getAllBillingHistory } from '../api'
+import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory } from '../api'
 import { GLASS_CARD_CLS } from '../constants'
 import type { TopupInfo } from '../types'
 
@@ -54,10 +54,10 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
     const last = localStorage.getItem(HINT_LS_KEY)
     if (last && Date.now() - Number(last) < HINT_COOLDOWN_MS) return
     try {
-      const res = await getAllBillingHistory(1, 20, undefined, 'pending')
-      if (!res.success || !res.data?.records) return
+      const res = await getUserBillingHistory(1, 20, undefined, 'pending')
+      if (!res.success || !res.data?.items) return
       const tenMinAgo = Date.now() / 1000 - 10 * 60
-      const recent = res.data.records.filter((r) => r.create_time > tenMinAgo)
+      const recent = res.data.items.filter((r) => r.create_time > tenMinAgo)
       if (recent.length < 2) return
       setShowHint(true)
       localStorage.setItem(HINT_LS_KEY, String(Date.now()))

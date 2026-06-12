@@ -436,6 +436,7 @@ func GetUserTopUps(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
+	status := c.Query("status")
 
 	var (
 		topups []*model.TopUp
@@ -445,7 +446,7 @@ func GetUserTopUps(c *gin.Context) {
 	if keyword != "" {
 		topups, total, err = model.SearchUserTopUps(userId, keyword, pageInfo)
 	} else {
-		topups, total, err = model.GetUserTopUps(userId, pageInfo)
+		topups, total, err = model.GetUserTopUps(userId, status, pageInfo)
 	}
 	if err != nil {
 		common.ApiError(c, err)
