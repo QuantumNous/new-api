@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/QuantumNous/new-api/constant"
 
@@ -36,7 +37,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	var loginRequest LoginRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&loginRequest)
+	err := common.DecodeJson(c.Request.Body, &loginRequest)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -120,6 +121,8 @@ func setupLogin(user *model.User, c *gin.Context) {
 
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
+	logoutURL := buildOIDCLogoutURL(c, session)
+	logoutTokenKey, _ := session.Get("oidc_logout_token_key").(string)
 	session.Clear()
 	err := session.Save()
 	if err != nil {
@@ -129,10 +132,125 @@ func Logout(c *gin.Context) {
 		})
 		return
 	}
+	if logoutURL != "" {
+		deleteOIDCLogoutToken(logoutTokenKey)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
+		"data": gin.H{
+			"logout_url": logoutURL,
+		},
 	})
+}
+
+// buildOIDCLogoutURL builds the provider end-session URL for OIDC logouts.
+func buildOIDCLogoutURL(c *gin.Context, session sessions.Session) string {
+	loginProvider, _ := session.Get("login_provider").(string)
+	if loginProvider != "oidc" {
+		return ""
+	}
+
+	settings := system_setting.GetOIDCSettings()
+	if !settings.Enabled {
+		return ""
+	}
+
+	logoutTokenKey, _ := session.Get("oidc_logout_token_key").(string)
+	idTokenHint := loadOIDCLogoutToken(logoutTokenKey)
+	if idTokenHint == "" {
+		return ""
+	}
+
+	endSessionEndpoint := strings.TrimSpace(settings.EndSessionEndpoint)
+	if endSessionEndpoint == "" {
+		endSessionEndpoint = discoverOIDCEndSessionEndpoint(c, strings.TrimSpace(settings.WellKnown))
+	}
+	if endSessionEndpoint == "" {
+		return ""
+	}
+
+	logoutURL, err := url.Parse(endSessionEndpoint)
+	if err != nil || logoutURL.Scheme == "" || logoutURL.Host == "" {
+		return ""
+	}
+
+	redirectURI := strings.TrimRight(system_setting.ServerAddress, "/")
+	if redirectURI == "" {
+		redirectURI = requestBaseURL(c)
+	}
+
+	query := logoutURL.Query()
+	logoutClientID, _ := session.Get("oidc_logout_client_id").(string)
+	if logoutClientID == "" {
+		logoutClientID = settings.ClientId
+	}
+	if logoutClientID != "" {
+		query.Set("client_id", logoutClientID)
+	}
+	query.Set("id_token_hint", idTokenHint)
+	if redirectURI != "" {
+		query.Set("post_logout_redirect_uri", redirectURI)
+	}
+	logoutURL.RawQuery = query.Encode()
+	return logoutURL.String()
+}
+
+// discoverOIDCEndSessionEndpoint reads end_session_endpoint from OIDC discovery.
+func discoverOIDCEndSessionEndpoint(c *gin.Context, wellKnownURL string) string {
+	if wellKnownURL == "" {
+		return ""
+	}
+
+	parsedURL, err := url.Parse(wellKnownURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return ""
+	}
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var discovery struct {
+		EndSessionEndpoint string `json:"end_session_endpoint"`
+	}
+	if err := common.DecodeJson(resp.Body, &discovery); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(discovery.EndSessionEndpoint)
+}
+
+// requestBaseURL derives the public request base URL from proxy headers.
+func requestBaseURL(c *gin.Context) string {
+	scheme := c.GetHeader("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = c.Request.URL.Scheme
+	}
+	if scheme == "" {
+		scheme = "http"
+	}
+
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	if host == "" {
+		return ""
+	}
+	return scheme + "://" + host
 }
 
 func Register(c *gin.Context) {
@@ -145,7 +263,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err := common.DecodeJson(c.Request.Body, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -527,7 +645,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -565,7 +683,7 @@ func GetUserModels(c *gin.Context) {
 
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
+	err := common.DecodeJson(c.Request.Body, &updatedUser)
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -646,7 +764,7 @@ func AdminClearUserBinding(c *gin.Context) {
 
 func UpdateSelf(c *gin.Context) {
 	var requestData map[string]interface{}
-	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
+	err := common.DecodeJson(c.Request.Body, &requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -710,12 +828,12 @@ func UpdateSelf(c *gin.Context) {
 
 	// 原有的用户信息更新逻辑
 	var user model.User
-	requestDataBytes, err := json.Marshal(requestData)
+	requestDataBytes, err := common.Marshal(requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	err = json.Unmarshal(requestDataBytes, &user)
+	err = common.Unmarshal(requestDataBytes, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -827,7 +945,7 @@ func DeleteSelf(c *gin.Context) {
 
 func CreateUser(c *gin.Context) {
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err := common.DecodeJson(c.Request.Body, &user)
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
@@ -874,7 +992,7 @@ type ManageRequest struct {
 // ManageUser Only admin user can do this
 func ManageUser(c *gin.Context) {
 	var req ManageRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	err := common.DecodeJson(c.Request.Body, &req)
 
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)

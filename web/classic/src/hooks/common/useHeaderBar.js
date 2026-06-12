@@ -140,10 +140,14 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   // Actions
   const logout = useCallback(async () => {
-    await API.get('/api/user/logout');
+    const res = await API.get('/api/user/logout');
     showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
+    if (res.data?.data?.logout_url) {
+      window.location.href = res.data.data.logout_url;
+      return;
+    }
     navigate('/login');
   }, [navigate, t, userDispatch]);
 

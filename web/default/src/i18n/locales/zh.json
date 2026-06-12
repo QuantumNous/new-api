@@ -1361,6 +1361,7 @@
     "Embeddings": "嵌入",
     "Empty": "空",
     "Empty value will be saved as {}.": "空值将保存为 {}。",
+    "End Session Endpoint (Optional)": "退出会话端点（可选）",
     "Enable": "启用",
     "Enable 2FA": "启用 2FA",
     "Enable All": "启用全部",

@@ -81,6 +81,12 @@ export interface ApiResponse {
   data?: unknown
 }
 
+export interface LogoutResponse extends ApiResponse {
+  data?: {
+    logout_url?: string
+  }
+}
+
 // ============================================================================
 // System Status
 // ============================================================================

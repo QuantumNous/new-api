@@ -22,12 +22,12 @@ import { AlertTriangle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { api } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog } from '@/components/dialog'
+import { logout } from '@/features/auth/api'
 import { deleteUserAccount } from '../../api'
 
 // ============================================================================
@@ -65,14 +65,20 @@ export function DeleteAccountDialog({
         toast.success(t('Account deleted successfully'))
 
         // Logout and redirect
+        let logoutUrl: string | undefined
         try {
-          await api.get('/api/user/logout')
+          const logoutRes = await logout()
+          logoutUrl = logoutRes.data?.logout_url
         } catch {
           // Ignore logout errors
         }
 
         reset()
         localStorage.removeItem('user')
+        if (logoutUrl) {
+          window.location.href = logoutUrl
+          return
+        }
         navigate({ to: '/sign-in' })
       } else {
         toast.error(response.message || t('Failed to delete account'))
