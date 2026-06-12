@@ -19,22 +19,26 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { localizePublicPath } from '@/lib/public-locale'
+import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
 import { Pricing } from '@/features/pricing'
 import { publicPricingSearchSchema } from '@/features/pricing/lib/public-search'
 
-export const Route = createFileRoute('/pricing/')({
+export const Route = createFileRoute('/$locale/pricing/')({
   validateSearch: publicPricingSearchSchema,
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async (args) => {
+    beforeLoadPublicLocaleRoute(args)
+
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {
-      throw redirect({ to: '/' })
+      throw redirect({ to: localizePublicPath('/', args.params.locale) })
     }
     if (access.requireAuth) {
       const { auth } = useAuthStore.getState()
       if (!auth.user) {
         throw redirect({
-          to: '/sign-in',
-          search: { redirect: location.href },
+          to: localizePublicPath('/sign-in', args.params.locale),
+          search: { redirect: args.location.href },
         })
       }
     }

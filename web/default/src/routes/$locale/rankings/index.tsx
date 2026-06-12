@@ -16,16 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
-import { Pricing } from '@/features/pricing'
-import { publicPricingSearchSchema } from '@/features/pricing/lib/public-search'
+import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
+import { Rankings } from '@/features/rankings'
 
-export const Route = createFileRoute('/pricing/')({
-  validateSearch: publicPricingSearchSchema,
-  beforeLoad: async ({ location }) => {
-    const access = await getFreshModuleAccess('pricing')
+const rankingsSearchSchema = z.object({
+  period: z
+    .enum(['today', 'week', 'month', 'year', 'all'])
+    .optional()
+    .catch(undefined),
+})
+
+export const Route = createFileRoute('/$locale/rankings/')({
+  validateSearch: rankingsSearchSchema,
+  beforeLoad: async (args) => {
+    beforeLoadPublicLocaleRoute(args)
+
+    const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {
       throw redirect({ to: '/' })
     }
@@ -34,10 +44,10 @@ export const Route = createFileRoute('/pricing/')({
       if (!auth.user) {
         throw redirect({
           to: '/sign-in',
-          search: { redirect: location.href },
+          search: { redirect: args.location.href },
         })
       }
     }
   },
-  component: Pricing,
+  component: Rankings,
 })

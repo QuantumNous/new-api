@@ -17,11 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Fragment, useMemo } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import iso27001Badge from '@/assets/trust/iso-27001.png'
 import soc2Badge from '@/assets/trust/soc2.png'
 import vantaTrustBadge from '@/assets/trust/vanta-trust.png'
+import {
+  getPublicPathLanguage,
+  isPublicWebsitePath,
+  localizePublicPath,
+} from '@/lib/public-locale'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
@@ -108,9 +113,16 @@ function withoutDuplicateLegalLinks(columns: FooterColumnProps[]) {
 
 function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   const isExternal =
     props.link.href.startsWith('http') || props.link.href.startsWith('mailto:')
   const label = t(props.link.text)
+  const href = isPublicWebsitePath(props.link.href)
+    ? localizePublicPath(props.link.href, currentPublicLanguage)
+    : props.link.href
 
   if (isExternal) {
     return (
@@ -127,7 +139,7 @@ function FooterLinkItem(props: { link: FooterLink }) {
 
   return (
     <Link
-      to={props.link.href}
+      to={href}
       className='text-muted-foreground hover:text-foreground text-sm transition-colors duration-200'
     >
       {label}
@@ -139,6 +151,10 @@ function FooterLinkItem(props: { link: FooterLink }) {
 // Emits fragmented siblings so the parent flex container's gap controls spacing.
 function LegalLinks(props: { leadingSeparator?: boolean }) {
   const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
   return (
     <>
       {LEGAL_FOOTER_LINKS.map((link, index) => (
@@ -157,7 +173,7 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
             </a>
           ) : (
             <Link
-              to={link.href}
+              to={localizePublicPath(link.href, currentPublicLanguage)}
               className='hover:text-foreground transition-colors duration-200'
             >
               {t(link.text)}
@@ -244,6 +260,10 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
 export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const { systemName, footerHtml, demoSiteEnabled } = useSystemConfig()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const currentPublicLanguage = getPublicPathLanguage(pathname)
 
   const configuredSystemName = systemName?.trim()
   const displayName =
@@ -348,7 +368,10 @@ export function Footer(props: FooterProps) {
         <div className='grid gap-10 md:grid-cols-[minmax(200px,280px)_1fr] md:items-center md:gap-16'>
           {/* Brand column */}
           <div className='shrink-0'>
-            <Link to='/' className='group flex items-center gap-2.5'>
+            <Link
+              to={localizePublicPath('/', currentPublicLanguage)}
+              className='group flex items-center gap-2.5'
+            >
               <FlatkeyBrandLogo
                 alt={displayName}
                 variant='full'
