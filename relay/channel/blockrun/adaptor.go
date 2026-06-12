@@ -308,12 +308,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		// upstream 402 as a hard error, which is the correct operator signal.
 		return resolveImageResult(c, info, firstResp, "")
 	}
-	// 402 — drain & close the first response so the connection can be reused,
-	// then sign and retry on the same code path.
-	defer func() {
-		_, _ = io.Copy(io.Discard, firstResp.Body)
-		_ = firstResp.Body.Close()
-	}()
+	// 402 — the payment requirements live in the HEADERS (extractPaymentRequired
+	// never reads the body), so drain & close the body NOW to return this
+	// connection to the pool. A defer here would pin the connection for the
+	// whole retry leg — which for slow images includes a minutes-long poll.
+	_, _ = io.Copy(io.Discard, firstResp.Body)
+	_ = firstResp.Body.Close()
 
 	fullURL, urlErr := a.GetRequestURL(info)
 	if urlErr != nil {

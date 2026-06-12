@@ -49,6 +49,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// bill-through guard below only ever sees signals from THIS attempt.
 	delete(c.Keys, string(constant.ContextKeyBlockRunSettlement))
 
+	// info is likewise shared across retry attempts: a prior blockrun attempt
+	// may have set IsStream=true in its ConvertImageRequest. Image requests
+	// always start non-streaming (dto.ImageRequest carries no stream state into
+	// GenRelayInfo), so reset and let this attempt's converter / Content-Type
+	// sniff re-derive it.
+	info.IsStream = false
+
 	var requestBody io.Reader
 
 	// codex 图像必须走 ConvertImageRequest 合成 Responses + image_generation body：
@@ -114,6 +121,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		// Once any bytes have reached the client (e.g. the blockrun image-stream
+		// heartbeat / SSE error event), a retry can never produce a clean
+		// response — it would replay a whole relay onto the same stream.
+		if c.Writer.Written() {
+			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+		}
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	var httpResp *http.Response

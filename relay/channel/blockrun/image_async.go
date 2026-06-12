@@ -7,12 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -82,6 +81,12 @@ func resolveImageResult(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 	captureTxHash(c, resp.Header.Get(headerPaymentReceipt))
 	if resp.StatusCode != http.StatusAccepted {
+		if resp.StatusCode >= 300 && resp.Header.Get(headerPaymentReceipt) != "" {
+			// A settlement receipt on an ERROR response means the upstream
+			// charged but this attempt will fail before the bill-through guard
+			// can run. Leave a reconciliation trail.
+			logger.LogWarn(c, fmt.Sprintf("blockrun image: upstream returned status %d WITH a payment receipt; charge may be unaccounted (tx=%s)", resp.StatusCode, resp.Header.Get(headerPaymentReceipt)))
+		}
 		return resp, nil
 	}
 	body, err := readAndCloseBody(resp)
@@ -104,7 +109,9 @@ func resolveImageResult(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return rewrapResponse(resp, body), nil
 	}
 	// Slow path: async envelope. price.amount only reliably exists HERE.
-	captureEnvelopePrice(c, priceAmountString(probe.Price.Amount), probe.Price.Currency)
+	// price.amount is documented as a decimal string but tolerated as a JSON
+	// number (drift immunity); Interface2String normalizes both.
+	captureEnvelopePrice(c, common.Interface2String(probe.Price.Amount), probe.Price.Currency)
 	if isImageStreamMode(c, info) {
 		stop := startImageHeartbeat(c)
 		final, perr := pollImageJob(c, info, probe.PollURL, paymentSignature)
@@ -150,6 +157,12 @@ func pollImageJob(c *gin.Context, info *relaycommon.RelayInfo, pollPath, payment
 		resp, perr := doImagePoll(reqCtx, client, pollURL, paymentSignature)
 		if perr != nil {
 			cancel()
+			if c.Request.Context().Err() == nil && time.Now().After(deadline) {
+				// The per-round deadline fired (not a client disconnect): report
+				// the budget timeout instead of a bare "context deadline
+				// exceeded" that reads like a network failure.
+				return nil, fmt.Errorf("blockrun: image not ready after %s (no settlement occurred)", imagePollBudget)
+			}
 			return nil, perr
 		}
 		body, rerr := readAndCloseBody(resp)
@@ -222,18 +235,20 @@ func doImagePoll(ctx context.Context, client *http.Client, pollURL, signature st
 	return resp, nil
 }
 
-// absolutePollURL resolves a possibly-relative poll_url against the channel base.
+// absolutePollURL resolves a possibly-relative poll_url against the channel
+// base. IsAbs (not a scheme prefix check) so scheme-relative "//host/path"
+// URLs resolve against the base scheme — matching the seedance video channel.
 func absolutePollURL(base, ref string) (string, error) {
-	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
+	r, err := url.Parse(ref)
+	if err != nil {
+		return "", fmt.Errorf("blockrun: parse poll_url: %w", err)
+	}
+	if r.IsAbs() {
 		return ref, nil
 	}
 	b, err := url.Parse(base)
 	if err != nil {
 		return "", fmt.Errorf("blockrun: parse channel base url: %w", err)
-	}
-	r, err := url.Parse(ref)
-	if err != nil {
-		return "", fmt.Errorf("blockrun: parse poll_url: %w", err)
 	}
 	return b.ResolveReference(r).String(), nil
 }
@@ -262,22 +277,6 @@ func captureTxHash(c *gin.Context, tx string) {
 		return
 	}
 	mergeSettlement(c, map[string]interface{}{"upstream_tx_hash": tx})
-}
-
-// priceAmountString normalizes the envelope's price.amount — documented as a
-// decimal string, tolerated as a JSON number in case upstream drifts — into
-// the string form stored in the settlement context.
-func priceAmountString(v any) string {
-	switch a := v.(type) {
-	case nil:
-		return ""
-	case string:
-		return a
-	case float64: // encoding/json decodes JSON numbers in an `any` field to float64
-		return strconv.FormatFloat(a, 'f', -1, 64)
-	default: // e.g. json.Number, should a future decoder enable UseNumber
-		return fmt.Sprintf("%v", a)
-	}
 }
 
 func captureEnvelopePrice(c *gin.Context, amount, currency string) {

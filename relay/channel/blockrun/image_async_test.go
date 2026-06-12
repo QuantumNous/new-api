@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -61,6 +62,11 @@ func TestResolveImageResultPassthrough(t *testing.T) {
 	r, err = resolveImageResult(c, info, fakeResp(202, `{}`, nil), "")
 	if err != nil || r.StatusCode != 202 {
 		t.Fatalf("chat 202 must stay 202: %v %v", r, err)
+	}
+	// 5xx in image mode passes through untouched — only 202 is special-cased.
+	r, err = resolveImageResult(c, imageInfo("http://x"), fakeResp(500, `oops`, nil), "")
+	if err != nil || r.StatusCode != 500 {
+		t.Fatalf("image 500 must stay 500: %v %v", r, err)
 	}
 }
 
@@ -199,6 +205,11 @@ func TestPollTimeout(t *testing.T) {
 	_, err := resolveImageResult(c, imageInfo(srv.URL), fakeResp(202, `{"poll_url":"`+srv.URL+`/p"}`, nil), "s")
 	if err == nil {
 		t.Fatal("budget exhaustion must error")
+	}
+	// Both exhaustion exits (loop check and born-expired per-round context)
+	// must surface the budget message, not a bare context error.
+	if !strings.Contains(err.Error(), "image not ready after") {
+		t.Fatalf("timeout must report the poll budget, got: %v", err)
 	}
 }
 

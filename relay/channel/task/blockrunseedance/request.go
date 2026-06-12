@@ -54,10 +54,11 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 	}
 	// Seed-image mapping (mutual exclusion enforced by validateSeedanceValues):
 	// first_frame/last_frame roles → image_url(+last_frame_url) interpolation;
-	// 2-9 plain/reference_image images → reference_image_urls (omni);
-	// a single plain image → image_url.
+	// 2-9 reference images, or a single image EXPLICITLY role=reference_image,
+	// → reference_image_urls (omni); a single plain image → image_url.
 	var first, last string
 	var refs []string
+	var explicitRef bool
 	for _, m := range seed.Images() {
 		switch m.Role {
 		case dto.SeedanceRoleFirstFrame:
@@ -65,6 +66,9 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 		case dto.SeedanceRoleLastFrame:
 			last = m.URL
 		default:
+			if m.Role == dto.SeedanceRoleReferenceImage {
+				explicitRef = true
+			}
 			refs = append(refs, m.URL)
 		}
 	}
@@ -72,9 +76,12 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 	case first != "" || last != "":
 		body.ImageURL = first
 		body.LastFrameURL = last
-	case len(refs) == 1:
+	case len(refs) == 1 && !explicitRef:
+		// A single plain image is an image-to-video seed. An explicit
+		// reference_image role keeps omni reference semantics even alone —
+		// image_url and reference_image_urls drive different generation modes.
 		body.ImageURL = refs[0]
-	case len(refs) > 1:
+	case len(refs) >= 1:
 		body.ReferenceImageURLs = refs
 	}
 	return body
@@ -116,6 +123,7 @@ func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensio
 		return fmt.Errorf("audio input is not supported by this channel")
 	}
 	var firstCount, lastCount, refCount int
+	var explicitRef bool
 	for _, m := range seed.Images() {
 		switch m.Role {
 		case dto.SeedanceRoleFirstFrame:
@@ -123,6 +131,9 @@ func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensio
 		case dto.SeedanceRoleLastFrame:
 			lastCount++
 		default:
+			if m.Role == dto.SeedanceRoleReferenceImage {
+				explicitRef = true
+			}
 			refCount++
 		}
 	}
@@ -139,6 +150,12 @@ func validateSeedanceValues(seed *dto.SeedanceVideoRequest, ext blockrunExtensio
 	}
 	if refCount > 9 {
 		return fmt.Errorf("at most 9 reference images are supported")
+	}
+	if (refCount > 1 || (refCount == 1 && explicitRef)) && !supportsOmniReference(pseudoModel) {
+		// reference_image_urls is Seedance 2.0 only (vip SDK video.go); gate it
+		// like real_face. Single-image-to-video and first/last-frame
+		// interpolation remain available on all models.
+		return fmt.Errorf("reference images (omni) are only supported on seedance-2.0 / seedance-2.0-fast")
 	}
 	if err := validateResolution(seed.Resolution); err != nil {
 		return err

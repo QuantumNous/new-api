@@ -37,6 +37,38 @@ func TestSeedMappingMultiReference(t *testing.T) {
 	}
 }
 
+func TestSeedMappingSingleExplicitReferenceKeepsOmni(t *testing.T) {
+	r := seedReq(img("http://a/ref.png", dto.SeedanceRoleReferenceImage))
+	if err := validateSeedanceValues(r, blockrunExtensions{}, "seedance-2.0"); err != nil {
+		t.Fatalf("single explicit reference must be accepted on 2.0: %v", err)
+	}
+	body := buildBlockrunSeedanceCreateRequest(r, blockrunExtensions{}, "bytedance/seedance-2.0")
+	if len(body.ReferenceImageURLs) != 1 || body.ReferenceImageURLs[0] != "http://a/ref.png" || body.ImageURL != "" {
+		t.Fatalf("explicit reference_image must map to reference_image_urls, not image_url: %+v", body)
+	}
+}
+
+func TestSeedOmniReferenceModelGate(t *testing.T) {
+	// reference_image_urls is Seedance 2.0 only — 1.5-pro must fail fast.
+	multi := seedReq(img("http://a/1.png", ""), img("http://a/2.png", ""))
+	multi.Model = "seedance-1.5-pro"
+	if err := validateSeedanceValues(multi, blockrunExtensions{}, "seedance-1.5-pro"); err == nil || !strings.Contains(err.Error(), "only supported on seedance-2.0") {
+		t.Fatalf("multi-reference on 1.5-pro must be gated, got: %v", err)
+	}
+	// first/last-frame interpolation IS supported on 1.5-pro — must pass.
+	frames := seedReq(img("http://a/f.png", dto.SeedanceRoleFirstFrame), img("http://a/l.png", dto.SeedanceRoleLastFrame))
+	frames.Model = "seedance-1.5-pro"
+	if err := validateSeedanceValues(frames, blockrunExtensions{}, "seedance-1.5-pro"); err != nil {
+		t.Fatalf("first/last interpolation on 1.5-pro must stay allowed: %v", err)
+	}
+	// A single plain image (image-to-video) also stays allowed on 1.5-pro.
+	single := seedReq(img("http://a/s.png", ""))
+	single.Model = "seedance-1.5-pro"
+	if err := validateSeedanceValues(single, blockrunExtensions{}, "seedance-1.5-pro"); err != nil {
+		t.Fatalf("single plain image on 1.5-pro must stay allowed: %v", err)
+	}
+}
+
 func TestSeedMappingSingleImageUnchanged(t *testing.T) {
 	r := seedReq(img("http://a/only.png", ""))
 	body := buildBlockrunSeedanceCreateRequest(r, blockrunExtensions{}, "bytedance/seedance-2.0")

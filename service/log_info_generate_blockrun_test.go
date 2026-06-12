@@ -48,4 +48,19 @@ func TestAppendBlockRunSettlementInfo(t *testing.T) {
 			t.Fatalf("other mutated on wrong-type value: %v", other)
 		}
 	})
+	t.Run("existing key never clobbered", func(t *testing.T) {
+		c := newSettlementTestCtx()
+		c.Set(string(constant.ContextKeyBlockRunSettlement), map[string]interface{}{
+			"upstream_model_name": "evil-overwrite",
+			"upstream_tx_hash":    "0xnew",
+		})
+		other := map[string]interface{}{"upstream_model_name": "real-model"}
+		appendBlockRunSettlementInfo(c, other)
+		if other["upstream_model_name"] != "real-model" {
+			t.Fatalf("settlement must not clobber keys the generic path emitted: %v", other)
+		}
+		if other["upstream_tx_hash"] != "0xnew" {
+			t.Fatalf("non-colliding settlement keys must still land: %v", other)
+		}
+	})
 }

@@ -270,8 +270,10 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 // the blockrun adaptor (price.amount from the 202 async envelope, on-chain
 // USDC tx hash) so the consume log can be reconciled against real cost.
 // Contract: the producer writing this map (the blockrun adaptor) MUST only use
-// "upstream_"-prefixed keys and MUST NOT overwrite keys already emitted by
-// GenerateTextOtherInfo (model_price, model_ratio, etc.).
+// "upstream_"-prefixed keys. Note the generic path itself already emits an
+// "upstream_"-prefixed key (upstream_model_name, consumed by usage
+// reconciliation), so the prefix alone is NOT collision-proof — settlement
+// signals are therefore additive-only: existing keys are never overwritten.
 func appendBlockRunSettlementInfo(ctx *gin.Context, other map[string]interface{}) {
 	if ctx == nil || other == nil {
 		return
@@ -282,6 +284,9 @@ func appendBlockRunSettlementInfo(ctx *gin.Context, other map[string]interface{}
 	}
 	if m, ok2 := v.(map[string]interface{}); ok2 {
 		for k, val := range m {
+			if _, exists := other[k]; exists {
+				continue
+			}
 			other[k] = val
 		}
 	}
