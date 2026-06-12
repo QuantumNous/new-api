@@ -33,6 +33,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// maxTokensHardCap is the global ceiling for max_tokens / max_completion_tokens
+// across all request shapes and all tenants. Prevents a single request from
+// consuming unbounded upstream tokens regardless of quota settings.
+const maxTokensHardCap uint = 2048
+
 // policyDecisionFromContext returns the policy.Decision stashed by
 // middleware/policy.go, or zero (passthrough) + false when none is present.
 func policyDecisionFromContext(c *gin.Context) (policy.Decision, bool) {
@@ -108,6 +113,14 @@ func isOpenAIFamilyChannel(channelType int) bool {
 	return false
 }
 
+// clampUint returns v clamped to ceiling. If v == nil, returns nil unchanged.
+func clampUint(v *uint, ceiling uint) *uint {
+	if v != nil && *v > ceiling {
+		return &ceiling
+	}
+	return v
+}
+
 // applyAirbotixPolicy is the single mutation entry-point called from TextHelper.
 // Returns a non-nil reject string when the model whitelist check denies the
 // request; otherwise mutates request in place and returns "".
@@ -115,6 +128,8 @@ func applyAirbotixPolicy(decision policy.Decision, channelType int, request *dto
 	if request == nil {
 		return ""
 	}
+	request.MaxTokens = clampUint(request.MaxTokens, maxTokensHardCap)
+	request.MaxCompletionTokens = clampUint(request.MaxCompletionTokens, maxTokensHardCap)
 	if decision.EnforceModelWhitelist && !kids.IsModelEligible(request.Model) {
 		return "model_not_eligible_for_kids_mode: " + request.Model
 	}
@@ -147,6 +162,8 @@ func applyAirbotixPolicyToClaude(c *gin.Context, request *dto.ClaudeRequest) *ty
 	if request == nil {
 		return nil
 	}
+	request.MaxTokens = clampUint(request.MaxTokens, maxTokensHardCap)
+	request.MaxTokensToSample = clampUint(request.MaxTokensToSample, maxTokensHardCap)
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil
@@ -184,6 +201,7 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 	if request == nil {
 		return nil
 	}
+	request.MaxOutputTokens = clampUint(request.MaxOutputTokens, maxTokensHardCap)
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil
@@ -229,6 +247,7 @@ func applyAirbotixPolicyToGemini(c *gin.Context, model string, request *dto.Gemi
 	if request == nil {
 		return nil
 	}
+	request.GenerationConfig.MaxOutputTokens = clampUint(request.GenerationConfig.MaxOutputTokens, maxTokensHardCap)
 	if d.InjectChildSafePrompt {
 		if d.KidsMode || request.SystemInstructions == nil {
 			request.SystemInstructions = &dto.GeminiChatContent{

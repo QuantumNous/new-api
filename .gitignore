@@ -40,3 +40,10 @@ skills-lock.json
 
 # playwright-mcp tool runs leave logs/snapshots here — not source
 .playwright-mcp/
+
+# Local-only env files with real credentials — never committed.
+# Commit *.example files only; the real files are gitignored.
+bin/.env.*
+!bin/.env.*.example
+.env.local
+.env.*.local
