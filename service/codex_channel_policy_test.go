@@ -21,8 +21,8 @@ func TestIsCodexKeyGroup(t *testing.T) {
 }
 
 func TestChannelMatchesCodexPolicy(t *testing.T) {
-	codexSetting := strPtr(`{"key_group":"Codex"}`)
-	defaultSetting := strPtr(`{"key_group":"default"}`)
+	codexSetting := strPtr(`{"client_exclusive":"codex"}`)
+	defaultSetting := strPtr(`{"key_group":"Codex Pro（外接版）"}`)
 
 	require.True(t, ChannelMatchesCodexPolicy(codexSetting, true))
 	require.False(t, ChannelMatchesCodexPolicy(codexSetting, false))

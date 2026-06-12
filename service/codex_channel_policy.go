@@ -29,12 +29,13 @@ func RequiresCodexChannelPolicy(modelName string) bool {
 	}
 }
 
-// IsCodexKeyGroup returns true when channel site group (key_group) contains "codex".
+// IsCodexKeyGroup is deprecated: client routing uses client_exclusive only.
+// Kept for callers that still inspect pricing group names outside routing policy.
 func IsCodexKeyGroup(keyGroup string) bool {
 	return strings.Contains(strings.ToLower(strings.TrimSpace(keyGroup)), "codex")
 }
 
-// ChannelMatchesCodexPolicy checks one-way Codex isolation via client_exclusive / key_group.
+// ChannelMatchesCodexPolicy checks one-way Codex isolation via client_exclusive.
 func ChannelMatchesCodexPolicy(setting *string, isCodexClient bool) bool {
 	clientType := ClientTypeGeneric
 	if isCodexClient {

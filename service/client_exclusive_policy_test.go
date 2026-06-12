@@ -14,7 +14,8 @@ func TestExtractClientExclusive(t *testing.T) {
 	require.Equal(t, ClientExclusiveCodex, ExtractClientExclusive(strPtr(`{"client_exclusive":"codex"}`)))
 	require.Equal(t, ClientExclusiveClaudeCode, ExtractClientExclusive(strPtr(`{"client_exclusive":"claude_code"}`)))
 	require.Equal(t, ClientExclusiveNone, ExtractClientExclusive(strPtr(`{"client_exclusive":""}`)))
-	require.Equal(t, ClientExclusiveCodex, ExtractClientExclusive(strPtr(`{"key_group":"Codex 正价"}`)))
+	require.Equal(t, ClientExclusiveNone, ExtractClientExclusive(strPtr(`{"key_group":"Codex 正价"}`)))
+	require.Equal(t, ClientExclusiveNone, ExtractClientExclusive(strPtr(`{"key_group":"Codex Pro（外接版）","client_exclusive":""}`)))
 	require.Equal(t, ClientExclusiveNone, ExtractClientExclusive(strPtr(`{"key_group":"cc"}`)))
 	require.Equal(t, ClientExclusiveNone, ExtractClientExclusive(nil))
 }

@@ -35,14 +35,13 @@ var (
 )
 
 // ExtractClientExclusive reads client_exclusive from channel.Setting JSON.
-// Falls back to codex when key_group contains "codex" (legacy Codex channels).
+// Only the explicit client_exclusive field applies; key_group is pricing-only.
 func ExtractClientExclusive(setting *string) ClientExclusive {
 	if setting == nil || strings.TrimSpace(*setting) == "" {
 		return ClientExclusiveNone
 	}
 	var s struct {
 		ClientExclusive string `json:"client_exclusive"`
-		KeyGroup        string `json:"key_group"`
 	}
 	if err := json.Unmarshal([]byte(*setting), &s); err != nil {
 		return ClientExclusiveNone
@@ -52,11 +51,9 @@ func ExtractClientExclusive(setting *string) ClientExclusive {
 		return ClientExclusiveCodex
 	case string(ClientExclusiveClaudeCode):
 		return ClientExclusiveClaudeCode
+	default:
+		return ClientExclusiveNone
 	}
-	if IsCodexKeyGroup(s.KeyGroup) {
-		return ClientExclusiveCodex
-	}
-	return ClientExclusiveNone
 }
 
 // RequiresClaudeCodeChannelPolicy reports whether claude-* models need CC routing.
