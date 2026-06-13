@@ -115,20 +115,27 @@ function OAuthCallback() {
 
       const consumeSignupOAuthStart = () => {
         if (typeof window === 'undefined') return ''
-        let startedProvider = ''
+        // Always consume both stores so a stale fallback entry can never be
+        // replayed by a later (non-signup) OAuth callback within its TTL.
+        let sessionProvider = ''
         try {
-          startedProvider =
+          sessionProvider =
             window.sessionStorage.getItem('ads:oauth_signup_start') || ''
           window.sessionStorage.removeItem('ads:oauth_signup_start')
         } catch {
           /* ignore storage failures */
         }
-        if (startedProvider) return startedProvider
+        let localRaw: string | null = null
         try {
-          const raw = window.localStorage.getItem('ads:oauth_signup_start')
+          localRaw = window.localStorage.getItem('ads:oauth_signup_start')
           window.localStorage.removeItem('ads:oauth_signup_start')
-          if (!raw) return ''
-          const parsed = JSON.parse(raw) as {
+        } catch {
+          /* ignore storage failures */
+        }
+        if (sessionProvider) return sessionProvider
+        if (!localRaw) return ''
+        try {
+          const parsed = JSON.parse(localRaw) as {
             provider?: string
             started_at?: number
           }
