@@ -87,7 +87,19 @@ export async function getBlogPost(slug: string): Promise<BlogPost | null> {
 
 export function sanitizeBlogHtml(html: string): string {
   return ensureHeadingIds(sanitizeHtml(html, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h1", "h2", "h3"]),
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      "img",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+    ]),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
       a: ["href", "name", "target", "rel", "id"],
@@ -95,6 +107,9 @@ export function sanitizeBlogHtml(html: string): string {
       h1: ["id"],
       h2: ["id"],
       h3: ["id"],
+      h4: ["id"],
+      th: ["colspan", "rowspan"],
+      td: ["colspan", "rowspan"],
     },
     allowedSchemes: ["http", "https", "mailto"],
   }));
