@@ -137,6 +137,7 @@ const BILLING_SECTIONS = [
           EpayKey: settings.EpayKey,
           Price: settings.Price,
           MinTopUp: settings.MinTopUp,
+          DefaultTopUpAmount: settings['payment_setting.default_topup_amount'],
           CustomCallbackAddress: settings.CustomCallbackAddress,
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],

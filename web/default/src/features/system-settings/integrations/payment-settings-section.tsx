@@ -88,6 +88,7 @@ const paymentSchema = z.object({
   EpayKey: z.string(),
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
+  DefaultTopUpAmount: z.coerce.number().min(1),
   CustomCallbackAddress: z.string().refine((value) => {
     const trimmed = value.trim()
     if (!trimmed) return true
@@ -405,6 +406,7 @@ export function PaymentSettingsSection({
       EpayKey: values.EpayKey.trim(),
       Price: values.Price,
       MinTopUp: values.MinTopUp,
+      DefaultTopUpAmount: values.DefaultTopUpAmount,
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
@@ -447,6 +449,7 @@ export function PaymentSettingsSection({
       EpayKey: initialRef.current.EpayKey.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
+      DefaultTopUpAmount: initialRef.current.DefaultTopUpAmount,
       CustomCallbackAddress: removeTrailingSlash(
         initialRef.current.CustomCallbackAddress
       ),
@@ -508,6 +511,13 @@ export function PaymentSettingsSection({
 
     if (sanitized.MinTopUp !== initial.MinTopUp) {
       updates.push({ key: 'MinTopUp', value: sanitized.MinTopUp })
+    }
+
+    if (sanitized.DefaultTopUpAmount !== initial.DefaultTopUpAmount) {
+      updates.push({
+        key: 'payment_setting.default_topup_amount',
+        value: sanitized.DefaultTopUpAmount,
+      })
     }
 
     if (sanitized.CustomCallbackAddress !== initial.CustomCallbackAddress) {
@@ -865,7 +875,7 @@ export function PaymentSettingsSection({
               </p>
             </div>
 
-            <div className='grid gap-6 md:grid-cols-2'>
+            <div className='grid gap-6 md:grid-cols-3'>
               <FormField
                 control={form.control}
                 name='Price'
@@ -906,6 +916,30 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Smallest USD amount users can recharge (Epay)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='DefaultTopUpAmount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Default top-up amount')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='1'
+                        min={1}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Initial amount shown in the top-up input before the user edits it.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

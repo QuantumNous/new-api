@@ -42,6 +42,7 @@ import {
 } from './hooks'
 import {
   getDefaultPaymentType,
+  getDefaultCustomTopupAmount,
   getMinTopupAmount,
   isWaffoPancakePayment,
 } from './lib'
@@ -133,12 +134,12 @@ export function Wallet(props: WalletProps) {
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
     if (topupInfo && topupAmount === 0) {
-      const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
+      const defaultTopupAmount = getDefaultCustomTopupAmount(topupInfo)
+      setTopupAmount(defaultTopupAmount)
 
       // Calculate initial payment amount with default payment type
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+      calculatePaymentAmount(defaultTopupAmount, defaultPaymentType)
     }
   }, [topupInfo, topupAmount, calculatePaymentAmount])
 
