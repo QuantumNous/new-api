@@ -66,6 +66,10 @@ interface Props {
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
+/**
+ * Renders the subscription purchase flow for the selected plan and hides
+ * balance payment when the plan does not allow it.
+ */
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
@@ -113,6 +117,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
 
+  /**
+   * Starts a Stripe checkout session for the selected subscription plan.
+   */
   const handlePayStripe = async () => {
     setPaying(true)
     try {
@@ -135,6 +142,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
+  /**
+   * Starts a Creem checkout session for the selected subscription plan.
+   */
   const handlePayCreem = async () => {
     setPaying(true)
     try {
@@ -159,6 +169,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   // In-tab redirect (not window.open) — user-gesture context is lost
   // across the await, so a popup would be blocked. Same as the wallet hook.
+  /**
+   * Redirects the current tab to Waffo Pancake checkout.
+   */
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {
@@ -184,6 +197,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     typeof navigator !== 'undefined' &&
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
+  /**
+   * Submits the selected EPay method through the generated payment form.
+   */
   const handlePayEpay = async () => {
     if (!selectedEpayMethod) {
       toast.error(t('Please select a payment method'))
@@ -228,6 +244,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
+  /**
+   * Purchases the subscription with the user's account balance.
+   */
   const handlePayBalance = async () => {
     setPaying(true)
     try {
