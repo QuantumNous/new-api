@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
@@ -48,6 +49,7 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
+	router.Use(publicSearchIndexPolicy())
 	router.GET("/robots.txt", controller.GetRobotsTxt)
 	router.GET("/llms.txt", controller.GetLLMsTxt)
 	router.GET("/sitemap.xml", controller.GetSitemapXML)
@@ -68,6 +70,23 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 		}
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 	})
+}
+
+func publicSearchIndexPolicy() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !service.IsCanonicalPublicHost(publicRequestHost(c)) {
+			c.Header("X-Robots-Tag", "noindex, nofollow")
+		}
+		c.Next()
+	}
+}
+
+func publicRequestHost(c *gin.Context) string {
+	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = c.Request.Host
+	}
+	return host
 }
 
 func shouldInjectGoogleTagManager(path string) bool {
