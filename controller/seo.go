@@ -5,11 +5,14 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 )
 
 func GetRobotsTxt(c *gin.Context) {
+	if !service.IsCanonicalPublicHost(publicRequestHost(c)) {
+		c.String(http.StatusOK, service.BuildNonCanonicalRobotsTxt())
+		return
+	}
 	c.String(http.StatusOK, service.BuildRobotsTxt(publicBaseURL(c)))
 }
 
@@ -39,24 +42,13 @@ func blogSEOData() ([]service.BlogCategory, []service.BlogPost) {
 }
 
 func publicBaseURL(c *gin.Context) string {
-	if base := strings.TrimSpace(system_setting.ServerAddress); base != "" {
-		return base
-	}
+	return service.CanonicalPublicBaseURL()
+}
 
-	proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
-	if proto == "" {
-		proto = "https"
-		if c.Request.TLS == nil && strings.HasPrefix(c.Request.Host, "localhost") {
-			proto = "http"
-		}
-	}
-
+func publicRequestHost(c *gin.Context) string {
 	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
 	if host == "" {
 		host = c.Request.Host
 	}
-	if host == "" {
-		return ""
-	}
-	return proto + "://" + host
+	return host
 }

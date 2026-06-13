@@ -2,7 +2,11 @@ package router
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestShouldInjectGoogleTagManager(t *testing.T) {
@@ -48,5 +52,39 @@ func TestInjectGoogleTagManagerAddsHeadAndBodySnippetsOnce(t *testing.T) {
 	injectedAgain := injectGoogleTagManager(injected)
 	if bytes.Count(injectedAgain, []byte(googleTagManagerID)) != bytes.Count(injected, []byte(googleTagManagerID)) {
 		t.Fatalf("expected GTM injection to be idempotent")
+	}
+}
+
+func TestPublicSearchIndexPolicyAddsNoindexForNonCanonicalHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(publicSearchIndexPolicy())
+	engine.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "https://router.flatkey.ai/", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Robots-Tag"); got != "noindex, nofollow" {
+		t.Fatalf("X-Robots-Tag=%q, want noindex, nofollow", got)
+	}
+}
+
+func TestPublicSearchIndexPolicyAllowsCanonicalHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(publicSearchIndexPolicy())
+	engine.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "https://flatkey.ai/", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Robots-Tag"); got != "" {
+		t.Fatalf("X-Robots-Tag=%q, want empty", got)
 	}
 }

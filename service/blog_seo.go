@@ -2,9 +2,12 @@ package service
 
 import (
 	"encoding/xml"
+	"net"
 	"net/url"
 	"strings"
 )
+
+const canonicalPublicBaseURL = "https://flatkey.ai"
 
 type sitemapURL struct {
 	Loc        string             `xml:"loc"`
@@ -69,6 +72,16 @@ func BuildRobotsTxt(baseURL string) string {
 		"",
 		"Sitemap: " + joinPublicURL(baseURL, "/sitemap.xml"),
 		"LLMs: " + joinPublicURL(baseURL, "/llms.txt"),
+		"",
+	}, "\n")
+}
+
+func BuildNonCanonicalRobotsTxt() string {
+	return strings.Join([]string{
+		"User-agent: *",
+		"Disallow: /",
+		"",
+		"Sitemap: " + joinPublicURL(canonicalPublicBaseURL, "/sitemap.xml"),
 		"",
 	}, "\n")
 }
@@ -158,12 +171,32 @@ func localizePublicSitemapPath(path string, locale string) string {
 	return "/" + locale + path
 }
 
+func CanonicalPublicBaseURL() string {
+	return canonicalPublicBaseURL
+}
+
+func IsCanonicalPublicHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+	if strings.Contains(host, ",") {
+		host = strings.TrimSpace(strings.Split(host, ",")[0])
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
+	}
+	return strings.EqualFold(host, "flatkey.ai")
+}
+
 func normalizePublicBaseURL(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
-	if baseURL == "" {
-		return "https://flatkey.ai"
+	if baseURL != "" {
+		if parsed, err := url.Parse(baseURL); err == nil && IsCanonicalPublicHost(parsed.Host) {
+			return strings.TrimRight(baseURL, "/")
+		}
 	}
-	return strings.TrimRight(baseURL, "/")
+	return canonicalPublicBaseURL
 }
 
 func joinPublicURL(baseURL string, path string) string {
