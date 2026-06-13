@@ -160,6 +160,13 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	// 安全加固：仅信任本机/私网反向代理(nginx 经 docker 网桥接入)，
+	// 使 c.ClientIP() 只采信可信代理设置的 X-Forwarded-For，
+	// 防止公网客户端伪造 XFF 绕过基于 IP 的限流(撞库)。
+	_ = server.SetTrustedProxies([]string{
+		"127.0.0.1/8", "::1/128",
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7",
+	})
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{

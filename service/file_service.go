@@ -50,7 +50,7 @@ func LoadFileSource(c *gin.Context, source types.FileSource, reason ...string) (
 	}
 
 	if common.DebugEnabled {
-		logger.LogDebug(c, "LoadFileSource starting for: %s", source.GetIdentifier())
+		logger.LogDebug(c, fmt.Sprintf("LoadFileSource starting for: %s", source.GetIdentifier()))
 	}
 
 	// 1. 快速检查内部缓存
@@ -208,7 +208,7 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 			}
 			common.IncrementDiskFiles(base64Size)
 			if common.DebugEnabled {
-				logger.LogDebug(c, "File cached to disk: %s, size: %d bytes", diskPath, base64Size)
+				logger.LogDebug(c, fmt.Sprintf("File cached to disk: %s, size: %d bytes", diskPath, base64Size))
 			}
 		}
 	} else {
@@ -549,7 +549,7 @@ func parseHEIFDimensions(data []byte) (int, int, bool) {
 			if len(metaData) < 4 {
 				return 0, 0, false
 			}
-			return findISPE(metaData[4:])
+			return findISPE(metaData[4:], 0)
 		}
 		offset += boxSize
 	}
@@ -558,7 +558,11 @@ func parseHEIFDimensions(data []byte) (int, int, bool) {
 
 // findISPE recursively searches for the ispe box within container boxes.
 // Path: meta -> iprp -> ipco -> ispe
-func findISPE(data []byte) (int, int, bool) {
+// 安全加固：限制递归深度，防止构造的嵌套 ipco/iprp 链导致无界递归栈耗尽 DoS。
+func findISPE(data []byte, depth int) (int, int, bool) {
+	if depth > 16 {
+		return 0, 0, false
+	}
 	offset := 0
 	size := len(data)
 	for offset+8 <= size {
@@ -570,7 +574,7 @@ func findISPE(data []byte) (int, int, bool) {
 		content := data[offset+8 : offset+boxSize]
 		switch boxType {
 		case "iprp", "ipco":
-			if w, h, ok := findISPE(content); ok {
+			if w, h, ok := findISPE(content, depth+1); ok {
 				return w, h, true
 			}
 		case "ispe":

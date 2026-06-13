@@ -37,7 +37,6 @@ func InitHttpClient() {
 	transport := &http.Transport{
 		MaxIdleConns:        common.RelayMaxIdleConns,
 		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-		IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
 		ForceAttemptHTTP2:   true,
 		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
 	}
@@ -61,6 +60,73 @@ func InitHttpClient() {
 
 func GetHttpClient() *http.Client {
 	return httpClient
+}
+
+// --- 安全加固：SSRF 防护专用 HTTP 客户端（仅用于用户可控 URL 的下载/抓取路径）---
+// 默认客户端在 ValidateURL 校验后由 Transport 二次解析 DNS 且不固定 IP，
+// 存在 DNS-rebinding/TOCTOU SSRF。此客户端在拨号时解析一次并逐 IP 校验，
+// 仅拨号已通过校验的 IP（固定该 IP），杜绝校验态与拨号态 IP 不一致。
+// 注意：只用于下载路径，不影响管理员配置的上游渠道中继（避免误伤非标端口/内网上游）。
+var (
+	ssrfSafeClient     *http.Client
+	ssrfSafeClientLock sync.Mutex
+)
+
+func ssrfSafeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	d := &net.Dialer{}
+	fs := system_setting.GetFetchSetting()
+	if !fs.EnableSSRFProtection {
+		return d.DialContext(ctx, network, addr)
+	}
+	// 字面 IP 直接校验
+	if ip := net.ParseIP(host); ip != nil {
+		prot := &common.SSRFProtection{AllowPrivateIp: fs.AllowPrivateIp, IpFilterMode: fs.IpFilterMode, IpList: fs.IpList}
+		if !prot.IsIPAccessAllowed(ip) {
+			return nil, fmt.Errorf("ssrf protection: ip not allowed: %s", ip.String())
+		}
+		return d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	prot := &common.SSRFProtection{AllowPrivateIp: fs.AllowPrivateIp, IpFilterMode: fs.IpFilterMode, IpList: fs.IpList}
+	for _, ipa := range ips {
+		if prot.IsIPAccessAllowed(ipa.IP) {
+			// 固定拨号到已校验 IP，避免拨号时再次解析被重绑定
+			return d.DialContext(ctx, network, net.JoinHostPort(ipa.IP.String(), port))
+		}
+	}
+	return nil, fmt.Errorf("ssrf protection: no allowed IP for host %s", host)
+}
+
+// GetSSRFSafeClient 返回固定已校验 IP 的客户端，用于用户可控 URL 的下载/抓取。
+func GetSSRFSafeClient() *http.Client {
+	ssrfSafeClientLock.Lock()
+	defer ssrfSafeClientLock.Unlock()
+	if ssrfSafeClient != nil {
+		return ssrfSafeClient
+	}
+	transport := &http.Transport{
+		MaxIdleConns:        common.RelayMaxIdleConns,
+		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+		ForceAttemptHTTP2:   true,
+		Proxy:               http.ProxyFromEnvironment,
+		DialContext:         ssrfSafeDialContext,
+	}
+	if common.TLSInsecureSkipVerify {
+		transport.TLSClientConfig = common.InsecureTLSConfig
+	}
+	c := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
+	if common.RelayTimeout != 0 {
+		c.Timeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+	ssrfSafeClient = c
+	return c
 }
 
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
@@ -109,7 +175,6 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		transport := &http.Transport{
 			MaxIdleConns:        common.RelayMaxIdleConns,
 			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
 			ForceAttemptHTTP2:   true,
 			Proxy:               http.ProxyURL(parsedURL),
 		}
@@ -149,7 +214,6 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		transport := &http.Transport{
 			MaxIdleConns:        common.RelayMaxIdleConns,
 			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
 			ForceAttemptHTTP2:   true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return dialer.Dial(network, addr)
