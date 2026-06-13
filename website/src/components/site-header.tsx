@@ -11,6 +11,10 @@ import { type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
 const SIGN_IN_URL = process.env.NEXT_PUBLIC_SIGN_IN_URL ?? "/sign-in";
+const primaryButtonStyle = {
+  backgroundColor: "var(--primary)",
+  color: "var(--primary-foreground)",
+};
 
 type Props = {
   locale: Locale;
@@ -90,8 +94,9 @@ export function SiteHeader(props: Props) {
               <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
-                className="inline-flex h-8 items-center justify-center rounded-lg bg-primary px-3.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 active:opacity-80"
+                className="inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
                 href={SIGN_IN_URL}
+                style={primaryButtonStyle}
               >
                 {copy.nav.signIn}
               </a>
@@ -166,7 +171,8 @@ export function SiteHeader(props: Props) {
           >
             <a
               href={SIGN_IN_URL}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 active:opacity-80"
+              className="inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
+              style={primaryButtonStyle}
             >
               {copy.nav.signIn}
             </a>

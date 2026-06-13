@@ -18,6 +18,11 @@ type Props = {
   locale: Locale;
 };
 
+const primaryButtonStyle = {
+  backgroundColor: "var(--primary)",
+  color: "var(--primary-foreground)",
+};
+
 function hashString(input: string): string {
   let hash = 0;
   for (let index = 0; index < input.length; index += 1) {
@@ -198,7 +203,8 @@ export function NotificationPopover({ locale }: Props) {
         <div className="flex justify-end">
           <button
             type="button"
-            className="inline-flex h-7 items-center justify-center rounded-md bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            className="inline-flex h-7 items-center justify-center rounded-md px-2.5 text-[0.8rem] font-medium transition-opacity hover:opacity-90"
+            style={primaryButtonStyle}
             onClick={() => handleOpenChange(false)}
           >
             {copy.nav.close}
