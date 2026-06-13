@@ -6,10 +6,6 @@ export const modelPricingSettingsLink = {
   params: { section: MODEL_PRICING_SETTINGS_SECTION },
 }
 
-export function openModelPricingSettingsInNewTab() {
-  window.open('/_panel/system-settings/billing/model-pricing', '_blank', 'noopener,noreferrer')
-}
-
 export const modelPricingSettingsHref = `/_panel/system-settings/billing/${MODEL_PRICING_SETTINGS_SECTION}`
 
 export function openModelPricingSettingsInNewTab() {
