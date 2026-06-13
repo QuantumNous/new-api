@@ -5,3 +5,13 @@ export const modelPricingSettingsLink = {
   to: '/system-settings/billing/$section' as const,
   params: { section: MODEL_PRICING_SETTINGS_SECTION },
 }
+
+export function openModelPricingSettingsInNewTab() {
+  window.open('/_panel/system-settings/billing/model-pricing', '_blank', 'noopener,noreferrer')
+}
+
+export const modelPricingSettingsHref = `/_panel/system-settings/billing/${MODEL_PRICING_SETTINGS_SECTION}`
+
+export function openModelPricingSettingsInNewTab() {
+  window.open(modelPricingSettingsHref, '_blank', 'noopener,noreferrer')
+}
