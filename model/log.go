@@ -337,9 +337,44 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		tokenUsed := statsTokenUsage(params)
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), tokenUsed)
 		})
+	}
+}
+
+// statsTokenUsage returns the total token volume to record for usage statistics
+// (the rankings / quota_data export). It must reflect the real number of tokens
+// processed, regardless of how billing weights them.
+//
+// For OpenAI-style usage, prompt_tokens already includes cache-read tokens, so
+// prompt_tokens + completion_tokens is the full volume. For Anthropic-style usage,
+// cache-read and cache-creation tokens are reported separately and are NOT part of
+// prompt_tokens; they must be added back in, otherwise cache-heavy models (e.g.
+// Claude) are massively undercounted in the rankings even though their quota is
+// computed correctly.
+func statsTokenUsage(params RecordConsumeLogParams) int {
+	tokens := params.PromptTokens + params.CompletionTokens
+	if semantic, _ := params.Other["usage_semantic"].(string); semantic == "anthropic" {
+		tokens += otherTokenCount(params.Other, "cache_tokens")
+		tokens += otherTokenCount(params.Other, "cache_creation_tokens")
+	}
+	return tokens
+}
+
+// otherTokenCount reads a token count stored in the log "other" payload, tolerating
+// the int / int64 / float64 forms it can take across in-memory and decoded maps.
+func otherTokenCount(other map[string]interface{}, key string) int {
+	switch v := other[key].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
 	}
 }
 
