@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/kids"
+	"github.com/QuantumNous/new-api/internal/policy"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
@@ -202,9 +203,28 @@ func ListModels(c *gin.Context, modelType int) {
 	}
 
 	// kids_mode: filter catalog to whitelisted models only.
+	// Resolution order:
+	//   1. Use the policy.Decision already in context (set by AirbotixPolicy middleware).
+	//   2. Fall back to a direct DB lookup if the middleware was not in the chain.
+	//   3. If the DB lookup fails for an authenticated user, fail CLOSED (filter the
+	//      catalog) — returning adult models to a potentially-kids user is worse than
+	//      returning an empty or restricted catalog.
 	userId := c.GetInt("id")
 	if userId > 0 {
-		if u, err := model.GetUserById(userId, false); err == nil && u.KidsMode {
+		kidsMode := false
+		if raw, ok := common.GetContextKey(c, constant.ContextKeyPolicyDecision); ok {
+			if d, castOK := raw.(policy.Decision); castOK {
+				kidsMode = d.KidsMode
+			}
+		} else {
+			u, err := model.GetUserById(userId, false)
+			if err != nil {
+				kidsMode = true // fail closed: can't determine kids_mode safely
+			} else {
+				kidsMode = u.KidsMode
+			}
+		}
+		if kidsMode {
 			filtered := make([]dto.OpenAIModels, 0, len(userOpenAiModels))
 			for _, m := range userOpenAiModels {
 				if kids.IsModelEligible(m.Id) {

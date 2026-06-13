@@ -27,7 +27,7 @@ Block requests for non-whitelisted models when `KidsMode=true` or
 | Relay — Claude shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToClaude_KidsModeRejectsDisallowed` |
 | Relay — Responses shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToResponses_KidsModeRejectsDisallowed` |
 | Relay — Gemini shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToGemini_KidsModeRejectsDisallowedModel` |
-| Catalog endpoint | `controller/internal_catalog.go` | `controller/internal_catalog_test.go` | `TestKidsModeCatalogPreFilter` |
+| Catalog endpoint | `controller/model.go` | `controller/internal_catalog_test.go` | `TestKidsModeCatalogPreFilter` |
 
 ---
 

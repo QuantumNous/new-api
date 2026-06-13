@@ -20,6 +20,7 @@ on:
       - 'dto/**'
       - 'common/**'
       - 'docs/kids-coverage-matrix.md'
+      - 'scripts/check-kids-coverage-matrix.sh'
       - '.github/workflows/airbotix-internal.yml'
   pull_request:
     paths:
@@ -36,6 +37,7 @@ on:
       - 'dto/**'
       - 'common/**'
       - 'docs/kids-coverage-matrix.md'
+      - 'scripts/check-kids-coverage-matrix.sh'
       - '.github/workflows/airbotix-internal.yml'
   workflow_dispatch:
 
@@ -85,3 +87,9 @@ jobs:
           go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
           # kids_mode middleware layer: policy resolution + defensive pass-through (DR-12).
           go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
+
+      - name: Verify kids coverage matrix (go test -list)
+        # scripts/check-kids-coverage-matrix.sh parses docs/kids-coverage-matrix.md,
+        # runs go test -list for each referenced package, and fails if any explicitly
+        # named function is absent. This catches deletions that broad -run regexes miss.
+        run: bash scripts/check-kids-coverage-matrix.sh
