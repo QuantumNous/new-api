@@ -1,17 +1,25 @@
 // Package billing dispatches per-request billing webhooks to tenant-configured
-// receivers after each LLM round-trip. The receiver is responsible for
-// deducting credits (e.g. Airbotix Stars) and recording the consumption ledger.
+// receivers after each successful LLM relay round-trip.
 //
-// Spec: DeepRouter PRD §7.3 (webhook protocol) + kids-ai-platform-prd.md §9.7
-// (atomicity contract on the receiver side).
+// Architecture: this package is a leaf — it imports only stdlib and the shared
+// JSON wrapper from common/. No upstream relay, gin, or GORM types are allowed
+// here. Orchestration (reading gin.Context, building Event fields) lives in the
+// upstream-adjacent file service/airbotix_billing.go (ADR-0006, 4th sanctioned
+// file). This separation keeps the package independently testable and free of
+// AGPL-viral surface.
 //
-// This V0 skeleton focuses on:
-//   - Signing payloads with HMAC-SHA256
-//   - Best-effort retries on 5xx / network errors
-//   - Dead-letter for permanent failures
+// Spec: DeepRouter PRD §7.3 (webhook protocol).
+// DR-25: schema extended with started_at / finished_at / policy_violations /
+//         routed_from. DRS-8 will own future schema evolution; fields added
+//         here are the DR-25 minimum required set.
 //
-// Wiring into the relay path comes in a follow-up commit; this package
-// compiles standalone with a unit test.
+// Wire format guarantees:
+//   - POST to tenant.BillingWebhookURL
+//   - Content-Type: application/json
+//   - X-DeepRouter-Signature: lowercase hex HMAC-SHA256(body, secret)
+//   - X-DeepRouter-Event: "request.completed"
+//   - Retries: up to 3 on 5xx / network error with exponential backoff
+//   - 4xx (except 408/429) is treated as permanent — no retry
 package billing
 
 import (
@@ -28,46 +36,114 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-// Event is the payload posted to tenant.BillingWebhookURL after each request.
-// See DeepRouter PRD §7.3.
+// Event is the JSON payload POSTed to a tenant's BillingWebhookURL after each
+// successful, metered relay request.
+//
+// Field contract (PRD §7.3 + DR-25 ticket):
+//   - All string timestamps are RFC3339 UTC.
+//   - CostUSD = float64(quota) / common.QuotaPerUnit; Stars conversion is the
+//     receiver's responsibility (PRD §7.2.1).
+//   - PolicyViolations is always present (empty slice, not null) so receivers
+//     can use it without nil-checking. Phase 4 content moderation will populate it.
+//   - RoutedFrom is non-empty only when the smart-router resolved a virtual model
+//     (e.g. "deeprouter-auto") to a concrete upstream model. Direct requests
+//     (model name is already concrete) leave this field absent.
+//
+// JSON serialisation MUST use common.Marshal (AGENTS.md Rule 1).
 type Event struct {
-	RequestID        string  `json:"request_id"`
-	TenantID         string  `json:"tenant_id"`
-	FamilyID         string  `json:"family_id,omitempty"`
-	KidProfileID     string  `json:"kid_profile_id,omitempty"`
-	ProductLine      string  `json:"product_line,omitempty"`
-	Provider         string  `json:"provider"`
-	Model            string  `json:"model"`
-	PromptTokens     int     `json:"prompt_tokens"`
-	CompletionTokens int     `json:"completion_tokens"`
-	// ImageCount is the number of image inputs in the request.
-	// Currently always 0 — multi-modal image counting is a V1 feature.
-	// omitempty keeps the V0 wire format clean; receivers should treat
-	// absence of this field as "not tracked yet".
-	ImageCount int `json:"image_count,omitempty"`
-	CostUSD    float64 `json:"cost_usd"`
-	// Stars is reserved for Airbotix Stars credit mapping (V1).
-	// Always 0 in V0; receivers should ignore this field until the
-	// Stars pricing table is wired in.
-	Stars     int    `json:"stars,omitempty"`
-	Timestamp string `json:"timestamp"` // RFC3339
+	// RequestID is the per-request idempotency key propagated from the relay
+	// layer. Receivers must deduplicate by this field (PRD §7.3).
+	RequestID string `json:"request_id"`
+
+	// TenantID identifies the Airbotix tenant (= model.User.Username).
+	TenantID string `json:"tenant_id"`
+
+	// FamilyID and ProductLine are optional tenant-hierarchy fields reserved
+	// for future multi-family / multi-product deployments.
+	FamilyID    string `json:"family_id,omitempty"`
+	ProductLine string `json:"product_line,omitempty"`
+
+	// KidProfileID is the end-user child profile within the tenant, passed by
+	// the caller as the X-Tenant-User request header (PRD §7.3).
+	KidProfileID string `json:"kid_profile_id,omitempty"`
+
+	// Provider is the stable, lowercase wire-format upstream provider identifier
+	// (e.g. "openai", "anthropic"). Set by channelTypeProviderID() in
+	// service/airbotix_billing.go, NOT from constant.GetChannelTypeName() which
+	// returns display names for UI.
+	Provider string `json:"provider"`
+
+	// Model is the concrete upstream model that was actually called
+	// (e.g. "claude-haiku-4-5"). For deeprouter-auto requests this is the
+	// smart-router's resolved model, not the virtual name the client sent.
+	Model string `json:"model"`
+
+	// RoutedFrom is the virtual model name originally requested by the client
+	// (e.g. "deeprouter-auto"). Non-empty only when the smart-router performed
+	// Layer-1 routing. Absent for direct model requests.
+	// DR-25: only "deeprouter-auto" triggers this field; ordinary alias rewrites
+	// (distributor.go SimpleMode) do not qualify.
+	RoutedFrom string `json:"routed_from,omitempty"`
+
+	// PromptTokens and CompletionTokens are the actual token counts returned by
+	// the upstream provider in the final usage chunk (stream) or response body
+	// (non-stream). These are the authoritative figures for token accounting.
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+
+	// ImageCount tracks multi-modal image inputs. Always 0 in V0 — image
+	// counting is a V1 feature. Field is always present per PRD §7.3 wire contract.
+	ImageCount int `json:"image_count"`
+
+	// CostUSD is the USD cost computed as float64(quota)/common.QuotaPerUnit.
+	// Calculated after SettleBilling so it reflects the final settled amount.
+	CostUSD float64 `json:"cost_usd"`
+
+	// Stars is reserved for the Airbotix Stars credit mapping (V1).
+	// Always 0 in V0. Receivers should ignore until the Stars pricing table
+	// is wired in.
+	Stars int `json:"stars,omitempty"`
+
+	// PolicyViolations lists policy rule IDs triggered during this request
+	// (e.g. ["kids_mode:blocked_model"]). Empty slice (never nil) when no
+	// violations occurred. Phase 4 content moderation will populate this.
+	PolicyViolations []string `json:"policy_violations"`
+
+	// StartedAt is the RFC3339 UTC timestamp when the relay request began
+	// (relay/common.RelayInfo.StartTime).
+	StartedAt string `json:"started_at"`
+
+	// FinishedAt is the RFC3339 UTC timestamp when token counts were tallied
+	// and this dispatch was triggered (time.Now() at dispatch call site).
+	FinishedAt string `json:"finished_at"`
 }
 
-// SignPayload returns the lowercase hex-encoded HMAC-SHA256 of payload.
-// Header used by receivers: X-DeepRouter-Signature.
+// SignPayload computes the lowercase hex-encoded HMAC-SHA256 of payload using
+// secret as the key. The result is placed in the X-DeepRouter-Signature header
+// so receivers can verify authenticity without parsing the body first.
+//
+// Algorithm: HMAC-SHA256(secret, payload) → hex string (no "sha256=" prefix).
 func SignPayload(payload, secret []byte) string {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// Dispatcher sends Events to a tenant's webhook with retries.
+// Dispatcher sends Events to a tenant's webhook endpoint with best-effort
+// retries. It is stateless: create one per dispatch call via NewDispatcher().
 type Dispatcher struct {
-	Client     *http.Client
+	// Client is the HTTP client used for outbound webhook calls. Exposed for
+	// test injection (replace with httptest-backed transport).
+	Client *http.Client
+
+	// MaxRetries is the number of additional attempts after the first failure.
+	// Total attempts = MaxRetries + 1. Default: 3 (set by NewDispatcher).
 	MaxRetries int
 }
 
-// NewDispatcher returns a Dispatcher with sensible defaults (3 retries, 5s timeout).
+// NewDispatcher returns a Dispatcher with production-safe defaults:
+//   - 5 s per-request timeout (generous for a fire-and-forget path)
+//   - 3 retries (covers transient network blips and momentary 5xx)
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{
 		Client:     &http.Client{Timeout: 5 * time.Second},
@@ -75,13 +151,27 @@ func NewDispatcher() *Dispatcher {
 	}
 }
 
-// Send posts the event to url with the X-DeepRouter-Signature header derived
-// from secret. Retries on transient failures with exponential backoff.
-// Returns the final response status and the last error (nil on 2xx).
+// Send serialises ev to JSON, signs the payload with HMAC-SHA256, and POSTs
+// it to url. It retries on transient failures (network errors, 5xx, 408, 429)
+// using exponential backoff (200 ms → 400 ms → 800 ms). Permanent client
+// errors (4xx except 408/429) short-circuit immediately without retry.
+//
+// Returns the final HTTP status code and any error. A nil error means the
+// receiver acknowledged with a 2xx response.
+//
+// Retry logic:
+//   - attempt 0 : immediate
+//   - attempt 1 : sleep 200 ms
+//   - attempt 2 : sleep 400 ms
+//   - attempt 3 : sleep 800 ms
+//   Total wall time for full failure: ≈ 1.4 s + 4 × network RTT
 func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 	if url == "" {
 		return 0, errors.New("billing.Send: empty webhook url")
 	}
+
+	// Serialise once; reuse the same bytes for every retry attempt so the
+	// HMAC signature remains stable (identical body → identical digest).
 	payload, err := common.Marshal(ev)
 	if err != nil {
 		return 0, fmt.Errorf("billing.Send: marshal: %w", err)
@@ -90,13 +180,17 @@ func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 
 	var lastErr error
 	var lastStatus int
+
 	for attempt := 0; attempt <= d.MaxRetries; attempt++ {
+		// Rebuild the request body reader on each attempt — bytes.Reader is
+		// not reusable after the first Read without an explicit Seek.
 		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
 		if err != nil {
 			return 0, fmt.Errorf("billing.Send: build request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-DeepRouter-Signature", sig)
+		// X-DeepRouter-Event lets receivers route/filter without parsing body.
 		req.Header.Set("X-DeepRouter-Event", "request.completed")
 
 		resp, err := d.Client.Do(req)
@@ -105,22 +199,30 @@ func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 			lastStatus = 0
 		} else {
 			lastStatus = resp.StatusCode
+			// Drain and close to allow connection reuse (net/http requirement).
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
+
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 				return resp.StatusCode, nil
 			}
+
 			lastErr = fmt.Errorf("billing.Send: non-2xx %d", resp.StatusCode)
-			if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 408 && resp.StatusCode != 429 {
-				// 4xx (other than 408/429) is permanent: don't retry
+
+			// Permanent client error: retrying will not help. 408 (Request
+			// Timeout) and 429 (Too Many Requests) are the exceptions — both
+			// can succeed on retry.
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
+				resp.StatusCode != 408 && resp.StatusCode != 429 {
 				return resp.StatusCode, lastErr
 			}
 		}
 
-		// backoff: 200ms, 400ms, 800ms, ...
+		// Exponential backoff before the next attempt. Skip on the last one.
 		if attempt < d.MaxRetries {
 			time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
 		}
 	}
+
 	return lastStatus, lastErr
 }

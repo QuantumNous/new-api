@@ -85,6 +85,9 @@ const (
 	// quota error
 	ErrorCodeInsufficientUserQuota      ErrorCode = "insufficient_user_quota"
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
+
+	// tenant quota error (DR-13) — distinct from upstream capacity errors (DRS-17)
+	ErrorCodeTenantQuotaExceeded ErrorCode = "tenant_quota_exceeded"
 )
 
 type NewAPIError struct {

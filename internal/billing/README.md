@@ -1,77 +1,119 @@
 # internal/billing
 
-Per-request billing webhook dispatcher. Signs payloads with HMAC-SHA256, retries transient failures with exponential backoff, gives up on permanent ones, and never blocks the relay path.
+Per-request billing webhook dispatcher. Signs payloads with HMAC-SHA256, retries
+transient failures with exponential backoff, and never blocks the relay path.
 
-**Status**: ✅ Implemented + unit-tested. 🟡 **Not yet wired into the relay completion path** — `PLAN.md` Phase 2 will hook it in. Don't claim webhooks fire today.
+**Status**: ✅ Implemented, unit-tested, and wired into the relay completion path
+(DR-25 / PLAN.md Phase 2). Webhooks fire for every successful, metered relay request
+made by a tenant with `BillingWebhookURL` + `WebhookSecret` configured.
 
 ## What it does
 
-The receiver (e.g. Airbotix `platform-backend` `/internal/deeprouter/billing`) is responsible for deducting credits and recording the ledger. This package only:
+The receiver (e.g. Airbotix `platform-backend`) is responsible for deducting credits
+and recording the ledger. This package only:
 
-1. Builds the event payload from per-request data (tokens, cost, model, tenant).
+1. Defines the `Event` payload schema (PRD §7.3).
 2. HMAC-signs the payload with the tenant's webhook secret.
-3. POSTs to the tenant-configured URL.
-4. Retries 3× with exponential backoff (200ms → 400ms → 800ms) on 5xx / network failures.
-5. Gives up on 4xx (except 408 / 429, which count as transient).
+3. POSTs to the tenant-configured URL with `X-DeepRouter-Signature` and
+   `X-DeepRouter-Event` headers.
+4. Retries 3× with exponential backoff (200 ms → 400 ms → 800 ms) on 5xx / network
+   failures.
+5. Gives up permanently on 4xx (except 408/429, which are treated as transient).
+
+Orchestration (reading gin.Context, constructing Event fields from relay metadata) is
+the responsibility of `service/airbotix_billing.go` (ADR-0006, 4th sanctioned file).
+This package stays free of upstream types.
 
 ## Public API
 
 ```go
+// Event is the payload posted to tenant.BillingWebhookURL after each successful,
+// metered relay request. All timestamps are RFC3339 UTC.
+// JSON serialisation MUST use common.Marshal (AGENTS.md Rule 1).
 type Event struct {
-    RequestID       string
-    TenantID        string
-    FamilyID        string
-    KidProfileID    string
-    ProductLine     string
-    Provider        string
-    Model           string
-    PromptTokens    int
-    CompletionTokens int
-    ImageCount      int
-    CostUSD         float64
-    Stars           int
-    Timestamp       time.Time
+    RequestID        string   // per-request idempotency key; receiver deduplicates on this
+    TenantID         string   // = model.User.Username
+    FamilyID         string   // optional, omitempty
+    KidProfileID     string   // end-user child profile from X-Tenant-User header, omitempty
+    ProductLine      string   // optional, omitempty
+    Provider         string   // e.g. "openai", "anthropic" — lowercase wire-format ID (PRD §7.3)
+    Model            string   // concrete upstream model (smart-router resolved)
+    RoutedFrom       string   // virtual model client sent (e.g. "deeprouter-auto"), omitempty
+    PromptTokens     int      // actual tokens from upstream usage response
+    CompletionTokens int      // actual tokens from upstream usage response
+    ImageCount       int      // always 0 in V0; field always present per PRD §7.3 wire contract
+    CostUSD          float64  // float64(quota) / common.QuotaPerUnit
+    Stars            int      // reserved for V1 Stars mapping, always 0, omitempty
+    PolicyViolations []string // policy rules triggered; empty slice (never nil) when none
+    StartedAt        string   // RFC3339 UTC: relay request start (RelayInfo.StartTime)
+    FinishedAt       string   // RFC3339 UTC: token tally time (time.Now() at dispatch)
 }
 
-func SignPayload(payload []byte, secret []byte) string                    // hex-encoded HMAC-SHA256
-func NewDispatcher() *Dispatcher                                          // 3 retries, 5s HTTP timeout
-func (*Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) // returns final HTTP status + error
+func SignPayload(payload, secret []byte) string
+// Returns lowercase hex HMAC-SHA256(secret, payload).
+// Placed in X-DeepRouter-Signature header by Send().
+
+func NewDispatcher() *Dispatcher
+// Returns Dispatcher with 3 retries and 5 s HTTP timeout.
+
+func (*Dispatcher) Send(url string, secret []byte, ev *Event) (int, error)
+// Serialises ev, signs, POSTs. Returns final HTTP status + error.
+// nil error = 2xx received.
 ```
 
 ## Dependencies
 
-- `common/json.go` (this repo's JSON wrapper — per AGENTS.md Rule 1)
-- stdlib `net/http`, `bytes`, `time`, `crypto/hmac`, `crypto/sha256`
+- `common/json.go` — this repo's JSON wrapper (AGENTS.md Rule 1)
+- stdlib: `net/http`, `bytes`, `time`, `crypto/hmac`, `crypto/sha256`, `encoding/hex`
 
-Zero imports from other `internal/` packages.
+Zero imports from other `internal/` packages. Zero gin / GORM / relay imports.
 
-## How it will be wired (Phase 2)
+## Wiring (how orchestration calls this package)
 
 ```go
-// in the relay completion path (where tokens are tallied / log row is written)
-if user.BillingWebhookURL != "" && user.WebhookSecret != "" {
-    go billing.NewDispatcher().Send(
-        user.BillingWebhookURL,
-        []byte(user.WebhookSecret),
-        &billing.Event{ /* ... */ },
-    )
+// service/airbotix_billing.go — called by PostTextConsumeQuota after SettleBilling
+event := &billing.Event{
+    RequestID:        relayInfo.RequestId,
+    TenantID:         user.Username,
+    KidProfileID:     c.GetHeader("X-Tenant-User"),
+    Provider:         channelTypeProviderID(relayInfo.ChannelType), // lowercase wire-format ID; see channelTypeToProviderID map
+    Model:            relayInfo.OriginModelName,
+    RoutedFrom:       "deeprouter-auto", // only when smart-router resolved
+    PromptTokens:     usage.PromptTokens,
+    CompletionTokens: usage.CompletionTokens,
+    CostUSD:          float64(quota) / common.QuotaPerUnit,
+    PolicyViolations: []string{}, // empty slice (never nil); Phase 4 content moderation populates
+    StartedAt:        relayInfo.StartTime.UTC().Format(time.RFC3339),
+    FinishedAt:       time.Now().UTC().Format(time.RFC3339),
 }
+gopool.Go(func() {
+    billing.NewDispatcher().Send(user.BillingWebhookURL, []byte(user.WebhookSecret), event)
+})
 ```
 
-`User.WebhookSecret` is a `varchar(128)` column already on the user table (`model/user.go:66`). It's stored plaintext, same as `channel.key` — see `docs/adr/0004-channel-key-plaintext.md` for the trade-off.
+`User.WebhookSecret` is a `varchar(128)` plaintext column on the users table
+(`model/user.go`). See `docs/adr/0004-channel-key-plaintext.md` for the trade-off.
 
-Open decisions before wiring:
-- Bill on success only, or bill-then-refund-on-failure? `PLAN.md` Phase 4 prefers "bill on success only" — simpler reconciliation.
-- Where exactly in the relay completion path to fire — coordinate with the quota-deduct write so we don't double-charge on retries.
-- Per-request idempotency: receiver must dedupe by `RequestID`. Make sure `request_id` is propagated through the relay pipeline before flipping this on.
+## Billing rules
+
+- **Bill on success only** (PLAN.md Phase 2): dispatch only after a successful relay.
+  Failed requests go through `Refund`, never reach `PostTextConsumeQuota`.
+- **Metered completion guard**: dispatch only when `PromptTokens + CompletionTokens > 0`
+  (upstream returned real usage). Zero-price models (quota==0 but tokens>0) still fire —
+  the receiver needs token counts for usage accounting.
+- **Idempotency**: receiver deduplicates by `RequestID`. Relay retries reuse the same
+  `request_id` so double-charges are prevented on the receiver side.
 
 ## Tests
 
-`dispatcher_test.go` (105 LOC) covers:
-- Signature stability (same input → same signature)
-- 2xx success path
-- 5xx retries up to limit
+`webhook_test.go` covers:
+- HMAC signature correctness + stability (same input → same digest)
+- Full dispatch with payload + signature verification
+- No-op guards (nil usage, missing URL/secret, zero tokens)
+- 5xx retry up to MaxRetries
 - 4xx permanent failure (no retry)
-- 408 / 429 treated as transient
+- 408/429 treated as transient
+- `X-DeepRouter-Event` header presence
+- RoutedFrom field populated for deeprouter-auto; absent for direct requests
 
-Run: `go test ./internal/billing/...`
+Run: `go test ./internal/billing/... -race`

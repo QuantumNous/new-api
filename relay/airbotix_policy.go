@@ -125,6 +125,14 @@ func isOpenAIFamilyChannel(channelType int) bool {
 	return false
 }
 
+// clampUint returns v clamped to ceiling. If v == nil, returns nil unchanged.
+func clampUint(v *uint, ceiling uint) *uint {
+	if v != nil && *v > ceiling {
+		return &ceiling
+	}
+	return v
+}
+
 // applyAirbotixPolicy is the single mutation entry-point called from TextHelper.
 // Returns a non-nil reject string when the model whitelist check denies the
 // request; otherwise mutates request in place and returns "".
@@ -256,6 +264,7 @@ func applyAirbotixPolicyToGemini(c *gin.Context, model string, request *dto.Gemi
 	if request == nil {
 		return nil
 	}
+	request.GenerationConfig.MaxOutputTokens = clampUint(request.GenerationConfig.MaxOutputTokens, maxTokensHardCap)
 	if d.InjectChildSafePrompt {
 		if d.KidsMode || request.SystemInstructions == nil {
 			request.SystemInstructions = &dto.GeminiChatContent{
