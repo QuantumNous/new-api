@@ -116,6 +116,7 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'DeepSeek Flash',  modelId: 'deepseek-v4-flash', accent: '#a78bfa' },
   { label: 'DeepSeek Pro',    modelId: 'deepseek-v4-pro',   accent: '#a78bfa' },
   { label: 'MiniMax M3',      modelId: 'minimax-m3',        accent: '#f97316' },
+  { label: 'Kimi K2.7 Code',  modelId: 'kimi-k2.7-code',    accent: '#818cf8' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
 ]
 

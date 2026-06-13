@@ -46,6 +46,7 @@ var ModelIDCandidates = map[string][]string{
 	"claude-opus-4-6":   {"anthropic/claude-opus-4.6"},
 	"claude-opus-4-5":   {"anthropic/claude-opus-4.5"},
 	"minimax-m3":        {"MiniMax-M3", "MiniMax-M3-20260301", "minimax/minimax-m3"},
+	"kimi-k2.7-code":    {"moonshotai/kimi-k2.7-code", "kimi-k2-7-code"},
 }
 
 // ModelNameCandidates returns the canonical name plus all known aliases.
