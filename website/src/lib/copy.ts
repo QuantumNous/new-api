@@ -32,6 +32,18 @@ type Copy = {
     primary: string;
     secondary: string;
   };
+  footer: {
+    tagline: string;
+    trustedVerifiedBy: string;
+    emailSupport: string;
+    termsOfService: string;
+    privacyPolicy: string;
+    serviceLevelAgreement: string;
+    refundPolicy: string;
+    supportEmail: string;
+    defaultCopyright: string;
+    projectAttributionSuffix: string;
+  };
 };
 
 const copies: Record<Locale, Copy> = {
@@ -68,6 +80,18 @@ const copies: Record<Locale, Copy> = {
       primary: "View pricing",
       secondary: "Read the blog",
     },
+    footer: {
+      tagline: "Powerful API Management Platform",
+      trustedVerifiedBy: "TRUSTED & VERIFIED BY",
+      emailSupport: "Email: support@flatkey.ai",
+      termsOfService: "Terms of Service",
+      privacyPolicy: "Privacy Policy",
+      serviceLevelAgreement: "Service Level Agreement",
+      refundPolicy: "Refund Policy",
+      supportEmail: "Support: support@flatkey.ai",
+      defaultCopyright: "全著作権所有。",
+      projectAttributionSuffix: "AI API gateway and model operations platform.",
+    },
   },
   zh: {
     nav: {
@@ -100,6 +124,18 @@ const copies: Record<Locale, Copy> = {
       description: "flatkey.ai 统一模型接入、路由、计费、用量分析和运营控制，帮助团队稳定交付 AI 产品。",
       primary: "查看价格",
       secondary: "阅读博客",
+    },
+    footer: {
+      tagline: "强大的 API 管理平台",
+      trustedVerifiedBy: "可信与认证",
+      emailSupport: "邮箱：support@flatkey.ai",
+      termsOfService: "服务条款",
+      privacyPolicy: "隐私政策",
+      serviceLevelAgreement: "服务等级协议",
+      refundPolicy: "退款政策",
+      supportEmail: "支持：support@flatkey.ai",
+      defaultCopyright: "保留所有权利。",
+      projectAttributionSuffix: "AI API 网关与模型运营平台。",
     },
   },
   es: {
@@ -135,6 +171,18 @@ const copies: Record<Locale, Copy> = {
       primary: "Ver precios",
       secondary: "Leer el blog",
     },
+    footer: {
+      tagline: "Potente plataforma de gestión de API",
+      trustedVerifiedBy: "DE CONFIANZA Y VERIFICADO POR",
+      emailSupport: "Email: support@flatkey.ai",
+      termsOfService: "Términos del servicio",
+      privacyPolicy: "Política de privacidad",
+      serviceLevelAgreement: "Acuerdo de nivel de servicio",
+      refundPolicy: "Política de reembolso",
+      supportEmail: "Soporte: support@flatkey.ai",
+      defaultCopyright: "Todos los derechos reservados.",
+      projectAttributionSuffix: "Gateway de API de IA y plataforma de operaciones de modelos.",
+    },
   },
   fr: {
     nav: {
@@ -168,6 +216,18 @@ const copies: Record<Locale, Copy> = {
         "flatkey.ai unifie l'accès aux modèles, le routage, la facturation, l'analyse d'usage et les contrôles opérationnels.",
       primary: "Voir les tarifs",
       secondary: "Lire le blog",
+    },
+    footer: {
+      tagline: "Plateforme puissante de gestion des API",
+      trustedVerifiedBy: "FIABLE ET VERIFIE PAR",
+      emailSupport: "E-mail : support@flatkey.ai",
+      termsOfService: "Conditions d'utilisation",
+      privacyPolicy: "Politique de confidentialite",
+      serviceLevelAgreement: "Accord de niveau de service",
+      refundPolicy: "Politique de remboursement",
+      supportEmail: "Support : support@flatkey.ai",
+      defaultCopyright: "Tous droits reserves.",
+      projectAttributionSuffix: "Passerelle API IA et plateforme d'exploitation des modeles.",
     },
   },
   pt: {
@@ -203,6 +263,18 @@ const copies: Record<Locale, Copy> = {
       primary: "Ver preços",
       secondary: "Ler o blog",
     },
+    footer: {
+      tagline: "Plataforma poderosa de gerenciamento de API",
+      trustedVerifiedBy: "CONFIAVEL E VERIFICADO POR",
+      emailSupport: "Email: support@flatkey.ai",
+      termsOfService: "Termos de serviço",
+      privacyPolicy: "Politica de privacidade",
+      serviceLevelAgreement: "Acordo de nivel de servico",
+      refundPolicy: "Politica de reembolso",
+      supportEmail: "Suporte: support@flatkey.ai",
+      defaultCopyright: "Todos os direitos reservados.",
+      projectAttributionSuffix: "Gateway de API de IA e plataforma de operacoes de modelos.",
+    },
   },
   ru: {
     nav: {
@@ -236,6 +308,18 @@ const copies: Record<Locale, Copy> = {
         "flatkey.ai объединяет доступ к моделям, маршрутизацию, биллинг, аналитику использования и операционный контроль.",
       primary: "Смотреть цены",
       secondary: "Читать блог",
+    },
+    footer: {
+      tagline: "Мощная платформа управления API",
+      trustedVerifiedBy: "НАДЕЖНОСТЬ И ПРОВЕРКА",
+      emailSupport: "Email: support@flatkey.ai",
+      termsOfService: "Условия использования",
+      privacyPolicy: "Политика конфиденциальности",
+      serviceLevelAgreement: "Соглашение об уровне обслуживания",
+      refundPolicy: "Политика возврата",
+      supportEmail: "Поддержка: support@flatkey.ai",
+      defaultCopyright: "Все права защищены.",
+      projectAttributionSuffix: "AI API-шлюз и платформа управления моделями.",
     },
   },
   ja: {
@@ -271,6 +355,18 @@ const copies: Record<Locale, Copy> = {
       primary: "料金を見る",
       secondary: "ブログを読む",
     },
+    footer: {
+      tagline: "強力な API 管理プラットフォーム",
+      trustedVerifiedBy: "信頼と認証",
+      emailSupport: "メール: support@flatkey.ai",
+      termsOfService: "利用規約",
+      privacyPolicy: "プライバシーポリシー",
+      serviceLevelAgreement: "サービスレベル契約",
+      refundPolicy: "返金ポリシー",
+      supportEmail: "サポート: support@flatkey.ai",
+      defaultCopyright: "All rights reserved.",
+      projectAttributionSuffix: "AI API ゲートウェイとモデル運用プラットフォーム。",
+    },
   },
   vi: {
     nav: {
@@ -304,6 +400,18 @@ const copies: Record<Locale, Copy> = {
         "flatkey.ai hợp nhất truy cập mô hình, định tuyến, tính phí, phân tích sử dụng và kiểm soát vận hành.",
       primary: "Xem giá",
       secondary: "Đọc blog",
+    },
+    footer: {
+      tagline: "Nền tảng quản lý API mạnh mẽ",
+      trustedVerifiedBy: "ĐƯỢC TIN CẬY VÀ XÁC MINH BỞI",
+      emailSupport: "Email: support@flatkey.ai",
+      termsOfService: "Điều khoản dịch vụ",
+      privacyPolicy: "Chính sách quyền riêng tư",
+      serviceLevelAgreement: "Thỏa thuận mức dịch vụ",
+      refundPolicy: "Chính sách hoàn tiền",
+      supportEmail: "Hỗ trợ: support@flatkey.ai",
+      defaultCopyright: "Bảo lưu mọi quyền.",
+      projectAttributionSuffix: "Cổng API AI và nền tảng vận hành mô hình.",
     },
   },
 };

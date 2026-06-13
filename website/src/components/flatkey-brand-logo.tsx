@@ -2,9 +2,27 @@ import { cn } from "@/lib/utils";
 
 type FlatkeyBrandLogoProps = {
   className?: string;
+  imageClassName?: string;
+  variant?: "lockup" | "full";
 };
 
-export function FlatkeyBrandLogo({ className }: FlatkeyBrandLogoProps) {
+export function FlatkeyBrandLogo({ className, imageClassName, variant = "lockup" }: FlatkeyBrandLogoProps) {
+  if (variant === "full") {
+    return (
+      <span className={cn("relative inline-flex shrink-0 overflow-hidden", className)}>
+        <span
+          aria-hidden
+          className={cn("absolute inset-0 block bg-no-repeat", imageClassName)}
+          style={{
+            backgroundImage: "url(/flatkey-logo-light.png)",
+            backgroundPosition: "50% 50%",
+            backgroundSize: "contain",
+          }}
+        />
+      </span>
+    );
+  }
+
   return (
     <span className={cn("inline-flex items-center gap-3", className)}>
       <span className="relative h-8 w-14 shrink-0 overflow-hidden">

@@ -65,6 +65,15 @@ const generic: Record<string, Omit<PageContent, "eyebrow">> = {
       { title: "Exclusions", body: "Upstream provider outages, customer configuration errors, and force majeure events may be excluded." },
     ],
   },
+  "refund-policy": {
+    title: "Refund Policy",
+    description: "Review refund handling principles for flatkey.ai products and services.",
+    sections: [
+      { title: "Eligibility", body: "Refund eligibility depends on the subscription, contract terms, consumed usage, and billing status for the account." },
+      { title: "Usage-based services", body: "Usage-based API costs, upstream provider fees, and already-consumed credits may be non-refundable." },
+      { title: "Support requests", body: "Refund and billing questions can be sent to support@flatkey.ai with the account and invoice details." },
+    ],
+  },
 };
 
 const eyebrowByLocale: Record<Locale, string> = {
