@@ -198,7 +198,7 @@ export function NotificationPopover({ locale }: Props) {
         <div className="flex justify-end">
           <button
             type="button"
-            className="inline-flex h-7 items-center justify-center rounded-md bg-black px-2.5 text-[0.8rem] font-medium text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-black"
+            className="inline-flex h-7 items-center justify-center rounded-md bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground transition-opacity hover:opacity-90"
             onClick={() => handleOpenChange(false)}
           >
             {copy.nav.close}
