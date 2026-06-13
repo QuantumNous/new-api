@@ -172,7 +172,16 @@ func (e *streamingEstimator) estimateRune(r rune) {
 }
 
 // result 返回当前累计的 token 估算（向上取整 + BasePad）。
+// 若仍有缓冲的不完整 UTF-8 尾字节（流在补齐前结束），按与一次性
+// EstimateToken（for range over string）一致的语义处理：每个残留字节
+// 解码为 utf8.RuneError，逐字节计入，保证流式与一次性结果逐位相同。
 func (e *streamingEstimator) result() int {
+	if len(e.pending) > 0 {
+		for range e.pending {
+			e.estimateRune(utf8.RuneError)
+		}
+		e.pending = nil
+	}
 	return int(math.Ceil(e.count)) + e.m.BasePad
 }
 

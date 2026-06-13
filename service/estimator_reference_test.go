@@ -116,6 +116,37 @@ func TestEstimateToken_FuzzMatchesReference(t *testing.T) {
 	}
 }
 
+// 尾部被切断的不完整 UTF-8 字节序列：一次性 EstimateToken 与流式 feed 都必须
+// 与参考实现（for range，对每个残留字节 emit utf8.RuneError）逐位相同。
+// 这覆盖一个真实场景：上游分块流式输出把一个多字节 rune 切在 chunk 末尾，
+// 且流在补齐前就结束（截断/超时）——此时残留字节必须按 RuneError 计入，
+// 否则流式计数会比旧实现少算，破坏计费口径一致性。
+func TestEstimateToken_TruncatedUTF8MatchesReference(t *testing.T) {
+	// 构造若干以不完整 UTF-8 结尾的输入（“中”=e4 b8 ad，“😀”=f0 9f 98 80）。
+	truncated := []string{
+		"ab" + string([]byte{0xe4, 0xb8}),       // 2 个残留字节
+		"hello " + string([]byte{0xe4}),         // 1 个残留字节
+		"x" + string([]byte{0xf0, 0x9f, 0x98}),  // 3 个残留字节（emoji 切 3/4）
+		string([]byte{0xe4, 0xb8}),              // 全是残留字节
+		"中文" + string([]byte{0xf0, 0x9f}),      // 完整 CJK + 2 残留字节
+	}
+	for _, p := range []Provider{OpenAI, Gemini, Claude} {
+		for _, text := range truncated {
+			want := referenceEstimateToken(p, text)
+			// 一次性
+			if got := EstimateToken(p, text); got != want {
+				t.Errorf("[oneshot] provider=%s bytes=% x: got=%d want=%d", p, []byte(text), got, want)
+			}
+			// 流式：把残留尾字节单独作为最后一个 chunk 喂入，再 result
+			e := newStreamingEstimator(p)
+			e.feed(text)
+			if got := e.result(); got != want {
+				t.Errorf("[stream] provider=%s bytes=% x: got=%d want=%d", p, []byte(text), got, want)
+			}
+		}
+	}
+}
+
 // 绝对锚点：人工核算的已知值（不依赖任何被测实现，防止参考实现也被一起改坏）。
 // OpenAI: Word=1.02 Space=0.42 Number=1.55 Newline=0.5；BasePad=0；结果=ceil(sum)。
 func TestEstimateToken_HardcodedAnchors(t *testing.T) {

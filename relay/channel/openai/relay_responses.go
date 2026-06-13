@@ -84,7 +84,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	// whether the upstream-reported usage takes precedence over the locally
 	// counted tokens.
 	trustUpstreamUsage := info != nil && info.ChannelSetting.TrustUpstreamUsage
-	usageAcc := service.NewUsageAccumulator(info.UpstreamModelName)
+	modelName := ""
+	if info != nil {
+		modelName = info.UpstreamModelName
+	}
+	usageAcc := service.NewUsageAccumulator(modelName)
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -142,7 +146,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	// - trust=false: use the local streamed estimate (bounded memory, no buffering)
 	usage.CompletionTokens = usageAcc.Resolve(usage.CompletionTokens, trustUpstreamUsage)
 
-	if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
+	if info != nil && usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 	}
 
