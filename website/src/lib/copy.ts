@@ -7,6 +7,8 @@ type Copy = {
     blog: string;
     about: string;
     app: string;
+    signIn: string;
+    toggle: string;
   };
   home: {
     title: string;
@@ -18,7 +20,15 @@ type Copy = {
 
 const copies: Record<Locale, Copy> = {
   en: {
-    nav: { pricing: "Pricing", rankings: "Rankings", blog: "Blog", about: "About", app: "Open app" },
+    nav: {
+      pricing: "Pricing",
+      rankings: "Rankings",
+      blog: "Blog",
+      about: "About",
+      app: "Open app",
+      signIn: "Sign in",
+      toggle: "Toggle navigation menu",
+    },
     home: {
       title: "One API gateway for production AI teams",
       description:
@@ -28,7 +38,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   zh: {
-    nav: { pricing: "价格", rankings: "排行", blog: "博客", about: "关于", app: "打开应用" },
+    nav: {
+      pricing: "价格",
+      rankings: "排行",
+      blog: "博客",
+      about: "关于",
+      app: "打开应用",
+      signIn: "登录",
+      toggle: "切换导航菜单",
+    },
     home: {
       title: "面向生产团队的一站式 AI API 网关",
       description: "flatkey.ai 统一模型接入、路由、计费、用量分析和运营控制，帮助团队稳定交付 AI 产品。",
@@ -37,7 +55,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   es: {
-    nav: { pricing: "Precios", rankings: "Rankings", blog: "Blog", about: "Acerca de", app: "Abrir app" },
+    nav: {
+      pricing: "Precios",
+      rankings: "Rankings",
+      blog: "Blog",
+      about: "Acerca de",
+      app: "Abrir app",
+      signIn: "Iniciar sesión",
+      toggle: "Alternar menú de navegación",
+    },
     home: {
       title: "Una puerta de enlace API para equipos de IA en producción",
       description:
@@ -47,7 +73,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   fr: {
-    nav: { pricing: "Tarifs", rankings: "Classements", blog: "Blog", about: "À propos", app: "Ouvrir l'app" },
+    nav: {
+      pricing: "Tarifs",
+      rankings: "Classements",
+      blog: "Blog",
+      about: "À propos",
+      app: "Ouvrir l'app",
+      signIn: "Se connecter",
+      toggle: "Basculer le menu de navigation",
+    },
     home: {
       title: "Une passerelle API pour les équipes IA en production",
       description:
@@ -57,7 +91,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   pt: {
-    nav: { pricing: "Preços", rankings: "Rankings", blog: "Blog", about: "Sobre", app: "Abrir app" },
+    nav: {
+      pricing: "Preços",
+      rankings: "Rankings",
+      blog: "Blog",
+      about: "Sobre",
+      app: "Abrir app",
+      signIn: "Entrar",
+      toggle: "Alternar menu de navegação",
+    },
     home: {
       title: "Um gateway de API para equipes de IA em produção",
       description:
@@ -67,7 +109,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   ru: {
-    nav: { pricing: "Цены", rankings: "Рейтинги", blog: "Блог", about: "О нас", app: "Открыть приложение" },
+    nav: {
+      pricing: "Цены",
+      rankings: "Рейтинги",
+      blog: "Блог",
+      about: "О нас",
+      app: "Открыть приложение",
+      signIn: "Войти",
+      toggle: "Переключить меню навигации",
+    },
     home: {
       title: "Единый API-шлюз для AI-команд в продакшене",
       description:
@@ -77,7 +127,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   ja: {
-    nav: { pricing: "料金", rankings: "ランキング", blog: "ブログ", about: "概要", app: "アプリを開く" },
+    nav: {
+      pricing: "料金",
+      rankings: "ランキング",
+      blog: "ブログ",
+      about: "概要",
+      app: "アプリを開く",
+      signIn: "ログイン",
+      toggle: "ナビゲーションメニューを切り替え",
+    },
     home: {
       title: "本番 AI チームのための API ゲートウェイ",
       description:
@@ -87,7 +145,15 @@ const copies: Record<Locale, Copy> = {
     },
   },
   vi: {
-    nav: { pricing: "Giá", rankings: "Xếp hạng", blog: "Blog", about: "Giới thiệu", app: "Mở ứng dụng" },
+    nav: {
+      pricing: "Giá",
+      rankings: "Xếp hạng",
+      blog: "Blog",
+      about: "Giới thiệu",
+      app: "Mở ứng dụng",
+      signIn: "Đăng nhập",
+      toggle: "Bật/tắt menu điều hướng",
+    },
     home: {
       title: "Một cổng API cho đội ngũ AI vận hành sản phẩm",
       description:
