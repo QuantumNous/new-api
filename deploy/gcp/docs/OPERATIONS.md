@@ -51,10 +51,12 @@ This is the single most important thing to know before running `terraform apply`
 | `client`, `client_version` | gcloud | Set by `gcloud run` writes |
 | `scaling` (top-level block) | gcloud | Populated with zero values by `gcloud run services update` — harmless drift |
 | `traffic` | CI/CD | Canary blue/green with revision-pinned tags; the LATEST block in TF is only for first bring-up |
+| `template[0].containers[0].env` | gcp-deploy.yml + gcloud | PADDLE_*, GA_*, BATCH_UPDATER_RESET etc. exist only on the live service; the TF env blocks are bring-up defaults. Added to ignore_changes 2026-06-12 after a plain plan tried to strip the live payment config |
+| `template[0].vpc_access` | gcloud | egress flipped to `ALL_TRAFFIC` out-of-band (fixed-IP egress); TF code still says `PRIVATE_RANGES_ONLY` |
 
 If a plan ever shows a diff on these fields, **do not apply**. Either the ignore list got broken, or CI/CD's state was lost — investigate, don't bulldoze.
 
-**Env vars: Terraform owns them, but with a catch.** CI/CD writes specific revision names, which prevents `terraform apply` from updating env vars on the existing revision (HTTP 409 conflict). Workaround:
+**Env vars are out-of-band owned (in `ignore_changes` since 2026-06-12).** The env blocks in the TF module only seed a brand-new service; the live service's env is written by `gcp-deploy.yml` (PADDLE_*) and ad-hoc `gcloud run services update` (GA_*, secret refs, ...). Terraform neither strips nor updates env anymore. To change env on the live service (CI/CD's pinned revision names cause HTTP 409 on TF-driven updates anyway):
 
 ```bash
 # Update env vars directly (gcloud auto-creates a new revision name)
@@ -80,7 +82,7 @@ The BlockRun usage reconciliation endpoints — `GET /usage/summary` and `GET /u
 
 **Don't break it:**
 
-- **Keep `enable_usage_recon_token = true`.** Flipping it to false (or deleting the secret env) makes the next `terraform apply` strip `BLOCKRUN_USAGE_SUMMARY_TOKEN` from the service → the endpoints return `503`.
+- **Keep `enable_usage_recon_token = true`.** It keeps desired-state honest and seeds fresh bring-ups. (Env is in `ignore_changes` since 2026-06-12, so `terraform apply` no longer strips live env either way — but don't rely on that to paper over a wrong flag.)
 - The env was set out-of-band via gcloud, so TF state can lag reality. The committed flag keeps desired-state aligned, so a refreshing `terraform plan` shows no env diff; run `terraform apply -refresh-only` to sync state exactly.
 - When writing the secret value, use `printf '%s'`, not `echo` (no trailing newline in the token).
 
@@ -108,7 +110,9 @@ reason: AUTH_PERMISSION_DENIED on serviceusage.googleapis.com
   with module.apis.google_project_service.this["serviceusage.googleapis.com"]
 ```
 
-**Cause**: the CI service account `newapi-ci-deployer@vocai-gemini-prod.iam.gserviceaccount.com` only has the three minimum roles needed for **app deploy** (`run.developer`, `artifactregistry.writer`, `iam.serviceAccountUser`). `terraform apply` does a full state refresh that reads every module's GCP state — needing read perms across serviceusage, IAM, secretmanager, compute, cloudsql, redis, monitoring, etc. Until those are granted, **infra apply via CI will never succeed**. The PR plan step works because it runs in `pull_request` context, which doesn't gate on the same `production` environment WIF binding (and historically every infra change was reviewed via plan and not applied through this workflow).
+**Cause**: the CI service account `newapi-ci-deployer@vocai-gemini-prod.iam.gserviceaccount.com` only has the three minimum roles needed for **app deploy** (`run.developer`, `artifactregistry.writer`, `iam.serviceAccountUser`). `terraform apply` does a full state refresh that reads every module's GCP state — needing read perms across serviceusage, IAM, secretmanager, compute, cloudsql, redis, monitoring, etc. Until those are granted, **infra apply via CI will never succeed**.
+
+**Update 2026-06-12: the PR plan step is affected too.** Run 27411650497 (PR #116) hit the same `AUTH_PERMISSION_DENIED` on serviceusage during refresh, yet the workflow concluded "success" and posted the error text as the PR plan comment. **Treat CI plan comments as untrusted** — always run `terraform plan` locally with Owner ADC before applying.
 
 **Workaround (works today, no Terraform drift)**: when the Terraform code on `main` is already merged with the desired state, just apply via `gcloud` using a user account with Owner / `roles/run.admin`. Terraform's `desired` and reality will reconverge — no drift, no refresh-only needed.
 
