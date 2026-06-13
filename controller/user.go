@@ -1385,3 +1385,21 @@ func UpdateUserSetting(c *gin.Context) {
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
 }
+
+// SetUserLanguage sets the language column on a user account.
+// Called by the apimaster Next.js layer on every login to sync the browser language.
+func SetUserLanguage(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Language string `json:"language"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Username == "" || req.Language == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := model.DB.Model(&model.User{}).Where("username = ?", req.Username).Update("language", req.Language).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
