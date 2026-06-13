@@ -2,12 +2,15 @@
 
 ## Overview
 
-This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
+This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and a console dashboard.
+
+The public marketing/SEO website is no longer maintained inside the Go application or `web/default`. The official website lives in the standalone Next.js project under `website/`. Treat the Go application as the API proxy plus authenticated console dashboard product only.
 
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
+- **Console frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS (`web/default/`, embedded by the Go application)
+- **Official website**: Next.js 16, React 19, Tailwind CSS (`website/`, standalone Node app)
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
@@ -34,9 +37,10 @@ i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
 web/             — Frontend themes container
- web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
+ web/default/   — Console dashboard frontend (React 19, Rsbuild, Base UI, Tailwind; embedded by Go)
   web/classic/   — Classic frontend (React 18, Vite, Semi Design)
   web/default/src/i18n/ — Frontend internationalization (i18next, en/zh/fr/ru/ja/vi/es/pt)
+website/        — Official public website (Next.js standalone Node app; SEO/marketing/legal/pricing pages)
 ```
 
 ## Internationalization (i18n)
@@ -106,11 +110,17 @@ All database code MUST be fully compatible with all three databases simultaneous
 
 ### Rule 3: Frontend — Prefer Bun
 
-Use `bun` as the preferred package manager and script runner for the frontend (`web/default/` directory):
+Use `bun` as the preferred package manager and script runner for frontend projects:
 - `bun install` for dependency installation
 - `bun run dev` for development server
 - `bun run build` for production build
 - `bun run i18n:*` for i18n tooling
+
+Scope frontend work correctly:
+- `web/default/` and `web/classic/` are console/dashboard frontends served by the Go app.
+- `website/` is the only maintained official public website. Do not add or maintain public website pages in the Go app or `web/default`.
+- The Go app should focus on API proxy, billing, auth, admin/user console, relay, and dashboard behavior.
+- Website-to-console links and API proxy origins are environment-driven: `OFFICIAL_WEBSITE_ORIGIN` points console Home to the website; `APP_CONSOLE_ORIGIN` points the Next website to the Go application.
 
 ### Rule 4: New Channel StreamOptions Support
 

@@ -1,6 +1,7 @@
 import sanitizeHtml from "sanitize-html";
+import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
-const API_BASE_URL = process.env.FLATKEY_API_BASE_URL ?? "https://flatkey.ai";
+const API_BASE_URL = APP_CONSOLE_ORIGIN;
 export const BLOG_PAGE_SIZE = 18;
 
 export type BlogPost = {

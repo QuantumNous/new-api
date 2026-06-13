@@ -27,6 +27,7 @@ export default defineConfig(({ envMode }) => {
   const metaPixelId = pixelVar('VITE_META_PIXEL_ID')
   const xPixelId = pixelVar('VITE_X_PIXEL_ID')
   const xSignupEventId = pixelVar('VITE_X_SIGNUP_EVENT_ID')
+  const officialWebsiteOrigin = pixelVar('VITE_OFFICIAL_WEBSITE_ORIGIN')
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
@@ -80,6 +81,9 @@ export default defineConfig(({ envMode }) => {
         'import.meta.env.VITE_X_PIXEL_ID': JSON.stringify(xPixelId),
         'import.meta.env.VITE_X_SIGNUP_EVENT_ID':
           JSON.stringify(xSignupEventId),
+        'import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN': JSON.stringify(
+          officialWebsiteOrigin
+        ),
       },
     },
     resolve: {
@@ -116,6 +120,7 @@ export default defineConfig(({ envMode }) => {
           process.env.VITE_REACT_APP_VERSION,
           gadsConversionId,
           gadsSignupSendTo,
+          officialWebsiteOrigin,
         ],
       },
     },

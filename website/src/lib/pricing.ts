@@ -1,4 +1,6 @@
-export const API_BASE_URL = process.env.FLATKEY_API_BASE_URL ?? "https://router.flatkey.ai";
+import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
+
+export const API_BASE_URL = APP_CONSOLE_ORIGIN;
 
 export type PricingVendor = {
   id: number;

@@ -76,6 +76,7 @@ jobs:
             VITE_META_PIXEL_ID=${{ vars.VITE_META_PIXEL_ID }}
             VITE_X_PIXEL_ID=${{ vars.VITE_X_PIXEL_ID }}
             VITE_X_SIGNUP_EVENT_ID=${{ vars.VITE_X_SIGNUP_EVENT_ID }}
+            VITE_OFFICIAL_WEBSITE_ORIGIN=${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:main-latest
@@ -119,6 +120,8 @@ jobs:
           PADDLE_LIVE_WEBHOOK_SECRET: ${{ secrets.PADDLE_LIVE_WEBHOOK_SECRET }}
           GA_MEASURE_PROTOCOL_API_SECRET: ${{ secrets.GA_MEASURE_PROTOCOL_API_SECRET }}
           GA_MESSUREMENT_ID: ${{ secrets.GA_MESSUREMENT_ID }}
+          OFFICIAL_WEBSITE_ORIGIN: ${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
+          APP_CONSOLE_ORIGIN: ${{ secrets.APP_CONSOLE_ORIGIN }}
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
@@ -129,7 +132,8 @@ jobs:
             PADDLE_SANDBOX_API_KEY PADDLE_SANDBOX_CLIENT_TOKEN PADDLE_SANDBOX_WEBHOOK_SECRET \
             PADDLE_LIVE_PRODUCT_ID PADDLE_LIVE_CURRENCY PADDLE_LIVE_UNIT_PRICE PADDLE_LIVE_MIN_TOPUP \
             PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
-            GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID; do
+            GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID \
+            OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")

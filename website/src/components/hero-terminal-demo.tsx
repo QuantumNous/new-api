@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
 type AccentTone = "emerald" | "amber" | "blue" | "violet";
@@ -46,7 +47,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: "gpt-chat",
     label: "Chat",
     method: "POST",
-    endpoint: "https://router.flatkey.ai/v1/chat/completions",
+    endpoint: `${APP_CONSOLE_ORIGIN}/v1/chat/completions`,
     headers: ['"Authorization: Bearer sk-fk-••••"'],
     request: ['"model": "your-model",', '"messages": [', '  { "role": "user", "content": "..." }', "]"],
     response: ["{", '  "choices": [{ "message": { "content": <text> } }],', '  "usage": { "total_tokens": <tokens> }', "}"],
@@ -58,7 +59,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: "responses",
     label: "Responses",
     method: "POST",
-    endpoint: "https://router.flatkey.ai/v1/responses",
+    endpoint: `${APP_CONSOLE_ORIGIN}/v1/responses`,
     headers: ['"Authorization: Bearer sk-fk-••••"'],
     request: ['"model": "your-model",', '"input": "..."'],
     response: ["{", '  "output": [{ "type": "output_text", "text": <text> }],', '  "usage": { "total_tokens": <tokens> }', "}"],
@@ -70,7 +71,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: "claude",
     label: "Claude",
     method: "POST",
-    endpoint: "https://router.flatkey.ai/v1/messages",
+    endpoint: `${APP_CONSOLE_ORIGIN}/v1/messages`,
     headers: ['"x-api-key: sk-fk-••••"', '"anthropic-version: 2023-06-01"'],
     request: ['"model": "your-model",', '"max_tokens": 1024,', '"messages": [', '  { "role": "user", "content": "..." }', "]"],
     response: ["{", '  "content": [{ "type": "text", "text": <text> }],', '  "usage": { "input_tokens": <in>, "output_tokens": <out> }', "}"],
@@ -82,7 +83,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: "gemini",
     label: "Gemini",
     method: "POST",
-    endpoint: "https://router.flatkey.ai/v1beta/models/{model}:generateContent",
+    endpoint: `${APP_CONSOLE_ORIGIN}/v1beta/models/{model}:generateContent`,
     headers: ['"x-goog-api-key: sk-fk-••••"'],
     request: ['"contents": [', '  { "role": "user",', '    "parts": [{ "text": "..." }] }', "]"],
     response: ["{", '  "candidates": [{ "content": { "parts": [{ "text": <text> }] } }],', '  "usageMetadata": { "totalTokenCount": <tokens> }', "}"],

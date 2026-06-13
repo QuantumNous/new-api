@@ -40,6 +40,7 @@ import {
   parseTags,
   type PricingModel,
 } from "@/lib/pricing";
+import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 import {
   CartesianGrid,
@@ -1519,7 +1520,7 @@ function formatUptimePct(pct: number): string {
 }
 
 function buildCodeSample(lang: ApiLang, model: PricingModel, endpointType: string, endpointPath: string): string {
-  const baseUrl = "https://router.flatkey.ai";
+  const baseUrl = APP_CONSOLE_ORIGIN;
   const url = `${baseUrl}${endpointPath}`;
   const userMessage = "Explain quantum entanglement in one paragraph.";
   const body = endpointType === "openai-response"

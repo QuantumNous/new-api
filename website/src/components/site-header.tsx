@@ -8,9 +8,10 @@ import { NotificationPopover } from "@/components/notification-popover";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, stripLocale } from "@/lib/locales";
+import { consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_IN_URL = "https://router.flatkey.ai/sign-in";
+const SIGN_IN_URL = consoleUrl("/sign-in");
 
 type Props = {
   locale: Locale;

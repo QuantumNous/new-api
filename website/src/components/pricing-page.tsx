@@ -11,13 +11,14 @@ import {
 import { PricingExplorer } from "@/components/pricing-explorer";
 import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
 import type { Locale } from "@/lib/locales";
+import { consoleUrl } from "@/lib/origins";
 
 type PricingPageProps = {
   locale: Locale;
   search?: PricingSearch;
 };
 
-const SIGN_UP_URL = "https://router.flatkey.ai/sign-up";
+const SIGN_UP_URL = consoleUrl("/sign-up");
 
 export function parsePricingSearch(searchParams?: Record<string, string | string[] | undefined>): PricingSearch {
   return {

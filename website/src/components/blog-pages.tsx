@@ -14,6 +14,7 @@ import {
 } from "@/lib/blog";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
+import { consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
 type BlogSearchState = {
@@ -240,7 +241,7 @@ function BlogCTA() {
       <p className="text-background/75 mx-auto mt-3 max-w-2xl text-sm leading-6">
         Use flatkey.ai to manage models, keys, billing, and observability from one API platform.
       </p>
-      <Link className={cn(buttonClass(), "mt-7 bg-background text-foreground hover:bg-background/90")} href="https://router.flatkey.ai/sign-up">
+      <Link className={cn(buttonClass(), "mt-7 bg-background text-foreground hover:bg-background/90")} href={consoleUrl("/sign-up")}>
         Get started
       </Link>
     </section>

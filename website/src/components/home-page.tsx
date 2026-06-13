@@ -5,9 +5,11 @@ import { SiteShell } from "@/components/site-shell";
 import { getCopy } from "@/lib/copy";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
+import { APP_CONSOLE_ORIGIN, consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_UP_URL = "https://router.flatkey.ai/sign-up";
+const SIGN_UP_URL = consoleUrl("/sign-up");
+const API_BASE_URL = `${APP_CONSOLE_ORIGIN}/v1`;
 
 type Props = {
   locale: Locale;
@@ -308,7 +310,7 @@ export function HomePage(props: Props) {
             <div className="grid gap-8 md:grid-cols-3 md:gap-12">
               {[
                 ["1", "Get one key", "Create a flatkey account, open the dashboard, and generate an API key for your app.", <KeyRound key="key" className="size-6" strokeWidth={1.5} />],
-                ["2", "Change the base URL", "Point your OpenAI-compatible client to https://router.flatkey.ai/v1 and keep your existing SDK.", <Link2 key="link" className="size-6" strokeWidth={1.5} />],
+                ["2", "Change the base URL", `Point your OpenAI-compatible client to ${API_BASE_URL} and keep your existing SDK.`, <Link2 key="link" className="size-6" strokeWidth={1.5} />],
                 ["3", "Monitor and optimize", "Review usage, cost, routing, and errors from the same product dashboard.", <BarChart3 key="chart" className="size-6" strokeWidth={1.5} />],
               ].map(([num, title, desc, icon]) => (
                 <article key={String(num)} className="relative flex flex-col items-center text-center">
@@ -332,7 +334,7 @@ export function HomePage(props: Props) {
               <br />
               <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent">model chaos with one key?</span>
             </h2>
-            <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">Start from the flatkey homepage, manage your product dashboard, and keep router.flatkey.ai as the stable API endpoint.</p>
+            <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">Start from the flatkey homepage, manage your product dashboard, and keep {APP_CONSOLE_ORIGIN.replace(/^https?:\/\//, "")} as the stable API endpoint.</p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <a
                 className="flatkey-hero-cta group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"

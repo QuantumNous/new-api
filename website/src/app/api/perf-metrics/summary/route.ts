@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-
-const ROUTER_BASE_URL = process.env.FLATKEY_API_BASE_URL ?? "https://router.flatkey.ai";
+import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 export async function GET(request: NextRequest) {
-  const target = new URL("/api/perf-metrics/summary", ROUTER_BASE_URL);
+  const target = new URL("/api/perf-metrics/summary", APP_CONSOLE_ORIGIN);
   target.searchParams.set("hours", request.nextUrl.searchParams.get("hours") ?? "24");
 
   try {
