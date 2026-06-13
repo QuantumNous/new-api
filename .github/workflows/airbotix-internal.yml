@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'model/user.go'
+      - 'model/user_airbotix_test.go'
       - 'internal/**'
       - 'middleware/policy.go'
       - 'middleware/policy_test.go'
@@ -26,6 +27,7 @@ on:
   pull_request:
     paths:
       - 'model/user.go'
+      - 'model/user_airbotix_test.go'
       - 'internal/**'
       - 'middleware/policy.go'
       - 'middleware/policy_test.go'
