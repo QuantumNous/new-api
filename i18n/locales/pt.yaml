@@ -285,3 +285,10 @@ email.verification_subject: "Verificação de E-mail {{.SystemName}}"
 email.verification_content: "<p>Olá, você está verificando seu e-mail para {{.SystemName}}.</p><p>Seu código de verificação é: <strong>{{.Code}}</strong></p><p>O código é válido por {{.Minutes}} minutos. Se não foi você, ignore este e-mail.</p>"
 email.password_reset_subject: "Redefinição de Senha {{.SystemName}}"
 email.password_reset_content: "<p>Olá, você está redefinindo a senha da sua conta {{.SystemName}}.</p><p>Clique <a href='{{.Link}}'>aqui</a> para redefinir sua senha.</p><p>Se o link não for clicável, copie o link a seguir para o seu navegador:<br> {{.Link}} </p><p>O link de redefinição é válido por {{.Minutes}} minutos. Se não foi você, ignore este e-mail.</p>"
+
+# User notification messages
+notify.quota_warning_title: "Sua cota está acabando"
+notify.subscription_quota_warning_title: "Sua cota de assinatura está acabando"
+notify.quota_warning_email: "{{.Warning}}. Sua cota restante atual é {{.Quota}}. Para evitar interrupções no serviço, recarregue a tempo.<br/>Link de recarga: <a href='{{.Link}}'>{{.Link}}</a>"
+notify.quota_warning_bark: "{{.Warning}}. Cota restante: {{.Quota}}. Recarregue a tempo."
+notify.quota_warning_gotify: "{{.Warning}}. Sua cota restante atual é {{.Quota}}. Recarregue a tempo."

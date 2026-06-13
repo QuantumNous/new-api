@@ -285,3 +285,10 @@ email.verification_subject: "{{.SystemName}}信箱驗證郵件"
 email.verification_content: "<p>您好，您正在進行{{.SystemName}}信箱驗證。</p><p>您的驗證碼為: <strong>{{.Code}}</strong></p><p>驗證碼 {{.Minutes}} 分鐘內有效，如果不是本人操作，請忽略。</p>"
 email.password_reset_subject: "{{.SystemName}}密碼重設"
 email.password_reset_content: "<p>您好，您正在進行{{.SystemName}}密碼重設。</p><p>點擊 <a href='{{.Link}}'>此處</a> 進行密碼重設。</p><p>如果連結無法點擊，請嘗試點擊下面的連結或將其複製到瀏覽器中開啟：<br> {{.Link}} </p><p>重設連結 {{.Minutes}} 分鐘內有效，如果不是本人操作，請忽略。</p>"
+
+# User notification messages
+notify.quota_warning_title: "您的額度即將用盡"
+notify.subscription_quota_warning_title: "您的訂閱額度即將用盡"
+notify.quota_warning_email: "{{.Warning}}，目前剩餘額度為 {{.Quota}}，為了不影響您的使用，請及時儲值。<br/>儲值連結：<a href='{{.Link}}'>{{.Link}}</a>"
+notify.quota_warning_bark: "{{.Warning}}，剩餘額度：{{.Quota}}，請及時儲值"
+notify.quota_warning_gotify: "{{.Warning}}，目前剩餘額度為 {{.Quota}}，請及時儲值。"

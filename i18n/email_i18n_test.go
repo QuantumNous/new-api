@@ -83,3 +83,41 @@ func TestEmailContentLocalized(t *testing.T) {
 		t.Errorf("unsupported lang should fall back to English %q, got %q", en, got)
 	}
 }
+
+// Quota-warning notification content is sent from background goroutines (no gin
+// context); verify every locale renders the Warning/Quota/Link template data.
+func TestNotifyQuotaContentLocalized(t *testing.T) {
+	if err := Init(); err != nil {
+		t.Fatalf("i18n init failed: %v", err)
+	}
+
+	langs := []string{LangEn, LangZhCN, LangZhTW, LangPt, LangEs, LangFr, LangRu, LangJa, LangVi}
+	titleKeys := []string{MsgNotifyQuotaTitle, MsgNotifySubscriptionQuotaTitle}
+	contentKeys := []string{MsgNotifyQuotaEmail, MsgNotifyQuotaBark, MsgNotifyQuotaGotify}
+
+	for _, lang := range langs {
+		for _, key := range titleKeys {
+			if out := Translate(lang, key); out == key || out == "" {
+				t.Errorf("title key %q lang %q missing translation: %q", key, lang, out)
+			}
+		}
+		warning := Translate(lang, MsgNotifyQuotaTitle)
+		data := map[string]any{"Warning": warning, "Quota": "$1.23", "Link": "https://flatkey.ai/console/topup"}
+		for _, key := range contentKeys {
+			out := Translate(lang, key, data)
+			if out == key {
+				t.Errorf("content key %q lang %q returned the raw key", key, lang)
+			}
+			if strings.Contains(out, "{{") || strings.Contains(out, "<no value>") {
+				t.Errorf("content key %q lang %q unrendered/unknown field: %s", key, lang, out)
+			}
+			if !strings.Contains(out, "$1.23") || !strings.Contains(out, warning) {
+				t.Errorf("content key %q lang %q missing Quota/Warning: %s", key, lang, out)
+			}
+		}
+		// Email variant must carry the top-up link; short variants need not.
+		if got := Translate(lang, MsgNotifyQuotaEmail, data); !strings.Contains(got, data["Link"].(string)) {
+			t.Errorf("email quota content lang %q missing link: %s", lang, got)
+		}
+	}
+}
