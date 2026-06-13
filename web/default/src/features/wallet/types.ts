@@ -271,6 +271,8 @@ export interface TopupRecord {
   email?: string
   /** Admin-only: 2-letter country code from login IP */
   country?: string
+  /** Admin-only: browser language from registration */
+  language?: string
 }
 
 /**

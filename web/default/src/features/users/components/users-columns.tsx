@@ -136,6 +136,20 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: '国家', mobileHidden: true },
     },
     {
+      accessorKey: 'language',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Language')} />
+      ),
+      cell: ({ row }) => {
+        const lang = row.getValue('language') as string | undefined
+        return lang
+          ? <span className='text-xs font-medium'>{lang}</span>
+          : <span className='text-muted-foreground text-xs'>—</span>
+      },
+      enableSorting: false,
+      meta: { label: '语言', mobileHidden: true },
+    },
+    {
       accessorKey: 'status',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
