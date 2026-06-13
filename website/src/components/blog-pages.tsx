@@ -314,7 +314,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
               {post.date ? <span className="text-muted-foreground text-sm">{formatBlogDate(post.date, "long")}</span> : null}
               {post.author ? <span className="text-muted-foreground text-sm">{post.author}</span> : null}
             </div>
-            <h1 className="text-foreground max-w-4xl text-3xl leading-[1.12] font-semibold text-balance md:text-5xl md:leading-[1.06]">
+            <h1 className="text-foreground text-3xl font-semibold tracking-tight text-balance md:text-5xl">
               {post.title}
             </h1>
             {post.summary ? (
@@ -336,7 +336,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
         ) : null}
         <section className="container mx-auto max-w-5xl px-4 py-8">
           <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_240px]">
-            <div className="article-body blog-content min-w-0" dangerouslySetInnerHTML={{ __html: html }} />
+            <div className="blog-content min-w-0" dangerouslySetInnerHTML={{ __html: html }} />
             {toc.length >= 2 ? (
               <aside className="hidden lg:block">
                 <nav className="sticky top-24 text-sm">
@@ -347,7 +347,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
                         <a
                           href={`#${item.id}`}
                           className={cn(
-                            "text-muted-foreground hover:text-foreground block leading-snug transition-colors",
+                            "block leading-snug transition-colors text-muted-foreground hover:text-foreground",
                             item.level === 3 && "pl-3"
                           )}
                         >
