@@ -145,7 +145,7 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 					clampedBudget := clampThinkingBudget(modelName, budgetTokens)
 					geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 						ThinkingBudget:  common.GetPointer(clampedBudget),
-						IncludeThoughts: true,
+						IncludeThoughts: common.GetPointer(true),
 					}
 				}
 			}
@@ -164,11 +164,11 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 
 			if isUnsupported {
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-					IncludeThoughts: true,
+					IncludeThoughts: common.GetPointer(true),
 				}
 			} else {
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-					IncludeThoughts: true,
+					IncludeThoughts: common.GetPointer(true),
 				}
 				if geminiRequest.GenerationConfig.MaxOutputTokens != nil && *geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
 					budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(*geminiRequest.GenerationConfig.MaxOutputTokens)
@@ -189,7 +189,7 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 			}
 		} else if _, level, ok := reasoning.TrimEffortSuffix(info.UpstreamModelName); ok && level != "" {
 			geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-				IncludeThoughts: true,
+				IncludeThoughts: common.GetPointer(true),
 				ThinkingLevel:   level,
 			}
 			info.ReasoningEffort = level
@@ -271,10 +271,10 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 							tempThinkingConfig.ThinkingBudget = common.GetPointer(budgetInt)
 							if budgetInt > 0 {
 								// 有正数预算
-								tempThinkingConfig.IncludeThoughts = true
+								tempThinkingConfig.IncludeThoughts = common.GetPointer(true)
 							} else {
 								// 存在但为0或负数，禁用思考
-								tempThinkingConfig.IncludeThoughts = false
+								tempThinkingConfig.IncludeThoughts = common.GetPointer(false)
 							}
 							hasThinkingConfig = true
 						default:
@@ -284,7 +284,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 
 					if includeThoughts, exists := thinkingConfig["include_thoughts"]; exists {
 						if v, ok := includeThoughts.(bool); ok {
-							tempThinkingConfig.IncludeThoughts = v
+							tempThinkingConfig.IncludeThoughts = common.GetPointer(v)
 							hasThinkingConfig = true
 						} else {
 							return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
@@ -308,7 +308,9 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 							if tempThinkingConfig.ThinkingBudget != nil {
 								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = tempThinkingConfig.ThinkingBudget
 							}
-							geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = tempThinkingConfig.IncludeThoughts
+							if tempThinkingConfig.IncludeThoughts != nil {
+								geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = tempThinkingConfig.IncludeThoughts
+							}
 							if tempThinkingConfig.ThinkingLevel != "" {
 								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingLevel = tempThinkingConfig.ThinkingLevel
 							}
