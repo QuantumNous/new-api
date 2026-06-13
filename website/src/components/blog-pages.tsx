@@ -91,7 +91,9 @@ function BlogHero(props: {
           <BookOpen className="size-3.5" />
           flatkey.ai
         </Badge>
-        <h1 className="text-foreground text-4xl font-semibold text-balance md:text-5xl">{props.title}</h1>
+        <h1 className="text-foreground text-4xl leading-[1.08] font-semibold text-balance md:text-5xl md:leading-[1.05]">
+          {props.title}
+        </h1>
         <p className="text-muted-foreground mx-auto mt-5 max-w-2xl text-base leading-7 text-balance md:text-lg">
           {props.description}
         </p>
@@ -312,7 +314,9 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
               {post.date ? <span className="text-muted-foreground text-sm">{formatBlogDate(post.date, "long")}</span> : null}
               {post.author ? <span className="text-muted-foreground text-sm">{post.author}</span> : null}
             </div>
-            <h1 className="text-foreground text-3xl font-semibold text-balance md:text-5xl">{post.title}</h1>
+            <h1 className="text-foreground max-w-4xl text-3xl leading-[1.12] font-semibold text-balance md:text-5xl md:leading-[1.06]">
+              {post.title}
+            </h1>
             {post.summary ? (
               <p className="text-muted-foreground mt-5 max-w-3xl text-base leading-7 text-balance md:text-lg">{post.summary}</p>
             ) : null}
