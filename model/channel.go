@@ -55,6 +55,10 @@ type Channel struct {
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
+	// Ratio is a per-channel billing multiplier applied on top of model and group ratios.
+	// nil or 0 is treated as 1.0 (no adjustment). Values < 1 reduce cost, > 1 increase cost.
+	Ratio *float64 `json:"ratio" gorm:"default:1"`
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 }
@@ -340,6 +344,13 @@ func (channel *Channel) GetAutoBan() bool {
 		return false
 	}
 	return *channel.AutoBan == 1
+}
+
+func (channel *Channel) GetRatio() float64 {
+	if channel.Ratio == nil || *channel.Ratio == 0 {
+		return 1.0
+	}
+	return *channel.Ratio
 }
 
 func (channel *Channel) Save() error {

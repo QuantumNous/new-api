@@ -53,20 +53,24 @@ export function stripTrailingZeros(formatted: string): string {
 }
 
 /**
- * Find minimum group ratio from enabled groups
+ * Find minimum effective ratio (group ratio × min channel ratio) from enabled groups
  */
-function getMinGroupRatio(
+function getMinEffectiveRatio(
   enableGroups: string[],
-  groupRatio: Record<string, number>
+  groupRatio: Record<string, number>,
+  groupChannelRatioMin?: Record<string, number>
 ): number {
   if (enableGroups.length === 0) return 1
 
   let minRatio = Number.POSITIVE_INFINITY
 
   for (const group of enableGroups) {
-    const ratio = groupRatio[group]
-    if (ratio !== undefined && ratio < minRatio) {
-      minRatio = ratio
+    const gr = groupRatio[group]
+    if (gr === undefined) continue
+    const cr = groupChannelRatioMin?.[group] || 1
+    const effective = gr * cr
+    if (effective < minRatio) {
+      minRatio = effective
     }
   }
 
@@ -176,7 +180,11 @@ export function formatPrice(
     ? model.enable_groups
     : []
   const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  const minRatio = getMinEffectiveRatio(
+    enableGroups,
+    groupRatio,
+    model.group_channel_ratio_min
+  )
 
   let priceInUSD = calculateTokenPrice(model, type, minRatio)
   priceInUSD = applyRechargeRate(
@@ -195,7 +203,7 @@ export function formatPrice(
 }
 
 /**
- * Format price for a specific group (token-based)
+ * Format price for a specific group (token-based), returns range string when channels differ
  */
 export function formatGroupPrice(
   model: PricingModel,
@@ -211,26 +219,28 @@ export function formatGroupPrice(
     return '-'
   }
 
-  const ratio = groupRatio[group] || 1
-  let priceInUSD = calculateTokenPrice(model, type, ratio)
+  const gr = groupRatio[group] || 1
+  const crMin = model.group_channel_ratio_min?.[group] || 1
+  const crMax = model.group_channel_ratio_max?.[group] || crMin
 
-  priceInUSD = applyRechargeRate(
-    priceInUSD,
-    showWithRecharge,
-    priceRate,
-    usdExchangeRate
-  )
+  const fmt = (ratio: number) => {
+    let p = calculateTokenPrice(model, type, ratio)
+    p = applyRechargeRate(p, showWithRecharge, priceRate, usdExchangeRate)
+    return formatCurrencyFromUSD(p / TOKEN_UNIT_DIVISORS[tokenUnit], {
+      digitsLarge: 4,
+      digitsSmall: 6,
+      abbreviate: false,
+    })
+  }
 
-  const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
-    digitsLarge: 4,
-    digitsSmall: 6,
-    abbreviate: false,
-  })
+  const lo = fmt(gr * crMin)
+  if (crMin === crMax) return lo
+  const hi = fmt(gr * crMax)
+  return `${lo} ~ ${hi}`
 }
 
 /**
- * Format fixed price for pay-per-request models (with specific group)
+ * Format fixed price for pay-per-request models (with specific group), returns range when channels differ
  */
 export function formatFixedPrice(
   model: PricingModel,
@@ -244,21 +254,20 @@ export function formatFixedPrice(
     return '-'
   }
 
-  const ratio = groupRatio[group] || 1
-  let priceInUSD = (model.model_price || 0) * ratio
+  const gr = groupRatio[group] || 1
+  const crMin = model.group_channel_ratio_min?.[group] || 1
+  const crMax = model.group_channel_ratio_max?.[group] || crMin
 
-  priceInUSD = applyRechargeRate(
-    priceInUSD,
-    showWithRecharge,
-    priceRate,
-    usdExchangeRate
-  )
+  const fmt = (ratio: number) => {
+    let p = (model.model_price || 0) * ratio
+    p = applyRechargeRate(p, showWithRecharge, priceRate, usdExchangeRate)
+    return formatCurrencyFromUSD(p, { digitsLarge: 4, digitsSmall: 4, abbreviate: false })
+  }
 
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
+  const lo = fmt(gr * crMin)
+  if (crMin === crMax) return lo
+  const hi = fmt(gr * crMax)
+  return `${lo} ~ ${hi}`
 }
 
 /**
@@ -278,7 +287,11 @@ export function formatRequestPrice(
     ? model.enable_groups
     : []
   const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  const minRatio = getMinEffectiveRatio(
+    enableGroups,
+    groupRatio,
+    model.group_channel_ratio_min
+  )
 
   let priceInUSD = (model.model_price || 0) * minRatio
 

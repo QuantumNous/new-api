@@ -46,6 +46,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	if info.PriceData.ChannelRatio != 0 && info.PriceData.ChannelRatio != 1.0 {
+		other["channel_ratio"] = info.PriceData.ChannelRatio
+	}
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
@@ -129,6 +132,9 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
 			}
+		}
+		if bc.ChannelRatio != 0 && bc.ChannelRatio != 1.0 {
+			other["channel_ratio"] = bc.ChannelRatio
 		}
 	}
 	props := task.Properties
@@ -285,17 +291,21 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）
 	otherMultiplier := 1.0
+	channelRatio := 1.0
 	if bc := task.PrivateData.BillingContext; bc != nil {
 		for _, r := range bc.OtherRatios {
 			if r != 1.0 && r > 0 {
 				otherMultiplier *= r
 			}
 		}
+		if bc.ChannelRatio > 0 {
+			channelRatio = bc.ChannelRatio
+		}
 	}
 
-	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
-	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * channelRatio * otherMultiplier
+	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * channelRatio * otherMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, channelRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, channelRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }

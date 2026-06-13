@@ -78,6 +78,7 @@ type ChannelMeta struct {
 	UpstreamModelName    string
 	IsModelMapped        bool
 	SupportStreamOptions bool // 是否支持流式选项
+	ChannelRatio         float64
 }
 
 type TokenCountMeta struct {
@@ -231,6 +232,12 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	if streamSupportedChannels[channelMeta.ChannelType] {
 		channelMeta.SupportStreamOptions = true
 	}
+
+	channelRatio, ok := common.GetContextKeyType[float64](c, constant.ContextKeyChannelRatio)
+	if !ok || channelRatio <= 0 {
+		channelRatio = 1.0
+	}
+	channelMeta.ChannelRatio = channelRatio
 
 	info.ChannelMeta = channelMeta
 

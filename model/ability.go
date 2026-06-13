@@ -25,13 +25,15 @@ type Ability struct {
 
 type AbilityWithChannel struct {
 	Ability
-	ChannelType int `json:"channel_type"`
+	ChannelType   int     `json:"channel_type"`
+	ChannelRatio  float64 `json:"channel_ratio"`
+	ChannelWeight uint    `json:"channel_weight"`
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
-		Select("abilities.*, channels.type as channel_type").
+		Select("abilities.*, channels.type as channel_type, COALESCE(channels.ratio, 1) as channel_ratio, COALESCE(channels.weight, 0) as channel_weight").
 		Joins("left join channels on abilities.channel_id = channels.id").
 		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error

@@ -36,6 +36,12 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// GroupChannelRatioMin holds the minimum channel ratio per group across all channels serving that model+group.
+	// Omitted when all channels use the default ratio of 1.0.
+	GroupChannelRatioMin map[string]float64 `json:"group_channel_ratio_min,omitempty"`
+	// GroupChannelRatioMax holds the maximum channel ratio per group.
+	// Omitted when equal to GroupChannelRatioMin (no range to show).
+	GroupChannelRatioMax map[string]float64 `json:"group_channel_ratio_max,omitempty"`
 }
 
 type PricingVendor struct {
@@ -190,6 +196,13 @@ func updatePricing() {
 
 	modelGroupsMap := make(map[string]*types.Set[string])
 
+	// modelGroupChannelRatio[model][group] = {min, max} channel ratio across all channels
+	type minMaxRatio struct {
+		min float64
+		max float64
+	}
+	modelGroupChannelRatio := make(map[string]map[string]*minMaxRatio)
+
 	for _, ability := range enableAbilities {
 		groups, ok := modelGroupsMap[ability.Model]
 		if !ok {
@@ -197,6 +210,25 @@ func updatePricing() {
 			modelGroupsMap[ability.Model] = groups
 		}
 		groups.Add(ability.Group)
+
+		// accumulate min/max channel ratio per (model, group)
+		if _, ok := modelGroupChannelRatio[ability.Model]; !ok {
+			modelGroupChannelRatio[ability.Model] = make(map[string]*minMaxRatio)
+		}
+		cr := ability.ChannelRatio
+		if cr <= 0 {
+			cr = 1.0
+		}
+		if mm, exists := modelGroupChannelRatio[ability.Model][ability.Group]; exists {
+			if cr < mm.min {
+				mm.min = cr
+			}
+			if cr > mm.max {
+				mm.max = cr
+			}
+		} else {
+			modelGroupChannelRatio[ability.Model][ability.Group] = &minMaxRatio{min: cr, max: cr}
+		}
 	}
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
@@ -337,6 +369,35 @@ func updatePricing() {
 				pricing.BillingExpr = expr
 			}
 		}
+
+		// compute per-group min/max channel ratio
+		if groupRatios, ok := modelGroupChannelRatio[model]; ok {
+			minMap := make(map[string]float64)
+			maxMap := make(map[string]float64)
+			for group, mm := range groupRatios {
+				if mm.min != 1.0 || mm.max != 1.0 {
+					minMap[group] = mm.min
+					maxMap[group] = mm.max
+				}
+			}
+			if len(minMap) > 0 {
+				pricing.GroupChannelRatioMin = minMap
+			}
+			if len(maxMap) > 0 {
+				// only store max when it differs from min somewhere
+				hasRange := false
+				for g, mx := range maxMap {
+					if mx != minMap[g] {
+						hasRange = true
+						break
+					}
+				}
+				if hasRange {
+					pricing.GroupChannelRatioMax = maxMap
+				}
+			}
+		}
+
 		pricingMap = append(pricingMap, pricing)
 	}
 

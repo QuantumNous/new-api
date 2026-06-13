@@ -217,6 +217,17 @@ function BillingBreakdown(props: {
     })
   }
 
+  if (
+    other.channel_ratio != null &&
+    Number.isFinite(other.channel_ratio) &&
+    other.channel_ratio !== 1
+  ) {
+    rows.push({
+      label: t('Channel Ratio'),
+      value: `${formatRatio(other.channel_ratio)}x`,
+    })
+  }
+
   if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
@@ -313,6 +324,17 @@ function BillingBreakdown(props: {
       value: other.admin_info.local_count_tokens
         ? t('Local Billing')
         : t('Upstream Response'),
+    })
+  }
+
+  if (
+    other.upstream_quota != null &&
+    other.channel_ratio != null &&
+    other.channel_ratio !== 1
+  ) {
+    rows.push({
+      label: t('Upstream Cost'),
+      value: formatLogQuota(other.upstream_quota),
     })
   }
 
