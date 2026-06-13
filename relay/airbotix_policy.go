@@ -33,22 +33,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// maxTokensHardCap is the global ceiling applied to every request shape.
-// Requests that exceed this value are clamped, not rejected.
+// maxTokensHardCap is the global ceiling for max_tokens / max_completion_tokens
+// across all request shapes and all tenants. Prevents a single request from
+// consuming unbounded upstream tokens regardless of quota settings.
 const maxTokensHardCap uint = 2048
-
-// clampUint returns nil when v is nil; otherwise returns a pointer to
-// min(*v, ceiling). It does not mutate the original value.
-func clampUint(v *uint, ceiling uint) *uint {
-	if v == nil {
-		return nil
-	}
-	if *v > ceiling {
-		c := ceiling
-		return &c
-	}
-	return v
-}
 
 // policyDecisionFromContext returns the policy.Decision stashed by
 // middleware/policy.go, or zero (passthrough) + false when none is present.
@@ -123,6 +111,14 @@ func isOpenAIFamilyChannel(channelType int) bool {
 		return true
 	}
 	return false
+}
+
+// clampUint returns v clamped to ceiling. If v == nil, returns nil unchanged.
+func clampUint(v *uint, ceiling uint) *uint {
+	if v != nil && *v > ceiling {
+		return &ceiling
+	}
+	return v
 }
 
 // applyAirbotixPolicy is the single mutation entry-point called from TextHelper.
