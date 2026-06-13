@@ -20,6 +20,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	ChannelBillingTypeAll              = 0 // No restriction (default)
+	ChannelBillingTypeWalletOnly       = 1 // Wallet/balance only
+	ChannelBillingTypeSubscriptionOnly = 2 // Subscription only
+)
+
 type Channel struct {
 	Id                 int     `json:"id"`
 	Type               int     `json:"type" gorm:"default:0"`
@@ -54,6 +60,10 @@ type Channel struct {
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
+
+	// BillingType restricts which billing source can be used for this channel.
+	// 0 = no restriction, 1 = wallet/balance only, 2 = subscription only.
+	BillingType int `json:"billing_type" gorm:"default:0"`
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`

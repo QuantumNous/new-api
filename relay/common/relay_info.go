@@ -78,6 +78,7 @@ type ChannelMeta struct {
 	UpstreamModelName    string
 	IsModelMapped        bool
 	SupportStreamOptions bool // 是否支持流式选项
+	ChannelBillingType   int
 }
 
 type TokenCountMeta struct {
@@ -231,6 +232,9 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	if streamSupportedChannels[channelMeta.ChannelType] {
 		channelMeta.SupportStreamOptions = true
 	}
+
+	channelBillingType, _ := common.GetContextKeyType[int](c, constant.ContextKeyChannelBillingType)
+	channelMeta.ChannelBillingType = channelBillingType
 
 	info.ChannelMeta = channelMeta
 
