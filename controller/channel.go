@@ -1120,7 +1120,10 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	client := &http.Client{}
+	client := service.GetHttpClient(service.WithTrustedRedirects())
+	if client == nil {
+		client = http.DefaultClient
+	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 
 	request, err := http.NewRequest("GET", url, nil)
@@ -1142,6 +1145,8 @@ func FetchModels(c *gin.Context) {
 		})
 		return
 	}
+	defer response.Body.Close()
+
 	//check status code
 	if response.StatusCode != http.StatusOK {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1150,7 +1155,6 @@ func FetchModels(c *gin.Context) {
 		})
 		return
 	}
-	defer response.Body.Close()
 
 	var result struct {
 		Data []struct {

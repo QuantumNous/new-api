@@ -434,7 +434,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	req.Header.Set("Authorization", "Bearer "+key)
 
-	client, err := service.GetHttpClientWithProxy(proxy)
+	client, err := service.GetHttpClientWithProxy(proxy, service.WithTrustedRedirects())
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
