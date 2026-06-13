@@ -24,7 +24,6 @@ import {
   Power,
   PowerOff,
   ExternalLink,
-  ArrowRightLeft,
   Copy,
   Link,
   Loader2,
@@ -39,9 +38,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -221,6 +217,46 @@ export function DataTableRowActions<TData>({
         </TooltipContent>
       </Tooltip>
 
+      {hasChatPresets && (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            render={<Button variant='outline' size='sm' className='h-8' />}
+          >
+            {t('Chat (Export to)')}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end' className='w-[200px]'>
+            {chatPresets.map((preset) => (
+              <DropdownMenuItem
+                key={preset.id}
+                onClick={() => handleOpenChatPreset(preset)}
+              >
+                {preset.name}
+                {preset.type !== 'web' && (
+                  <DropdownMenuShortcut>
+                    <ExternalLink size={16} />
+                  </DropdownMenuShortcut>
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      <Button
+        variant='outline'
+        size='sm'
+        className='h-8'
+        onClick={async () => {
+          const realKey = await resolveRealKey(apiKey.id)
+          if (!realKey) return
+          setResolvedKey(realKey)
+          setCurrentRow(apiKey)
+          setOpen('cc-switch')
+        }}
+      >
+        {t('Export to CCS')}
+      </Button>
+
       <DropdownMenu modal={false} onOpenChange={handleMenuOpenChange}>
         <DropdownMenuTrigger
           render={
@@ -276,40 +312,6 @@ export function DataTableRowActions<TData>({
               <Edit size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={async () => {
-              const realKey = await resolveRealKey(apiKey.id)
-              if (!realKey) return
-              setResolvedKey(realKey)
-              setCurrentRow(apiKey)
-              setOpen('cc-switch')
-            }}
-          >
-            {t('CC Switch')}
-            <DropdownMenuShortcut>
-              <ArrowRightLeft size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-          {hasChatPresets && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>{t('Chat')}</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {chatPresets.map((preset) => (
-                  <DropdownMenuItem
-                    key={preset.id}
-                    onClick={() => handleOpenChatPreset(preset)}
-                  >
-                    {preset.name}
-                    {preset.type !== 'web' && (
-                      <DropdownMenuShortcut>
-                        <ExternalLink size={16} />
-                      </DropdownMenuShortcut>
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
