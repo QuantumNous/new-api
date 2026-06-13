@@ -23,7 +23,7 @@ must break CI.
 | Tenant Resolver | `model/user.go`, `middleware/policy.go` | Tenant Resolver Input Contract; Middleware Wiring | `model/user_airbotix_test.go`, `middleware/policy_test.go` |
 | Policy Middleware | `internal/policy/profile.go`, `middleware/policy.go` | Policy Decision Routing; Middleware Wiring | `internal/policy/profile_test.go`, `middleware/policy_test.go` |
 | Protocol Adapter | `internal/kids/kids.go`, `relay/airbotix_policy.go` | Model Whitelist; Metadata Stripping; Zero-Data-Retention; Child-Safe System Prompt Injection; Max Tokens Hard Cap | `internal/kids/kids_test.go`, `relay/airbotix_policy_test.go` |
-| Provider Pool | `controller/model.go`, `controller/internal_catalog.go` | Model Whitelist | `controller/internal_catalog_test.go` |
+| Provider Pool | `controller/model.go`, `controller/internal_catalog.go` | Model Whitelist | `controller/model_list_test.go`, `controller/internal_catalog_test.go` |
 
 ---
 
@@ -55,7 +55,8 @@ Block requests for non-whitelisted models when `KidsMode=true` or
 | Protocol Adapter — Claude shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToClaude_KidsModeRejectsDisallowed` |
 | Protocol Adapter — Responses shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToResponses_KidsModeRejectsDisallowed` |
 | Protocol Adapter — Gemini shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToGemini_KidsModeRejectsDisallowedModel` |
-| Provider Pool — catalog pre-filter | `controller/model.go`, `controller/internal_catalog.go` | `controller/internal_catalog_test.go` | `TestKidsModeCatalogPreFilter` |
+| Provider Pool — `/v1/models` kids filter | `controller/model.go` | `controller/model_list_test.go` | `TestListModelsKidsModeFiltersCatalog`, `TestListModelsKidsModeLookupErrorFailsClosed`, `TestListModelsAnthropicKidsModeEmptyCatalog` |
+| Provider Pool — internal router catalog pre-filter | `controller/internal_catalog.go` | `controller/internal_catalog_test.go` | `TestKidsModeCatalogPreFilter` |
 
 ---
 

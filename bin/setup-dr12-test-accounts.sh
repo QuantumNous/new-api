@@ -39,8 +39,13 @@ die() { echo -e "${RED}ERROR: $1${RESET}" >&2; exit 1; }
 log() { echo -e "${DIM}  → $1${RESET}" >&2; }
 ok()  { echo -e "${GREEN}  ✓ $1${RESET}" >&2; }
 
-# jq preferred; fall back to python3 or python (Windows)
+# Detect python first — needed for direct $PY -c calls regardless of jq.
 PY=""
+if   command -v python3 &>/dev/null; then PY=python3
+elif command -v python  &>/dev/null; then PY=python
+fi
+
+# jq preferred for _jq helpers; python is the fallback.
 if command -v jq &>/dev/null; then
   _jq() { jq -r "$@"; }
   _jq_set_str() {
@@ -52,9 +57,7 @@ if command -v jq &>/dev/null; then
     jq ".$key = $val" "$file"
   }
 else
-  if   command -v python3 &>/dev/null; then PY=python3
-  elif command -v python  &>/dev/null; then PY=python
-  else die "Neither jq nor python found. Install one of them."; fi
+  [[ -n "$PY" ]] || die "Neither jq nor python found. Install one of them."
   _jq() {
     local query="$1"; shift
     $PY -c "
