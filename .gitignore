@@ -9,7 +9,6 @@ build
 *.db-journal
 logs
 web/default/dist
-web/classic/dist
 web/node_modules
 web/dist
 .env

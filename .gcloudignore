@@ -26,8 +26,6 @@ tiktoken_cache/
 web/node_modules/
 web/default/node_modules/
 web/default/dist/
-web/classic/node_modules/
-web/classic/dist/
 
 infra/gcp-b2b-new-api/.terraform/
 infra/gcp-b2b-new-api/terraform.tfstate
