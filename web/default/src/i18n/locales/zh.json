@@ -2863,6 +2863,8 @@
     "Pass request body directly to upstream": "将请求体直接传递给上游",
     "Pass specified request headers to upstream": "把指定请求头透传到上游请求",
     "Pass Through Body": "透传请求体",
+    "Trust Upstream Usage": "信任上游用量统计",
+    "Use the usage reported by the upstream for billing instead of buffering the full response to recount tokens. Enable for channels whose upstream returns accurate usage (e.g. official OpenAI Responses) to keep memory flat on large streaming responses.": "使用上游返回的用量(usage)进行计费，而不是缓冲完整响应在本地重新计算 token。对于上游返回准确用量的渠道（如官方 OpenAI Responses）建议开启，可在大流式响应下保持内存平稳。",
     "Pass Through Headers": "请求头透传",
     "Pass through the anthropic-beta header for beta features": "透传 anthropic-beta 头部以使用 beta 功能",
     "Pass through the include field for usage obfuscation": "透传 include 字段以用于用量混淆",
