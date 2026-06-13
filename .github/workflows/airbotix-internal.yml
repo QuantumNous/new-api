@@ -88,7 +88,7 @@ jobs:
           # Smart-router integration: catalog endpoint pricing math, kids
           # pre-filter, brand map, input validation, cross-model fallback,
           # internal-token auth, ResolveAutoModel hot path.
-          go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
+          go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestListModels|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
           # kids_mode middleware layer: policy resolution + defensive pass-through (DR-12).
           go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
 

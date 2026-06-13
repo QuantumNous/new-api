@@ -178,8 +178,12 @@ go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixMo
 # Middleware layer
 go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
 
-# Catalog endpoint
-go test ./controller/ -run 'TestKidsMode' -count=1 -race -timeout 60s
+# Catalog endpoint: internal catalog pre-filter + /v1/models kids filter (DR-12).
+# Note: full controller pattern in airbotix-internal.yml also includes ratio/catalog tests.
+go test ./controller/ -run 'TestKidsModeCatalogPreFilter' -count=1 -race -timeout 60s
+go test ./controller/ -run 'TestListModelsKidsModeFiltersCatalog' -count=1 -race -timeout 60s
+go test ./controller/ -run 'TestListModelsKidsModeLookupErrorFailsClosed' -count=1 -race -timeout 60s
+go test ./controller/ -run 'TestListModelsAnthropicKidsModeEmptyCatalog' -count=1 -race -timeout 60s
 
 # Matrix enforcement via go test -list (catches deletions that broad -run regexes miss)
 bash scripts/check-kids-coverage-matrix.sh
