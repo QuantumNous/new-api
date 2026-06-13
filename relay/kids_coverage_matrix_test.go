@@ -40,6 +40,46 @@ func TestKidsModeCoverageMatrix(t *testing.T) {
 	}
 }
 
+func TestKidsModeCoverageMatrixRequiredScope(t *testing.T) {
+	repoRoot := ".." // relay/ sits one level below repo root
+	matrixPath := filepath.Join(repoRoot, "docs", "kids-coverage-matrix.md")
+
+	body, err := os.ReadFile(matrixPath)
+	if err != nil {
+		t.Fatalf("cannot read matrix file %s: %v", matrixPath, err)
+	}
+	text := string(body)
+
+	required := []string{
+		"Tracks: DR-12",
+		"DR-27",
+		"DR-28",
+		"DR-29",
+		"DR-30",
+		"DR-31",
+		"DeepRouter PRD §6.4-pre",
+		"`AIRBOTIX.md` internal/kids row",
+		"Tenant Resolver",
+		"Policy Middleware",
+		"Protocol Adapter",
+		"Provider Pool",
+		"Tenant Resolver Input Contract",
+		"Model Whitelist",
+		"Metadata Stripping",
+		"Zero-Data-Retention",
+		"Child-Safe System Prompt Injection",
+		"Max Tokens Hard Cap",
+		"Policy Decision Routing",
+		"Middleware Wiring",
+	}
+
+	for _, want := range required {
+		if !strings.Contains(text, want) {
+			t.Errorf("kids-coverage-matrix.md missing required DR-12 scope marker %q", want)
+		}
+	}
+}
+
 var testIdentifierRE = regexp.MustCompile(`\bTest[A-Za-z0-9_]+`)
 
 // extractMatrixTestFunctions reads the matrix markdown and returns every

@@ -36,7 +36,7 @@ fi
 echo "Matrix requires ${#REQUIRED[@]} function(s). Verifying with go test -list..."
 
 # ── 2. Collect available test names from the packages referenced by the matrix ─
-PACKAGES=(./internal/... ./relay/ ./middleware/ ./controller/)
+PACKAGES=(./internal/... ./model/ ./relay/ ./middleware/ ./controller/)
 mapfile -t AVAILABLE < <(
   go test -list '.' "${PACKAGES[@]}" 2>/dev/null \
     | grep '^Test' \

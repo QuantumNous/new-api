@@ -6,11 +6,38 @@ disappears** — enforced by `scripts/check-kids-coverage-matrix.sh` via
 `go test -list` on every PR. See `.github/workflows/airbotix-internal.yml`.
 
 Last updated: 2026-06-13  
-Tracks: DR-12 | References: DRS-27, DRS-28, DRS-29, DRS-30, DRS-31
+Tracks: DR-12 | References: DR-27, DR-28, DR-29, DR-30, DR-31  
+Primary references: DeepRouter PRD §6.4-pre; `AIRBOTIX.md` internal/kids row
+
+---
+
+## DR-12 Layer Map
+
+PRD §6.4-pre requires kids_mode hard constraints to stay covered across
+Tenant Resolver, Protocol Adapter, Policy Middleware, and Provider Pool. This
+matrix is the safety gate for that requirement: removing a listed test function
+must break CI.
+
+| PRD Layer | Owning File(s) | Matrix Section(s) | Owning Test File |
+|---|---|---|---|
+| Tenant Resolver | `model/user.go`, `middleware/policy.go` | Tenant Resolver Input Contract; Middleware Wiring | `model/user_airbotix_test.go`, `middleware/policy_test.go` |
+| Policy Middleware | `internal/policy/profile.go`, `middleware/policy.go` | Policy Decision Routing; Middleware Wiring | `internal/policy/profile_test.go`, `middleware/policy_test.go` |
+| Protocol Adapter | `internal/kids/kids.go`, `relay/airbotix_policy.go` | Model Whitelist; Metadata Stripping; Zero-Data-Retention; Child-Safe System Prompt Injection; Max Tokens Hard Cap | `internal/kids/kids_test.go`, `relay/airbotix_policy_test.go` |
+| Provider Pool | `controller/model.go`, `controller/internal_catalog.go` | Model Whitelist | `controller/internal_catalog_test.go` |
 
 ---
 
 ## Hard Constraints
+
+### 0. Tenant Resolver Input Contract
+
+The tenant resolver must preserve the `users.kids_mode` and `users.policy_profile`
+inputs that downstream policy decisions depend on. Losing these fields makes the
+rest of the safety gate unreachable.
+
+| Layer | Owning File | Test File | Test Function(s) |
+|---|---|---|---|
+| Tenant Resolver — User schema | `model/user.go` | `model/user_airbotix_test.go` | `TestUser_AirbotixFieldsPresent`, `TestUser_AirbotixFieldDefaults`, `TestUser_AirbotixFieldsRoundTrip` |
 
 ### 1. Model Whitelist
 
@@ -22,13 +49,13 @@ Block requests for non-whitelisted models when `KidsMode=true` or
 | Layer | Owning File | Test File | Test Function(s) |
 |---|---|---|---|
 | Core helper | `internal/kids/kids.go` | `internal/kids/kids_test.go` | `TestIsModelEligible` |
-| Policy Decision | `internal/policy/profile.go` | `internal/policy/profile_test.go` | `TestDecisionFor_KidsModeForcesEverything` |
-| Relay — universal gate | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestCheckAirbotixModelWhitelist_*` (4 cases) |
-| Relay — OpenAI shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicy_KidsModeBlocksDisallowedModel` |
-| Relay — Claude shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToClaude_KidsModeRejectsDisallowed` |
-| Relay — Responses shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToResponses_KidsModeRejectsDisallowed` |
-| Relay — Gemini shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToGemini_KidsModeRejectsDisallowedModel` |
-| Catalog endpoint | `controller/model.go` | `controller/internal_catalog_test.go` | `TestKidsModeCatalogPreFilter` |
+| Policy Middleware — Decision engine | `internal/policy/profile.go` | `internal/policy/profile_test.go` | `TestDecisionFor_KidsModeForcesEverything` |
+| Protocol Adapter — universal gate | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestCheckAirbotixModelWhitelist_*` (4 cases) |
+| Protocol Adapter — OpenAI shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicy_KidsModeBlocksDisallowedModel` |
+| Protocol Adapter — Claude shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToClaude_KidsModeRejectsDisallowed` |
+| Protocol Adapter — Responses shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToResponses_KidsModeRejectsDisallowed` |
+| Protocol Adapter — Gemini shape | `relay/airbotix_policy.go` | `relay/airbotix_policy_test.go` | `TestApplyAirbotixPolicyToGemini_KidsModeRejectsDisallowedModel` |
+| Provider Pool — catalog pre-filter | `controller/model.go`, `controller/internal_catalog.go` | `controller/internal_catalog_test.go` | `TestKidsModeCatalogPreFilter` |
 
 ---
 
@@ -126,7 +153,7 @@ DB error (defensive pass-through).
 | Item | Status | Ticket |
 |---|---|---|
 | HTTP-level integration test (httptest mock provider, full relay stack) | Planned — Phase 2.5 | — |
-| ZDR equivalent for Anthropic provider (no `store: false` in Anthropic API) | Accepted gap — metadata strip + prompt control is sufficient for Phase 1 | DRS-31 |
+| ZDR equivalent for Anthropic provider (no `store: false` in Anthropic API) | Accepted gap — metadata strip + prompt control is sufficient for Phase 1 | DR-31 |
 | `/v1/models` fail-closed when **middleware** hits a DB error | When `AirbotixPolicy` middleware runs but DB fails, it writes a passthrough decision (`KidsMode=false`) to context. The catalog endpoint reads that decision and skips filtering — still fail-open in this path. Fix requires adding an `Indeterminate` state to `policy.Decision` so the catalog can distinguish "not kids" from "unknown". Accepted for Phase 1; middleware DB errors are rare and covered by service-level DB health checks. | — |
 
 ---
@@ -140,6 +167,9 @@ touches `internal/**`, `relay/**`, `middleware/**`, `controller/**`,
 ```bash
 # Core helpers
 go test ./internal/... -count=1 -race -timeout 60s
+
+# Tenant resolver schema
+go test ./model/ -run 'TestUser_Airbotix' -count=1 -timeout 60s
 
 # Relay layer (all constraints incl. max_tokens cap + matrix Go test)
 go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
