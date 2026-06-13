@@ -483,8 +483,8 @@ Provider 返回 →
 [Step 2] Billing hook
     - POST tenant.billing_webhook_url
     - body: { request_id, tenant_id, model, prompt_tokens, completion_tokens, 
-              image_count, cost_usd, timestamp }
-    - 失败重试 3 次（指数退避）+ 死信队列
+              image_count, cost_usd, started_at, finished_at }（完整字段定义见 §7.3）
+    - 失败重试 3 次（指数退避）。DLQ / consumer verification 属于 DRS-24/26，DR-8 不包含
     ↓
 [Step 3] Audit log
     - 写入 tenant-specific 表，保留 90 天
@@ -612,6 +612,7 @@ Body:
   "tenant_id": "airbotix-kids",
   "kid_profile_id": "...",        // 由消费端通过 X-Tenant-User header 传入
   "model": "claude-3-5-haiku",
+  "routed_from": "deeprouter-auto", // 客户端原始请求的虚拟模型名；仅 deeprouter-auto 智能路由命中时出现
   "provider": "anthropic",
   "prompt_tokens": 1200,
   "completion_tokens": 480,
@@ -623,7 +624,28 @@ Body:
 }
 ```
 
-Airbotix 端实现 webhook handler → 根据 cost_usd 折算 Stars → 扣减对应 kid_profile_id 的家庭钱包。
+| 字段 | 类型 | omitempty | 说明 |
+|---|---|---|---|
+| `request_id` | string | 否 | 幂等键，receiver 据此去重 |
+| `tenant_id` | string | 否 | Airbotix 租户标识（= `User.Username`） |
+| `family_id` | string | 是 | **V1 预留**，当前始终为空（多家庭/多产品线场景） |
+| `product_line` | string | 是 | **V1 预留**，当前始终为空 |
+| `kid_profile_id` | string | 是 | 由消费端通过 `X-Tenant-User` header 传入，trim 后为空则省略 |
+| `provider` | string | 否 | 小写 wire-format provider 标识（如 `"anthropic"`） |
+| `model` | string | 否 | 实际调用的上游模型（已完成 deeprouter-auto / alias 解析） |
+| `routed_from` | string | 是 | 客户端原始请求的虚拟模型名；仅 deeprouter-auto 智能路由命中时出现 |
+| `prompt_tokens` | int | 否 | 上游返回的 prompt token 数 |
+| `completion_tokens` | int | 否 | 上游返回的 completion token 数 |
+| `image_count` | int | 否 | 图像输入计数；**V0 始终为 0**（实际多模态计数为后续 follow-up） |
+| `cost_usd` | float64 | 否 | `float64(quota) / QuotaPerUnit`，结算后的 USD 成本 |
+| `stars` | int | 是 | **V1 预留**，当前始终为 0；DR-8 不定义 Stars 折算或终端扣费语义，receiver 在 V0 应忽略该字段 |
+| `policy_violations` | []string | 否（非 nil） | 触发的策略规则 ID 列表；无违规时为 `[]`，不为 `null` |
+| `started_at` | string (RFC3339 UTC) | 否 | relay 请求开始时间 |
+| `finished_at` | string (RFC3339 UTC) | 否 | token 统计完成 / dispatch 触发时间 |
+
+> 注：上表仅定义 DeepRouter webhook wire schema。下方 Airbotix Stars / wallet 描述属于 receiver 侧产品计费语义，DR-8 不实现、不校验、不定义该映射；相关 PRD 业务语义 cleanup 留待独立 follow-up。
+
+Airbotix receiver 可基于 webhook 返回的 cost_usd，在自己的计费系统中折算 Stars 并扣减对应 kid_profile_id 的家庭钱包；该映射逻辑属于 receiver 侧产品实现，不属于 DR-8 定义范围。
 
 ### 7.4 一致性
 

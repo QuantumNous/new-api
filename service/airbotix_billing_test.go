@@ -361,6 +361,39 @@ func TestDispatchAirbotixBilling_KidProfileIDFromHeader(t *testing.T) {
 	}
 }
 
+// TestDispatchAirbotixBilling_KidProfileIDWhitespaceHeaderOmitted verifies that
+// a whitespace-only X-Tenant-User header does not populate event.KidProfileID,
+// and that kid_profile_id is omitted from the wire payload (omitempty) —
+// matching the behavior of an absent header.
+func TestDispatchAirbotixBilling_KidProfileIDWhitespaceHeaderOmitted(t *testing.T) {
+	ws := newWebhookServer(t, http.StatusOK)
+	c := billingTestCtx(ws.URL, testSecret, "   ")
+
+	dispatchAirbotixBilling(
+		c,
+		testRelayInfo("req-kid-ws", "gpt-4o-mini", constant.ChannelTypeOpenAI),
+		testUsage(50, 20),
+		200,
+	)
+
+	if !ws.waitHits(1, 2*time.Second) {
+		t.Fatal("webhook not called")
+	}
+
+	ev := decodeEvent(t, ws)
+	if ev.KidProfileID != "" {
+		t.Errorf("KidProfileID: want empty, got %q", ev.KidProfileID)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(ws.getBody(), &raw); err != nil {
+		t.Fatalf("webhook body is not valid JSON: %v", err)
+	}
+	if _, ok := raw["kid_profile_id"]; ok {
+		t.Errorf("kid_profile_id should be omitted (omitempty) for whitespace-only header, got %s", raw["kid_profile_id"])
+	}
+}
+
 // TestDispatchAirbotixBilling_ZeroTokens_NoDispatch verifies that requests with
 // zero prompt + completion tokens do NOT trigger the webhook (metered completion
 // guard). This covers upstream timeouts or responses with no token usage.
@@ -411,7 +444,7 @@ func TestDispatchAirbotixBilling_ZeroQuotaButRealUsage_StillDispatches(t *testin
 // ── no-op guard tests ─────────────────────────────────────────────────────────
 
 // TestDispatchAirbotixBilling_NoopWhenNoUser verifies that the function is a
-// no-op when ContextKeyAirbotixUser is absent (non-Airbotix request path).
+// no-op when the authenticated tenant user context is absent.
 func TestDispatchAirbotixBilling_NoopWhenNoUser(t *testing.T) {
 	ws := newWebhookServer(t, http.StatusOK)
 

@@ -1,4 +1,4 @@
-// Package service — Airbotix billing webhook dispatch.
+// Package service — per-tenant billing webhook dispatch.
 //
 // This file is the 4th sanctioned upstream-adjacent file (ADR-0006). It owns
 // the orchestration layer between the relay completion path and the leaf
@@ -124,8 +124,9 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 
 	// ── Guard 3: tenant webhook configuration ────────────────────────────
-	// Only Airbotix-provisioned users have BillingWebhookURL set.
-	// Non-Airbotix requests have no ContextKeyAirbotixUser and silently pass through.
+	// ContextKeyAirbotixUser is a legacy fork name populated for authenticated
+	// /v1/* tenant requests. Requests without authenticated tenant context, or
+	// tenants without BillingWebhookURL/WebhookSecret, silently pass through.
 	raw, ok := common.GetContextKey(c, constant.ContextKeyAirbotixUser)
 	if !ok || raw == nil {
 		return
@@ -145,13 +146,8 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		// retries (set once in GenRelayInfo). Receivers deduplicate on this.
 		RequestID: relayInfo.RequestId,
 
-		// TenantID is the Airbotix tenant identifier (= User.Username).
+		// TenantID is the tenant identifier (= User.Username).
 		TenantID: user.Username,
-
-		// KidProfileID is the end-user child profile within the tenant.
-		// Passed by the caller as the X-Tenant-User request header (PRD §7.3).
-		// Empty string is fine for non-kids requests.
-		KidProfileID: c.GetHeader("X-Tenant-User"),
 
 		// Provider is the stable, lowercase wire-format identifier (PRD §7.3).
 		// Uses channelTypeProviderID() not GetChannelTypeName() (display names).
@@ -195,6 +191,13 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		event.RoutedFrom = aliasFrom
 	}
 
+	// KidProfileID: trim whitespace so a whitespace-only X-Tenant-User header
+	// (e.g. "   ") is treated as absent and correctly omitted via omitempty,
+	// matching the behavior of a missing header.
+	if kidProfileID := strings.TrimSpace(c.GetHeader("X-Tenant-User")); kidProfileID != "" {
+		event.KidProfileID = kidProfileID
+	}
+
 	// ── Async dispatch ───────────────────────────────────────────────────
 	// Extract all values from gin.Context BEFORE crossing the goroutine
 	// boundary. gin.Context must not be read from a different goroutine;
@@ -210,7 +213,7 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		status, err := dispatcher.Send(url, secret, event)
 		if err != nil {
 			logger.LogWarn(asyncCtx, fmt.Sprintf(
-				"airbotix billing webhook failed request_id=%s tenant=%s status=%d err=%s",
+				"tenant billing webhook failed request_id=%s tenant=%s status=%d err=%s",
 				event.RequestID, event.TenantID, status, err.Error(),
 			))
 		}

@@ -12,8 +12,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -194,6 +197,67 @@ func TestDispatcher_Send_Treats408AsTransient(t *testing.T) {
 	}
 }
 
+// ── URL sanitization (sanitizeURLError) ─────────────────────────────────────
+
+// failingRoundTripper simulates a network error whose *url.Error wraps the
+// full request URL (including a query-string token), so the test can verify
+// sanitizeURLError strips it before Send returns.
+type failingRoundTripper struct{}
+
+func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, &url.Error{
+		Op:  "Post",
+		URL: "http://example.test/webhook?token=secret-token-value",
+		Err: errors.New("connection refused"),
+	}
+}
+
+// TestDispatcher_BuildRequestErrorDoesNotContainWebhookURL verifies that when
+// http.NewRequest fails to build the outbound request (e.g. an invalid URL),
+// the error returned by Send does not leak the webhook URL — which may carry
+// a signing token in its query string (PRD §7.3).
+func TestDispatcher_BuildRequestErrorDoesNotContainWebhookURL(t *testing.T) {
+	d := NewDispatcher()
+
+	// A NUL byte makes url.Parse (called by http.NewRequest) fail with
+	// "net/url: invalid control character in URL".
+	badURL := "http://example.test/webhook?token=secret-token-value\x00"
+
+	_, err := d.Send(badURL, []byte("s"), minimalEvent("req-bad-url"))
+	if err == nil {
+		t.Fatal("expected error for invalid URL, got nil")
+	}
+	if strings.Contains(err.Error(), "secret-token-value") {
+		t.Errorf("error must not contain the webhook URL's query string, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "/webhook") {
+		t.Errorf("error must not contain the webhook URL's path, got: %v", err)
+	}
+}
+
+// TestDispatcher_ErrorsDoNotContainWebhookURL verifies that a network error
+// from Client.Do — which net/http wraps in *url.Error containing the request
+// URL — does not leak the webhook URL via sanitizeURLError.
+func TestDispatcher_ErrorsDoNotContainWebhookURL(t *testing.T) {
+	d := &Dispatcher{
+		Client:     &http.Client{Transport: failingRoundTripper{}},
+		MaxRetries: 0,
+	}
+
+	webhookURL := "http://example.test/webhook?token=secret-token-value"
+
+	_, err := d.Send(webhookURL, []byte("s"), minimalEvent("req-network-error"))
+	if err == nil {
+		t.Fatal("expected error for failed RoundTrip, got nil")
+	}
+	if strings.Contains(err.Error(), "secret-token-value") {
+		t.Errorf("error must not contain the webhook URL's query string, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "/webhook") {
+		t.Errorf("error must not contain the webhook URL's path, got: %v", err)
+	}
+}
+
 // TestEvent_PolicyViolations_SerializesAsEmptyArray verifies that an explicitly
 // initialised empty PolicyViolations slice serialises as [] rather than null.
 //
@@ -230,12 +294,30 @@ func TestEvent_PolicyViolations_SerializesAsEmptyArray(t *testing.T) {
 	}
 }
 
-// TestDispatcher_Send_EmptyURL returns an error immediately without making
-// any HTTP call — prevents a panic or confused error from net/http.
+// panicRoundTripper fails the test if RoundTrip is ever called — used to
+// assert that Send("") returns without making any HTTP call.
+type panicRoundTripper struct{ t *testing.T }
+
+func (p panicRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	p.t.Fatal("unexpected HTTP call for empty webhook URL")
+	return nil, nil
+}
+
+// TestDispatcher_Send_EmptyURL verifies that an empty webhook URL is a
+// deliberate no-op: (0, nil), with no HTTP call attempted. Tenants without a
+// configured BillingWebhookURL must not produce error-log noise on every
+// metered request (service/airbotix_billing.go dispatches unconditionally).
 func TestDispatcher_Send_EmptyURL(t *testing.T) {
-	d := NewDispatcher()
-	_, err := d.Send("", []byte("s"), minimalEvent("req-empty-url"))
-	if err == nil {
-		t.Error("expected error for empty URL, got nil")
+	d := &Dispatcher{
+		Client:     &http.Client{Transport: panicRoundTripper{t: t}},
+		MaxRetries: 0,
+	}
+
+	status, err := d.Send("", []byte("s"), minimalEvent("req-empty-url"))
+	if err != nil {
+		t.Errorf("expected nil error for empty URL, got: %v", err)
+	}
+	if status != 0 {
+		t.Errorf("expected status 0 for empty URL, got %d", status)
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -41,8 +42,9 @@ import (
 //
 // Field contract (PRD §7.3 + DR-25 ticket):
 //   - All string timestamps are RFC3339 UTC.
-//   - CostUSD = float64(quota) / common.QuotaPerUnit; Stars conversion is the
-//     receiver's responsibility (PRD §7.2.1).
+//   - CostUSD = float64(quota) / common.QuotaPerUnit.
+//   - Receiver-side end-user billing, Stars conversion, wallet deduction, and
+//     terminal charging semantics are outside DR-8's scope.
 //   - PolicyViolations is always present (empty slice, not null) so receivers
 //     can use it without nil-checking. Phase 4 content moderation will populate it.
 //   - RoutedFrom is non-empty only when the smart-router resolved a virtual model
@@ -55,7 +57,7 @@ type Event struct {
 	// layer. Receivers must deduplicate by this field (PRD §7.3).
 	RequestID string `json:"request_id"`
 
-	// TenantID identifies the Airbotix tenant (= model.User.Username).
+	// TenantID identifies the tenant (= model.User.Username).
 	TenantID string `json:"tenant_id"`
 
 	// FamilyID and ProductLine are optional tenant-hierarchy fields reserved
@@ -99,9 +101,9 @@ type Event struct {
 	// Calculated after SettleBilling so it reflects the final settled amount.
 	CostUSD float64 `json:"cost_usd"`
 
-	// Stars is reserved for the Airbotix Stars credit mapping (V1).
-	// Always 0 in V0. Receivers should ignore until the Stars pricing table
-	// is wired in.
+	// Stars is a V1 reserved field retained for compatibility with main.
+	// Always 0 in V0. DR-8 does not define Stars conversion or terminal
+	// charging semantics; receivers should ignore this field in V0.
 	Stars int `json:"stars,omitempty"`
 
 	// PolicyViolations lists policy rule IDs triggered during this request
@@ -127,6 +129,27 @@ func SignPayload(payload, secret []byte) string {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// sanitizeURLError redacts the URL field of any *url.Error in err's chain,
+// replacing it with "[redacted]". Both http.NewRequest (invalid URL) and
+// http.Client.Do (network error) return *url.Error with URL set to the
+// request URL, which for billing webhooks may include a signing token in
+// the query string (PRD §7.3). Without this, that token could leak into
+// returned errors and logs. Non-*url.Error values are returned unchanged.
+func sanitizeURLError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var urlErr *neturl.Error
+	if errors.As(err, &urlErr) {
+		return &neturl.Error{
+			Op:  urlErr.Op,
+			URL: "[redacted]",
+			Err: sanitizeURLError(urlErr.Err),
+		}
+	}
+	return err
 }
 
 // Dispatcher sends Events to a tenant's webhook endpoint with best-effort
@@ -167,7 +190,11 @@ func NewDispatcher() *Dispatcher {
 //   Total wall time for full failure: ≈ 1.4 s + 4 × network RTT
 func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 	if url == "" {
-		return 0, errors.New("billing.Send: empty webhook url")
+		// No webhook configured for this tenant: a deliberate no-op, not an
+		// error. Callers (service/airbotix_billing.go) dispatch unconditionally
+		// for every metered request, so an empty BillingWebhookURL must not
+		// surface as an error in logs.
+		return 0, nil
 	}
 
 	// Serialise once; reuse the same bytes for every retry attempt so the
@@ -186,7 +213,7 @@ func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 		// not reusable after the first Read without an explicit Seek.
 		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
 		if err != nil {
-			return 0, fmt.Errorf("billing.Send: build request: %w", err)
+			return 0, fmt.Errorf("billing.Send: build request: %w", sanitizeURLError(err))
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-DeepRouter-Signature", sig)
@@ -195,7 +222,7 @@ func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 
 		resp, err := d.Client.Do(req)
 		if err != nil {
-			lastErr = err
+			lastErr = sanitizeURLError(err)
 			lastStatus = 0
 		} else {
 			lastStatus = resp.StatusCode
