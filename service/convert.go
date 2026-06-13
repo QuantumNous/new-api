@@ -247,6 +247,13 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	return usage
 }
 
+// BuildClaudeUsageFromOpenAIUsage is the exported variant of
+// buildClaudeUsageFromOpenAIUsage for cross-package callers (e.g. fallback
+// closing events in relay/channel/openai/helper.go).
+func BuildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
+	return buildClaudeUsageFromOpenAIUsage(oaiUsage)
+}
+
 func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (int, int) {
 	remainder := lo.Max([]int{totalTokens - tokens5m - tokens1h, 0})
 	return tokens5m + remainder, tokens1h
@@ -468,10 +475,36 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = info.ClaudeConvertInfo.Usage
-				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
-				// Defer closing until usage is available so the final message_delta carries it.
-				return claudeResponses
 			}
+			// Emit closing events immediately. Some OpenAI-compatible upstreams
+			// (e.g. LiteLLM) send finish_reason without usage and never follow up
+			// with a usage-only chunk; deferring would leave Claude Code hanging.
+			stopOpenBlocks()
+			stopReason := stopReasonOpenAI2Claude(info.FinishReason)
+			if stopReason == "" {
+				stopReason = "end_turn"
+			}
+			if oaiUsage != nil {
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Type:  "message_delta",
+					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReason),
+					},
+				})
+			} else {
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Type: "message_delta",
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReason),
+					},
+				})
+			}
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Type: "message_stop",
+			})
+			info.ClaudeConvertInfo.Done = true
+			return claudeResponses
 		}
 
 		var claudeResponse dto.ClaudeResponse
@@ -645,6 +678,12 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 
 func stopReasonOpenAI2Claude(reason string) string {
 	return reasonmap.OpenAIFinishReasonToClaudeStopReason(reason)
+}
+
+// StopReasonOpenAI2Claude is the exported variant for cross-package callers
+// (e.g. fallback closing events in relay/channel/openai/helper.go).
+func StopReasonOpenAI2Claude(reason string) string {
+	return stopReasonOpenAI2Claude(reason)
 }
 
 func toJSONString(v interface{}) string {
