@@ -228,6 +228,7 @@ func SetApiRouter(router *gin.Engine) {
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{
+			channelRoute.GET("", controller.GetAllChannels)
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)
 			channelRoute.GET("/models", controller.ChannelListModels)
@@ -238,6 +239,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/test/:id", controller.TestChannel)
 			channelRoute.GET("/update_balance", controller.UpdateAllChannelsBalance)
 			channelRoute.GET("/update_balance/:id", controller.UpdateChannelBalance)
+			channelRoute.POST("", controller.AddChannel)
 			channelRoute.POST("/", controller.AddChannel)
 			channelRoute.PUT("/", controller.UpdateChannel)
 			channelRoute.DELETE("/disabled", controller.DeleteDisabledChannel)
@@ -263,6 +265,19 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/upstream_updates/apply_all", controller.ApplyAllChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect", controller.DetectChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect_all", controller.DetectAllChannelUpstreamModelUpdates)
+		}
+		channelFlowRoute := apiRouter.Group("/channel_flow")
+		channelFlowRoute.Use(middleware.AdminAuth())
+		{
+			channelFlowRoute.GET("/pools", controller.ListChannelFlowPools)
+			channelFlowRoute.POST("/pools", controller.CreateChannelFlowPool)
+			channelFlowRoute.GET("/pools/:id", controller.GetChannelFlowPool)
+			channelFlowRoute.PUT("/pools/:id", controller.UpdateChannelFlowPool)
+			channelFlowRoute.DELETE("/pools/:id", controller.DeleteChannelFlowPool)
+			channelFlowRoute.GET("/pools/:id/status", controller.GetChannelFlowPoolStatus)
+			channelFlowRoute.GET("/pools/:id/bindings", controller.ListChannelFlowPoolBindings)
+			channelFlowRoute.POST("/pools/:id/bindings", controller.CreateChannelFlowPoolBinding)
+			channelFlowRoute.DELETE("/bindings/:id", controller.DeleteChannelFlowPoolBinding)
 		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())

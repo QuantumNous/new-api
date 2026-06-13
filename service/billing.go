@@ -2,8 +2,11 @@ package service
 
 import (
 	"fmt"
+	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -23,6 +26,64 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 	}
 	relayInfo.Billing = session
 	return nil
+}
+
+// PrecheckBilling performs a read-only quota sanity check before a request enters
+// a flow-control queue. It intentionally does not reserve or deduct quota.
+func PrecheckBilling(c *gin.Context, estimatedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
+	if relayInfo == nil || estimatedQuota <= 0 {
+		return nil
+	}
+	trustQuota := common.GetTrustQuota()
+	if !relayInfo.TokenUnlimited {
+		tokenQuota := c.GetInt("token_quota")
+		if tokenQuota <= trustQuota && tokenQuota < estimatedQuota {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("令牌额度不足, 剩余额度: %s, 预计需要额度: %s", logger.FormatQuota(tokenQuota), logger.FormatQuota(estimatedQuota)),
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
+	}
+
+	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	}
+	relayInfo.UserQuota = userQuota
+	walletOK := userQuota > 0 && userQuota >= estimatedQuota
+	hasSub, subErr := model.HasActiveUserSubscription(relayInfo.UserId)
+	if subErr != nil {
+		return types.NewError(subErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	}
+
+	switch common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference) {
+	case "wallet_only":
+		if !walletOK {
+			return insufficientPrecheckError(userQuota, estimatedQuota)
+		}
+	case "subscription_only":
+		if !hasSub {
+			return insufficientPrecheckError(userQuota, estimatedQuota)
+		}
+	case "wallet_first":
+		if !walletOK && !hasSub {
+			return insufficientPrecheckError(userQuota, estimatedQuota)
+		}
+	case "subscription_first":
+		fallthrough
+	default:
+		if !hasSub && !walletOK {
+			return insufficientPrecheckError(userQuota, estimatedQuota)
+		}
+	}
+	return nil
+}
+
+func insufficientPrecheckError(userQuota int, estimatedQuota int) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("额度不足, 剩余额度: %s, 预计需要额度: %s", logger.FormatQuota(userQuota), logger.FormatQuota(estimatedQuota)),
+		types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+		types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 }
 
 // ---------------------------------------------------------------------------

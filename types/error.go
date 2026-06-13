@@ -85,6 +85,16 @@ const (
 	// quota error
 	ErrorCodeInsufficientUserQuota      ErrorCode = "insufficient_user_quota"
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
+
+	// channel flow control errors
+	ErrorCodeChannelFlowQueueFull              ErrorCode = "channel_flow_queue_full"
+	ErrorCodeChannelFlowQueueTimeout           ErrorCode = "channel_flow_queue_timeout"
+	ErrorCodeChannelFlowContextExceeded        ErrorCode = "channel_flow_context_exceeded"
+	ErrorCodeChannelFlowDraining               ErrorCode = "channel_flow_draining"
+	ErrorCodeChannelFlowBackendUnavailable     ErrorCode = "channel_flow_backend_unavailable"
+	ErrorCodeChannelFlowConfigInvalid          ErrorCode = "channel_flow_config_invalid"
+	ErrorCodeChannelFlowBillingFailedAfterWait ErrorCode = "channel_flow_billing_failed_after_wait"
+	ErrorCodeChannelFlowPerUserQueueFull       ErrorCode = "channel_flow_per_user_queue_full"
 )
 
 type NewAPIError struct {

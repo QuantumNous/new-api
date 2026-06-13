@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -159,9 +160,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
 
 	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过计费预检查", relayInfo.OriginModelName))
 	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+		newAPIError = service.PrecheckBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
 			return
 		}
@@ -197,8 +198,39 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		addUsedChannel(c, channel.Id)
+		flowGuard, _, flowErr := service.AcquireChannelFlowGuard(c, channel.Id, relayInfo)
+		if flowErr != nil {
+			newAPIError = flowErr
+			break
+		}
+
+		attemptPriceData, priceErr := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if priceErr != nil {
+			if flowGuard != nil {
+				_ = flowGuard.Release(context.Background())
+			}
+			newAPIError = types.NewError(priceErr, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+			break
+		}
+		if !attemptPriceData.FreeModel {
+			if relayInfo.Billing == nil {
+				newAPIError = service.PreConsumeBilling(c, attemptPriceData.QuotaToPreConsume, relayInfo)
+			} else if reserveErr := relayInfo.Billing.Reserve(attemptPriceData.QuotaToPreConsume); reserveErr != nil {
+				newAPIError = types.NewErrorWithStatusCode(reserveErr, types.ErrorCodeChannelFlowBillingFailedAfterWait, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			}
+			if newAPIError != nil {
+				if flowGuard != nil {
+					_ = flowGuard.Release(context.Background())
+				}
+				break
+			}
+		}
+
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
+			if flowGuard != nil {
+				_ = flowGuard.Release(context.Background())
+			}
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
@@ -218,6 +250,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = geminiRelayHandler(c, relayInfo)
 		default:
 			newAPIError = relayHandler(c, relayInfo)
+		}
+
+		if flowGuard != nil {
+			_ = flowGuard.Release(context.Background())
 		}
 
 		if newAPIError == nil {
