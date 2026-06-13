@@ -36,15 +36,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StaticDataTable } from '@/components/data-table'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
@@ -245,112 +238,117 @@ export function UserSubscriptionsDialog(props: Props) {
               </Button>
             </div>
 
-            <div className='rounded-md border'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>{t('Plan')}</TableHead>
-                    <TableHead>{t('Status')}</TableHead>
-                    <TableHead>{t('Validity')}</TableHead>
-                    <TableHead>{t('Total Quota')}</TableHead>
-                    <TableHead className='text-right'>{t('Actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className='py-8 text-center'>
-                        {t('Loading...')}
-                      </TableCell>
-                    </TableRow>
-                  ) : subs.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className='text-muted-foreground py-8 text-center'
-                      >
-                        {t('No subscription records')}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    subs.map((record) => {
-                      const sub = record.subscription
-                      const now = Date.now() / 1000
-                      const isExpired =
-                        (sub.end_time || 0) > 0 && sub.end_time < now
-                      const isActive = sub.status === 'active' && !isExpired
-                      const total = Number(sub.amount_total || 0)
-                      const used = Number(sub.amount_used || 0)
+            <StaticDataTable
+              data={loading ? [] : subs}
+              getRowKey={(record) => record.subscription.id}
+              emptyClassName={loading ? 'py-8' : 'text-muted-foreground py-8'}
+              emptyContent={
+                loading ? t('Loading...') : t('No subscription records')
+              }
+              columns={[
+                {
+                  id: 'id',
+                  header: t('ID'),
+                  cell: (record) => <TableId value={record.subscription.id} />,
+                },
+                {
+                  id: 'plan',
+                  header: t('Plan'),
+                  cell: (record) => {
+                    const sub = record.subscription
 
-                      return (
-                        <TableRow key={sub.id}>
-                          <TableCell>
-                            <TableId value={sub.id} />
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className='font-medium'>
-                                {planTitleMap.get(sub.plan_id) ||
-                                  `#${sub.plan_id}`}
-                              </div>
-                              <div className='text-muted-foreground text-sm'>
-                                {t('Source')}: {sub.source || '-'}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <SubscriptionStatusBadge sub={sub} t={t} />
-                          </TableCell>
-                          <TableCell>
-                            <div className='text-sm'>
-                              <div>
-                                {t('Start')}: {formatTimestamp(sub.start_time)}
-                              </div>
-                              <div>
-                                {t('End')}: {formatTimestamp(sub.end_time)}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {total > 0 ? `${used}/${total}` : t('Unlimited')}
-                          </TableCell>
-                          <TableCell className='text-right'>
-                            <div className='flex justify-end gap-1'>
-                              <Button
-                                size='sm'
-                                variant='outline'
-                                disabled={!isActive}
-                                onClick={() =>
-                                  setConfirmAction({
-                                    type: 'invalidate',
-                                    subId: sub.id,
-                                  })
-                                }
-                              >
-                                {t('Invalidate')}
-                              </Button>
-                              <Button
-                                size='sm'
-                                variant='destructive'
-                                onClick={() =>
-                                  setConfirmAction({
-                                    type: 'delete',
-                                    subId: sub.id,
-                                  })
-                                }
-                              >
-                                {t('Delete')}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    return (
+                      <div>
+                        <div className='font-medium'>
+                          {planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`}
+                        </div>
+                        <div className='text-muted-foreground text-sm'>
+                          {t('Source')}: {sub.source || '-'}
+                        </div>
+                      </div>
+                    )
+                  },
+                },
+                {
+                  id: 'status',
+                  header: t('Status'),
+                  cell: (record) => (
+                    <SubscriptionStatusBadge sub={record.subscription} t={t} />
+                  ),
+                },
+                {
+                  id: 'validity',
+                  header: t('Validity'),
+                  cell: (record) => {
+                    const sub = record.subscription
+
+                    return (
+                      <div className='text-sm'>
+                        <div>
+                          {t('Start')}: {formatTimestamp(sub.start_time)}
+                        </div>
+                        <div>
+                          {t('End')}: {formatTimestamp(sub.end_time)}
+                        </div>
+                      </div>
+                    )
+                  },
+                },
+                {
+                  id: 'quota',
+                  header: t('Total Quota'),
+                  cell: (record) => {
+                    const sub = record.subscription
+                    const total = Number(sub.amount_total || 0)
+                    const used = Number(sub.amount_used || 0)
+                    return total > 0 ? `${used}/${total}` : t('Unlimited')
+                  },
+                },
+                {
+                  id: 'actions',
+                  header: t('Actions'),
+                  className: 'text-right',
+                  cellClassName: 'text-right',
+                  cell: (record) => {
+                    const sub = record.subscription
+                    const now = Date.now() / 1000
+                    const isExpired =
+                      (sub.end_time || 0) > 0 && sub.end_time < now
+                    const isActive = sub.status === 'active' && !isExpired
+
+                    return (
+                      <div className='flex justify-end gap-1'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={!isActive}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: 'invalidate',
+                              subId: sub.id,
+                            })
+                          }
+                        >
+                          {t('Invalidate')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='destructive'
+                          onClick={() =>
+                            setConfirmAction({
+                              type: 'delete',
+                              subId: sub.id,
+                            })
+                          }
+                        >
+                          {t('Delete')}
+                        </Button>
+                      </div>
+                    )
+                  },
+                },
+              ]}
+            />
           </div>
         </SheetContent>
       </Sheet>

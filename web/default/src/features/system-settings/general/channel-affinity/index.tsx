@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -31,16 +31,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StaticDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../../components/settings-page-context'
@@ -79,6 +72,43 @@ function RuleBadgeList(props: { items: string[] }) {
         />
       )}
     />
+  )
+}
+
+function ChannelAffinityConfirmDialog(props: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: ReactNode
+  desc: ReactNode
+  handleConfirm: () => void
+  destructive?: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={props.title}
+      contentClassName='sm:max-w-md'
+      contentHeight='auto'
+      bodyClassName='flex items-start'
+      footer={
+        <>
+          <Button variant='outline' onClick={() => props.onOpenChange(false)}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            variant={props.destructive ? 'destructive' : 'default'}
+            onClick={props.handleConfirm}
+          >
+            {t('Continue')}
+          </Button>
+        </>
+      }
+    >
+      <div className='text-muted-foreground text-sm'>{props.desc}</div>
+    </Dialog>
   )
 }
 
@@ -509,118 +539,117 @@ export function ChannelAffinitySection(props: Props) {
 
         {/* Rules Table or JSON Editor */}
         {editMode === 'visual' ? (
-          <div className='overflow-x-auto rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('Name')}</TableHead>
-                  <TableHead>{t('Model Regex')}</TableHead>
-                  <TableHead>{t('Key Sources')}</TableHead>
-                  <TableHead>{t('TTL')}</TableHead>
-                  <TableHead>{t('Retry')}</TableHead>
-                  <TableHead>{t('Scope')}</TableHead>
-                  <TableHead>{t('Cache')}</TableHead>
-                  <TableHead className='text-right'>{t('Actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className='text-muted-foreground py-8 text-center'
+          <StaticDataTable
+            tableClassName='min-w-max'
+            data={rules}
+            emptyClassName='text-muted-foreground py-8'
+            emptyContent={t('No rules yet')}
+            columns={[
+              {
+                id: 'name',
+                header: t('Name'),
+                cellClassName: 'font-medium',
+                cell: (rule) => rule.name || '-',
+              },
+              {
+                id: 'model-regex',
+                header: t('Model Regex'),
+                cell: (rule) => <RuleBadgeList items={rule.model_regex || []} />,
+              },
+              {
+                id: 'key-sources',
+                header: t('Key Sources'),
+                cell: (rule) => (
+                  <RuleBadgeList
+                    items={(rule.key_sources || []).map(
+                      (src) =>
+                        `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
+                    )}
+                  />
+                ),
+              },
+              {
+                id: 'ttl',
+                header: t('TTL'),
+                cell: (rule) => rule.ttl_seconds || '-',
+              },
+              {
+                id: 'retry',
+                header: t('Retry'),
+                cell: (rule) => (
+                  <StatusBadge
+                    label={
+                      rule.skip_retry_on_failure ? t('No Retry') : t('Retry')
+                    }
+                    variant={rule.skip_retry_on_failure ? 'danger' : 'neutral'}
+                    copyable={false}
+                  />
+                ),
+              },
+              {
+                id: 'scope',
+                header: t('Scope'),
+                cell: (rule) => {
+                  const scopeItems = [
+                    rule.include_using_group && t('Group'),
+                    rule.include_model_name && t('Model'),
+                    rule.include_rule_name && t('Rule'),
+                  ].filter(Boolean) as string[]
+                  if (scopeItems.length === 0) return '-'
+                  return <RuleBadgeList items={scopeItems} />
+                },
+              },
+              {
+                id: 'cache',
+                header: t('Cache'),
+                cell: (rule) =>
+                  rule.include_rule_name && cacheStats?.by_rule_name
+                    ? cacheStats.by_rule_name[rule.name] || 0
+                    : 'N/A',
+              },
+              {
+                id: 'actions',
+                header: t('Actions'),
+                className: 'text-right',
+                cellClassName: 'text-right',
+                cell: (rule, idx) => (
+                  <div className='flex justify-end gap-1'>
+                    {rule.include_rule_name && (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7'
+                        onClick={() => setClearRuleName(rule.name)}
+                        title={t('Clear cache for this rule')}
+                      >
+                        <X className='h-3 w-3' />
+                      </Button>
+                    )}
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-7 w-7'
+                      onClick={() => {
+                        setEditingRule(rule)
+                        setRuleTemplateKey(null)
+                        setRuleEditorOpen(true)
+                      }}
                     >
-                      {t('No rules yet')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rules.map((rule, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className='font-medium'>
-                        {rule.name || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <RuleBadgeList items={rule.model_regex || []} />
-                      </TableCell>
-                      <TableCell>
-                        <RuleBadgeList
-                          items={(rule.key_sources || []).map(
-                            (src) =>
-                              `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell>{rule.ttl_seconds || '-'}</TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          label={
-                            rule.skip_retry_on_failure
-                              ? t('No Retry')
-                              : t('Retry')
-                          }
-                          variant={
-                            rule.skip_retry_on_failure ? 'danger' : 'neutral'
-                          }
-                          copyable={false}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const scopeItems = [
-                            rule.include_using_group && t('Group'),
-                            rule.include_model_name && t('Model'),
-                            rule.include_rule_name && t('Rule'),
-                          ].filter(Boolean) as string[]
-                          if (scopeItems.length === 0) return '-'
-                          return <RuleBadgeList items={scopeItems} />
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {rule.include_rule_name && cacheStats?.by_rule_name
-                          ? cacheStats.by_rule_name[rule.name] || 0
-                          : 'N/A'}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <div className='flex justify-end gap-1'>
-                          {rule.include_rule_name && (
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='h-7 w-7'
-                              onClick={() => setClearRuleName(rule.name)}
-                              title={t('Clear cache for this rule')}
-                            >
-                              <X className='h-3 w-3' />
-                            </Button>
-                          )}
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='h-7 w-7'
-                            onClick={() => {
-                              setEditingRule(rule)
-                              setRuleTemplateKey(null)
-                              setRuleEditorOpen(true)
-                            }}
-                          >
-                            <Edit className='h-3 w-3' />
-                          </Button>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='h-7 w-7'
-                            onClick={() => handleDeleteRule(idx)}
-                          >
-                            <Trash2 className='h-3 w-3' />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                      <Edit className='h-3 w-3' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-7 w-7'
+                      onClick={() => handleDeleteRule(idx)}
+                    >
+                      <Trash2 className='h-3 w-3' />
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+          />
         ) : (
           <div className='grid gap-1.5'>
             <Label>{t('Rules JSON')}</Label>
@@ -641,7 +670,7 @@ export function ChannelAffinitySection(props: Props) {
         templateKey={ruleTemplateKey}
       />
 
-      <ConfirmDialog
+      <ChannelAffinityConfirmDialog
         open={clearAllDialogOpen}
         onOpenChange={setClearAllDialogOpen}
         title={t('Confirm clearing all channel affinity cache')}
@@ -653,7 +682,7 @@ export function ChannelAffinitySection(props: Props) {
       />
 
       {clearRuleName !== null && (
-        <ConfirmDialog
+        <ChannelAffinityConfirmDialog
           open
           onOpenChange={(v) => !v && setClearRuleName(null)}
           title={t('Confirm clearing cache for this rule')}
@@ -663,7 +692,7 @@ export function ChannelAffinitySection(props: Props) {
         />
       )}
 
-      <ConfirmDialog
+      <ChannelAffinityConfirmDialog
         open={fillTemplateDialogOpen}
         onOpenChange={setFillTemplateDialogOpen}
         title={t('Fill Codex CLI / Claude CLI Templates')}
