@@ -53,6 +53,7 @@ type User struct {
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	Country          string         `json:"country,omitempty" gorm:"type:varchar(10);default:''"`
+	Language         string         `json:"language,omitempty" gorm:"type:varchar(10);default:''"`
 }
 
 func (user *User) ToBaseUser() *UserBase {

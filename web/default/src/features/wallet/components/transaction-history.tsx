@@ -110,7 +110,7 @@ export function TransactionHistory() {
     handleSearch,
     handleStatusChange,
   } = useBillingHistory({ initialPageSize: 10 })
-  const colCount = isAdmin ? 8 : 6
+  const colCount = isAdmin ? 9 : 6
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -163,6 +163,7 @@ export function TransactionHistory() {
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Order No.')}</th>
                 {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>{t('Username')}</th>}
                 {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />{t('Country')}</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>{t('Language')}</th>}
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Payment Method')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Recharge Amount')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Amount Paid')}</th>
@@ -177,6 +178,7 @@ export function TransactionHistory() {
                       <td className='px-4 py-3'><Skeleton className='h-4 w-44' /></td>
                       {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-24' /></td>}
                       {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-8' /></td>}
+                      {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-10' /></td>}
                       <td className='px-4 py-3'><Skeleton className='h-4 w-16' /></td>
                       <td className='px-4 py-3'><Skeleton className='ml-auto h-4 w-12' /></td>
                       <td className='px-4 py-3'><Skeleton className='ml-auto h-4 w-16' /></td>
@@ -233,6 +235,13 @@ export function TransactionHistory() {
                                 </div>
                               : <span className='text-muted-foreground text-xs'>—</span>
                           })()}
+                        </td>
+                      )}
+                      {isAdmin && (
+                        <td className='px-4 py-3'>
+                          {record.language
+                            ? <span className='text-xs font-medium'>{record.language}</span>
+                            : <span className='text-muted-foreground text-xs'>—</span>}
                         </td>
                       )}
                       <td className='px-4 py-3 text-muted-foreground'>

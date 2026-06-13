@@ -26,6 +26,7 @@ type TopUp struct {
 	Username string `json:"username,omitempty" gorm:"-"`
 	Email    string `json:"email,omitempty" gorm:"-"`
 	Country  string `json:"country,omitempty" gorm:"-"`
+	Language string `json:"language,omitempty" gorm:"-"`
 }
 
 const (
@@ -798,9 +799,10 @@ func EnrichTopupsWithUserInfo(topups []*TopUp) {
 		Username string
 		Email    string
 		Country  string
+		Language string
 	}
 	var rows []row
-	if err := DB.Model(&User{}).Select("id, username, email, country").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := DB.Model(&User{}).Select("id, username, email, country, language").Where("id IN ?", ids).Find(&rows).Error; err != nil {
 		return
 	}
 	m := make(map[int]row, len(rows))
@@ -812,6 +814,7 @@ func EnrichTopupsWithUserInfo(topups []*TopUp) {
 			t.Username = u.Username
 			t.Email = u.Email
 			t.Country = u.Country
+			t.Language = u.Language
 		}
 	}
 }
