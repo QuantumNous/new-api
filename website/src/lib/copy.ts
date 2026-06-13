@@ -3,6 +3,9 @@ import type { Locale } from "./locales";
 type Copy = {
   nav: {
     pricing: string;
+    modelPricing: string;
+    home: string;
+    console: string;
     rankings: string;
     blog: string;
     about: string;
@@ -35,6 +38,9 @@ const copies: Record<Locale, Copy> = {
   en: {
     nav: {
       pricing: "Pricing",
+      modelPricing: "Model Pricing",
+      home: "Home",
+      console: "Console",
       rankings: "Rankings",
       blog: "Blog",
       about: "About",
@@ -66,6 +72,9 @@ const copies: Record<Locale, Copy> = {
   zh: {
     nav: {
       pricing: "价格",
+      modelPricing: "模型定价",
+      home: "主页",
+      console: "控制台",
       rankings: "排行",
       blog: "博客",
       about: "关于",
@@ -96,6 +105,9 @@ const copies: Record<Locale, Copy> = {
   es: {
     nav: {
       pricing: "Precios",
+      modelPricing: "Precios de modelos",
+      home: "Inicio",
+      console: "Consola",
       rankings: "Rankings",
       blog: "Blog",
       about: "Acerca de",
@@ -127,6 +139,9 @@ const copies: Record<Locale, Copy> = {
   fr: {
     nav: {
       pricing: "Tarifs",
+      modelPricing: "Tarifs des modèles",
+      home: "Accueil",
+      console: "Console",
       rankings: "Classements",
       blog: "Blog",
       about: "À propos",
@@ -158,6 +173,9 @@ const copies: Record<Locale, Copy> = {
   pt: {
     nav: {
       pricing: "Preços",
+      modelPricing: "Preços dos modelos",
+      home: "Início",
+      console: "Console",
       rankings: "Rankings",
       blog: "Blog",
       about: "Sobre",
@@ -189,6 +207,9 @@ const copies: Record<Locale, Copy> = {
   ru: {
     nav: {
       pricing: "Цены",
+      modelPricing: "Цены моделей",
+      home: "Главная",
+      console: "Консоль",
       rankings: "Рейтинги",
       blog: "Блог",
       about: "О нас",
@@ -220,6 +241,9 @@ const copies: Record<Locale, Copy> = {
   ja: {
     nav: {
       pricing: "料金",
+      modelPricing: "モデル料金",
+      home: "ホーム",
+      console: "コンソール",
       rankings: "ランキング",
       blog: "ブログ",
       about: "概要",
@@ -251,6 +275,9 @@ const copies: Record<Locale, Copy> = {
   vi: {
     nav: {
       pricing: "Giá",
+      modelPricing: "Giá mô hình",
+      home: "Trang chủ",
+      console: "Bảng điều khiển",
       rankings: "Xếp hạng",
       blog: "Blog",
       about: "Giới thiệu",

@@ -21,7 +21,12 @@ export function SiteHeader(props: Props) {
   const copy = getCopy(props.locale);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = [{ href: "/blog", label: copy.nav.blog }];
+  const navItems = [
+    { href: "/", label: copy.nav.home, publicPath: true },
+    { href: "/dashboard", label: copy.nav.console, publicPath: false },
+    { href: "/blog", label: copy.nav.blog, publicPath: true },
+    { href: "/pricing", label: copy.nav.modelPricing, publicPath: true },
+  ];
   const currentPath = stripLocale(props.pathname);
 
   useEffect(() => {
@@ -72,7 +77,7 @@ export function SiteHeader(props: Props) {
                       "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
                       active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                     )}
-                    href={localizePath(item.href, props.locale)}
+                    href={item.publicPath ? localizePath(item.href, props.locale) : item.href}
                   >
                     {item.label}
                   </Link>
@@ -138,7 +143,7 @@ export function SiteHeader(props: Props) {
             {navItems.map((item, index) => (
               <Link
                 key={item.href}
-                href={localizePath(item.href, props.locale)}
+                href={item.publicPath ? localizePath(item.href, props.locale) : item.href}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
