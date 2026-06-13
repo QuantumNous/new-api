@@ -44,6 +44,7 @@ import {
   Route,
   Settings,
   SlidersHorizontal,
+  Wallet,
   Wand2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -373,6 +374,7 @@ export function ChannelMutateDrawer({
   const currentName = form.watch('name')
   const currentModelMapping = form.watch('model_mapping')
   const awsKeyType = form.watch('aws_key_type')
+  const balanceQueryMode = form.watch('balance_query_mode')
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
@@ -3260,6 +3262,122 @@ export function ChannelMutateDrawer({
                           </FormItem>
                         )}
                       />
+
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Downstream Balance Query')}
+                          icon={<Wallet className='h-3.5 w-3.5' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='balance_query_mode'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Balance Query Mode')}</FormLabel>
+                              <Select
+                                value={field.value || 'auto'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value='auto'>
+                                    {t('Auto (detect by base URL)')}
+                                  </SelectItem>
+                                  <SelectItem value='newapi_console'>
+                                    {t(
+                                      'new-api console login (fetch real wallet balance)'
+                                    )}
+                                  </SelectItem>
+                                  <SelectItem value='disabled'>
+                                    {t('Disabled')}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                {t(
+                                  'Unlimited-quota relay keys can only report cumulative spend. Use console login to fetch the real wallet balance.'
+                                )}
+                              </FormDescription>
+                            </FormItem>
+                          )}
+                        />
+                        {balanceQueryMode === 'newapi_console' && (
+                          <>
+                            <FormField
+                              control={form.control}
+                              name='balance_query_username'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('Console Username')}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      autoComplete='off'
+                                      placeholder={t(
+                                        'Downstream site account'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='balance_query_password'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('Console Password')}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='password'
+                                      autoComplete='new-password'
+                                      placeholder={t('Downstream site password')}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        )}
+                        <FormField
+                          control={form.control}
+                          name='balance_query_recharged'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {t('Total Recharged (optional)')}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  min={0}
+                                  value={field.value ?? 0}
+                                  onChange={(e) =>
+                                    field.onChange(
+                                      Number(e.target.value) || 0
+                                    )
+                                  }
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'For spend-only upstreams: estimate remaining ≈ recharged − cumulative spend.'
+                                )}
+                              </FormDescription>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
                       {MODEL_FETCHABLE_TYPES.has(currentType) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>

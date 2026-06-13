@@ -55,9 +55,11 @@ import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
+  formatBalanceWithUnit,
   formatRelativeTime,
   formatResponseTime,
   getBalanceVariant,
+  parseBalanceMeta,
   getChannelTypeIcon,
   getChannelTypeLabel,
   getResponseTimeConfig,
@@ -301,9 +303,39 @@ function BalanceCell({ channel }: { channel: Channel }) {
     tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
 
   const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
-  const remainingDisplay = withSuffix(formatBalance(balance))
   const usedLabel = `${t('Used:')} ${usedDisplay}`
-  const remainingLabel = `${t('Remaining:')} ${remainingDisplay}`
+
+  // 下游余额三档（balance / spend_only / console_only），来自后端写入 other_info
+  const balanceMeta = parseBalanceMeta(channel.other_info)
+  const balanceKind = balanceMeta?.balance_kind
+  const balanceUnit = balanceMeta?.balance_unit
+
+  let remainingDisplay = withSuffix(formatBalance(balance))
+  let remainingVariant: 'success' | 'warning' | 'danger' | 'neutral' | 'info' =
+    getBalanceVariant(balance)
+  let remainingTooltip = `${t('Remaining:')} ${remainingDisplay}`
+  let updatable = true
+  if (balanceKind === 'console_only') {
+    remainingDisplay = t('Console only')
+    remainingVariant = 'info'
+    remainingTooltip = t(
+      'This upstream has no balance API. Check its web console.'
+    )
+    updatable = false
+  } else if (balanceKind === 'spend_only') {
+    const spent = formatBalanceWithUnit(balanceMeta?.balance_used, balanceUnit)
+    remainingDisplay = `${t('Spent:')} ${spent}`
+    remainingVariant = 'warning'
+    remainingTooltip = t(
+      'Unlimited-quota key: only cumulative spend is visible, not wallet balance. Configure console credentials in channel settings to fetch the real balance.'
+    )
+  } else if (balanceKind === 'balance') {
+    const rem = balanceMeta?.balance_remaining ?? balance
+    remainingDisplay = formatBalanceWithUnit(rem, balanceUnit)
+    remainingVariant = getBalanceVariant(rem)
+    remainingTooltip = `${t('Remaining:')} ${remainingDisplay}`
+  }
+  const remainingLabel = remainingTooltip
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
@@ -319,10 +351,10 @@ function BalanceCell({ channel }: { channel: Channel }) {
   }
 
   // Regular channel row: show used and remaining with click to update
-  const variant = getBalanceVariant(balance)
 
   const handleClickUpdate = async () => {
     if (isUpdating) return
+    if (!updatable) return
 
     setIsUpdating(true)
     if (channel.type === 57) {
@@ -383,12 +415,12 @@ function BalanceCell({ channel }: { channel: Channel }) {
                     ? 'info'
                     : isUpdating
                       ? 'neutral'
-                      : variant
+                      : remainingVariant
                 }
                 size='sm'
                 copyable={false}
                 showDot={false}
-                className='cursor-pointer'
+                className={updatable ? 'cursor-pointer' : 'cursor-help'}
                 onClick={handleClickUpdate}
               />
             }
@@ -399,7 +431,9 @@ function BalanceCell({ channel }: { channel: Channel }) {
                 ? t('Click to view Codex usage')
                 : remainingLabel}
             </p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            {channel.type !== 57 && updatable && (
+              <p>{t('Click to update balance')}</p>
+            )}
           </TooltipContent>
         </Tooltip>
       </div>

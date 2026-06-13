@@ -86,6 +86,17 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  balance_query?: BalanceQuerySettings
+}
+
+// 下游余额查询配置，详见 docs/channel-balance-query.md
+export interface BalanceQuerySettings {
+  // ''/'auto' 自动识别；'newapi_console' 账密登录拿真实钱包余额；'disabled' 不查询
+  mode?: '' | 'auto' | 'newapi_console' | 'disabled'
+  username?: string
+  password?: string
+  // 已充值累计额（spend_only 档用于估算剩余 ≈ recharged - used）
+  recharged?: number
 }
 
 export interface ChannelOtherSettings {

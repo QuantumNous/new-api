@@ -1,12 +1,32 @@
 package dto
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool                 `json:"force_format,omitempty"`
+	ThinkingToContent      bool                 `json:"thinking_to_content,omitempty"`
+	Proxy                  string               `json:"proxy"`
+	PassThroughBodyEnabled bool                 `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string               `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool                 `json:"system_prompt_override,omitempty"`
+	BalanceQuery           *BalanceQuerySetting `json:"balance_query,omitempty"` // 下游余额查询配置（详见 docs/channel-balance-query.md）
+}
+
+// BalanceQuerySetting 下游平台余额查询配置。
+// 大量下游中转站发放的是「无限额度」API Key，仅凭 Key 只能查到累计消费、查不到钱包余额；
+// 要拿真实钱包余额需要补充控制台登录凭据（账密或用户级系统访问令牌）。
+type BalanceQuerySetting struct {
+	// Mode 余额查询模式：
+	//   ""/"auto"        —— 按 base_url/Other 自动识别 provider（默认）
+	//   "newapi_console" —— new-api 套壳站：用账密登录控制台拿真实钱包余额
+	//   "system_token"   —— new-api 套壳站：用用户级系统访问令牌调 /api/user/self
+	//   "disabled"       —— 不查询该渠道余额
+	Mode string `json:"mode,omitempty"`
+	// Username / Password 仅在 Mode=newapi_console 时使用
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	// Token 仅在 Mode=system_token 时使用（下游站点「个人设置」生成的系统访问令牌）
+	Token string `json:"token,omitempty"`
+	// Recharged 用户手填的累计充值额（仅 spend_only 档用于估算剩余 ≈ Recharged - Used）
+	Recharged float64 `json:"recharged,omitempty"`
 }
 
 type VertexKeyType string

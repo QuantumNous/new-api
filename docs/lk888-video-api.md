@@ -162,6 +162,6 @@ Provider 会保存 LK888 的真实 `result_url`，对外展示和下载统一走
 - 下游能力发现接口：`GET https://api.lk888.ai/api/v1/skills/models?type=video`。
 - 下游模型详情接口：`GET /v1/skills/models/{model_name}`，新增模型必须先看参数定义。
 - 下游价格接口：`GET /v1/skills/models/{model_name}/pricing?status=active`。
-- 付费接口调用前可查余额：`GET /v1/skills/balance`。
+- 付费接口调用前可查余额：`GET /v1/skills/balance`（返回 `balance` 算力 + `api_key_quota.used`）。本项目已把该接口接入统一余额查询，可经 `GET /api/channel/balance_overview` 一并查出，详见 [channel-balance-query.md](./channel-balance-query.md)。
 - LK888 媒体接口要求模型特定参数放在 `params` 内；不要把未知顶层字段直接透传到下游。
 - 上传类参数必须是公网 URL；平台不提供文件上传托管。

@@ -182,6 +182,13 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    // Downstream balance query (stored in setting.balance_query JSON)
+    balance_query_mode: z
+      .enum(['', 'auto', 'newapi_console', 'disabled'])
+      .optional(),
+    balance_query_username: z.string().optional(),
+    balance_query_password: z.string().optional(),
+    balance_query_recharged: z.number().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -300,6 +307,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  balance_query_mode: 'auto',
+  balance_query_username: '',
+  balance_query_password: '',
+  balance_query_recharged: 0,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -336,11 +347,16 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    balance_query_mode: 'auto' as '' | 'auto' | 'newapi_console' | 'disabled',
+    balance_query_username: '',
+    balance_query_password: '',
+    balance_query_recharged: 0,
   }
 
   if (channel.setting) {
     try {
       const parsed = JSON.parse(channel.setting)
+      const bq = parsed.balance_query || {}
       extraSettings = {
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
@@ -348,6 +364,10 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        balance_query_mode: bq.mode || 'auto',
+        balance_query_username: bq.username || '',
+        balance_query_password: bq.password || '',
+        balance_query_recharged: bq.recharged || 0,
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -450,13 +470,24 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
+  const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+  }
+  // 仅在非默认（auto）时写入 balance_query，保持 setting 精简
+  const mode = formData.balance_query_mode || 'auto'
+  const recharged = formData.balance_query_recharged || 0
+  if (mode !== 'auto' || recharged > 0) {
+    settingObj.balance_query = {
+      mode,
+      username: formData.balance_query_username || '',
+      password: formData.balance_query_password || '',
+      recharged,
+    }
   }
   return JSON.stringify(settingObj)
 }

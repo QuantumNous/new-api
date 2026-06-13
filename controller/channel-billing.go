@@ -361,6 +361,24 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	if channel.GetBaseURL() == "" {
 		channel.BaseURL = &baseURL
 	}
+	// 优先按 base_url/Other hint 走余额 provider（覆盖中转站，不依赖 channel.Type）
+	if result, handled, err := queryBalanceByProvider(channel); handled {
+		if err != nil {
+			return 0, err
+		}
+		switch result.Kind {
+		case BalanceKindConsoleOnly:
+			return 0, fmt.Errorf("该上游不支持 API 余额查询，仅 web 控制台可查")
+		case BalanceKindSpendOnly:
+			// 拿不到钱包余额，返回累计消费供展示；保持为正避免被余额<=0 自动禁用误伤
+			if result.Used > 0 {
+				return result.Used, nil
+			}
+			return 1, nil
+		default:
+			return result.Remaining, nil
+		}
+	}
 	switch channel.Type {
 	case constant.ChannelTypeOpenAI:
 		if channel.GetBaseURL() != "" {
@@ -444,10 +462,16 @@ func UpdateChannelBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	info := channel.GetOtherInfo()
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"balance": balance,
+		"success":   true,
+		"message":   "",
+		"balance":   balance,
+		"kind":      info["balance_kind"],
+		"unit":      info["balance_unit"],
+		"used":      info["balance_used"],
+		"remaining": info["balance_remaining"],
+		"provider":  info["balance_provider"],
 	})
 }
 

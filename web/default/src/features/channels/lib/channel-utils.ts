@@ -325,6 +325,55 @@ export function getBalanceVariant(
 }
 
 // ============================================================================
+// Downstream balance metadata (written by backend into channel.other_info)
+// 三档语义详见 docs/channel-balance-query.md
+// ============================================================================
+
+export type BalanceKind = 'balance' | 'spend_only' | 'console_only'
+
+export interface BalanceMeta {
+  balance_kind?: BalanceKind
+  balance_unit?: string
+  balance_used?: number
+  balance_remaining?: number
+  balance_provider?: string
+  balance_checked_time?: number
+}
+
+/**
+ * Parse balance metadata from a channel's other_info JSON string.
+ */
+export function parseBalanceMeta(
+  otherInfo: string | null | undefined
+): BalanceMeta | null {
+  if (!otherInfo) return null
+  try {
+    const parsed = JSON.parse(otherInfo)
+    if (parsed && typeof parsed === 'object' && parsed.balance_kind) {
+      return parsed as BalanceMeta
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/**
+ * Format a numeric value with the upstream's native unit.
+ * USD goes through the currency formatter; other units (算力 / credits …)
+ * are shown as a plain number + unit suffix.
+ */
+export function formatBalanceWithUnit(
+  value: number | null | undefined,
+  unit: string | undefined
+): string {
+  if (value == null || Number.isNaN(value)) return '-'
+  if (!unit || unit === 'USD') return formatBalance(value)
+  const rounded = Math.round(value * 10000) / 10000
+  return `${rounded} ${unit}`
+}
+
+// ============================================================================
 // Response Time Utilities
 // ============================================================================
 

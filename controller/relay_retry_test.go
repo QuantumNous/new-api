@@ -39,7 +39,6 @@ func TestShouldRetryDoesNotRetryOrdinaryBadRequest(t *testing.T) {
 
 func TestShouldRetryUpstreamRelayedQuotaErrorCode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	ctx, _ := gin.CreateTestContext(nil)
 
 	// 上游 OpenAI 风格错误体透传：errorCode 为上游 code，而非 bad_response_status_code
 	err := types.WithOpenAIError(types.OpenAIError{
