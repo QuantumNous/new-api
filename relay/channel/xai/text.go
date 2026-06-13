@@ -3,7 +3,6 @@ package xai
 import (
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -37,7 +36,7 @@ func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage 
 
 func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	usage := &dto.Usage{}
-	var responseTextBuilder strings.Builder
+	usageAcc := service.NewUsageAccumulator(info.UpstreamModelName)
 	var toolCount int
 	var containStreamUsage bool
 
@@ -60,7 +59,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 
 		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
-		_ = openai.ProcessStreamResponse(*openaiResponse, &responseTextBuilder, &toolCount)
+		_ = openai.ProcessStreamResponse(*openaiResponse, usageAcc, &toolCount)
 		if err := helper.ObjectData(c, openaiResponse); err != nil {
 			common.SysLog(err.Error())
 			sr.Error(err)
@@ -68,8 +67,9 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	})
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-		usage.CompletionTokens += toolCount * 7
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.CompletionTokens = usageAcc.LocalCompletionTokens() + toolCount*7
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 
 	helper.Done(c)

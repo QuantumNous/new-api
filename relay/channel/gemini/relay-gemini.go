@@ -1344,7 +1344,7 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
 	var imageCount int
-	responseText := strings.Builder{}
+	usageAcc := service.NewUsageAccumulator(info.UpstreamModelName)
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var geminiResponse dto.GeminiChatResponse
@@ -1364,7 +1364,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 					imageCount++
 				}
 				if part.Text != "" {
-					responseText.WriteString(part.Text)
+					usageAcc.Feed(part.Text)
 				}
 			}
 		}
@@ -1388,7 +1388,9 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	if usage.CompletionTokens <= 0 {
 		if info.ReceivedResponseCount > 0 {
-			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			usage.PromptTokens = info.GetEstimatePromptTokens()
+			usage.CompletionTokens = usageAcc.LocalCompletionTokens()
+			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 		} else {
 			usage = &dto.Usage{}
 		}

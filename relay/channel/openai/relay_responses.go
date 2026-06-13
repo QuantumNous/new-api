@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -77,7 +76,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	var usage = &dto.Usage{}
-	var responseTextBuilder strings.Builder
+
+	// Always stream the completion text through a bounded-memory, exact token
+	// counter instead of buffering the full response in a strings.Builder. This
+	// keeps heap residency flat (~tens of bytes) for large-context streaming
+	// responses regardless of the trust setting. TrustUpstreamUsage only decides
+	// whether the upstream-reported usage takes precedence over the locally
+	// counted tokens.
+	trustUpstreamUsage := info != nil && info.ChannelSetting.TrustUpstreamUsage
+	usageAcc := service.NewUsageAccumulator(info.UpstreamModelName)
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -113,8 +120,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				}
 			}
 		case "response.output_text.delta":
-			// 处理输出文本
-			responseTextBuilder.WriteString(streamResponse.Delta)
+			// 处理输出文本：流式估算，不缓冲全文
+			usageAcc.Feed(streamResponse.Delta)
 		case dto.ResponsesOutputTypeItemDone:
 			// 函数调用处理
 			if streamResponse.Item != nil {
@@ -130,15 +137,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
-	if usage.CompletionTokens == 0 {
-		// 计算输出文本的 token 数量
-		tempStr := responseTextBuilder.String()
-		if len(tempStr) > 0 {
-			// 非正常结束，使用输出文本的 token 数量
-			completionTokens := service.CountTextToken(tempStr, info.UpstreamModelName)
-			usage.CompletionTokens = completionTokens
-		}
-	}
+	// Resolve completion tokens via the unified accumulator:
+	// - trust=true: prefer upstream usage, fall back to local estimate if absent
+	// - trust=false: use the local streamed estimate (bounded memory, no buffering)
+	usage.CompletionTokens = usageAcc.Resolve(usage.CompletionTokens, trustUpstreamUsage)
 
 	if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
