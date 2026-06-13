@@ -1,7 +1,10 @@
-import { BlogCategoryPage } from "@/components/blog-pages";
+import { BlogCategoryPage, parseBlogSearch } from "@/components/blog-pages";
 import { buildMetadata } from "@/lib/seo";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
@@ -14,5 +17,6 @@ export async function generateMetadata(props: Props) {
 
 export default async function Page(props: Props) {
   const params = await props.params;
-  return <BlogCategoryPage locale="en" slug={params.slug} />;
+  const searchParams = await props.searchParams;
+  return <BlogCategoryPage locale="en" slug={params.slug} search={parseBlogSearch(searchParams)} />;
 }
