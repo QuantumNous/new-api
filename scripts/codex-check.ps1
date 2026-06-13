@@ -1,6 +1,9 @@
 param(
     [switch]$Security,
-    [switch]$Strict
+    [switch]$Strict,
+    [string]$ReviewBase,
+    [string]$ReviewHead,
+    [switch]$NoRtk
 )
 
 $ErrorActionPreference = "Continue"
@@ -14,7 +17,7 @@ function Run-Step($title, $command, [switch]$UseRtk) {
     Write-Host "`n==> $title" -ForegroundColor Cyan
 
     $finalCommand = $command
-    if ($UseRtk -and (Has-Command "rtk")) {
+    if ($UseRtk -and -not $NoRtk -and (Has-Command "rtk")) {
         $finalCommand = "rtk $command"
     }
 
@@ -31,7 +34,7 @@ function Run-IfScriptExists($packageManager, $scriptName) {
 
     try {
         $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
-        if ($pkg.scripts.PSObject.Properties.Name -contains $scriptName) {
+        if ($null -ne $pkg.scripts -and ($pkg.scripts.PSObject.Properties.Name -contains $scriptName)) {
             Run-Step "$packageManager $scriptName" "$packageManager run $scriptName" -UseRtk
         }
     } catch {
@@ -50,14 +53,20 @@ function Detect-PackageManager() {
 
 Write-Host "Codex 项目检查开始" -ForegroundColor Green
 
-if (Has-Command "rtk") {
+if (-not $NoRtk -and (Has-Command "rtk")) {
     Write-Host "RTK 已检测到：日常命令将优先使用 RTK" -ForegroundColor Green
 } else {
-    Write-Host "未检测到 RTK：将使用原始命令" -ForegroundColor Yellow
+    Write-Host "未使用 RTK：将使用原始命令" -ForegroundColor Yellow
 }
 
 if (Has-Command "git") {
     Run-Step "Git 状态" "git status --short" -UseRtk
+
+    if ($ReviewBase -and $ReviewHead) {
+        Write-Host "`n==> Commit range 审查辅助信息" -ForegroundColor Cyan
+        Run-Step "Diff stat $ReviewBase...$ReviewHead" "git diff --stat $ReviewBase...$ReviewHead" -UseRtk
+        Run-Step "Diff name-only $ReviewBase...$ReviewHead" "git diff --name-only $ReviewBase...$ReviewHead" -UseRtk
+    }
 }
 
 $pm = Detect-PackageManager
@@ -126,6 +135,10 @@ if ($Security) {
             if ($Strict) { $failed = $true }
         }
     }
+}
+
+if ($Strict) {
+    Write-Host "`n严格模式提示：工具缺失、扫描失败或测试失败都应阻塞合并/发布，除非人工确认豁免。" -ForegroundColor Magenta
 }
 
 if ($failed) {

@@ -1,101 +1,82 @@
-# Codex 商业项目规则包（含 Codex Security 版）
+# Codex 桌面端商业项目规则包 v2
 
-这是一套给 Codex 桌面端/CLI 在真实商业项目中使用的最小但完整规则包，适用于：
+这是一套给 Codex 桌面端/CLI 在真实商业项目中使用的最小增强规则包。
+
+它适用于：
 
 - 新项目初始化；
-- 开发到一半的项目接入；
-- 新需求开发；
-- Bug 修复；
-- UI 调整；
-- 技术迭代；
-- 性能优化；
-- 阶段性代码审查；
-- Codex Security 安全审查。
+- 已有项目接入；
+- 日常开发、Bug 修复、UI 调整；
+- 需求分析、产品文档、UI 方案、任务拆解；
+- 模块开发、技术迭代、架构调整；
+- 未提交代码审查；
+- 某个功能多提交范围审查；
+- 阶段性安全扫描；
+- 支付、交易、余额、权限等严格审查。
 
 ## 文件说明
 
 ```text
-AGENTS.md                         # Codex 每次进入项目都应遵守的核心规则
-.agents/WORKFLOW.md               # 新项目、中途接入、迭代、Bug 修复、沉淀文档流程
-.agents/REVIEW_SECURITY.md        # 阶段性代码审查、安全扫描、Codex Security 插件优先级
+AGENTS.md                         # 核心入口：边界、风险分级、按需加载
+.agents/WORKFLOW.md               # 日常开发、Bug、UI、架构调整、新项目接入
+.agents/PLAN_POLICY.md            # 执行前计划、任务拆解、阶段执行记录规则
+.agents/PRODUCT_WORKFLOW.md       # 需求分析、UI 设计、产品文档、验收标准
+.agents/REVIEW_SECURITY.md        # 两类代码审查、安全扫描、Codex Security 工作流
+.agents/PAYMENT_REVIEW.md         # 支付、交易、权限、生产数据严格审查
+.agents/TOKEN_POLICY.md           # token 控制、RTK/摘要、证据保留策略
+.agents/LOOP_POLICY.md            # 受控 Loop、自动修复轮数、停止条件
+.agents/CHANGE_POLICY.md          # Bug/需求变更/决策记录的索引与归档规则
 scripts/codex-check.ps1           # Windows PowerShell 通用检查脚本
-examples/USAGE_GUIDE.md           # 长期参照的使用说明
+USAGE_GUIDE.md                    # 使用手册与提示词模板
 README.md                         # 本说明
 ```
 
-## 使用方式
+## 重要设计取舍
 
-把这些文件复制到项目根目录。
+本规则包不包含 `docs/codex/*`，因为这些是项目使用过程中生成的项目资料，不应该预置到所有项目里。
 
-第一次使用时，在 Codex 中输入：
+升级已有项目时，只覆盖规则文件，不要删除已有：
 
 ```text
-请先读取 AGENTS.md，初始化项目上下文文档。不要修改业务代码。
+docs/codex/*
 ```
 
-开发到一半的项目接入时，使用：
+## 快速使用
+
+把本包解压到项目根目录后，在 Codex 桌面端输入：
 
 ```text
 请先读取 AGENTS.md 和 .agents/WORKFLOW.md。
-
-这是一个已经开发到一半的商业项目，请先接入 Codex 工作流，但不要修改业务代码。
-
-请完成：
-1. 查看 git status，识别当前是否有未提交改动。
-2. 识别项目技术栈、目录结构、启动/构建/测试命令。
-3. 创建或更新 docs/codex/PROJECT_CONTEXT.md。
-4. 创建或更新 docs/codex/CODE_STYLE.md。
-5. 如果当前 git diff 中已有改动，请总结这些改动属于哪些模块，不要覆盖。
-6. 发现风险时写入 docs/codex/RISKS.md。
-7. 最后告诉我：当前项目是否适合继续让 Codex 参与开发，以及后续建议怎么分阶段执行。
+这是一个商业项目，请先接入 Codex 工作流，但不要修改业务代码。
 ```
 
-开发功能时：
+日常开发：
 
 ```text
-请按 AGENTS.md 和 .agents/WORKFLOW.md 执行。
-任务：……
+请按 AGENTS.md 执行。任务：……
 ```
 
-修 Bug 时：
+需求/产品文档：
 
 ```text
-请按 Bug 修复流程处理。
-现象：……
-报错：……
+请读取 AGENTS.md 和 .agents/PRODUCT_WORKFLOW.md，把下面想法整理成需求分析、UI 方案、任务拆解和验收标准：……
 ```
 
-阶段性代码审查/安全扫描时：
+未提交代码审查：
 
 ```text
-请按 .agents/REVIEW_SECURITY.md 对当前变更做阶段性审查。
+请按 .agents/REVIEW_SECURITY.md 审查当前未提交代码，不要修改代码。
 ```
 
-如果已安装 Codex Security 插件，当前改动安全审查优先使用：
+支付/交易严格审查：
 
 ```text
-Use $codex-security:security-diff-scan to review the current branch diff for security regressions. Keep the review scoped to changed code and directly supporting files. Do not modify code.
+请读取 .agents/PAYMENT_REVIEW.md，对当前支付/交易相关改动做严格审查，不要修改代码。
 ```
-
-## 自动生成的文档
-
-以下文档不随包提供，由 Codex 在项目使用过程中自动创建和维护：
-
-```text
-docs/codex/PROJECT_CONTEXT.md
-docs/codex/CODE_STYLE.md
-docs/codex/DECISIONS.md
-docs/codex/CHANGELOG.md
-docs/codex/BUGS.md
-docs/codex/ASSUMPTIONS.md
-docs/codex/RISKS.md
-```
-
-这样可以避免新项目一开始出现大量空文档，同时保留长期沉淀能力。
 
 ## 检查脚本
 
-日常验证：
+日常检查：
 
 ```powershell
 .\scripts\codex-check.ps1
@@ -107,8 +88,14 @@ docs/codex/RISKS.md
 .\scripts\codex-check.ps1 -Security
 ```
 
-严格模式，工具缺失也视为失败：
+严格模式：
 
 ```powershell
 .\scripts\codex-check.ps1 -Security -Strict
+```
+
+多提交范围辅助：
+
+```powershell
+.\scripts\codex-check.ps1 -ReviewBase <base> -ReviewHead <head>
 ```

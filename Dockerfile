@@ -26,7 +26,9 @@ ENV GO111MODULE=on CGO_ENABLED=0
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
-ENV GOEXPERIMENT=greenteagc
+# Go 1.26 enables Green Tea GC by default. Opt out until modernc SQLite
+# compiles reliably with the new collector enabled.
+ENV GOEXPERIMENT=nogreenteagc
 
 WORKDIR /build
 

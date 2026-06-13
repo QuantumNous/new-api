@@ -20,11 +20,9 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   Alert02Icon,
-  BotIcon,
+  ArrowDown01Icon,
   CheckmarkCircle02Icon,
-  CodeIcon,
   InformationCircleIcon,
-  Key01Icon,
   Search01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -34,7 +32,13 @@ import { cn } from '@/lib/utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -62,12 +66,16 @@ const emptyModelSelection = (): ModelSelection => ({
 const targetDetails: Record<
   TargetKey,
   {
+    label: string
+    abbreviation: string
     descriptionKey: string
     importButtonKey: string
     manualTaskKeys: string[]
   }
 > = {
   codex: {
+    label: 'Codex',
+    abbreviation: 'C',
     descriptionKey: 'Use this token in the Codex desktop app',
     importButtonKey: 'Import to Codex',
     manualTaskKeys: [
@@ -77,6 +85,8 @@ const targetDetails: Record<
     ],
   },
   claude: {
+    label: 'Claude Code',
+    abbreviation: 'CC',
     descriptionKey: 'Use this token in the Claude Code plugin',
     importButtonKey: 'Import to Claude Code',
     manualTaskKeys: [
@@ -119,14 +129,14 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
   let bodyContent: ReactNode
   if (optionsQuery.isLoading) {
     bodyContent = (
-      <div className='flex flex-col gap-4 py-1' aria-label={t('Loading...')}>
-        <Skeleton className='h-14 w-full' />
+      <div className='flex flex-col gap-3 py-1' aria-label={t('Loading...')}>
+        <Skeleton className='h-24 w-full rounded-2xl' />
         <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
-          <Skeleton className='h-20 w-full' />
-          <Skeleton className='h-20 w-full' />
+          <Skeleton className='h-20 w-full rounded-2xl' />
+          <Skeleton className='h-20 w-full rounded-2xl' />
         </div>
-        <Skeleton className='h-16 w-full' />
-        <Skeleton className='h-28 w-full' />
+        <Skeleton className='h-16 w-full rounded-2xl' />
+        <Skeleton className='h-36 w-full rounded-2xl' />
       </div>
     )
   } else if (
@@ -156,12 +166,9 @@ export function CCSwitchDialog(props: CCSwitchDialogProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={t('Import to CC Switch')}
-      description={t(
-        'Choose an application and model to generate the import configuration for this token.'
-      )}
-      contentClassName='sm:max-w-2xl'
-      bodyClassName='flex flex-col gap-4'
-      footerClassName='border-border/60 border-t bg-muted/20'
+      contentClassName='border-border/70 shadow-2xl sm:max-w-[35rem]'
+      bodyClassName='flex flex-col gap-3'
+      footerClassName='border-border/60 border-t bg-background/95'
       footer={
         <>
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
@@ -216,6 +223,7 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
   const [expandedModelField, setExpandedModelField] =
     useState<ModelField | null>(null)
   const [modelKeyword, setModelKeyword] = useState('')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [showLaunchHelp, setShowLaunchHelp] = useState(false)
   const activeModels = modelsByTarget[selectedTarget]
   const selectedTargetDetail = targetDetails[selectedTarget]
@@ -315,7 +323,7 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
   }
 
   const renderModelPicker = (field: ModelField, optional = false) => (
-    <div className='flex flex-col gap-3 pt-3'>
+    <div className='flex flex-col gap-3'>
       {optional ? (
         <Button
           type='button'
@@ -360,24 +368,24 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
   )
 
   const bodyContent = (
-    <div className='flex flex-col gap-4'>
-      <section className='border-border/60 bg-muted/30 flex flex-col gap-3 rounded-lg border px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4'>
-        <div className='flex shrink-0 items-center gap-2'>
-          <div className='bg-background text-muted-foreground flex size-8 items-center justify-center rounded-md border'>
-            <HugeiconsIcon icon={Key01Icon} />
+    <div className='flex flex-col gap-3'>
+      <section className='flex flex-col gap-2'>
+        <div className='text-sm font-semibold'>{t('Current token')}</div>
+        <div className='bg-muted/20 ring-foreground/5 overflow-hidden rounded-2xl border p-3 shadow-sm ring-1'>
+          <div className='grid min-w-0 gap-2 sm:grid-cols-2'>
+            <TokenField label={t('Token Name')} value={options.token.name} />
+            <TokenField label={t('API Key')} value={options.token.masked_key} />
+            <TokenField
+              label={t('Base URL')}
+              value={options.token.base_url || '-'}
+              className='sm:col-span-2'
+            />
           </div>
-          <h3 className='text-sm font-semibold'>{t('Current token')}</h3>
-        </div>
-        <div className='grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:gap-4'>
-          <TokenField label={t('Token Name')} value={options.token.name} />
-          <TokenField label={t('API Key')} value={options.token.masked_key} />
         </div>
       </section>
 
       <section className='flex flex-col gap-2'>
-        <div className='text-muted-foreground text-xs font-medium'>
-          {t('Application')}
-        </div>
+        <div className='text-sm font-semibold'>{t('Application')}</div>
         <ToggleGroup
           value={[selectedTarget]}
           onValueChange={(values) => {
@@ -385,6 +393,7 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
             if (!nextTarget) return
             setSelectedTarget(nextTarget)
             setExpandedModelField(null)
+            setAdvancedOpen(false)
             setShowLaunchHelp(false)
           }}
           variant='outline'
@@ -394,7 +403,7 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
           {options.targets.map((target) => {
             const targetKey: TargetKey =
               target.key === 'claude' ? 'claude' : 'codex'
-            const targetIcon = target.key === 'claude' ? BotIcon : CodeIcon
+            const targetDetail = targetDetails[targetKey]
             const selected = target.key === selectedTarget
             return (
               <ToggleGroupItem
@@ -402,27 +411,30 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
                 value={targetKey}
                 disabled={!target.enabled}
                 className={cn(
-                  'h-auto min-w-0 items-stretch justify-start p-0 text-left whitespace-normal',
-                  'aria-pressed:border-primary aria-pressed:bg-primary/5 aria-pressed:text-foreground',
+                  'h-auto min-w-0 items-stretch justify-start rounded-2xl p-0 text-left whitespace-normal shadow-none transition-[background-color,border-color,box-shadow,transform]',
+                  'hover:bg-muted/20 hover:-translate-y-0.5 hover:shadow-sm',
+                  'aria-pressed:border-primary/70 aria-pressed:bg-primary/5 aria-pressed:text-foreground aria-pressed:ring-primary/15 aria-pressed:shadow-sm aria-pressed:ring-1',
                   !target.enabled && 'cursor-not-allowed opacity-50'
                 )}
               >
-                <div className='flex w-full items-start gap-3 p-3'>
+                <div className='flex min-h-20 w-full items-start gap-3 p-3'>
                   <div className='flex min-w-0 flex-1 items-start gap-3'>
                     <span
                       className={cn(
-                        'bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md',
-                        selected && 'bg-primary/10 text-primary'
+                        'bg-muted/50 text-muted-foreground ring-foreground/5 flex size-10 shrink-0 items-center justify-center rounded-xl shadow-xs ring-1',
+                        selected && 'bg-primary/10 text-primary ring-primary/20'
                       )}
                     >
-                      <HugeiconsIcon icon={targetIcon} />
+                      <span className='text-sm leading-none font-bold tracking-tight'>
+                        {targetDetail.abbreviation}
+                      </span>
                     </span>
                     <span className='flex min-w-0 flex-col gap-1'>
                       <span className='truncate text-sm font-semibold'>
-                        {target.label}
+                        {targetDetail.label}
                       </span>
                       <span className='text-muted-foreground text-xs leading-relaxed font-normal'>
-                        {t(targetDetails[targetKey].descriptionKey)}
+                        {t(targetDetail.descriptionKey)}
                       </span>
                     </span>
                   </div>
@@ -439,52 +451,84 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
         </ToggleGroup>
       </section>
 
-      <section className='bg-card overflow-hidden rounded-lg border'>
-        <SettingSection
-          label={t('Primary Model')}
-          value={activeModels.model || '-'}
-          expanded={expandedModelField === 'model'}
-          onToggle={() => openModelPicker('model')}
-        >
-          {renderModelPicker('model')}
-        </SettingSection>
+      <section className='flex flex-col gap-2'>
+        <div className='text-sm font-semibold'>{t('Primary Model')}</div>
+        <div className='bg-background ring-foreground/5 overflow-hidden rounded-2xl border shadow-sm ring-1'>
+          <ModelSettingSection
+            label={t('Primary Model')}
+            value={activeModels.model || '-'}
+            expanded={expandedModelField === 'model'}
+            onToggle={() => openModelPicker('model')}
+          >
+            {renderModelPicker('model')}
+          </ModelSettingSection>
 
-        {selectedTarget === 'claude'
-          ? (
-              [
-                ['haiku_model', 'Haiku Model'],
-                ['sonnet_model', 'Sonnet Model'],
-                ['opus_model', 'Opus Model'],
-              ] as const
-            ).map(([field, label]) => (
-              <SettingSection
-                key={field}
-                label={t(label)}
-                value={activeModels[field] || t('Follow primary model')}
-                expanded={expandedModelField === field}
-                onToggle={() => openModelPicker(field)}
-                divided
-              >
-                {renderModelPicker(field, true)}
-              </SettingSection>
-            ))
-          : null}
+          {selectedTarget === 'claude' ? (
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <Separator />
+              <CollapsibleTrigger className='hover:bg-muted/30 flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors'>
+                <span className='flex min-w-0 flex-col gap-0.5'>
+                  <span className='text-sm font-semibold'>
+                    {t('Advanced Settings')}
+                  </span>
+                  <span className='text-muted-foreground text-xs'>
+                    {t('Follow primary model')}
+                  </span>
+                </span>
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  className={cn(
+                    'text-muted-foreground shrink-0 transition-transform',
+                    advancedOpen && 'rotate-180'
+                  )}
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent className='CollapsibleContent'>
+                <div className='flex flex-col gap-2 px-3 pb-3'>
+                  {(
+                    [
+                      ['haiku_model', 'Haiku Model'],
+                      ['sonnet_model', 'Sonnet Model'],
+                      ['opus_model', 'Opus Model'],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <ModelSettingSection
+                      key={field}
+                      label={t(label)}
+                      value={activeModels[field] || t('Follow primary model')}
+                      expanded={expandedModelField === field}
+                      onToggle={() => openModelPicker(field)}
+                      nested
+                    >
+                      {renderModelPicker(field, true)}
+                    </ModelSettingSection>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : null}
+        </div>
       </section>
 
-      <Alert className='bg-muted/30'>
+      <Alert className='border-primary/15 bg-primary/5 shadow-none'>
         <HugeiconsIcon icon={InformationCircleIcon} />
         <AlertTitle>
           {t('Enable these options in CC Switch manually')}
         </AlertTitle>
-        <AlertDescription className='mt-2'>
-          <ol className='grid gap-2 sm:grid-cols-3'>
+        <AlertDescription className='col-span-full mt-3'>
+          <ol className='flex flex-col gap-2'>
             {selectedTargetDetail.manualTaskKeys.map((taskKey, index) => (
               <li
                 key={taskKey}
-                className='text-foreground flex min-w-0 items-start gap-2 text-sm'
+                className='bg-background/80 ring-foreground/5 text-foreground flex min-w-0 items-start gap-3 rounded-xl border px-3 py-2.5 text-sm ring-1'
               >
-                <Badge variant='secondary'>{index + 1}</Badge>
-                <span className='leading-5'>{t(taskKey)}</span>
+                <Badge
+                  variant='secondary'
+                  className='size-6 shrink-0 justify-center rounded-full p-0 tabular-nums'
+                >
+                  {index + 1}
+                </Badge>
+                <span className='min-w-0 leading-5'>{t(taskKey)}</span>
               </li>
             ))}
           </ol>
@@ -509,12 +553,9 @@ function CCSwitchDialogReady(props: CCSwitchDialogReadyProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={t('Import to CC Switch')}
-      description={t(
-        'Choose an application and model to generate the import configuration for this token.'
-      )}
-      contentClassName='sm:max-w-2xl'
-      bodyClassName='flex flex-col gap-4'
-      footerClassName='border-border/60 border-t bg-muted/20'
+      contentClassName='border-border/70 shadow-2xl sm:max-w-[35rem]'
+      bodyClassName='flex flex-col gap-3'
+      footerClassName='border-border/60 border-t bg-background/95'
       footer={
         <>
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
@@ -555,7 +596,7 @@ function ModelList(props: {
     )
   }
   return (
-    <div className='bg-background max-h-72 overflow-y-auto rounded-lg border'>
+    <div className='bg-popover ring-foreground/10 max-h-64 overflow-y-auto rounded-xl border shadow-md ring-1'>
       {props.groups.map((group) => (
         <div key={group.key}>
           <div className='bg-muted/50 text-muted-foreground px-3 py-1.5 text-xs font-semibold'>
@@ -584,37 +625,59 @@ function ModelList(props: {
   )
 }
 
-function TokenField(props: { label: string; value: string }) {
+function TokenField(props: {
+  label: string
+  value: string
+  className?: string
+}) {
   return (
-    <div className='flex min-w-0 flex-col gap-0.5'>
+    <div
+      className={cn(
+        'bg-background/70 ring-foreground/5 flex min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-2 ring-1',
+        props.className
+      )}
+    >
       <div className='text-muted-foreground text-xs'>{props.label}</div>
       <div className='text-sm font-medium break-all'>{props.value || '-'}</div>
     </div>
   )
 }
 
-function SettingSection(props: {
+function ModelSettingSection(props: {
   label: string
   value: string
   expanded: boolean
   onToggle: () => void
   children: ReactNode
-  divided?: boolean
+  nested?: boolean
 }) {
-  const { t } = useTranslation()
   return (
-    <div className={cn(props.divided && 'border-border/60 border-t')}>
-      <div className='flex items-center justify-between gap-3 px-3 py-2.5'>
-        <div className='flex min-w-0 flex-col gap-0.5'>
-          <div className='text-muted-foreground text-xs'>{props.label}</div>
-          <div className='truncate text-sm font-semibold'>{props.value}</div>
-        </div>
-        <Button variant='secondary' size='sm' onClick={props.onToggle}>
-          {props.expanded ? t('Collapse') : t('Change')}
-        </Button>
-      </div>
+    <div
+      className={cn(
+        'overflow-hidden',
+        props.nested && 'bg-muted/20 rounded-xl border'
+      )}
+    >
+      <button
+        type='button'
+        className='hover:bg-muted/30 flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition-colors'
+        onClick={props.onToggle}
+      >
+        <span className='flex min-w-0 flex-col gap-0.5'>
+          <span className='text-muted-foreground text-xs'>{props.label}</span>
+          <span className='truncate text-sm font-semibold'>{props.value}</span>
+        </span>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          className={cn(
+            'text-muted-foreground shrink-0 transition-transform',
+            props.expanded && 'rotate-180'
+          )}
+        />
+      </button>
       {props.expanded ? (
-        <div className='border-border/60 bg-muted/20 border-t px-3 pb-3'>
+        <div className='px-3 pb-3'>
+          <Separator className='mb-3' />
           {props.children}
         </div>
       ) : null}
