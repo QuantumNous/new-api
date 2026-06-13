@@ -374,7 +374,7 @@ a {
 .legal-content {
   color: var(--foreground);
   font-size: 1rem;
-  line-height: 1.85;
+  line-height: 1.82;
 }
 
 .legal-content h2,
@@ -387,10 +387,10 @@ a {
 }
 
 .legal-content h2 {
-  margin: 2.25rem 0 0.875rem;
-  border-top: 1px solid var(--border);
-  padding-top: 1.75rem;
-  font-size: 1.375rem;
+  margin: 2.75rem 0 1.25rem;
+  border-top: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  padding-top: 2rem;
+  font-size: 1.45rem;
   line-height: 1.3;
 }
 
@@ -401,29 +401,39 @@ a {
 }
 
 .legal-content h3 {
-  margin: 1.75rem 0 0.625rem;
+  margin: 2rem 0 0.9rem;
   font-size: 1.125rem;
 }
 
 .legal-content h4 {
-  margin: 1.5rem 0 0.5rem;
+  margin: 1.75rem 0 0.75rem;
   font-size: 1rem;
 }
 
 .legal-content p,
 .legal-content ul,
 .legal-content ol {
-  margin-bottom: 1.1rem;
+  margin-bottom: 1rem;
 }
 
-.legal-content p,
+.legal-content p {
+  border-left: 2px solid color-mix(in oklch, var(--border) 86%, transparent);
+  border-radius: 0.625rem;
+  background: color-mix(in oklch, var(--muted) 35%, transparent);
+  padding: 0.9rem 1rem 0.95rem 1.15rem;
+  color: color-mix(in oklch, var(--foreground) 84%, var(--muted-foreground));
+}
+
 .legal-content li {
   color: color-mix(in oklch, var(--foreground) 84%, var(--muted-foreground));
 }
 
 .legal-content ul,
 .legal-content ol {
-  padding-left: 1.35rem;
+  border-left: 2px solid color-mix(in oklch, var(--border) 86%, transparent);
+  border-radius: 0.625rem;
+  background: color-mix(in oklch, var(--muted) 35%, transparent);
+  padding: 0.9rem 1rem 0.95rem 2.4rem;
 }
 
 .legal-content ul {
