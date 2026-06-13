@@ -34,6 +34,7 @@ import {
 import {
   createUserMessage,
   createLoadingAssistantMessage,
+  isSupportedPlaygroundImageModel,
   supportsImageEditingModel,
 } from './lib'
 import type { ImageTask, Message as MessageType, ModelOption } from './types'
@@ -41,7 +42,10 @@ import type { ImageTask, Message as MessageType, ModelOption } from './types'
 function supportsImageGeneration(model: ModelOption): boolean {
   const endpoints =
     model.supportedEndpointTypes || model.supported_endpoint_types
-  return endpoints?.includes('image-generation') ?? false
+  return (
+    isSupportedPlaygroundImageModel(model.value) &&
+    (endpoints?.includes('image-generation') ?? false)
+  )
 }
 
 export function Playground() {

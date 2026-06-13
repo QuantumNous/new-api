@@ -17,7 +17,7 @@ import (
 func TestStripPlaygroundInternalFieldsRemovesGroupFromReusableBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	body := `{"model":"gpt-image-1","group":"vip","prompt":"a clean product photo","n":1}`
+	body := `{"model":"gpt-image-2","group":"vip","prompt":"a clean product photo","n":1}`
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/pg/images/generations", strings.NewReader(body))
@@ -43,7 +43,7 @@ func TestStripPlaygroundInternalFieldsRemovesGroupFromReusableBody(t *testing.T)
 	if _, exists := payload["group"]; exists {
 		t.Fatalf("sanitized body still contains group: %s", sanitized)
 	}
-	if payload["model"] != "gpt-image-1" || payload["prompt"] != "a clean product photo" {
+	if payload["model"] != "gpt-image-2" || payload["prompt"] != "a clean product photo" {
 		t.Fatalf("sanitized body lost required fields: %s", sanitized)
 	}
 	if !reflect.DeepEqual(payload["n"], float64(1)) {
@@ -64,7 +64,7 @@ func TestStripPlaygroundInternalFieldsRemovesGroupFromMultipartForm(t *testing.T
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	if err := writer.WriteField("model", "gpt-image-1"); err != nil {
+	if err := writer.WriteField("model", "gpt-image-2"); err != nil {
 		t.Fatalf("WriteField model returned error: %v", err)
 	}
 	if err := writer.WriteField("group", "vip"); err != nil {
@@ -100,8 +100,8 @@ func TestStripPlaygroundInternalFieldsRemovesGroupFromMultipartForm(t *testing.T
 	if _, exists := form.Value["group"]; exists {
 		t.Fatalf("multipart form still contains group: %#v", form.Value["group"])
 	}
-	if values := form.Value["model"]; len(values) != 1 || values[0] != "gpt-image-1" {
-		t.Fatalf("model = %#v, want gpt-image-1", values)
+	if values := form.Value["model"]; len(values) != 1 || values[0] != "gpt-image-2" {
+		t.Fatalf("model = %#v, want gpt-image-2", values)
 	}
 	if values := form.Value["prompt"]; len(values) != 1 || values[0] != "make the reference image brighter" {
 		t.Fatalf("prompt = %#v, want original prompt", values)

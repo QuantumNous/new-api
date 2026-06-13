@@ -25,6 +25,7 @@ import { ERROR_MESSAGES } from '../constants'
 import {
   buildImageEditFormData,
   buildImageGenerationPayload,
+  normalizePlaygroundImageConfig,
   normalizeImageGenerationCount,
   supportsImageEditingModel,
 } from '../lib'
@@ -121,7 +122,9 @@ export function useImageGenerationHandler({
       overrideConfig?: ImageGenerationConfig
     ) => {
       const trimmedPrompt = prompt.trim()
-      const sourceConfig = overrideConfig ?? config
+      const sourceConfig = normalizePlaygroundImageConfig(
+        overrideConfig ?? config
+      )
       const requestedCount = normalizeImageGenerationCount(sourceConfig.n)
       const effectiveConfig = {
         ...sourceConfig,

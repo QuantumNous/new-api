@@ -47,6 +47,10 @@ import {
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import {
   MAX_IMAGE_GENERATION_COUNT,
+  PLAYGROUND_IMAGE_OUTPUT_FORMAT_OPTIONS,
+  PLAYGROUND_IMAGE_QUALITY_OPTIONS,
+  PLAYGROUND_IMAGE_SIZE_OPTIONS,
+  normalizePlaygroundImageConfig,
   normalizeImageGenerationCount,
 } from '../lib'
 import type { GroupOption, ImageGenerationConfig, ModelOption } from '../types'
@@ -70,32 +74,6 @@ interface PlaygroundImageInputProps {
 
 const MAX_REFERENCE_IMAGE_COUNT = 4
 const MAX_REFERENCE_IMAGE_SIZE = 20 * 1024 * 1024
-
-const sizeOptions = [
-  'auto',
-  '1024x1024',
-  '1024x1536',
-  '1536x1024',
-  '1024x1792',
-  '1792x1024',
-  '1:1',
-  '16:9',
-  '9:16',
-]
-
-const qualityOptions: ImageGenerationConfig['quality'][] = [
-  'auto',
-  'standard',
-  'hd',
-  'low',
-  'medium',
-  'high',
-]
-
-const responseFormatOptions: ImageGenerationConfig['response_format'][] = [
-  'url',
-  'b64_json',
-]
 
 const controlClassName =
   'h-8 rounded-lg border-border bg-background text-xs font-medium text-foreground shadow-none hover:bg-accent hover:text-foreground'
@@ -174,6 +152,7 @@ export function PlaygroundImageInput({
 
   const hasPrompt = Boolean(prompt.trim())
   const hasImageModels = models.length > 0
+  const normalizedConfig = normalizePlaygroundImageConfig(config)
   const countValue = normalizeImageGenerationCount(config.n)
   const countOptions = Array.from(
     { length: MAX_IMAGE_GENERATION_COUNT },
@@ -385,10 +364,10 @@ export function PlaygroundImageInput({
                 className={`${controlClassName} w-32`}
                 disabled={isConfigDisabled || !hasImageModels}
                 label={t('Size')}
-                value={config.size}
+                value={normalizedConfig.size}
                 onChange={(value) => onConfigChange('size', value)}
               >
-                {sizeOptions.map((size) => (
+                {PLAYGROUND_IMAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
                     {size}
                   </option>
@@ -399,7 +378,7 @@ export function PlaygroundImageInput({
                 className={`${controlClassName} w-24`}
                 disabled={isConfigDisabled || !hasImageModels}
                 label={t('Quality')}
-                value={config.quality}
+                value={normalizedConfig.quality}
                 onChange={(value) =>
                   onConfigChange(
                     'quality',
@@ -407,7 +386,7 @@ export function PlaygroundImageInput({
                   )
                 }
               >
-                {qualityOptions.map((quality) => (
+                {PLAYGROUND_IMAGE_QUALITY_OPTIONS.map((quality) => (
                   <option key={quality} value={quality}>
                     {quality}
                   </option>
@@ -438,16 +417,16 @@ export function PlaygroundImageInput({
               <FieldSelect
                 className={`${controlClassName} w-24`}
                 disabled={isConfigDisabled || !hasImageModels}
-                label={t('Format')}
-                value={config.response_format}
+                label={t('Output format')}
+                value={normalizedConfig.output_format || 'png'}
                 onChange={(value) =>
                   onConfigChange(
-                    'response_format',
-                    value as ImageGenerationConfig['response_format']
+                    'output_format',
+                    value as ImageGenerationConfig['output_format']
                   )
                 }
               >
-                {responseFormatOptions.map((format) => (
+                {PLAYGROUND_IMAGE_OUTPUT_FORMAT_OPTIONS.map((format) => (
                   <option key={format} value={format}>
                     {format}
                   </option>

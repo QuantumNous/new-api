@@ -21,32 +21,33 @@ import type {
   ImageGenerationRequest,
   ImageReferenceInput,
 } from '../types'
+import { normalizePlaygroundImageConfig } from './image-generation-capabilities'
 
 export function buildImageGenerationPayload(
   prompt: string,
   config: ImageGenerationConfig
 ): ImageGenerationRequest {
+  const normalizedConfig = normalizePlaygroundImageConfig(config)
   const payload: ImageGenerationRequest = {
-    model: config.model,
-    group: config.group,
+    model: normalizedConfig.model,
+    group: normalizedConfig.group,
     prompt: prompt.trim(),
-    size: config.size,
-    quality: config.quality,
+    size: normalizedConfig.size,
+    quality: normalizedConfig.quality,
     n: 1,
-    response_format: config.response_format,
   }
 
-  if (config.output_format) {
-    payload.output_format = config.output_format
+  if (normalizedConfig.output_format) {
+    payload.output_format = normalizedConfig.output_format
   }
   if (
-    config.output_compression !== undefined &&
-    config.output_compression !== null
+    normalizedConfig.output_compression !== undefined &&
+    normalizedConfig.output_compression !== null
   ) {
-    payload.output_compression = config.output_compression
+    payload.output_compression = normalizedConfig.output_compression
   }
-  if (config.moderation) {
-    payload.moderation = config.moderation
+  if (normalizedConfig.moderation) {
+    payload.moderation = normalizedConfig.moderation
   }
 
   return payload
@@ -57,27 +58,30 @@ export function buildImageEditFormData(
   config: ImageGenerationConfig,
   referenceImages: ImageReferenceInput[]
 ): FormData {
+  const normalizedConfig = normalizePlaygroundImageConfig(config)
   const formData = new FormData()
 
-  formData.append('model', config.model)
-  formData.append('group', config.group)
+  formData.append('model', normalizedConfig.model)
+  formData.append('group', normalizedConfig.group)
   formData.append('prompt', prompt.trim())
-  formData.append('size', config.size)
-  formData.append('quality', config.quality)
+  formData.append('size', normalizedConfig.size)
+  formData.append('quality', normalizedConfig.quality)
   formData.append('n', '1')
-  formData.append('response_format', config.response_format)
 
-  if (config.output_format) {
-    formData.append('output_format', config.output_format)
+  if (normalizedConfig.output_format) {
+    formData.append('output_format', normalizedConfig.output_format)
   }
   if (
-    config.output_compression !== undefined &&
-    config.output_compression !== null
+    normalizedConfig.output_compression !== undefined &&
+    normalizedConfig.output_compression !== null
   ) {
-    formData.append('output_compression', String(config.output_compression))
+    formData.append(
+      'output_compression',
+      String(normalizedConfig.output_compression)
+    )
   }
-  if (config.moderation) {
-    formData.append('moderation', config.moderation)
+  if (normalizedConfig.moderation) {
+    formData.append('moderation', normalizedConfig.moderation)
   }
 
   referenceImages.forEach((reference) => {

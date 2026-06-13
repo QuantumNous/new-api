@@ -72,12 +72,13 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
 }
 
 export const DEFAULT_IMAGE_CONFIG: ImageGenerationConfig = {
-  model: 'gpt-image-1',
+  model: 'gpt-image-2',
   group: DEFAULT_GROUP,
   size: '1024x1024',
   quality: 'auto',
   n: 1,
-  response_format: 'url',
+  response_format: 'b64_json',
+  output_format: 'png',
 }
 
 // Storage keys
