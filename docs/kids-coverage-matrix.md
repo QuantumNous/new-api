@@ -1,10 +1,11 @@
 # kids_mode Coverage Matrix
 
 Every hard constraint that kids_mode enforces, with the layer that owns it and
-the test file/function that covers it. **CI fails if any row in the Relay column
-loses coverage** — see `.github/workflows/airbotix-internal.yml`.
+the test file/function that covers it. **CI fails if any listed test function
+disappears** — enforced by `scripts/check-kids-coverage-matrix.sh` via
+`go test -list` on every PR. See `.github/workflows/airbotix-internal.yml`.
 
-Last updated: 2026-06-12  
+Last updated: 2026-06-13  
 Tracks: DR-12 | References: DRS-27, DRS-28, DRS-29, DRS-30, DRS-31
 
 ---
@@ -126,21 +127,21 @@ DB error (defensive pass-through).
 |---|---|---|
 | HTTP-level integration test (httptest mock provider, full relay stack) | Planned — Phase 2.5 | — |
 | ZDR equivalent for Anthropic provider (no `store: false` in Anthropic API) | Accepted gap — metadata strip + prompt control is sufficient for Phase 1 | DRS-31 |
+| `/v1/models` fail-closed when **middleware** hits a DB error | When `AirbotixPolicy` middleware runs but DB fails, it writes a passthrough decision (`KidsMode=false`) to context. The catalog endpoint reads that decision and skips filtering — still fail-open in this path. Fix requires adding an `Indeterminate` state to `policy.Decision` so the catalog can distinguish "not kids" from "unknown". Accepted for Phase 1; middleware DB errors are rare and covered by service-level DB health checks. | — |
 
 ---
 
 ## CI Enforcement
 
-The workflow `.github/workflows/airbotix-internal.yml` runs these commands on
-every PR that touches `internal/**`, `middleware/policy.go`,
-`relay/airbotix_policy.go`, or `docs/kids-coverage-matrix.md`:
+The workflow `.github/workflows/airbotix-internal.yml` runs on every PR that
+touches `internal/**`, `relay/**`, `middleware/**`, `controller/**`,
+`docs/kids-coverage-matrix.md`, or `scripts/check-kids-coverage-matrix.sh`.
 
 ```bash
 # Core helpers
 go test ./internal/... -count=1 -race -timeout 60s
 
-# Relay layer (all constraints incl. max_tokens cap) + matrix enforcement
-# TestKidsModeCoverageMatrix fails CI if a function listed in this file doesn't exist.
+# Relay layer (all constraints incl. max_tokens cap + matrix Go test)
 go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
 
 # Middleware layer
@@ -148,4 +149,7 @@ go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAuto
 
 # Catalog endpoint
 go test ./controller/ -run 'TestKidsMode' -count=1 -race -timeout 60s
+
+# Matrix enforcement via go test -list (catches deletions that broad -run regexes miss)
+bash scripts/check-kids-coverage-matrix.sh
 ```
