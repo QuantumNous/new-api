@@ -167,8 +167,8 @@ api.interceptors.request.use((config) => {
   }
   // Forward the in-app selected language so the backend (e.g. verification /
   // password-reset emails) can localize content instead of falling back to the
-  // browser's Accept-Language. Backend supports zh-CN/zh-TW/en/pt and falls
-  // back to English for other codes.
+  // browser's Accept-Language. The backend localizes email content for
+  // en/zh/pt/es/fr/ru/ja and falls back to English for anything else.
   const lang = i18next.language
   if (lang) {
     ;(config.headers as Record<string, string>)['Accept-Language'] = lang

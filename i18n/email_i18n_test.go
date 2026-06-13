@@ -37,6 +37,11 @@ func TestEmailContentLocalized(t *testing.T) {
 			if strings.Contains(out, "{{") {
 				t.Errorf("key %q lang %q has unrendered template: %s", key, lang, out)
 			}
+			// A mistyped field (e.g. {{.Cod}}) renders to "<no value>" rather
+			// than leaving "{{", so check for it explicitly in every locale.
+			if strings.Contains(out, "<no value>") {
+				t.Errorf("key %q lang %q has an unknown template field (<no value>): %s", key, lang, out)
+			}
 			if !strings.Contains(out, "flatkey") {
 				t.Errorf("key %q lang %q did not render SystemName: %s", key, lang, out)
 			}

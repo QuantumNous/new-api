@@ -65,8 +65,10 @@ func Init() error {
 		localizers[LangZhTW] = i18n.NewLocalizer(bundle, LangZhTW)
 		localizers[LangEn] = i18n.NewLocalizer(bundle, LangEn)
 		localizers[LangPt] = i18n.NewLocalizer(bundle, LangPt)
-		// Email-only locales: they define just the email keys; Translate falls
-		// back to English for everything else.
+		// Email-only locales: they define just the email keys. go-i18n's matcher
+		// resolves to the locale itself and does NOT fall back per missing key
+		// once the locale has any messages loaded, so the English fallback for
+		// non-email keys is handled in Translate, not here.
 		localizers[LangEs] = i18n.NewLocalizer(bundle, LangEs)
 		localizers[LangFr] = i18n.NewLocalizer(bundle, LangFr)
 		localizers[LangRu] = i18n.NewLocalizer(bundle, LangRu)
@@ -126,7 +128,9 @@ func Translate(lang, key string, args ...map[string]any) string {
 	msg, err := loc.Localize(config)
 	if err != nil {
 		// Key missing in this language (e.g. an email-only locale that defines
-		// only the email keys): fall back to English before giving up.
+		// only the email keys): fall back to English before giving up. go-i18n's
+		// own localizer fallback does not cover this — its matcher resolves to
+		// the partial locale and returns an error rather than trying English.
 		if normalizeLang(lang) != DefaultLang {
 			if enMsg, enErr := GetLocalizer(DefaultLang).Localize(config); enErr == nil {
 				return enMsg
