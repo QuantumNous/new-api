@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CryptoDepositModal } from './crypto-deposit-modal'
 import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory } from '../api'
+import { paymentErrorMessage } from '../lib/payment'
 import { GLASS_CARD_CLS } from '../constants'
 import type { TopupInfo } from '../types'
 
@@ -119,11 +120,10 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
         form.submit()
         document.body.removeChild(form)
       } else {
-        const msg = typeof res.data === 'string' ? res.data : t('Payment failed')
-        toast.error(msg as string)
+        toast.error(paymentErrorMessage())
       }
     } catch {
-      toast.error(t('Payment failed'))
+      toast.error(paymentErrorMessage())
     } finally {
       setEpayLoading(null)
     }
@@ -145,11 +145,10 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Redirecting to payment page...'))
       } else {
-        const msg = typeof res.data === 'string' ? res.data : t('Payment failed')
-        toast.error(msg as string)
+        toast.error(paymentErrorMessage())
       }
     } catch {
-      toast.error(t('Payment failed'))
+      toast.error(paymentErrorMessage())
     } finally {
       setPaypalLoading(false)
     }

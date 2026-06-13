@@ -30,6 +30,7 @@ import {
 import {
   isStripePayment,
   isWaffoPancakePayment,
+  paymentErrorMessage,
   submitPaymentForm,
 } from '../lib'
 
@@ -95,7 +96,7 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
-          toast.error(response.message || i18next.t('Payment request failed'))
+          toast.error(paymentErrorMessage('Payment request failed'))
           return false
         }
 
@@ -118,7 +119,7 @@ export function usePayment() {
 
         return false
       } catch (_error) {
-        toast.error(i18next.t('Payment request failed'))
+        toast.error(paymentErrorMessage('Payment request failed'))
         return false
       } finally {
         setProcessing(false)

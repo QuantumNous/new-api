@@ -134,8 +134,12 @@ payment.stripe_not_configured: "Stripe is not configured or key is invalid"
 payment.webhook_not_configured: "Webhook is not configured"
 payment.price_id_not_configured: "StripePriceId is not configured for this plan"
 payment.creem_not_configured: "CreemProductId is not configured for this plan"
+payment.redirect_untrusted: "Redirect URL is not in the trusted domain list"
 
 # Topup messages
+topup.amount_too_low: "Recharge amount is too low"
+topup.amount_min: "Minimum top-up amount is {{.Min}}"
+topup.amount_max: "Maximum top-up amount is {{.Max}}"
 topup.not_provided: "Payment order number not provided"
 topup.order_not_exists: "Top-up order does not exist"
 topup.order_status: "Top-up order status error"

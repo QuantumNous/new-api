@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import {
   PAYMENT_TYPES,
   DEFAULT_PRESET_MULTIPLIERS,
@@ -177,4 +178,9 @@ export function mergePresetAmounts(
     value: amount,
     discount: discounts[amount] || 1.0,
   }))
+}
+
+/** User-facing payment errors — always use frontend i18n, not raw backend strings. */
+export function paymentErrorMessage(messageKey = 'Payment failed'): string {
+  return i18next.t(messageKey)
 }
