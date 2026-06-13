@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { ChevronDownIcon } from 'lucide-react'
+import { ChevronDownIcon, XIcon } from 'lucide-react'
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -45,6 +45,7 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  maxDate?: Date
 }
 
 export function DateTimePicker({
@@ -52,6 +53,7 @@ export function DateTimePicker({
   onChange,
   placeholder,
   className,
+  maxDate,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -72,14 +74,25 @@ export function DateTimePicker({
     }
   }, [value])
 
+  const clampDate = React.useCallback(
+    (nextDate: Date) => {
+      if (maxDate && nextDate.getTime() > maxDate.getTime()) {
+        return new Date(maxDate)
+      }
+      return nextDate
+    },
+    [maxDate]
+  )
+
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
       const [hours, minutes] = time.split(':').map(Number)
       const newDate = new Date(selectedDate)
       newDate.setHours(hours, minutes, 0, 0)
-      setDate(newDate)
-      setMonth(newDate)
-      onChange?.(newDate)
+      const nextDate = clampDate(newDate)
+      setDate(nextDate)
+      setMonth(nextDate)
+      onChange?.(nextDate)
       setOpen(false)
     } else {
       setDate(undefined)
@@ -96,8 +109,9 @@ export function DateTimePicker({
       const [hours, minutes] = newTime.split(':').map(Number)
       const newDate = new Date(date)
       newDate.setHours(hours, minutes, 0, 0)
-      setDate(newDate)
-      onChange?.(newDate)
+      const nextDate = clampDate(newDate)
+      setDate(nextDate)
+      onChange?.(nextDate)
     }
   }
 
@@ -133,6 +147,7 @@ export function DateTimePicker({
             onMonthChange={setMonth}
             captionLayout='dropdown'
             onSelect={handleDateSelect}
+            disabled={maxDate ? { after: maxDate } : undefined}
             locale={calendarLocale}
           />
         </PopoverContent>
@@ -153,7 +168,7 @@ export function DateTimePicker({
           className='shrink-0'
           aria-label='Clear'
         >
-          <span aria-hidden='true'>✕</span>
+          <XIcon className='h-4 w-4' />
         </Button>
       )}
     </div>

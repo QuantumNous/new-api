@@ -42,6 +42,17 @@ func isPositiveOptionValue(value string) bool {
 	return err == nil && floatValue > 0
 }
 
+func validateLogRetentionDaysOption(value string) error {
+	intValue, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || intValue < 0 {
+		return fmt.Errorf("value must be a non-negative integer")
+	}
+	if intValue > common.MaxLogRetentionDays {
+		return fmt.Errorf("value must be less than or equal to %d", common.MaxLogRetentionDays)
+	}
+	return nil
+}
+
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
 	if strings.TrimSpace(raw) == "" {
 		return
@@ -141,6 +152,11 @@ func UpdateOption(c *gin.Context) {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+			return
+		}
+	case "LogRetentionDays":
+		if err := validateLogRetentionDaysOption(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
 			return
 		}
 	default:
