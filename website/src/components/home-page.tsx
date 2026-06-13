@@ -1,8 +1,13 @@
 import Link from "next/link";
+import { ArrowRight, BadgeDollarSign, BarChart3, Boxes, Gauge, KeyRound, Link2, ReceiptText, Route, Server, UsersRound } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import { getCopy } from "@/lib/copy";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
+import { cn } from "@/lib/utils";
+
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN ?? "https://flatkey.ai";
+const SIGN_UP_URL = `${APP_ORIGIN}/sign-up`;
 
 type Props = {
   locale: Locale;
@@ -10,49 +15,340 @@ type Props = {
 
 export function HomePage(props: Props) {
   const copy = getCopy(props.locale);
-  const metrics = [
-    ["40+", "Provider adapters"],
-    ["1", "Unified API surface"],
-    ["24/7", "Operational telemetry"],
+  const features = [
+    {
+      title: "One-click access",
+      desc: "Get one API key and call every connected AI model without applying for each provider separately.",
+      icon: <Server className="size-7" strokeWidth={1.7} />,
+      iconClass: "bg-violet-600 text-white shadow-[0_14px_32px_-16px_rgba(124,58,237,0.85)]",
+    },
+    {
+      title: "Stable and reliable",
+      desc: "Intelligently route multiple upstream accounts with automatic switching and load balancing to avoid frequent errors.",
+      icon: <UsersRound className="size-7" strokeWidth={1.7} />,
+      iconClass: "bg-indigo-500 text-white shadow-[0_14px_32px_-16px_rgba(99,102,241,0.78)]",
+    },
+    {
+      title: "Pay as you go",
+      desc: "Bill by actual usage, set quota limits, and keep team consumption clear at a glance.",
+      icon: <BadgeDollarSign className="size-7" strokeWidth={1.7} />,
+      iconClass: "bg-violet-500 text-white shadow-[0_14px_30px_-16px_rgba(139,92,246,0.75)]",
+    },
   ];
+  const recommendedModels = [
+    ["GPT Image 2", "$4 / 1M", "from-violet-200 via-fuchsia-300 to-slate-950"],
+    ["Seedance 2.0", "$0.063 / sec", "from-indigo-200 via-violet-500 to-slate-950"],
+    ["Claude Opus 4.7", "$4 / 1M", "from-fuchsia-200 via-indigo-500 to-slate-950"],
+    ["Claude Sonnet 4.6", "$2.4 / 1M", "from-slate-100 via-violet-300 to-slate-950"],
+  ];
+  const productHighlights = [
+    ["AI product teams", "Add model access to your product without managing separate provider accounts, keys, and SDK changes.", <Boxes key="boxes" className="size-6" strokeWidth={1.6} />],
+    ["Operations and finance", "Keep token spend, recharge records, and team usage visible in one dashboard.", <ReceiptText key="receipt" className="size-6" strokeWidth={1.6} />],
+    ["Automation builders", "Route high-volume workflows to suitable models while keeping failures and cost easier to review.", <Route key="route" className="size-6" strokeWidth={1.6} />],
+    ["Model evaluation and iteration", "Compare providers, switch models, and keep existing OpenAI-compatible clients pointed at the same base URL.", <Gauge key="gauge" className="size-6" strokeWidth={1.6} />],
+  ] as const;
 
   return (
     <SiteShell locale={props.locale} pathname="/">
-      <section className="hero-section">
-        <div className="hero-copy">
-          <p className="eyebrow">flatkey.ai</p>
-          <h1>{copy.home.title}</h1>
-          <p>{copy.home.description}</p>
-          <div className="hero-actions">
-            <Link className="primary-button" href={localizePath("/pricing", props.locale)}>
-              {copy.home.primary}
-            </Link>
-            <Link className="secondary-button" href={localizePath("/blog", props.locale)}>
-              {copy.home.secondary}
-            </Link>
+      <main className="home-landing relative overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70"
+        />
+
+        <section className="relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 opacity-40"
+            style={{
+              background: [
+                "radial-gradient(ellipse 70% 48% at 18% 8%, rgba(167,139,250,0.34) 0%, transparent 68%)",
+                "radial-gradient(ellipse 64% 42% at 82% 8%, rgba(217,70,239,0.22) 0%, transparent 70%)",
+                "linear-gradient(180deg, rgba(124,58,237,0.08), transparent 48%)",
+              ].join(", "),
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(124,58,237,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.14)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_64%_52%_at_50%_28%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-35"
+          />
+
+          <div className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8">
+            <div className="flex flex-col items-start text-left lg:col-span-6">
+              <div className="landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1.5 text-[11px] font-medium text-violet-700 opacity-0 shadow-[0_12px_34px_-22px_rgba(124,58,237,0.75)]">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-violet-500" />
+                </span>
+                <span>Multi-model compatible, enterprise-ready</span>
+              </div>
+
+              <h1 className="landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight" style={{ animationDelay: "60ms" }}>
+                Every model.
+                <br />
+                <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent">
+                  One key. Flat rate.
+                </span>
+              </h1>
+              <p className="landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]" style={{ animationDelay: "120ms" }}>
+                Access Claude, GPT, Gemini, DeepSeek, Qwen, Seedance 2.0, GPT Image, and more with one API key. No need to manage separate provider accounts. Clear pricing, unified billing, and one dashboard for keys, usage, and routing.
+              </p>
+
+              <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
+                <a className="group inline-flex h-11 items-center rounded-lg bg-violet-600 px-5 text-sm font-medium text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500" href={SIGN_UP_URL}>
+                  Get a key
+                  <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </a>
+                <Link className="inline-flex h-11 items-center rounded-lg border border-violet-500/20 bg-white/65 px-5 text-sm font-medium hover:border-violet-500/35 hover:bg-violet-500/10" href={localizePath("/pricing", props.locale)}>
+                  View Pricing
+                </Link>
+              </div>
+
+              <div className="landing-animate-fade-up mt-10 w-full max-w-xl opacity-0" style={{ animationDelay: "240ms" }}>
+                <div className="mb-4 flex flex-col gap-1">
+                  <span className="text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase">Works with your current tools</span>
+                  <p className="text-muted-foreground/60 text-xs leading-relaxed">Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {["Cherry Studio", "CC Switch", "More Apps"].map((item) => (
+                    <div key={item} className="group flex cursor-default items-center gap-2.5 rounded-full border border-violet-500/15 bg-white/65 px-4 py-2 text-[13px] font-medium text-foreground/80 shadow-[0_12px_38px_-28px_rgba(124,58,237,0.7)] backdrop-blur-xs transition-all duration-300 hover:border-violet-500/30 hover:bg-violet-500/10">
+                      <span className="flex size-5 items-center justify-center rounded-md bg-violet-500/10 text-[10px] font-bold text-violet-700">{item.slice(0, 2)}</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6" style={{ animationDelay: "320ms" }}>
+              <TerminalDemo />
+            </div>
           </div>
-        </div>
-        <div className="signal-panel" aria-label="Platform highlights">
-          {metrics.map(([value, label]) => (
-            <div key={label}>
-              <strong>{value}</strong>
-              <span>{label}</span>
+        </section>
+
+        <Stats />
+
+        <section className="relative z-10 overflow-hidden px-6 py-24 md:py-32">
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(124,58,237,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.1)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_52%_at_50%_42%,black_18%,transparent_90%)] bg-[size:4rem_4rem] opacity-40" />
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-14 max-w-lg">
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">Why flatkey</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">One place for access,<br />pricing, and control</h2>
+            </div>
+            <div className="grid gap-5 md:grid-cols-3">
+              {features.map((feature) => (
+                <article key={feature.title} className="group min-h-[220px] rounded-xl border border-violet-500/15 bg-white/80 p-7 shadow-[0_24px_70px_-48px_rgba(91,33,182,0.72)] backdrop-blur-sm transition-colors duration-300 hover:border-violet-500/30 hover:bg-white md:p-8">
+                  <div className={cn("mb-8 flex size-16 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-[1.03]", feature.iconClass)}>
+                    {feature.icon}
+                  </div>
+                  <h3 className="mb-4 text-xl font-semibold tracking-tight">{feature.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-7 md:text-[15px]">{feature.desc}</p>
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-20 md:mt-24">
+              <h3 className="text-2xl font-bold tracking-tight md:text-3xl">Recommended AI models</h3>
+              <p className="text-muted-foreground mt-3 text-sm md:text-base">Curated top models selected by the flatkey community</p>
+            </div>
+            <div className="mt-8 grid gap-5 lg:grid-cols-4">
+              {recommendedModels.map(([name, price, gradient]) => (
+                <article key={name} className="group relative min-h-[270px] overflow-hidden rounded-xl border border-violet-200/50 bg-slate-950 shadow-[0_24px_72px_-34px_rgba(88,28,135,0.82)] transition-transform duration-300 hover:-translate-y-1">
+                  <div className={cn("absolute inset-0 bg-gradient-to-br opacity-95", gradient)} />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.45),transparent_28%),linear-gradient(to_top,rgba(2,6,23,0.92)_0%,rgba(2,6,23,0.54)_38%,rgba(2,6,23,0.08)_76%)]" />
+                  <div className="absolute top-12 left-1/2 size-28 -translate-x-1/2 rounded-full bg-violet-300/45 blur-2xl transition-transform duration-500 group-hover:scale-125" />
+                  <div className="absolute inset-x-0 bottom-0 p-6 text-white">
+                    <h4 className="text-[21px] leading-tight font-bold tracking-tight xl:text-2xl">{name}</h4>
+                    <div className="mt-3 font-mono text-lg font-semibold text-white/90">{price}</div>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <span className="rounded-full border border-white/20 bg-slate-950/45 px-3 py-1 text-xs font-semibold text-white/90 shadow-sm backdrop-blur-sm">text-to-text</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="home-model-marquee group relative mt-6 overflow-hidden rounded-xl border border-violet-500/15 bg-white/80 py-3 shadow-[0_18px_54px_-40px_rgba(91,33,182,0.75)] backdrop-blur-sm">
+              <div className="home-model-marquee-track flex w-max gap-3">
+                {[0, 1].map((copy) => (
+                  <div key={copy} className="flex shrink-0 gap-3 px-1">
+                    {["DeepSeek V4 Pro", "MiniMax-M2.7", "GPT-5.4 nano", "GPT-5.4 mini", "GPT-5.4 pro"].map((model) => (
+                      <div key={`${copy}-${model}`} className="flex shrink-0 items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/5 px-4 py-2">
+                        <span className="flex size-5 items-center justify-center rounded-full bg-violet-500/10 text-[10px] font-bold text-violet-700">AI</span>
+                        <span className="text-sm font-semibold">{model}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="relative z-10 px-6 py-16 md:py-20">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-10 max-w-3xl md:mb-12">
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">About flatkey.ai</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">A unified API layer for modern AI products</h2>
+              <p className="text-muted-foreground mt-4 max-w-2xl text-sm leading-7 md:text-base">
+                flatkey.ai provides hosted software and prepaid account balance for metered AI API usage. Usage charges are calculated from model input, output, and cache-hit prices multiplied by token usage.
+              </p>
+            </div>
+            <div className="grid gap-5 md:grid-cols-3">
+              {[
+                ["What flatkey.ai is", "flatkey.ai is a unified AI API gateway that lets teams call supported AI models through one API key, one base URL, and one dashboard.", <Boxes key="boxes" className="size-6" strokeWidth={1.6} />],
+                ["Problem it solves", "It reduces separate provider accounts, scattered API keys, inconsistent routing, and fragmented usage tracking for teams building AI features.", <Route key="route" className="size-6" strokeWidth={1.6} />],
+                ["Who uses it", "flatkey.ai is built for developers, AI product teams, automation builders, and operations teams that need predictable access to multiple models.", <UsersRound key="users" className="size-6" strokeWidth={1.6} />],
+              ].map(([title, desc, icon]) => (
+                <article key={String(title)} className="group min-h-[230px] rounded-2xl border border-violet-500/16 bg-white/62 p-7 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm transition-colors duration-300 hover:border-violet-500/28 hover:bg-white/78 md:p-8">
+                  <div className="mb-7 flex size-14 items-center justify-center rounded-2xl border border-violet-500/20 bg-violet-500/8 text-violet-700 shadow-[0_18px_44px_-30px_rgba(124,58,237,0.8)] transition-transform duration-300 group-hover:scale-[1.03]">
+                    {icon}
+                  </div>
+                  <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+                  <p className="text-muted-foreground mt-4 text-sm leading-7 md:text-[15px]">{desc}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="relative z-10 px-6 py-24 md:py-32">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-10 max-w-3xl md:mb-12">
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">Product focus</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">Built for teams shipping AI features</h2>
+              <p className="text-muted-foreground mt-4 max-w-2xl text-sm leading-7 md:text-base">flatkey keeps model access, routing, billing, and usage policy in one place so teams can move faster without extra provider management.</p>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              {productHighlights.map(([title, desc, icon]) => (
+                <article key={title} className="group min-h-[210px] rounded-2xl border border-violet-500/16 bg-white/62 p-7 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm transition-colors duration-300 hover:border-violet-500/28 hover:bg-white/78 md:p-8">
+                  <div className="mb-7 flex size-14 items-center justify-center rounded-2xl border border-violet-500/20 bg-violet-500/8 text-violet-700 shadow-[0_18px_44px_-30px_rgba(124,58,237,0.8)] transition-transform duration-300 group-hover:scale-[1.03]">
+                    {icon}
+                  </div>
+                  <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+                  <p className="text-muted-foreground mt-4 max-w-xl text-sm leading-7 md:text-[15px]">{desc}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="relative z-10 border-t border-violet-500/10 px-6 py-24 md:py-32">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-16 text-center md:mb-20">
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">How it fits together</p>
+              <h2 className="text-2xl font-bold tracking-tight md:text-3xl">From homepage to production calls</h2>
+            </div>
+            <div className="grid gap-8 md:grid-cols-3 md:gap-12">
+              {[
+                ["1", "Get one key", "Create a flatkey account, open the dashboard, and generate an API key for your app.", <KeyRound key="key" className="size-6" strokeWidth={1.5} />],
+                ["2", "Change the base URL", "Point your OpenAI-compatible client to https://router.flatkey.ai/v1 and keep your existing SDK.", <Link2 key="link" className="size-6" strokeWidth={1.5} />],
+                ["3", "Monitor and optimize", "Review usage, cost, routing, and errors from the same product dashboard.", <BarChart3 key="chart" className="size-6" strokeWidth={1.5} />],
+              ].map(([num, title, desc, icon]) => (
+                <article key={String(num)} className="relative flex flex-col items-center text-center">
+                  <div className="relative mb-6">
+                    <div className="flex size-16 items-center justify-center rounded-2xl border border-violet-500/15 bg-white/70 text-violet-600 shadow-[0_18px_48px_-34px_rgba(91,33,182,0.7)]">{icon}</div>
+                    <div className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white shadow-[0_0_18px_rgba(124,58,237,0.55)]">{num}</div>
+                  </div>
+                  <h3 className="mb-2 text-base font-semibold">{title}</h3>
+                  <p className="text-muted-foreground max-w-[240px] text-sm leading-relaxed">{desc}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="relative z-10 overflow-hidden px-6 py-24 md:py-32">
+          <div className="absolute inset-0 -z-10 opacity-20" style={{ background: "radial-gradient(ellipse 55% 45% at 30% 50%, rgba(124,58,237,0.28) 0%, transparent 70%), radial-gradient(ellipse 42% 38% at 70% 40%, rgba(217,70,239,0.2) 0%, transparent 70%)" }} />
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-4xl">
+              Ready to replace
+              <br />
+              <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent">model chaos with one key?</span>
+            </h2>
+            <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">Start from the flatkey homepage, manage your product dashboard, and keep router.flatkey.ai as the stable API endpoint.</p>
+            <div className="mt-8 flex items-center justify-center gap-3">
+              <a className="group inline-flex h-10 items-center rounded-lg bg-violet-600 px-4 text-sm font-medium text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500" href={SIGN_UP_URL}>
+                Get a key
+                <ArrowRight className="ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </a>
+              <Link className="inline-flex h-10 items-center rounded-lg border border-violet-500/20 bg-white/65 px-4 text-sm font-medium hover:border-violet-500/35 hover:bg-violet-500/10" href={localizePath("/pricing", props.locale)}>
+                {copy.home.primary}
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+    </SiteShell>
+  );
+}
+
+function Stats() {
+  const stats = [
+    ["200+", "models behind one key"],
+    ["1", "OpenAI-compatible base URL"],
+    ["24/7", "usage and billing visibility"],
+    ["1", "dashboard for keys and routing"],
+  ];
+  return (
+    <div className="relative z-10 border-y border-violet-500/10 bg-white/45 backdrop-blur-sm">
+      <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12">
+          {stats.map(([value, label]) => (
+            <div key={label} className="flex flex-col items-center text-center">
+              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">{value}</span>
+              <span className="text-muted-foreground mt-1.5 text-xs">{label}</span>
             </div>
           ))}
         </div>
-      </section>
-      <section className="feature-grid">
-        {[
-          ["Model routing", "Route requests across providers with controlled fallback behavior."],
-          ["Usage analytics", "Track spend, latency, errors, and user activity from one gateway."],
-          ["Billing controls", "Keep quotas, pricing, and account-level operations auditable."],
-        ].map(([title, body]) => (
-          <article key={title} className="feature-card">
-            <h2>{title}</h2>
-            <p>{body}</p>
-          </article>
-        ))}
-      </section>
-    </SiteShell>
+      </div>
+    </div>
+  );
+}
+
+function TerminalDemo() {
+  return (
+    <div className="mx-auto w-full max-w-2xl">
+      <div className="overflow-hidden rounded-2xl border border-violet-500/15 bg-white/90 shadow-[0_28px_80px_-48px_rgba(91,33,182,0.65)] backdrop-blur-sm">
+        <div className="flex items-center gap-1 border-b border-violet-500/10 bg-white/55 px-3">
+          {["Chat", "Responses", "Claude", "Gemini"].map((tab, index) => (
+            <button key={tab} className={cn("relative -mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium tracking-wide transition-colors", index === 0 ? "border-violet-500 text-violet-600" : "border-transparent text-foreground/40")}>
+              {tab}
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-0 lg:grid-cols-[1fr_0.92fr]">
+          <div className="border-b border-violet-500/10 p-5 lg:border-r lg:border-b-0">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="rounded-md bg-violet-500/10 px-2 py-1 font-mono text-[11px] font-semibold text-violet-600">POST</span>
+              <span className="truncate font-mono text-xs text-muted-foreground">https://router.flatkey.ai/v1/chat/completions</span>
+            </div>
+            <pre className="overflow-hidden rounded-xl border border-violet-500/10 bg-slate-950 p-4 text-[12px] leading-6 text-slate-200 shadow-inner">
+{`curl https://router.flatkey.ai/v1/chat/completions \\
+  -H "Authorization: Bearer sk-fk-••••" \\
+  -d '{
+    "model": "your-model",
+    "messages": [
+      { "role": "user", "content": "..." }
+    ]
+  }'`}
+            </pre>
+          </div>
+          <div className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground/70">Response</span>
+              <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-[11px] font-semibold text-violet-600">142ms</span>
+            </div>
+            <pre className="overflow-hidden rounded-xl border border-violet-500/10 bg-white/80 p-4 text-[12px] leading-6 text-slate-700">
+{`{
+  "choices": [
+    { "message": { "content": "..." } }
+  ],
+  "usage": { "total_tokens": 27 }
+}`}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
