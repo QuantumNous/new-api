@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -449,6 +450,29 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	return nil
 }
 
+// notifyLang resolves the language for a background notification (no gin
+// context available), defaulting to English when the user has not chosen one.
+func notifyLang(lang string) string {
+	if lang == "" {
+		return i18n.DefaultLang
+	}
+	return lang
+}
+
+// renderQuotaNotifyContent renders the quota-warning body for the user's notify
+// channel: Bark/Gotify get short plain text, email/webhook get HTML with a link.
+func renderQuotaNotifyContent(lang, notifyType, warning, quota, link string) string {
+	data := map[string]any{"Warning": warning, "Quota": quota, "Link": link}
+	switch notifyType {
+	case dto.NotifyTypeBark:
+		return i18n.Translate(lang, i18n.MsgNotifyQuotaBark, data)
+	case dto.NotifyTypeGotify:
+		return i18n.Translate(lang, i18n.MsgNotifyQuotaGotify, data)
+	default:
+		return i18n.Translate(lang, i18n.MsgNotifyQuotaEmail, data)
+	}
+}
+
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
 	gopool.Go(func() {
 		userSetting := relayInfo.UserSetting
@@ -464,32 +488,20 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			quotaTooLow = true
 		}
 		if quotaTooLow {
-			prompt := "您的额度即将用尽"
+			lang := notifyLang(userSetting.Language)
+			title := i18n.Translate(lang, i18n.MsgNotifyQuotaTitle)
 			topUpLink := PaymentReturnURL("/console/topup")
-
-			// 根据通知方式生成不同的内容格式
-			var content string
-			var values []interface{}
 
 			notifyType := userSetting.NotifyType
 			if notifyType == "" {
 				notifyType = dto.NotifyTypeEmail
 			}
 
-			if notifyType == dto.NotifyTypeBark {
-				// Bark推送使用简短文本，不支持HTML
-				content = "{{value}}，剩余额度：{{value}}，请及时充值"
-				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
-			} else if notifyType == dto.NotifyTypeGotify {
-				content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
-				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
-			} else {
-				// 默认内容格式，适用于Email和Webhook（支持HTML）
-				content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
-				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota), topUpLink, topUpLink}
-			}
+			// Content is fully rendered here (localized + values substituted), so
+			// NotifyUser is passed nil values.
+			content := renderQuotaNotifyContent(lang, notifyType, title, logger.FormatQuota(relayInfo.UserQuota), topUpLink)
 
-			err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values))
+			err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil))
 			if err != nil {
 				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 			}
@@ -518,28 +530,18 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 			return
 		}
 
-		prompt := "您的订阅额度即将用尽"
+		lang := notifyLang(userSetting.Language)
+		title := i18n.Translate(lang, i18n.MsgNotifySubscriptionQuotaTitle)
 		topUpLink := PaymentReturnURL("/console/topup")
 
-		var content string
-		var values []interface{}
 		notifyType := userSetting.NotifyType
 		if notifyType == "" {
 			notifyType = dto.NotifyTypeEmail
 		}
 
-		if notifyType == dto.NotifyTypeBark {
-			content = "{{value}}，剩余额度：{{value}}，请及时充值"
-			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
-		} else if notifyType == dto.NotifyTypeGotify {
-			content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
-			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
-		} else {
-			content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
-			values = []interface{}{prompt, logger.FormatQuota(int(remaining)), topUpLink, topUpLink}
-		}
+		content := renderQuotaNotifyContent(lang, notifyType, title, logger.FormatQuota(int(remaining)), topUpLink)
 
-		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values)); err != nil {
+		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil)); err != nil {
 			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})

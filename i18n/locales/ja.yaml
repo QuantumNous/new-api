@@ -1,0 +1,14 @@
+# Japanese translations (email content only; other keys fall back to English)
+
+# Email content messages
+email.verification_subject: "{{.SystemName}} メールアドレスの確認"
+email.verification_content: "<p>こんにちは。{{.SystemName}} のメールアドレスを確認しています。</p><p>確認コード: <strong>{{.Code}}</strong></p><p>このコードは {{.Minutes}} 分間有効です。心当たりがない場合は、このメールを無視してください。</p>"
+email.password_reset_subject: "{{.SystemName}} パスワードの再設定"
+email.password_reset_content: "<p>こんにちは。{{.SystemName}} アカウントのパスワードを再設定しています。</p><p><a href='{{.Link}}'>こちら</a>をクリックしてパスワードを再設定してください。</p><p>リンクをクリックできない場合は、次のリンクをブラウザにコピーしてください:<br> {{.Link}} </p><p>再設定リンクは {{.Minutes}} 分間有効です。心当たりがない場合は、このメールを無視してください。</p>"
+
+# User notification messages
+notify.quota_warning_title: "残高が間もなく不足します"
+notify.subscription_quota_warning_title: "サブスクリプションの残高が間もなく不足します"
+notify.quota_warning_email: "{{.Warning}}。現在の残高は {{.Quota}} です。サービスの中断を避けるため、お早めにチャージしてください。<br/>チャージリンク：<a href='{{.Link}}'>{{.Link}}</a>"
+notify.quota_warning_bark: "{{.Warning}}。残高：{{.Quota}}。お早めにチャージしてください。"
+notify.quota_warning_gotify: "{{.Warning}}。現在の残高は {{.Quota}} です。お早めにチャージしてください。"

@@ -16,10 +16,17 @@ import (
 )
 
 const (
-	LangZhCN    = "zh-CN"
-	LangZhTW    = "zh-TW"
-	LangEn      = "en"
-	LangPt      = "pt"
+	LangZhCN = "zh-CN"
+	LangZhTW = "zh-TW"
+	LangEn   = "en"
+	LangPt   = "pt"
+	// Email-only locales: their YAML carries just the email content keys, all
+	// other messages fall back to English via the localizer's fallback chain.
+	LangEs      = "es"
+	LangFr      = "fr"
+	LangRu      = "ru"
+	LangJa      = "ja"
+	LangVi      = "vi"
 	DefaultLang = LangEn // Fallback to English if language not supported
 )
 
@@ -41,7 +48,10 @@ func Init() error {
 		bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
 
 		// Load embedded translation files
-		files := []string{"locales/zh-CN.yaml", "locales/zh-TW.yaml", "locales/en.yaml", "locales/pt.yaml"}
+		files := []string{
+			"locales/zh-CN.yaml", "locales/zh-TW.yaml", "locales/en.yaml", "locales/pt.yaml",
+			"locales/es.yaml", "locales/fr.yaml", "locales/ru.yaml", "locales/ja.yaml", "locales/vi.yaml",
+		}
 		for _, file := range files {
 			_, err := bundle.LoadMessageFileFS(localeFS, file)
 			if err != nil {
@@ -50,11 +60,20 @@ func Init() error {
 			}
 		}
 
-		// Pre-create localizers for supported languages
+		// Pre-create localizers for fully-translated languages
 		localizers[LangZhCN] = i18n.NewLocalizer(bundle, LangZhCN)
 		localizers[LangZhTW] = i18n.NewLocalizer(bundle, LangZhTW)
 		localizers[LangEn] = i18n.NewLocalizer(bundle, LangEn)
 		localizers[LangPt] = i18n.NewLocalizer(bundle, LangPt)
+		// Email-only locales: they define just the email keys. go-i18n's matcher
+		// resolves to the locale itself and does NOT fall back per missing key
+		// once the locale has any messages loaded, so the English fallback for
+		// non-email keys is handled in Translate, not here.
+		localizers[LangEs] = i18n.NewLocalizer(bundle, LangEs)
+		localizers[LangFr] = i18n.NewLocalizer(bundle, LangFr)
+		localizers[LangRu] = i18n.NewLocalizer(bundle, LangRu)
+		localizers[LangJa] = i18n.NewLocalizer(bundle, LangJa)
+		localizers[LangVi] = i18n.NewLocalizer(bundle, LangVi)
 
 		// Set the TranslateMessage function in common package
 		common.TranslateMessage = T
@@ -108,6 +127,15 @@ func Translate(lang, key string, args ...map[string]any) string {
 
 	msg, err := loc.Localize(config)
 	if err != nil {
+		// Key missing in this language (e.g. an email-only locale that defines
+		// only the email keys): fall back to English before giving up. go-i18n's
+		// own localizer fallback does not cover this — its matcher resolves to
+		// the partial locale and returns an error rather than trying English.
+		if normalizeLang(lang) != DefaultLang {
+			if enMsg, enErr := GetLocalizer(DefaultLang).Localize(config); enErr == nil {
+				return enMsg
+			}
+		}
 		// Return key as fallback if translation not found
 		return key
 	}
@@ -213,6 +241,16 @@ func normalizeLang(lang string) string {
 		return LangEn
 	case lang == LangPt || strings.HasPrefix(lang, "pt-") || strings.HasPrefix(lang, "pt_"):
 		return LangPt
+	case strings.HasPrefix(lang, "es"):
+		return LangEs
+	case strings.HasPrefix(lang, "fr"):
+		return LangFr
+	case strings.HasPrefix(lang, "ru"):
+		return LangRu
+	case strings.HasPrefix(lang, "ja"):
+		return LangJa
+	case strings.HasPrefix(lang, "vi"):
+		return LangVi
 	default:
 		return DefaultLang
 	}
@@ -220,7 +258,7 @@ func normalizeLang(lang string) string {
 
 // SupportedLanguages returns a list of supported language codes
 func SupportedLanguages() []string {
-	return []string{LangZhCN, LangZhTW, LangEn, LangPt}
+	return []string{LangZhCN, LangZhTW, LangEn, LangPt, LangEs, LangFr, LangRu, LangJa, LangVi}
 }
 
 // IsSupported checks if a language code is supported
