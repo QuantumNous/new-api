@@ -14,6 +14,63 @@ type Props = {
   locale: Locale;
 };
 
+function CherryStudioIcon() {
+  return (
+    <svg
+      className="size-5 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M6.513 18.419c-1.6 0-3.107-.64-4.247-1.802A6.146 6.146 0 01.5 12.287c0-1.63.626-3.168 1.766-4.33 1.14-1.162 2.647-1.802 4.247-1.802s3.132.655 4.25 1.795c.835.849.835 2.23 0 3.078a2.11 2.11 0 01-3.02 0 1.737 1.737 0 00-1.234-.521c-.945 0-1.744.813-1.744 1.776 0 .964.799 1.777 1.744 1.777.46 0 .907-.19 1.234-.522a2.11 2.11 0 013.02 0c.835.85.835 2.23 0 3.079a5.997 5.997 0 01-4.25 1.794v.008z"
+        fill="#EA5E5D"
+      />
+      <path
+        d="M12.026 24c-1.6 0-3.107-.64-4.247-1.802a6.146 6.146 0 01-1.766-4.33c0-1.63.644-3.193 1.762-4.337a2.11 2.11 0 013.021 0c.834.849.834 2.23 0 3.078-.324.331-.51.788-.51 1.255 0 .964.798 1.777 1.744 1.777.945 0 1.744-.813 1.744-1.777 0-.341-.083-.83-.475-1.233a6.255 6.255 0 01-1.77-4.348c0-1.615.627-3.168 1.767-4.33s2.646-1.802 4.247-1.802c1.6 0 3.107.64 4.247 1.802a6.146 6.146 0 011.766 4.33c0 1.63-.644 3.194-1.762 4.337a2.11 2.11 0 01-3.021 0 2.206 2.206 0 010-3.078c.323-.331.51-.788.51-1.255 0-.964-.798-1.777-1.744-1.777s-1.744.813-1.744 1.777c0 .47.19.935.521 1.27 1.115 1.136 1.727 2.667 1.727 4.311a6.122 6.122 0 01-1.766 4.33C15.137 23.36 13.63 24 12.03 24h-.004z"
+        fill="#EA5E5D"
+      />
+      <path
+        d="M12.026 6.867L8.53 3.587a1.336 1.336 0 111.827-1.949l1.4 1.313L13.744.495a1.336 1.336 0 012.075 1.68l-3.798 4.692h.004z"
+        fill="#23AF69"
+      />
+    </svg>
+  );
+}
+
+function CCSwitchIcon() {
+  return (
+    <span
+      className="size-5 shrink-0 rounded-md bg-contain bg-center bg-no-repeat"
+      style={{ backgroundImage: "url(https://ccswitch.io/favicon.png)" }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function MoreAppsIcon() {
+  return (
+    <svg
+      className="text-muted-foreground/60 group-hover:text-foreground size-5 shrink-0 transition-colors"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <circle cx="6" cy="12" r="2" fill="currentColor" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" />
+      <circle cx="18" cy="12" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+const supportedApps = [
+  { label: "Cherry Studio", icon: <CherryStudioIcon />, muted: false },
+  { label: "CC Switch", icon: <CCSwitchIcon />, muted: false },
+  { label: "More Apps", icon: <MoreAppsIcon />, muted: true },
+] as const;
+
 export function HomePage(props: Props) {
   const copy = getCopy(props.locale);
   const features = [
@@ -96,7 +153,11 @@ export function HomePage(props: Props) {
               </p>
 
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
-                <a className="group inline-flex h-11 items-center rounded-lg bg-violet-600 px-5 text-sm font-medium text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500" href={SIGN_UP_URL}>
+                <a
+                  className="group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
+                  href={SIGN_UP_URL}
+                  style={{ backgroundColor: "#7c3aed", borderRadius: "0.5rem", color: "#ffffff" }}
+                >
                   Get a key
                   <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </a>
@@ -111,10 +172,16 @@ export function HomePage(props: Props) {
                   <p className="text-muted-foreground/60 text-xs leading-relaxed">Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {["Cherry Studio", "CC Switch", "More Apps"].map((item) => (
-                    <div key={item} className="group flex cursor-default items-center gap-2.5 rounded-full border border-violet-500/15 bg-white/65 px-4 py-2 text-[13px] font-medium text-foreground/80 shadow-[0_12px_38px_-28px_rgba(124,58,237,0.7)] backdrop-blur-xs transition-all duration-300 hover:border-violet-500/30 hover:bg-violet-500/10">
-                      <span className="flex size-5 items-center justify-center rounded-md bg-violet-500/10 text-[10px] font-bold text-violet-700">{item.slice(0, 2)}</span>
-                      <span>{item}</span>
+                  {supportedApps.map((item) => (
+                    <div
+                      key={item.label}
+                      className={cn(
+                        "group flex cursor-default items-center gap-2.5 rounded-full border border-violet-500/15 bg-white/65 px-4 py-2 text-[13px] font-medium shadow-[0_12px_38px_-28px_rgba(124,58,237,0.7)] backdrop-blur-xs transition-all duration-300 hover:border-violet-500/30 hover:bg-violet-500/10 hover:text-foreground",
+                        item.muted ? "text-foreground/55" : "text-foreground/80"
+                      )}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
                     </div>
                   ))}
                 </div>
@@ -268,7 +335,11 @@ export function HomePage(props: Props) {
             </h2>
             <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">Start from the flatkey homepage, manage your product dashboard, and keep router.flatkey.ai as the stable API endpoint.</p>
             <div className="mt-8 flex items-center justify-center gap-3">
-              <a className="group inline-flex h-10 items-center rounded-lg bg-violet-600 px-4 text-sm font-medium text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500" href={SIGN_UP_URL}>
+              <a
+                className="group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
+                href={SIGN_UP_URL}
+                style={{ backgroundColor: "#7c3aed", borderRadius: "0.5rem", color: "#ffffff" }}
+              >
                 Get a key
                 <ArrowRight className="ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
               </a>
