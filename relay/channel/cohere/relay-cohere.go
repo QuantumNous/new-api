@@ -171,8 +171,8 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if usage.PromptTokens == 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 		usage.CompletionTokens = usageAcc.LocalCompletionTokens()
-		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage, nil
 }
 

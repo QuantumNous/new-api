@@ -262,6 +262,7 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 	usage.CompletionTokens += nodeToken
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage, nil
 }
 

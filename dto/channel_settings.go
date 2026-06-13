@@ -7,11 +7,12 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
-	// TrustUpstreamUsage, when enabled, makes the relay rely on the usage
-	// reported by the upstream in streaming responses instead of buffering the
-	// full response text in memory to recount tokens locally. This drastically
-	// reduces heap residency for large-context streaming requests. Defaults to
-	// false to preserve the existing (local recount) behavior.
+	// TrustUpstreamUsage, when enabled, makes the relay prefer the usage
+	// reported by the upstream in streaming responses over the locally
+	// streamed token count. Streaming paths no longer buffer the full
+	// response text regardless of this flag; the local count is always
+	// available as a bounded-memory fallback. Defaults to false, so the
+	// locally streamed count is used unless the upstream usage is trusted.
 	TrustUpstreamUsage bool `json:"trust_upstream_usage,omitempty"`
 }
 
