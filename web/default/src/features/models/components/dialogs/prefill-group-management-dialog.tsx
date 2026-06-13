@@ -46,15 +46,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
@@ -344,110 +337,117 @@ export function PrefillGroupManagementDialog({
               ))}
             </div>
           ) : (
-            <div className='rounded-md border'>
-              <div className='w-full overflow-x-auto'>
-                <Table className='min-w-[680px]'>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Group')}</TableHead>
-                      <TableHead>{t('Type')}</TableHead>
-                      <TableHead className='min-w-[240px]'>
-                        {t('Items')}
-                      </TableHead>
-                      <TableHead className='w-[120px] text-right'>
-                        {t('Actions')}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {normalizedGroups.map(({ group, meta, parsedItems }) => (
-                      <TableRow key={group.id}>
-                        <TableCell className='align-top whitespace-normal'>
-                          <div className='flex flex-col gap-1'>
-                            <div className='flex flex-wrap items-center gap-2'>
-                              <span className='font-medium'>{group.name}</span>
-                              <TableId value={group.id} />
-                            </div>
-                            {group.description ? (
-                              <p className='text-muted-foreground text-xs'>
-                                {group.description}
-                              </p>
-                            ) : (
-                              <p className='text-muted-foreground text-xs italic'>
-                                No description provided
-                              </p>
+            <StaticDataTable
+              tableClassName='min-w-[680px]'
+              data={normalizedGroups}
+              getRowKey={({ group }) => group.id}
+              columns={[
+                {
+                  id: 'group',
+                  header: t('Group'),
+                  cellClassName: 'align-top whitespace-normal',
+                  cell: ({ group }) => (
+                    <div className='flex flex-col gap-1'>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <span className='font-medium'>{group.name}</span>
+                        <TableId value={group.id} />
+                      </div>
+                      {group.description ? (
+                        <p className='text-muted-foreground text-xs'>
+                          {group.description}
+                        </p>
+                      ) : (
+                        <p className='text-muted-foreground text-xs italic'>
+                          No description provided
+                        </p>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  id: 'type',
+                  header: t('Type'),
+                  cellClassName: 'align-top',
+                  cell: ({ meta }) => (
+                    <StatusBadge
+                      label={meta.label}
+                      variant={meta.badge}
+                      size='sm'
+                      copyable={false}
+                    />
+                  ),
+                },
+                {
+                  id: 'items',
+                  header: t('Items'),
+                  className: 'min-w-[240px]',
+                  cellClassName: 'align-top whitespace-normal',
+                  cell: ({ group, parsedItems }) => (
+                    <>
+                      <div className='flex flex-wrap gap-2'>
+                        {parsedItems.length > 0 ? (
+                          <>
+                            {parsedItems.slice(0, 6).map((item) => (
+                              <StatusBadge
+                                key={item}
+                                label={item}
+                                autoColor={item}
+                                size='sm'
+                              />
+                            ))}
+                            {parsedItems.length > 6 && (
+                              <StatusBadge
+                                label={`+${parsedItems.length - 6} more`}
+                                variant='neutral'
+                                size='sm'
+                                copyable={false}
+                              />
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell className='align-top'>
-                          <StatusBadge
-                            label={meta.label}
-                            variant={meta.badge}
-                            size='sm'
-                            copyable={false}
-                          />
-                        </TableCell>
-                        <TableCell className='align-top whitespace-normal'>
-                          <div className='flex flex-wrap gap-2'>
-                            {parsedItems.length > 0 ? (
-                              <>
-                                {parsedItems.slice(0, 6).map((item) => (
-                                  <StatusBadge
-                                    key={item}
-                                    label={item}
-                                    autoColor={item}
-                                    size='sm'
-                                  />
-                                ))}
-                                {parsedItems.length > 6 && (
-                                  <StatusBadge
-                                    label={`+${parsedItems.length - 6} more`}
-                                    variant='neutral'
-                                    size='sm'
-                                    copyable={false}
-                                  />
-                                )}
-                              </>
-                            ) : (
-                              <p className='text-muted-foreground text-sm'>
-                                {group.type === 'endpoint'
-                                  ? 'No endpoint mappings configured.'
-                                  : 'No items configured yet.'}
-                              </p>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground mt-2 text-xs font-medium tracking-wide uppercase'>
-                            {parsedItems.length} item
-                            {parsedItems.length === 1 ? '' : 's'}
-                          </div>
-                        </TableCell>
-                        <TableCell className='align-top'>
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              size='icon'
-                              variant='outline'
-                              onClick={() => onEditGroup(group)}
-                            >
-                              <Pencil className='h-4 w-4' />
-                              <span className='sr-only'>Edit group</span>
-                            </Button>
-                            <Button
-                              size='icon'
-                              variant='ghost'
-                              className='text-destructive hover:text-destructive'
-                              onClick={() => handleDeleteClick(group)}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                              <span className='sr-only'>Delete group</span>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
+                          </>
+                        ) : (
+                          <p className='text-muted-foreground text-sm'>
+                            {group.type === 'endpoint'
+                              ? 'No endpoint mappings configured.'
+                              : 'No items configured yet.'}
+                          </p>
+                        )}
+                      </div>
+                      <div className='text-muted-foreground mt-2 text-xs font-medium tracking-wide uppercase'>
+                        {parsedItems.length} item
+                        {parsedItems.length === 1 ? '' : 's'}
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  id: 'actions',
+                  header: t('Actions'),
+                  className: 'w-[120px] text-right',
+                  cellClassName: 'align-top',
+                  cell: ({ group }) => (
+                    <div className='flex justify-end gap-2'>
+                      <Button
+                        size='icon'
+                        variant='outline'
+                        onClick={() => onEditGroup(group)}
+                      >
+                        <Pencil className='h-4 w-4' />
+                        <span className='sr-only'>Edit group</span>
+                      </Button>
+                      <Button
+                        size='icon'
+                        variant='ghost'
+                        className='text-destructive hover:text-destructive'
+                        onClick={() => handleDeleteClick(group)}
+                      >
+                        <Trash2 className='h-4 w-4' />
+                        <span className='sr-only'>Delete group</span>
+                      </Button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           )}
         </div>
       </Dialog>

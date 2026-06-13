@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   UserCog,
   Info,
+  LogIn,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -52,6 +53,7 @@ import {
   isViolationFeeLog,
   getFirstResponseTimeColor,
   getResponseTimeColor,
+  renderAuditContent,
 } from '../../lib/format'
 import {
   getLogTypeConfig,
@@ -59,6 +61,17 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+
+// Maps a channel-update changed-field token (as recorded by the backend audit)
+// to its i18n label key for display in the audit details.
+const CHANNEL_FIELD_LABELS: Record<string, string> = {
+  status: 'Status',
+  models: 'Models',
+  group: 'Group',
+  type: 'Type',
+  base_url: 'Base URL',
+  key: 'Key',
+}
 
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
@@ -461,6 +474,41 @@ export function DetailsDialog(props: DetailsDialogProps) {
     return `ID: ${id}`
   })()
 
+  // Localized operation text rendered from the language-independent op
+  // descriptor (shared by audit type=3 and login type=7).
+  const operationText = renderAuditContent(other, t)
+  const auditRoute = isManage && props.isAdmin ? other?.audit_info : undefined
+  // Channel update records which fields changed (stable field tokens); render
+  // them with their localized labels for admins.
+  const changedFieldTokens =
+    isManage && props.isAdmin && Array.isArray(other?.op?.params?.changed_fields)
+      ? (other.op.params.changed_fields as string[])
+      : []
+  const changedFieldsText = changedFieldTokens
+    .map((field) => t(CHANNEL_FIELD_LABELS[field] ?? field))
+    .join(', ')
+  const showManageAuditSection =
+    isManage && props.isAdmin && (operationText != null || auditRoute != null)
+
+  // Login audit (type=7); visible to the log owner, not admin-only.
+  const isLogin = props.log.type === 7
+  const loginAuditFields = isLogin
+    ? ([
+        other?.login_method && {
+          label: t('Login Method'),
+          value: String(other.login_method),
+        },
+        props.log.ip && {
+          label: t('IP Address'),
+          value: props.log.ip,
+        },
+        other?.user_agent && {
+          label: t('User Agent'),
+          value: String(other.user_agent),
+        },
+      ].filter(Boolean) as Array<{ label: string; value: string }>)
+    : []
+
   const conversionChain =
     other && Array.isArray(other.request_conversion)
       ? other.request_conversion.filter(Boolean)
@@ -747,6 +795,62 @@ export function DetailsDialog(props: DetailsDialogProps) {
               value={manageOperator}
               mono
             />
+          )}
+
+          {/* Operation audit info (type=3, admin only) */}
+          {showManageAuditSection && (
+            <DetailSection
+              icon={<ShieldCheck className='size-3.5' aria-hidden='true' />}
+              label={t('Operation Audit Info')}
+            >
+              {operationText != null && (
+                <DetailRow label={t('Operation')} value={operationText} />
+              )}
+              {changedFieldsText !== '' && (
+                <DetailRow
+                  label={t('Changed Fields')}
+                  value={changedFieldsText}
+                />
+              )}
+              {auditRoute?.method && auditRoute?.route && (
+                <DetailRow
+                  label={t('Request')}
+                  value={`${auditRoute.method} ${auditRoute.route}`}
+                  mono
+                />
+              )}
+              {auditRoute?.status != null && (
+                <DetailRow
+                  label={t('Result')}
+                  value={
+                    auditRoute.success
+                      ? `${t('Success')} (${auditRoute.status})`
+                      : `${t('Failed')} (${auditRoute.status})`
+                  }
+                  mono
+                />
+              )}
+            </DetailSection>
+          )}
+
+          {/* Login audit info (type=7) */}
+          {isLogin && loginAuditFields.length > 0 && (
+            <DetailSection
+              icon={<LogIn className='size-3.5' aria-hidden='true' />}
+              label={t('Login Info')}
+            >
+              {operationText != null && (
+                <DetailRow label={t('Operation')} value={operationText} />
+              )}
+              {loginAuditFields.map((field, idx) => (
+                <DetailRow
+                  key={idx}
+                  label={field.label}
+                  value={field.value}
+                  mono
+                />
+              ))}
+            </DetailSection>
           )}
 
           {/* Audio/WebSocket token breakdown */}

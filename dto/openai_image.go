@@ -26,7 +26,7 @@ type ImageRequest struct {
 	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
 	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
-	Stream            bool            `json:"stream,omitempty"`
+	Stream            *bool           `json:"stream,omitempty"`
 	Images            json.RawMessage `json:"images,omitempty"`
 	Mask              json.RawMessage `json:"mask,omitempty"`
 	InputFidelity     json.RawMessage `json:"input_fidelity,omitempty"`
@@ -163,7 +163,7 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 }
 
 func (i *ImageRequest) IsStream(c *gin.Context) bool {
-	return i.Stream
+	return i.Stream != nil && *i.Stream
 }
 
 func (i *ImageRequest) SetModelName(modelName string) {

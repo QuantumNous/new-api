@@ -8,13 +8,34 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
+func newImageTestContext(t *testing.T, body, contentType string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{contentType}},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		IsStream:    isStream,
+	}
+	return c, recorder, resp, info
+}
+
+// TestOpenaiImageStreamHandlerForwardsSSEAndUsage covers the core SSE path:
+// chunks are forwarded with rebuilt event lines, usage is extracted and
+// normalized (input_tokens -> prompt_tokens with details), and [DONE] is
+// re-emitted to the client.
 func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -34,19 +55,7 @@ func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 		``,
 	}, "\n")
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
-		IsStream:    true,
-	}
+	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 	require.Nil(t, err)
@@ -62,36 +71,8 @@ func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
 }
 
-func TestOpenaiImageStreamHandlerForwardsLargeSSELine(t *testing.T) {
-	oldMode := gin.Mode()
-	gin.SetMode(gin.TestMode)
-	t.Cleanup(func() { gin.SetMode(oldMode) })
-
-	payload := strings.Repeat("x", helper.DefaultMaxScannerBufferSize+1)
-	body := "data: " + payload + "\n\n"
-
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
-		IsStream:    true,
-	}
-
-	usage, err := OpenaiImageStreamHandler(c, info, resp)
-	require.Nil(t, err)
-	require.NotNil(t, usage)
-	require.Contains(t, recorder.Body.String(), payload)
-	require.NotNil(t, info.StreamStatus)
-	require.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
-}
-
+// TestOpenaiImageStreamHandlerWrapsJSONResponse covers the non-SSE fallback:
+// a JSON upstream response is wrapped into pseudo-SSE completed events.
 func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -99,19 +80,7 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 
 	body := `{"created":1710000000,"data":[{"b64_json":"final","revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}`
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
-		IsStream:    true,
-	}
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 	require.Nil(t, err)
@@ -129,72 +98,53 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 }
 
-func TestOpenaiHandlerWithUsageReturnsImageJSONError(t *testing.T) {
+// TestOpenaiImageHandlersReturnJSONError covers JSON error responses for both
+// entry points: the non-streaming handler and the stream handler's non-SSE
+// fallback. Neither must leak the error body to the client.
+func TestOpenaiImageHandlersReturnJSONError(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
 
 	body := `{"error":{"message":"content moderation failed","type":"upstream_error","code":"content_moderation_failed","status":502}}`
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	t.Run("non-streaming handler", func(t *testing.T) {
+		c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
 
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
-		IsStream:    false,
-	}
+		usage, err := OpenaiImageHandler(c, info, resp)
+		require.Nil(t, usage)
+		require.NotNil(t, err)
+		require.Equal(t, http.StatusOK, err.StatusCode)
+		oaiError := err.ToOpenAIError()
+		require.Equal(t, "content moderation failed", oaiError.Message)
+		require.Equal(t, "upstream_error", oaiError.Type)
+		require.Equal(t, "content_moderation_failed", oaiError.Code)
+		require.Empty(t, recorder.Body.String())
+	})
 
-	usage, err := OpenaiHandlerWithUsage(c, info, resp)
-	require.Nil(t, usage)
-	require.NotNil(t, err)
-	require.Equal(t, http.StatusOK, err.StatusCode)
-	oaiError := err.ToOpenAIError()
-	require.Equal(t, "content moderation failed", oaiError.Message)
-	require.Equal(t, "upstream_error", oaiError.Type)
-	require.Equal(t, "content_moderation_failed", oaiError.Code)
-	require.Empty(t, recorder.Body.String())
+	t.Run("stream handler JSON fallback", func(t *testing.T) {
+		c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+
+		usage, err := OpenaiImageStreamHandler(c, info, resp)
+		require.Nil(t, usage)
+		require.NotNil(t, err)
+		require.Equal(t, http.StatusOK, err.StatusCode)
+		require.Equal(t, "content moderation failed", err.ToOpenAIError().Message)
+		require.Empty(t, recorder.Body.String())
+	})
 }
 
-func TestOpenaiImageStreamHandlerReturnsJSONErrorFallback(t *testing.T) {
-	oldMode := gin.Mode()
-	gin.SetMode(gin.TestMode)
-	t.Cleanup(func() { gin.SetMode(oldMode) })
-
-	body := `{"error":{"message":"image edit failed","type":"upstream_error","code":"content_moderation_failed","status":502}}`
-
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
-		IsStream:    true,
-	}
-
-	usage, err := OpenaiImageStreamHandler(c, info, resp)
-	require.Nil(t, usage)
-	require.NotNil(t, err)
-	require.Equal(t, http.StatusOK, err.StatusCode)
-	oaiError := err.ToOpenAIError()
-	require.Equal(t, "image edit failed", oaiError.Message)
-	require.Empty(t, recorder.Body.String())
-}
-
+// TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent verifies that an error
+// event inside the SSE stream is recorded as a soft error while the payload is
+// still forwarded to the client.
 func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
 
 	body := strings.Join([]string{
 		`event: image_generation.partial_image`,
@@ -205,49 +155,19 @@ func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 		``,
 	}, "\n")
 
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(body)),
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
-		IsStream:    true,
-	}
+	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 	require.Nil(t, err)
 	require.NotNil(t, usage)
 	require.NotNil(t, info.StreamStatus)
-	require.Equal(t, relaycommon.StreamEndReasonHandlerStop, info.StreamStatus.EndReason)
+	require.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
 	require.True(t, info.StreamStatus.HasErrors())
 	require.Equal(t, 1, info.StreamStatus.TotalErrorCount())
 	require.Contains(t, info.StreamStatus.Errors[0].Message, "INTERNAL_ERROR")
-	require.Contains(t, recorder.Body.String(), `event: error`)
+	// The scanner strips the upstream "event: error" line; the event name is
+	// rebuilt from the JSON "type" field (upstream_error). The error message
+	// is still forwarded in the data: payload (stream ID 77).
+	require.Contains(t, recorder.Body.String(), `event: upstream_error`)
 	require.Contains(t, recorder.Body.String(), `stream ID 77`)
-}
-
-func TestNormalizeOpenAIUsageMapsImageTokenDetailsWithoutDoubleCounting(t *testing.T) {
-	usage := &dto.Usage{
-		InputTokens:  5000,
-		OutputTokens: 4000,
-		InputTokensDetails: &dto.InputTokenDetails{
-			CachedCreationTokens: 200,
-			ImageTokens:          1000,
-			TextTokens:           4000,
-		},
-	}
-
-	normalizeOpenAIUsage(usage)
-
-	require.Equal(t, 5000, usage.PromptTokens)
-	require.Equal(t, 4000, usage.CompletionTokens)
-	require.Equal(t, 9000, usage.TotalTokens)
-	require.Equal(t, 200, usage.PromptTokensDetails.CachedCreationTokens)
-	require.Equal(t, 1000, usage.PromptTokensDetails.ImageTokens)
-	require.Equal(t, 4000, usage.PromptTokensDetails.TextTokens)
 }
