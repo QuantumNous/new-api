@@ -13,12 +13,7 @@ type Props = {
 
 export function SiteShell(props: Props) {
   const copy = getCopy(props.locale);
-  const navItems = [
-    { href: "/pricing", label: copy.nav.pricing },
-    { href: "/rankings", label: copy.nav.rankings },
-    { href: "/blog", label: copy.nav.blog },
-    { href: "/about", label: copy.nav.about },
-  ];
+  const navItems = [{ href: "/blog", label: copy.nav.blog }];
 
   return (
     <>

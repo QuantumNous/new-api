@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, BarChart3, Boxes, Gauge, KeyRound, Link2, ReceiptText, Route, Server, UsersRound } from "lucide-react";
+import { HeroTerminalDemo } from "@/components/hero-terminal-demo";
 import { SiteShell } from "@/components/site-shell";
 import { getCopy } from "@/lib/copy";
 import type { Locale } from "@/lib/locales";
@@ -121,7 +122,7 @@ export function HomePage(props: Props) {
             </div>
 
             <div className="landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6" style={{ animationDelay: "320ms" }}>
-              <TerminalDemo />
+              <HeroTerminalDemo className="mt-8 lg:mt-0" />
             </div>
           </div>
         </section>
@@ -299,54 +300,6 @@ function Stats() {
               <span className="text-muted-foreground mt-1.5 text-xs">{label}</span>
             </div>
           ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TerminalDemo() {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="overflow-hidden rounded-2xl border border-violet-500/15 bg-white/90 shadow-[0_28px_80px_-48px_rgba(91,33,182,0.65)] backdrop-blur-sm">
-        <div className="flex items-center gap-1 border-b border-violet-500/10 bg-white/55 px-3">
-          {["Chat", "Responses", "Claude", "Gemini"].map((tab, index) => (
-            <button key={tab} className={cn("relative -mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium tracking-wide transition-colors", index === 0 ? "border-violet-500 text-violet-600" : "border-transparent text-foreground/40")}>
-              {tab}
-            </button>
-          ))}
-        </div>
-        <div className="grid gap-0 lg:grid-cols-[1fr_0.92fr]">
-          <div className="border-b border-violet-500/10 p-5 lg:border-r lg:border-b-0">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="rounded-md bg-violet-500/10 px-2 py-1 font-mono text-[11px] font-semibold text-violet-600">POST</span>
-              <span className="truncate font-mono text-xs text-muted-foreground">https://router.flatkey.ai/v1/chat/completions</span>
-            </div>
-            <pre className="overflow-hidden rounded-xl border border-violet-500/10 bg-slate-950 p-4 text-[12px] leading-6 text-slate-200 shadow-inner">
-{`curl https://router.flatkey.ai/v1/chat/completions \\
-  -H "Authorization: Bearer sk-fk-••••" \\
-  -d '{
-    "model": "your-model",
-    "messages": [
-      { "role": "user", "content": "..." }
-    ]
-  }'`}
-            </pre>
-          </div>
-          <div className="p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground/70">Response</span>
-              <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-[11px] font-semibold text-violet-600">142ms</span>
-            </div>
-            <pre className="overflow-hidden rounded-xl border border-violet-500/10 bg-white/80 p-4 text-[12px] leading-6 text-slate-700">
-{`{
-  "choices": [
-    { "message": { "content": "..." } }
-  ],
-  "usage": { "total_tokens": 27 }
-}`}
-            </pre>
-          </div>
         </div>
       </div>
     </div>
