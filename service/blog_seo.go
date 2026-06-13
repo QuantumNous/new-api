@@ -69,6 +69,8 @@ func BuildRobotsTxt(baseURL string) string {
 	return strings.Join([]string{
 		"User-agent: *",
 		"Allow: /",
+		"Disallow: /cdn-cgi/",
+		"Disallow: /_next/",
 		"",
 		"Sitemap: " + joinPublicURL(baseURL, "/sitemap.xml"),
 		"LLMs: " + joinPublicURL(baseURL, "/llms.txt"),

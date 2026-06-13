@@ -77,7 +77,7 @@ func publicWWWRedirectPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.EqualFold(publicRequestHost(c), "www.flatkey.ai") {
 			target := "https://flatkey.ai" + c.Request.URL.RequestURI()
-			c.Redirect(http.StatusPermanentRedirect, target)
+			c.Redirect(http.StatusMovedPermanently, target)
 			c.Abort()
 			return
 		}
@@ -87,11 +87,28 @@ func publicWWWRedirectPolicy() gin.HandlerFunc {
 
 func publicSearchIndexPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !service.IsCanonicalPublicHost(publicRequestHost(c)) {
+		if !service.IsCanonicalPublicHost(publicRequestHost(c)) ||
+			isModelsPath(c.Request.URL.Path) ||
+			isBlockedCrawlerPath(c.Request.URL.Path) {
 			c.Header("X-Robots-Tag", "noindex, nofollow")
 		}
 		c.Next()
 	}
+}
+
+func isModelsPath(path string) bool {
+	if path == "" {
+		path = "/"
+	}
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	if len(segments) == 1 {
+		return segments[0] == "models"
+	}
+	return len(segments) == 2 && segments[1] == "models"
+}
+
+func isBlockedCrawlerPath(path string) bool {
+	return strings.HasPrefix(path, "/cdn-cgi/") || strings.HasPrefix(path, "/_next/")
 }
 
 func publicRequestHost(c *gin.Context) string {
