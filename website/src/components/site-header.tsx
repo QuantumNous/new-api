@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 
 const SIGN_IN_URL = process.env.NEXT_PUBLIC_SIGN_IN_URL ?? "/sign-in";
 const primaryButtonStyle = {
-  backgroundColor: "var(--primary)",
-  color: "var(--primary-foreground)",
+  backgroundColor: "#070707",
+  color: "#fafafa",
 };
 
 type Props = {

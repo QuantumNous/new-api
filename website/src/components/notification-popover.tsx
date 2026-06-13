@@ -19,8 +19,8 @@ type Props = {
 };
 
 const primaryButtonStyle = {
-  backgroundColor: "var(--primary)",
-  color: "var(--primary-foreground)",
+  backgroundColor: "#070707",
+  color: "#fafafa",
 };
 
 function hashString(input: string): string {
