@@ -7,8 +7,7 @@ import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN ?? "https://flatkey.ai";
-const SIGN_UP_URL = `${APP_ORIGIN}/sign-up`;
+const SIGN_UP_URL = "https://router.flatkey.ai/sign-up";
 
 type Props = {
   locale: Locale;

@@ -10,7 +10,7 @@ import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
-const SIGN_IN_URL = process.env.NEXT_PUBLIC_SIGN_IN_URL ?? "/sign-in";
+const SIGN_IN_URL = "https://router.flatkey.ai/sign-in";
 const primaryButtonStyle = {
   backgroundColor: "#070707",
   color: "#fafafa",
