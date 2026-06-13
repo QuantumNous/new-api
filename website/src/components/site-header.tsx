@@ -11,10 +11,6 @@ import { type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
 const SIGN_IN_URL = "https://router.flatkey.ai/sign-in";
-const primaryButtonStyle = {
-  backgroundColor: "#070707",
-  color: "#fafafa",
-};
 
 type Props = {
   locale: Locale;
@@ -94,9 +90,8 @@ export function SiteHeader(props: Props) {
               <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
-                className="inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
+                className="flatkey-primary-cta inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
                 href={SIGN_IN_URL}
-                style={primaryButtonStyle}
               >
                 {copy.nav.signIn}
               </a>
@@ -171,8 +166,7 @@ export function SiteHeader(props: Props) {
           >
             <a
               href={SIGN_IN_URL}
-              className="inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
-              style={primaryButtonStyle}
+              className="flatkey-primary-cta inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
             >
               {copy.nav.signIn}
             </a>

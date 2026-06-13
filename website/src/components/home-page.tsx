@@ -153,9 +153,9 @@ export function HomePage(props: Props) {
 
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
                 <a
-                  className="group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
+                  className="flatkey-hero-cta group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
                   href={SIGN_UP_URL}
-                  style={{ backgroundColor: "#7c3aed", borderRadius: "0.5rem", color: "#ffffff" }}
+                  style={{ borderRadius: "0.5rem" }}
                 >
                   Get a key
                   <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -335,9 +335,9 @@ export function HomePage(props: Props) {
             <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">Start from the flatkey homepage, manage your product dashboard, and keep router.flatkey.ai as the stable API endpoint.</p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <a
-                className="group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
+                className="flatkey-hero-cta group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
                 href={SIGN_UP_URL}
-                style={{ backgroundColor: "#7c3aed", borderRadius: "0.5rem", color: "#ffffff" }}
+                style={{ borderRadius: "0.5rem" }}
               >
                 Get a key
                 <ArrowRight className="ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />

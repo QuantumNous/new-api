@@ -41,7 +41,8 @@ function applyTheme(theme: Theme) {
 export function ThemeSwitch({ locale }: Props) {
   const copy = getCopy(locale);
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<Theme>(getCookieTheme);
+  const [theme, setTheme] = useState<Theme>("system");
+  const [mounted, setMounted] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -56,8 +57,18 @@ export function ThemeSwitch({ locale }: Props) {
   );
 
   useEffect(() => {
+    void Promise.resolve().then(() => {
+      const cookieTheme = getCookieTheme();
+      setTheme(cookieTheme);
+      applyTheme(cookieTheme);
+      setMounted(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     applyTheme(theme);
-  }, [theme]);
+  }, [mounted, theme]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +92,7 @@ export function ThemeSwitch({ locale }: Props) {
     };
   }, [open]);
 
-  const resolved = resolveTheme(theme);
+  const resolved = mounted ? resolveTheme(theme) : "light";
 
   return (
     <div ref={rootRef} className="relative">
@@ -132,7 +143,7 @@ export function ThemeSwitch({ locale }: Props) {
             <span>{option.label}</span>
             <Check
               size={14}
-              className={cn("ms-auto", theme !== option.code && "invisible")}
+              className={cn("ms-auto", (!mounted || theme !== option.code) && "invisible")}
               aria-hidden="true"
             />
           </button>

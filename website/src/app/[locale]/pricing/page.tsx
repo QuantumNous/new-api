@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
-import { PublicPage } from "@/components/public-page";
+import { PricingPage, parsePricingSearch } from "@/components/pricing-page";
 import { getPageContent } from "@/content/pages";
 import { isLocale, LOCALES } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
-type Props = { params: Promise<{ locale: string }> };
+type Props = {
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 const pageKey = "pricing";
 const pathname = "/pricing";
 
@@ -22,5 +25,6 @@ export async function generateMetadata(props: Props) {
 export default async function Page(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale) || params.locale === "en") notFound();
-  return <PublicPage locale={params.locale} pageKey={pageKey} pathname={pathname} />;
+  const searchParams = await props.searchParams;
+  return <PricingPage locale={params.locale} search={parsePricingSearch(searchParams)} />;
 }

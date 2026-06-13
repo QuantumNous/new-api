@@ -20,6 +20,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-chart-3: var(--chart-3);
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
 }
@@ -43,6 +44,7 @@
   --border: oklch(0.93 0 0);
   --input: oklch(0.93 0 0);
   --ring: oklch(0.708 0 0);
+  --chart-3: oklch(0.7122 0.0991 154.66);
 }
 
 .dark {
@@ -64,10 +66,12 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.68 0 0);
+  --chart-3: oklch(0.845 0.143 164.98);
 }
 
 * {
   box-sizing: border-box;
+  border-color: var(--border);
 }
 
 body {
@@ -85,6 +89,32 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.pricing-model-drawer :is(.border, .border-b, .border-l, .border-r, .border-t) {
+  border-color: var(--border);
+}
+
+.pricing-model-drawer :is(.divide-x > :not(:last-child)) {
+  border-color: var(--border);
+}
+
+.flatkey-primary-cta {
+  background: #070707 !important;
+  color: #ffffff !important;
+}
+
+.flatkey-primary-cta :is(svg, span) {
+  color: inherit !important;
+}
+
+.flatkey-hero-cta {
+  background: #7c3aed !important;
+  color: #ffffff !important;
+}
+
+.flatkey-hero-cta :is(svg, span) {
+  color: inherit !important;
 }
 
 .home-landing :is(h1, h2, h3, h4) {
