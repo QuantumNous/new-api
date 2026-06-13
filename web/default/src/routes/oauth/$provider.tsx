@@ -28,6 +28,7 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
+import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
@@ -114,14 +115,35 @@ function OAuthCallback() {
 
       const consumeSignupOAuthStart = () => {
         if (typeof window === 'undefined') return ''
+        let startedProvider = ''
         try {
-          const startedProvider =
+          startedProvider =
             window.sessionStorage.getItem('ads:oauth_signup_start') || ''
           window.sessionStorage.removeItem('ads:oauth_signup_start')
-          return startedProvider
         } catch {
-          return ''
+          /* ignore storage failures */
         }
+        if (startedProvider) return startedProvider
+        try {
+          const raw = window.localStorage.getItem('ads:oauth_signup_start')
+          window.localStorage.removeItem('ads:oauth_signup_start')
+          if (!raw) return ''
+          const parsed = JSON.parse(raw) as {
+            provider?: string
+            started_at?: number
+          }
+          const maxAgeMs = 30 * 60 * 1000
+          if (
+            parsed?.provider &&
+            parsed?.started_at &&
+            Date.now() - parsed.started_at <= maxAgeMs
+          ) {
+            return parsed.provider
+          }
+        } catch {
+          /* ignore storage failures */
+        }
+        return ''
       }
 
       const trackOAuthResult = (result: 'success' | 'error', message?: string) => {
@@ -192,6 +214,7 @@ function OAuthCallback() {
       }
 
       try {
+        const adsAttribution = getAdsAttributionPayload()
         const config: OAuthRequestConfig = {
           params: {
             code: search.code,
@@ -200,6 +223,7 @@ function OAuthCallback() {
             // backend token exchange matches it even when the web frontend and
             // backend (ServerAddress) are on different domains.
             redirect_uri: `${window.location.origin}/oauth/${provider}`,
+            ads_attribution: adsAttribution || undefined,
           },
           skipBusinessError: true,
         }
