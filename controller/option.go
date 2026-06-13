@@ -149,9 +149,13 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
-	case "QuotaForInviter", "QuotaForInvitee":
+	case "QuotaForInviter", "QuotaForInvitee", "TopUpInviteRewardPercent":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+			return
+		}
+		if strings.HasPrefix(strings.TrimSpace(option.Value.(string)), "-") {
+			common.ApiErrorMsg(c, "value must be non-negative")
 			return
 		}
 	case "LogRetentionDays":

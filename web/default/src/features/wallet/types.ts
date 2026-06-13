@@ -138,6 +138,8 @@ export interface TopupInfo {
   default_topup_amount?: number
   /** Optional topup link for purchasing codes */
   topup_link?: string
+  /** Top-up quota reward percentage paid to inviters */
+  topup_invite_reward_percent?: number
   /** Whether Creem topup is enabled */
   enable_creem_topup?: boolean
   /** Available Creem products */

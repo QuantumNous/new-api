@@ -150,6 +150,7 @@ const TopUp = () => {
     default_topup_amount: 100,
     enable_redemption: true,
     payment_compliance_confirmed: true,
+    topup_invite_reward_percent: 0,
   });
 
   const confirmPayMethods = [
@@ -649,6 +650,8 @@ const TopUp = () => {
           amount_options: data.amount_options || [],
           discount: data.discount || {},
           default_topup_amount: data.default_topup_amount || 100,
+          topup_invite_reward_percent:
+            Number(data.topup_invite_reward_percent) || 0,
         });
 
         // 处理支付方式
@@ -739,6 +742,8 @@ const TopUp = () => {
               data.payment_compliance_confirmed !== false,
             payment_compliance_terms_version:
               data.payment_compliance_terms_version || '',
+            topup_invite_reward_percent:
+              Number(data.topup_invite_reward_percent) || 0,
           }));
 
           // 设置 Creem 产品
@@ -1135,6 +1140,7 @@ const TopUp = () => {
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
           complianceConfirmed={topupInfo.payment_compliance_confirmed !== false}
+          topupInviteRewardPercent={topupInfo.topup_invite_reward_percent || 0}
         />
       </div>
     </div>

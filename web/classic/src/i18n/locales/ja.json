@@ -3650,6 +3650,10 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "充值邀请返利比例": "チャージ紹介報酬率",
+    "按被邀请用户实际到账额度返给邀请人": "紹介者に付与される、チャージで実際に加算されたクォータの割合",
+    "当前充值邀请返利：{{percent}}%": "現在のチャージ紹介報酬: {{percent}}%",
+    "例如：10": "例: 10"
   }
 }

@@ -39,6 +39,7 @@ const InvitationCard = ({
   affLink,
   handleAffLinkClick,
   complianceConfirmed = true,
+  topupInviteRewardPercent = 0,
 }) => {
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
@@ -211,6 +212,17 @@ const InvitationCard = ({
           title={<Text type='tertiary'>{t('奖励说明')}</Text>}
         >
           <div className='space-y-3'>
+            {topupInviteRewardPercent > 0 && (
+              <div className='flex items-start gap-2'>
+                <Badge dot type='success' />
+                <Text type='tertiary' className='text-sm'>
+                  {t('当前充值邀请返利：{{percent}}%', {
+                    percent: topupInviteRewardPercent,
+                  })}
+                </Text>
+              </div>
+            )}
+
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>

@@ -3827,6 +3827,10 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "充值邀请返利比例": "Top-up referral reward rate",
+    "按被邀请用户实际到账额度返给邀请人": "Percentage of credited top-up quota rewarded to the inviter",
+    "当前充值邀请返利：{{percent}}%": "Current top-up referral reward: {{percent}}%",
+    "例如：10": "Example: 10"
   }
 }

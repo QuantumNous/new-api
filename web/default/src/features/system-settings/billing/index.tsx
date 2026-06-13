@@ -29,6 +29,7 @@ const defaultBillingSettings: BillingSettings = {
   PreConsumedQuota: 0,
   QuotaForInviter: 0,
   QuotaForInvitee: 0,
+  TopUpInviteRewardPercent: 0,
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,

@@ -31,6 +31,7 @@ interface AffiliateRewardsCardProps {
   affiliateLink: string
   onTransfer: () => void
   complianceConfirmed?: boolean
+  topupInviteRewardPercent?: number
   loading?: boolean
 }
 
@@ -39,6 +40,7 @@ export function AffiliateRewardsCard({
   affiliateLink,
   onTransfer,
   complianceConfirmed = true,
+  topupInviteRewardPercent = 0,
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
@@ -75,6 +77,13 @@ export function AffiliateRewardsCard({
                 'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
               )}
             </p>
+            {topupInviteRewardPercent > 0 ? (
+              <p className='text-muted-foreground line-clamp-1 text-xs'>
+                {t('Current top-up referral reward: {{percent}}%', {
+                  percent: topupInviteRewardPercent,
+                })}
+              </p>
+            ) : null}
           </div>
         </div>
 
