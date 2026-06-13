@@ -1,0 +1,7 @@
+# Japanese translations (email content only; other keys fall back to English)
+
+# Email content messages
+email.verification_subject: "{{.SystemName}} メールアドレスの確認"
+email.verification_content: "<p>こんにちは。{{.SystemName}} のメールアドレスを確認しています。</p><p>確認コード: <strong>{{.Code}}</strong></p><p>このコードは {{.Minutes}} 分間有効です。心当たりがない場合は、このメールを無視してください。</p>"
+email.password_reset_subject: "{{.SystemName}} パスワードの再設定"
+email.password_reset_content: "<p>こんにちは。{{.SystemName}} アカウントのパスワードを再設定しています。</p><p><a href='{{.Link}}'>こちら</a>をクリックしてパスワードを再設定してください。</p><p>リンクをクリックできない場合は、次のリンクをブラウザにコピーしてください:<br> {{.Link}} </p><p>再設定リンクは {{.Minutes}} 分間有効です。心当たりがない場合は、このメールを無視してください。</p>"

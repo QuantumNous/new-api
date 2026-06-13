@@ -1,0 +1,7 @@
+# Spanish translations (email content only; other keys fall back to English)
+
+# Email content messages
+email.verification_subject: "Verificación de correo electrónico de {{.SystemName}}"
+email.verification_content: "<p>Hola, está verificando su correo electrónico para {{.SystemName}}.</p><p>Su código de verificación es: <strong>{{.Code}}</strong></p><p>El código es válido durante {{.Minutes}} minutos. Si no fue usted, ignore este correo.</p>"
+email.password_reset_subject: "Restablecimiento de contraseña de {{.SystemName}}"
+email.password_reset_content: "<p>Hola, está restableciendo la contraseña de su cuenta de {{.SystemName}}.</p><p>Haga clic <a href='{{.Link}}'>aquí</a> para restablecer su contraseña.</p><p>Si el enlace no funciona, copie el siguiente enlace en su navegador:<br> {{.Link}} </p><p>El enlace de restablecimiento es válido durante {{.Minutes}} minutos. Si no fue usted, ignore este correo.</p>"

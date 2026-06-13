@@ -321,6 +321,14 @@ const (
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
 )
 
+// Email content messages (subject + HTML body, rendered with template data)
+const (
+	MsgEmailVerifySubject = "email.verification_subject"
+	MsgEmailVerifyContent = "email.verification_content"
+	MsgEmailResetSubject  = "email.password_reset_subject"
+	MsgEmailResetContent  = "email.password_reset_content"
+)
+
 // Custom OAuth provider related messages
 const (
 	MsgCustomOAuthNotFound          = "custom_oauth.not_found"

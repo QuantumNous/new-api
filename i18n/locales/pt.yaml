@@ -279,3 +279,9 @@ custom_oauth.name_empty: "O nome do provedor não pode ficar vazio"
 custom_oauth.has_bindings: "Não é possível excluir provedor com vínculos de usuário existentes"
 custom_oauth.binding_not_found: "Vínculo OAuth não encontrado"
 custom_oauth.provider_id_field_invalid: "Não foi possível extrair o ID do usuário da resposta do provedor"
+
+# Email content messages
+email.verification_subject: "Verificação de E-mail {{.SystemName}}"
+email.verification_content: "<p>Olá, você está verificando seu e-mail para {{.SystemName}}.</p><p>Seu código de verificação é: <strong>{{.Code}}</strong></p><p>O código é válido por {{.Minutes}} minutos. Se não foi você, ignore este e-mail.</p>"
+email.password_reset_subject: "Redefinição de Senha {{.SystemName}}"
+email.password_reset_content: "<p>Olá, você está redefinindo a senha da sua conta {{.SystemName}}.</p><p>Clique <a href='{{.Link}}'>aqui</a> para redefinir sua senha.</p><p>Se o link não for clicável, copie o link a seguir para o seu navegador:<br> {{.Link}} </p><p>O link de redefinição é válido por {{.Minutes}} minutos. Se não foi você, ignore este e-mail.</p>"

@@ -1,0 +1,7 @@
+# French translations (email content only; other keys fall back to English)
+
+# Email content messages
+email.verification_subject: "Vérification de l'e-mail {{.SystemName}}"
+email.verification_content: "<p>Bonjour, vous vérifiez votre adresse e-mail pour {{.SystemName}}.</p><p>Votre code de vérification est : <strong>{{.Code}}</strong></p><p>Le code est valable pendant {{.Minutes}} minutes. Si vous n'êtes pas à l'origine de cette demande, veuillez ignorer cet e-mail.</p>"
+email.password_reset_subject: "Réinitialisation du mot de passe {{.SystemName}}"
+email.password_reset_content: "<p>Bonjour, vous réinitialisez le mot de passe de votre compte {{.SystemName}}.</p><p>Cliquez <a href='{{.Link}}'>ici</a> pour réinitialiser votre mot de passe.</p><p>Si le lien n'est pas cliquable, copiez le lien suivant dans votre navigateur :<br> {{.Link}} </p><p>Le lien de réinitialisation est valable pendant {{.Minutes}} minutes. Si vous n'êtes pas à l'origine de cette demande, veuillez ignorer cet e-mail.</p>"

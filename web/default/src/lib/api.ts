@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import axios, { type AxiosRequestConfig } from 'axios'
-import { t } from 'i18next'
+import i18next, { t } from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -164,6 +164,14 @@ api.interceptors.request.use((config) => {
   if (uid) {
     // Custom header for user identification
     ;(config.headers as Record<string, string>)['New-Api-User'] = uid
+  }
+  // Forward the in-app selected language so the backend (e.g. verification /
+  // password-reset emails) can localize content instead of falling back to the
+  // browser's Accept-Language. Backend supports zh-CN/zh-TW/en/pt and falls
+  // back to English for other codes.
+  const lang = i18next.language
+  if (lang) {
+    ;(config.headers as Record<string, string>)['Accept-Language'] = lang
   }
   return config
 })

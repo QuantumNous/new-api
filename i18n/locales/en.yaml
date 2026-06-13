@@ -278,3 +278,9 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# Email content messages
+email.verification_subject: "{{.SystemName}} Email Verification"
+email.verification_content: "<p>Hello, you are verifying your email for {{.SystemName}}.</p><p>Your verification code is: <strong>{{.Code}}</strong></p><p>The code is valid for {{.Minutes}} minutes. If this was not you, please ignore this email.</p>"
+email.password_reset_subject: "{{.SystemName}} Password Reset"
+email.password_reset_content: "<p>Hello, you are resetting the password for your {{.SystemName}} account.</p><p>Click <a href='{{.Link}}'>here</a> to reset your password.</p><p>If the link is not clickable, copy the following link into your browser:<br> {{.Link}} </p><p>The reset link is valid for {{.Minutes}} minutes. If this was not you, please ignore this email.</p>"

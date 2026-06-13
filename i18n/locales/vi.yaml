@@ -1,0 +1,7 @@
+# Vietnamese translations (email content only; other keys fall back to English)
+
+# Email content messages
+email.verification_subject: "Xác minh email {{.SystemName}}"
+email.verification_content: "<p>Xin chào, bạn đang xác minh email cho {{.SystemName}}.</p><p>Mã xác minh của bạn là: <strong>{{.Code}}</strong></p><p>Mã có hiệu lực trong {{.Minutes}} phút. Nếu không phải bạn thực hiện, vui lòng bỏ qua email này.</p>"
+email.password_reset_subject: "Đặt lại mật khẩu {{.SystemName}}"
+email.password_reset_content: "<p>Xin chào, bạn đang đặt lại mật khẩu cho tài khoản {{.SystemName}}.</p><p>Nhấp <a href='{{.Link}}'>vào đây</a> để đặt lại mật khẩu.</p><p>Nếu không nhấp được liên kết, hãy sao chép liên kết sau vào trình duyệt:<br> {{.Link}} </p><p>Liên kết đặt lại có hiệu lực trong {{.Minutes}} phút. Nếu không phải bạn thực hiện, vui lòng bỏ qua email này.</p>"
