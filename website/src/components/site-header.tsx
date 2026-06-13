@@ -90,7 +90,7 @@ export function SiteHeader(props: Props) {
               <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
-                className="inline-flex h-8 items-center justify-center rounded-lg bg-foreground px-3.5 text-xs font-medium text-background transition-opacity hover:opacity-90 active:opacity-80"
+                className="inline-flex h-8 items-center justify-center rounded-lg bg-black px-3.5 text-xs font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 dark:bg-white dark:text-black"
                 href={SIGN_IN_URL}
               >
                 {copy.nav.signIn}
@@ -166,7 +166,7 @@ export function SiteHeader(props: Props) {
           >
             <a
               href={SIGN_IN_URL}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 active:opacity-80"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-black text-sm font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 dark:bg-white dark:text-black"
             >
               {copy.nav.signIn}
             </a>
