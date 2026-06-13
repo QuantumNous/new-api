@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { getCopy } from "@/lib/copy";
-import { DEFAULT_LOCALE, LOCALE_LABELS, LOCALES, type Locale, localizePath } from "@/lib/locales";
+import { type Locale, localizePath } from "@/lib/locales";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://flatkey.ai/dashboard";
 
@@ -37,18 +38,7 @@ export function SiteShell(props: Props) {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <nav className="hidden max-w-[21rem] items-center gap-1 lg:flex" aria-label="Language navigation">
-                {LOCALES.map((locale) => (
-                  <a
-                    key={locale}
-                    className="text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-[11px] font-medium transition-colors"
-                    href={localizePath(props.pathname, locale)}
-                    hrefLang={locale}
-                  >
-                    {locale === DEFAULT_LOCALE ? "EN" : LOCALE_LABELS[locale]}
-                  </a>
-                ))}
-              </nav>
+              <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
               <a
                 className="inline-flex h-9 items-center justify-center rounded-lg bg-violet-600 px-3.5 text-[13px] font-medium text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:bg-violet-500"
                 href={APP_URL}
