@@ -45,6 +45,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/terms", 0.3, "yearly"),
     ...entry("/privacy", 0.3, "yearly"),
     ...entry("/sla", 0.3, "yearly"),
+    ...entry("/refund-policy", 0.3, "yearly"),
   ];
   const categoryEntries = categories.flatMap((category) => entry(`/blog/category/${category.slug}`, 0.7, "weekly"));
   const postEntries = posts.list.flatMap((post) => entry(`/blog/${post.slug}`, 0.8, "monthly"));

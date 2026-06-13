@@ -1,10 +1,13 @@
 import type { Locale } from "@/lib/locales";
+import { getDefaultLegalDocument, type LegalDocumentKind } from "./legal/default-documents";
 
 type PageContent = {
   title: string;
   description: string;
   eyebrow: string;
-  sections: { title: string; body: string }[];
+  sections?: { title: string; body: string }[];
+  document?: string;
+  updated?: string;
 };
 
 const generic: Record<string, Omit<PageContent, "eyebrow">> = {
@@ -40,41 +43,40 @@ const generic: Record<string, Omit<PageContent, "eyebrow">> = {
   },
   terms: {
     title: "Terms of Service",
-    description: "Read the terms that govern use of flatkey.ai products and services.",
-    sections: [
-      { title: "Service use", body: "Use of flatkey.ai must comply with applicable laws, provider policies, and account limits." },
-      { title: "Accounts", body: "Customers are responsible for account security, API keys, and activity under their organization." },
-      { title: "Changes", body: "The service and these terms may be updated as the product and compliance requirements evolve." },
-    ],
+    description: "Read the terms that govern accounts, prepaid balance, model access, usage, billing, refunds, and dispute handling for flatkey.ai.",
+    sections: [],
   },
   privacy: {
     title: "Privacy Policy",
-    description: "Learn how flatkey.ai handles product, account, billing, and usage data.",
-    sections: [
-      { title: "Data we process", body: "We process account, billing, usage, and operational data needed to provide the service." },
-      { title: "Security", body: "Controls are designed around API gateway operations, access management, and auditability." },
-      { title: "Contact", body: "Privacy requests can be sent to the support contact listed in your service agreement." },
-    ],
+    description: "Learn how flatkey.ai collects, uses, shares, retains, and protects account, payment, API usage, support, and security information.",
+    sections: [],
   },
   sla: {
     title: "Service Level Agreement",
-    description: "Review flatkey.ai service availability principles and support expectations.",
-    sections: [
-      { title: "Availability", body: "The service is operated for production AI workloads with monitoring and incident response." },
-      { title: "Support", body: "Support channels and response expectations depend on the customer plan and agreement." },
-      { title: "Exclusions", body: "Upstream provider outages, customer configuration errors, and force majeure events may be excluded." },
-    ],
+    description: "Review flatkey.ai availability scope, incident handling, maintenance, exclusions, support process, and remedies.",
+    sections: [],
   },
   "refund-policy": {
     title: "Refund Policy",
-    description: "Review refund handling principles for flatkey.ai products and services.",
-    sections: [
-      { title: "Eligibility", body: "Refund eligibility depends on the subscription, contract terms, consumed usage, and billing status for the account." },
-      { title: "Usage-based services", body: "Usage-based API costs, upstream provider fees, and already-consumed credits may be non-refundable." },
-      { title: "Support requests", body: "Refund and billing questions can be sent to support@flatkey.ai with the account and invoice details." },
-    ],
+    description: "Review how flatkey.ai handles refund eligibility, unused balance, consumed API usage, duplicate charges, disputes, taxes, and support requests.",
+    sections: [],
   },
 };
+
+const legalDocumentByPage: Partial<Record<keyof typeof generic, LegalDocumentKind>> = {
+  terms: "terms",
+  privacy: "privacy",
+  sla: "sla",
+  "refund-policy": "refund",
+};
+
+function getMarkdownTitle(markdown: string): string | undefined {
+  return markdown
+    .split("\n")
+    .find((line) => line.startsWith("# "))
+    ?.replace(/^#\s+/, "")
+    .trim();
+}
 
 const eyebrowByLocale: Record<Locale, string> = {
   en: "Official website",
@@ -90,8 +92,14 @@ const eyebrowByLocale: Record<Locale, string> = {
 export type PublicPageKey = keyof typeof generic;
 
 export function getPageContent(key: PublicPageKey, locale: Locale): PageContent {
+  const legalKind = legalDocumentByPage[key];
+  const document = legalKind ? getDefaultLegalDocument(legalKind, locale) : undefined;
+  const title = document ? (getMarkdownTitle(document) ?? generic[key].title) : generic[key].title;
   return {
     ...generic[key],
+    title,
     eyebrow: eyebrowByLocale[locale] ?? eyebrowByLocale.en,
+    document,
+    updated: legalKind ? "June 4, 2026" : undefined,
   };
 }
