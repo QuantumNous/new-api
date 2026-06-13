@@ -26,8 +26,10 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useNavigate } from '@tanstack/react-router'
 import { Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { modelPricingSettingsLink } from '@/features/system-settings/billing/model-pricing-link'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -119,6 +121,7 @@ export function ChannelTestDialog({
   onOpenChange,
 }: ChannelTestDialogProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { currentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
@@ -263,6 +266,11 @@ export function ChannelTestDialog({
     onOpenChange(false)
   }
 
+  const handleGoToModelPricing = useCallback(() => {
+    onOpenChange(false)
+    navigate(modelPricingSettingsLink)
+  }, [navigate, onOpenChange])
+
   const isAnyTesting = testingModels.size > 0 || isBatchTesting
 
   const columns = useMemo<ColumnDef<ModelRow>[]>(
@@ -368,9 +376,7 @@ export function ChannelTestDialog({
                   variant='outline'
                   size='sm'
                   className='w-fit'
-                  onClick={() =>
-                    window.open('/console/setting?tab=ratio', '_blank')
-                  }
+                  onClick={handleGoToModelPricing}
                 >
                   <Settings className='mr-1 h-3 w-3' />
                   {t('Go to Settings')}
@@ -414,6 +420,7 @@ export function ChannelTestDialog({
       testResults,
       testingModels,
       testSingleModel,
+      handleGoToModelPricing,
     ]
   )
 
