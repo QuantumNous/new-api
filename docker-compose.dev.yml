@@ -54,6 +54,8 @@ services:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: 123456
       POSTGRES_DB: new-api
+    ports:
+      - "5432:5432"
     volumes:
       - dev_pg_data:/var/lib/postgresql/data
     networks:
