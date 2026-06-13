@@ -136,7 +136,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   return (
-    <>
+    <div className='-ml-2'>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -294,6 +294,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         user={{ id: user.id, username: user.username }}
         onSuccess={triggerRefresh}
       />
-    </>
+    </div>
   )
 }

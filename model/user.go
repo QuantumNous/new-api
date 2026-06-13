@@ -264,7 +264,11 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		query = query.Where("role = ?", *role)
 	}
 	if status != nil {
-		query = query.Where("status = ?", *status)
+		if *status == -1 {
+			query = query.Where("deleted_at IS NOT NULL")
+		} else {
+			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
+		}
 	}
 
 	// 获取总数

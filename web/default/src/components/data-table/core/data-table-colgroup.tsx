@@ -23,10 +23,21 @@ export function DataTableColgroup<TData>({
 }: {
   table: TanstackTable<TData>
 }) {
+  const columns = table.getVisibleLeafColumns()
+  const totalSize = columns.reduce((sum, col) => sum + col.getSize(), 0)
+
   return (
     <colgroup>
-      {table.getVisibleLeafColumns().map((column) => (
-        <col key={column.id} style={{ width: column.getSize() }} />
+      {columns.map((column) => (
+        <col
+          key={column.id}
+          style={{
+            width:
+              totalSize > 0
+                ? `${(column.getSize() / totalSize) * 100}%`
+                : undefined,
+          }}
+        />
       ))}
     </colgroup>
   )

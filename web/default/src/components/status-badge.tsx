@@ -22,7 +22,6 @@ import { type LucideIcon } from 'lucide-react'
 import { stringToColor } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-
 export const dotColorMap = {
   success: 'bg-success',
   warning: 'bg-warning',
@@ -73,10 +72,27 @@ export const textColorMap = {
 
 export type StatusVariant = keyof typeof dotColorMap
 
+/** Controls the visual style of the badge.
+ * - `badge`    — default pill with background and padding (default)
+ * - `text`     — plain text, no background or padding, only color
+ * - `underline`— plain text with a bottom border underline
+ */
+export type StatusBadgeType = 'badge' | 'text' | 'underline'
+
+/** Context that lets ancestor components (e.g. MobileCardList field area)
+ *  override the badge type without modifying every call site. */
+export const StatusBadgeTypeContext = React.createContext<StatusBadgeType>('badge')
+
 const sizeMap = {
   sm: 'h-5 gap-1 px-1.5 text-xs leading-none',
   md: 'h-5 gap-1 px-1.5 text-xs leading-none',
   lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
+} as const
+
+const textSizeMap = {
+  sm: 'gap-1 text-xs leading-none',
+  md: 'gap-1 text-xs leading-none',
+  lg: 'gap-1.5 text-xs leading-none',
 } as const
 
 export interface StatusBadgeProps extends Omit<
@@ -94,6 +110,8 @@ export interface StatusBadgeProps extends Omit<
   copyable?: boolean
   copyText?: string
   autoColor?: string
+  /** Visual style. Defaults to 'badge'. Can be overridden via StatusBadgeTypeContext. */
+  type?: StatusBadgeType
 }
 
 export function StatusBadge({
@@ -107,11 +125,14 @@ export function StatusBadge({
   copyable = true,
   copyText,
   autoColor,
+  type: typeProp,
   className,
   onClick,
   ...props
 }: StatusBadgeProps) {
   const { copyToClipboard } = useCopyToClipboard()
+  const contextType = React.useContext(StatusBadgeTypeContext)
+  const type = typeProp ?? contextType
 
   const computedVariant: StatusVariant = autoColor
     ? (stringToColor(autoColor) as StatusVariant)
@@ -126,14 +147,21 @@ export function StatusBadge({
   }
 
   const content =
-    children ?? (label ? <span className='truncate'>{label}</span> : null)
+    children ??
+    (label ? (
+      <span className='min-w-0 truncate leading-normal'>{label}</span>
+    ) : null)
+
+  const isBadge = type === 'badge'
 
   return (
     <span
       data-slot='status-badge'
       className={cn(
-        'inline-flex w-fit max-w-full shrink-0 items-center rounded-4xl font-medium tracking-normal whitespace-nowrap transition-colors',
-        sizeMap[size ?? 'sm'],
+        'inline-flex w-fit max-w-full shrink-0 items-center font-medium tracking-normal whitespace-nowrap transition-colors',
+        isBadge
+          ? cn('rounded-4xl', sizeMap[size ?? 'sm'])
+          : cn(textSizeMap[size ?? 'sm'], type === 'underline' && 'border-b border-current pb-px'),
         textColorMap[computedVariant],
         pulse && 'animate-pulse',
         copyable &&

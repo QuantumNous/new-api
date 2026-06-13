@@ -36,9 +36,24 @@ export function ProviderBadge({
   const icon = iconKey ? getLobeIcon(iconKey, iconSize) : null
 
   return (
-    <div className={cn('flex items-center gap-1.5', className)}>
-      {icon}
-      <StatusBadge label={label} autoColor={label} size='sm' {...badgeProps} />
+    <div
+      data-slot='provider-badge'
+      className={cn(
+        'flex min-w-0 max-w-full items-center gap-1.5',
+        className
+      )}
+    >
+      {icon && <span className='flex shrink-0 items-center'>{icon}</span>}
+      <StatusBadge
+        label={label}
+        autoColor={label}
+        size='sm'
+        className={cn(
+          'min-w-0 shrink overflow-hidden',
+          !icon && 'pl-0'
+        )}
+        {...badgeProps}
+      />
     </div>
   )
 }
