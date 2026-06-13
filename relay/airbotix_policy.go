@@ -137,6 +137,14 @@ func rawJSON(v any) []byte {
 	return data
 }
 
+// clampUint returns v clamped to ceiling. If v == nil, returns nil unchanged.
+func clampUint(v *uint, ceiling uint) *uint {
+	if v != nil && *v > ceiling {
+		return &ceiling
+	}
+	return v
+}
+
 func collectGeneralOpenAIInputTexts(request *dto.GeneralOpenAIRequest) []string {
 	if request == nil {
 		return nil
