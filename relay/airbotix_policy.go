@@ -33,6 +33,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// maxTokensHardCap is the global ceiling for max_tokens / max_completion_tokens
+// across all request shapes and all tenants. Prevents a single request from
+// consuming unbounded upstream tokens regardless of quota settings.
+const maxTokensHardCap uint = 2048
+
 // policyDecisionFromContext returns the policy.Decision stashed by
 // middleware/policy.go, or zero (passthrough) + false when none is present.
 func policyDecisionFromContext(c *gin.Context) (policy.Decision, bool) {
@@ -185,6 +190,8 @@ func applyAirbotixPolicy(decision policy.Decision, channelType int, request *dto
 	if request == nil {
 		return ""
 	}
+	request.MaxTokens = clampUint(request.MaxTokens, maxTokensHardCap)
+	request.MaxCompletionTokens = clampUint(request.MaxCompletionTokens, maxTokensHardCap)
 	if decision.EnforceModelWhitelist && !kids.IsModelEligible(request.Model) {
 		return "model_not_eligible_for_kids_mode: " + request.Model
 	}
@@ -220,6 +227,8 @@ func applyAirbotixPolicyToClaude(c *gin.Context, request *dto.ClaudeRequest) *ty
 	if request == nil {
 		return nil
 	}
+	request.MaxTokens = clampUint(request.MaxTokens, maxTokensHardCap)
+	request.MaxTokensToSample = clampUint(request.MaxTokensToSample, maxTokensHardCap)
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil
@@ -259,6 +268,7 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 	if request == nil {
 		return nil
 	}
+	request.MaxOutputTokens = clampUint(request.MaxOutputTokens, maxTokensHardCap)
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil
@@ -297,6 +307,11 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 //     block; under kid-safe profile, only fill when nil.
 //   - Gemini has no User/Store equivalents to strip.
 func applyAirbotixPolicyToGemini(c *gin.Context, model string, request *dto.GeminiChatRequest) *types.NewAPIError {
+	// Clamp before the policy check so the hard cap applies even when
+	// policyDecisionFromContext returns !ok (transient DB error → passthrough).
+	if request != nil {
+		request.GenerationConfig.MaxOutputTokens = clampUint(request.GenerationConfig.MaxOutputTokens, maxTokensHardCap)
+	}
 	d, ok := policyDecisionFromContext(c)
 	if !ok {
 		return nil

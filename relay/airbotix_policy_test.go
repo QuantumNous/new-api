@@ -413,3 +413,107 @@ func TestApplyAirbotixPolicyToGemini_KidSafeFillsWhenNil(t *testing.T) {
 		t.Fatal("SystemInstructions should be filled when nil under kid-safe profile")
 	}
 }
+
+// =============================================================================
+// clampUint + max_tokens hard cap
+//
+// maxTokensHardCap = 2048 is applied to every request shape before the request
+// reaches the upstream provider. These tests ensure the cap is enforced
+// regardless of policy profile (even passthrough).
+// =============================================================================
+
+func TestClampUint_Nil(t *testing.T) {
+	if got := clampUint(nil, 100); got != nil {
+		t.Fatalf("clampUint(nil, 100) must return nil; got %v", *got)
+	}
+}
+
+func TestClampUint_BelowCeiling(t *testing.T) {
+	v := uint(50)
+	got := clampUint(&v, 100)
+	if got == nil || *got != 50 {
+		t.Fatalf("value below ceiling should pass through unchanged; got %v", got)
+	}
+}
+
+func TestClampUint_AtCeiling(t *testing.T) {
+	v := uint(100)
+	got := clampUint(&v, 100)
+	if got == nil || *got != 100 {
+		t.Fatalf("value equal to ceiling should pass through; got %v", got)
+	}
+}
+
+func TestClampUint_AboveCeiling(t *testing.T) {
+	v := uint(5000)
+	got := clampUint(&v, maxTokensHardCap)
+	if got == nil || *got != maxTokensHardCap {
+		t.Fatalf("value above ceiling must be clamped to %d; got %v", maxTokensHardCap, got)
+	}
+}
+
+func TestApplyAirbotixPolicy_ClampsMaxTokens(t *testing.T) {
+	over := uint(5000)
+	req := &dto.GeneralOpenAIRequest{
+		Model:               "gpt-4o-mini",
+		Messages:            []dto.Message{{Role: "user", Content: "hi"}},
+		MaxTokens:           &over,
+		MaxCompletionTokens: &over,
+	}
+	if reject := applyAirbotixPolicy(passthroughDecision(), constant.ChannelTypeOpenAI, req); reject != "" {
+		t.Fatalf("unexpected reject %q", reject)
+	}
+	if req.MaxTokens == nil || *req.MaxTokens != maxTokensHardCap {
+		t.Fatalf("MaxTokens must be clamped to %d; got %v", maxTokensHardCap, req.MaxTokens)
+	}
+	if req.MaxCompletionTokens == nil || *req.MaxCompletionTokens != maxTokensHardCap {
+		t.Fatalf("MaxCompletionTokens must be clamped to %d; got %v", maxTokensHardCap, req.MaxCompletionTokens)
+	}
+}
+
+func TestApplyAirbotixPolicyToClaude_ClampsMaxTokens(t *testing.T) {
+	over := uint(9999)
+	c := newTestContext(t, nil)
+	req := &dto.ClaudeRequest{
+		Model:             "claude-3-5-haiku-latest",
+		MaxTokens:         &over,
+		MaxTokensToSample: &over,
+	}
+	if err := applyAirbotixPolicyToClaude(c, req); err != nil {
+		t.Fatalf("unexpected error %v", err.Err)
+	}
+	if req.MaxTokens == nil || *req.MaxTokens != maxTokensHardCap {
+		t.Fatalf("MaxTokens must be clamped to %d; got %v", maxTokensHardCap, req.MaxTokens)
+	}
+	if req.MaxTokensToSample == nil || *req.MaxTokensToSample != maxTokensHardCap {
+		t.Fatalf("MaxTokensToSample must be clamped to %d; got %v", maxTokensHardCap, req.MaxTokensToSample)
+	}
+}
+
+func TestApplyAirbotixPolicyToResponses_ClampsMaxOutputTokens(t *testing.T) {
+	over := uint(9999)
+	c := newTestContext(t, nil)
+	req := &dto.OpenAIResponsesRequest{
+		Model:           "gpt-4o-mini",
+		MaxOutputTokens: &over,
+	}
+	if err := applyAirbotixPolicyToResponses(c, constant.ChannelTypeOpenAI, req); err != nil {
+		t.Fatalf("unexpected error %v", err.Err)
+	}
+	if req.MaxOutputTokens == nil || *req.MaxOutputTokens != maxTokensHardCap {
+		t.Fatalf("MaxOutputTokens must be clamped to %d; got %v", maxTokensHardCap, req.MaxOutputTokens)
+	}
+}
+
+func TestApplyAirbotixPolicyToGemini_ClampsMaxOutputTokens(t *testing.T) {
+	over := uint(9999)
+	c := newTestContext(t, nil)
+	req := &dto.GeminiChatRequest{}
+	req.GenerationConfig.MaxOutputTokens = &over
+	if err := applyAirbotixPolicyToGemini(c, "gpt-4o-mini", req); err != nil {
+		t.Fatalf("unexpected error %v", err.Err)
+	}
+	if req.GenerationConfig.MaxOutputTokens == nil || *req.GenerationConfig.MaxOutputTokens != maxTokensHardCap {
+		t.Fatalf("MaxOutputTokens must be clamped to %d; got %v", maxTokensHardCap, req.GenerationConfig.MaxOutputTokens)
+	}
+}

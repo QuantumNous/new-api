@@ -40,3 +40,7 @@ skills-lock.json
 
 # playwright-mcp tool runs leave logs/snapshots here — not source
 .playwright-mcp/
+
+# Local env files with real API keys / secrets — never commit
+bin/.env.*
+!bin/.env.*.example

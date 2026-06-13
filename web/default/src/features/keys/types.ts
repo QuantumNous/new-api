@@ -50,6 +50,10 @@ export const apiKeySchema = z.object({
   simple_purpose: z.string().nullish().default(''),
   simple_brand: z.string().nullish().default(''),
   simple_price_tier: z.string().nullish().default(''),
+  // DR-13: per-token rate limits (0 = unlimited)
+  rpm_limit: z.number().optional().default(0),
+  tpm_limit: z.number().optional().default(0),
+  monthly_limit: z.number().optional().default(0),
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
@@ -101,6 +105,10 @@ export interface ApiKeyFormData {
   simple_purpose?: string
   simple_brand?: string
   simple_price_tier?: string
+  // DR-13: per-token rate limits (0 = unlimited)
+  rpm_limit?: number
+  tpm_limit?: number
+  monthly_limit?: number
 }
 
 // ============================================================================

@@ -126,7 +126,7 @@ go test ./internal/...            # only Airbotix-internal packages
 go test -run TestName ./path/to/pkg
 
 # Frontend
-cd web/default && bun install && bun run dev    # :3001
+cd web/default && bun install && bun run dev    # :17231
 cd web/default && bun run i18n:sync             # sync translation strings
 ```
 
