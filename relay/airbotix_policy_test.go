@@ -50,6 +50,111 @@ func passthroughDecision() policy.Decision {
 	return policy.DecisionFor(false, "passthrough")
 }
 
+func assertTexts(t *testing.T, got []string, want ...string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("texts length mismatch:\n got: %#v\nwant: %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("texts[%d] mismatch: got %q want %q\nall got: %#v", i, got[i], want[i], got)
+		}
+	}
+}
+
+// =============================================================================
+// entry input text collectors
+// =============================================================================
+
+func TestCollectAnyText_NestedStringsAndContentMaps(t *testing.T) {
+	got := collectAnyText(map[string]any{
+		"content": []any{
+			"plain",
+			map[string]any{"text": "text field"},
+			map[string]any{"content": []any{"nested", map[string]any{"text": "deep"}}},
+			map[string]any{"image_url": "ignored"},
+		},
+	})
+	assertTexts(t, got, "plain", "text field", "nested", "deep")
+}
+
+func TestCollectGeneralOpenAIInputTexts_UserMessagesPromptInputInstruction(t *testing.T) {
+	req := &dto.GeneralOpenAIRequest{
+		Messages: []dto.Message{
+			{Role: "system", Content: "system ignored"},
+			{Role: "user", Content: "user string"},
+			{Role: "assistant", Content: "assistant ignored"},
+			{Role: "user", Content: []any{
+				map[string]any{"type": "text", "text": "user multimodal"},
+				map[string]any{"type": "image_url", "image_url": "ignored"},
+			}},
+			{Role: "", Content: "empty role is entry input"},
+		},
+		Prompt: map[string]any{"content": []any{"prompt string", map[string]any{"text": "prompt text"}}},
+		Input: []any{
+			"input string",
+			map[string]any{"content": "input nested"},
+		},
+		Instruction: "instruction text",
+	}
+
+	got := collectGeneralOpenAIInputTexts(req)
+	assertTexts(t, got,
+		"user string",
+		"user multimodal",
+		"empty role is entry input",
+		"prompt string",
+		"prompt text",
+		"input string",
+		"input nested",
+		"instruction text",
+	)
+}
+
+func TestCollectClaudeInputTexts_PromptAndUserMessages(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Prompt: "legacy prompt",
+		Messages: []dto.ClaudeMessage{
+			{Role: "assistant", Content: "assistant ignored"},
+			{Role: "user", Content: "user string"},
+			{Role: "", Content: []any{
+				map[string]any{"type": "text", "text": "empty role multimodal"},
+				map[string]any{"type": "image", "source": "ignored"},
+			}},
+		},
+	}
+
+	got := collectClaudeInputTexts(req)
+	assertTexts(t, got, "legacy prompt", "user string", "empty role multimodal")
+}
+
+func TestCollectResponsesInputTexts_StringAndStructuredInputs(t *testing.T) {
+	stringReq := &dto.OpenAIResponsesRequest{Input: testRawJSON(t, "plain responses input")}
+	assertTexts(t, collectResponsesInputTexts(stringReq), "plain responses input")
+
+	structuredReq := &dto.OpenAIResponsesRequest{Input: testRawJSON(t, []map[string]any{
+		{"role": "user", "content": "content string"},
+		{"role": "user", "content": []map[string]any{
+			{"type": "input_text", "text": "content text"},
+			{"type": "input_image", "image_url": "ignored"},
+		}},
+	})}
+	assertTexts(t, collectResponsesInputTexts(structuredReq), "content string", "content text")
+}
+
+func TestCollectGeminiInputTexts_UserPartsOnly(t *testing.T) {
+	req := &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{Role: "model", Parts: []dto.GeminiPart{{Text: "model ignored"}}},
+			{Role: "user", Parts: []dto.GeminiPart{{Text: "user part"}, {Text: ""}}},
+			{Role: "", Parts: []dto.GeminiPart{{Text: "empty role part"}}},
+		},
+	}
+
+	got := collectGeminiInputTexts(req)
+	assertTexts(t, got, "user part", "empty role part")
+}
+
 func TestApplyAirbotixPolicy_Passthrough(t *testing.T) {
 	req := &dto.GeneralOpenAIRequest{
 		Model:    "gpt-4",
@@ -187,6 +292,28 @@ func TestApplyAirbotixPolicy_AdultProfilePromptAndFilter(t *testing.T) {
 	}
 	if reject := applyAirbotixPolicy(decision, constant.ChannelTypeOpenAI, blocked); !strings.Contains(reject, "policy_input_blocked") {
 		t.Fatalf("adult denylist should reject; got %q", reject)
+	}
+}
+
+func TestApplyAirbotixPolicy_SystemPromptGateUsesDecisionFlag(t *testing.T) {
+	decision := policy.Decision{
+		Profile:            policy.ProfileAdult,
+		InjectSystemPrompt: false,
+		RunInputFilter:     true,
+	}
+	req := &dto.GeneralOpenAIRequest{
+		Model:    "gpt-4",
+		Messages: []dto.Message{{Role: "user", Content: "help me plan a lesson"}},
+	}
+
+	if reject := applyAirbotixPolicy(decision, constant.ChannelTypeOpenAI, req); reject != "" {
+		t.Fatalf("safe adult input should not reject; got %q", reject)
+	}
+	if len(req.Messages) != 1 {
+		t.Fatalf("system prompt must be gated by InjectSystemPrompt, got %d messages", len(req.Messages))
+	}
+	if req.Messages[0].Role != "user" {
+		t.Fatalf("original user message should remain first; got %+v", req.Messages)
 	}
 }
 

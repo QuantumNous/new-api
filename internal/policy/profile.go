@@ -32,8 +32,8 @@ type Decision struct {
 	EnforceModelWhitelist bool
 	// EnforceZDR forces `store: false` for OpenAI-family providers.
 	EnforceZDR bool
-	// InjectChildSafePrompt prepends kids.ChildSafeSystemPrompt() to messages.
-	InjectChildSafePrompt bool
+	// InjectSystemPrompt prepends the profile-level system prompt to messages.
+	InjectSystemPrompt bool
 	// StripIdentifying removes user_id / family_id / etc. before upstream send.
 	StripIdentifying bool
 	// RunInputFilter checks entry input text against the profile denylist.
@@ -50,7 +50,7 @@ func DecisionFor(kidsMode bool, rawProfile string) Decision {
 			Profile:               ProfileKidSafe,
 			EnforceModelWhitelist: true,
 			EnforceZDR:            true,
-			InjectChildSafePrompt: true,
+			InjectSystemPrompt:    true,
 			StripIdentifying:      true,
 			RunInputFilter:        true,
 		}
@@ -61,12 +61,12 @@ func DecisionFor(kidsMode bool, rawProfile string) Decision {
 			Profile:               ProfileKidSafe,
 			EnforceModelWhitelist: true,
 			EnforceZDR:            true,
-			InjectChildSafePrompt: true,
+			InjectSystemPrompt:    true,
 			StripIdentifying:      true,
 			RunInputFilter:        true,
 		}
 	case ProfileAdult:
-		return Decision{Profile: ProfileAdult, RunInputFilter: true}
+		return Decision{Profile: ProfileAdult, InjectSystemPrompt: true, RunInputFilter: true}
 	default:
 		return Decision{Profile: ProfilePassthrough}
 	}

@@ -9,8 +9,8 @@ package relay
 // Behaviours (all gated by policy.Decision from middleware/policy.go):
 //   - EnforceModelWhitelist: reject early with HTTP 400 if request.Model is
 //     not on kids.EligibleModels. Runs in every relay handler.
-//   - SystemPromptFor: prepend (or replace, when KidsMode=true) the per-profile
-//     system prompt. Chat-shaped endpoints only.
+//   - InjectSystemPrompt: prepend (or replace, when KidsMode=true) the
+//     per-profile system prompt. Chat-shaped endpoints only.
 //   - RunInputFilter: reject entry input text that matches the profile denylist.
 //   - StripIdentifying: clear User / SafetyIdentifier / Metadata.user_id.
 //     Applied per-format where these fields exist.
@@ -206,7 +206,7 @@ func applyAirbotixPolicy(decision policy.Decision, channelType int, request *dto
 	if deny := policy.CheckInput(decision, collectGeneralOpenAIInputTexts(request)...); deny != nil {
 		return deny.Reason()
 	}
-	if _, ok := policy.SystemPromptFor(decision); ok {
+	if decision.InjectSystemPrompt {
 		prependProfileSystemPrompt(request, decision)
 	}
 	if decision.StripIdentifying {
@@ -247,7 +247,8 @@ func applyAirbotixPolicyToClaude(c *gin.Context, request *dto.ClaudeRequest) *ty
 	if deny := policy.CheckInput(d, collectClaudeInputTexts(request)...); deny != nil {
 		return rejectAirbotixInput(deny)
 	}
-	if prompt, ok := policy.SystemPromptFor(d); ok {
+	if d.InjectSystemPrompt {
+		prompt, _ := policy.SystemPromptFor(d)
 		// kids_mode is hard: replace whatever the client sent.
 		// profile alone is soft: only fill if empty.
 		if d.KidsMode || request.System == nil {
@@ -287,7 +288,8 @@ func applyAirbotixPolicyToResponses(c *gin.Context, channelType int, request *dt
 	if deny := policy.CheckInput(d, collectResponsesInputTexts(request)...); deny != nil {
 		return rejectAirbotixInput(deny)
 	}
-	if prompt, ok := policy.SystemPromptFor(d); ok {
+	if d.InjectSystemPrompt {
+		prompt, _ := policy.SystemPromptFor(d)
 		promptJSON, mErr := common.Marshal(prompt)
 		if mErr == nil {
 			if d.KidsMode || len(request.Instructions) == 0 || string(request.Instructions) == "null" {
@@ -333,7 +335,8 @@ func applyAirbotixPolicyToGemini(c *gin.Context, model string, request *dto.Gemi
 	if deny := policy.CheckInput(d, collectGeminiInputTexts(request)...); deny != nil {
 		return rejectAirbotixInput(deny)
 	}
-	if prompt, ok := policy.SystemPromptFor(d); ok {
+	if d.InjectSystemPrompt {
+		prompt, _ := policy.SystemPromptFor(d)
 		if d.KidsMode || request.SystemInstructions == nil {
 			request.SystemInstructions = &dto.GeminiChatContent{
 				Role: "system",

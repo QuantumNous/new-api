@@ -107,7 +107,7 @@ Each function:
 - Checks `decision.EnforceModelWhitelist` and returns a 400-equivalent error if the requested model isn't in `kids.EligibleModels`.
 - Calls `kids.StripIdentifyingMetadata` if `decision.StripIdentifying`.
 - Calls `kids.EnforceZeroDataRetention` if `decision.EnforceZDR` (no-op for non-OpenAI providers).
-- Prepends `kids.ChildSafeSystemPrompt()` as a system message if `decision.InjectChildSafePrompt`.
+- Prepends the profile-level system prompt as a system message if `decision.InjectSystemPrompt`.
 
 The handler calls these BEFORE `Convert*` so the policy operates on the gateway-native shape, not the provider-native one.
 

@@ -11,7 +11,7 @@ Centralises the "what should we enforce for this tenant?" question in one place 
 ```
 DecisionFor(kidsMode=true, profile="anything") → all flags ON
 DecisionFor(false, "kid-safe")                  → whitelist + ZDR + child-safe prompt + strip identifying
-DecisionFor(false, "adult")                     → no enforcement (passthrough adult)
+DecisionFor(false, "adult")                     → adult prompt + narrow input filter
 DecisionFor(false, "passthrough")               → no enforcement (default)
 DecisionFor(false, "")                          → no enforcement (default)
 DecisionFor(false, "<unknown>")                 → no enforcement (safe fallback)
@@ -27,8 +27,9 @@ type Decision struct {
     Profile               Profile
     EnforceModelWhitelist bool
     EnforceZDR            bool
-    InjectChildSafePrompt bool
+    InjectSystemPrompt    bool
     StripIdentifying      bool
+    RunInputFilter        bool
 }
 
 func DecisionFor(kidsMode bool, rawProfile string) Decision
@@ -58,7 +59,8 @@ if decision.StripIdentifying { kids.StripIdentifyingMetadata(reqBody) }
 `policy_test.go` (47 LOC) covers:
 - `kids_mode=true` forces all flags on regardless of profile
 - `kid-safe` profile enforces all flags even when `kids_mode=false`
-- `adult` / `passthrough` / empty / unknown → no enforcement
+- `adult` profile injects the adult prompt and runs the narrow input filter
+- `passthrough` / empty / unknown → no enforcement
 - `Profile` value is normalised correctly
 
 Run: `go test ./internal/policy/...`
