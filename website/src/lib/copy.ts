@@ -89,7 +89,7 @@ const copies: Record<Locale, Copy> = {
       serviceLevelAgreement: "Service Level Agreement",
       refundPolicy: "Refund Policy",
       supportEmail: "Support: support@flatkey.ai",
-      defaultCopyright: "全著作権所有。",
+      defaultCopyright: "All rights reserved.",
       projectAttributionSuffix: "AI API gateway and model operations platform.",
     },
   },
