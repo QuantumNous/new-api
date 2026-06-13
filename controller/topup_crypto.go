@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -369,7 +370,8 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 	rec.UsdAdded = usdValue
 	rec.Status = "confirmed"
 	common.SysLog(fmt.Sprintf("crypto: confirmed userId=%d txHash=%s usd=%.4f quota=%d", rec.UserId, rec.TxHash, usdValue, quotaToAdd))
-	model.ProcessAffCommission(rec.UserId, quotaToAdd)
+	model.RecordTopupLog(rec.UserId, fmt.Sprintf("使用加密货币充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), usdValue), "", "crypto", "crypto")
+	model.OnTopupSucceeded(rec.UserId, quotaToAdd, "crypto")
 }
 
 // ============================================================================
