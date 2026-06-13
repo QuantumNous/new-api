@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { NotificationPopover } from "@/components/notification-popover";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
@@ -79,6 +81,8 @@ export function SiteHeader(props: Props) {
 
               <div className="mx-2 h-4 w-px bg-border/40" />
               <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
+              <ThemeSwitch locale={props.locale} />
+              <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
                 className="inline-flex h-8 items-center justify-center rounded-lg bg-foreground px-3.5 text-xs font-medium text-background transition-opacity hover:opacity-90 active:opacity-80"
@@ -89,6 +93,7 @@ export function SiteHeader(props: Props) {
             </div>
 
             <div className="flex items-center gap-2 sm:hidden">
+              <ThemeSwitch locale={props.locale} />
               <button
                 type="button"
                 className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
