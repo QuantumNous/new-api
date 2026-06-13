@@ -49,6 +49,7 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
+	router.Use(publicWWWRedirectPolicy())
 	router.Use(publicSearchIndexPolicy())
 	router.GET("/robots.txt", controller.GetRobotsTxt)
 	router.GET("/llms.txt", controller.GetLLMsTxt)
@@ -70,6 +71,18 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 		}
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 	})
+}
+
+func publicWWWRedirectPolicy() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if strings.EqualFold(publicRequestHost(c), "www.flatkey.ai") {
+			target := "https://flatkey.ai" + c.Request.URL.RequestURI()
+			c.Redirect(http.StatusPermanentRedirect, target)
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }
 
 func publicSearchIndexPolicy() gin.HandlerFunc {
