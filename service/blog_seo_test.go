@@ -99,7 +99,7 @@ func TestBuildLLMsTxtIncludesBlogResources(t *testing.T) {
 	})
 
 	for _, expected := range []string{
-		"# Flatkey AI",
+		"# flatkey.ai",
 		"- Blog: https://flatkey.ai/blog",
 		"- Gateway Comparisons: https://flatkey.ai/blog/category/gateway-comparisons",
 		"- Gateway Guide: https://flatkey.ai/blog/gateway-guide - Pick the right gateway.",

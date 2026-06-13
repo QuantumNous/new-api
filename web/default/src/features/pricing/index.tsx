@@ -46,8 +46,9 @@ function PricingTextFooter() {
   const { t } = useTranslation()
   const currentYear = new Date().getFullYear()
   const legalLinks = [
-    { text: t('Terms of Service'), to: '/user-agreement' },
-    { text: t('Privacy Policy'), to: '/privacy-policy' },
+    { text: t('Terms of Service'), to: '/terms' },
+    { text: t('Privacy Policy'), to: '/privacy' },
+    { text: t('Service Level Agreement'), to: '/sla' },
     { text: t('Refund Policy'), to: '/refund-policy' },
   ]
 
@@ -56,7 +57,7 @@ function PricingTextFooter() {
       <div className='text-muted-foreground/45 mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-6 py-7 text-xs sm:flex-row sm:items-center sm:justify-between xl:px-8'>
         <div className='flex flex-wrap items-center gap-x-3 gap-y-1'>
           <span>
-            &copy; {currentYear} Flatkey AI. {t('footer.defaultCopyright')}
+            &copy; {currentYear} flatkey.ai. {t('footer.defaultCopyright')}
           </span>
           {legalLinks.map((link) => (
             <span key={link.to} className='flex items-center gap-3'>
@@ -91,7 +92,7 @@ function PricingTextFooter() {
             rel='noopener noreferrer'
             className='hover:text-foreground font-medium transition-colors'
           >
-            Flatkey AI
+            flatkey.ai
           </a>
           . {t(PRICING_ATTRIBUTION_KEY)}
         </div>

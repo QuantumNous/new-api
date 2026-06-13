@@ -19,19 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 import { LOCALIZED_DEFAULT_LEGAL_DOCUMENTS } from './localized-default-documents'
 import { PT_DEFAULT_LEGAL_DOCUMENTS } from './localized-default-documents-pt'
 
-export const DEFAULT_TERMS_OF_SERVICE = `# Flatkey AI User Agreement
+export const DEFAULT_TERMS_OF_SERVICE = `# flatkey.ai User Agreement
 
 Last Updated: June 4, 2026
 
-This User Agreement ("Agreement") applies to the Flatkey AI services provided by VOC AI INC ("VOC AI," "we," "us," or "our") through flatkey.ai, the dashboard, APIs, checkout pages, documentation, and support channels (the "Services"). By registering an account, creating an organization, adding prepaid account balance, generating or using an API key, calling model APIs, accessing the dashboard, or otherwise using the Services, you agree to this Agreement, our Privacy Policy, Refund Policy, documentation, pricing pages, and any applicable supplemental rules.
+This User Agreement ("Agreement") applies to the flatkey.ai services provided by VOC AI INC ("VOC AI," "we," "us," or "our") through flatkey.ai, the dashboard, APIs, checkout pages, documentation, and support channels (the "Services"). By registering an account, creating an organization, adding prepaid account balance, generating or using an API key, calling model APIs, accessing the dashboard, or otherwise using the Services, you agree to this Agreement, our Privacy Policy, Refund Policy, documentation, pricing pages, and any applicable supplemental rules.
 
 Operating entity: VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, United States. Contact: support@flatkey.ai.
 
 ## 1. Service Overview
 
-Flatkey AI is an AI API access, model routing, usage metering, dashboard, and prepaid account balance service. Users may access different AI model capabilities through a unified API and dashboard, manage API keys, team permissions, model selection, request records, balances, credits, billing, and support matters.
+flatkey.ai is an AI API access, model routing, usage metering, dashboard, and prepaid account balance service. Users may access different AI model capabilities through a unified API and dashboard, manage API keys, team permissions, model selection, request records, balances, credits, billing, and support matters.
 
-Flatkey AI is not the model itself. We do not guarantee that any particular model, API, price, context window, rate limit, regional availability, output behavior, data processing rule, or third-party policy will remain available or unchanged. We may add, remove, restrict, or modify models, features, prices, and usage rules based on product needs, cost changes, security requirements, compliance obligations, model provider requirements, or changes to third-party services.
+flatkey.ai is not the model itself. We do not guarantee that any particular model, API, price, context window, rate limit, regional availability, output behavior, data processing rule, or third-party policy will remain available or unchanged. We may add, remove, restrict, or modify models, features, prices, and usage rules based on product needs, cost changes, security requirements, compliance obligations, model provider requirements, or changes to third-party services.
 
 ## 2. Eligibility, Accounts, and Organizations
 
@@ -47,7 +47,7 @@ If you believe that your account, API key, access credential, payment method, or
 
 The Services may require you to purchase prepaid account balance or service credits before calling APIs or using certain features. Before purchase, you will have an opportunity to review the order amount, currency, taxes, fees, payment method, and pricing rules shown on the applicable page.
 
-Account balance and service credits may be used only for eligible Flatkey AI Services. They are not cash, deposits, electronic money, gift cards, payment instruments, withdrawable accounts, or financial products. Unless we expressly agree in writing or applicable law requires otherwise, account balance and service credits may not be withdrawn, redeemed for cash, assigned, used as collateral, invested, or used outside the Services.
+Account balance and service credits may be used only for eligible flatkey.ai Services. They are not cash, deposits, electronic money, gift cards, payment instruments, withdrawable accounts, or financial products. Unless we expressly agree in writing or applicable law requires otherwise, account balance and service credits may not be withdrawn, redeemed for cash, assigned, used as collateral, invested, or used outside the Services.
 
 After successful payment or order approval, purchased balance or credits are usually delivered electronically to your account and may be used immediately for API requests, model calls, or other paid features. When you make a request, the system deducts balance according to the then-current model price, input usage, output usage, cache hits, requests, files, images, taxes, fees, currency conversion, and any other billing rules shown on the relevant page or checkout flow.
 
@@ -75,7 +75,7 @@ We do not modify, waive, or replace third-party model provider terms. Model prov
 
 You are responsible for selecting models, configuring accounts, setting team permissions, managing API keys, configuring budgets and rate limits, controlling request sources, reviewing inputs and outputs, and determining whether the Services are suitable for your business scenario.
 
-If you integrate Flatkey AI into your own product or service, you must retain control over your application, end-user access, account permissions, API keys, balance, credits, request sources, logs, abuse handling, and customer support. You may not allow end users to directly obtain, control, resell, split, bulk use, or bypass your application to use Flatkey AI accounts, API keys, balance, or credits.
+If you integrate flatkey.ai into your own product or service, you must retain control over your application, end-user access, account permissions, API keys, balance, credits, request sources, logs, abuse handling, and customer support. You may not allow end users to directly obtain, control, resell, split, bulk use, or bypass your application to use flatkey.ai accounts, API keys, balance, or credits.
 
 You are responsible for your team members, applications, integrations, end users, automated scripts, permission settings, and key management. Usage, fees, disputes, or losses caused by your configuration, key leakage, end-user conduct, permission settings, script errors, or internal management issues are your responsibility unless directly caused by our verifiable system error.
 
@@ -93,7 +93,7 @@ Unless the dashboard, documentation, or order description expressly provides a r
 
 ## 8. No Resale, Relay, or Competitive Use
 
-Flatkey AI accounts, API keys, account balance, service credits, model access capability, and dashboard capability are for use by you and your authorized team in your own business or application. Unless we enter into a separate written agreement, you may not provide Flatkey AI to third parties as a standalone API, balance, credit, subaccount, top-up service, relay service, rebranded service, aggregation service, or similar service, whether by sale, transfer, distribution, rental, sharing, or other indirect arrangement.
+flatkey.ai accounts, API keys, account balance, service credits, model access capability, and dashboard capability are for use by you and your authorized team in your own business or application. Unless we enter into a separate written agreement, you may not provide flatkey.ai to third parties as a standalone API, balance, credit, subaccount, top-up service, relay service, rebranded service, aggregation service, or similar service, whether by sale, transfer, distribution, rental, sharing, or other indirect arrangement.
 
 You may not access or use the Services for the purpose of reselling API access, building a competing service, bypassing third-party model rules, hiding the true end user, avoiding prices or limits, bypassing regional restrictions, bypassing security review, or bypassing payment review.
 
@@ -123,7 +123,7 @@ We may conduct manual or automated review of high-risk orders, large top-ups, ab
 
 ## 11. Refunds
 
-Refunds, balance restoration, credit corrections, and support adjustments are handled under our Flatkey AI Refund Policy. In general, delivered and used credits, consumed balance, completed requests, and successfully provided digital services are not refundable.
+Refunds, balance restoration, credit corrections, and support adjustments are handled under our flatkey.ai Refund Policy. In general, delivered and used credits, consumed balance, completed requests, and successfully provided digital services are not refundable.
 
 Duplicate charges, non-delivery, verifiable system errors, unused balance, tax or invoice errors, payment disputes, mandatory consumer rights, or payment service provider requirements will be reviewed based on order records, delivery records, usage records, payment status, and applicable rules.
 
@@ -180,11 +180,11 @@ For questions about this Agreement, orders, billing, refunds, compliance, notice
 
 All of the above contents shall be subject to the English version.`
 
-export const DEFAULT_PRIVACY_POLICY = `# Flatkey AI Privacy Policy
+export const DEFAULT_PRIVACY_POLICY = `# flatkey.ai Privacy Policy
 
 Last Updated: June 4, 2026
 
-This Privacy Policy explains how VOC AI INC ("VOC AI," "we," "us," or "our") collects, uses, shares, retains, and protects information when you access or use flatkey.ai, Flatkey AI services, related websites, dashboards, APIs, checkout pages, documentation, and support channels.
+This Privacy Policy explains how VOC AI INC ("VOC AI," "we," "us," or "our") collects, uses, shares, retains, and protects information when you access or use flatkey.ai, related flatkey.ai services, websites, dashboards, APIs, checkout pages, documentation, and support channels.
 
 Operating entity: VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, United States. Contact: support@flatkey.ai.
 
@@ -287,17 +287,17 @@ For privacy questions, data requests, security reports, or data protection inqui
 
 All of the above contents shall be subject to the English version.`
 
-export const DEFAULT_REFUND_POLICY = `# Flatkey AI Refund Policy
+export const DEFAULT_REFUND_POLICY = `# flatkey.ai Refund Policy
 
 Last Updated: June 4, 2026
 
-This Refund Policy applies to the Flatkey AI services provided by VOC AI INC ("VOC AI," "we," "us," or "our") through flatkey.ai, checkout pages, the dashboard, and support channels, including account top-ups, prepaid account balance, service credits, API usage, digital service delivery, and related support matters.
+This Refund Policy applies to the flatkey.ai services provided by VOC AI INC ("VOC AI," "we," "us," or "our") through flatkey.ai, checkout pages, the dashboard, and support channels, including account top-ups, prepaid account balance, service credits, API usage, digital service delivery, and related support matters.
 
 Operating entity: VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, United States. Contact: support@flatkey.ai.
 
 ## 1. Basic Principles
 
-Flatkey AI provides digital services. Account balance, service credits, and related digital services are usually delivered electronically immediately after successful payment or order approval and may be used immediately for API requests, model calls, file processing, image processing, request processing, or other paid features. Once delivery and use occur, third-party model, cloud service, payment, tax, network, and infrastructure costs may be incurred.
+flatkey.ai provides digital services. Account balance, service credits, and related digital services are usually delivered electronically immediately after successful payment or order approval and may be used immediately for API requests, model calls, file processing, image processing, request processing, or other paid features. Once delivery and use occur, third-party model, cloud service, payment, tax, network, and infrastructure costs may be incurred.
 
 Our refund principles are: non-delivery, duplicate charges, verifiable system errors, and mandatory legal requirements receive priority review; delivered and used credits, consumed balance, completed requests, and successfully provided digital services are generally not refundable.
 
@@ -400,7 +400,47 @@ For questions about purchases, delivery, account balance, service credits, dupli
 
 All of the above contents shall be subject to the English version.`
 
-export type LegalDocumentKind = 'terms' | 'privacy' | 'refund'
+export const DEFAULT_SERVICE_LEVEL_AGREEMENT = `# flatkey.ai Service Level Agreement
+
+Last Updated: June 13, 2026
+
+This Service Level Agreement ("SLA") describes the service availability target and support process for flatkey.ai services provided by VOC AI INC ("VOC AI," "we," "us," or "our").
+
+## 1. Scope
+
+This SLA applies to the flatkey.ai hosted dashboard, API gateway, routing, metering, and account services that we directly operate. It does not apply to third-party AI model providers, payment providers, customer networks, customer applications, beta features, force majeure events, scheduled maintenance, abuse mitigation, account suspension, or issues caused by customer configuration, credentials, integrations, or policy violations.
+
+## 2. Availability Target
+
+We target 99.5% monthly availability for the covered flatkey.ai service endpoints. Availability is measured by our production monitoring systems for the covered services.
+
+## 3. Maintenance and Service Changes
+
+We may perform scheduled or emergency maintenance to improve security, reliability, performance, or compliance. We use reasonable efforts to reduce customer impact and, when practical, provide notice through the dashboard, website, email, or support channels.
+
+## 4. Third-Party Dependencies
+
+flatkey.ai routes requests to third-party model providers and relies on cloud, network, payment, security, and analytics providers. Third-party outages, rate limits, policy changes, regional restrictions, model behavior, or provider-side failures are outside this SLA.
+
+## 5. Support
+
+For service availability issues, contact support@flatkey.ai with your account email, affected endpoint, request IDs if available, timestamps, error messages, and impact summary. We review support requests based on severity, available records, and operational risk.
+
+## 6. Remedies
+
+Unless a separate written agreement provides a different remedy, this SLA does not create automatic service credits, refunds, penalties, or liquidated damages. Any goodwill adjustment, balance correction, or support remediation is handled case by case under the User Agreement and applicable policies.
+
+## 7. Updates
+
+We may update this SLA from time to time. The updated SLA generally applies to service periods after the update.
+
+## 8. Contact
+
+For questions about this SLA or a service incident, contact support@flatkey.ai or write to VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, United States.
+
+All of the above contents shall be subject to the English version.`
+
+export type LegalDocumentKind = 'terms' | 'privacy' | 'refund' | 'sla'
 
 type SupportedLegalLocale = 'en' | 'zh' | 'fr' | 'ja' | 'pt' | 'ru' | 'vi'
 
@@ -416,36 +456,43 @@ export const DEFAULT_LEGAL_DOCUMENTS_BY_LOCALE: Record<
     terms: DEFAULT_TERMS_OF_SERVICE,
     privacy: DEFAULT_PRIVACY_POLICY,
     refund: DEFAULT_REFUND_POLICY,
+    sla: DEFAULT_SERVICE_LEVEL_AGREEMENT,
   },
   zh: {
     terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.terms,
     privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.privacy,
     refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.refund,
+    sla: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.sla,
   },
   fr: {
     terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.terms,
     privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.privacy,
     refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.refund,
+    sla: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.sla,
   },
   ja: {
     terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.terms,
     privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.privacy,
     refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.refund,
+    sla: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ja.sla,
   },
   pt: {
     terms: PT_DEFAULT_LEGAL_DOCUMENTS.terms,
     privacy: PT_DEFAULT_LEGAL_DOCUMENTS.privacy,
     refund: PT_DEFAULT_LEGAL_DOCUMENTS.refund,
+    sla: PT_DEFAULT_LEGAL_DOCUMENTS.sla,
   },
   ru: {
     terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.terms,
     privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.privacy,
     refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.refund,
+    sla: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.ru.sla,
   },
   vi: {
     terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.terms,
     privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.privacy,
     refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.refund,
+    sla: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.vi.sla,
   },
 }
 

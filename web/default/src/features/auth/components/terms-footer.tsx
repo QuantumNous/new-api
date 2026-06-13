@@ -40,7 +40,7 @@ export function TermsFooter({ className, status }: TermsFooterProps) {
         components={{
           tos: (
             <a
-              href='/user-agreement'
+              href='/terms'
               target='_blank'
               rel='noopener noreferrer'
               className='hover:text-primary underline underline-offset-4'
@@ -48,7 +48,7 @@ export function TermsFooter({ className, status }: TermsFooterProps) {
           ),
           pp: (
             <a
-              href='/privacy-policy'
+              href='/privacy'
               target='_blank'
               rel='noopener noreferrer'
               className='hover:text-primary underline underline-offset-4'

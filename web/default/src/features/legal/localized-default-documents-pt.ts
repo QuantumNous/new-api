@@ -16,22 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+/* eslint-disable no-irregular-whitespace */
 import type { LegalDocumentKind } from './default-documents'
 
 export const PT_DEFAULT_LEGAL_DOCUMENTS: Record<LegalDocumentKind, string> = {
-  terms: `# Contrato do usuário Flatkey AI
+  terms: `# Contrato do usuário flatkey.ai
 
 Última atualização: 4 de junho de 2026
 
-Este Contrato de Usuário ("Contrato") se aplica aos serviços Flatkey AI fornecidos por VOC AI INC ("VOC AI", "nós", "nos" ou "nosso") por meio de flatkey.ai, o painel, APIs, páginas de checkout, documentação e canais de suporte (os "Serviços"). Ao registrar uma conta, criar uma organização, adicionar saldo de conta pré-paga, gerar ou usar uma chave API, ligar para o modelo APIs, acessar o painel ou usar os Serviços de outra forma, você concorda com este Contrato, nossa Política de Privacidade, Política de Reembolso, documentação, páginas de preços e quaisquer regras complementares aplicáveis.
+Este Contrato de Usuário ("Contrato") se aplica aos serviços flatkey.ai fornecidos por VOC AI INC ("VOC AI", "nós", "nos" ou "nosso") por meio de flatkey.ai, o painel, APIs, páginas de checkout, documentação e canais de suporte (os "Serviços"). Ao registrar uma conta, criar uma organização, adicionar saldo de conta pré-paga, gerar ou usar uma chave API, ligar para o modelo APIs, acessar o painel ou usar os Serviços de outra forma, você concorda com este Contrato, nossa Política de Privacidade, Política de Reembolso, documentação, páginas de preços e quaisquer regras complementares aplicáveis.
 
 Entidade operacional: VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos. Contato: support@flatkey.ai.
 
 ## 1. Visão geral do serviço
 
-Flatkey AI é um acesso AI API, roteamento de modelo, medição de uso, painel e serviço de saldo de conta pré-paga. Os usuários podem acessar diferentes recursos do modelo AI por meio de um API e painel unificado, gerenciar chaves API, permissões de equipe, seleção de modelo, solicitar registros, saldos, créditos, cobrança e assuntos de suporte.
+flatkey.ai é um acesso AI API, roteamento de modelo, medição de uso, painel e serviço de saldo de conta pré-paga. Os usuários podem acessar diferentes recursos do modelo AI por meio de um API e painel unificado, gerenciar chaves API, permissões de equipe, seleção de modelo, solicitar registros, saldos, créditos, cobrança e assuntos de suporte.
 
-Flatkey AI não é o modelo em si. Não garantimos que qualquer modelo específico, API, preço, janela de contexto, limite de taxa, disponibilidade regional, comportamento de saída, regra de processamento de dados ou política de terceiros permanecerão disponíveis ou inalterados. Podemos adicionar, remover, restringir ou modificar modelos, recursos, preços e regras de uso com base nas necessidades do produto, alterações de custos, requisitos de segurança, obrigações de conformidade, requisitos do fornecedor de modelo ou alterações em serviços de terceiros.
+flatkey.ai não é o modelo em si. Não garantimos que qualquer modelo específico, API, preço, janela de contexto, limite de taxa, disponibilidade regional, comportamento de saída, regra de processamento de dados ou política de terceiros permanecerão disponíveis ou inalterados. Podemos adicionar, remover, restringir ou modificar modelos, recursos, preços e regras de uso com base nas necessidades do produto, alterações de custos, requisitos de segurança, obrigações de conformidade, requisitos do fornecedor de modelo ou alterações em serviços de terceiros.
 
 ## 2. Elegibilidade, contas e organizações
 
@@ -47,7 +48,7 @@ Se você acredita que sua conta, chave API, credencial de acesso, método de pag
 
 Os Serviços podem exigir que você adquira saldo de conta pré-pago ou créditos de serviço antes de ligar para APIs ou usar determinados recursos. Antes da compra, você terá a oportunidade de revisar o valor do pedido, moeda, impostos, taxas, forma de pagamento e regras de preços mostradas na página aplicável.
 
-O saldo da conta e os créditos de serviço podem ser usados ​​apenas para Serviços Flatkey AI elegíveis. Não são dinheiro, depósitos, dinheiro eletrônico, cartões-presente, instrumentos de pagamento, contas sacáveis ​​ou produtos financeiros. A menos que concordemos expressamente por escrito ou a lei aplicável exija o contrário, o saldo da conta e os créditos de serviço não podem ser sacados, resgatados por dinheiro, cedidos, usados ​​como garantia, investidos ou usados ​​fora dos Serviços.
+O saldo da conta e os créditos de serviço podem ser usados ​​apenas para Serviços flatkey.ai elegíveis. Não são dinheiro, depósitos, dinheiro eletrônico, cartões-presente, instrumentos de pagamento, contas sacáveis ​​ou produtos financeiros. A menos que concordemos expressamente por escrito ou a lei aplicável exija o contrário, o saldo da conta e os créditos de serviço não podem ser sacados, resgatados por dinheiro, cedidos, usados ​​como garantia, investidos ou usados ​​fora dos Serviços.
 
 Após o pagamento bem-sucedido ou a aprovação do pedido, o saldo ou os créditos adquiridos geralmente são entregues eletronicamente em sua conta e podem ser usados ​​imediatamente para solicitações API, chamadas de modelo ou outros recursos pagos. Quando você faz uma solicitação, o sistema deduz o saldo de acordo com o preço do modelo atual, uso de entrada, uso de saída, acessos de cache, solicitações, arquivos, imagens, impostos, taxas, conversão de moeda e quaisquer outras regras de cobrança mostradas na página relevante ou no fluxo de checkout.
 
@@ -75,7 +76,7 @@ Não modificamos, renunciamos ou substituímos os termos do fornecedor modelo te
 
 Você é responsável por selecionar modelos, configurar contas, definir permissões de equipe, gerenciar chaves API, configurar orçamentos e limites de taxas, controlar fontes de solicitação, revisar entradas e saídas e determinar se os Serviços são adequados para o seu cenário de negócios.
 
-Se você integrar o Flatkey AI ao seu próprio produto ou serviço, deverá manter o controle sobre seu aplicativo, acesso do usuário final, permissões de conta, chaves API, saldo, créditos, fontes de solicitação, registros, tratamento de abusos e suporte ao cliente. Você não pode permitir que os usuários finais obtenham, controlem, revendam, dividam, usem em massa ou ignorem diretamente seu aplicativo para usar contas Flatkey AI, chaves API, saldo ou créditos.
+Se você integrar o flatkey.ai ao seu próprio produto ou serviço, deverá manter o controle sobre seu aplicativo, acesso do usuário final, permissões de conta, chaves API, saldo, créditos, fontes de solicitação, registros, tratamento de abusos e suporte ao cliente. Você não pode permitir que os usuários finais obtenham, controlem, revendam, dividam, usem em massa ou ignorem diretamente seu aplicativo para usar contas flatkey.ai, chaves API, saldo ou créditos.
 
 Você é responsável pelos membros da sua equipe, aplicativos, integrações, usuários finais, scripts automatizados, configurações de permissão e gerenciamento de chaves. Uso, taxas, disputas ou perdas causadas por sua configuração, vazamento de chave, conduta do usuário final, configurações de permissão, erros de script ou problemas de gerenciamento interno são de sua responsabilidade, a menos que sejam causados ​​diretamente por nosso erro de sistema verificável.
 
@@ -93,7 +94,7 @@ A menos que o painel, a documentação ou a descrição do pedido forneçam expr
 
 ## 8. Sem revenda, retransmissão ou uso competitivo
 
-Contas Flatkey AI, chaves API, saldo de conta, créditos de serviço, capacidade de acesso de modelo e capacidade de painel são para uso por você e sua equipe autorizada em seu próprio negócio ou aplicação. A menos que celebremos um contrato separado por escrito, você não poderá fornecer Flatkey AI a terceiros como um API independente, saldo, crédito, subconta, serviço de recarga, serviço de retransmissão, serviço renomeado, serviço de agregação ou serviço semelhante, seja por venda, transferência, distribuição, aluguel, compartilhamento ou outro acordo indireto.
+Contas flatkey.ai, chaves API, saldo de conta, créditos de serviço, capacidade de acesso de modelo e capacidade de painel são para uso por você e sua equipe autorizada em seu próprio negócio ou aplicação. A menos que celebremos um contrato separado por escrito, você não poderá fornecer flatkey.ai a terceiros como um API independente, saldo, crédito, subconta, serviço de recarga, serviço de retransmissão, serviço renomeado, serviço de agregação ou serviço semelhante, seja por venda, transferência, distribuição, aluguel, compartilhamento ou outro acordo indireto.
 
 Você não pode acessar ou usar os Serviços com a finalidade de revender o acesso API, construir um serviço concorrente, contornar regras de modelo de terceiros, ocultar o verdadeiro usuário final, evitar preços ou limites, contornar restrições regionais, contornar a revisão de segurança ou contornar a revisão de pagamento.
 
@@ -123,7 +124,7 @@ Podemos realizar análises manuais ou automatizadas de pedidos de alto risco, gr
 
 ## 11. Reembolsos
 
-Reembolsos, restauração de saldo, correções de crédito e ajustes de suporte são tratados de acordo com nossa Política de Reembolso Flatkey AI. Em geral, os créditos entregues e utilizados, o saldo consumido, as solicitações concluídas e os serviços digitais prestados com sucesso não são reembolsáveis.
+Reembolsos, restauração de saldo, correções de crédito e ajustes de suporte são tratados de acordo com nossa Política de Reembolso flatkey.ai. Em geral, os créditos entregues e utilizados, o saldo consumido, as solicitações concluídas e os serviços digitais prestados com sucesso não são reembolsáveis.
 
 Cobranças duplicadas, não entrega, erros de sistema verificáveis, saldo não utilizado, erros de impostos ou faturas, disputas de pagamento, direitos obrigatórios do consumidor ou requisitos do provedor de serviços de pagamento serão revisados ​​com base nos registros de pedidos, registros de entrega, registros de uso, status de pagamento e regras aplicáveis.
 
@@ -178,11 +179,11 @@ Poderemos atualizar este Contrato de tempos em tempos. Alterações materiais po
 Para dúvidas sobre este Contrato, pedidos, cobrança, reembolsos, conformidade, avisos ou problemas de serviço, entre em contato com support@flatkey.ai ou escreva para VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos.
 
 Todos os conteúdos acima estarão sujeitos à versão em inglês.`,
-  privacy: `# Política de Privacidade Flatkey AI
+  privacy: `# Política de Privacidade flatkey.ai
 
 Última atualização: 4 de junho de 2026
 
-Esta Política de Privacidade explica como VOC AI INC ("VOC AI", "nós", "nos" ou "nosso") coleta, usa, compartilha, retém e protege informações quando você acessa ou usa serviços flatkey.ai, Flatkey AI, sites relacionados, painéis, APIs, páginas de checkout, documentação e canais de suporte.
+Esta Política de Privacidade explica como VOC AI INC ("VOC AI", "nós", "nos" ou "nosso") coleta, usa, compartilha, retém e protege informações quando você acessa ou usa flatkey.ai, serviços flatkey.ai, sites relacionados, painéis, APIs, páginas de checkout, documentação e canais de suporte.
 
 Entidade operacional: VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos. Contato: support@flatkey.ai.
 
@@ -283,17 +284,17 @@ Poderemos atualizar esta Política de Privacidade de tempos em tempos. Alteraç�
 Para questões de privacidade, solicitações de dados, relatórios de segurança ou dúvidas sobre proteção de dados, entre em contato com support@flatkey.ai ou escreva para VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos.
 
 Todos os conteúdos acima estarão sujeitos à versão em inglês.`,
-  refund: `# Política de reembolso Flatkey AI
+  refund: `# Política de reembolso flatkey.ai
 
 Última atualização: 4 de junho de 2026
 
-Esta Política de Reembolso se aplica aos serviços Flatkey AI fornecidos por VOC AI INC ("VOC AI", "nós", "nos" ou "nosso") por meio de flatkey.ai, páginas de checkout, painel e canais de suporte, incluindo recargas de conta, saldo de conta pré-paga, créditos de serviço, uso de API, entrega de serviço digital e assuntos de suporte relacionados.
+Esta Política de Reembolso se aplica aos serviços flatkey.ai fornecidos por VOC AI INC ("VOC AI", "nós", "nos" ou "nosso") por meio de flatkey.ai, páginas de checkout, painel e canais de suporte, incluindo recargas de conta, saldo de conta pré-paga, créditos de serviço, uso de API, entrega de serviço digital e assuntos de suporte relacionados.
 
 Entidade operacional: VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos. Contato: support@flatkey.ai.
 
 ## 1. Princípios Básicos
 
-Flatkey AI fornece serviços digitais. O saldo da conta, os créditos de serviço e os serviços digitais relacionados geralmente são entregues eletronicamente imediatamente após o pagamento bem-sucedido ou a aprovação do pedido e podem ser usados ​​imediatamente para solicitações API, chamadas de modelo, processamento de arquivos, processamento de imagens, processamento de solicitações ou outros recursos pagos. Assim que a entrega e o uso ocorrerem, poderão ser incorridos custos de modelo de terceiros, serviço de nuvem, pagamento, impostos, rede e infraestrutura.
+flatkey.ai fornece serviços digitais. O saldo da conta, os créditos de serviço e os serviços digitais relacionados geralmente são entregues eletronicamente imediatamente após o pagamento bem-sucedido ou a aprovação do pedido e podem ser usados ​​imediatamente para solicitações API, chamadas de modelo, processamento de arquivos, processamento de imagens, processamento de solicitações ou outros recursos pagos. Assim que a entrega e o uso ocorrerem, poderão ser incorridos custos de modelo de terceiros, serviço de nuvem, pagamento, impostos, rede e infraestrutura.
 
 Nossos princípios de reembolso são: não entrega, cobranças duplicadas, erros de sistema verificáveis ​​e requisitos legais obrigatórios recebem revisão prioritária; créditos entregues e usados, saldo consumido, solicitações concluídas e serviços digitais fornecidos com sucesso geralmente não são reembolsáveis.
 
@@ -393,6 +394,45 @@ Poderemos atualizar esta Política de Reembolso de tempos em tempos. A Política
 ## 12. Contato
 
 Para perguntas sobre compras, entrega, saldo da conta, créditos de serviço, cobranças duplicadas, deduções incorretas, impostos, faturas, recibos, elegibilidade para reembolso, recibos Paddle, recibos Stripe ou disputas de pagamento, entre em contato com support@flatkey.ai ou escreva para VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos.
+
+Todos os conteúdos acima estarão sujeitos à versão em inglês.`,
+  sla: `# Acordo de Nível de Serviço flatkey.ai
+
+Última atualização: 13 de junho de 2026
+
+Este Acordo de Nível de Serviço ("SLA") descreve a meta de disponibilidade e o processo de suporte dos serviços flatkey.ai fornecidos pela VOC AI INC ("VOC AI", "nós" ou "nosso").
+
+## 1. Escopo
+
+Este SLA se aplica ao painel hospedado, gateway de API, roteamento, medição e serviços de conta flatkey.ai que operamos diretamente. Ele não se aplica a provedores terceiros de modelos de IA, provedores de pagamento, redes de clientes, aplicações de clientes, recursos beta, eventos de força maior, manutenção programada, mitigação de abuso, suspensão de conta ou problemas causados por configuração, credenciais, integrações ou violações de política do cliente.
+
+## 2. Meta de disponibilidade
+
+Temos como meta 99,5% de disponibilidade mensal para os endpoints cobertos do serviço flatkey.ai. A disponibilidade é medida pelos nossos sistemas de monitoramento de produção para os serviços cobertos.
+
+## 3. Manutenção e mudanças de serviço
+
+Podemos realizar manutenção programada ou emergencial para melhorar segurança, confiabilidade, desempenho ou conformidade. Empregamos esforços razoáveis para reduzir o impacto ao cliente e, quando prático, fornecer aviso pelo painel, site, e-mail ou canais de suporte.
+
+## 4. Dependências de terceiros
+
+flatkey.ai roteia solicitações para provedores terceiros de modelos e depende de provedores de nuvem, rede, pagamento, segurança e análise. Interrupções, limites de taxa, alterações de política, restrições regionais, comportamento de modelo ou falhas do lado de provedores terceiros estão fora deste SLA.
+
+## 5. Suporte
+
+Para problemas de disponibilidade do serviço, entre em contato com support@flatkey.ai com o e-mail da conta, endpoint afetado, IDs de solicitação se disponíveis, carimbos de data/hora, mensagens de erro e resumo do impacto. Analisamos solicitações de suporte com base na gravidade, registros disponíveis e risco operacional.
+
+## 6. Remédios
+
+A menos que um acordo escrito separado preveja remédio diferente, este SLA não cria créditos de serviço, reembolsos, penalidades ou indenizações prefixadas automáticas. Qualquer ajuste de boa-fé, correção de saldo ou remediação de suporte é tratado caso a caso conforme o Contrato do Usuário e as políticas aplicáveis.
+
+## 7. Atualizações
+
+Podemos atualizar este SLA de tempos em tempos. O SLA atualizado geralmente se aplica a períodos de serviço após a atualização.
+
+## 8. Contato
+
+Para perguntas sobre este SLA ou um incidente de serviço, entre em contato com support@flatkey.ai ou escreva para VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, Estados Unidos.
 
 Todos os conteúdos acima estarão sujeitos à versão em inglês.`,
 }

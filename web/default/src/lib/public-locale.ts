@@ -38,8 +38,11 @@ const PUBLIC_WEBSITE_PREFIXES = [
   '/blog',
   '/pricing',
   '/rankings',
+  '/privacy',
   '/privacy-policy',
   '/refund-policy',
+  '/sla',
+  '/terms',
   '/user-agreement',
 ]
 

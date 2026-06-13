@@ -58,11 +58,15 @@ const NEW_API_FOOTER_ATTRIBUTION_KEY = [
 const LEGAL_FOOTER_LINKS: FooterLink[] = [
   {
     text: 'Terms of Service',
-    href: '/user-agreement',
+    href: '/terms',
   },
   {
     text: 'Privacy Policy',
-    href: '/privacy-policy',
+    href: '/privacy',
+  },
+  {
+    text: 'Service Level Agreement',
+    href: '/sla',
   },
   {
     text: 'Refund Policy',
@@ -242,7 +246,7 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
         rel='noopener noreferrer'
         className='text-muted-foreground/45 hover:text-muted-foreground/70 font-normal transition-colors'
       >
-        Flatkey AI
+        flatkey.ai
       </a>
       . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
     </span>
@@ -269,7 +273,7 @@ export function Footer(props: FooterProps) {
   const displayName =
     configuredSystemName && configuredSystemName !== 'New API'
       ? configuredSystemName
-      : props.name || 'Flatkey AI'
+      : props.name || 'flatkey.ai'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
