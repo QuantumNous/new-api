@@ -94,7 +94,7 @@ Weekly: this engineer updates the checkboxes; un-checked items become carry-over
     1. If `decision.EnforceModelWhitelist && !kids.IsModelEligible(model)` → `c.JSON(400, gin.H{"error": "model_not_eligible_for_kids_mode"})` and abort
     2. If `decision.StripIdentifying` → mutate request body via `kids.StripIdentifyingMetadata(reqBody)`
     3. If `decision.EnforceZDR` → mutate via `kids.EnforceZeroDataRetention(reqBody, channel.Type)`
-    4. If `decision.InjectChildSafePrompt` → prepend `{"role":"system","content":kids.ChildSafeSystemPrompt()}` to messages array (only if no other system message already present, OR replace if Anthropic-style top-level system field)
+    4. If `decision.InjectSystemPrompt` → prepend the profile-level system prompt to messages array (only if no other system message already present, OR replace if Anthropic-style top-level system field)
 - [ ] Billing dispatch on success
   - In the relay completion path (where token counts are tallied and logged): if `user.BillingWebhookURL != ""`, build `billing.Event` and call `billing.NewDispatcher().Send(...)` in goroutine
   - Per-tenant webhook secret: `User.WebhookSecret` column exists (`varchar(128)`, plaintext) — use that. NOTE: it's stored plaintext like `channel.key`; if SOC 2 / compliance demands later, see ADR-0004 for the column-encryption follow-up.
