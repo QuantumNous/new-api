@@ -28,6 +28,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
 import {
   getPublicPathLanguage,
+  getTrustedPublicOrigin,
   isPublicWebsitePath,
   localizePublicPath,
 } from '@/lib/public-locale'
@@ -46,9 +47,26 @@ export function LanguageSwitcher() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.auth.user)
   const isPublicPage = isPublicWebsitePath(location.pathname)
+  const publicPathSuffix =
+    typeof window === 'undefined'
+      ? ''
+      : `${window.location.search}${window.location.hash}`
+  const publicOrigin =
+    typeof window === 'undefined'
+      ? 'https://flatkey.ai'
+      : getTrustedPublicOrigin(window.location.origin)
   const currentLanguage = isPublicPage
     ? getPublicPathLanguage(location.pathname)
     : normalizeInterfaceLanguage(i18n.language)
+  const publicLanguageLinks = isPublicPage
+    ? INTERFACE_LANGUAGE_OPTIONS.map((lang) => ({
+        ...lang,
+        href: `${publicOrigin}${localizePublicPath(
+          location.pathname,
+          lang.code
+        )}${publicPathSuffix}`,
+      }))
+    : []
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
@@ -73,30 +91,81 @@ export function LanguageSwitcher() {
   )
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
-      >
-        <Languages className='size-[1.2rem]' />
-        <span className='sr-only'>{t('Change language')}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        {INTERFACE_LANGUAGE_OPTIONS.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => handleChangeLanguage(lang.code)}
-          >
-            {lang.label}
-            <Check
-              size={14}
-              className={cn(
-                'ms-auto',
-                currentLanguage !== lang.code && 'hidden'
-              )}
-            />
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      {publicLanguageLinks.length > 0 && (
+        <nav aria-label={t('Change language')} className='sr-only'>
+          {publicLanguageLinks.map((lang) => (
+            <a
+              key={lang.code}
+              href={lang.href}
+              hrefLang={lang.code}
+              aria-current={currentLanguage === lang.code ? 'page' : undefined}
+            >
+              {lang.label}
+            </a>
+          ))}
+        </nav>
+      )}
+
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
+        >
+          <Languages className='size-[1.2rem]' />
+          <span className='sr-only'>{t('Change language')}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          {INTERFACE_LANGUAGE_OPTIONS.map((lang) => {
+            const publicHref =
+              publicLanguageLinks.find((link) => link.code === lang.code)
+                ?.href ?? ''
+            const itemContent = (
+              <>
+                {lang.label}
+                <Check
+                  size={14}
+                  className={cn(
+                    'ms-auto',
+                    currentLanguage !== lang.code && 'hidden'
+                  )}
+                />
+              </>
+            )
+
+            if (isPublicPage) {
+              return (
+                <DropdownMenuItem
+                  key={lang.code}
+                  render={
+                    <a
+                      href={publicHref}
+                      hrefLang={lang.code}
+                      aria-current={
+                        currentLanguage === lang.code ? 'page' : undefined
+                      }
+                    />
+                  }
+                  onClick={(event) => {
+                    event.preventDefault()
+                    void handleChangeLanguage(lang.code)
+                  }}
+                >
+                  {itemContent}
+                </DropdownMenuItem>
+              )
+            }
+
+            return (
+              <DropdownMenuItem
+                key={lang.code}
+                onClick={() => handleChangeLanguage(lang.code)}
+              >
+                {itemContent}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }

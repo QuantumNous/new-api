@@ -69,6 +69,8 @@ func BuildRobotsTxt(baseURL string) string {
 	return strings.Join([]string{
 		"User-agent: *",
 		"Allow: /",
+		"Disallow: /cdn-cgi/",
+		"Disallow: /_next/",
 		"",
 		"Sitemap: " + joinPublicURL(baseURL, "/sitemap.xml"),
 		"LLMs: " + joinPublicURL(baseURL, "/llms.txt"),
@@ -89,8 +91,8 @@ func BuildNonCanonicalRobotsTxt() string {
 func BuildLLMsTxt(baseURL string, categories []BlogCategory, posts []BlogPost) string {
 	baseURL = normalizePublicBaseURL(baseURL)
 	var builder strings.Builder
-	builder.WriteString("# Flatkey AI\n\n")
-	builder.WriteString("Flatkey AI is a unified AI API gateway, model routing, billing, and operations platform.\n\n")
+	builder.WriteString("# flatkey.ai\n\n")
+	builder.WriteString("flatkey.ai is a unified AI API gateway, model routing, billing, and operations platform.\n\n")
 	builder.WriteString("## Core Pages\n\n")
 	builder.WriteString("- Home: " + joinPublicURL(baseURL, "/") + "\n")
 	builder.WriteString("- Model pricing: " + joinPublicURL(baseURL, "/pricing") + "\n")

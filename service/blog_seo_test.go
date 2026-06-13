@@ -48,6 +48,8 @@ func TestBuildRobotsTxtPointsToSitemapAndLLMs(t *testing.T) {
 	for _, expected := range []string{
 		"User-agent: *",
 		"Allow: /",
+		"Disallow: /cdn-cgi/",
+		"Disallow: /_next/",
 		"Sitemap: https://flatkey.ai/sitemap.xml",
 		"LLMs: https://flatkey.ai/llms.txt",
 	} {
@@ -65,6 +67,8 @@ func TestBuildRobotsTxtForcesCanonicalPublicHost(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"Allow: /",
+		"Disallow: /cdn-cgi/",
+		"Disallow: /_next/",
 		"Sitemap: https://flatkey.ai/sitemap.xml",
 		"LLMs: https://flatkey.ai/llms.txt",
 	} {
@@ -99,7 +103,7 @@ func TestBuildLLMsTxtIncludesBlogResources(t *testing.T) {
 	})
 
 	for _, expected := range []string{
-		"# Flatkey AI",
+		"# flatkey.ai",
 		"- Blog: https://flatkey.ai/blog",
 		"- Gateway Comparisons: https://flatkey.ai/blog/category/gateway-comparisons",
 		"- Gateway Guide: https://flatkey.ai/blog/gateway-guide - Pick the right gateway.",

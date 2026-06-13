@@ -24,7 +24,7 @@ import {
 } from '@/lib/public-locale'
 import type { BlogPost } from '../types'
 
-const SITE_NAME = 'Flatkey AI'
+const SITE_NAME = 'flatkey.ai'
 const DEFAULT_BLOG_DESCRIPTION =
   'Insights, product notes, and implementation guides for teams building on AI APIs.'
 const ORGANIZATION_NAME = 'VOC AI'

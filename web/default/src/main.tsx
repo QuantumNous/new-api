@@ -119,7 +119,7 @@ const rootElement = document.getElementById('root')!
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const normalizePublicTitle = (name: string) => {
       const trimmedName = name.trim()
-      return trimmedName === 'New API' ? 'Flatkey AI' : trimmedName
+      return trimmedName === 'New API' ? 'flatkey.ai' : trimmedName
     }
     const apply = (name: string) => {
       const path = window.location.pathname

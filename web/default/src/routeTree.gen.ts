@@ -10,8 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SlaRouteImport } from './routes/sla'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -39,8 +42,11 @@ import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as LocaleUserAgreementRouteImport } from './routes/$locale/user-agreement'
+import { Route as LocaleTermsRouteImport } from './routes/$locale/terms'
+import { Route as LocaleSlaRouteImport } from './routes/$locale/sla'
 import { Route as LocaleRefundPolicyRouteImport } from './routes/$locale/refund-policy'
 import { Route as LocalePrivacyPolicyRouteImport } from './routes/$locale/privacy-policy'
+import { Route as LocalePrivacyRouteImport } from './routes/$locale/privacy'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
@@ -89,6 +95,16 @@ const UserAgreementRoute = UserAgreementRouteImport.update({
   path: '/user-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SlaRoute = SlaRouteImport.update({
+  id: '/sla',
+  path: '/sla',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RefundPolicyRoute = RefundPolicyRouteImport.update({
   id: '/refund-policy',
   path: '/refund-policy',
@@ -97,6 +113,11 @@ const RefundPolicyRoute = RefundPolicyRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -232,6 +253,16 @@ const LocaleUserAgreementRoute = LocaleUserAgreementRouteImport.update({
   path: '/$locale/user-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocaleTermsRoute = LocaleTermsRouteImport.update({
+  id: '/$locale/terms',
+  path: '/$locale/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleSlaRoute = LocaleSlaRouteImport.update({
+  id: '/$locale/sla',
+  path: '/$locale/sla',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocaleRefundPolicyRoute = LocaleRefundPolicyRouteImport.update({
   id: '/$locale/refund-policy',
   path: '/$locale/refund-policy',
@@ -240,6 +271,11 @@ const LocaleRefundPolicyRoute = LocaleRefundPolicyRouteImport.update({
 const LocalePrivacyPolicyRoute = LocalePrivacyPolicyRouteImport.update({
   id: '/$locale/privacy-policy',
   path: '/$locale/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalePrivacyRoute = LocalePrivacyRouteImport.update({
+  id: '/$locale/privacy',
+  path: '/$locale/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSystemSettingsRouteRoute =
@@ -485,12 +521,18 @@ const LocaleBlogCategorySlugRoute = LocaleBlogCategorySlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/sla': typeof SlaRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
   '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/sla': typeof LocaleSlaRoute
+  '/$locale/terms': typeof LocaleTermsRoute
   '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -559,11 +601,17 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/sla': typeof SlaRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
+  '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
   '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/sla': typeof LocaleSlaRoute
+  '/$locale/terms': typeof LocaleTermsRoute
   '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -635,12 +683,18 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/sla': typeof SlaRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
   '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/sla': typeof LocaleSlaRoute
+  '/$locale/terms': typeof LocaleTermsRoute
   '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
@@ -711,12 +765,18 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/privacy'
     | '/privacy-policy'
     | '/refund-policy'
+    | '/sla'
+    | '/terms'
     | '/user-agreement'
     | '/system-settings'
+    | '/$locale/privacy'
     | '/$locale/privacy-policy'
     | '/$locale/refund-policy'
+    | '/$locale/sla'
+    | '/$locale/terms'
     | '/$locale/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -785,11 +845,17 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/privacy'
     | '/privacy-policy'
     | '/refund-policy'
+    | '/sla'
+    | '/terms'
     | '/user-agreement'
+    | '/$locale/privacy'
     | '/$locale/privacy-policy'
     | '/$locale/refund-policy'
+    | '/$locale/sla'
+    | '/$locale/terms'
     | '/$locale/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -860,12 +926,18 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_authenticated'
+    | '/privacy'
     | '/privacy-policy'
     | '/refund-policy'
+    | '/sla'
+    | '/terms'
     | '/user-agreement'
     | '/_authenticated/system-settings'
+    | '/$locale/privacy'
     | '/$locale/privacy-policy'
     | '/$locale/refund-policy'
+    | '/$locale/sla'
+    | '/$locale/terms'
     | '/$locale/user-agreement'
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
@@ -937,11 +1009,17 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
+  SlaRoute: typeof SlaRoute
+  TermsRoute: typeof TermsRoute
   UserAgreementRoute: typeof UserAgreementRoute
+  LocalePrivacyRoute: typeof LocalePrivacyRoute
   LocalePrivacyPolicyRoute: typeof LocalePrivacyPolicyRoute
   LocaleRefundPolicyRoute: typeof LocaleRefundPolicyRoute
+  LocaleSlaRoute: typeof LocaleSlaRoute
+  LocaleTermsRoute: typeof LocaleTermsRoute
   LocaleUserAgreementRoute: typeof LocaleUserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
@@ -978,6 +1056,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sla': {
+      id: '/sla'
+      path: '/sla'
+      fullPath: '/sla'
+      preLoaderRoute: typeof SlaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/refund-policy': {
       id: '/refund-policy'
       path: '/refund-policy'
@@ -990,6 +1082,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -1181,6 +1280,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleUserAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$locale/terms': {
+      id: '/$locale/terms'
+      path: '/$locale/terms'
+      fullPath: '/$locale/terms'
+      preLoaderRoute: typeof LocaleTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/sla': {
+      id: '/$locale/sla'
+      path: '/$locale/sla'
+      fullPath: '/$locale/sla'
+      preLoaderRoute: typeof LocaleSlaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$locale/refund-policy': {
       id: '/$locale/refund-policy'
       path: '/$locale/refund-policy'
@@ -1193,6 +1306,13 @@ declare module '@tanstack/react-router' {
       path: '/$locale/privacy-policy'
       fullPath: '/$locale/privacy-policy'
       preLoaderRoute: typeof LocalePrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/privacy': {
+      id: '/$locale/privacy'
+      path: '/$locale/privacy'
+      fullPath: '/$locale/privacy'
+      preLoaderRoute: typeof LocalePrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/system-settings': {
@@ -1626,11 +1746,17 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
+  SlaRoute: SlaRoute,
+  TermsRoute: TermsRoute,
   UserAgreementRoute: UserAgreementRoute,
+  LocalePrivacyRoute: LocalePrivacyRoute,
   LocalePrivacyPolicyRoute: LocalePrivacyPolicyRoute,
   LocaleRefundPolicyRoute: LocaleRefundPolicyRoute,
+  LocaleSlaRoute: LocaleSlaRoute,
+  LocaleTermsRoute: LocaleTermsRoute,
   LocaleUserAgreementRoute: LocaleUserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,

@@ -55,6 +55,46 @@ func TestInjectGoogleTagManagerAddsHeadAndBodySnippetsOnce(t *testing.T) {
 	}
 }
 
+func TestPublicWWWRedirectPolicyRedirectsToApex(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(publicWWWRedirectPolicy())
+	engine.GET("/blog/:slug", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "https://www.flatkey.ai/blog/gateway-guide?ref=seo", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Location"); got != "https://flatkey.ai/blog/gateway-guide?ref=seo" {
+		t.Fatalf("Location=%q, want https://flatkey.ai/blog/gateway-guide?ref=seo", got)
+	}
+}
+
+func TestPublicWWWRedirectPolicyIgnoresOtherHosts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(publicWWWRedirectPolicy())
+	engine.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "https://router.flatkey.ai/", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Location"); got != "" {
+		t.Fatalf("Location=%q, want empty", got)
+	}
+}
+
 func TestPublicSearchIndexPolicyAddsNoindexForNonCanonicalHost(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -86,5 +126,58 @@ func TestPublicSearchIndexPolicyAllowsCanonicalHost(t *testing.T) {
 
 	if got := rec.Header().Get("X-Robots-Tag"); got != "" {
 		t.Fatalf("X-Robots-Tag=%q, want empty", got)
+	}
+}
+
+func TestPublicSearchIndexPolicyNoindexesModelsOnCanonicalHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(publicSearchIndexPolicy())
+	engine.GET("/:locale/models", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+	engine.GET("/models", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	for _, target := range []string{
+		"https://flatkey.ai/models",
+		"https://flatkey.ai/zh/models",
+		"https://flatkey.ai/ja/models",
+		"https://flatkey.ai/de/models",
+		"https://flatkey.ai/es/models",
+	} {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		if got := rec.Header().Get("X-Robots-Tag"); got != "noindex, nofollow" {
+			t.Fatalf("%s X-Robots-Tag=%q, want noindex, nofollow", target, got)
+		}
+	}
+}
+
+func TestPublicSearchIndexPolicyNoindexesBlockedAssetPaths(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(publicSearchIndexPolicy())
+	engine.GET("/cdn-cgi/*path", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+	engine.GET("/_next/*path", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	for _, target := range []string{
+		"https://flatkey.ai/cdn-cgi/l/email-protection",
+		"https://flatkey.ai/_next/static/app.js",
+	} {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		if got := rec.Header().Get("X-Robots-Tag"); got != "noindex, nofollow" {
+			t.Fatalf("%s X-Robots-Tag=%q, want noindex, nofollow", target, got)
+		}
 	}
 }

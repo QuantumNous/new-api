@@ -26,9 +26,9 @@ export function PaddleReviewInfo() {
 
   const items = [
     {
-      title: t('What Flatkey AI is'),
+      title: t('What flatkey.ai is'),
       desc: t(
-        'Flatkey AI is a unified AI API gateway that lets teams call supported AI models through one API key, one base URL, and one dashboard.'
+        'flatkey.ai is a unified AI API gateway that lets teams call supported AI models through one API key, one base URL, and one dashboard.'
       ),
       icon: <Boxes className='size-6' strokeWidth={1.6} />,
     },
@@ -42,7 +42,7 @@ export function PaddleReviewInfo() {
     {
       title: t('Who uses it'),
       desc: t(
-        'Flatkey AI is built for developers, AI product teams, automation builders, and operations teams that need predictable access to multiple models.'
+        'flatkey.ai is built for developers, AI product teams, automation builders, and operations teams that need predictable access to multiple models.'
       ),
       icon: <Users className='size-6' strokeWidth={1.6} />,
     },
@@ -53,14 +53,14 @@ export function PaddleReviewInfo() {
       <div className='mx-auto max-w-7xl'>
         <AnimateInView className='mb-10 max-w-3xl md:mb-12'>
           <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('About Flatkey AI')}
+            {t('About flatkey.ai')}
           </p>
           <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
             {t('A unified API layer for modern AI products')}
           </h2>
           <p className='text-muted-foreground mt-4 max-w-2xl text-sm leading-7 md:text-base'>
             {t(
-              'Flatkey AI provides hosted software and prepaid account balance for metered AI API usage. Usage charges are calculated from model input, output, and cache-hit prices multiplied by token usage.'
+              'flatkey.ai provides hosted software and prepaid account balance for metered AI API usage. Usage charges are calculated from model input, output, and cache-hit prices multiplied by token usage.'
             )}
           </p>
         </AnimateInView>

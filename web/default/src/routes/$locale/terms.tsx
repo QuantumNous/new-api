@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export { UserAgreement } from './user-agreement'
-export { PrivacyPolicy } from './privacy-policy'
-export { RefundPolicy } from './refund-policy'
-export { ServiceLevelAgreement } from './service-level-agreement'
+import { createFileRoute } from '@tanstack/react-router'
+import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
+import { UserAgreement } from '@/features/legal'
+
+export const Route = createFileRoute('/$locale/terms')({
+  beforeLoad: beforeLoadPublicLocaleRoute,
+  component: UserAgreement,
+})
