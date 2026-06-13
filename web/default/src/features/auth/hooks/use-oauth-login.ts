@@ -42,6 +42,13 @@ function trackOAuthStart(provider: string) {
   if (path === '/sign-up' || path === '/sign-up/') {
     try {
       window.sessionStorage.setItem('ads:oauth_signup_start', provider)
+      window.localStorage.setItem(
+        'ads:oauth_signup_start',
+        JSON.stringify({
+          provider,
+          started_at: Date.now(),
+        })
+      )
     } catch {
       /* ignore storage failures */
     }

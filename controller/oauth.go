@@ -57,6 +57,27 @@ func GenerateOAuthCode(c *gin.Context) {
 	})
 }
 
+func getOAuthAdsAttribution(c *gin.Context, session sessions.Session) string {
+	if adsAttribution := sanitizeAdsAttribution(c.Query("ads_attribution")); adsAttribution != "" {
+		return adsAttribution
+	}
+	if adsAttribution, ok := session.Get("ads_attribution").(string); ok {
+		return sanitizeAdsAttribution(adsAttribution)
+	}
+	return ""
+}
+
+func updateUserAdsAttributionIfEmpty(user *model.User, adsAttribution string) {
+	if user == nil || user.Id == 0 || adsAttribution == "" || user.AdsAttribution != "" {
+		return
+	}
+	if err := model.DB.Model(user).Where("id = ? AND (ads_attribution IS NULL OR ads_attribution = '')", user.Id).Update("ads_attribution", adsAttribution).Error; err != nil {
+		common.SysError(fmt.Sprintf("[OAuth] Failed to update ads attribution for user %d: %s", user.Id, err.Error()))
+		return
+	}
+	user.AdsAttribution = adsAttribution
+}
+
 // HandleOAuth handles OAuth callback for all standard OAuth providers
 func HandleOAuth(c *gin.Context) {
 	providerName := c.Param("provider")
@@ -215,6 +236,7 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 // findOrCreateOAuthUser finds existing user or creates new user
 func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, session sessions.Session) (*model.User, error) {
 	user := &model.User{}
+	adsAttribution := getOAuthAdsAttribution(c, session)
 
 	// Check if user already exists with new ID
 	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
@@ -226,6 +248,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, &OAuthUserDeletedError{}
 		}
+		updateUserAdsAttributionIfEmpty(user, adsAttribution)
 		return user, nil
 	}
 
@@ -244,6 +267,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 					common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
 					// Continue with login even if migration fails
 				}
+				updateUserAdsAttributionIfEmpty(user, adsAttribution)
 				return user, nil
 			}
 		}
@@ -278,9 +302,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
-	if adsAttribution, ok := session.Get("ads_attribution").(string); ok {
-		user.AdsAttribution = sanitizeAdsAttribution(adsAttribution)
-	}
+	user.AdsAttribution = adsAttribution
 
 	// Handle affiliate code
 	affCode := session.Get("aff")
