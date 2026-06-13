@@ -80,7 +80,7 @@ jobs:
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:main-latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
   deploy:
     needs: build
