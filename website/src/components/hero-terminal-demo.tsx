@@ -276,19 +276,19 @@ function CodeLine(props: { children: ReactNode; indent?: number }) {
 }
 
 function Command(props: { children: ReactNode }) {
-  return <span className="font-medium text-violet-600">{props.children}</span>;
+  return <span className="font-medium text-violet-600 dark:text-fuchsia-200">{props.children}</span>;
 }
 function Flag(props: { children: ReactNode }) {
-  return <span className="text-indigo-600">{props.children}</span>;
+  return <span className="text-indigo-600 dark:text-indigo-300">{props.children}</span>;
 }
 function Key(props: { children: ReactNode }) {
-  return <span className="text-violet-700">{props.children}</span>;
+  return <span className="text-violet-700 dark:text-fuchsia-200">{props.children}</span>;
 }
 function StringText(props: { children: ReactNode }) {
-  return <span className="text-fuchsia-700">{props.children}</span>;
+  return <span className="text-fuchsia-700 dark:text-fuchsia-200">{props.children}</span>;
 }
 function NumberText(props: { children: ReactNode }) {
-  return <span className="font-medium text-violet-600">{props.children}</span>;
+  return <span className="font-medium text-violet-600 dark:text-fuchsia-200">{props.children}</span>;
 }
 function Muted(props: { children: ReactNode }) {
   return <span className="text-foreground/55">{props.children}</span>;

@@ -16,10 +16,10 @@ export function PublicPage(props: Props) {
   if (content.document) {
     return (
       <SiteShell locale={props.locale} pathname={props.pathname}>
-        <main className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] px-6 pt-28 pb-24 dark:bg-[linear-gradient(180deg,#141414_0%,#1a1a1a_34%,#2f2f2f_100%)]">
+        <main className="public-page relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] px-6 pt-28 pb-24 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)]">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70 dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] dark:opacity-50"
+            className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70 dark:bg-[linear-gradient(to_right,rgba(148,163,184,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.045)_1px,transparent_1px)] dark:opacity-45"
           />
           <section className="relative z-10 mx-auto max-w-6xl py-12 md:py-16">
             <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">
@@ -38,7 +38,7 @@ export function PublicPage(props: Props) {
             ) : null}
           </section>
           <section className="relative z-10 mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-[minmax(0,1fr)_240px]">
-            <article className="rounded-xl border border-violet-500/12 bg-white/72 p-6 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.6)] backdrop-blur-sm dark:border-white/10 dark:bg-card/60 dark:shadow-none md:p-9">
+            <article className="rounded-xl border border-violet-500/12 bg-white/72 p-6 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.6)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.035] md:p-9">
               <LegalMarkdown markdown={content.document} />
             </article>
             {headings.length > 0 ? (
@@ -68,10 +68,10 @@ export function PublicPage(props: Props) {
 
   return (
     <SiteShell locale={props.locale} pathname={props.pathname}>
-      <main className="home-landing relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] px-6 pt-28 pb-24 dark:bg-[linear-gradient(180deg,#141414_0%,#1a1a1a_34%,#2f2f2f_100%)]">
+      <main className="home-landing relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] px-6 pt-28 pb-24 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)]">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70 dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] dark:opacity-50"
+          className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70 dark:bg-[linear-gradient(to_right,rgba(148,163,184,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.045)_1px,transparent_1px)] dark:opacity-45"
         />
         <section className="relative z-10 mx-auto max-w-6xl py-14 md:py-20">
           <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">
@@ -88,7 +88,7 @@ export function PublicPage(props: Props) {
           {(content.sections ?? []).map((section) => (
             <article
               key={section.title}
-              className="min-h-[210px] rounded-xl border border-violet-500/15 bg-white/80 p-7 shadow-[0_24px_70px_-48px_rgba(91,33,182,0.72)] backdrop-blur-sm dark:border-white/10 dark:bg-card/70 dark:shadow-none md:p-8"
+              className="min-h-[210px] rounded-xl border border-violet-500/15 bg-white/80 p-7 shadow-[0_24px_70px_-48px_rgba(91,33,182,0.72)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.035] md:p-8"
             >
               <h2 className="mb-4 text-xl font-semibold tracking-tight">{section.title}</h2>
               <p className="text-muted-foreground text-sm leading-7 md:text-[15px]">{section.body}</p>
