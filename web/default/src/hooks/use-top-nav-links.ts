@@ -20,7 +20,6 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
-import { OFFICIAL_WEBSITE_ORIGIN } from '@/lib/origins'
 import { useStatus } from '@/hooks/use-status'
 
 export type TopNavLink = {
@@ -61,25 +60,6 @@ export function useTopNavLinks(): TopNavLink[] {
   const isAuthed = !!auth?.user
 
   const links: TopNavLink[] = []
-
-  // Home
-  if (modules?.home !== false) {
-    links.push({
-      title: t('Home'),
-      href: OFFICIAL_WEBSITE_ORIGIN || '/',
-      external: Boolean(OFFICIAL_WEBSITE_ORIGIN),
-    })
-  }
-
-  // Console -> /dashboard (new console path)
-  if (modules?.console !== false) {
-    links.push({ title: t('Console'), href: '/dashboard' })
-  }
-
-  // Blog
-  if (modules?.blog !== false) {
-    links.push({ title: t('Blog'), href: '/blog' })
-  }
 
   // Pricing
   const pricing = modules?.pricing
