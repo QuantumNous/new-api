@@ -274,7 +274,7 @@ export function Footer(props: FooterProps) {
               {displayColumns.map((column, index) => (
                 <div key={index}>
                   <p className='text-muted-foreground/50 mb-3 text-xs font-medium tracking-wider uppercase'>
-                    {t(column.title)}
+                    {column.title}
                   </p>
                   <ul className='space-y-2.5'>
                     {column.links.map((link, linkIndex) => (
