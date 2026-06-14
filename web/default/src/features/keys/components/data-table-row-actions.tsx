@@ -28,11 +28,14 @@ import {
   Copy,
   Link,
   Loader2,
+  ArrowLeftRight,
   MoreHorizontal as DotsHorizontalIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { useAuthStore } from '@/stores/auth-store'
+import { USER_ROLE } from '@/features/users/constants'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -102,6 +105,8 @@ export function DataTableRowActions<TData>({
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
   const resolvedRealKey = resolvedKeys[apiKey.id]
   const isRealKeyLoading = Boolean(loadingKeys[apiKey.id])
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const isCurrentUserRoot = currentUser?.role === USER_ROLE.ROOT
 
   const hasChatPresets = chatPresets.length > 0
 
@@ -276,6 +281,19 @@ export function DataTableRowActions<TData>({
               <Edit size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+          {isCurrentUserRoot && (
+            <DropdownMenuItem
+              onClick={() => {
+                setCurrentRow(apiKey)
+                setOpen('transfer')
+              }}
+            >
+              {t('Transfer Key')}
+              <DropdownMenuShortcut>
+                <ArrowLeftRight size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={async () => {
               const realKey = await resolveRealKey(apiKey.id)

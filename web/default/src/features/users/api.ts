@@ -147,6 +147,16 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
 }
 
 /**
+ * Impersonate a user (root admin only)
+ */
+export async function impersonateUser(
+  id: number
+): Promise<ApiResponse<Partial<User>>> {
+  const res = await api.post(`/api/user/${id}/impersonate`)
+  return res.data
+}
+
+/**
  * Get all available groups
  */
 export async function getGroups(): Promise<ApiResponse<string[]>> {

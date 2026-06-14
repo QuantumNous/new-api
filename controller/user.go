@@ -135,6 +135,24 @@ func Logout(c *gin.Context) {
 	})
 }
 
+func ImpersonateUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserDisabled)
+		return
+	}
+	setupLogin(user, c)
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)

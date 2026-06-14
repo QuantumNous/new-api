@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  LogIn,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -44,7 +45,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
-import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
+import { useAuthStore } from '@/stores/auth-store'
+import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+import { manageUser, resetUserPasskey, resetUserTwoFA, impersonateUser } from '../api'
 import {
   USER_STATUS,
   USER_ROLE,
@@ -68,6 +71,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const { handleLoginSuccess } = useAuthRedirect()
+  const isCurrentUserRoot = currentUser?.role === USER_ROLE.ROOT
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -127,6 +133,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     }
   }
 
+  const handleImpersonate = async () => {
+    try {
+      const result = await impersonateUser(user.id)
+      if (result.success && result.data) {
+        toast.success(t('Impersonated user successfully'))
+        await handleLoginSuccess(result.data as { id?: number })
+      } else {
+        toast.error(result.message || t('Failed to impersonate user'))
+      }
+    } catch (_error) {
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    }
+  }
+
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
@@ -156,6 +176,15 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <Pencil size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+
+          {isCurrentUserRoot && !isRoot && (
+            <DropdownMenuItem onClick={handleImpersonate}>
+              {t('Impersonate')}
+              <DropdownMenuShortcut>
+                <LogIn size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuSeparator />
 

@@ -357,3 +357,30 @@ func GetTokenKeysBatch(c *gin.Context) {
 	}
 	common.ApiSuccess(c, gin.H{"keys": keysMap})
 }
+
+type TransferTokenRequest struct {
+	UserId int `json:"user_id"`
+}
+
+func TransferToken(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var req TransferTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	token, err := model.TransferToken(id, req.UserId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    buildMaskedTokenResponse(token),
+	})
+}

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -38,6 +39,10 @@ import {
   USAGE_LOGS_DEFAULT_SECTION,
   type UsageLogsSectionId,
 } from './section-registry'
+import { getLogStats, getUserLogStats } from './api'
+import { useAuthStore } from '@/stores/auth-store'
+import { formatLogQuota } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
@@ -126,6 +131,26 @@ function UsageLogsContent() {
     [filteredTabGroups]
   )
 
+  const user = useAuthStore((s) => s.auth.user)
+  const isAdmin = Boolean(user?.role && user.role >= ROLE.OPERATOR)
+  const todayStart = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return Math.floor(d.getTime() / 1000)
+  }, [])
+
+  const { data: stats } = useQuery({
+    queryKey: ['default-usage-logs-stats', isAdmin, todayStart],
+    queryFn: async () => {
+      const params = { start_timestamp: todayStart, type: 2 }
+      const result = isAdmin
+        ? await getLogStats(params)
+        : await getUserLogStats(params)
+      return result.success ? result.data : null
+    },
+    placeholderData: (prev) => prev,
+  })
+
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
@@ -177,40 +202,19 @@ function UsageLogsContent() {
             <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'>
               <StatCard
                 label={t("Today's Calls")}
-                value='1,284,593'
-                change='↑ 12.3%'
-                changeType='up'
+                value={stats?.quota != null ? String(stats.quota) : '--'}
               />
               <StatCard
                 label={t('Tokens Consumed')}
-                value='892.4M'
-                change='↑ 9.1%'
-                changeType='up'
+                value={stats?.tpm != null ? String(stats.tpm) : '--'}
               />
               <StatCard
                 label={t('Cost')}
-                value='$1,284.59'
-                change='↑ 8.7%'
-                changeType='up'
+                value={stats?.quota != null ? formatLogQuota(stats.quota) : '--'}
               />
-              <StatCard
-                label={t('Error Rate')}
-                value='0.42%'
-                change='↓ 0.08%'
-                changeType='down'
-              />
-              <StatCard
-                label={t('Active Users')}
-                value='2,847'
-                change='↑ 3.2%'
-                changeType='up'
-              />
-              <StatCard
-                label={t('Avg Response')}
-                value='238ms'
-                change='↑ 8ms'
-                changeType='up'
-              />
+              <StatCard label={t('Error Rate')} value='--' />
+              <StatCard label={t('Active Users')} value='--' />
+              <StatCard label={t('Avg Response')} value='--' />
             </div>
 
             {showTaskSwitcher && (

@@ -137,6 +137,7 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.GET("/:id", controller.GetUser)
 			adminRoute.POST("/", controller.CreateUser)
 			adminRoute.POST("/manage", controller.ManageUser)
+			adminRoute.POST("/:id/impersonate", middleware.RootAuth(), controller.ImpersonateUser)
 			adminRoute.PUT("/", controller.UpdateUser)
 			adminRoute.DELETE("/:id", controller.DeleteUser)
 			adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
@@ -280,6 +281,7 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.DELETE("/:id", controller.DeleteToken)
 			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
+			tokenRoute.POST("/:id/transfer", middleware.RootAuth(), controller.TransferToken)
 		}
 
 		usageRoute := apiRouter.Group("/usage")

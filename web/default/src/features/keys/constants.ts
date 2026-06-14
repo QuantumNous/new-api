@@ -85,6 +85,7 @@ export const ERROR_MESSAGES = {
   DELETE_FAILED: 'Failed to delete API key',
   BATCH_DELETE_FAILED: 'Failed to delete API keys',
   STATUS_UPDATE_FAILED: 'Failed to update API key status',
+  TRANSFER_FAILED: 'Failed to transfer API key',
 } as const
 
 // ============================================================================
@@ -97,4 +98,5 @@ export const SUCCESS_MESSAGES = {
   API_KEY_DELETED: 'API Key deleted successfully',
   API_KEY_ENABLED: 'API Key enabled successfully',
   API_KEY_DISABLED: 'API Key disabled successfully',
+  API_KEY_TRANSFERRED: 'API Key transferred successfully',
 } as const

@@ -473,6 +473,57 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	return len(tokens), nil
 }
 
+func TransferToken(tokenId int, newUserId int) (*Token, error) {
+	token, err := GetTokenById(tokenId)
+	if err != nil {
+		return nil, err
+	}
+	if token.UserId == newUserId {
+		return nil, errors.New("目标用户与当前用户相同")
+	}
+
+	newUser, err := GetUserById(newUserId, false)
+	if err != nil {
+		return nil, errors.New("目标用户不存在")
+	}
+	if newUser.Status != common.UserStatusEnabled {
+		return nil, errors.New("目标用户已被禁用")
+	}
+
+	oldUserId := token.UserId
+	oldUsername, _ := GetUsernameById(oldUserId, false)
+	newUsername := newUser.Username
+
+	err = DB.Model(&Token{}).Where("id = ?", tokenId).Updates(map[string]interface{}{
+		"user_id": newUserId,
+	}).Error
+	if err != nil {
+		return nil, err
+	}
+
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			_ = cacheDeleteToken(token.Key)
+		})
+	}
+
+	_ = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Updates(map[string]interface{}{
+		"user_id":  newUserId,
+		"username": newUsername,
+	}).Error
+
+	_ = DB.Table("quota_data").Where("user_id = ? AND username = ?", oldUserId, oldUsername).Updates(map[string]interface{}{
+		"user_id":  newUserId,
+		"username": newUsername,
+	}).Error
+
+	token, err = GetTokenById(tokenId)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
 func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
 	var tokens []Token
 	err := DB.Select("id", commonKeyCol).

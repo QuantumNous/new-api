@@ -115,3 +115,12 @@ export async function fetchTokenKeysBatch(ids: number[]): Promise<{
   const res = await api.post('/api/token/batch/keys', { ids })
   return res.data
 }
+
+// Transfer a token to another user (root admin only)
+export async function transferApiKey(
+  id: number,
+  userId: number
+): Promise<ApiResponse<ApiKey>> {
+  const res = await api.post(`/api/token/${id}/transfer`, { user_id: userId })
+  return res.data
+}
