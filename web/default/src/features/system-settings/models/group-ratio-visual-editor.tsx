@@ -16,7 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo, useEffect, useCallback, memo } from 'react'
+import {
+  memo,
+  type ChangeEvent,
+  type FocusEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -38,6 +46,12 @@ import { Label } from '@/components/ui/label'
 import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { safeJsonParse } from '../utils/json-parser'
+import {
+  commitGroupRatioDraft,
+  formatGroupRatioDraft,
+  isGroupRatioDraft,
+  parseGroupRatioDraft,
+} from './group-ratio-draft'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
@@ -79,6 +93,54 @@ function createGroupPricingId() {
 function normalizeRatio(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 1
+}
+
+type GroupRatioDraftInputProps = {
+  value: number
+  onValueChange: (next: number) => void
+}
+
+function GroupRatioDraftInput(props: GroupRatioDraftInputProps) {
+  const [draft, setDraft] = useState('')
+  const [editing, setEditing] = useState(false)
+  const displayValue = editing ? draft : formatGroupRatioDraft(props.value)
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextDraft = event.target.value
+    if (!isGroupRatioDraft(nextDraft)) return
+
+    setDraft(nextDraft)
+
+    const parsed = parseGroupRatioDraft(nextDraft)
+    if (parsed !== null) {
+      props.onValueChange(parsed)
+    }
+  }
+
+  const handleFocus = (_event: FocusEvent<HTMLInputElement>) => {
+    setDraft(formatGroupRatioDraft(props.value))
+    setEditing(true)
+  }
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+    const committed = commitGroupRatioDraft(event.currentTarget.value)
+
+    setEditing(false)
+    setDraft('')
+    props.onValueChange(committed)
+  }
+
+  return (
+    <Input
+      type='text'
+      inputMode='decimal'
+      pattern='[0-9]*[.]?[0-9]*'
+      value={displayValue}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+    />
+  )
 }
 
 function buildGroupPricingRows(
@@ -876,17 +938,10 @@ function GroupPricingTable({
                 header: t('Ratio'),
                 className: 'w-28',
                 cell: (row) => (
-                  <Input
-                    type='number'
-                    min={0}
-                    step={0.1}
-                    value={String(row.ratio)}
-                    onChange={(event) =>
-                      updateRow(
-                        row._id,
-                        'ratio',
-                        normalizeRatio(event.target.value)
-                      )
+                  <GroupRatioDraftInput
+                    value={row.ratio}
+                    onValueChange={(value) =>
+                      updateRow(row._id, 'ratio', normalizeRatio(value))
                     }
                   />
                 ),
