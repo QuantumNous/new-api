@@ -7,7 +7,6 @@ package relay
 // HTTP-level integration test is tracked as Phase 2.5 follow-up.
 
 import (
-	"encoding/json"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -19,6 +18,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func testRawJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := common.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal test raw JSON: %v", err)
+	}
+	return data
+}
 
 // newTestContext returns a minimal *gin.Context with an optional
 // policy.Decision pre-stashed under the conventional ContextKey. Used by the
@@ -42,11 +50,116 @@ func passthroughDecision() policy.Decision {
 	return policy.DecisionFor(false, "passthrough")
 }
 
+func assertTexts(t *testing.T, got []string, want ...string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("texts length mismatch:\n got: %#v\nwant: %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("texts[%d] mismatch: got %q want %q\nall got: %#v", i, got[i], want[i], got)
+		}
+	}
+}
+
+// =============================================================================
+// entry input text collectors
+// =============================================================================
+
+func TestCollectAnyText_NestedStringsAndContentMaps(t *testing.T) {
+	got := collectAnyText(map[string]any{
+		"content": []any{
+			"plain",
+			map[string]any{"text": "text field"},
+			map[string]any{"content": []any{"nested", map[string]any{"text": "deep"}}},
+			map[string]any{"image_url": "ignored"},
+		},
+	})
+	assertTexts(t, got, "plain", "text field", "nested", "deep")
+}
+
+func TestCollectGeneralOpenAIInputTexts_UserMessagesPromptInputInstruction(t *testing.T) {
+	req := &dto.GeneralOpenAIRequest{
+		Messages: []dto.Message{
+			{Role: "system", Content: "system ignored"},
+			{Role: "user", Content: "user string"},
+			{Role: "assistant", Content: "assistant ignored"},
+			{Role: "user", Content: []any{
+				map[string]any{"type": "text", "text": "user multimodal"},
+				map[string]any{"type": "image_url", "image_url": "ignored"},
+			}},
+			{Role: "", Content: "empty role is entry input"},
+		},
+		Prompt: map[string]any{"content": []any{"prompt string", map[string]any{"text": "prompt text"}}},
+		Input: []any{
+			"input string",
+			map[string]any{"content": "input nested"},
+		},
+		Instruction: "instruction text",
+	}
+
+	got := collectGeneralOpenAIInputTexts(req)
+	assertTexts(t, got,
+		"user string",
+		"user multimodal",
+		"empty role is entry input",
+		"prompt string",
+		"prompt text",
+		"input string",
+		"input nested",
+		"instruction text",
+	)
+}
+
+func TestCollectClaudeInputTexts_PromptAndUserMessages(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Prompt: "legacy prompt",
+		Messages: []dto.ClaudeMessage{
+			{Role: "assistant", Content: "assistant ignored"},
+			{Role: "user", Content: "user string"},
+			{Role: "", Content: []any{
+				map[string]any{"type": "text", "text": "empty role multimodal"},
+				map[string]any{"type": "image", "source": "ignored"},
+			}},
+		},
+	}
+
+	got := collectClaudeInputTexts(req)
+	assertTexts(t, got, "legacy prompt", "user string", "empty role multimodal")
+}
+
+func TestCollectResponsesInputTexts_StringAndStructuredInputs(t *testing.T) {
+	stringReq := &dto.OpenAIResponsesRequest{Input: testRawJSON(t, "plain responses input")}
+	assertTexts(t, collectResponsesInputTexts(stringReq), "plain responses input")
+
+	structuredReq := &dto.OpenAIResponsesRequest{Input: testRawJSON(t, []map[string]any{
+		{"role": "user", "content": "content string"},
+		{"role": "user", "content": []map[string]any{
+			{"type": "input_text", "text": "content text"},
+			{"type": "input_image", "image_url": "ignored"},
+		}},
+	})}
+	assertTexts(t, collectResponsesInputTexts(structuredReq), "content string", "content text")
+}
+
+func TestCollectGeminiInputTexts_UserPartsOnly(t *testing.T) {
+	req := &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{Role: "model", Parts: []dto.GeminiPart{{Text: "model ignored"}}},
+			{Role: "user", Parts: []dto.GeminiPart{{Text: "user part"}, {Text: ""}}},
+			{Role: "", Parts: []dto.GeminiPart{{Text: "empty role part"}}},
+		},
+	}
+
+	got := collectGeminiInputTexts(req)
+	assertTexts(t, got, "user part", "empty role part")
+}
+
 func TestApplyAirbotixPolicy_Passthrough(t *testing.T) {
 	req := &dto.GeneralOpenAIRequest{
 		Model:    "gpt-4",
 		Messages: []dto.Message{{Role: "user", Content: "hi"}},
-		User:     json.RawMessage(`"alice"`),
+		User:     testRawJSON(t, "alice"),
 	}
 	if reject := applyAirbotixPolicy(passthroughDecision(), constant.ChannelTypeOpenAI, req); reject != "" {
 		t.Fatalf("passthrough should never reject; got %q", reject)
@@ -80,8 +193,8 @@ func TestApplyAirbotixPolicy_KidsModeAllowedModelMutates(t *testing.T) {
 	req := &dto.GeneralOpenAIRequest{
 		Model:            "gpt-4o-mini",
 		Messages:         []dto.Message{{Role: "user", Content: "hi"}},
-		User:             json.RawMessage(`"alice"`),
-		SafetyIdentifier: json.RawMessage(`"some-id"`),
+		User:             testRawJSON(t, "alice"),
+		SafetyIdentifier: testRawJSON(t, "some-id"),
 	}
 	if reject := applyAirbotixPolicy(kidsModeDecision(), constant.ChannelTypeOpenAI, req); reject != "" {
 		t.Fatalf("whitelisted model should not be rejected; got %q", reject)
@@ -157,6 +270,65 @@ func TestApplyAirbotixPolicy_KidSafeProfileSoftPrepend(t *testing.T) {
 	}
 }
 
+func TestApplyAirbotixPolicy_AdultProfilePromptAndFilter(t *testing.T) {
+	decision := policy.DecisionFor(false, "adult")
+	req := &dto.GeneralOpenAIRequest{
+		Model:    "gpt-4",
+		Messages: []dto.Message{{Role: "user", Content: "help me plan a lesson"}},
+	}
+	if reject := applyAirbotixPolicy(decision, constant.ChannelTypeOpenAI, req); reject != "" {
+		t.Fatalf("adult safe input should not reject; got %q", reject)
+	}
+	if len(req.Messages) != 2 {
+		t.Fatalf("adult profile should prepend a system prompt; got %d messages", len(req.Messages))
+	}
+	if !strings.Contains(req.Messages[0].StringContent(), "adult learner") {
+		t.Fatalf("expected adult profile prompt; got %q", req.Messages[0].StringContent())
+	}
+
+	blocked := &dto.GeneralOpenAIRequest{
+		Model:    "gpt-4",
+		Messages: []dto.Message{{Role: "user", Content: "csam request"}},
+	}
+	if reject := applyAirbotixPolicy(decision, constant.ChannelTypeOpenAI, blocked); !strings.Contains(reject, "policy_input_blocked") {
+		t.Fatalf("adult denylist should reject; got %q", reject)
+	}
+}
+
+func TestApplyAirbotixPolicy_SystemPromptGateUsesDecisionFlag(t *testing.T) {
+	decision := policy.Decision{
+		Profile:            policy.ProfileAdult,
+		InjectSystemPrompt: false,
+		RunInputFilter:     true,
+	}
+	req := &dto.GeneralOpenAIRequest{
+		Model:    "gpt-4",
+		Messages: []dto.Message{{Role: "user", Content: "help me plan a lesson"}},
+	}
+
+	if reject := applyAirbotixPolicy(decision, constant.ChannelTypeOpenAI, req); reject != "" {
+		t.Fatalf("safe adult input should not reject; got %q", reject)
+	}
+	if len(req.Messages) != 1 {
+		t.Fatalf("system prompt must be gated by InjectSystemPrompt, got %d messages", len(req.Messages))
+	}
+	if req.Messages[0].Role != "user" {
+		t.Fatalf("original user message should remain first; got %+v", req.Messages)
+	}
+}
+
+func TestApplyAirbotixPolicy_KidsModeOverrideUsesKidSafeFilter(t *testing.T) {
+	decision := policy.DecisionFor(true, "adult")
+	req := &dto.GeneralOpenAIRequest{
+		Model:    "gpt-4o-mini",
+		Messages: []dto.Message{{Role: "user", Content: "how does gambling work?"}},
+	}
+	reject := applyAirbotixPolicy(decision, constant.ChannelTypeOpenAI, req)
+	if !strings.Contains(reject, "policy_input_blocked") {
+		t.Fatalf("kids_mode override should run kid-safe filter; got %q", reject)
+	}
+}
+
 // =============================================================================
 // checkAirbotixModelWhitelist — universal model gate
 // =============================================================================
@@ -206,7 +378,7 @@ func TestApplyAirbotixPolicyToClaude_Passthrough(t *testing.T) {
 	req := &dto.ClaudeRequest{
 		Model:    "claude-3-opus-20240229",
 		System:   "be a pirate",
-		Metadata: json.RawMessage(`{"user_id":"alice"}`),
+		Metadata: testRawJSON(t, map[string]string{"user_id": "alice"}),
 	}
 	if err := applyAirbotixPolicyToClaude(c, req); err != nil {
 		t.Fatalf("passthrough should not reject; got %v", err.Err)
@@ -234,7 +406,7 @@ func TestApplyAirbotixPolicyToClaude_KidsModeReplacesSystemAndClearsMetadata(t *
 	req := &dto.ClaudeRequest{
 		Model:    "claude-3-5-haiku-20241022",
 		System:   "be an evil pirate",
-		Metadata: json.RawMessage(`{"user_id":"alice","family_id":"f-1"}`),
+		Metadata: testRawJSON(t, map[string]string{"user_id": "alice", "family_id": "f-1"}),
 	}
 	if err := applyAirbotixPolicyToClaude(c, req); err != nil {
 		t.Fatalf("whitelisted model should not be rejected; got %v", err.Err)
@@ -286,8 +458,8 @@ func TestApplyAirbotixPolicyToResponses_KidsModeMutates(t *testing.T) {
 	c := newTestContext(t, &d)
 	req := &dto.OpenAIResponsesRequest{
 		Model:            "gpt-4o-mini",
-		User:             json.RawMessage(`"alice"`),
-		SafetyIdentifier: json.RawMessage(`"sid"`),
+		User:             testRawJSON(t, "alice"),
+		SafetyIdentifier: testRawJSON(t, "sid"),
 	}
 	if err := applyAirbotixPolicyToResponses(c, constant.ChannelTypeOpenAI, req); err != nil {
 		t.Fatalf("whitelisted model should not be rejected; got %v", err.Err)

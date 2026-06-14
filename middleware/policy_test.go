@@ -44,7 +44,7 @@ func TestAirbotixPolicy_DBErrorFallsThrough(t *testing.T) {
 				c.Status(http.StatusOK)
 				return
 			}
-			if d.KidsMode || d.EnforceModelWhitelist || d.EnforceZDR || d.InjectChildSafePrompt || d.StripIdentifying {
+			if d.KidsMode || d.EnforceModelWhitelist || d.EnforceZDR || d.InjectSystemPrompt || d.StripIdentifying {
 				t.Errorf("DB error must yield passthrough decision (all constraints off); got %+v", d)
 			}
 			c.Status(http.StatusOK)
