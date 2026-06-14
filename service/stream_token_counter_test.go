@@ -21,8 +21,8 @@ func randomChunks(text string, r *rand.Rand) []string {
 	return chunks
 }
 
-// streamingEstimator must be bit-for-bit identical to one-shot EstimateToken,
-// for ANY chunk split (including multibyte runes split across chunks).
+// streamingEstimator must be bit-for-bit identical to one-shot EstimateToken
+// across ordinary chunk splits.
 func TestStreamingEstimatorMatchesOneShot(t *testing.T) {
 	corpus := []string{
 		"Hello, world! This is a test.",
@@ -54,6 +54,35 @@ func TestStreamingEstimatorMatchesOneShot(t *testing.T) {
 				if got := e.result(); got != whole {
 					t.Errorf("provider=%s text=%q stream=%d whole=%d", p, text, got, whole)
 				}
+			}
+		}
+	}
+}
+
+func TestStreamingEstimatorMatchesOneShotWhenMultibyteRunesAreSplit(t *testing.T) {
+	text := "prefix 中文 😀 suffix"
+	splits := [][]int{
+		{1},
+		{7, 8, 9},        // Split the first CJK rune byte-by-byte.
+		{7, 10, 11, 12},  // Complete one CJK rune, then split the next.
+		{14, 15, 16, 17}, // Split the emoji byte-by-byte.
+		{7, 8, 10, 14, 16, len([]byte(text))},
+	}
+	for _, p := range []Provider{OpenAI, Gemini, Claude} {
+		want := EstimateToken(p, text)
+		for _, split := range splits {
+			e := newStreamingEstimator(p)
+			start := 0
+			data := []byte(text)
+			for _, end := range split {
+				e.feed(string(data[start:end]))
+				start = end
+			}
+			if start < len(data) {
+				e.feed(string(data[start:]))
+			}
+			if got := e.result(); got != want {
+				t.Errorf("provider=%s split=%v: stream=%d whole=%d", p, split, got, want)
 			}
 		}
 	}
