@@ -25,6 +25,8 @@ import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
+import { Route as ModelsGptApiRouteImport } from './routes/models/gpt-api'
+import { Route as ModelsClaudeApiRouteImport } from './routes/models/claude-api'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
@@ -72,6 +74,8 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as LocaleModelsGptApiRouteImport } from './routes/$locale/models/gpt-api'
+import { Route as LocaleModelsClaudeApiRouteImport } from './routes/$locale/models/claude-api'
 import { Route as LocaleBlogSlugRouteImport } from './routes/$locale/blog/$slug'
 import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/system-settings/site/index'
 import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/system-settings/security/index'
@@ -166,6 +170,16 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
 const OauthProviderRoute = OauthProviderRouteImport.update({
   id: '/oauth/$provider',
   path: '/oauth/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsGptApiRoute = ModelsGptApiRouteImport.update({
+  id: '/models/gpt-api',
+  path: '/models/gpt-api',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsClaudeApiRoute = ModelsClaudeApiRouteImport.update({
+  id: '/models/claude-api',
+  path: '/models/claude-api',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsoleTopupRoute = ConsoleTopupRouteImport.update({
@@ -418,6 +432,16 @@ const authUserResetRoute = authUserResetRouteImport.update({
   path: '/user/reset',
   getParentRoute: () => authRouteRoute,
 } as any)
+const LocaleModelsGptApiRoute = LocaleModelsGptApiRouteImport.update({
+  id: '/$locale/models/gpt-api',
+  path: '/$locale/models/gpt-api',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleModelsClaudeApiRoute = LocaleModelsClaudeApiRouteImport.update({
+  id: '/$locale/models/claude-api',
+  path: '/$locale/models/claude-api',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocaleBlogSlugRoute = LocaleBlogSlugRouteImport.update({
   id: '/$locale/blog/$slug',
   path: '/$locale/blog/$slug',
@@ -550,6 +574,8 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
+  '/models/claude-api': typeof ModelsClaudeApiRoute
+  '/models/gpt-api': typeof ModelsGptApiRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/$locale/': typeof LocaleIndexRoute
   '/about/': typeof AboutIndexRoute
@@ -558,6 +584,8 @@ export interface FileRoutesByFullPath {
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
+  '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
+  '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -629,6 +657,8 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
+  '/models/claude-api': typeof ModelsClaudeApiRoute
+  '/models/gpt-api': typeof ModelsGptApiRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/$locale': typeof LocaleIndexRoute
   '/about': typeof AboutIndexRoute
@@ -637,6 +667,8 @@ export interface FileRoutesByTo {
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
+  '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
+  '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -712,6 +744,8 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
+  '/models/claude-api': typeof ModelsClaudeApiRoute
+  '/models/gpt-api': typeof ModelsGptApiRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/$locale/': typeof LocaleIndexRoute
   '/about/': typeof AboutIndexRoute
@@ -720,6 +754,8 @@ export interface FileRoutesById {
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
+  '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
+  '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -794,6 +830,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
+    | '/models/claude-api'
+    | '/models/gpt-api'
     | '/oauth/$provider'
     | '/$locale/'
     | '/about/'
@@ -802,6 +840,8 @@ export interface FileRouteTypes {
     | '/rankings/'
     | '/setup/'
     | '/$locale/blog/$slug'
+    | '/$locale/models/claude-api'
+    | '/$locale/models/gpt-api'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -873,6 +913,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
+    | '/models/claude-api'
+    | '/models/gpt-api'
     | '/oauth/$provider'
     | '/$locale'
     | '/about'
@@ -881,6 +923,8 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/setup'
     | '/$locale/blog/$slug'
+    | '/$locale/models/claude-api'
+    | '/$locale/models/gpt-api'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -955,6 +999,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
+    | '/models/claude-api'
+    | '/models/gpt-api'
     | '/oauth/$provider'
     | '/$locale/'
     | '/about/'
@@ -963,6 +1009,8 @@ export interface FileRouteTypes {
     | '/rankings/'
     | '/setup/'
     | '/$locale/blog/$slug'
+    | '/$locale/models/claude-api'
+    | '/$locale/models/gpt-api'
     | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
@@ -1029,6 +1077,8 @@ export interface RootRouteChildren {
   BlogSlugRoute: typeof BlogSlugRoute
   ConsoleLogRoute: typeof ConsoleLogRoute
   ConsoleTopupRoute: typeof ConsoleTopupRoute
+  ModelsClaudeApiRoute: typeof ModelsClaudeApiRoute
+  ModelsGptApiRoute: typeof ModelsGptApiRoute
   OauthProviderRoute: typeof OauthProviderRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
   AboutIndexRoute: typeof AboutIndexRoute
@@ -1037,6 +1087,8 @@ export interface RootRouteChildren {
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
   LocaleBlogSlugRoute: typeof LocaleBlogSlugRoute
+  LocaleModelsClaudeApiRoute: typeof LocaleModelsClaudeApiRoute
+  LocaleModelsGptApiRoute: typeof LocaleModelsGptApiRoute
   BlogCategorySlugRoute: typeof BlogCategorySlugRoute
   LocaleAboutIndexRoute: typeof LocaleAboutIndexRoute
   LocaleBlogIndexRoute: typeof LocaleBlogIndexRoute
@@ -1159,6 +1211,20 @@ declare module '@tanstack/react-router' {
       path: '/oauth/$provider'
       fullPath: '/oauth/$provider'
       preLoaderRoute: typeof OauthProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models/gpt-api': {
+      id: '/models/gpt-api'
+      path: '/models/gpt-api'
+      fullPath: '/models/gpt-api'
+      preLoaderRoute: typeof ModelsGptApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models/claude-api': {
+      id: '/models/claude-api'
+      path: '/models/claude-api'
+      fullPath: '/models/claude-api'
+      preLoaderRoute: typeof ModelsClaudeApiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/console/topup': {
@@ -1490,6 +1556,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/$locale/models/gpt-api': {
+      id: '/$locale/models/gpt-api'
+      path: '/$locale/models/gpt-api'
+      fullPath: '/$locale/models/gpt-api'
+      preLoaderRoute: typeof LocaleModelsGptApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/models/claude-api': {
+      id: '/$locale/models/claude-api'
+      path: '/$locale/models/claude-api'
+      fullPath: '/$locale/models/claude-api'
+      preLoaderRoute: typeof LocaleModelsClaudeApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$locale/blog/$slug': {
       id: '/$locale/blog/$slug'
       path: '/$locale/blog/$slug'
@@ -1766,6 +1846,8 @@ const rootRouteChildren: RootRouteChildren = {
   BlogSlugRoute: BlogSlugRoute,
   ConsoleLogRoute: ConsoleLogRoute,
   ConsoleTopupRoute: ConsoleTopupRoute,
+  ModelsClaudeApiRoute: ModelsClaudeApiRoute,
+  ModelsGptApiRoute: ModelsGptApiRoute,
   OauthProviderRoute: OauthProviderRoute,
   LocaleIndexRoute: LocaleIndexRoute,
   AboutIndexRoute: AboutIndexRoute,
@@ -1774,6 +1856,8 @@ const rootRouteChildren: RootRouteChildren = {
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
   LocaleBlogSlugRoute: LocaleBlogSlugRoute,
+  LocaleModelsClaudeApiRoute: LocaleModelsClaudeApiRoute,
+  LocaleModelsGptApiRoute: LocaleModelsGptApiRoute,
   BlogCategorySlugRoute: BlogCategorySlugRoute,
   LocaleAboutIndexRoute: LocaleAboutIndexRoute,
   LocaleBlogIndexRoute: LocaleBlogIndexRoute,
