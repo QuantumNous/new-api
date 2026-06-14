@@ -149,6 +149,7 @@ func RequestWaffoPay(c *gin.Context) {
 	}
 
 	id := c.GetInt("id")
+	TouchUserCountry(id, c.ClientIP())
 	user, err := model.GetUserById(id, false)
 	if err != nil || user == nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "用户不存在"})

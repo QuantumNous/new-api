@@ -45,6 +45,14 @@ func lookupCountryByIP(ip string) string {
 	return result.CountryCode
 }
 
+// TouchUserCountry refreshes users.country from a client IP (async, non-blocking).
+func TouchUserCountry(userId int, ip string) {
+	if userId == 0 || ip == "" {
+		return
+	}
+	updateUserCountryAsync(userId, ip)
+}
+
 // updateUserCountryAsync looks up the country for ip and updates the user record.
 // Runs in a background goroutine — never blocks the request.
 func updateUserCountryAsync(userId int, ip string) {

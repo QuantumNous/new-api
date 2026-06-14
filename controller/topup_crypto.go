@@ -389,6 +389,7 @@ func SubmitCryptoDeposit(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "unauthorized"})
 		return
 	}
+	TouchUserCountry(userId, c.ClientIP())
 
 	var req submitCryptoRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.TxHash == "" || req.Chain == "" {

@@ -1386,18 +1386,26 @@ func UpdateUserSetting(c *gin.Context) {
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
 }
 
-// SetUserLanguage sets the language column on a user account.
-// Called by the apimaster Next.js layer on every login to sync the browser language.
+// SetUserLanguage sets language and/or country on a user account.
+// Called by the apimaster Next.js layer on login to sync browser language and geo.
 func SetUserLanguage(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
 		Language string `json:"language"`
+		Country  string `json:"country"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.Username == "" || req.Language == "" {
+	if err := c.ShouldBindJSON(&req); err != nil || req.Username == "" || (req.Language == "" && req.Country == "") {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if err := model.DB.Model(&model.User{}).Where("username = ?", req.Username).Update("language", req.Language).Error; err != nil {
+	updates := map[string]interface{}{}
+	if req.Language != "" {
+		updates["language"] = req.Language
+	}
+	if req.Country != "" {
+		updates["country"] = strings.ToUpper(req.Country)
+	}
+	if err := model.DB.Model(&model.User{}).Where("username = ?", req.Username).Updates(updates).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}

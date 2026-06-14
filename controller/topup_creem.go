@@ -99,6 +99,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	}
 
 	id := c.GetInt("id")
+	TouchUserCountry(id, c.ClientIP())
 	user, _ := model.GetUserById(id, false)
 
 	// 生成唯一的订单引用ID

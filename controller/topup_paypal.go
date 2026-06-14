@@ -102,6 +102,7 @@ func RequestPayPalPay(c *gin.Context) {
 	}
 
 	id := c.GetInt("id")
+	TouchUserCountry(id, c.ClientIP())
 	user, _ := model.GetUserById(id, false)
 	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
 
