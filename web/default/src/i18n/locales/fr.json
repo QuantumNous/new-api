@@ -3735,6 +3735,8 @@
     "Site Key": "Clé du site",
     "Size:": "Taille :",
     "sk_xxx or rk_xxx": "sk_xxx ou rk_xxx",
+    "Skip Auto Test": "Ignorer le test automatique",
+    "Skip auto test to avoid consuming quota on limited channels": "Ignorer le test automatique pour économiser le quota sur les canaux limités",
     "Skip retry on failure": "Ne pas réessayer en cas d'échec",
     "Skip to Main": "Aller au contenu principal",
     "Slug": "Slug",

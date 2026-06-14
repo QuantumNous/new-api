@@ -3735,6 +3735,8 @@
     "Site Key": "Khóa trang web",
     "Size:": "Kích thước:",
     "sk_xxx or rk_xxx": "sk_xxx hoặc rk_xxx",
+    "Skip Auto Test": "Bỏ qua kiểm tra tự động",
+    "Skip auto test to avoid consuming quota on limited channels": "Bỏ qua kiểm tra tự động để tiết kiệm hạn ngạch trên các kênh giới hạn",
     "Skip retry on failure": "Không thử lại khi thất bại",
     "Skip to Main": "Bỏ qua đến nội dung chính",
     "Slug": "Slug",

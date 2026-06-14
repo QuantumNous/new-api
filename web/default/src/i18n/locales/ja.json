@@ -3735,6 +3735,8 @@
     "Site Key": "サイトキー",
     "Size:": "サイズ:",
     "sk_xxx or rk_xxx": "sk_xxx または rk_xxx",
+    "Skip Auto Test": "自動テストをスキップ",
+    "Skip auto test to avoid consuming quota on limited channels": "制限されたチャネルのクォータを節約するため自動テストをスキップ",
     "Skip retry on failure": "失敗時にリトライしない",
     "Skip to Main": "メインコンテンツへスキップ",
     "Slug": "スラッグ",
