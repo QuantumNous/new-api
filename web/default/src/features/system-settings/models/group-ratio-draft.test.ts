@@ -5,7 +5,7 @@ import {
   formatGroupRatioDraft,
   isGroupRatioDraft,
   parseGroupRatioDraft,
-} from './group-ratio-draft'
+} from './group-ratio-draft.ts'
 
 describe('group ratio draft input', () => {
   test('allows partial decimal drafts while editing', () => {
