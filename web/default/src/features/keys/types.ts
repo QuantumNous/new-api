@@ -42,6 +42,7 @@ export const apiKeySchema = z.object({
     }, z.boolean())
     .optional()
     .default(false),
+  billing_type: z.number().optional().default(0),
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
@@ -92,6 +93,7 @@ export interface ApiKeyFormData {
   allow_ips: string
   group: string
   cross_group_retry: boolean
+  billing_type: number
 }
 
 // ============================================================================

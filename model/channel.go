@@ -577,6 +577,11 @@ func (channel *Channel) Update() error {
 	if err != nil {
 		return err
 	}
+	// billing_type can be 0 (subscription_first/default) which GORM's Updates(struct) skips as a zero value.
+	// Use Update to explicitly persist it regardless.
+	if err = DB.Model(channel).Update("billing_type", channel.BillingType).Error; err != nil {
+		return err
+	}
 	DB.Model(channel).First(channel, "id = ?", channel.Id)
 	err = channel.UpdateAbilities(nil)
 	return err

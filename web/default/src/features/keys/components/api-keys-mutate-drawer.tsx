@@ -44,6 +44,14 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -340,6 +348,51 @@ export function ApiKeysMutateDrawer({
                   )}
                 />
               )}
+
+              <FormField
+                control={form.control}
+                name='billing_type'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('API Key Billing Type')}</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(Number(v))}
+                      value={String(field.value ?? 0)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('Subscription First')}>
+                            {field.value === 1
+                              ? t('Balance Only')
+                              : field.value === 2
+                                ? t('Subscription Only')
+                                : t('Subscription First')}
+                          </SelectValue>
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='0'>
+                            {t('Subscription First')}
+                          </SelectItem>
+                          <SelectItem value='1'>
+                            {t('Balance Only')}
+                          </SelectItem>
+                          <SelectItem value='2'>
+                            {t('Subscription Only')}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'Restrict which billing source can be used for this API key.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
