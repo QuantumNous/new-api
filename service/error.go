@@ -83,8 +83,26 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
+// remapPaymentRequiredError 将上游返回的所有 429 报错统一改写为
+// 503，并替换为固定提示。返回新的错误（命中时）或原错误（未命中时）。
+func remapPaymentRequiredError(newApiErr *types.NewAPIError) *types.NewAPIError {
+	if newApiErr == nil || newApiErr.StatusCode != http.StatusTooManyRequests {
+		return newApiErr
+	}
+	return types.NewOpenAIError(
+		errors.New("all active accounts have been banned"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusServiceUnavailable,
+	)
+}
+
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+
+	// 覆盖所有返回路径：上游额度耗尽类 429 统一改写为 503 账号封禁
+	defer func() {
+		newApiErr = remapPaymentRequiredError(newApiErr)
+	}()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
