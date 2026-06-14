@@ -180,4 +180,14 @@ func initConstantEnv() {
 		}
 	}
 	constant.TrustedRedirectDomains = trustedDomains
+
+	trustedProxyCIDRsStr := GetEnvOrDefaultString("TRUSTED_PROXY_CIDRS", "")
+	var trustedProxyCIDRs []string
+	for _, cidr := range strings.Split(trustedProxyCIDRsStr, ",") {
+		trimmedCIDR := strings.TrimSpace(cidr)
+		if trimmedCIDR != "" {
+			trustedProxyCIDRs = append(trustedProxyCIDRs, trimmedCIDR)
+		}
+	}
+	TrustedProxyCIDRs = trustedProxyCIDRs
 }

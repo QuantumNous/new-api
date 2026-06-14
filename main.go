@@ -160,6 +160,12 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	if len(common.TrustedProxyCIDRs) > 0 {
+		if err := server.SetTrustedProxies(common.TrustedProxyCIDRs); err != nil {
+			common.FatalLog("failed to set trusted proxies from TRUSTED_PROXY_CIDRS: " + err.Error())
+		}
+		common.SysLog("trusted proxy CIDRs enabled for ClientIP(): " + strings.Join(common.TrustedProxyCIDRs, ", "))
+	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{

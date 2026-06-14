@@ -160,6 +160,10 @@ var IsMasterNode bool
 // 用于审计日志中标识节点身份，在容器/K8s 部署时比自动探测到的容器内网 IP 更具可读性。
 var NodeName = ""
 
+// TrustedProxyCIDRs 可信反向代理CIDR列表，来自TRUSTED_PROXY_CIDRS环境变量。
+// 非空时用于Gin SetTrustedProxies，使ClientIP()可解析X-Forwarded-For/X-Real-IP。
+var TrustedProxyCIDRs []string
+
 var requestInterval int
 var RequestInterval time.Duration
 
