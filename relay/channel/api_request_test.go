@@ -80,7 +80,7 @@ func TestProcessHeaderOverride_NonTestKeepsClientHeaderPlaceholder(t *testing.T)
 	require.Equal(t, "trace-123", headers["x-upstream-trace"])
 }
 
-func TestProcessHeaderOverride_RuntimeOverrideIsFinalHeaderMap(t *testing.T) {
+func TestProcessHeaderOverride_ChannelOverrideWinsOverRuntime(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -105,10 +105,13 @@ func TestProcessHeaderOverride_RuntimeOverrideIsFinalHeaderMap(t *testing.T) {
 
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
-	require.Equal(t, "runtime-value", headers["x-static"])
+	// Channel-level header_override entries take precedence over the runtime
+	// override map (set by upstream features such as channel affinity rules).
+	// This makes the admin UI the authoritative source for header policy.
+	require.Equal(t, "legacy-value", headers["x-static"])
+	require.Equal(t, "legacy-only", headers["x-legacy"])
+	// Runtime-only entries are still included via the union merge.
 	require.Equal(t, "runtime-only", headers["x-runtime"])
-	_, exists := headers["x-legacy"]
-	require.False(t, exists)
 }
 
 func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
@@ -190,4 +193,64 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+
+// TestProcessHeaderOverride_EmptyValueIsExplicitSuppression verifies that
+// configuring a header_override entry with an empty string value causes the
+// resulting override map to include the key with an empty value, so that
+// downstream consumers can interpret it as "delete this header upstream".
+//
+// Regression test for: header_override "anthropic-beta": "" silently became a
+// no-op, allowing client-supplied beta flags to leak through to upstreams
+// that reject them (notably AWS Bedrock).
+func TestProcessHeaderOverride_EmptyValueIsExplicitSuppression(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"anthropic-beta": "",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+
+	// The key MUST be present (so consumers know to act on it),
+	// and the value MUST be empty (so consumers know it's a suppression).
+	value, exists := headers["anthropic-beta"]
+	require.True(t, exists, "empty header_override entry must be retained as a suppression marker")
+	require.Equal(t, "", value)
+}
+
+// TestApplyHeaderOverrideToRequest_EmptyValueDeletesHeader verifies that
+// applyHeaderOverrideToRequest removes the header from the outgoing request
+// when the override value is the empty string, instead of forwarding an
+// empty value or, worse, leaving a previously-set value in place.
+func TestApplyHeaderOverrideToRequest_EmptyValueDeletesHeader(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/messages", nil)
+	// Simulate a value already written by the channel adaptor (e.g. by
+	// CommonClaudeHeadersOperation copying anthropic-beta from the client).
+	req.Header.Set("anthropic-beta", "prompt-caching-2024-07-31")
+	require.Equal(t, "prompt-caching-2024-07-31", req.Header.Get("anthropic-beta"))
+
+	overrides := map[string]string{
+		"anthropic-beta": "",
+		"x-trace-id":     "abc-123",
+	}
+	applyHeaderOverrideToRequest(req, overrides)
+
+	require.Empty(t, req.Header.Get("anthropic-beta"), "empty override value must remove the header")
+	require.NotContains(t, req.Header, "Anthropic-Beta")
+	require.Equal(t, "abc-123", req.Header.Get("x-trace-id"))
 }
