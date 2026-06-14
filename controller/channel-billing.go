@@ -258,7 +258,7 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// SiliconFlow 返回人民币余额，统一转为 USD-equivalent 存储
+	// SiliconFlow returns CNY balance, convert to USD-equivalent for storage
 	if operation_setting.USDExchangeRate <= 0 {
 		return 0, errors.New("USDExchangeRate must be greater than 0")
 	}
@@ -292,7 +292,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// DeepSeek 返回人民币余额，统一转为 USD-equivalent 存储
+	// DeepSeek returns CNY balance, convert to USD-equivalent for storage
 	if operation_setting.USDExchangeRate <= 0 {
 		return 0, errors.New("USDExchangeRate must be greater than 0")
 	}
