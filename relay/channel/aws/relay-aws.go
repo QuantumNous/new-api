@@ -111,6 +111,11 @@ func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor,
 	if err != nil {
 		return nil, err
 	}
+	if info.UseRuntimeHeadersOverride {
+		if _, ok := headerOverride["anthropic-beta"]; !ok {
+			requestHeader.Del("anthropic-beta")
+		}
+	}
 	for key, value := range headerOverride {
 		requestHeader.Set(key, value)
 	}
