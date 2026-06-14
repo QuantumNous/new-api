@@ -36,14 +36,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -53,14 +45,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StaticDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -96,6 +82,8 @@ const createUptimeKumaSchema = (t: (key: string) => string) =>
   })
 
 type UptimeKumaFormValues = z.infer<ReturnType<typeof createUptimeKumaSchema>>
+
+const UPTIME_KUMA_FORM_ID = 'uptime-kuma-form'
 
 export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
   const { t } = useTranslation()
@@ -283,172 +271,173 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
           />
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === groups.length && groups.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>{t('Category Name')}</TableHead>
-                <TableHead>{t('Uptime Kuma URL')}</TableHead>
-                <TableHead>{t('Status Page Slug')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className='h-24 text-center'>
-                    {t(
-                      'No Uptime Kuma groups yet. Click "Add Group" to create one.'
-                    )}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                groups.map((group) => (
-                  <TableRow key={group.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(group.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(group.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className='font-medium'>
-                      {group.categoryName}
-                    </TableCell>
-                    <TableCell
-                      className='text-primary max-w-xs truncate font-mono text-sm'
-                      title={group.url}
-                    >
-                      {group.url}
-                    </TableCell>
-                    <TableCell className='text-muted-foreground font-mono text-sm'>
-                      {group.slug}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(group)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(group)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <StaticDataTable
+          data={groups}
+          getRowKey={(group) => group.id}
+          emptyContent={t(
+            'No Uptime Kuma groups yet. Click "Add Group" to create one.'
+          )}
+          columns={[
+            {
+              id: 'select',
+              header: (
+                <Checkbox
+                  checked={
+                    selectedIds.length === groups.length && groups.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+              ),
+              className: 'w-12',
+              cell: (group) => (
+                <Checkbox
+                  checked={selectedIds.includes(group.id)}
+                  onCheckedChange={(checked) =>
+                    toggleSelectOne(group.id, checked as boolean)
+                  }
+                />
+              ),
+            },
+            {
+              id: 'category',
+              header: t('Category Name'),
+              cellClassName: 'font-medium',
+              cell: (group) => group.categoryName,
+            },
+            {
+              id: 'url',
+              header: t('Uptime Kuma URL'),
+              cellClassName:
+                'text-primary max-w-xs truncate font-mono text-sm',
+              cell: (group) => group.url,
+            },
+            {
+              id: 'slug',
+              header: t('Status Page Slug'),
+              cellClassName: 'text-muted-foreground font-mono text-sm',
+              cell: (group) => group.slug,
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-32',
+              cell: (group) => (
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={() => handleEdit(group)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Edit className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(group)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingGroup
-                ? t('Edit Uptime Kuma Group')
-                : t('Add Uptime Kuma Group')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Configure monitoring status page groups for the dashboard')}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className='space-y-4'
+      <Dialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        title={
+          editingGroup
+            ? t('Edit Uptime Kuma Group')
+            : t('Add Uptime Kuma Group')
+        }
+        description={t(
+          'Configure monitoring status page groups for the dashboard'
+        )}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setShowDialog(false)}
             >
-              <FormField
-                control={form.control}
-                name='categoryName'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Category Name')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('e.g., Core APIs, OpenAI, Claude')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Display name for this monitoring group (max 50 characters)'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='url'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Uptime Kuma URL')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('https://status.example.com')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Base URL of your Uptime Kuma instance')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='slug'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Status Page Slug')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('my-status')} {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {t('The slug is appended to the URL:')} {'{url}'}
-                      {t('/status/')}
-                      {'{slug}'}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setShowDialog(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit'>
-                  {editingGroup ? t('Update') : t('Add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
+              {t('Cancel')}
+            </Button>
+            <Button type='submit' form={UPTIME_KUMA_FORM_ID}>
+              {editingGroup ? t('Update') : t('Add')}
+            </Button>
+          </>
+        }
+      >
+        <Form {...form}>
+          <form
+            id={UPTIME_KUMA_FORM_ID}
+            onSubmit={form.handleSubmit(handleSubmitForm)}
+            className='space-y-4'
+          >
+            <FormField
+              control={form.control}
+              name='categoryName'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Category Name')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('e.g., Core APIs, OpenAI, Claude')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Display name for this monitoring group (max 50 characters)'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Uptime Kuma URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('https://status.example.com')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Base URL of your Uptime Kuma instance')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='slug'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Status Page Slug')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t('my-status')} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t('The slug is appended to the URL:')} {'{url}'}
+                    {t('/status/')}
+                    {'{slug}'}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

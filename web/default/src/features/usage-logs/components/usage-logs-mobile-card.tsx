@@ -182,17 +182,17 @@ function CommonLogsCard<TData>({
 
   const modelCell = cells.get('model_name')
   const quotaCell = cells.get('quota')
-  const logRecord = cells.get('created_at')?.row.original as
-    | { created_at?: unknown; type?: unknown }
+  const rowData = cells.get('created_at')?.row.original as
+    | Record<string, unknown>
     | undefined
 
   return (
     <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-3'>
+      <div className='flex min-w-0 items-center justify-between gap-3'>
         <CompactCell cell={modelCell} className='flex-1' />
         <CompactCell
           cell={quotaCell}
-          className='shrink-0 text-right [&_span]:!h-6 [&_span]:!px-2 [&_span]:!text-sm [&_span]:!leading-none'
+          className='shrink-0 text-right [&_.flex-col]:items-end'
         />
       </div>
 
@@ -202,8 +202,8 @@ function CommonLogsCard<TData>({
             {t('Time')}
           </div>
           <MobileLogTimeStatus
-            createdAt={logRecord?.created_at}
-            type={logRecord?.type}
+            createdAt={rowData?.created_at}
+            type={rowData?.type}
           />
         </div>
         <SummaryField

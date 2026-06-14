@@ -27,7 +27,7 @@ const usersSearchSchema = z.object({
   pageSize: z.number().optional().catch(undefined),
   filter: z.string().optional().catch(''),
   status: z
-    .array(z.enum(['1', '2']))
+    .array(z.enum(['-1', '1', '2']))
     .optional()
     .catch([]),
   role: z
