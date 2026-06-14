@@ -58,6 +58,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import type { StatusVariant } from '@/components/status-badge'
+import { trackSuccessfulTopups } from '@/lib/analytics/topup-tracking'
 import { getInvoiceProfile, isApiSuccess } from '../../api'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
@@ -190,6 +191,14 @@ export function BillingHistoryDialog({
     handleCompleteOrder,
     handleRequestInvoice,
   } = useBillingHistory()
+
+  // Fire the top-up (purchase) conversion for any freshly-succeeded top-up that
+  // lands here — covers redirect-back providers (Stripe/epay) the inline Paddle
+  // poll never sees. De-duped + recency-gated in trackSuccessfulTopups, so this
+  // is safe to run on every records change and never back-fires for old top-ups.
+  useEffect(() => {
+    if (records.length) trackSuccessfulTopups(records)
+  }, [records])
 
   const [confirmTradeNo, setConfirmTradeNo] = useState<string | null>(null)
   const [invoiceTradeNo, setInvoiceTradeNo] = useState<string | null>(null)

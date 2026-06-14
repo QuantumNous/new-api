@@ -55,6 +55,7 @@ import {
   isWaffoPancakePayment,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
+import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -184,6 +185,11 @@ export function Wallet(props: WalletProps) {
               setPaddleCheckoutNotice({
                 title: t('Paddle payment completed'),
                 description: t('Your wallet balance has been refreshed.'),
+              })
+              trackTopupOnce({
+                trade_no: response.data.transaction_id || transactionId,
+                money: response.data.money,
+                complete_time: response.data.complete_time,
               })
               await fetchUser()
               return true
@@ -402,6 +408,11 @@ export function Wallet(props: WalletProps) {
             setPaddleCheckoutNotice({
               title: t('Paddle payment completed'),
               description: t('Your wallet balance is being refreshed.'),
+            })
+            trackTopupOnce({
+              trade_no: response.data.transaction_id || transactionId,
+              money: response.data.money,
+              complete_time: response.data.complete_time,
             })
             await fetchUser()
             return
