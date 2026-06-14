@@ -35,6 +35,23 @@ type TaskPollingAdaptor interface {
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
+func BuildTaskFetchBody(task *model.Task) map[string]any {
+	body := map[string]any{
+		"task_id": task.GetUpstreamTaskID(),
+		"action":  task.Action,
+	}
+	if task.Properties.UpstreamModelName != "" {
+		body["upstream_model_name"] = task.Properties.UpstreamModelName
+	}
+	if task.Properties.OriginModelName != "" {
+		body["origin_model_name"] = task.Properties.OriginModelName
+	}
+	if task.Properties.UpstreamRequestKey != "" {
+		body["upstream_request_key"] = task.Properties.UpstreamRequestKey
+	}
+	return body
+}
+
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
 // 使用 per-task CAS (UpdateWithStatus) 防止覆盖被正常轮询已推进的任务。
@@ -359,10 +376,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
-	}, proxy)
+	resp, err := adaptor.FetchTask(baseURL, key, BuildTaskFetchBody(task), proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
