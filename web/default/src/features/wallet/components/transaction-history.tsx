@@ -38,19 +38,19 @@ const STATUS_TABS = [
   { value: 'pending', labelKey: 'Awaiting Payment' },
 ] as const
 
-// Crypto path stores amount as raw quota units; Epay stores USD dollar integer
-const QUOTA_PER_USD = 500_000
-
-function formatRechargeAmount(amount: number, method: string): string {
-  if (method === 'crypto') return `$${(amount / QUOTA_PER_USD).toFixed(2)}`
+// All payment methods (crypto / epay / paypal) store the recharge amount as a
+// USD dollar value. (Backend topup_crypto.go writes Amount = round(usdValue).)
+function formatRechargeAmount(amount: number): string {
   return `$${amount}`
 }
 
-function formatMoney(money: number, method: string): string {
+// Paid column is unified to USD. CNY methods (epay) store `money` in CNY, but its
+// USD value equals the recharge `amount` (money = amount × rate at pay time), so
+// show that — dividing CNY by the current global rate would be wrong for older rows.
+function formatMoney(money: number, method: string, amount: number): string {
+  if (CNY_METHODS.has(method)) return amount > 0 ? `$${amount.toFixed(2)}` : '—'
   if (money <= 0) return '—'
-  return CNY_METHODS.has(method)
-    ? `¥${money.toFixed(2)}`
-    : `$${money.toFixed(2)}`
+  return `$${money.toFixed(2)}`
 }
 
 function CopyBtn({ text }: { text: string }) {
@@ -248,10 +248,10 @@ export function TransactionHistory() {
                         {getPaymentMethodName(record.payment_method, t)}
                       </td>
                       <td className='px-4 py-3 text-right font-mono'>
-                        {formatRechargeAmount(record.amount, record.payment_method)}
+                        {formatRechargeAmount(record.amount)}
                       </td>
                       <td className='px-4 py-3 text-right font-mono font-medium'>
-                        {formatMoney(record.money, record.payment_method)}
+                        {formatMoney(record.money, record.payment_method, record.amount)}
                       </td>
                       <td className='px-4 py-3 text-center'>
                         <StatusChip status={record.status} />
