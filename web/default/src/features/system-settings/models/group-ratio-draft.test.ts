@@ -26,6 +26,7 @@ describe('group ratio draft input', () => {
     assert.equal(parseGroupRatioDraft('0.095'), 0.095)
     assert.equal(parseGroupRatioDraft('.095'), 0.095)
     assert.equal(parseGroupRatioDraft('0.'), 0)
+    assert.equal(parseGroupRatioDraft('1e3'), null)
     assert.equal(parseGroupRatioDraft(''), null)
   })
 
@@ -34,5 +35,6 @@ describe('group ratio draft input', () => {
     assert.equal(commitGroupRatioDraft('.095'), 0.095)
     assert.equal(commitGroupRatioDraft(''), 0)
     assert.equal(commitGroupRatioDraft('.'), 0)
+    assert.equal(commitGroupRatioDraft('1e3'), 0)
   })
 })

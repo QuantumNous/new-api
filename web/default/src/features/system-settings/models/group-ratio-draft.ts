@@ -26,6 +26,7 @@ export function isGroupRatioDraft(value: string): boolean {
 export function parseGroupRatioDraft(value: string): number | null {
   const draft = value.trim()
   if (draft === '' || draft === '.') return null
+  if (!isGroupRatioDraft(draft)) return null
 
   const parsed = Number(draft)
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
