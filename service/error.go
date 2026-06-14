@@ -90,7 +90,7 @@ func remapPaymentRequiredError(newApiErr *types.NewAPIError) *types.NewAPIError 
 		return newApiErr
 	}
 	return types.NewOpenAIError(
-		errors.New("all active accounts have been banned"),
+		errors.New("bad response status code 503, message: No available accounts: no available accounts"),
 		types.ErrorCodeBadResponseStatusCode,
 		http.StatusServiceUnavailable,
 	)
