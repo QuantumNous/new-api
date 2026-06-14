@@ -212,7 +212,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       .map((name) => {
         const saved = savedByName.get(name)
         const draft = draftByName.get(name)
-        const displayed = saved ?? draft
+        const displayed = draft ?? saved
         const savedSignature = getSnapshotSignature(saved)
         const draftSignature = getSnapshotSignature(draft)
 
@@ -225,6 +225,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           isDraftNew: Boolean(!saved && draft),
         }
       })
+      .filter((row) => !row.isDraftDeleted)
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
     savedModelPrice,

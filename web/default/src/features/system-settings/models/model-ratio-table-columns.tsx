@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   getModeLabel,
   getModeVariant,
@@ -38,10 +40,54 @@ const filterBySelectedValues = (
   return filterValue.includes(String(rowValue))
 }
 
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
 type BuildModelRatioColumnsOptions = {
   onDelete: (name: string) => void
   onEdit: (model: ModelRow) => void
-  t: (key: string) => string
+  t: Translate
+}
+
+function DeleteButton({
+  modelName,
+  onDelete,
+  t,
+}: {
+  modelName: string
+  onDelete: (name: string) => void
+  t: Translate
+}) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  return (
+    <>
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={(e) => {
+          e.stopPropagation()
+          setConfirmOpen(true)
+        }}
+      >
+        <Trash2 />
+      </Button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t('Delete model pricing')}
+        desc={t(
+          'Are you sure you want to delete pricing for "{{name}}"? This action cannot be undone.',
+          { name: modelName }
+        )}
+        confirmText={t('Delete')}
+        destructive
+        handleConfirm={() => {
+          onDelete(modelName)
+          setConfirmOpen(false)
+        }}
+      />
+    </>
+  )
 }
 
 export function buildModelRatioColumns({
@@ -148,17 +194,18 @@ export function buildModelRatioColumns({
           <Button
             variant='ghost'
             size='sm'
-            onClick={() => onEdit(row.original)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit(row.original)
+            }}
           >
             <Pencil />
           </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => onDelete(row.original.name)}
-          >
-            <Trash2 />
-          </Button>
+          <DeleteButton
+            modelName={row.original.name}
+            onDelete={onDelete}
+            t={t}
+          />
         </div>
       ),
       enableHiding: false,
