@@ -1,0 +1,24 @@
+services:
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://router.flatkey.ai}
+        SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
+    image: flatkey-website:local
+    container_name: flatkey-website
+    restart: unless-stopped
+    ports:
+      - "${WEBSITE_PORT:-4000}:4000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 4000
+      APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://router.flatkey.ai}
+      SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
+      NEXT_PUBLIC_APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://router.flatkey.ai}
+      NEXT_PUBLIC_SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
+    cpus: 1
+    mem_limit: 512m
+    memswap_limit: 1536m
