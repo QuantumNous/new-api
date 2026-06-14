@@ -30,6 +30,22 @@ export interface BoundChannel {
   type: number
 }
 
+export type ModelDetailModality = 'text' | 'image' | 'audio' | 'video' | 'file'
+
+export type ModelDetailCapability =
+  | 'function_calling'
+  | 'streaming'
+  | 'vision'
+  | 'json_mode'
+  | 'structured_output'
+  | 'reasoning'
+  | 'tools'
+  | 'system_prompt'
+  | 'web_search'
+  | 'code_interpreter'
+  | 'caching'
+  | 'embeddings'
+
 /**
  * Model entity from API
  */
@@ -41,6 +57,14 @@ export interface Model {
   tags?: string
   vendor_id?: number
   endpoints?: string
+  context_length?: number
+  max_output_tokens?: number
+  knowledge_cutoff?: string
+  release_date?: string
+  parameter_count?: string
+  input_modalities?: ModelDetailModality[]
+  output_modalities?: ModelDetailModality[]
+  capabilities?: ModelDetailCapability[]
   status: number
   sync_official: number
   created_time: number

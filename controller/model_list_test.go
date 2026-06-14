@@ -154,6 +154,44 @@ func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 	return byName
 }
 
+func TestPricingIncludesConfiguredModelDetailMetadata(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	db := setupModelListControllerTestDB(t)
+	model.InvalidatePricingCache()
+	t.Cleanup(model.InvalidatePricingCache)
+
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "zz-metadata-model",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:        "zz-metadata-model",
+		Status:           1,
+		ContextLength:    128000,
+		MaxOutputTokens:  8192,
+		KnowledgeCutoff:  "2024-06",
+		ReleaseDate:      "2024-08",
+		ParameterCount:   "70B",
+		InputModalities:  model.JSONTextList{"text", "image"},
+		OutputModalities: model.JSONTextList{"text"},
+		Capabilities:     model.JSONTextList{"vision", "tools"},
+	}).Error)
+
+	pricingByName := pricingByModelName(model.GetPricing())
+	pricing, ok := pricingByName["zz-metadata-model"]
+	require.True(t, ok)
+	require.Equal(t, 128000, pricing.ContextLength)
+	require.Equal(t, 8192, pricing.MaxOutputTokens)
+	require.Equal(t, "2024-06", pricing.KnowledgeCutoff)
+	require.Equal(t, "2024-08", pricing.ReleaseDate)
+	require.Equal(t, "70B", pricing.ParameterCount)
+	require.Equal(t, model.JSONTextList{"text", "image"}, pricing.InputModalities)
+	require.Equal(t, model.JSONTextList{"text"}, pricing.OutputModalities)
+	require.Equal(t, model.JSONTextList{"vision", "tools"}, pricing.Capabilities)
+}
+
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
