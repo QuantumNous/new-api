@@ -119,7 +119,7 @@ export function Hero(props: HeroProps) {
             {t('Access GPT, Claude, Gemini & More')}
             <br />
             <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-              {t('One API forv Every AI Model')}
+              {t('One API for Every AI Model')}
             </span>
           </h1>
           <p
