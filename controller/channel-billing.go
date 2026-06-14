@@ -259,6 +259,9 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	// SiliconFlow 返回人民币余额，统一转为 USD-equivalent 存储
+	if operation_setting.USDExchangeRate <= 0 {
+		return 0, errors.New("USDExchangeRate must be greater than 0")
+	}
 	balanceUsd := decimal.NewFromFloat(balance).Div(decimal.NewFromFloat(operation_setting.USDExchangeRate)).InexactFloat64()
 	channel.UpdateBalance(balanceUsd)
 	return balanceUsd, nil
@@ -290,6 +293,9 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	// DeepSeek 返回人民币余额，统一转为 USD-equivalent 存储
+	if operation_setting.USDExchangeRate <= 0 {
+		return 0, errors.New("USDExchangeRate must be greater than 0")
+	}
 	balanceUsd := decimal.NewFromFloat(balance).Div(decimal.NewFromFloat(operation_setting.USDExchangeRate)).InexactFloat64()
 	channel.UpdateBalance(balanceUsd)
 	return balanceUsd, nil
