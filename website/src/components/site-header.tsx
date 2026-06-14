@@ -12,6 +12,7 @@ import { consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
 const SIGN_IN_URL = consoleUrl("/sign-in");
+const CONSOLE_URL = consoleUrl("/dashboard");
 
 type Props = {
   locale: Locale;
@@ -24,7 +25,7 @@ export function SiteHeader(props: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = [
     { href: "/", label: copy.nav.home, publicPath: true },
-    { href: "/dashboard", label: copy.nav.console, publicPath: false },
+    { href: CONSOLE_URL, label: copy.nav.console, publicPath: false },
     { href: "/blog", label: copy.nav.blog, publicPath: true },
     { href: "/pricing", label: copy.nav.modelPricing, publicPath: true },
   ];
@@ -70,7 +71,7 @@ export function SiteHeader(props: Props) {
 
             <div className="hidden items-center gap-0.5 sm:flex">
               {navItems.map((item) => {
-                const active = currentPath === item.href;
+                const active = item.publicPath && currentPath === item.href;
                 return (
                   <Link
                     key={item.href}
@@ -149,7 +150,7 @@ export function SiteHeader(props: Props) {
                 className={cn(
                   "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
                   mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
-                  currentPath === item.href ? "text-foreground" : "text-muted-foreground"
+                  item.publicPath && currentPath === item.href ? "text-foreground" : "text-muted-foreground"
                 )}
                 style={{ transitionDelay: mobileOpen ? `${100 + index * 50}ms` : "0ms" }}
               >
