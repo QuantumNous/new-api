@@ -17,14 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  Zap,
   Shield,
-  Globe,
   Code,
-  Gauge,
+  Boxes,
   DollarSign,
-  Users,
   HeartHandshake,
+  Gift,
+  Smartphone,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
@@ -40,15 +39,15 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'fast',
       num: '01',
-      title: t('Lightning Fast'),
+      title: t('All Models in One'),
       desc: t(
-        'Optimized network architecture ensures millisecond response times'
+        'One key for GLM, DeepSeek, MiniMax, Kimi and more domestic LLMs'
       ),
       span: 'md:col-span-2',
-      icon: <Zap className='size-4 text-blue-400' />,
+      icon: <Boxes className='size-4 text-blue-400' />,
       visual: (
         <div className='mt-4 grid grid-cols-3 gap-2'>
-          {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama'].map(
+          {['GLM', 'DeepSeek', 'MiniMax', 'Kimi', '通义千问', '豆包'].map(
             (name) => (
               <div
                 key={name}
@@ -64,10 +63,8 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'secure',
       num: '02',
-      title: t('Secure & Reliable'),
-      desc: t(
-        'Enterprise-grade security with comprehensive permission management'
-      ),
+      title: t('Stable & Reliable'),
+      desc: t('100% availability, low latency, no dropped requests'),
       span: 'md:col-span-1',
       icon: <Shield className='size-4 text-emerald-400' />,
       visual: (
@@ -101,13 +98,13 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'global',
       num: '03',
-      title: t('Global Coverage'),
-      desc: t('Multi-region deployment for stable global access'),
+      title: t('Better Pricing'),
+      desc: t('Pay-as-you-go, cheaper than direct access, transparent billing'),
       span: 'md:col-span-1',
-      icon: <Globe className='size-4 text-violet-400' />,
+      icon: <DollarSign className='size-4 text-violet-400' />,
       visual: (
         <div className='mt-4 space-y-2'>
-          {[t('Load Balancing'), t('Rate Limiting'), t('Cost Tracking')].map(
+          {[t('Pay-as-you-go'), t('Transparent Billing'), t('Real-time Balance')].map(
             (step, i) => (
               <div key={step} className='flex items-center gap-2'>
                 <div
@@ -130,8 +127,8 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'developer',
       num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Compatible API routes for common AI application workflows'),
+      title: t('Easy to Connect'),
+      desc: t('OpenAI-compatible — set up your client in one click'),
       span: 'md:col-span-2',
       icon: <Code className='size-4 text-amber-400' />,
       visual: (
@@ -157,24 +154,24 @@ export function Features(_props: FeaturesProps) {
 
   const additionalFeatures = [
     {
-      icon: <Gauge className='size-5' strokeWidth={1.5} />,
-      title: t('High Performance'),
-      desc: t('Support for high concurrency with automatic load balancing'),
+      icon: <Gift className='size-5' strokeWidth={1.5} />,
+      title: t('New User Bonus'),
+      desc: t('20 CNY free credit on sign-up'),
+    },
+    {
+      icon: <Smartphone className='size-5' strokeWidth={1.5} />,
+      title: t('Multi-platform'),
+      desc: t('Works with Cherry Studio and other popular clients'),
     },
     {
       icon: <DollarSign className='size-5' strokeWidth={1.5} />,
       title: t('Transparent Billing'),
-      desc: t('Pay-as-you-go with real-time usage monitoring'),
-    },
-    {
-      icon: <Users className='size-5' strokeWidth={1.5} />,
-      title: t('Team Collaboration'),
-      desc: t('Multi-user management with flexible permission allocation'),
+      desc: t('Real-time usage and balance at a glance'),
     },
     {
       icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Open Source'),
-      desc: t('Community driven, self-hosted, and extensible'),
+      title: t('Community Support'),
+      desc: t('Active community and thorough docs'),
     },
   ]
 
@@ -183,12 +180,12 @@ export function Features(_props: FeaturesProps) {
       <div className='mx-auto max-w-6xl'>
         <AnimateInView className='mb-16 max-w-lg'>
           <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('Core Features')}
+            {t('Core Advantages')}
           </p>
           <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
-            {t('Built for developers,')}
+            {t('Why choose')}
             <br />
-            {t('designed for scale')}
+            {t('PaopaoApi?')}
           </h2>
         </AnimateInView>
 
