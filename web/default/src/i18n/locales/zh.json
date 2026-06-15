@@ -1,5 +1,16 @@
 {
   "translation": {
+    "Edit Pricing": "编辑定价",
+    "Per-token": "按量计费",
+    "Per-request": "按次计费",
+    "Input ratio (ModelRatio)": "输入倍率",
+    "Completion ratio": "输出倍率",
+    "Fixed price ($) per call": "固定价（$/次）",
+    "Pricing saved — takes effect immediately": "定价已保存，立即生效",
+    "Please enter a valid input ratio": "请输入有效的输入倍率",
+    "Please enter a valid fixed price": "请输入有效的固定价",
+    "Save failed": "保存失败",
+    "Saving...": "保存中…",
     "One key, all AI models": "一个密钥 · 畅用全网大模型",
     "One API key,": "一个 API 密钥，",
     "access all AI models": "接入所有 AI 大模型",

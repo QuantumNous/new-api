@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, Code2, HeartPulse, Info, Timer } from 'lucide-react'
@@ -24,6 +24,9 @@ import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
+import { EditPricingDialog } from './edit-pricing-dialog'
 import {
   Sheet,
   SheetContent,
@@ -261,6 +264,10 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
 function ModelHeader(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
+  const { auth } = useAuthStore()
+  const isAdmin = (auth.user?.role ?? 0) >= ROLE.ADMIN
+  const { refetch } = usePricingData()
+  const [editOpen, setEditOpen] = useState(false)
   const modelIconKey = model.icon || model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const description = model.description || model.vendor_description || null
@@ -284,6 +291,22 @@ function ModelHeader(props: { model: PricingModel }) {
           tooltip={t('Copy model name')}
           successTooltip={t('Copied!')}
           aria-label={t('Copy model name')}
+        />
+        {isAdmin && (
+          <Button
+            variant='outline'
+            size='sm'
+            className='ml-auto'
+            onClick={() => setEditOpen(true)}
+          >
+            {t('Edit Pricing')}
+          </Button>
+        )}
+        <EditPricingDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          modelName={model.model_name}
+          onSaved={() => refetch()}
         />
       </div>
       <div className='mt-1 flex flex-wrap items-center gap-1.5 text-xs'>
