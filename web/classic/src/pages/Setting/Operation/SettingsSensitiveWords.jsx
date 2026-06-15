@@ -35,6 +35,7 @@ export default function SettingsSensitiveWords(props) {
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
     SensitiveWords: '',
+    SensitiveRefusalText: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -141,6 +142,23 @@ export default function SettingsSensitiveWords(props) {
                   }
                   style={{ fontFamily: 'JetBrains Mono, Consolas' }}
                   autosize={{ minRows: 6, maxRows: 12 }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.TextArea
+                  label={t('拒绝提示模板（可选）')}
+                  extraText={t('留空则使用内置默认拒绝文案')}
+                  placeholder={t('留空则使用内置默认拒绝文案')}
+                  field={'SensitiveRefusalText'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      SensitiveRefusalText: value,
+                    })
+                  }
+                  autosize={{ minRows: 2, maxRows: 6 }}
                 />
               </Col>
             </Row>
