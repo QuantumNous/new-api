@@ -20,6 +20,7 @@ import { Link } from '@tanstack/react-router'
 import { CherryStudio } from '@lobehub/icons'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
 
@@ -44,6 +45,7 @@ const MoreIcon = () => (
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
+  const { systemName } = useSystemConfig()
 
   return (
     <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
@@ -95,7 +97,8 @@ export function Hero(props: HeroProps) {
             style={{ animationDelay: '120ms' }}
           >
             {t(
-              'PaopaoApi aggregates mainstream domestic LLMs — GLM, DeepSeek, MiniMax, Kimi and more. Pay-as-you-go at lower cost; OpenAI-compatible so you can plug into Cherry Studio and other clients in minutes. 20 CNY free credit on sign-up.'
+              '{{name}} aggregates mainstream domestic LLMs — GLM, DeepSeek, MiniMax, Kimi and more. Pay-as-you-go at lower cost; OpenAI-compatible so you can plug into Cherry Studio and other clients in minutes. 20 CNY free credit on sign-up.',
+              { name: systemName }
             )}
           </p>
 

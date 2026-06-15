@@ -26,6 +26,7 @@ import {
   Smartphone,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { AnimateInView } from '@/components/animate-in-view'
 
 interface FeaturesProps {
@@ -34,6 +35,7 @@ interface FeaturesProps {
 
 export function Features(_props: FeaturesProps) {
   const { t } = useTranslation()
+  const { systemName } = useSystemConfig()
 
   const features = [
     {
@@ -185,7 +187,7 @@ export function Features(_props: FeaturesProps) {
           <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
             {t('Why choose')}
             <br />
-            {t('PaopaoApi?')}
+            {t('{{name}}?', { name: systemName })}
           </h2>
         </AnimateInView>
 
