@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Search, X } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
+import { formatBlogCopy, type BlogCopy } from "@/lib/blog-copy";
 import {
   BLOG_PAGE_SIZE,
   formatBlogDate,
@@ -12,6 +13,7 @@ import {
   sanitizeBlogHtml,
   type BlogPost,
 } from "@/lib/blog";
+import { getCopy } from "@/lib/copy";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
@@ -80,6 +82,7 @@ function BlogHero(props: {
   locale: Locale;
   title: string;
   description: string;
+  copy: BlogCopy;
   query?: string;
   categorySlug?: string;
 }) {
@@ -104,19 +107,19 @@ function BlogHero(props: {
             <input
               name="q"
               defaultValue={props.query ?? ""}
-              placeholder="Search articles"
+              placeholder={props.copy.searchPlaceholder}
               className="border-input bg-background h-11 w-full rounded-lg border px-3 pl-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-3 focus:ring-ring/15"
               type="search"
             />
           </div>
           <button className={cn(buttonClass(), "h-11 px-5")} type="submit">
             <Search className="size-4" />
-            Search
+            {props.copy.search}
           </button>
           {props.query ? (
             <Link className={cn(buttonClass("outline"), "h-11 px-5")} href={localizePath(action, props.locale)}>
               <X className="size-4" />
-              Clear
+              {props.copy.clear}
             </Link>
           ) : null}
         </form>
@@ -127,6 +130,7 @@ function BlogHero(props: {
 
 async function BlogCategories(props: { locale: Locale }) {
   const categories = await getBlogCategories();
+  const copy = getCopy(props.locale).blog;
 
   if (categories.length === 0) return null;
 
@@ -140,10 +144,10 @@ async function BlogCategories(props: { locale: Locale }) {
         >
           <h2 className="text-foreground font-semibold">{category.name}</h2>
           <p className="text-muted-foreground mt-2 line-clamp-3 text-sm leading-6">
-            {category.description || `Latest articles in ${category.name}.`}
+            {category.description || formatBlogCopy(copy.latestInCategory, { category: category.name })}
           </p>
           <span className="text-primary mt-4 inline-flex items-center gap-1 text-sm font-medium">
-            Read more
+            {copy.readMore}
             <ArrowRight className="size-3.5" />
           </span>
         </Link>
@@ -153,7 +157,7 @@ async function BlogCategories(props: { locale: Locale }) {
 }
 
 function BlogCard(props: { post: BlogPost; locale: Locale; compact?: boolean }) {
-  const date = formatBlogDate(props.post.date, "short");
+  const date = formatBlogDate(props.post.date, "short", props.locale);
 
   return (
     <Link
@@ -203,6 +207,7 @@ function BlogCard(props: { post: BlogPost; locale: Locale; compact?: boolean }) 
 
 function BlogPagination(props: { locale: Locale; pageNo: number; totalPages: number; query?: string; categorySlug?: string }) {
   if (props.totalPages <= 1) return null;
+  const copy = getCopy(props.locale).blog;
   const basePath = props.categorySlug ? `/blog/category/${props.categorySlug}` : "/blog";
   const prevPage = props.pageNo - 1;
   const nextPage = props.pageNo + 1;
@@ -215,18 +220,18 @@ function BlogPagination(props: { locale: Locale; pageNo: number; totalPages: num
           href={`${localizePath(basePath, props.locale)}${buildQuery({ page: prevPage, q: props.query })}`}
         >
           <ArrowLeft className="size-4" />
-          Previous
+          {copy.previous}
         </Link>
       ) : null}
       <span className="text-muted-foreground text-sm">
-        Page {props.pageNo} of {props.totalPages}
+        {formatBlogCopy(copy.pageOf, { page: props.pageNo, total: props.totalPages })}
       </span>
       {props.pageNo < props.totalPages ? (
         <Link
           className={buttonClass("outline")}
           href={`${localizePath(basePath, props.locale)}${buildQuery({ page: nextPage, q: props.query })}`}
         >
-          Next
+          {copy.next}
           <ArrowRight className="size-4" />
         </Link>
       ) : null}
@@ -234,26 +239,30 @@ function BlogPagination(props: { locale: Locale; pageNo: number; totalPages: num
   );
 }
 
-function BlogCTA() {
+function BlogCTA(props: { locale: Locale }) {
+  const copy = getCopy(props.locale).blog;
+
   return (
     <section className="bg-foreground text-background mt-20 rounded-lg px-6 py-12 text-center sm:px-10">
-      <h2 className="text-2xl font-semibold">Build faster with one AI gateway.</h2>
+      <h2 className="text-2xl font-semibold">{copy.ctaTitle}</h2>
       <p className="text-background/75 mx-auto mt-3 max-w-2xl text-sm leading-6">
-        Use flatkey.ai to manage models, keys, billing, and observability from one API platform.
+        {copy.ctaDescription}
       </p>
       <Link className={cn(buttonClass(), "mt-7 bg-background text-foreground hover:bg-background/90")} href={consoleUrl("/sign-up")}>
-        Get started
+        {copy.ctaButton}
       </Link>
     </section>
   );
 }
 
-function EmptyBlogState() {
+function EmptyBlogState(props: { locale: Locale }) {
+  const copy = getCopy(props.locale).blog;
+
   return (
     <div className="border-border bg-card flex min-h-64 flex-col items-center justify-center rounded-lg border px-6 py-14 text-center">
       <BookOpen className="text-muted-foreground size-10" />
-      <h2 className="mt-4 text-lg font-semibold">No posts found</h2>
-      <p className="text-muted-foreground mt-2 max-w-md text-sm">Try a different search or category.</p>
+      <h2 className="mt-4 text-lg font-semibold">{copy.emptyTitle}</h2>
+      <p className="text-muted-foreground mt-2 max-w-md text-sm">{copy.emptyDescription}</p>
     </div>
   );
 }
@@ -263,14 +272,16 @@ export async function BlogIndexPage(props: Props & { search?: BlogSearchState })
   const query = props.search?.q;
   const posts = await getBlogPosts({ page, q: query });
   const totalPages = Math.ceil(posts.total / BLOG_PAGE_SIZE);
+  const copy = getCopy(props.locale).blog;
 
   return (
     <SiteShell locale={props.locale} pathname="/blog">
       <main>
         <BlogHero
           locale={props.locale}
-          title="flatkey.ai Blog"
-          description="Insights, product notes, and implementation guides for teams building on AI APIs."
+          title={copy.title}
+          description={copy.description}
+          copy={copy}
           query={query}
         />
         <section className="container mx-auto max-w-6xl px-4 py-14">
@@ -278,7 +289,7 @@ export async function BlogIndexPage(props: Props & { search?: BlogSearchState })
         </section>
         <section className="container mx-auto max-w-6xl px-4 pb-20">
           {posts.list.length === 0 ? (
-            <EmptyBlogState />
+            <EmptyBlogState locale={props.locale} />
           ) : (
             <>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -287,7 +298,7 @@ export async function BlogIndexPage(props: Props & { search?: BlogSearchState })
                 ))}
               </div>
               <BlogPagination pageNo={page} totalPages={totalPages} query={query} locale={props.locale} />
-              <BlogCTA />
+              <BlogCTA locale={props.locale} />
             </>
           )}
         </section>
@@ -304,6 +315,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
   const related = relatedPosts.list.filter((item) => item.slug !== props.slug).slice(0, 3);
   const html = sanitizeBlogHtml(post.content ?? "");
   const toc = getBlogToc(html);
+  const copy = getCopy(props.locale).blog;
 
   return (
     <SiteShell locale={props.locale} pathname={`/blog/${props.slug}`}>
@@ -312,7 +324,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
           <div className="container mx-auto max-w-4xl px-4">
             <div className="mb-5 flex flex-wrap items-center gap-3">
               {post.categoryName ? <Badge>{post.categoryName}</Badge> : null}
-              {post.date ? <span className="text-muted-foreground text-sm">{formatBlogDate(post.date, "long")}</span> : null}
+              {post.date ? <span className="text-muted-foreground text-sm">{formatBlogDate(post.date, "long", props.locale)}</span> : null}
               {post.author ? <span className="text-muted-foreground text-sm">{post.author}</span> : null}
             </div>
             <h1 className="text-foreground text-3xl font-semibold tracking-tight text-balance md:text-5xl">
@@ -341,7 +353,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
             {toc.length >= 2 ? (
               <aside className="hidden lg:block">
                 <nav className="sticky top-24 text-sm">
-                  <p className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">On this page</p>
+                  <p className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">{copy.onThisPage}</p>
                   <ul className="space-y-1.5">
                     {toc.map((item) => (
                       <li key={item.id}>
@@ -365,7 +377,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
         {related.length > 0 ? (
           <section className="mt-10 border-t border-border/50 py-16">
             <div className="container mx-auto max-w-5xl px-4">
-              <h2 className="text-xl font-semibold">Related articles</h2>
+              <h2 className="text-xl font-semibold">{copy.relatedArticles}</h2>
               <div className="mt-7 grid gap-5 sm:grid-cols-3">
                 {related.map((item) => (
                   <BlogCard key={item.id || item.slug} post={item} locale={props.locale} compact />
@@ -377,7 +389,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
         <div className="container mx-auto max-w-5xl px-4 pb-16">
           <Link className={buttonClass("ghost")} href={localizePath("/blog", props.locale)}>
             <ArrowLeft className="size-4" />
-            Back to Blog
+            {copy.backToBlog}
           </Link>
         </div>
       </main>
@@ -394,21 +406,22 @@ export async function BlogCategoryPage(props: Props & { slug: string; search?: B
   const query = props.search?.q;
   const posts = await getBlogPosts({ page, q: query, categoryIds: [category.id] });
   const totalPages = Math.ceil(posts.total / BLOG_PAGE_SIZE);
-  const description = category.description || `Latest articles in ${category.name}.`;
+  const copy = getCopy(props.locale).blog;
+  const description = category.description || formatBlogCopy(copy.latestInCategory, { category: category.name });
 
   return (
     <SiteShell locale={props.locale} pathname={`/blog/category/${props.slug}`}>
       <main>
-        <BlogHero locale={props.locale} title={category.name} description={description} query={query} categorySlug={props.slug} />
+        <BlogHero locale={props.locale} title={category.name} description={description} copy={copy} query={query} categorySlug={props.slug} />
         <section className="container mx-auto max-w-6xl px-4 py-12">
           <Link className={buttonClass("ghost")} href={localizePath("/blog", props.locale)}>
             <ArrowLeft className="size-4" />
-            Back to Blog
+            {copy.backToBlog}
           </Link>
         </section>
         <section className="container mx-auto max-w-6xl px-4 pb-20">
           {posts.list.length === 0 ? (
-            <EmptyBlogState />
+            <EmptyBlogState locale={props.locale} />
           ) : (
             <>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -423,7 +436,7 @@ export async function BlogCategoryPage(props: Props & { slug: string; search?: B
                 categorySlug={props.slug}
                 locale={props.locale}
               />
-              <BlogCTA />
+              <BlogCTA locale={props.locale} />
             </>
           )}
         </section>

@@ -12,6 +12,7 @@ type Props = {
 export function PublicPage(props: Props) {
   const content = getPageContent(props.pageKey, props.locale);
   const headings = content.document ? getLegalHeadings(content.document) : [];
+  const copy = publicPageCopy(props.locale);
 
   if (content.document) {
     return (
@@ -33,7 +34,7 @@ export function PublicPage(props: Props) {
             </p>
             {content.updated ? (
               <p className="text-muted-foreground/70 mt-4 text-xs font-medium tracking-wide uppercase">
-                Last updated: {content.updated}
+                {copy.lastUpdated}: {content.updated}
               </p>
             ) : null}
           </section>
@@ -44,7 +45,7 @@ export function PublicPage(props: Props) {
             {headings.length > 0 ? (
               <aside className="sticky top-24 hidden text-sm lg:block">
                 <h2 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
-                  Table of contents
+                  {copy.tableOfContents}
                 </h2>
                 <ul className="space-y-1.5">
                   {headings.map((heading) => (
@@ -98,4 +99,19 @@ export function PublicPage(props: Props) {
       </main>
     </SiteShell>
   );
+}
+
+const PUBLIC_PAGE_COPY: Record<Locale, { lastUpdated: string; tableOfContents: string }> = {
+  en: { lastUpdated: "Last updated", tableOfContents: "Table of contents" },
+  zh: { lastUpdated: "最后更新", tableOfContents: "目录" },
+  es: { lastUpdated: "Última actualización", tableOfContents: "Índice" },
+  fr: { lastUpdated: "Dernière mise à jour", tableOfContents: "Sommaire" },
+  pt: { lastUpdated: "Última atualização", tableOfContents: "Índice" },
+  ru: { lastUpdated: "Последнее обновление", tableOfContents: "Содержание" },
+  ja: { lastUpdated: "最終更新", tableOfContents: "目次" },
+  vi: { lastUpdated: "Cập nhật lần cuối", tableOfContents: "Mục lục" },
+};
+
+function publicPageCopy(locale: Locale) {
+  return PUBLIC_PAGE_COPY[locale] ?? PUBLIC_PAGE_COPY.en;
 }

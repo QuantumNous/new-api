@@ -26,7 +26,7 @@ export function SiteHeader(props: Props) {
   const navItems = [
     { href: "/", label: copy.nav.home, publicPath: true },
     { href: CONSOLE_URL, label: copy.nav.console, publicPath: false },
-    { href: "/blog", label: copy.nav.blog, publicPath: true },
+    ...(props.locale === "en" ? [{ href: "/blog", label: copy.nav.blog, publicPath: true }] : []),
     { href: "/pricing", label: copy.nav.modelPricing, publicPath: true },
   ];
   const currentPath = stripLocale(props.pathname);

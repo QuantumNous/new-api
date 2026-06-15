@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { BlogCategoryPage, parseBlogSearch } from "@/components/blog-pages";
+import { formatBlogCopy } from "@/lib/blog-copy";
+import { getCopy } from "@/lib/copy";
 import { isLocale, LOCALES } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
@@ -15,9 +17,10 @@ export function generateStaticParams() {
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
+  const copy = getCopy(params.locale).blog;
   return buildMetadata({
-    title: `Blog category: ${params.slug}`,
-    description: "Browse flatkey.ai blog articles by category.",
+    title: formatBlogCopy(copy.categoryTitle, { category: params.slug }),
+    description: copy.categoryFallbackDescription,
     pathname: `/blog/category/${params.slug}`,
     locale: params.locale,
   });
