@@ -231,7 +231,7 @@ function renderResponseLine(line: string, demo: ApiDemoConfig, copy: HomeTermina
     const start = match.index ?? 0;
     if (start > cursor) segments.push(<span key={`pre-${idx}`}>{tokenize(line.slice(cursor, start))}</span>);
     const placeholder = match[0];
-    if (placeholder === "<text>") segments.push(<Accent key={`ph-${idx}`} accent={demo.accent}>{`"${copy.responses[demo.id] ?? "..."}`}</Accent>);
+    if (placeholder === "<text>") segments.push(<Accent key={`ph-${idx}`} accent={demo.accent}>{`"${copy.responses[demo.id] ?? "..."}"`}</Accent>);
     else if (placeholder === "<tokens>") segments.push(<NumberText key={`ph-${idx}`}>{demo.tokens}</NumberText>);
     else if (placeholder === "<in>") segments.push(<NumberText key={`ph-${idx}`}>{Math.floor(demo.tokens * 0.4)}</NumberText>);
     else if (placeholder === "<out>") segments.push(<NumberText key={`ph-${idx}`}>{Math.ceil(demo.tokens * 0.6)}</NumberText>);
