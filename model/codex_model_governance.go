@@ -150,6 +150,9 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 		if record.DetectedAt == 0 {
 			record.DetectedAt = now
 		}
+		affectedChannelIDs = normalizeCodexModelGovernanceChannelIDs(
+			append(decodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs), affectedChannelIDs...),
+		)
 		updates := map[string]any{
 			"status":               CodexModelGovernanceStatusUnsupportedPendingReview,
 			"source":               source,

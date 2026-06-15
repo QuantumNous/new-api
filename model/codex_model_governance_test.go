@@ -111,6 +111,38 @@ func TestCodexGovernanceUpsertPendingDisablesAffectedCodexAbilities(t *testing.T
 	require.True(t, untouchedNonCodex.Enabled)
 }
 
+func TestCodexGovernanceUpsertPendingMergesAffectedChannelsAcrossProbeRuns(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 71, constant.ChannelTypeCodex, "gpt-5.3-codex")
+	insertCodexGovernanceChannel(t, 72, constant.ChannelTypeCodex, "gpt-5.3-codex")
+
+	first, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{71},
+		DisableAbilities:   true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "71", first.AffectedChannelIDs)
+
+	second, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{72},
+		DisableAbilities:   true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "71,72", second.AffectedChannelIDs)
+
+	require.NoError(t, ReviewCodexModelGovernanceRecord(second.ID, CodexModelGovernanceStatusActive, 7, "restore all"))
+
+	var restoredCount int64
+	require.NoError(t, DB.Model(&Ability{}).
+		Where("model = ? AND channel_id IN ? AND enabled = ?", "gpt-5.3-codex", []int{71, 72}, true).
+		Count(&restoredCount).Error)
+	require.Equal(t, int64(2), restoredCount)
+}
+
 func TestCodexGovernanceRemoveModelUpdatesChannelsAndAbilities(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
 	insertCodexGovernanceChannel(t, 21, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex")
