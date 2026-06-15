@@ -679,10 +679,7 @@ func (user *User) FillUserByTelegramId() error {
 		return errors.New("Telegram id 为空！")
 	}
 	err := DB.Where(User{TelegramId: user.TelegramId}).First(user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.New("该 Telegram 账户未绑定")
-	}
-	return nil
+	return err
 }
 
 func IsEmailAlreadyTaken(email string) bool {

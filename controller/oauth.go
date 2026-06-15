@@ -19,6 +19,18 @@ func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
 }
 
+func apiOAuthErrorI18n(c *gin.Context, key string, args ...map[string]any) {
+	writeOAuthErrorI18n(c, http.StatusOK, key, args...)
+}
+
+func writeOAuthErrorI18n(c *gin.Context, status int, key string, args ...map[string]any) {
+	c.JSON(status, gin.H{
+		"success": false,
+		"message": i18n.T(c, key, args...),
+		"code":    key,
+	})
+}
+
 // GenerateOAuthCode generates a state code for OAuth CSRF protection
 func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
@@ -45,10 +57,7 @@ func HandleOAuth(c *gin.Context) {
 	providerName := c.Param("provider")
 	provider := oauth.GetProvider(providerName)
 	if provider == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgOAuthUnknownProvider),
-		})
+		writeOAuthErrorI18n(c, http.StatusBadRequest, i18n.MsgOAuthUnknownProvider)
 		return
 	}
 
@@ -57,10 +66,7 @@ func HandleOAuth(c *gin.Context) {
 	// 1. Validate state (CSRF protection)
 	state := c.Query("state")
 	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
-		})
+		writeOAuthErrorI18n(c, http.StatusForbidden, i18n.MsgOAuthStateInvalid)
 		return
 	}
 
@@ -73,7 +79,7 @@ func HandleOAuth(c *gin.Context) {
 
 	// 3. Check if provider is enabled
 	if !provider.IsEnabled() {
-		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
+		apiOAuthErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
 	}
 
@@ -108,9 +114,9 @@ func HandleOAuth(c *gin.Context) {
 	if err != nil {
 		switch err.(type) {
 		case *OAuthUserDeletedError:
-			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
+			apiOAuthErrorI18n(c, i18n.MsgOAuthUserDeleted)
 		case *OAuthRegistrationDisabledError:
-			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+			apiOAuthErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		default:
 			common.ApiError(c, err)
 		}
@@ -119,7 +125,7 @@ func HandleOAuth(c *gin.Context) {
 
 	// 8. Check user status
 	if user.Status != common.UserStatusEnabled {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		apiOAuthErrorI18n(c, i18n.MsgOAuthUserBanned)
 		return
 	}
 
@@ -130,7 +136,7 @@ func HandleOAuth(c *gin.Context) {
 // handleOAuthBind handles binding OAuth account to existing user
 func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 	if !provider.IsEnabled() {
-		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
+		apiOAuthErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
 	}
 
@@ -151,13 +157,13 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 
 	// Check if this OAuth account is already bound (check both new ID and legacy ID)
 	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
-		common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+		apiOAuthErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
 		return
 	}
 	// Also check legacy ID to prevent duplicate bindings during migration period
 	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && legacyID != "" {
 		if provider.IsUserIDTaken(legacyID) {
-			common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+			apiOAuthErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
 			return
 		}
 	}
@@ -348,14 +354,14 @@ func handleOAuthError(c *gin.Context, err error) {
 	switch e := err.(type) {
 	case *oauth.OAuthError:
 		if e.Params != nil {
-			common.ApiErrorI18n(c, e.MsgKey, e.Params)
+			apiOAuthErrorI18n(c, e.MsgKey, e.Params)
 		} else {
-			common.ApiErrorI18n(c, e.MsgKey)
+			apiOAuthErrorI18n(c, e.MsgKey)
 		}
 	case *oauth.AccessDeniedError:
 		common.ApiErrorMsg(c, e.Message)
 	case *oauth.TrustLevelError:
-		common.ApiErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
+		apiOAuthErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
 	default:
 		common.ApiError(c, err)
 	}

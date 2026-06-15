@@ -2,15 +2,15 @@ package controller
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -28,12 +28,12 @@ type GitHubUser struct {
 	Email string `json:"email"`
 }
 
-func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
+func getGitHubUserInfoByCode(c *gin.Context, code string) (*GitHubUser, error) {
 	if code == "" {
-		return nil, errors.New("无效的参数")
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 	values := map[string]string{"client_id": common.GitHubClientId, "client_secret": common.GitHubClientSecret, "code": code}
-	jsonData, err := json.Marshal(values)
+	jsonData, err := common.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
@@ -49,11 +49,11 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New("无法连接至 GitHub 服务器，请稍后重试！")
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("GitHub"), err.Error())
 	}
 	defer res.Body.Close()
 	var oAuthResponse GitHubOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
+	err = common.DecodeJson(res.Body, &oAuthResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -65,16 +65,16 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	res2, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New("无法连接至 GitHub 服务器，请稍后重试！")
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("GitHub"), err.Error())
 	}
 	defer res2.Body.Close()
 	var githubUser GitHubUser
-	err = json.NewDecoder(res2.Body).Decode(&githubUser)
+	err = common.DecodeJson(res2.Body, &githubUser)
 	if err != nil {
 		return nil, err
 	}
 	if githubUser.Login == "" {
-		return nil, errors.New("返回值非法，用户字段为空，请稍后重试！")
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, providerParams("GitHub"))
 	}
 	return &githubUser, nil
 }
@@ -96,16 +96,13 @@ func GitHubOAuth(c *gin.Context) {
 	}
 
 	if !common.GitHubOAuthEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未开启通过 GitHub 登录以及注册",
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams("GitHub"))
 		return
 	}
 	code := c.Query("code")
-	githubUser, err := getGitHubUserInfoByCode(code)
+	githubUser, err := getGitHubUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{
@@ -124,10 +121,7 @@ func GitHubOAuth(c *gin.Context) {
 		}
 		// if user.Id == 0 , user has been deleted
 		if user.Id == 0 {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "用户已注销",
-			})
+			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
 			return
 		}
 	} else {
@@ -155,19 +149,13 @@ func GitHubOAuth(c *gin.Context) {
 				return
 			}
 		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 			return
 		}
 	}
 
 	if user.Status != common.UserStatusEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "用户已被封禁",
-			"success": false,
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
 		return
 	}
 	setupLogin(&user, c)
@@ -175,26 +163,20 @@ func GitHubOAuth(c *gin.Context) {
 
 func GitHubBind(c *gin.Context) {
 	if !common.GitHubOAuthEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未开启通过 GitHub 登录以及注册",
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams("GitHub"))
 		return
 	}
 	code := c.Query("code")
-	githubUser, err := getGitHubUserInfoByCode(code)
+	githubUser, err := getGitHubUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{
 		GitHubId: githubUser.Login,
 	}
 	if model.IsGitHubIdAlreadyTaken(user.GitHubId) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该 GitHub 账户已被绑定",
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams("GitHub"))
 		return
 	}
 	session := sessions.Default(c)
