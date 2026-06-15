@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -194,12 +198,41 @@ func main() {
 		port = strconv.Itoa(*common.Port)
 	}
 
-	// Log startup success message
-	common.LogStartupSuccess(startTime, port)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: server,
+	}
 
-	err = server.Run(":" + port)
-	if err != nil {
-		common.FatalLog("failed to start HTTP server: " + err.Error())
+	// Start the HTTP server in a background goroutine so the main goroutine can
+	// block on shutdown signals.
+	go func() {
+		// Log startup success message
+		common.LogStartupSuccess(startTime, port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			common.FatalLog("failed to start HTTP server: " + err.Error())
+		}
+	}()
+
+	// Block until we receive a termination signal.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-quit
+	common.SysLog(fmt.Sprintf("received signal %v, starting graceful shutdown...", sig))
+
+	// Drain in-flight requests within the configured timeout (default 5 minutes).
+	shutdownTimeout := 300 * time.Second
+	if v := os.Getenv("GRACEFUL_SHUTDOWN_TIMEOUT"); v != "" {
+		if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
+			shutdownTimeout = time.Duration(n) * time.Second
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		common.SysError("graceful shutdown timed out: " + err.Error())
+	} else {
+		common.SysLog("graceful shutdown complete, in-flight requests drained")
 	}
 }
 
