@@ -33,7 +33,7 @@ common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
 dto/           — Data transfer objects (request/response structs)
 constant/      — Constants (API types, channel types, context keys)
 types/         — Type definitions (relay formats, file sources, errors)
-i18n/          — Backend internationalization (go-i18n, en/zh)
+i18n/          — Backend internationalization (go-i18n; full: en/zh-CN/zh-TW/pt, email-only: es/fr/ru/ja/vi)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
 web/             — Frontend themes container
@@ -47,7 +47,9 @@ website/        — Official public website (Next.js standalone Node app; SEO/ma
 
 ### Backend (`i18n/`)
 - Library: `nicksnyder/go-i18n/v2`
-- Languages: en, zh
+- Languages: **完整翻译** en、zh-CN、zh-TW、pt（`i18n/locales/*.yaml`，每个 ~290 行）；**email-only** es、fr、ru、ja、vi（仅含邮件类 key，其余 key 在 `Translate` 中回退英文）
+- 默认/兜底语言：`DefaultLang = en`（`GetLangFromContext` 解析顺序：用户语言设置 → 用户ID懒加载 → 中间件 Accept-Language → 请求头 Accept-Language → 英文）
+- 新增后端 key：写入 4 个完整翻译文件（en/zh-CN/zh-TW/pt），不要漏；带参数用 go-i18n 模板语法 `{{.Var}}`，调用方传 `map[string]any`
 
 ### Frontend (`web/default/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
@@ -61,7 +63,7 @@ website/        — Official public website (Next.js standalone Node app; SEO/ma
 - 新 key 必须写入 `locales/` 全部 8 个语言文件，漏写会回退英文；删除/重命名 key 同步清理 8 个文件。
 - 必须真实翻译，禁止把英文原文复制为其他语言的值（es/pt 多次漏翻）；品牌词例外（`BRAND_AND_LITERAL_KEYS`）。
 - 改完在 `web/default/` 跑 `bun run i18n:sync`，提交前检查 `locales/_reports/{lang}.untranslated.json` 是否出现自己改动的 key。
-- 用户可见字符串一律走 `t()`（含 toast/placeholder/错误消息）；非 `t()` 字面量 key 登记 `src/i18n/static-keys.ts`；后端用户可见报错走 `i18n/`（go-i18n，en/zh），与前端体系独立。
+- 用户可见字符串一律走 `t()`（含 toast/placeholder/错误消息）；非 `t()` 字面量 key 登记 `src/i18n/static-keys.ts`；后端用户可见报错走 `i18n/`（go-i18n，完整翻译 en/zh-CN/zh-TW/pt，兜底英文），与前端体系独立。
 - AI review 涉及文案的 diff 时必须逐项核对以上各条（找漏 key：`grep -L "新 key" src/i18n/locales/*.json`），发现问题按缺陷处理，不得降级为"可选优化"。
 
 ## Rules

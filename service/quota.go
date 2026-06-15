@@ -140,11 +140,11 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	quota := calculateAudioQuota(quotaInfo)
 
 	if userQuota < quota {
-		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
+		return fmt.Errorf("%s", common.TranslateMessage(ctx, "quota.user_insufficient_need", map[string]any{"Quota": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(quota)}))
 	}
 
 	if !token.UnlimitedQuota && token.RemainQuota < quota {
-		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
+		return fmt.Errorf("%s", common.TranslateMessage(ctx, "quota.token_insufficient", map[string]any{"Remain": logger.FormatQuota(token.RemainQuota), "Required": logger.FormatQuota(quota)}))
 	}
 
 	err = PostConsumeQuota(relayInfo, quota, 0, false)
@@ -382,7 +382,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New(i18n.Translate(relayInfo.UserSetting.Language, "quota.negative", nil))
 	}
 	if relayInfo.IsPlayground {
 		return nil
@@ -395,7 +395,7 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 		return err
 	}
 	if !relayInfo.TokenUnlimited && token.RemainQuota < quota {
-		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
+		return fmt.Errorf("%s", i18n.Translate(relayInfo.UserSetting.Language, "quota.token_insufficient", map[string]any{"Remain": logger.FormatQuota(token.RemainQuota), "Required": logger.FormatQuota(quota)}))
 	}
 	err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 	if err != nil {
