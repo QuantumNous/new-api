@@ -1852,7 +1852,7 @@
     "Follow the guided steps to prepare your workspace before the first login.": "请按照引导步骤在首次登录前准备您的工作区。",
     "Font": "字体",
     "Footer": "页脚",
-    "Footer text displayed at the bottom of pages": "显示在页面底部的页脚文本",
+    "Footer text displayed at the bottom of pages": "显示在页面底部的页脚内容，支持 Markdown 链接，例如 [京ICP备12345号](https://beian.miit.gov.cn)",
     "footer.columns.about.links.aboutProject": "关于项目",
     "footer.columns.about.links.contact": "联系我们",
     "footer.columns.about.links.features": "功能",

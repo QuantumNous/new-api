@@ -1852,7 +1852,7 @@
     "Follow the guided steps to prepare your workspace before the first login.": "Follow the guided steps to prepare your workspace before the first login.",
     "Font": "Font",
     "Footer": "Footer",
-    "Footer text displayed at the bottom of pages": "Footer text displayed at the bottom of pages",
+    "Footer text displayed at the bottom of pages": "Footer content shown at the bottom of pages. Supports Markdown links, e.g. [ICP No.](https://beian.miit.gov.cn)",
     "footer.columns.about.links.aboutProject": "About Project",
     "footer.columns.about.links.contact": "Contact Us",
     "footer.columns.about.links.features": "Features",
