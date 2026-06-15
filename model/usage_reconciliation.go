@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 
 	"gorm.io/gorm"
+	"gorm.io/hints"
 )
 
 // BlockRunChannel is a lightweight projection of a BlockRun-family channel.
@@ -101,9 +102,17 @@ func GetBlockRunEnabledModelChannels() (map[string][]BlockRunChannel, error) {
 }
 
 func blockRunUsageQuery(channelIDs []int, startUnix, endUnix int64) *gorm.DB {
-	return LOG_DB.Model(&Log{}).
+	tx := LOG_DB.Model(&Log{}).
 		Where("type = ? AND channel_id IN ? AND created_at >= ? AND created_at < ?",
 			LogTypeConsume, channelIDs, startUnix, endUnix)
+	// On large windows the MySQL optimizer abandons the composite index for a
+	// full table scan (observed in prod: ~4M rows examined, 40s+). Check the
+	// live dialect, not common.LogSqlType — the latter keeps its SQLite default
+	// when LOG_SQL_DSN is unset and LOG_DB falls back to the main DB.
+	if LOG_DB.Dialector.Name() == "mysql" {
+		tx = tx.Clauses(hints.ForceIndex("idx_logs_channel_type_created_id"))
+	}
+	return tx
 }
 
 // StreamBlockRunUsageLogs scans matching consume logs row-by-row (bounded
@@ -166,7 +175,11 @@ func QueryBlockRunUsageLogsAfterCursor(channelIDs []int, startUnix, endUnix int6
 		return []*Log{}, nil
 	}
 	var logs []*Log
+	// The redundant created_at >= cursor bound is implied by the OR predicate
+	// below, but the optimizer cannot derive a range start from an OR — without
+	// it every page rescans from the window start (O(n²) across the window).
 	err := blockRunUsageQuery(channelIDs, startUnix, endUnix).
+		Where("created_at >= ?", cursorCreatedAt).
 		Where("(created_at > ? OR (created_at = ? AND id > ?))", cursorCreatedAt, cursorCreatedAt, cursorID).
 		Select(usageReconLogColumns).
 		Order("created_at asc, id asc").

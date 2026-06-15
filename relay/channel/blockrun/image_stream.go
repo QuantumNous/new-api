@@ -99,22 +99,18 @@ func streamImageResponse(c *gin.Context, resp *http.Response, info *relaycommon.
 		eventType = "image_edit.completed"
 	}
 	// Serial downloads are fine here: n is small for image generation (1-4).
-	for idx, item := range ir.Data {
+	for idx := range ir.Data {
+		ensureImageB64(c, info, &ir.Data[idx])
+		item := ir.Data[idx]
 		evt := map[string]interface{}{
 			"type":       eventType,
 			"created_at": ir.Created,
 		}
-		b64 := item.B64Json
-		if b64 == "" && item.Url != "" {
-			if fetched, ferr := downloadImageAsBase64(c, info, item.Url); ferr == nil {
-				b64 = fetched
-			} else {
-				// Degrade rather than fail: settlement is already committed.
-				evt["url"] = item.Url
-			}
-		}
-		if b64 != "" {
-			evt["b64_json"] = b64
+		if item.B64Json != "" {
+			evt["b64_json"] = item.B64Json
+		} else if item.Url != "" {
+			// Degrade rather than fail: settlement is already committed.
+			evt["url"] = item.Url
 		}
 		if len(ir.Data) > 1 {
 			evt["index"] = idx

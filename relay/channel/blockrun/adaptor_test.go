@@ -1,14 +1,15 @@
 package blockrun
 
 import (
-	"encoding/json"
+	"bytes"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -218,99 +219,177 @@ func TestConvertImageRequest_MissingModelRejected(t *testing.T) {
 	}
 }
 
-// TestConvertImageRequest_EditSingleImage asserts img2img with a single source
-// image preserves the `image` base64 data URI string AND is a FULL passthrough:
-// extra client fields (quality, response_format, size) survive to the upstream
-// image2image body.
-func TestConvertImageRequest_EditSingleImage(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
+// ---------------------------------------------------------------------------
+// Multipart edit helpers
+// ---------------------------------------------------------------------------
+
+// newMultipartEditContext builds a *gin.Context whose Request is a
+// multipart/form-data POST carrying text fields (fields), one or more binary
+// image files (images, posted as "image" / "image[]"), and an optional mask
+// file. model and prompt are always injected as text fields.
+func newMultipartEditContext(t *testing.T, model, prompt string, extraFields map[string]string, images [][]byte, mask []byte) *gin.Context {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+
+	// Text fields.
+	_ = mw.WriteField("model", model)
+	_ = mw.WriteField("prompt", prompt)
+	for k, v := range extraFields {
+		_ = mw.WriteField(k, v)
+	}
+
+	// Image file(s): single → "image", multiple → "image[]".
+	imageField := "image"
+	if len(images) > 1 {
+		imageField = "image[]"
+	}
+	for i, data := range images {
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", `form-data; name="`+imageField+`"; filename="img`+strings.Repeat("x", i)+`.png"`)
+		h.Set("Content-Type", "image/png")
+		pw, _ := mw.CreatePart(h)
+		_, _ = pw.Write(data)
+	}
+
+	// Mask file (optional).
+	if len(mask) > 0 {
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", `form-data; name="mask"; filename="mask.png"`)
+		h.Set("Content-Type", "image/png")
+		pw, _ := mw.CreatePart(h)
+		_, _ = pw.Write(mask)
+	}
+	_ = mw.Close()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	c.Request = req
+	return c
+}
+
+// editInfo returns a RelayInfo for the edits relay mode.
+func editInfo() *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
 		RelayMode:   relayconstant.RelayModeImagesEdits,
 		RelayFormat: types.RelayFormatOpenAI,
 		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
-	}
-	in := dto.ImageRequest{
-		Model:          "openai/gpt-image-2",
-		Prompt:         "make the sky purple",
-		Image:          json.RawMessage(`"data:image/png;base64,AAAA"`),
-		Quality:        "hd",
-		ResponseFormat: "b64_json",
-		Size:           "1024x1024",
-	}
-
-	out, err := a.ConvertImageRequest(c, info, in)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	got, ok := out.(dto.ImageRequest)
-	if !ok {
-		t.Fatalf("expected dto.ImageRequest (full passthrough), got %T", out)
-	}
-	if got.Model != "openai/gpt-image-2" || got.Prompt != "make the sky purple" {
-		t.Fatalf("model/prompt not preserved: %+v", got)
-	}
-	if common.GetJsonType(got.Image) != "string" {
-		t.Fatalf("single source image must remain a string, got type %q", common.GetJsonType(got.Image))
-	}
-	// Full passthrough: previously-dropped fields must now survive.
-	if got.Quality != "hd" {
-		t.Fatalf("quality dropped: %q", got.Quality)
-	}
-	if got.ResponseFormat != "b64_json" {
-		t.Fatalf("response_format dropped: %q", got.ResponseFormat)
-	}
-	if got.Size != "1024x1024" {
-		t.Fatalf("size dropped: %q", got.Size)
 	}
 }
 
-// TestConvertImageRequest_EditMultiImageFusion asserts multi-image fusion keeps
-// the array under `image` (BlockRun accepts an array for fusion).
-func TestConvertImageRequest_EditMultiImageFusion(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeImagesEdits,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
-	}
-	in := dto.ImageRequest{
-		Model:  "google/nano-banana",
-		Prompt: "place the logo on the shirt",
-		Image:  json.RawMessage(`["data:image/png;base64,AAAA","data:image/png;base64,BBBB"]`),
-	}
+// pngBytes returns a minimal 1-byte payload used as fake PNG data in tests.
+func pngBytes(seed byte) []byte { return []byte{seed} }
 
-	out, err := a.ConvertImageRequest(c, info, in)
+// TestConvertImageRequest_EditNumericFieldsTyped asserts n is forwarded upstream
+// as a JSON number and watermark as a bool — sourced from the typed request
+// fields (parsed in valid_request.go), NOT the stringified multipart values. A
+// raw form passthrough would send "n":"9" and break the upstream wire contract.
+func TestConvertImageRequest_EditNumericFieldsTyped(t *testing.T) {
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit it",
+		map[string]string{"n": "9", "watermark": "false"}, // raw form values must be ignored
+		[][]byte{pngBytes(1)}, nil)
+	n := uint(2)
+	wm := true
+	out, err := (&Adaptor{}).ConvertImageRequest(c, editInfo(),
+		dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit it", N: &n, Watermark: &wm})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	got, ok := out.(dto.ImageRequest)
-	if !ok {
-		t.Fatalf("expected dto.ImageRequest (full passthrough), got %T", out)
+	body := out.(map[string]any)
+	if v, ok := body["n"].(uint); !ok || v != 2 {
+		t.Fatalf("n must be the typed uint 2 (a JSON number), got %T %v", body["n"], body["n"])
 	}
-	if common.GetJsonType(got.Image) != "array" {
-		t.Fatalf("multi-image fusion must remain an array, got type %q", common.GetJsonType(got.Image))
+	if v, ok := body["watermark"].(bool); !ok || !v {
+		t.Fatalf("watermark must be the typed bool true, got %T %v", body["watermark"], body["watermark"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Edit tests — multipart/form-data (standard OpenAI interface)
+// ---------------------------------------------------------------------------
+
+// TestConvertImageRequest_EditSingleImage asserts img2img with a single source
+// image file produces body["image"] as a single base64 data URI string, and
+// that extra text fields (quality, size, response_format) survive into the body.
+func TestConvertImageRequest_EditSingleImage(t *testing.T) {
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "make the sky purple",
+		map[string]string{"quality": "hd", "size": "1024x1024", "response_format": "b64_json"},
+		[][]byte{pngBytes(1)}, nil)
+	info := editInfo()
+
+	out, err := (&Adaptor{}).ConvertImageRequest(c, info, dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "make the sky purple"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	body, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any body, got %T", out)
+	}
+	// Single image must be a string (data URI), not an array.
+	imgVal, hasImg := body["image"]
+	if !hasImg {
+		t.Fatalf("body missing 'image' key: %v", body)
+	}
+	if _, isStr := imgVal.(string); !isStr {
+		t.Fatalf("single image must be a string data URI, got %T", imgVal)
+	}
+	if s := imgVal.(string); !strings.HasPrefix(s, "data:") {
+		t.Fatalf("image must be a data URI, got %q", s)
+	}
+	// Text fields must survive.
+	if body["quality"] != "hd" {
+		t.Fatalf("quality not forwarded: %v", body["quality"])
+	}
+	if body["size"] != "1024x1024" {
+		t.Fatalf("size not forwarded: %v", body["size"])
+	}
+	if body["response_format"] != "b64_json" {
+		t.Fatalf("response_format not forwarded: %v", body["response_format"])
+	}
+	if body["model"] != "openai/gpt-image-2" {
+		t.Fatalf("model not forwarded: %v", body["model"])
+	}
+}
+
+// TestConvertImageRequest_EditMultiImageFusion asserts that posting two image[]
+// files produces body["image"] as a []string array (BlockRun multi-image fusion).
+func TestConvertImageRequest_EditMultiImageFusion(t *testing.T) {
+	c := newMultipartEditContext(t, "google/nano-banana", "place the logo on the shirt",
+		nil, [][]byte{pngBytes(1), pngBytes(2)}, nil)
+	info := editInfo()
+
+	out, err := (&Adaptor{}).ConvertImageRequest(c, info, dto.ImageRequest{Model: "google/nano-banana"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	body := out.(map[string]any)
+	imgVal := body["image"]
+	arr, isArr := imgVal.([]string)
+	if !isArr {
+		t.Fatalf("multi-image must produce []string array, got %T", imgVal)
+	}
+	if len(arr) != 2 {
+		t.Fatalf("expected 2 images, got %d", len(arr))
+	}
+	for i, s := range arr {
+		if !strings.HasPrefix(s, "data:") {
+			t.Fatalf("image[%d] must be a data URI, got %q", i, s)
+		}
 	}
 }
 
 // TestConvertImageRequest_EditMaskWithMultiImageRejected asserts the BlockRun
 // constraint that `mask` cannot be combined with multiple source images.
 func TestConvertImageRequest_EditMaskWithMultiImageRejected(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeImagesEdits,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
-	}
-	in := dto.ImageRequest{
-		Model:  "openai/gpt-image-2",
-		Prompt: "edit",
-		Image:  json.RawMessage(`["data:image/png;base64,AAAA","data:image/png;base64,BBBB"]`),
-		Mask:   json.RawMessage(`"data:image/png;base64,MMMM"`),
-	}
-	_, err := a.ConvertImageRequest(c, info, in)
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit",
+		nil, [][]byte{pngBytes(1), pngBytes(2)}, pngBytes(3))
+	info := editInfo()
+
+	_, err := (&Adaptor{}).ConvertImageRequest(c, info, dto.ImageRequest{Model: "openai/gpt-image-2"})
 	if err == nil {
 		t.Fatalf("expected error: mask cannot combine with multiple images")
 	}
@@ -320,78 +399,129 @@ func TestConvertImageRequest_EditMaskWithMultiImageRejected(t *testing.T) {
 }
 
 // TestConvertImageRequest_EditMissingImageRejected asserts an edit request with
-// no source image is rejected with an image2img-specific error (not the old
-// blanket "image not supported").
+// no image file at all is rejected (no multipart form / no file field).
 func TestConvertImageRequest_EditMissingImageRejected(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeImagesEdits,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
-	}
-	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit"}
-	_, err := a.ConvertImageRequest(c, info, in)
+	// No images slice → context has no "image" file field.
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit", nil, nil, nil)
+	info := editInfo()
+
+	_, err := (&Adaptor{}).ConvertImageRequest(c, info, dto.ImageRequest{Model: "openai/gpt-image-2"})
 	if err == nil {
 		t.Fatalf("expected error for missing source image, got nil")
 	}
-	if !strings.Contains(err.Error(), "base64") {
-		t.Fatalf("error should explain base64 image requirement, got %v", err)
+	if !strings.Contains(err.Error(), "image") {
+		t.Fatalf("error should mention image requirement, got %v", err)
 	}
 }
 
-// TestConvertImageRequest_EditNullImageRejected asserts an explicit JSON null
-// `image` is rejected (json.RawMessage("null") has len 4 so a raw byte-length
-// check would wrongly accept it and pay the upstream for an imageless request).
-func TestConvertImageRequest_EditNullImageRejected(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeImagesEdits,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
-	}
-	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit", Image: json.RawMessage(`null`)}
-	if _, err := a.ConvertImageRequest(c, info, in); err == nil {
-		t.Fatalf("expected error for explicit null image, got nil")
+// TestConvertImageRequest_EditNoFileRejected asserts that sending no image file
+// (equivalent to old JSON-null / empty-string image) is rejected. In multipart,
+// both cases reduce to "no image file present".
+func TestConvertImageRequest_EditNoFileRejected(t *testing.T) {
+	// Plain JSON body (no multipart) — simulates a client that forgot to use
+	// multipart. The adaptor must reject it as "no image file".
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits",
+		strings.NewReader(`{"model":"openai/gpt-image-2","prompt":"edit"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	_, err := (&Adaptor{}).ConvertImageRequest(c, editInfo(), dto.ImageRequest{Model: "openai/gpt-image-2"})
+	if err == nil {
+		t.Fatalf("expected error for non-multipart request (no image file), got nil")
 	}
 }
 
-// TestConvertImageRequest_EditEmptyStringImageRejected asserts an empty-string
-// `image` ("") is rejected (len 2, but it carries no usable data URI).
-func TestConvertImageRequest_EditEmptyStringImageRejected(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeImagesEdits,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
-	}
-	in := dto.ImageRequest{Model: "openai/gpt-image-2", Prompt: "edit", Image: json.RawMessage(`""`)}
-	if _, err := a.ConvertImageRequest(c, info, in); err == nil {
-		t.Fatalf("expected error for empty-string image, got nil")
-	}
-}
-
-// TestConvertImageRequest_EditMaskNullWithArrayAllowed asserts that an explicit
-// JSON null `mask` is treated as absent, so it does NOT trip the mask+multi-image
-// exclusivity guard for a legitimate maskless array (fusion) request.
+// TestConvertImageRequest_EditMaskNullWithArrayAllowed asserts that sending
+// multiple image files but no mask file is allowed (maskless fusion).
 func TestConvertImageRequest_EditMaskNullWithArrayAllowed(t *testing.T) {
-	a := &Adaptor{}
-	c := newTestContext(http.MethodPost, "/v1/images/edits", nil)
-	info := &relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeImagesEdits,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	c := newMultipartEditContext(t, "google/nano-banana", "fuse",
+		nil, [][]byte{pngBytes(1), pngBytes(2)}, nil)
+	info := editInfo()
+
+	if _, err := (&Adaptor{}).ConvertImageRequest(c, info, dto.ImageRequest{Model: "google/nano-banana"}); err != nil {
+		t.Fatalf("maskless multi-image fusion must be allowed, got %v", err)
 	}
-	in := dto.ImageRequest{
-		Model:  "google/nano-banana",
-		Prompt: "fuse",
-		Image:  json.RawMessage(`["data:image/png;base64,AAAA","data:image/png;base64,BBBB"]`),
-		Mask:   json.RawMessage(`null`),
+}
+
+// TestConvertImageRequest_EditMaskWithSingleImageAllowed asserts that a single
+// image + mask combination is accepted (the constraint only blocks mask+multi).
+func TestConvertImageRequest_EditMaskWithSingleImageAllowed(t *testing.T) {
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit with mask",
+		nil, [][]byte{pngBytes(1)}, pngBytes(2))
+	info := editInfo()
+
+	out, err := (&Adaptor{}).ConvertImageRequest(c, info, dto.ImageRequest{Model: "openai/gpt-image-2"})
+	if err != nil {
+		t.Fatalf("single image + mask must be allowed, got %v", err)
 	}
-	if _, err := a.ConvertImageRequest(c, info, in); err != nil {
-		t.Fatalf("null mask must be treated as absent (no rejection), got %v", err)
+	body := out.(map[string]any)
+	if _, hasMask := body["mask"]; !hasMask {
+		t.Fatalf("mask must be present in body: %v", body)
+	}
+	if _, hasImg := body["image"]; !hasImg {
+		t.Fatalf("image must be present in body: %v", body)
+	}
+}
+
+// TestConvertImageRequest_EditTooManyImagesRejected asserts the per-request
+// source-image count cap (maxImageEditImages): more than the cap is rejected with
+// a clear client error rather than silently fusing dozens of images.
+func TestConvertImageRequest_EditTooManyImagesRejected(t *testing.T) {
+	imgs := make([][]byte, maxImageEditImages+1)
+	for i := range imgs {
+		imgs[i] = pngBytes(byte(i))
+	}
+	c := newMultipartEditContext(t, "openai/gpt-image-2", "edit", nil, imgs, nil)
+
+	_, err := (&Adaptor{}).ConvertImageRequest(c, editInfo(), dto.ImageRequest{Model: "openai/gpt-image-2"})
+	if err == nil {
+		t.Fatalf("expected rejection for more than %d source images", maxImageEditImages)
+	}
+	if !strings.Contains(err.Error(), "at most") {
+		t.Fatalf("error should mention the cap, got %v", err)
+	}
+}
+
+// TestCollectMultipartFiles_NumericBracketOrder asserts that image[N] indexed
+// fields are ordered by NUMERIC index, so image[10] follows image[2]. A plain
+// string sort would put image[10] before image[2] and scramble fusion order.
+func TestCollectMultipartFiles_NumericBracketOrder(t *testing.T) {
+	mf := &multipart.Form{File: map[string][]*multipart.FileHeader{
+		"image[10]": {{Filename: "ten"}},
+		"image[2]":  {{Filename: "two"}},
+		"image[0]":  {{Filename: "zero"}},
+	}}
+	out := collectMultipartFiles(mf, "image")
+	var got []string
+	for _, fh := range out {
+		got = append(got, fh.Filename)
+	}
+	want := "zero,two,ten"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("numeric bracket order expected [%s], got %v", want, got)
+	}
+}
+
+// TestCollectMultipartFiles_PlainBeforeBracketAndNonNumericLast locks the overall
+// ordering contract: bare `image`, then `image[]`, then numeric `image[N]`, then
+// any non-numeric bracket name (stable lexicographic) last.
+func TestCollectMultipartFiles_PlainBeforeBracketAndNonNumericLast(t *testing.T) {
+	mf := &multipart.Form{File: map[string][]*multipart.FileHeader{
+		"image":    {{Filename: "plain"}},
+		"image[]":  {{Filename: "arr"}},
+		"image[1]": {{Filename: "one"}},
+		"image[x]": {{Filename: "nonnum"}},
+	}}
+	out := collectMultipartFiles(mf, "image")
+	var got []string
+	for _, fh := range out {
+		got = append(got, fh.Filename)
+	}
+	want := "plain,arr,one,nonnum"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("ordering expected [%s], got %v", want, got)
 	}
 }
 

@@ -56,6 +56,12 @@ describe('public locale paths', () => {
   test('does not treat product or admin paths as public website paths', () => {
     assert.equal(isPublicWebsitePath('/pricing'), true)
     assert.equal(isPublicWebsitePath('/zh/blog/example'), true)
+    assert.equal(isPublicWebsitePath('/terms'), true)
+    assert.equal(isPublicWebsitePath('/zh/terms'), true)
+    assert.equal(isPublicWebsitePath('/privacy'), true)
+    assert.equal(isPublicWebsitePath('/ja/privacy'), true)
+    assert.equal(isPublicWebsitePath('/sla'), true)
+    assert.equal(isPublicWebsitePath('/pt/sla'), true)
     assert.equal(isPublicWebsitePath('/dashboard'), false)
     assert.equal(isPublicWebsitePath('/zh/dashboard'), false)
     assert.equal(isPublicWebsitePath('/system-settings/site'), false)
@@ -85,6 +91,23 @@ describe('public locale paths', () => {
     )
 
     assert.equal(links[0].href, 'https://flatkey.ai/blog/example')
+  })
+
+  test('builds hreflang alternates for short legal URLs', () => {
+    assert.deepEqual(
+      buildPublicHrefLangLinks('https://flatkey.ai', '/zh/terms'),
+      [
+        { hrefLang: 'en', href: 'https://flatkey.ai/terms' },
+        { hrefLang: 'zh', href: 'https://flatkey.ai/zh/terms' },
+        { hrefLang: 'es', href: 'https://flatkey.ai/es/terms' },
+        { hrefLang: 'fr', href: 'https://flatkey.ai/fr/terms' },
+        { hrefLang: 'pt', href: 'https://flatkey.ai/pt/terms' },
+        { hrefLang: 'ru', href: 'https://flatkey.ai/ru/terms' },
+        { hrefLang: 'ja', href: 'https://flatkey.ai/ja/terms' },
+        { hrefLang: 'vi', href: 'https://flatkey.ai/vi/terms' },
+        { hrefLang: 'x-default', href: 'https://flatkey.ai/terms' },
+      ]
+    )
   })
 
   test('preserves hash when redirecting default locale URLs', () => {

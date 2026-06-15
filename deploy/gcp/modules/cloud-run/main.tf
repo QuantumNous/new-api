@@ -223,9 +223,16 @@ resource "google_cloud_run_v2_service" "main" {
     // `traffic` is also CI/CD-owned (canary blue/green with revision-pinned
     // tags); the LATEST-allocation block above is just the initial bring-up
     // shape and TF must not reassert it on every plan.
+    // `env` is owned by gcp-deploy.yml + out-of-band gcloud updates (PADDLE_*,
+    // GA_*, BATCH_UPDATER_RESET, ...); the env blocks above are bring-up
+    // defaults only. Without this ignore a plain `terraform apply` strips the
+    // live payment config (nearly happened 2026-06-12). Same for `vpc_access`
+    // (egress was flipped to ALL_TRAFFIC out-of-band for fixed-IP egress).
     ignore_changes = [
+      template[0].containers[0].env,
       template[0].containers[0].image,
       template[0].revision,
+      template[0].vpc_access,
       client,
       client_version,
       scaling,

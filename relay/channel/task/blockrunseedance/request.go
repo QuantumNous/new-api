@@ -89,14 +89,14 @@ func buildBlockrunSeedanceCreateRequest(seed *dto.SeedanceVideoRequest, ext bloc
 
 // supportedResolutions is the set of top-level resolutions this channel accepts
 // (case-insensitive; "" = model default). Anything else fails fast at submit.
+// Aligned to BlockRun's documented seedance set (SDK v0.17.0 VideoGenerateOptions:
+// 360p / 480p / 720p / 1080p / 4K, default 720p); accepting a value the upstream
+// rejects would burn the x402 pre-sign before the 4xx comes back.
 var supportedResolutions = map[string]bool{
 	"360p":  true,
 	"480p":  true,
-	"540p":  true,
 	"720p":  true,
 	"1080p": true,
-	"1k":    true,
-	"2k":    true,
 	"4k":    true,
 }
 
@@ -107,7 +107,7 @@ func validateResolution(r string) error {
 	if r == "" || supportedResolutions[strings.ToLower(r)] {
 		return nil
 	}
-	return fmt.Errorf("unsupported resolution %q; supported: 360p / 480p / 540p / 720p / 1080p / 1K / 2K / 4K", r)
+	return fmt.Errorf("unsupported resolution %q; supported: 360p / 480p / 720p / 1080p / 4K", r)
 }
 
 // validateSeedanceValues fails fast on value-domain violations so an upstream

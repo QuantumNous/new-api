@@ -2,9 +2,12 @@ package service
 
 import (
 	"encoding/xml"
+	"net"
 	"net/url"
 	"strings"
 )
+
+const canonicalPublicBaseURL = "https://flatkey.ai"
 
 type sitemapURL struct {
 	Loc        string             `xml:"loc"`
@@ -66,6 +69,8 @@ func BuildRobotsTxt(baseURL string) string {
 	return strings.Join([]string{
 		"User-agent: *",
 		"Allow: /",
+		"Disallow: /cdn-cgi/",
+		"Disallow: /_next/",
 		"",
 		"Sitemap: " + joinPublicURL(baseURL, "/sitemap.xml"),
 		"LLMs: " + joinPublicURL(baseURL, "/llms.txt"),
@@ -73,11 +78,21 @@ func BuildRobotsTxt(baseURL string) string {
 	}, "\n")
 }
 
+func BuildNonCanonicalRobotsTxt() string {
+	return strings.Join([]string{
+		"User-agent: *",
+		"Disallow: /",
+		"",
+		"Sitemap: " + joinPublicURL(canonicalPublicBaseURL, "/sitemap.xml"),
+		"",
+	}, "\n")
+}
+
 func BuildLLMsTxt(baseURL string, categories []BlogCategory, posts []BlogPost) string {
 	baseURL = normalizePublicBaseURL(baseURL)
 	var builder strings.Builder
-	builder.WriteString("# Flatkey AI\n\n")
-	builder.WriteString("Flatkey AI is a unified AI API gateway, model routing, billing, and operations platform.\n\n")
+	builder.WriteString("# flatkey.ai\n\n")
+	builder.WriteString("flatkey.ai is a unified AI API gateway, model routing, billing, and operations platform.\n\n")
 	builder.WriteString("## Core Pages\n\n")
 	builder.WriteString("- Home: " + joinPublicURL(baseURL, "/") + "\n")
 	builder.WriteString("- Model pricing: " + joinPublicURL(baseURL, "/pricing") + "\n")
@@ -158,12 +173,32 @@ func localizePublicSitemapPath(path string, locale string) string {
 	return "/" + locale + path
 }
 
+func CanonicalPublicBaseURL() string {
+	return canonicalPublicBaseURL
+}
+
+func IsCanonicalPublicHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+	if strings.Contains(host, ",") {
+		host = strings.TrimSpace(strings.Split(host, ",")[0])
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
+	}
+	return strings.EqualFold(host, "flatkey.ai")
+}
+
 func normalizePublicBaseURL(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
-	if baseURL == "" {
-		return "https://flatkey.ai"
+	if baseURL != "" {
+		if parsed, err := url.Parse(baseURL); err == nil && IsCanonicalPublicHost(parsed.Host) {
+			return strings.TrimRight(baseURL, "/")
+		}
 	}
-	return strings.TrimRight(baseURL, "/")
+	return canonicalPublicBaseURL
 }
 
 func joinPublicURL(baseURL string, path string) string {

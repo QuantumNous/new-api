@@ -19,6 +19,8 @@ import (
 // allowLocalDownloads disables SSRF protection for the duration of a test so the
 // b64-download path can reach the httptest server on 127.0.0.1 (production
 // default blocks private IPs). Restores the prior setting on cleanup.
+// allowLocalDownloads mutates the process-global fetch setting; tests using it
+// MUST NOT call t.Parallel() (the toggle would race across parallel tests).
 func allowLocalDownloads(t *testing.T) {
 	t.Helper()
 	original := *system_setting.GetFetchSetting()

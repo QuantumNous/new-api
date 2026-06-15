@@ -77,7 +77,7 @@ function BlogHero(props: {
       <div className='container max-w-5xl px-4'>
         <Badge variant='outline' className='mb-5'>
           <BookOpen className='size-3.5' />
-          Flatkey AI
+          flatkey.ai
         </Badge>
         <h1 className='text-foreground text-4xl font-semibold tracking-tight text-balance md:text-5xl'>
           {props.title}
@@ -185,7 +185,7 @@ function BlogCTA() {
       </h2>
       <p className='text-background/75 mx-auto mt-3 max-w-2xl text-sm leading-6'>
         {t(
-          'Use Flatkey AI to manage models, keys, billing, and observability from one API platform.'
+          'Use flatkey.ai to manage models, keys, billing, and observability from one API platform.'
         )}
       </p>
       <Button
@@ -226,7 +226,7 @@ export function BlogListPage(props: BlogListPageProps) {
   return (
     <PublicLayout showMainContainer={false}>
       <BlogSeo
-        title={t('Flatkey AI Blog')}
+        title={t('flatkey.ai Blog')}
         description={t(
           'Insights, product notes, and implementation guides for teams building on AI APIs.'
         )}
@@ -235,7 +235,7 @@ export function BlogListPage(props: BlogListPageProps) {
       />
       <main>
         <BlogHero
-          title={t('Flatkey AI Blog')}
+          title={t('flatkey.ai Blog')}
           description={t(
             'Insights, product notes, and implementation guides for teams building on AI APIs.'
           )}

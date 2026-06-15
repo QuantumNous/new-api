@@ -65,6 +65,10 @@ module "cloud_sql" {
   zone         = var.zone
   app_password = module.secrets.db_app_password
 
+  # 2c/4GB -> 4c/16GB (2026-06-12): logs analytics queries thrash the buffer
+  # pool; changing tier restarts the ZONAL instance (~2-5 min downtime).
+  tier = "db-custom-4-16384"
+
   depends_on = [module.apis]
 }
 

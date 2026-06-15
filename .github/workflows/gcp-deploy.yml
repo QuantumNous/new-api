@@ -72,15 +72,17 @@ jobs:
           build-args: |
             VITE_GADS_CONVERSION_ID=${{ vars.VITE_GADS_CONVERSION_ID }}
             VITE_GADS_SIGNUP_SEND_TO=${{ vars.VITE_GADS_SIGNUP_SEND_TO }}
+            VITE_GADS_TOPUP_SEND_TO=${{ vars.VITE_GADS_TOPUP_SEND_TO }}
             VITE_TIKTOK_PIXEL_ID=${{ vars.VITE_TIKTOK_PIXEL_ID }}
             VITE_META_PIXEL_ID=${{ vars.VITE_META_PIXEL_ID }}
             VITE_X_PIXEL_ID=${{ vars.VITE_X_PIXEL_ID }}
             VITE_X_SIGNUP_EVENT_ID=${{ vars.VITE_X_SIGNUP_EVENT_ID }}
+            VITE_X_TOPUP_EVENT_ID=${{ vars.VITE_X_TOPUP_EVENT_ID }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:main-latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
   deploy:
     needs: build

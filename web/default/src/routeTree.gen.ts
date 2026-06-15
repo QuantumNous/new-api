@@ -10,8 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SlaRouteImport } from './routes/sla'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -22,6 +25,8 @@ import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
+import { Route as ModelsGptApiRouteImport } from './routes/models/gpt-api'
+import { Route as ModelsClaudeApiRouteImport } from './routes/models/claude-api'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
@@ -39,8 +44,11 @@ import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as LocaleUserAgreementRouteImport } from './routes/$locale/user-agreement'
+import { Route as LocaleTermsRouteImport } from './routes/$locale/terms'
+import { Route as LocaleSlaRouteImport } from './routes/$locale/sla'
 import { Route as LocaleRefundPolicyRouteImport } from './routes/$locale/refund-policy'
 import { Route as LocalePrivacyPolicyRouteImport } from './routes/$locale/privacy-policy'
+import { Route as LocalePrivacyRouteImport } from './routes/$locale/privacy'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
@@ -67,6 +75,8 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as LocaleModelsGptApiRouteImport } from './routes/$locale/models/gpt-api'
+import { Route as LocaleModelsClaudeApiRouteImport } from './routes/$locale/models/claude-api'
 import { Route as LocaleBlogSlugRouteImport } from './routes/$locale/blog/$slug'
 import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/system-settings/site/index'
 import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/system-settings/security/index'
@@ -90,6 +100,16 @@ const UserAgreementRoute = UserAgreementRouteImport.update({
   path: '/user-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SlaRoute = SlaRouteImport.update({
+  id: '/sla',
+  path: '/sla',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RefundPolicyRoute = RefundPolicyRouteImport.update({
   id: '/refund-policy',
   path: '/refund-policy',
@@ -98,6 +118,11 @@ const RefundPolicyRoute = RefundPolicyRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -146,6 +171,16 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
 const OauthProviderRoute = OauthProviderRouteImport.update({
   id: '/oauth/$provider',
   path: '/oauth/$provider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsGptApiRoute = ModelsGptApiRouteImport.update({
+  id: '/models/gpt-api',
+  path: '/models/gpt-api',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsClaudeApiRoute = ModelsClaudeApiRouteImport.update({
+  id: '/models/claude-api',
+  path: '/models/claude-api',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsoleTopupRoute = ConsoleTopupRouteImport.update({
@@ -233,6 +268,16 @@ const LocaleUserAgreementRoute = LocaleUserAgreementRouteImport.update({
   path: '/$locale/user-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocaleTermsRoute = LocaleTermsRouteImport.update({
+  id: '/$locale/terms',
+  path: '/$locale/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleSlaRoute = LocaleSlaRouteImport.update({
+  id: '/$locale/sla',
+  path: '/$locale/sla',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocaleRefundPolicyRoute = LocaleRefundPolicyRouteImport.update({
   id: '/$locale/refund-policy',
   path: '/$locale/refund-policy',
@@ -241,6 +286,11 @@ const LocaleRefundPolicyRoute = LocaleRefundPolicyRouteImport.update({
 const LocalePrivacyPolicyRoute = LocalePrivacyPolicyRouteImport.update({
   id: '/$locale/privacy-policy',
   path: '/$locale/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalePrivacyRoute = LocalePrivacyRouteImport.update({
+  id: '/$locale/privacy',
+  path: '/$locale/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSystemSettingsRouteRoute =
@@ -389,6 +439,16 @@ const authUserResetRoute = authUserResetRouteImport.update({
   path: '/user/reset',
   getParentRoute: () => authRouteRoute,
 } as any)
+const LocaleModelsGptApiRoute = LocaleModelsGptApiRouteImport.update({
+  id: '/$locale/models/gpt-api',
+  path: '/$locale/models/gpt-api',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocaleModelsClaudeApiRoute = LocaleModelsClaudeApiRouteImport.update({
+  id: '/$locale/models/claude-api',
+  path: '/$locale/models/claude-api',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocaleBlogSlugRoute = LocaleBlogSlugRouteImport.update({
   id: '/$locale/blog/$slug',
   path: '/$locale/blog/$slug',
@@ -492,12 +552,18 @@ const LocaleBlogCategorySlugRoute = LocaleBlogCategorySlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/sla': typeof SlaRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
   '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/sla': typeof LocaleSlaRoute
+  '/$locale/terms': typeof LocaleTermsRoute
   '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -515,6 +581,8 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
+  '/models/claude-api': typeof ModelsClaudeApiRoute
+  '/models/gpt-api': typeof ModelsGptApiRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/$locale/': typeof LocaleIndexRoute
   '/about/': typeof AboutIndexRoute
@@ -523,6 +591,8 @@ export interface FileRoutesByFullPath {
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
+  '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
+  '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -567,11 +637,17 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/sla': typeof SlaRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
+  '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
   '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/sla': typeof LocaleSlaRoute
+  '/$locale/terms': typeof LocaleTermsRoute
   '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -589,6 +665,8 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
+  '/models/claude-api': typeof ModelsClaudeApiRoute
+  '/models/gpt-api': typeof ModelsGptApiRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/$locale': typeof LocaleIndexRoute
   '/about': typeof AboutIndexRoute
@@ -597,6 +675,8 @@ export interface FileRoutesByTo {
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
+  '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
+  '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -644,12 +724,18 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/sla': typeof SlaRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/privacy-policy': typeof LocalePrivacyPolicyRoute
   '/$locale/refund-policy': typeof LocaleRefundPolicyRoute
+  '/$locale/sla': typeof LocaleSlaRoute
+  '/$locale/terms': typeof LocaleTermsRoute
   '/$locale/user-agreement': typeof LocaleUserAgreementRoute
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
@@ -667,6 +753,8 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
+  '/models/claude-api': typeof ModelsClaudeApiRoute
+  '/models/gpt-api': typeof ModelsGptApiRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/$locale/': typeof LocaleIndexRoute
   '/about/': typeof AboutIndexRoute
@@ -675,6 +763,8 @@ export interface FileRoutesById {
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
+  '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
+  '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -721,12 +811,18 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/privacy'
     | '/privacy-policy'
     | '/refund-policy'
+    | '/sla'
+    | '/terms'
     | '/user-agreement'
     | '/system-settings'
+    | '/$locale/privacy'
     | '/$locale/privacy-policy'
     | '/$locale/refund-policy'
+    | '/$locale/sla'
+    | '/$locale/terms'
     | '/$locale/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -744,6 +840,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
+    | '/models/claude-api'
+    | '/models/gpt-api'
     | '/oauth/$provider'
     | '/$locale/'
     | '/about/'
@@ -752,6 +850,8 @@ export interface FileRouteTypes {
     | '/rankings/'
     | '/setup/'
     | '/$locale/blog/$slug'
+    | '/$locale/models/claude-api'
+    | '/$locale/models/gpt-api'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -796,11 +896,17 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/privacy'
     | '/privacy-policy'
     | '/refund-policy'
+    | '/sla'
+    | '/terms'
     | '/user-agreement'
+    | '/$locale/privacy'
     | '/$locale/privacy-policy'
     | '/$locale/refund-policy'
+    | '/$locale/sla'
+    | '/$locale/terms'
     | '/$locale/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -818,6 +924,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
+    | '/models/claude-api'
+    | '/models/gpt-api'
     | '/oauth/$provider'
     | '/$locale'
     | '/about'
@@ -826,6 +934,8 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/setup'
     | '/$locale/blog/$slug'
+    | '/$locale/models/claude-api'
+    | '/$locale/models/gpt-api'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -872,12 +982,18 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_authenticated'
+    | '/privacy'
     | '/privacy-policy'
     | '/refund-policy'
+    | '/sla'
+    | '/terms'
     | '/user-agreement'
     | '/_authenticated/system-settings'
+    | '/$locale/privacy'
     | '/$locale/privacy-policy'
     | '/$locale/refund-policy'
+    | '/$locale/sla'
+    | '/$locale/terms'
     | '/$locale/user-agreement'
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
@@ -895,6 +1011,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
+    | '/models/claude-api'
+    | '/models/gpt-api'
     | '/oauth/$provider'
     | '/$locale/'
     | '/about/'
@@ -903,6 +1021,8 @@ export interface FileRouteTypes {
     | '/rankings/'
     | '/setup/'
     | '/$locale/blog/$slug'
+    | '/$locale/models/claude-api'
+    | '/$locale/models/gpt-api'
     | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
@@ -950,11 +1070,17 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
+  SlaRoute: typeof SlaRoute
+  TermsRoute: typeof TermsRoute
   UserAgreementRoute: typeof UserAgreementRoute
+  LocalePrivacyRoute: typeof LocalePrivacyRoute
   LocalePrivacyPolicyRoute: typeof LocalePrivacyPolicyRoute
   LocaleRefundPolicyRoute: typeof LocaleRefundPolicyRoute
+  LocaleSlaRoute: typeof LocaleSlaRoute
+  LocaleTermsRoute: typeof LocaleTermsRoute
   LocaleUserAgreementRoute: typeof LocaleUserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
@@ -964,6 +1090,8 @@ export interface RootRouteChildren {
   BlogSlugRoute: typeof BlogSlugRoute
   ConsoleLogRoute: typeof ConsoleLogRoute
   ConsoleTopupRoute: typeof ConsoleTopupRoute
+  ModelsClaudeApiRoute: typeof ModelsClaudeApiRoute
+  ModelsGptApiRoute: typeof ModelsGptApiRoute
   OauthProviderRoute: typeof OauthProviderRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
   AboutIndexRoute: typeof AboutIndexRoute
@@ -972,6 +1100,8 @@ export interface RootRouteChildren {
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
   LocaleBlogSlugRoute: typeof LocaleBlogSlugRoute
+  LocaleModelsClaudeApiRoute: typeof LocaleModelsClaudeApiRoute
+  LocaleModelsGptApiRoute: typeof LocaleModelsGptApiRoute
   BlogCategorySlugRoute: typeof BlogCategorySlugRoute
   LocaleAboutIndexRoute: typeof LocaleAboutIndexRoute
   LocaleBlogIndexRoute: typeof LocaleBlogIndexRoute
@@ -991,6 +1121,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sla': {
+      id: '/sla'
+      path: '/sla'
+      fullPath: '/sla'
+      preLoaderRoute: typeof SlaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/refund-policy': {
       id: '/refund-policy'
       path: '/refund-policy'
@@ -1003,6 +1147,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -1073,6 +1224,20 @@ declare module '@tanstack/react-router' {
       path: '/oauth/$provider'
       fullPath: '/oauth/$provider'
       preLoaderRoute: typeof OauthProviderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models/gpt-api': {
+      id: '/models/gpt-api'
+      path: '/models/gpt-api'
+      fullPath: '/models/gpt-api'
+      preLoaderRoute: typeof ModelsGptApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models/claude-api': {
+      id: '/models/claude-api'
+      path: '/models/claude-api'
+      fullPath: '/models/claude-api'
+      preLoaderRoute: typeof ModelsClaudeApiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/console/topup': {
@@ -1194,6 +1359,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleUserAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$locale/terms': {
+      id: '/$locale/terms'
+      path: '/$locale/terms'
+      fullPath: '/$locale/terms'
+      preLoaderRoute: typeof LocaleTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/sla': {
+      id: '/$locale/sla'
+      path: '/$locale/sla'
+      fullPath: '/$locale/sla'
+      preLoaderRoute: typeof LocaleSlaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$locale/refund-policy': {
       id: '/$locale/refund-policy'
       path: '/$locale/refund-policy'
@@ -1206,6 +1385,13 @@ declare module '@tanstack/react-router' {
       path: '/$locale/privacy-policy'
       fullPath: '/$locale/privacy-policy'
       preLoaderRoute: typeof LocalePrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/privacy': {
+      id: '/$locale/privacy'
+      path: '/$locale/privacy'
+      fullPath: '/$locale/privacy'
+      preLoaderRoute: typeof LocalePrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/system-settings': {
@@ -1389,6 +1575,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/user/reset'
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
+    }
+    '/$locale/models/gpt-api': {
+      id: '/$locale/models/gpt-api'
+      path: '/$locale/models/gpt-api'
+      fullPath: '/$locale/models/gpt-api'
+      preLoaderRoute: typeof LocaleModelsGptApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$locale/models/claude-api': {
+      id: '/$locale/models/claude-api'
+      path: '/$locale/models/claude-api'
+      fullPath: '/$locale/models/claude-api'
+      preLoaderRoute: typeof LocaleModelsClaudeApiRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/$locale/blog/$slug': {
       id: '/$locale/blog/$slug'
@@ -1649,11 +1849,17 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
+  SlaRoute: SlaRoute,
+  TermsRoute: TermsRoute,
   UserAgreementRoute: UserAgreementRoute,
+  LocalePrivacyRoute: LocalePrivacyRoute,
   LocalePrivacyPolicyRoute: LocalePrivacyPolicyRoute,
   LocaleRefundPolicyRoute: LocaleRefundPolicyRoute,
+  LocaleSlaRoute: LocaleSlaRoute,
+  LocaleTermsRoute: LocaleTermsRoute,
   LocaleUserAgreementRoute: LocaleUserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,
@@ -1663,6 +1869,8 @@ const rootRouteChildren: RootRouteChildren = {
   BlogSlugRoute: BlogSlugRoute,
   ConsoleLogRoute: ConsoleLogRoute,
   ConsoleTopupRoute: ConsoleTopupRoute,
+  ModelsClaudeApiRoute: ModelsClaudeApiRoute,
+  ModelsGptApiRoute: ModelsGptApiRoute,
   OauthProviderRoute: OauthProviderRoute,
   LocaleIndexRoute: LocaleIndexRoute,
   AboutIndexRoute: AboutIndexRoute,
@@ -1671,6 +1879,8 @@ const rootRouteChildren: RootRouteChildren = {
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
   LocaleBlogSlugRoute: LocaleBlogSlugRoute,
+  LocaleModelsClaudeApiRoute: LocaleModelsClaudeApiRoute,
+  LocaleModelsGptApiRoute: LocaleModelsGptApiRoute,
   BlogCategorySlugRoute: BlogCategorySlugRoute,
   LocaleAboutIndexRoute: LocaleAboutIndexRoute,
   LocaleBlogIndexRoute: LocaleBlogIndexRoute,

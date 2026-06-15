@@ -103,9 +103,9 @@
 <body>
 <header class="hero">
   <div class="wrap">
-    <span class="tag">异步视频生成 API · 精简档</span>
+    <span class="tag">异步视频生成 API</span>
     <h1>Seedance 视频生成 API</h1>
-    <p class="sub">调用视频生成接口生成视频（文生 / 单图图生 / 角色一致）。请求体与主流 Seedance 视频 API 一致，采用「提交任务 → 轮询状态 → 取回视频」的异步模型；视频经本服务代理返回，可直接嵌入页面。<strong>本档对应的服务为精简能力档，部分高级参数与输入模式不可用——以下逐项标注。</strong></p>
+    <p class="sub">调用视频生成接口生成视频（文生 / 图生 / 首尾帧 / 多图参考 / 角色一致）。请求体与主流 Seedance 视频 API 一致，采用「提交任务 → 轮询状态 → 取回视频」的异步模型；视频经本服务代理返回，可直接嵌入页面。<strong>部分高级参数与输入模式不可用（参考视频 / 参考音频、画质超分、联网增强、角色登记）——以下逐项标注。</strong></p>
   </div>
 </header>
 
@@ -133,17 +133,17 @@
   <table>
     <tr><th>能力 / 参数</th><th>状态</th><th>说明</th></tr>
     <tr><td>文生视频（text）</td><td><span class="b b-ok">✅ 支持</span></td><td>纯提示词生成</td></tr>
-    <tr><td>单图图生视频（<code>image_url</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>仅 <strong>1 张</strong>参考图（参考图模式）</td></tr>
+    <tr><td>图生视频（单图 <code>image_url</code>，无 role）</td><td><span class="b b-ok">✅ 支持</span></td><td>单张种子图，图生视频模式</td></tr>
     <tr><td>角色 / 真人一致（<code>real_face_asset_id</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>透传已有 <code>ta_</code> 资产；仅 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>；与图片输入互斥</td></tr>
-    <tr><td>分辨率（<code>resolution</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td><code>360p</code> / <code>480p</code> / <code>540p</code> / <code>720p</code> / <code>1080p</code> / <code>1K</code> / <code>2K</code> / <code>4K</code></td></tr>
-    <tr><td>时长（<code>duration</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>秒；默认 5，最大 10；不传由模型决定</td></tr>
+    <tr><td>分辨率（<code>resolution</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td><code>360p</code> / <code>480p</code> / <code>720p</code> / <code>1080p</code> / <code>4K</code>（默认 720p）</td></tr>
+    <tr><td>时长（<code>duration</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>秒；默认值 / 上限由所选模型决定（不传用模型默认）</td></tr>
     <tr><td>同步音频（<code>generate_audio</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>是否生成同步音频</td></tr>
     <tr><td>画面比例（<code>aspect_ratio</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>客户端字段名 <code>ratio</code>，值 <code>adaptive</code> / <code>16:9</code> / <code>9:16</code> / <code>1:1</code> / <code>4:3</code> / <code>3:4</code> / <code>21:9</code> / <code>9:21</code></td></tr>
     <tr><td>随机种子（<code>seed</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>固定种子可复现结果</td></tr>
     <tr><td>水印（<code>watermark</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>是否添加水印</td></tr>
     <tr><td>返回尾帧（<code>return_last_frame</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>返回尾帧静帧</td></tr>
-    <tr><td>首帧 / 尾帧（<code>first_frame</code> / <code>last_frame</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错</td></tr>
-    <tr><td>多张参考图（&gt; 1）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错（仅允许单图）</td></tr>
+    <tr><td>首帧 / 尾帧插值（<code>first_frame</code> / <code>last_frame</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>各最多 1 张；<code>last_frame</code> 需配 <code>first_frame</code>；不能与参考图混用</td></tr>
+    <tr><td>多图参考 / omni（2–9 张 <code>reference_image</code>）</td><td><span class="b b-ok">✅ 支持</span></td><td>2–9 张参考图；单张需显式 <code>role: reference_image</code>；<strong>仅</strong> <code>seedance-2.0</code> / <code>seedance-2.0-fast</code></td></tr>
     <tr><td>参考视频（<code>video_url</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错</td></tr>
     <tr><td>参考音频（<code>audio_url</code>）</td><td><span class="b b-no">❌ 不支持</span></td><td>提交报错</td></tr>
     <tr><td>角色 / 真人<strong>登记</strong>（生成 <code>ta_</code> 资产）</td><td><span class="b b-no">❌ 暂不提供</span></td><td>本服务不含登记接口；<code>ta_</code> 资产需线下预先获取后透传</td></tr>
@@ -158,10 +158,10 @@
     <tr><th>项</th><th>值</th></tr>
     <tr><td>可用模型</td><td><code>seedance-2.0</code>、<code>seedance-2.0-fast</code>、<code>seedance-1.5-pro</code>（以你的服务实际开放的模型名为准）</td></tr>
     <tr><td>调用模式</td><td>异步：创建任务 → 轮询 → 取视频</td></tr>
-    <tr><td>能力</td><td>文生视频、<strong>单图</strong>图生视频、角色 / 真人一致（透传 <code>ta_</code> 资产）</td></tr>
+    <tr><td>能力</td><td>文生视频、图生视频（单图）、首尾帧插值、多图参考（omni，2.0 系）、角色 / 真人一致（透传 <code>ta_</code> 资产）</td></tr>
     <tr><td>请求格式</td><td>多模态 <code>content[]</code> 数组（与主流 Seedance API 一致，便于无缝迁移）</td></tr>
     <tr><td>结果交付</td><td>视频经本服务代理地址返回，可直接下载或嵌入</td></tr>
-    <tr><td class="muted">不含</td><td class="muted">参考视频 / 参考音频 / 首尾帧 / 多图 / 画质超分 / 联网增强 / 登记接口（详见第 1、6 节）</td></tr>
+    <tr><td class="muted">不含</td><td class="muted">参考视频 / 参考音频 / 画质超分 / 联网增强 / 角色登记接口（详见第 1、6 节）</td></tr>
   </table>
   <p class="muted">下文中的 <code>{BASE}</code> 指服务地址，例如 <code>https://your-api-host</code>。</p>
 
@@ -191,8 +191,8 @@
     <tr><th>字段</th><th>类型</th><th>必填</th><th>状态</th><th>说明</th></tr>
     <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td><span class="b b-ok">✅</span></td><td><code>seedance-2.0</code> / <code>seedance-2.0-fast</code> / <code>seedance-1.5-pro</code>（以服务开放的名称为准）</td></tr>
     <tr><td><code>content</code></td><td>array</td><td class="req">必填</td><td><span class="b b-ok">✅</span></td><td>多模态输入数组，见下「content 元素」。至少含一条文本，或一张图片</td></tr>
-    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td><code>360p</code> / <code>480p</code> / <code>540p</code> / <code>720p</code> / <code>1080p</code> / <code>1K</code> / <code>2K</code> / <code>4K</code>（大小写不敏感）。其他值<strong>提交报错</strong></td></tr>
-    <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>时长（秒）；默认 5，最大 10；不传由模型决定</td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td><code>360p</code> / <code>480p</code> / <code>720p</code> / <code>1080p</code> / <code>4K</code>（默认 720p，大小写不敏感）。其他值<strong>提交报错</strong></td></tr>
+    <tr><td><code>duration</code></td><td>int</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>时长（秒）；默认值 / 上限由所选模型决定；不传用模型默认</td></tr>
     <tr><td><code>generate_audio</code></td><td>bool</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>是否生成同步音频</td></tr>
     <tr><td><code>real_face_asset_id</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>顶层字段。角色 / 真人一致资产（<code>ta_</code> 前缀）。<strong>仅</strong> <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>；与图片输入<strong>互斥</strong>；资产需线下预先持有（本服务不提供登记）</td></tr>
     <tr><td><code>ratio</code></td><td>string</td><td class="opt">可选</td><td><span class="b b-ok">✅</span></td><td>画面比例（映射到上游 <code>aspect_ratio</code>）。值 <code>adaptive</code> / <code>16:9</code> / <code>9:16</code> / <code>1:1</code> / <code>4:3</code> / <code>3:4</code> / <code>21:9</code> / <code>9:21</code></td></tr>
@@ -206,13 +206,13 @@
   <table>
     <tr><th>type</th><th>状态</th><th>附带字段 / role</th><th>说明</th></tr>
     <tr><td><code>text</code></td><td><span class="b b-ok">✅ 支持</span></td><td><code>text</code>（string）</td><td>文本提示词（可有多条，按顺序拼接）</td></tr>
-    <tr><td><code>image_url</code></td><td><span class="b b-ok">✅ 支持</span></td><td><code>image_url.url</code>；role 仅 <code>reference_image</code> 或省略</td><td><strong>最多 1 张</strong>。多张 / 带 <code>first_frame</code> / <code>last_frame</code> 角色将<strong>提交报错</strong></td></tr>
+    <tr><td><code>image_url</code></td><td><span class="b b-ok">✅ 支持</span></td><td><code>image_url.url</code> + <code>role</code></td><td>按 <code>role</code> 决定模式：无 role 单张 = 图生视频；<code>first_frame</code>(+<code>last_frame</code>) = 首尾帧插值；<code>reference_image</code> = 多图参考（2–9 张，仅 2.0 系）。约束见<a href="#unsupported">第 6 节</a></td></tr>
     <tr><td><code>video_url</code></td><td><span class="b b-no">❌ 不支持</span></td><td>—</td><td>含此项即<strong>提交报错</strong>：「video input is not supported」</td></tr>
     <tr><td><code>audio_url</code></td><td><span class="b b-no">❌ 不支持</span></td><td>—</td><td>含此项即<strong>提交报错</strong>：「audio input is not supported」</td></tr>
   </table>
 
   <div class="callout warn">
-    <p><strong>输入模式：</strong>本服务仅支持「文生」与「单张参考图」两种。<strong>不支持</strong>首尾帧（first/last frame）、多图、参考视频、参考音频；传入这些会在提交阶段直接报错（提前失败，不扣费）。</p>
+    <p><strong>输入模式（4 种，图像模式互斥）：</strong>① 文生（仅 <code>text</code>）；② 图生视频（单张 <code>image_url</code>，无 role）；③ 首尾帧插值（<code>first_frame</code> 必填、<code>last_frame</code> 可选）；④ 多图参考 / omni（2–9 张 <code>role: reference_image</code>，仅 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code>）。②③④ 三种图像模式不能混用。<strong>不支持</strong>参考视频 / 参考音频；传入会在提交阶段直接报错（提前失败，不扣费）。</p>
   </div>
 
   <h3>请求示例（文生视频）</h3>
@@ -241,6 +241,39 @@
     "resolution": "720p",
     "duration": 5
   }'</code></pre>
+
+  <h3>请求示例（首尾帧插值）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "content": [
+      { "type": "text", "text": "花苞缓缓绽放" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/first.jpg" }, "role": "first_frame" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/last.jpg" },  "role": "last_frame" }
+    ],
+    "resolution": "720p",
+    "duration": 5
+  }'</code></pre>
+
+  <h3>请求示例（多图参考 / omni · 仅 2.0 系）</h3>
+  <pre><code>curl {BASE}/v1/videos \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2.0",
+    "content": [
+      { "type": "text", "text": "让 image 1 的角色穿上 image 2 的服装" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/char.jpg" },  "role": "reference_image" },
+      { "type": "image_url", "image_url": { "url": "https://example.com/cloth.jpg" }, "role": "reference_image" }
+    ],
+    "resolution": "1080p",
+    "duration": 5
+  }'</code></pre>
+  <div class="callout info">
+    <p>②③④ 三种图像输入模式<strong>互斥</strong>：单张无 role 图（图生视频）、首尾帧（<code>first_frame</code> / <code>last_frame</code>）、多图参考（<code>reference_image</code>）不能混用。多图参考及「单张显式 <code>reference_image</code>」仅 <code>seedance-2.0</code> / <code>seedance-2.0-fast</code> 支持。</p>
+  </div>
 
   <h3>请求示例（角色 / 真人一致 · 透传 ta_ 资产）</h3>
   <pre><code>curl {BASE}/v1/videos \
@@ -280,9 +313,12 @@
     <tr><th>参数 / 功能</th><th>报错信息</th><th>替代方案</th></tr>
     <tr><td>参考视频 <code>content[].video_url</code></td><td><code>video input is not supported by this channel</code></td><td>无（本服务不做视频到视频）</td></tr>
     <tr><td>参考音频 <code>content[].audio_url</code></td><td><code>audio input is not supported by this channel</code></td><td>无</td></tr>
-    <tr><td>多张参考图（<code>image_url</code> &gt; 1）</td><td><code>only a single seed image is supported</code></td><td>仅保留 1 张</td></tr>
-    <tr><td>首帧 / 尾帧 role（<code>first_frame</code> / <code>last_frame</code>）</td><td><code>first_frame/last_frame image roles are not supported</code></td><td>改用单张 <code>reference_image</code></td></tr>
-    <tr><td>不支持的 <code>resolution</code></td><td><code>unsupported resolution ...</code></td><td>用 360p/480p/540p/720p/1080p/1K/2K/4K</td></tr>
+    <tr><td>参考图超过 9 张</td><td><code>at most 9 reference images are supported</code></td><td>≤ 9 张</td></tr>
+    <tr><td><code>first_frame</code> / <code>last_frame</code> 各超过 1 张</td><td><code>at most one first_frame and one last_frame image are supported</code></td><td>各保留 1 张</td></tr>
+    <tr><td>只给 <code>last_frame</code> 不给 <code>first_frame</code></td><td><code>last_frame requires a first_frame image as the starting frame</code></td><td>补一张 <code>first_frame</code></td></tr>
+    <tr><td>首尾帧与参考图混用</td><td><code>first_frame/last_frame cannot be combined with reference images</code></td><td>只用一种图像输入模式</td></tr>
+    <tr><td>多图 / 显式 <code>reference_image</code> 用于 <code>seedance-1.5-pro</code></td><td><code>reference images (omni) are only supported on seedance-2.0 / seedance-2.0-fast</code></td><td>换 2.0 / 2.0-fast，或用单张无 role 图</td></tr>
+    <tr><td>不支持的 <code>resolution</code></td><td><code>unsupported resolution ...</code></td><td>用 360p/480p/720p/1080p/4K</td></tr>
     <tr><td><code>real_face_asset_id</code> 用于 <code>seedance-1.5-pro</code></td><td><code>real_face_asset_id is only supported on seedance-2.0 / seedance-2.0-fast</code></td><td>换 2.0 / 2.0-fast</td></tr>
     <tr><td><code>real_face_asset_id</code> 与图片同时传</td><td><code>image input and real_face_asset_id are mutually exclusive</code></td><td>二选一</td></tr>
     <tr><td><code>real_face_asset_id</code> 格式错误</td><td><code>real_face_asset_id must start with 'ta_'</code></td><td>使用合法 <code>ta_</code> 资产</td></tr>
@@ -371,7 +407,7 @@ curl -L "{BASE}/v1/videos/task_3f9a...e2/content" -o output.mp4
   <table>
     <tr><th>典型场景</th><th>说明</th></tr>
     <tr><td><code>content</code> 为空</td><td>提交被拒：需至少包含一条文本，或一张图片</td></tr>
-    <tr><td>不支持的输入</td><td>传入参考视频 / 参考音频 / 多图 / 首尾帧 —— 见<a href="#unsupported">第 6 节</a>，提交阶段即报错</td></tr>
+    <tr><td>不支持的输入</td><td>传入参考视频 / 参考音频，或违反输入模式约束（首尾帧 / 多图参考的张数、组合、模型限制）—— 见<a href="#unsupported">第 6 节</a>，提交阶段即报错</td></tr>
     <tr><td>模型不可用</td><td>传入了服务未开放的 <code>model</code></td></tr>
     <tr><td>额度不足</td><td>任务不会创建</td></tr>
     <tr><td>服务暂时不可用</td><td>通常可稍后重试</td></tr>
@@ -416,7 +452,7 @@ curl -L "$URL" -o output.mp4
 echo "saved -> output.mp4"</code></pre>
 
   <footer>
-    Seedance 视频生成 API · 接口使用文档（精简能力档）。不支持 / 忽略项见第 1、6 节。
+    Seedance 视频生成 API · 接口使用文档。不支持 / 忽略项见第 1、6 节。
   </footer>
 </div>
 </body>

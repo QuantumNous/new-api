@@ -64,6 +64,10 @@ const X_PIXEL_ID = import.meta.env.VITE_X_PIXEL_ID as string | undefined
 const X_SIGNUP_EVENT_ID = import.meta.env.VITE_X_SIGNUP_EVENT_ID as
   | string
   | undefined
+// X conversion event id for a completed top-up (purchase).
+const X_TOPUP_EVENT_ID = import.meta.env.VITE_X_TOPUP_EVENT_ID as
+  | string
+  | undefined
 
 let tiktokLoaded = false
 let metaLoaded = false
@@ -203,5 +207,36 @@ export function trackPixelsSignup(): void {
       window.twq?.('event', X_SIGNUP_EVENT_ID, {})
   } catch {
     /* tracking must never break registration UX */
+  }
+}
+
+/**
+ * Fire the "top-up" (purchase) conversion on every configured network. Mirrors
+ * gtag's trackTopupConversion. Pass the value in USD so networks can optimize
+ * on revenue. Best-effort: never throws.
+ */
+export function trackPixelsTopup(valueUSD?: number): void {
+  ensurePixelsLoaded()
+  const hasValue = typeof valueUSD === 'number' && valueUSD > 0
+  try {
+    if (TIKTOK_PIXEL_ID)
+      window.ttq?.track(
+        'CompletePayment',
+        hasValue ? { value: valueUSD, currency: 'USD' } : undefined
+      )
+    if (META_PIXEL_ID)
+      window.fbq?.(
+        'track',
+        'Purchase',
+        hasValue ? { value: valueUSD, currency: 'USD' } : {}
+      )
+    if (X_PIXEL_ID && X_TOPUP_EVENT_ID)
+      window.twq?.(
+        'event',
+        X_TOPUP_EVENT_ID,
+        hasValue ? { value: valueUSD, currency: 'USD' } : {}
+      )
+  } catch {
+    /* tracking must never break the payment UX */
   }
 }
