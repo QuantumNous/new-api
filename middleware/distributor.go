@@ -291,6 +291,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 			c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/pg/images/edits") {
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+			modelRequest.Group = req.Group
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+			c.Set("relay_mode", relayconstant.RelayModeImagesEdits)
+		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
@@ -365,7 +376,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
 
-	if strings.HasPrefix(c.Request.URL.Path, "/pg/images/generations") && modelRequest.Model == "" {
+	if (strings.HasPrefix(c.Request.URL.Path, "/pg/images/generations") || strings.HasPrefix(c.Request.URL.Path, "/pg/images/edits")) && modelRequest.Model == "" {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "gpt-image-2")
 	}
 
