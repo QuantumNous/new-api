@@ -9,7 +9,10 @@ This file orients Claude before edits. Read top-to-bottom before working in this
 - `DEV.md` — 5-minute local quickstart.
 - `PLAN.md` — phase plan to V0 launch.
 - `docs/PRD.md` — engineering PRD.
+- `docs/system-settings-guide.md` — operator-facing Chinese guide to every admin System Settings section (what each does, DeepRouter-recommended values, which fields need operator-supplied secrets).
 - `../CLAUDE.md` — umbrella file covering the AGPL/Apache process boundary between this repo and `../smart-router/`.
+
+**Operator config tooling** (`scripts/seed-models/`): `seed.py` upserts all upstream channels + model lists from `channels.yaml`; `seed_options.py` pushes a curated set of safe system-settings defaults. Both are idempotent, talk to the admin API (`Authorization: Bearer <access-token>` **plus** a `New-Api-User: <user-id>` header — admin endpoints require both), and read config from a gitignored `.env`. See `scripts/seed-models/README.md`.
 
 ## 1. What this codebase is
 

@@ -4,6 +4,22 @@
 
 读 `channels.yaml`、调 admin API、幂等 upsert。Python 单文件脚本，零三方依赖（除 `pyyaml`）。
 
+本目录有两个脚本，共用同一个 `.env`：
+
+| 脚本 | 作用 | 接口 |
+|---|---|---|
+| `seed.py` | 创建/更新全部上游**渠道 + 模型列表** | `POST/PUT /api/channel/` |
+| `seed_options.py` | 写入一批**安全的系统设置默认值**（重试/限流/监控/绘图安全/额度/日志等 38 项） | `PUT /api/option/`（需 **root** token） |
+
+> ⚠️ admin API 同时要求 `Authorization: Bearer <token>` **和** `New-Api-User: <user-id>` 两个头（缺一会报 `New-Api-User header not provided`）。脚本默认 user-id=1，可用环境变量 `DEEPROUTER_USER_ID` 覆盖。
+
+`seed_options.py` 只写「安全、不需决策」的运营默认值，**故意不碰**密钥、品牌、域名、汇率、支付、SMTP、OAuth、模型定价 —— 这些会以清单形式打印出来提醒人工配置。用法同 `seed.py`：
+
+```bash
+python3 seed_options.py --dry-run      # 预览将写入的 38 项
+python3 seed_options.py                # 真写入
+```
+
 ---
 
 ## 快速开始
