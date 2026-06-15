@@ -191,45 +191,54 @@ func sizeToResolution(size string) (string, error) {
 	return "", fmt.Errorf("invalid size: %s", size)
 }
 
+// aliResolutionRatios 阿里 wan 系列视频模型的「分辨率倍率」表：模型 -> 分辨率 -> 倍率。
+// 倍率以各模型 480P/720P 基准价为 1，高分辨率按上游单价比例折算（裸比值保留来源以便核对）：
+//   - 1/0.6   = 1.6666...  （wan2.6-i2v 1080P 相对 720P）
+//   - 1/0.3   = 3.3333...  （wan2.5 t2v/i2v 1080P 相对 480P）
+//   - 0.7/0.14 = 5         （wan2.2 t2v/i2v-plus 1080P 相对 480P）
+//   - 0.9/0.5 = 1.8        （wan2.2-s2v 720P 相对 480P）
+//
+// 未命中模型或未命中分辨率时不写入 otherRatios（回退到上游/默认计费），与外置前一致。
+var aliResolutionRatios = map[string]map[string]float64{
+	"wan2.6-i2v": {
+		"720P":  1,
+		"1080P": 1 / 0.6,
+	},
+	"wan2.5-t2v-preview": {
+		"480P":  1,
+		"720P":  2,
+		"1080P": 1 / 0.3,
+	},
+	"wan2.2-t2v-plus": {
+		"480P":  1,
+		"1080P": 0.7 / 0.14,
+	},
+	"wan2.5-i2v-preview": {
+		"480P":  1,
+		"720P":  2,
+		"1080P": 1 / 0.3,
+	},
+	"wan2.2-i2v-plus": {
+		"480P":  1,
+		"1080P": 0.7 / 0.14,
+	},
+	"wan2.2-kf2v-flash": {
+		"480P":  1,
+		"720P":  2,
+		"1080P": 4.8,
+	},
+	"wan2.2-i2v-flash": {
+		"480P": 1,
+		"720P": 2,
+	},
+	"wan2.2-s2v": {
+		"480P": 1,
+		"720P": 0.9 / 0.5,
+	},
+}
+
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
-	aliRatios := map[string]map[string]float64{
-		"wan2.6-i2v": {
-			"720P":  1,
-			"1080P": 1 / 0.6,
-		},
-		"wan2.5-t2v-preview": {
-			"480P":  1,
-			"720P":  2,
-			"1080P": 1 / 0.3,
-		},
-		"wan2.2-t2v-plus": {
-			"480P":  1,
-			"1080P": 0.7 / 0.14,
-		},
-		"wan2.5-i2v-preview": {
-			"480P":  1,
-			"720P":  2,
-			"1080P": 1 / 0.3,
-		},
-		"wan2.2-i2v-plus": {
-			"480P":  1,
-			"1080P": 0.7 / 0.14,
-		},
-		"wan2.2-kf2v-flash": {
-			"480P":  1,
-			"720P":  2,
-			"1080P": 4.8,
-		},
-		"wan2.2-i2v-flash": {
-			"480P": 1,
-			"720P": 2,
-		},
-		"wan2.2-s2v": {
-			"480P": 1,
-			"720P": 0.9 / 0.5,
-		},
-	}
 	var resolution string
 
 	// size match
@@ -245,7 +254,7 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 			resolution = resolution + "P"
 		}
 	}
-	if otherRatio, ok := aliRatios[aliReq.Model]; ok {
+	if otherRatio, ok := aliResolutionRatios[aliReq.Model]; ok {
 		if ratio, ok := otherRatio[resolution]; ok {
 			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
 		}

@@ -28,6 +28,9 @@ plans
 electron/node_modules
 electron/dist
 data/
+# embedded default ratio/price tables — required by go:embed, must be tracked
+!setting/ratio_setting/data/
+!setting/ratio_setting/data/**
 .gomodcache/
 .gocache-temp
 .gopath

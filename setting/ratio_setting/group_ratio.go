@@ -17,20 +17,19 @@ var defaultGroupRatio = map[string]float64{
 
 var groupRatioMap = types.NewRWMap[string, float64]()
 
-var defaultGroupGroupRatio = map[string]map[string]float64{
-	"vip": {
-		"edit_this": 0.9,
-	},
-}
+// defaultGroupGroupRatio 默认无内置样例，由管理端配置。
+// 结构：{ 用户分组: { 使用分组: 倍率 } }，例如：
+//
+//	{ "vip": { "edit_this": 0.9 } }
+var defaultGroupGroupRatio = map[string]map[string]float64{}
 
 var groupGroupRatioMap = types.NewRWMap[string, map[string]float64]()
 
-var defaultGroupSpecialUsableGroup = map[string]map[string]string{
-	"vip": {
-		"append_1":   "vip_special_group_1",
-		"-:remove_1": "vip_removed_group_1",
-	},
-}
+// defaultGroupSpecialUsableGroup 默认无内置样例，由管理端配置。
+// 结构：{ 用户分组: { 指令: 目标分组 } }，指令支持追加与移除，例如：
+//
+//	{ "vip": { "append_1": "vip_special_group_1", "-:remove_1": "vip_removed_group_1" } }
+var defaultGroupSpecialUsableGroup = map[string]map[string]string{}
 
 type GroupRatioSetting struct {
 	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`

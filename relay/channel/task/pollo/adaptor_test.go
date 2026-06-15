@@ -88,7 +88,8 @@ func TestCreditToOtherRatio_MatchesSettlement(t *testing.T) {
 		groupRatio   = 1.0
 		credit       = 15.0
 	)
-	// ratio-mode base quota = modelRatio/2 * QuotaPerUnit * groupRatio
+	// ratio-mode base quota = modelRatio / preConsumeRatioDivisor * QuotaPerUnit * groupRatio
+	// 其中除数 2 = 1e6/QuotaPerUnit（见 relay/helper/price.go preConsumeRatioDivisor）。
 	base := int(modelRatio / 2 * quotaPerUnit * groupRatio)
 	pd := types.PriceData{
 		Quota:          base,
@@ -185,6 +186,7 @@ func TestParseTaskResult_ErrorEnvelope(t *testing.T) {
 // Doubao's single-model design). A single model serves both shapes:
 //   - metadata.refs present  -> /ref2video endpoint + input.duration + refs (no length)
 //   - metadata.refs absent    -> base endpoint + input.length + optional image (no duration)
+//
 // BuildRequestURL must agree with the body that convertToRequestPayload produced,
 // since convertToRequestPayload (run first via BuildRequestBody) sets a.isRef.
 func TestRequestShape_RefVsStandard(t *testing.T) {
@@ -482,12 +484,12 @@ func TestResolveSeconds_PrecedenceAndPayload(t *testing.T) {
 		duration int
 		want     int
 	}{
-		{"seconds-only", "8", 0, 8},          // OpenAI `seconds` field, no duration
+		{"seconds-only", "8", 0, 8},                 // OpenAI `seconds` field, no duration
 		{"seconds-wins-over-duration", "10", 5, 10}, // explicit seconds takes precedence
-		{"duration-fallback", "", 6, 6},      // no seconds -> use duration
+		{"duration-fallback", "", 6, 6},             // no seconds -> use duration
 		{"invalid-seconds-falls-back", "abc", 7, 7}, // unparsable -> duration
-		{"both-empty-default-5", "", 0, 5},   // nothing provided -> default 5
-		{"zero-seconds-falls-back", "0", 4, 4}, // seconds==0 is not a valid duration
+		{"both-empty-default-5", "", 0, 5},          // nothing provided -> default 5
+		{"zero-seconds-falls-back", "0", 4, 4},      // seconds==0 is not a valid duration
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

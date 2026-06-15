@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSystemConfigStore } from '@/stores/system-config-store'
+import {
+  DEFAULT_CURRENCY_CONFIG,
+  useSystemConfigStore,
+} from '@/stores/system-config-store'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -164,7 +167,11 @@ export function DynamicPricingBreakdown({
 
   const { symbol, rate } = useMemo(() => {
     if (currency.quotaDisplayType === 'CNY') {
-      return { symbol: '¥', rate: currency.usdExchangeRate || 7 }
+      return {
+        symbol: '¥',
+        rate:
+          currency.usdExchangeRate || DEFAULT_CURRENCY_CONFIG.usdExchangeRate,
+      }
     }
     if (currency.quotaDisplayType === 'CUSTOM') {
       return {

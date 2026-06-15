@@ -60,6 +60,38 @@ func ThemeAwarePath(suffix string) string {
 // var ChatLink = ""
 // var ChatLink2 = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
+
+// ratioUSDPerMillionTokens 是「倍率(ratio) ↔ $/1M tokens」的换算系数。
+//
+// 推导：QuotaPerUnit 表示「1 倍率单位 = QuotaPerUnit 个 quota」，而 1 quota 对应
+// 的真实价格为 1e6/QuotaPerUnit 美元/1M tokens（QuotaPerUnit=500000 时为 2）。
+// 因此 ratio * (1e6/QuotaPerUnit) = $/1M tokens。
+//
+// 历史代码中分散出现的裸 `* 2` / `/ 2`（如 relay/helper/price.go 的 modelRatio/2、
+// 前端的 model_ratio * 2）即来源于此，统一收敛到本系数，避免硬编码漂移。
+func ratioUSDPerMillionTokens() float64 {
+	return 1e6 / QuotaPerUnit
+}
+
+// RatioToUSDPerMillion 把模型倍率(ratio)换算为 $/1M tokens 价格。
+func RatioToUSDPerMillion(ratio float64) float64 {
+	return ratio * ratioUSDPerMillionTokens()
+}
+
+// PricePerMillionToRatio 把 $/1M tokens 价格换算为模型倍率(ratio)，为
+// RatioToUSDPerMillion 的逆运算。
+func PricePerMillionToRatio(usdPerMillion float64) float64 {
+	return usdPerMillion / ratioUSDPerMillionTokens()
+}
+
+// USDToQuota 把以「$0.002=1 倍率单位」为基准计价的 USD 金额换算为 quota。
+// 语义：QuotaPerUnit 个 quota = 1 倍率单位 = $0.002，故 1 USD = QuotaPerUnit/0.002
+// 个 quota。这里复用 QuotaPerUnit 作为单一基准，避免 setting/ratio_setting.USD 与
+// common.QuotaPerUnit 两处独立维护漂移（二者关系由 ratio_setting 的 init 断言保证）。
+func USDToQuota(usd float64) float64 {
+	return usd * QuotaPerUnit
+}
+
 // 保留旧变量以兼容历史逻辑，实际展示由 general_setting.quota_display_type 控制
 var DisplayInCurrencyEnabled = true
 var DisplayTokenStatEnabled = true

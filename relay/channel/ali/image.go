@@ -21,6 +21,9 @@ import (
 	"github.com/samber/lo"
 )
 
+// promptExtendRatio z-image 开启 prompt_extend 后的计费倍率。
+const promptExtendRatio = 2
+
 func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequest, isSync bool) (*AliImageRequest, error) {
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
@@ -50,7 +53,7 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	if strings.Contains(request.Model, "z-image") {
 		// z-image 开启prompt_extend后，按2倍计费
 		if imageRequest.Parameters.PromptExtendValue() {
-			info.PriceData.AddOtherRatio("prompt_extend", 2)
+			info.PriceData.AddOtherRatio("prompt_extend", promptExtendRatio)
 		}
 	}
 

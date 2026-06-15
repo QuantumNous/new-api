@@ -24,6 +24,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ratioToUsdPerMillion, usdPerMillionToRatio } from '@/lib/ratio'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -240,7 +241,7 @@ export function ModelMutateDrawer({
   const handlePromptPriceChange = (value: string) => {
     setPromptPrice(value)
     if (value && !isNaN(parseFloat(value))) {
-      const ratio = parseFloat(value) / 2
+      const ratio = usdPerMillionToRatio(parseFloat(value))
       form.setValue('ratio', ratio.toString())
     } else {
       form.setValue('ratio', '')
@@ -341,7 +342,7 @@ export function ModelMutateDrawer({
         } else {
           setPricingMode('per-token')
           if (ratio !== undefined && ratio !== null) {
-            const tokenPrice = ratio * 2
+            const tokenPrice = ratioToUsdPerMillion(ratio)
             setPromptPrice(tokenPrice.toString())
             if (completionRatio !== undefined && completionRatio !== null) {
               const compPrice = tokenPrice * completionRatio
@@ -995,7 +996,9 @@ export function ModelMutateDrawer({
                                     field.onChange(value)
                                     if (value) {
                                       setPromptPrice(
-                                        (parseFloat(value) * 2).toString()
+                                        ratioToUsdPerMillion(
+                                          parseFloat(value)
+                                        ).toString()
                                       )
                                     } else {
                                       setPromptPrice('')
@@ -1006,7 +1009,7 @@ export function ModelMutateDrawer({
                             </FormControl>
                             <FormDescription>
                               {field.value && !isNaN(parseFloat(field.value))
-                                ? `Calculated price: $${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
+                                ? `Calculated price: $${ratioToUsdPerMillion(parseFloat(field.value)).toFixed(4)} per 1M tokens`
                                 : t('Multiplier for prompt tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1032,9 +1035,9 @@ export function ModelMutateDrawer({
                                     const ratio = form.getValues('ratio')
                                     if (value && ratio) {
                                       const compPrice =
-                                        parseFloat(ratio) *
-                                        2 *
-                                        parseFloat(value)
+                                        ratioToUsdPerMillion(
+                                          parseFloat(ratio)
+                                        ) * parseFloat(value)
                                       setCompletionPrice(compPrice.toString())
                                     } else {
                                       setCompletionPrice('')
@@ -1071,7 +1074,7 @@ export function ModelMutateDrawer({
                           />
                           <p className='text-muted-foreground text-sm'>
                             {promptPrice && !isNaN(parseFloat(promptPrice))
-                              ? `Calculated ratio: ${(parseFloat(promptPrice) / 2).toFixed(4)}`
+                              ? `Calculated ratio: ${usdPerMillionToRatio(parseFloat(promptPrice)).toFixed(4)}`
                               : t('Enter Input price to calculate ratio')}
                           </p>
                         </div>

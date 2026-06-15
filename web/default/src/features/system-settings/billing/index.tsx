@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 import { SettingsPage } from '../components/settings-page'
 import type { BillingSettings } from '../types'
 import {
@@ -32,8 +33,8 @@ const defaultBillingSettings: BillingSettings = {
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
-  QuotaPerUnit: 500000,
-  USDExchangeRate: 7,
+  QuotaPerUnit: DEFAULT_CURRENCY_CONFIG.quotaPerUnit,
+  USDExchangeRate: DEFAULT_CURRENCY_CONFIG.usdExchangeRate,
   'general_setting.quota_display_type': 'USD',
   'general_setting.custom_currency_symbol': '¤',
   'general_setting.custom_currency_exchange_rate': 1,
