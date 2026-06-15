@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/Calcium-Ion/go-epay/epay"
@@ -14,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 type SubscriptionEpayPayRequest struct {
@@ -84,10 +84,15 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
+	// plan.PriceAmount is in USD; multiply by Price (CNY per USD) to get the actual charge amount
+	payMoney := decimal.NewFromFloat(plan.PriceAmount).
+		Mul(decimal.NewFromFloat(operation_setting.Price)).
+		Round(2)
+
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           payMoney.InexactFloat64(),
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
@@ -102,7 +107,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          payMoney.StringFixed(2),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
