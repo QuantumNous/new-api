@@ -24,8 +24,31 @@ import {
 } from '../components/requestRuleExpr';
 
 export const PAGE_SIZE = 10;
-export const PRICE_SUFFIX = '$/1M tokens';
+export const PRICE_SUFFIX = '¥/1M tokens';
+export const DEFAULT_USD2RMB_RATE = 7.3;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+
+// 汇率兜底：无效（0 / 空 / 非有限）时回退常量，避免 ÷0 导致价格爆炸。
+export const normalizeRate = (rate) => {
+  const num = Number(rate);
+  return Number.isFinite(num) && num > 0 ? num : DEFAULT_USD2RMB_RATE;
+};
+
+// 显示精度：按实际数字精度展示，小数不足 2 位时补 0 到 2 位（¥4 → 4.00、
+// ¥0.876 → 0.876、¥0.0146 → 0.0146）。先收敛到 10 位去掉往返浮点漂移尾巴
+// （¥4 重载得到 4.000000000004 → 4.00）。仅用于展示，绝不回写存储（见设计 §6.1.1）。
+export const formatDisplayPrice = (value) => {
+  if (!hasValue(value) && value !== 0) {
+    return '';
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return '';
+  }
+  const trimmed = parseFloat(num.toFixed(10));
+  const decimals = (String(trimmed).split('.')[1] || '').length;
+  return trimmed.toFixed(Math.max(2, decimals));
+};
 
 const EMPTY_MODEL = {
   name: '',
@@ -101,10 +124,11 @@ const parseOptionJSON = (rawValue) => {
   }
 };
 
-const ratioToBasePrice = (ratio) => {
+// 货币边界：倍率 → 人民币输入价（倍率 × 基准价 2 × 汇率）。
+const ratioToBasePrice = (ratio, rate) => {
   const num = toNumberOrNull(ratio);
   if (num === null) return '';
-  return formatNumber(num * 2);
+  return formatNumber(num * 2 * normalizeRate(rate));
 };
 
 const normalizeCompletionRatioMeta = (rawMeta) => {
@@ -121,7 +145,7 @@ const normalizeCompletionRatioMeta = (rawMeta) => {
   };
 };
 
-const buildModelState = (name, sourceMaps) => {
+const buildModelState = (name, sourceMaps, rate) => {
   const billingMode = sourceMaps.ModelBillingMode?.[name];
   if (billingMode === 'tiered_expr') {
     const fullBillingExpr = sourceMaps.ModelBillingExpr?.[name] || '';
@@ -150,8 +174,13 @@ const buildModelState = (name, sourceMaps) => {
   const audioCompletionRatio = toNumericString(
     sourceMaps.AudioCompletionRatio[name],
   );
-  const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
-  const inputPrice = ratioToBasePrice(modelRatio);
+  // 货币边界：ModelPrice 是绝对美元金额，× 汇率得人民币按次价。
+  const rawFixedPrice = toNumberOrNull(sourceMaps.ModelPrice[name]);
+  const fixedPrice =
+    rawFixedPrice === null
+      ? ''
+      : formatNumber(rawFixedPrice * normalizeRate(rate));
+  const inputPrice = ratioToBasePrice(modelRatio, rate);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
     inputPriceNumber !== null && hasValue(audioRatio)
@@ -304,7 +333,7 @@ export const buildSummaryText = (model, t) => {
   }
 
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
-    return `${t('按次')} $${model.fixedPrice} / ${t('次')}${requestRuleSuffix}`;
+    return `${t('按次')} ¥${formatDisplayPrice(model.fixedPrice)} / ${t('次')}${requestRuleSuffix}`;
   }
 
   if (hasValue(model.inputPrice)) {
@@ -318,7 +347,7 @@ export const buildSummaryText = (model, t) => {
     ].filter(hasValue).length;
     const extraLabel =
       extraCount > 0 ? `，${t('额外价格项')} ${extraCount}` : '';
-    return `${t('输入')} $${model.inputPrice}${extraLabel}${requestRuleSuffix}`;
+    return `${t('输入')} ¥${formatDisplayPrice(model.inputPrice)}${extraLabel}${requestRuleSuffix}`;
   }
 
   return `${t('未设置价格')}${requestRuleSuffix}`;
@@ -334,7 +363,8 @@ export const buildOptionalFieldToggles = (model) => ({
   audioOutputPrice: hasValue(model.audioOutputPrice),
 });
 
-const serializeModel = (model, t) => {
+const serializeModel = (model, t, rate) => {
+  const usd2rmb = normalizeRate(rate);
   const result = {
     ModelPrice: null,
     ModelRatio: null,
@@ -348,7 +378,8 @@ const serializeModel = (model, t) => {
 
   if (model.billingMode === 'per-request') {
     if (hasValue(model.fixedPrice)) {
-      result.ModelPrice = toNormalizedNumber(model.fixedPrice);
+      // 人民币按次价 ÷ 汇率 = 后端存储的美元 ModelPrice。
+      result.ModelPrice = toNormalizedNumber(Number(model.fixedPrice) / usd2rmb);
     }
     return result;
   }
@@ -412,7 +443,8 @@ const serializeModel = (model, t) => {
     return result;
   }
 
-  result.ModelRatio = toNormalizedNumber(inputPrice / 2);
+  // 货币边界：人民币输入价 ÷ 汇率 ÷ 基准价 2 = 后端倍率。派生项为同币种比值，汇率自动约掉，不参与换算。
+  result.ModelRatio = toNormalizedNumber(inputPrice / usd2rmb / 2);
 
   if (!model.completionRatioLocked && completionPrice !== null) {
     result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
@@ -452,8 +484,9 @@ const serializeModel = (model, t) => {
   return result;
 };
 
-export const buildPreviewRows = (model, t) => {
+export const buildPreviewRows = (model, t, rate) => {
   if (!model) return [];
+  const usd2rmb = normalizeRate(rate);
   const finalBillingExpr = combineBillingExpr(
     model.billingExpr,
     model.requestRuleExpr,
@@ -492,7 +525,9 @@ export const buildPreviewRows = (model, t) => {
       {
         key: 'ModelPrice',
         label: 'ModelPrice',
-        value: hasValue(model.fixedPrice) ? model.fixedPrice : t('空'),
+        value: hasValue(model.fixedPrice)
+          ? formatNumber(Number(model.fixedPrice) / usd2rmb)
+          : t('空'),
       },
     ];
     return rows;
@@ -565,7 +600,7 @@ export const buildPreviewRows = (model, t) => {
     {
       key: 'ModelRatio',
       label: 'ModelRatio',
-      value: formatNumber(inputPrice / 2),
+      value: formatNumber(inputPrice / usd2rmb / 2),
     },
     {
       key: 'CompletionRatio',
@@ -624,6 +659,7 @@ export function useModelPricingEditorState({
   t,
   candidateModelNames = EMPTY_CANDIDATE_MODEL_NAMES,
   filterMode = 'all',
+  rate = DEFAULT_USD2RMB_RATE,
 }) {
   const [models, setModels] = useState([]);
   const [initialVisibleModelNames, setInitialVisibleModelNames] = useState([]);
@@ -666,7 +702,7 @@ export function useModelPricingEditorState({
     ]);
 
     const nextModels = Array.from(names)
-      .map((name) => buildModelState(name, sourceMaps))
+      .map((name) => buildModelState(name, sourceMaps, rate))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     setModels(nextModels);
@@ -693,7 +729,7 @@ export function useModelPricingEditorState({
           : nextModels;
       return nextVisibleModels[0]?.name || '';
     });
-  }, [candidateModelNames, filterMode, options]);
+  }, [candidateModelNames, filterMode, options, rate]);
 
   const visibleModels = useMemo(() => {
     return filterMode === 'unset'
@@ -729,8 +765,8 @@ export function useModelPricingEditorState({
   );
 
   const previewRows = useMemo(
-    () => buildPreviewRows(selectedModel, t),
-    [selectedModel, t],
+    () => buildPreviewRows(selectedModel, t, rate),
+    [selectedModel, t, rate],
   );
 
   useEffect(() => {
@@ -1056,7 +1092,7 @@ export function useModelPricingEditorState({
         // delay.  ModelPriceHelper checks billing_mode first, so these values
         // are only used when billing_setting hasn't propagated yet.
         try {
-          const serialized = serializeModel(model, t);
+          const serialized = serializeModel(model, t, rate);
           Object.entries(serialized).forEach(([key, value]) => {
             if (value !== null) {
               output[key][model.name] = value;
