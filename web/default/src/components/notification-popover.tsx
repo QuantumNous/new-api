@@ -82,7 +82,6 @@ function getRelativeTime(publishDate: string | Date, t: TFunction): string {
   const diffDays = Math.floor(diffHours / 24)
   const diffWeeks = Math.floor(diffDays / 7)
   const diffMonths = Math.floor(diffDays / 30)
-  const diffYears = Math.floor(diffDays / 365)
 
   // If future time, show specific date
   if (diffMs < 0) return formatDateTimeObject(pubDate)
@@ -101,15 +100,15 @@ function getRelativeTime(publishDate: string | Date, t: TFunction): string {
     return diffDays === 1
       ? t('1 day ago')
       : t('{{count}} days ago', { count: diffDays })
-  if (diffWeeks < 4)
+  if (diffDays < 30)
     return diffWeeks === 1
       ? t('1 week ago')
       : t('{{count}} weeks ago', { count: diffWeeks })
-  if (diffMonths < 12)
+  if (diffDays < 365)
     return diffMonths === 1
       ? t('1 month ago')
       : t('{{count}} months ago', { count: diffMonths })
-  if (diffYears < 2) return t('1 year ago')
+  if (diffDays < 365 * 2) return t('1 year ago')
 
   // Over 2 years, show specific date
   return formatDateTimeObject(pubDate)
