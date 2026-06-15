@@ -237,12 +237,12 @@ export async function handleTestChannel(
 
   try {
     const response = await testChannel(id, payload)
-    const responseTime =
-      typeof response.data?.response_time === 'number'
-        ? response.data.response_time
-        : typeof response.time === 'number'
-          ? response.time * 1000
-          : undefined
+    let responseTime: number | undefined
+    if (typeof response.data?.response_time === 'number') {
+      responseTime = response.data.response_time
+    } else if (typeof response.time === 'number') {
+      responseTime = response.time * 1000
+    }
 
     if (response.success) {
       if (!options?.silent) {

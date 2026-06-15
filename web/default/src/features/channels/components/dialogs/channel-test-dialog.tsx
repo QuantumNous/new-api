@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
@@ -212,6 +212,7 @@ export function ChannelTestDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { currentRow, setCurrentRow } = useChannels()
+  const currentRowRef = useRef(currentRow)
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -235,6 +236,10 @@ export function ChannelTestDialog({
       })),
     [t]
   )
+
+  useEffect(() => {
+    currentRowRef.current = currentRow
+  }, [currentRow])
 
   const resetState = useCallback(() => {
     setEndpointType('auto')
@@ -316,7 +321,8 @@ export function ChannelTestDialog({
 
   const testSingleModel = useCallback(
     async (model: string, silent = false): Promise<TestResult | undefined> => {
-      if (!currentRow) return
+      const testChannelRow = currentRow
+      if (!testChannelRow) return
 
       markModelTesting(model, true)
       updateTestResult(model, { status: 'testing' })
@@ -324,7 +330,7 @@ export function ChannelTestDialog({
 
       try {
         await handleTestChannel(
-          currentRow.id,
+          testChannelRow.id,
           {
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
@@ -340,8 +346,12 @@ export function ChannelTestDialog({
             }
             updateTestResult(model, finalResult)
             if (success && typeof responseTime === 'number') {
+              const activeRow = currentRowRef.current
+              if (activeRow?.id !== testChannelRow.id) {
+                return
+              }
               setCurrentRow({
-                ...currentRow,
+                ...activeRow,
                 response_time: responseTime,
                 test_time: Math.floor(Date.now() / 1000),
               })
