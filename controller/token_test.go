@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -40,6 +41,11 @@ type tokenResponseItem struct {
 
 type tokenKeyResponse struct {
 	Key string `json:"key"`
+}
+
+type selfResponseData struct {
+	ID       int `json:"id"`
+	AffCount int `json:"aff_count"`
 }
 
 type sqliteColumnInfo struct {
@@ -111,6 +117,16 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 
 	db := openTokenControllerTestDB(t)
 	migrateTokenControllerTestDB(t, db)
+	return db
+}
+
+func setupUserTokenControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db := openTokenControllerTestDB(t)
+	if err := db.AutoMigrate(&model.User{}, &model.Token{}); err != nil {
+		t.Fatalf("failed to migrate user and token tables: %v", err)
+	}
 	return db
 }
 
@@ -537,5 +553,173 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestGetSelfReconcilesAndPersistsAffCount(t *testing.T) {
+	db := setupUserTokenControllerTestDB(t)
+
+	inviter := &model.User{
+		Username:    "inviter-user",
+		Password:    "password123",
+		DisplayName: "Inviter",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     "abcd",
+		AffCount:    0,
+	}
+	if err := db.Create(inviter).Error; err != nil {
+		t.Fatalf("failed to create inviter: %v", err)
+	}
+
+	invitees := []model.User{
+		{
+			Username:    "invitee-one",
+			Password:    "password123",
+			DisplayName: "Invitee One",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "efgh",
+			InviterId:   inviter.Id,
+		},
+		{
+			Username:    "invitee-two",
+			Password:    "password123",
+			DisplayName: "Invitee Two",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "ijkl",
+			InviterId:   inviter.Id,
+		},
+	}
+	for i := range invitees {
+		if err := db.Create(&invitees[i]).Error; err != nil {
+			t.Fatalf("failed to create invitee %d: %v", i, err)
+		}
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/user/self", nil, inviter.Id)
+	ctx.Set("role", inviter.Role)
+	GetSelf(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var selfData selfResponseData
+	if err := common.Unmarshal(response.Data, &selfData); err != nil {
+		t.Fatalf("failed to decode self response: %v", err)
+	}
+	if selfData.ID != inviter.Id {
+		t.Fatalf("expected self response for user %d, got %d", inviter.Id, selfData.ID)
+	}
+	if selfData.AffCount != 2 {
+		t.Fatalf("expected reconciled aff_count 2 in response, got %d", selfData.AffCount)
+	}
+
+	var refreshed model.User
+	if err := db.First(&refreshed, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to reload inviter: %v", err)
+	}
+	if refreshed.AffCount != 2 {
+		t.Fatalf("expected persisted aff_count 2, got %d", refreshed.AffCount)
+	}
+}
+
+func TestGetSelfReturnsReconciledAffCountWhenPersistenceFails(t *testing.T) {
+	db := setupUserTokenControllerTestDB(t)
+
+	inviter := &model.User{
+		Username:    "inviter-fallback-user",
+		Password:    "password123",
+		DisplayName: "Inviter Fallback",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     "mnop",
+		AffCount:    7,
+	}
+	if err := db.Create(inviter).Error; err != nil {
+		t.Fatalf("failed to create inviter: %v", err)
+	}
+
+	invitees := []model.User{
+		{
+			Username:    "fallback-invitee-one",
+			Password:    "password123",
+			DisplayName: "Fallback Invitee One",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "qrst",
+			InviterId:   inviter.Id,
+		},
+		{
+			Username:    "fallback-invitee-two",
+			Password:    "password123",
+			DisplayName: "Fallback Invitee Two",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "uvwx",
+			InviterId:   inviter.Id,
+		},
+	}
+	for i := range invitees {
+		if err := db.Create(&invitees[i]).Error; err != nil {
+			t.Fatalf("failed to create fallback invitee %d: %v", i, err)
+		}
+	}
+
+	originalDB := model.DB
+	t.Cleanup(func() {
+		model.DB = originalDB
+	})
+	callbackName := "test:fail-user-aff-count-update"
+	err := model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Table == "users" {
+			tx.AddError(errors.New("forced aff_count update failure"))
+		}
+	})
+	if err != nil {
+		t.Fatalf("failed to register update callback: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = model.DB.Callback().Update().Remove(callbackName)
+	})
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/user/self", nil, inviter.Id)
+	ctx.Set("role", inviter.Role)
+	GetSelf(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var selfData selfResponseData
+	if err := common.Unmarshal(response.Data, &selfData); err != nil {
+		t.Fatalf("failed to decode self response: %v", err)
+	}
+	if selfData.AffCount != len(invitees) {
+		t.Fatalf("expected realtime aff_count %d, got %d", len(invitees), selfData.AffCount)
+	}
+
+	var refreshed model.User
+	if err := model.DB.First(&refreshed, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to reload inviter: %v", err)
+	}
+	if refreshed.AffCount != inviter.AffCount {
+		t.Fatalf("expected stored aff_count to remain %d, got %d", inviter.AffCount, refreshed.AffCount)
+	}
+	if selfData.ID != inviter.Id {
+		t.Fatalf("expected self response for user %d, got %d", inviter.Id, selfData.ID)
+	}
+	if refreshed.Username != inviter.Username {
+		t.Fatalf("expected inviter username %q, got %q", inviter.Username, refreshed.Username)
 	}
 }
