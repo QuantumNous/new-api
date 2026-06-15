@@ -45,6 +45,10 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   AffRatio: z.coerce.number().min(0).max(100),
+  FirstTopupPromoEnabled: z.boolean(),
+  FirstTopupPromoDiscount: z.coerce.number().min(0).max(1),
+  FirstTopupPromoAmount: z.coerce.number().min(1),
+  FirstTopupPromoWindowDays: z.coerce.number().min(1),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -215,6 +219,103 @@ export function QuotaSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Percentage of friend top-up the inviter receives (0 = disabled, max 100)')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='FirstTopupPromoEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>{t('New User First Top-Up Promo')}</FormLabel>
+                  <FormDescription>
+                    {t('Enable discount for new users on their first top-up (toggle off = hides popup too)')}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={updateOption.isPending}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='FirstTopupPromoDiscount'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('First Top-Up Discount (0~1)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    step='0.05'
+                    min='0'
+                    max='1'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('e.g. 0.75 = pay $7.5 get $10 (card), or credit ÷ 0.75 (crypto). Changing this updates badges automatically.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='FirstTopupPromoAmount'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('First Top-Up Promo Tier ($)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Card: only this amount tier gets the discount. Crypto: bonus capped at this amount.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='FirstTopupPromoWindowDays'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('First Top-Up Promo Window (days)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('How many days after registration the discount is valid.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

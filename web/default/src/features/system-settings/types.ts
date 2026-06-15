@@ -178,6 +178,10 @@ export type BillingSettings = {
   QuotaForInviter: number
   QuotaForInvitee: number
   AffRatio: number
+  FirstTopupPromoEnabled: boolean
+  FirstTopupPromoDiscount: number
+  FirstTopupPromoAmount: number
+  FirstTopupPromoWindowDays: number
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
