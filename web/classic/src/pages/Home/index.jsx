@@ -335,11 +335,11 @@ const Home = () => {
           </div>
         </div>
       ) : (
-        <div className='classic-page-fill overflow-x-hidden w-full'>
+        <div className='classic-page-fill min-h-[calc(100vh-64px)] overflow-x-hidden w-full'>
           {homePageContent.startsWith('https://') ? (
             <iframe
               src={homePageContent}
-              className='w-full h-full border-none'
+              className='w-full h-full min-h-[calc(100vh-64px)] border-none'
             />
           ) : (
             <div
