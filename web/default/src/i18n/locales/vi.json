@@ -1397,6 +1397,7 @@
     "Embeddings": "Embeddings",
     "Empty": "Trống",
     "Empty value will be saved as {}.": "Giá trị trống sẽ được lưu thành {}.",
+    "End Session Endpoint (Optional)": "Điểm cuối kết thúc phiên (Tùy chọn)",
     "Enable": "Bật",
     "Enable 2FA": "Bật 2FA",
     "Enable All": "Bật tất cả",

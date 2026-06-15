@@ -21,6 +21,7 @@ import type {
   LoginPayload,
   LoginResponse,
   Login2FAResponse,
+  LogoutResponse,
   TwoFAPayload,
   RegisterPayload,
   ApiResponse,
@@ -54,7 +55,7 @@ export async function login2fa(payload: TwoFAPayload) {
 }
 
 // User logout
-export async function logout(): Promise<ApiResponse> {
+export async function logout(): Promise<LogoutResponse> {
   const res = await api.get('/api/user/logout')
   return res.data
 }

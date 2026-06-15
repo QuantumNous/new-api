@@ -1397,6 +1397,7 @@
     "Embeddings": "Embeddings",
     "Empty": "Vide",
     "Empty value will be saved as {}.": "Une valeur vide sera enregistrée comme {}.",
+    "End Session Endpoint (Optional)": "Point de terminaison de fin de session (Facultatif)",
     "Enable": "Activer",
     "Enable 2FA": "Activer 2FA",
     "Enable All": "Tout activer",

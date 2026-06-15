@@ -1397,6 +1397,7 @@
     "Embeddings": "Встраивания",
     "Empty": "Пусто",
     "Empty value will be saved as {}.": "Пустое значение будет сохранено как {}.",
+    "End Session Endpoint (Optional)": "Конечная точка завершения сеанса (необязательно)",
     "Enable": "Включить",
     "Enable 2FA": "Включить 2FA",
     "Enable All": "Включить все",

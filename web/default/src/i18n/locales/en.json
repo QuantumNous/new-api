@@ -1397,6 +1397,7 @@
     "Embeddings": "Embeddings",
     "Empty": "Empty",
     "Empty value will be saved as {}.": "Empty value will be saved as {}.",
+    "End Session Endpoint (Optional)": "End Session Endpoint (Optional)",
     "Enable": "Enable",
     "Enable 2FA": "Enable 2FA",
     "Enable All": "Enable All",
