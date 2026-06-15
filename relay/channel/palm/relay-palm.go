@@ -113,12 +113,12 @@ func palmHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if palmResponse.Error.Code != 0 || len(palmResponse.Candidates) == 0 {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.MarkAsUpstreamError(types.WithOpenAIError(types.OpenAIError{
 			Message: palmResponse.Error.Message,
 			Type:    palmResponse.Error.Status,
 			Param:   "",
 			Code:    palmResponse.Error.Code,
-		}, resp.StatusCode)
+		}, resp.StatusCode))
 	}
 	fullTextResponse := responsePaLM2OpenAI(&palmResponse)
 	usage := service.ResponseText2Usage(c, palmResponse.Candidates[0].Content, info.UpstreamModelName, info.GetEstimatePromptTokens())

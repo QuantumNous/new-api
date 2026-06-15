@@ -64,12 +64,12 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 
 	// Check if the response indicates an error
 	if jimengResponse.Code != 10000 {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.MarkAsUpstreamError(types.WithOpenAIError(types.OpenAIError{
 			Message: jimengResponse.Message,
 			Type:    "jimeng_error",
 			Param:   "",
 			Code:    fmt.Sprintf("%d", jimengResponse.Code),
-		}, resp.StatusCode)
+		}, resp.StatusCode))
 	}
 
 	// Convert Jimeng response to OpenAI format

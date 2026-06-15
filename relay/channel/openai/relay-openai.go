@@ -217,7 +217,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+		return nil, types.MarkAsUpstreamError(types.WithOpenAIError(*oaiError, resp.StatusCode))
 	}
 
 	for _, choice := range simpleResponse.Choices {
