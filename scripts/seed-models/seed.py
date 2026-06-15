@@ -77,6 +77,7 @@ class AdminClient:
         url = f"{self.base_url}{path}"
         headers = {
             "Authorization": f"Bearer {self.admin_token}",
+            "New-Api-User": os.environ.get("DEEPROUTER_USER_ID", "1"),
             "Content-Type": "application/json",
         }
         body = json.dumps(payload).encode("utf-8") if payload is not None else None
