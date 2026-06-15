@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/collapsible'
 import {
   Combobox,
+  ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
@@ -858,11 +859,13 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               <ComboboxContent>
                 <ComboboxEmpty>{t('No available user groups')}</ComboboxEmpty>
                 <ComboboxList>
-                  {(item: string) => (
-                    <ComboboxItem key={item} value={item}>
-                      {item}
-                    </ComboboxItem>
-                  )}
+                  <ComboboxCollection>
+                    {(item: string) => (
+                      <ComboboxItem key={item} value={item}>
+                        {item}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxCollection>
                 </ComboboxList>
               </ComboboxContent>
             </Combobox>
