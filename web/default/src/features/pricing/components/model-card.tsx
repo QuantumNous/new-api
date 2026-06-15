@@ -246,6 +246,22 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               size='sm'
             />
           )}
+          {props.model.wallet_available && (
+            <StatusBadge
+              label={t('Balance Available')}
+              variant='success'
+              copyable={false}
+              size='sm'
+            />
+          )}
+          {props.model.subscription_available && (
+            <StatusBadge
+              label={t('Subscription Available')}
+              variant='info'
+              copyable={false}
+              size='sm'
+            />
+          )}
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
 

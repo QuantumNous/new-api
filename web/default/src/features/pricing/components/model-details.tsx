@@ -306,6 +306,22 @@ function ModelHeader(props: { model: PricingModel }) {
             </span>
           </>
         )}
+        {model.wallet_available && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-500/20 dark:text-green-300'>
+              {t('Balance Available')}
+            </span>
+          </>
+        )}
+        {model.subscription_available && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
+              {t('Subscription Available')}
+            </span>
+          </>
+        )}
       </div>
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>

@@ -2562,6 +2562,55 @@ export function ChannelMutateDrawer({
 
                         <FormField
                           control={form.control}
+                          name='billing_type'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Channel Billing Type')}</FormLabel>
+                              <Select
+                                onValueChange={(v) =>
+                                  field.onChange(Number(v))
+                                }
+                                value={String(field.value ?? 0)}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue
+                                      placeholder={t('No restriction')}
+                                    >
+                                      {field.value === 1
+                                        ? t('Balance Only')
+                                        : field.value === 2
+                                          ? t('Subscription Only')
+                                          : t('No restriction')}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    <SelectItem value='0'>
+                                      {t('No restriction')}
+                                    </SelectItem>
+                                    <SelectItem value='1'>
+                                      {t('Balance Only')}
+                                    </SelectItem>
+                                    <SelectItem value='2'>
+                                      {t('Subscription Only')}
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                {t(
+                                  'Restrict which billing source can be used for this channel.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
                           name='test_model'
                           render={({ field }) => (
                             <FormItem>

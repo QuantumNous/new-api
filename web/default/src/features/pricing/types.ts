@@ -56,6 +56,10 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  /** Whether wallet/balance billing is available for this model. */
+  wallet_available?: boolean
+  /** Whether subscription billing is available for this model. */
+  subscription_available?: boolean
   /**
    * Optional model metadata fields. These are not yet returned by the backend
    * and are populated client-side from {@link inferModelMetadata}.

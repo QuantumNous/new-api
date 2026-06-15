@@ -78,6 +78,7 @@ type ChannelMeta struct {
 	UpstreamModelName    string
 	IsModelMapped        bool
 	SupportStreamOptions bool // 是否支持流式选项
+	ChannelBillingType   int
 }
 
 type TokenCountMeta struct {
@@ -89,6 +90,7 @@ type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
 	TokenGroup        string
+	TokenBillingType  int
 	UserId            int
 	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
 	UserGroup         string // 用户所在分组
@@ -231,6 +233,9 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	if streamSupportedChannels[channelMeta.ChannelType] {
 		channelMeta.SupportStreamOptions = true
 	}
+
+	channelBillingType, _ := common.GetContextKeyType[int](c, constant.ContextKeyChannelBillingType)
+	channelMeta.ChannelBillingType = channelBillingType
 
 	info.ChannelMeta = channelMeta
 
@@ -475,6 +480,10 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
 		TokenUnlimited: common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
+		TokenBillingType: func() int {
+			v, _ := common.GetContextKeyType[int](c, constant.ContextKeyTokenBillingType)
+			return v
+		}(),
 		TokenGroup:     tokenGroup,
 
 		isFirstResponse: true,

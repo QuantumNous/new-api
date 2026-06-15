@@ -25,13 +25,14 @@ type Ability struct {
 
 type AbilityWithChannel struct {
 	Ability
-	ChannelType int `json:"channel_type"`
+	ChannelType        int `json:"channel_type"`
+	ChannelBillingType int `json:"channel_billing_type"`
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
-		Select("abilities.*, channels.type as channel_type").
+		Select("abilities.*, channels.type as channel_type, COALESCE(channels.billing_type, 0) as channel_billing_type").
 		Joins("left join channels on abilities.channel_id = channels.id").
 		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error
@@ -88,7 +89,7 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
-func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
+func getChannelQuery(group string, model string, retry int, tokenBillingType int) (*gorm.DB, error) {
 	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
 	if retry != 0 {
@@ -100,24 +101,53 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 		}
 	}
 
+	if tokenBillingType != ChannelBillingTypeAll {
+		allowedTypes := []int{ChannelBillingTypeAll, tokenBillingType}
+		channelQuery = channelQuery.Where(
+			"channel_id IN (?)",
+			DB.Table("channels").Select("id").Where("COALESCE(billing_type, 0) IN ?", allowedTypes),
+		)
+	}
+
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, tokenBillingType int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	channelQuery, err := getChannelQuery(group, model, retry, tokenBillingType)
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+
+	// For subscription-preferred tokens, prefer subscription-capable channels.
+	// Only fall back to balance-only channels if no subscription channels exist.
+	if tokenBillingType == ChannelBillingTypeAll {
+		subQuery := channelQuery.Where(
+			"channel_id IN (?)",
+			DB.Table("channels").Select("id").Where("COALESCE(billing_type, 0) != ?", ChannelBillingTypeWalletOnly),
+		)
+		err = subQuery.Order("weight DESC").Find(&abilities).Error
+		if err != nil {
+			return nil, err
+		}
+		if len(abilities) == 0 {
+			// Rebuild the base query independently to avoid any GORM session state leakage.
+			fallbackQuery, qErr := getChannelQuery(group, model, retry, ChannelBillingTypeAll)
+			if qErr != nil {
+				return nil, qErr
+			}
+			err = fallbackQuery.Order("weight DESC").Find(&abilities).Error
+			if err != nil {
+				return nil, err
+			}
+		}
 	} else {
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	}
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 	channel := Channel{}
 	if len(abilities) > 0 {

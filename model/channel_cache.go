@@ -94,10 +94,23 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+// isBillingTypeCompatible reports whether a channel is accessible given the token's billing type.
+// Channel type 0 (all/无限制) accepts any token. Token type 0 (default) accepts any channel.
+// Otherwise channel and token billing types must match.
+func isBillingTypeCompatible(channelBillingType, tokenBillingType int) bool {
+	if tokenBillingType == ChannelBillingTypeAll {
+		return true
+	}
+	if channelBillingType == ChannelBillingTypeAll {
+		return true
+	}
+	return channelBillingType == tokenBillingType
+}
+
+func GetRandomSatisfiedChannel(group string, model string, retry int, tokenBillingType int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannel(group, model, retry, tokenBillingType)
 	}
 
 	channelSyncLock.RLock()
@@ -118,6 +131,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
+			if !isBillingTypeCompatible(channel.BillingType, tokenBillingType) {
+				return nil, nil
+			}
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
@@ -142,12 +158,15 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
+	// get the priority for the given retry number, filtered by billing type compatibility
 	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
+				if !isBillingTypeCompatible(channel.BillingType, tokenBillingType) {
+					continue
+				}
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
@@ -158,6 +177,23 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+
+	// For subscription-preferred tokens, prefer subscription-capable channels.
+	// Only fall back to balance-only channels if no subscription channels exist at this priority.
+	if tokenBillingType == ChannelBillingTypeAll {
+		var subChannels []*Channel
+		var subWeight int
+		for _, ch := range targetChannels {
+			if ch.BillingType != ChannelBillingTypeWalletOnly {
+				subChannels = append(subChannels, ch)
+				subWeight += ch.GetWeight()
+			}
+		}
+		if len(subChannels) > 0 {
+			targetChannels = subChannels
+			sumWeight = subWeight
+		}
 	}
 
 	// smoothing factor and adjustment

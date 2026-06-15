@@ -36,6 +36,10 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// WalletAvailable indicates that at least one channel serving this model allows wallet/balance billing.
+	WalletAvailable bool `json:"wallet_available"`
+	// SubscriptionAvailable indicates that at least one channel serving this model allows subscription billing.
+	SubscriptionAvailable bool `json:"subscription_available"`
 }
 
 type PricingVendor struct {
@@ -190,6 +194,13 @@ func updatePricing() {
 
 	modelGroupsMap := make(map[string]*types.Set[string])
 
+	// modelBillingAvail tracks which billing sources are available per model.
+	type billingAvailability struct {
+		walletAvailable       bool
+		subscriptionAvailable bool
+	}
+	modelBillingAvail := make(map[string]*billingAvailability)
+
 	for _, ability := range enableAbilities {
 		groups, ok := modelGroupsMap[ability.Model]
 		if !ok {
@@ -197,6 +208,21 @@ func updatePricing() {
 			modelGroupsMap[ability.Model] = groups
 		}
 		groups.Add(ability.Group)
+
+		// aggregate billing type availability per model
+		if _, ok := modelBillingAvail[ability.Model]; !ok {
+			modelBillingAvail[ability.Model] = &billingAvailability{}
+		}
+		avail := modelBillingAvail[ability.Model]
+		switch ability.ChannelBillingType {
+		case ChannelBillingTypeWalletOnly:
+			avail.walletAvailable = true
+		case ChannelBillingTypeSubscriptionOnly:
+			avail.subscriptionAvailable = true
+		default: // ChannelBillingTypeAll (0)
+			avail.walletAvailable = true
+			avail.subscriptionAvailable = true
+		}
 	}
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
@@ -337,6 +363,16 @@ func updatePricing() {
 				pricing.BillingExpr = expr
 			}
 		}
+
+		// set billing source availability based on channel billing types
+		if avail, ok := modelBillingAvail[model]; ok {
+			pricing.WalletAvailable = avail.walletAvailable
+			pricing.SubscriptionAvailable = avail.subscriptionAvailable
+		} else {
+			pricing.WalletAvailable = true
+			pricing.SubscriptionAvailable = true
+		}
+
 		pricingMap = append(pricingMap, pricing)
 	}
 
