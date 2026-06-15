@@ -103,6 +103,7 @@ export function getChannelTypeIcon(type: number): string {
     56: 'Replicate', // Replicate
     58: 'OpenAI', // ApiWenhao (async video)
     59: 'OpenAI', // ApiMart (async video)
+    60: 'OpenAI', // Agnes (text/image/video)
 
     // Tools & Platforms
     37: 'Dify', // Dify

@@ -158,6 +158,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'Async video: POST /v1/videos/generations, poll GET /v1/tasks/{id}',
     },
   },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'openai',
+    defaultBaseUrl: 'https://apihub.agnes-ai.com',
+    hints: {
+      key: 'Bearer token (Agnes API Key)',
+      models: 'agnes-2.0-flash,agnes-image-2.1-flash,agnes-video-v2.0',
+      baseUrl: 'Default: https://apihub.agnes-ai.com',
+      other: 'Text: /v1/chat/completions; Image: /v1/images/generations; Video: POST /v1/videos + GET /v1/videos/{task_id}',
+    },
+  },
 }
 
 /**

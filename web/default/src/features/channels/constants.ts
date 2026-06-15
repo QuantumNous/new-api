@@ -78,12 +78,13 @@ export const CHANNEL_TYPES = {
   57: 'Codex',
   58: 'ApiWenhao',
   59: 'ApiMart',
+  60: 'Agnes',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 3, 41, 48, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15, 46, 23,
   18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44, 2, 5, 36, 50,
-  51, 52, 53, 54, 55, 56, 58, 59,
+  51, 52, 53, 54, 55, 56, 58, 59, 60,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -396,6 +397,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
   58: 'Format: sk-... (Bearer token for ApiWenhao)',
   59: 'Format: sk-... (Bearer token for ApiMart)',
+  60: 'Format: Bearer token (Agnes API Key from platform.agnes-ai.com)',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

@@ -57,6 +57,7 @@ const (
 	ChannelTypeCodex          = 57
 	ChannelTypeApiWenhao      = 58
 	ChannelTypeApimart        = 59
+	ChannelTypeAgnes          = 60
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -122,6 +123,7 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"https://saast.fuwenhao.com",                //58 ApiWenhao
 	"https://api.apimart.ai",                    //59 ApiMart
+	"https://apihub.agnes-ai.com",               //60 Agnes
 }
 
 var ChannelTypeNames = map[int]string{
@@ -181,6 +183,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:          "Codex",
 	ChannelTypeApiWenhao:      "ApiWenhao",
 	ChannelTypeApimart:        "ApiMart",
+	ChannelTypeAgnes:          "Agnes",
 }
 
 func GetChannelTypeName(channelType int) string {
