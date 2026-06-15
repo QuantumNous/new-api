@@ -30,11 +30,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	neturl "net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+)
+
+const (
+	maxDrainBytes      = 4096
+	maxRetryAfterDelay = 5 * time.Second
 )
 
 // Event is the JSON payload POSTed to a tenant's BillingWebhookURL after each
@@ -174,6 +182,51 @@ func NewDispatcher() *Dispatcher {
 	}
 }
 
+func retryDelay(resp *http.Response, attempt int) time.Duration {
+	if resp != nil && resp.StatusCode == http.StatusTooManyRequests {
+		if delay, ok := parseRetryAfter(resp.Header.Get("Retry-After")); ok {
+			return delay
+		}
+	}
+
+	base := time.Duration(200*(1<<attempt)) * time.Millisecond
+	if base <= 0 {
+		return 0
+	}
+	return time.Duration(rand.Int63n(int64(base)))
+}
+
+func parseRetryAfter(value string) (time.Duration, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds < 0 {
+			return 0, false
+		}
+		delay := time.Duration(seconds) * time.Second
+		if delay > maxRetryAfterDelay {
+			delay = maxRetryAfterDelay
+		}
+		return delay, true
+	}
+
+	when, err := http.ParseTime(value)
+	if err != nil {
+		return 0, false
+	}
+	delay := time.Until(when)
+	if delay < 0 {
+		delay = 0
+	}
+	if delay > maxRetryAfterDelay {
+		delay = maxRetryAfterDelay
+	}
+	return delay, true
+}
+
 // Send serialises ev to JSON, signs the payload with HMAC-SHA256, and POSTs
 // it to url. It retries on transient failures (network errors, 5xx, 408, 429)
 // using exponential backoff (200 ms → 400 ms → 800 ms). Permanent client
@@ -226,8 +279,9 @@ func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 			lastStatus = 0
 		} else {
 			lastStatus = resp.StatusCode
-			// Drain and close to allow connection reuse (net/http requirement).
-			_, _ = io.Copy(io.Discard, resp.Body)
+			// Drain a bounded amount before close to allow ordinary connection
+			// reuse without letting a misbehaving receiver stream forever.
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDrainBytes))
 			_ = resp.Body.Close()
 
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
@@ -245,9 +299,10 @@ func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 			}
 		}
 
-		// Exponential backoff before the next attempt. Skip on the last one.
+		// Full-jitter exponential backoff before the next attempt. Skip on the
+		// last one. 429 may override the jitter with Retry-After.
 		if attempt < d.MaxRetries {
-			time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
+			time.Sleep(retryDelay(resp, attempt))
 		}
 	}
 

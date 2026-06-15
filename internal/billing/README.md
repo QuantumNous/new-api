@@ -20,6 +20,9 @@ and recording the ledger. This package only:
    failures.
 5. Gives up permanently on 4xx (except 408/429, which are treated as transient).
 
+Retry timing uses full jitter to avoid synchronized retries. For 429 responses,
+the dispatcher honors `Retry-After` when present, capped at 5 s.
+
 Orchestration (reading gin.Context, constructing Event fields from relay metadata) is
 the responsibility of `service/airbotix_billing.go` (ADR-0006, 4th sanctioned file).
 This package stays free of upstream types.
@@ -93,6 +96,25 @@ gopool.Go(func() {
 
 `User.WebhookSecret` is a `varchar(128)` plaintext column on the users table
 (`model/user.go`). See `docs/adr/0004-channel-key-plaintext.md` for the trade-off.
+
+## Airbotix/JR receiver contract
+
+Consumer services such as Airbotix `platform-backend` or a JR billing service
+must validate the webhook before touching their ledger:
+
+1. Read the raw request body bytes.
+2. Compute `HMAC-SHA256(webhook_secret, raw_body)` and hex-encode it.
+3. Compare it with `X-DeepRouter-Signature` using a constant-time comparison.
+4. Parse the JSON only after the signature is valid.
+5. Treat `request_id` as the idempotency key. DeepRouter can retry a delivery
+   after a transient network/5xx/408/429 failure; the receiver should acknowledge
+   a duplicate `request_id` but must not charge or write a second ledger entry.
+
+`receiver_fixture_test.go` demonstrates this end to end with an Airbotix/JR-style
+`httptest` receiver: the first signed request creates one ledger write, replaying
+the same `request_id` is accepted as a duplicate, concurrent deliveries of the
+same `request_id` still write once, and a request signed with the wrong
+`webhook_secret` is rejected with 401 before any ledger write.
 
 ## Billing rules
 

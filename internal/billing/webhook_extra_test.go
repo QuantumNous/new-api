@@ -144,6 +144,43 @@ func TestDispatcher_Send_Treats429AsTransient(t *testing.T) {
 	}
 }
 
+func TestParseRetryAfter_DeltaSeconds(t *testing.T) {
+	delay, ok := parseRetryAfter("2")
+	if !ok {
+		t.Fatal("expected Retry-After delta seconds to parse")
+	}
+	if delay != 2*time.Second {
+		t.Fatalf("delay: got %v, want %v", delay, 2*time.Second)
+	}
+}
+
+func TestParseRetryAfter_HTTPDate(t *testing.T) {
+	header := time.Now().Add(2 * time.Second).UTC().Format(http.TimeFormat)
+	delay, ok := parseRetryAfter(header)
+	if !ok {
+		t.Fatal("expected Retry-After HTTP date to parse")
+	}
+	if delay <= 0 || delay > 2*time.Second {
+		t.Fatalf("delay should be near 2s, got %v", delay)
+	}
+}
+
+func TestParseRetryAfter_CapsLargeDelay(t *testing.T) {
+	delay, ok := parseRetryAfter("3600")
+	if !ok {
+		t.Fatal("expected large Retry-After delta seconds to parse")
+	}
+	if delay != maxRetryAfterDelay {
+		t.Fatalf("delay: got %v, want cap %v", delay, maxRetryAfterDelay)
+	}
+}
+
+func TestParseRetryAfter_Invalid(t *testing.T) {
+	if delay, ok := parseRetryAfter("not-a-date"); ok {
+		t.Fatalf("invalid Retry-After should not parse, got %v", delay)
+	}
+}
+
 // TestDispatcher_Send_3xxIsRetried confirms that a 3xx response is treated as
 // a transient failure (not a 2xx success and not a permanent 4xx). The Go
 // http.Client does NOT follow redirects for POST by default, so the raw 3xx
