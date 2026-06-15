@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { flexRender, type Cell, type Row } from '@tanstack/react-table'
+import {
+  flexRender,
+  type Cell,
+  type Row,
+  type Table as TanstackTable,
+} from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { TruncatedCell } from './truncated-cell'
@@ -27,14 +32,18 @@ type DataTableRowProps<TData> = {
   row: Row<TData>
   className?: string
   getColumnClassName?: DataTableColumnClassName
+  cellRenderColumns?: TanstackTable<TData>['options']['columns']
 } & Omit<React.ComponentProps<typeof TableRow>, 'children'>
 
 function DataTableRowInner<TData>({
   row,
   className,
   getColumnClassName,
+  cellRenderColumns,
   ...rowProps
 }: DataTableRowProps<TData>) {
+  void cellRenderColumns
+
   return (
     <TableRow
       data-state={row.getIsSelected() ? 'selected' : undefined}
@@ -60,10 +69,13 @@ export const DataTableRow = React.memo(DataTableRowInner, (prev, next) => {
   // Skip re-render when only the getColumnClassName reference changed but the
   // row identity and selection state are the same — callers rarely stabilize
   // this callback, so excluding it from comparison avoids unnecessary renders.
+  // Column cell renderers can close over external state while the row stays
+  // stable, so column definitions are part of the render identity.
   return (
     prev.row === next.row &&
     prev.className === next.className &&
-    prev.row.getIsSelected() === next.row.getIsSelected()
+    prev.row.getIsSelected() === next.row.getIsSelected() &&
+    prev.cellRenderColumns === next.cellRenderColumns
   )
 }) as typeof DataTableRowInner
 
