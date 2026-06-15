@@ -143,6 +143,7 @@ export interface ChannelTestResponse {
   success: boolean
   message?: string
   error_code?: string
+  time?: number
   data?: {
     response_time?: number
     error?: string
