@@ -135,8 +135,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "One API gateway for production AI teams",
       description:
         "flatkey.ai unifies model access, routing, billing, usage analytics, and operational controls for teams shipping AI products.",
-      primary: "View pricing",
-      secondary: "Read the blog",
+      primary: "Get a key",
+      secondary: "View Pricing",
       hero: {
         badge: "Multi-model compatible, enterprise-ready",
         titleLine1: "Every model.",
@@ -291,8 +291,8 @@ const copies: Record<Locale, BaseCopy> = {
     home: {
       title: "面向生产团队的一站式 AI API 网关",
       description: "flatkey.ai 统一模型接入、路由、计费、用量分析和运营控制，帮助团队稳定交付 AI 产品。",
-      primary: "查看价格",
-      secondary: "阅读博客",
+      primary: "获取密钥",
+      secondary: "查看定价",
       hero: {
         badge: "兼容多模型，面向企业级场景",
         titleLine1: "所有模型。",
@@ -446,8 +446,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "Una puerta de enlace API para equipos de IA en producción",
       description:
         "flatkey.ai unifica acceso a modelos, enrutamiento, facturación, analítica de uso y controles operativos.",
-      primary: "Ver precios",
-      secondary: "Leer el blog",
+      primary: "Obtener una clave",
+      secondary: "Ver precios",
       hero: {
         badge: "Compatible con múltiples modelos y listo para empresas",
         titleLine1: "Todos los modelos.",
@@ -572,8 +572,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "Une passerelle API pour les équipes IA en production",
       description:
         "flatkey.ai unifie l'accès aux modèles, le routage, la facturation, l'analyse d'usage et les contrôles opérationnels.",
-      primary: "Voir les tarifs",
-      secondary: "Lire le blog",
+      primary: "Obtenir une clé",
+      secondary: "Voir les tarifs",
       hero: {
         badge: "Compatible multi-modèles, prêt pour l'entreprise",
         titleLine1: "Tous les modèles.",
@@ -698,8 +698,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "Um gateway de API para equipes de IA em produção",
       description:
         "flatkey.ai unifica acesso a modelos, roteamento, cobrança, análise de uso e controles operacionais.",
-      primary: "Ver preços",
-      secondary: "Ler o blog",
+      primary: "Obter uma chave",
+      secondary: "Ver preços",
       hero: {
         badge: "Compatível com múltiplos modelos e pronto para empresas",
         titleLine1: "Todos os modelos.",
@@ -824,8 +824,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "Единый API-шлюз для AI-команд в продакшене",
       description:
         "flatkey.ai объединяет доступ к моделям, маршрутизацию, биллинг, аналитику использования и операционный контроль.",
-      primary: "Смотреть цены",
-      secondary: "Читать блог",
+      primary: "Получить ключ",
+      secondary: "Смотреть цены",
       hero: {
         badge: "Совместимость с разными моделями, готово для бизнеса",
         titleLine1: "Все модели.",
@@ -950,8 +950,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "本番 AI チームのための API ゲートウェイ",
       description:
         "flatkey.ai はモデル接続、ルーティング、課金、利用分析、運用管理を一つにまとめます。",
-      primary: "料金を見る",
-      secondary: "ブログを読む",
+      primary: "キーを取得",
+      secondary: "料金を見る",
       hero: {
         badge: "マルチモデル対応、エンタープライズ向け",
         titleLine1: "すべてのモデル。",
@@ -1076,8 +1076,8 @@ const copies: Record<Locale, BaseCopy> = {
       title: "Một cổng API cho đội ngũ AI vận hành sản phẩm",
       description:
         "flatkey.ai hợp nhất truy cập mô hình, định tuyến, tính phí, phân tích sử dụng và kiểm soát vận hành.",
-      primary: "Xem giá",
-      secondary: "Đọc blog",
+      primary: "Lấy khóa",
+      secondary: "Xem giá",
       hero: {
         badge: "Tương thích nhiều mô hình, sẵn sàng cho doanh nghiệp",
         titleLine1: "Mọi mô hình.",

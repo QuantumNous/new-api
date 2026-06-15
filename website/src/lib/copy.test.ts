@@ -22,6 +22,20 @@ describe("homepage copy", () => {
       }
     }
   });
+
+  test("uses key signup and pricing calls to action", () => {
+    expect(getCopy("en").home.primary).toBe("Get a key");
+    expect(getCopy("en").home.secondary).toBe("View Pricing");
+
+    for (const locale of LOCALES) {
+      const home = getCopy(locale).home;
+
+      expect(home.primary).toBeTruthy();
+      expect(home.secondary).toBeTruthy();
+      expect(home.primary).not.toBe(home.secondary);
+      expect(home.secondary.toLowerCase()).not.toContain("blog");
+    }
+  });
 });
 
 describe("blog copy", () => {

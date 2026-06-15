@@ -8,7 +8,7 @@ import { localizePath } from "@/lib/locales";
 import { APP_CONSOLE_ORIGIN, consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_UP_URL = consoleUrl("/sign-up");
+const SIGN_IN_URL = consoleUrl("/sign-in");
 const API_BASE_URL = `${APP_CONSOLE_ORIGIN}/v1`;
 
 type Props = {
@@ -154,7 +154,7 @@ export function HomePage(props: Props) {
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
                 <a
                   className="flatkey-hero-cta group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
-                  href={SIGN_UP_URL}
+                  href={SIGN_IN_URL}
                   style={{ borderRadius: "0.5rem" }}
                 >
                   {copy.home.primary}
@@ -336,14 +336,14 @@ export function HomePage(props: Props) {
             <div className="mt-8 flex items-center justify-center gap-3">
               <a
                 className="flatkey-hero-cta group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
-                href={SIGN_UP_URL}
+                href={SIGN_IN_URL}
                 style={{ borderRadius: "0.5rem" }}
               >
                 {copy.home.primary}
                 <ArrowRight className="ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
               </a>
               <Link className="inline-flex h-10 items-center rounded-lg border border-violet-500/20 bg-white/65 px-4 text-sm font-medium hover:border-violet-500/35 hover:bg-violet-500/10" href={localizePath("/pricing", props.locale)}>
-                {copy.home.primary}
+                {copy.home.secondary}
               </Link>
             </div>
           </div>
