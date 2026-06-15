@@ -33,6 +33,119 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export interface FlowQuotaDataItem {
+  user_id?: number
+  username?: string
+  user_group?: string
+  token_id?: number
+  token_name?: string
+  channel_id?: number
+  channel_name?: string
+  model_name?: string
+  token_used?: number
+  count?: number
+  quota?: number
+  input_tokens?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  cache_tokens?: number
+  cache_write_tokens?: number
+}
+
+export type FlowMetric = 'quota' | 'tokens' | 'requests'
+
+export type FlowPathMode = 'model' | 'channel' | 'model-channel'
+
+export type FlowNodeKind = 'user' | 'token' | 'model' | 'channel'
+
+export interface FlowBuildOptions {
+  pathMode?: FlowPathMode
+  includeTokenLayer?: boolean
+  selectedUsers?: string[]
+  selectedTokensByUser?: Record<string, string[]>
+  colorPalette?: readonly string[]
+}
+
+export interface DashboardFlowNode {
+  id: string
+  label: string
+  kind: FlowNodeKind
+  value: number
+  requests: number
+  quota: number
+  tokens: number
+  inputTokens: number
+  promptTokens: number
+  completionTokens: number
+  cacheTokens: number
+  cacheWriteTokens: number
+  color: string
+  colorKey: string
+}
+
+export interface DashboardFlowLink {
+  source: string
+  target: string
+  value: number
+  requests: number
+  quota: number
+  tokens: number
+  inputTokens: number
+  promptTokens: number
+  completionTokens: number
+  cacheTokens: number
+  cacheWriteTokens: number
+  sourceLabel: string
+  targetLabel: string
+  color: string
+  linkColor: string
+  linkAlpha: number
+  hoverColor: string
+  colorKey: string
+  share: number
+}
+
+export interface DashboardFlowGraph {
+  nodes: DashboardFlowNode[]
+  links: DashboardFlowLink[]
+}
+
+export interface FlowTokenFilterOption {
+  value: string
+  label: string
+  valueLabel: string
+  valueRaw: number
+}
+
+export interface FlowUserFilterOption {
+  value: string
+  label: string
+  valueLabel: string
+  valueRaw: number
+  color: string
+  tokens: FlowTokenFilterOption[]
+}
+
+export interface FlowFilterOptions {
+  users: FlowUserFilterOption[]
+}
+
+export interface FlowSummary {
+  quota: number
+  tokens: number
+  inputTokens: number
+  completionTokens: number
+  cacheTokens: number
+  cacheWriteTokens: number
+  requests: number
+}
+
+export interface ProcessedFlowData {
+  summary: FlowSummary
+  flow: DashboardFlowGraph
+  filterOptions: FlowFilterOptions
+}
+
 // ============================================================================
 // Uptime Monitoring Types
 // ============================================================================

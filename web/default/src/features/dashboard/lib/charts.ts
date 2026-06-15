@@ -60,7 +60,10 @@ function getThemeChartColors(themeKey?: string): string[] {
   }).filter(Boolean)
 }
 
-function getVChartDefaultColors(domainLength: number, themeKey?: string) {
+export function getDashboardChartColors(
+  domainLength: number,
+  themeKey?: string
+): string[] {
   const themeColors = getThemeChartColors(themeKey)
   if (themeColors.length > 0) {
     return Array.from(
@@ -74,7 +77,9 @@ function getVChartDefaultColors(domainLength: number, themeKey?: string) {
       (item) => !item.maxDomainLength || domainLength <= item.maxDomainLength
     ) ?? vchartDefaultDataScheme[vchartDefaultDataScheme.length - 1]
 
-  return scheme.scheme
+  return scheme.scheme.filter(
+    (color): color is string => typeof color === 'string'
+  )
 }
 
 function renderQuotaCompat(rawQuota: number, digits = 4): string {
@@ -290,7 +295,7 @@ export function processChartData(
   const sortedTimes = Array.from(timeModelMap.keys()).sort()
   const sortedModels = [...allModels].sort()
   const modelColorDomain = Array.from(new Set([...sortedModels, otherLabel]))
-  const modelColorRange = getVChartDefaultColors(
+  const modelColorRange = getDashboardChartColors(
     modelColorDomain.length,
     themeKey
   )

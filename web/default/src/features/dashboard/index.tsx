@@ -77,6 +77,12 @@ const LazyUserCharts = lazy(() =>
   }))
 )
 
+const LazyFlowCharts = lazy(() =>
+  import('./components/flow/flow-charts').then((m) => ({
+    default: m.FlowCharts,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -136,6 +142,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   },
   models: {
     titleKey: 'Model Call Analytics',
+  },
+  flow: {
+    titleKey: 'Flow',
   },
   users: {
     titleKey: 'User Analytics',
@@ -217,6 +226,17 @@ export function Dashboard() {
         />
       </>
     ) : null
+  const flowActions =
+    activeSection === 'flow' ? (
+      <ModelsFilter
+        preferences={chartPreferences}
+        onFilterChange={handleFilterChange}
+        onReset={handleResetFilters}
+        titleKey='Flow Filters'
+        descriptionKey='Filter the traffic flow view by time range and user.'
+      />
+    ) : null
+  const sectionActions = modelActions ?? flowActions
 
   return (
     <SectionPageLayout>
@@ -238,9 +258,9 @@ export function Dashboard() {
               ) : (
                 <div />
               )}
-              {modelActions != null && (
+              {sectionActions != null && (
                 <div className='flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
-                  {modelActions}
+                  {sectionActions}
                 </div>
               )}
             </div>
@@ -295,6 +315,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'flow' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyFlowCharts filters={modelFilters} />
               </Suspense>
             </FadeIn>
           )}
