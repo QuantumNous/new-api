@@ -29,7 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { TruncatedCell } from '@/components/data-table'
+import { BadgeCell, TruncatedCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
@@ -199,9 +199,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           return (
             <Tooltip>
               <TooltipTrigger
-                render={
-                  <span className='inline-flex items-center gap-1.5 text-xs' />
-                }
+                render={<BadgeCell className='gap-1.5 text-xs' />}
               >
                 <GroupBadge group='auto' />
                 {apiKey.cross_group_retry && (

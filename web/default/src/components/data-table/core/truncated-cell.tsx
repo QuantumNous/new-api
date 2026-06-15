@@ -47,7 +47,7 @@ export function TruncatedCell({
 
   if (!content) {
     return (
-      <span
+      <div
         className={cn(
           'block max-w-full min-w-0 truncate',
           cellClassName,
@@ -55,7 +55,7 @@ export function TruncatedCell({
         )}
       >
         {children}
-      </span>
+      </div>
     )
   }
 
@@ -63,7 +63,7 @@ export function TruncatedCell({
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
+          <div
             className={cn(
               'block max-w-full min-w-0 truncate',
               cellClassName,
@@ -72,7 +72,7 @@ export function TruncatedCell({
           />
         }
       >
-        <span className={cn('truncate', contentClassName)}>{children}</span>
+        <div className={cn('truncate', contentClassName)}>{children}</div>
       </TooltipTrigger>
       <TooltipContent
         side={side}

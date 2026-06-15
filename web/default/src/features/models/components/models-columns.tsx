@@ -27,7 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeListCell } from '@/components/data-table'
+import { BadgeCell, BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
 import { StatusBadge } from '@/components/status-badge'
@@ -187,7 +187,9 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           return (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger render={<div className='-ml-1.5' />}>{badge}</TooltipTrigger>
+                <TooltipTrigger render={<div className='-ml-1.5' />}>
+                  {badge}
+                </TooltipTrigger>
                 <TooltipContent
                   side='top'
                   className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
@@ -248,7 +250,11 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
-        return <ProviderBadge iconKey={vendor.icon} label={vendor.name} />
+        return (
+          <BadgeCell>
+            <ProviderBadge iconKey={vendor.icon} label={vendor.name} />
+          </BadgeCell>
+        )
       },
       filterFn: (row, id, value) => {
         if (!value || value.length === 0 || value.includes('all')) return true

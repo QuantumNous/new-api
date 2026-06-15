@@ -32,6 +32,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { BadgeCell } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { type ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
@@ -170,9 +171,7 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={<span className='-ml-1.5 inline-flex max-w-full' />}
-      >
+      <TooltipTrigger render={<BadgeCell />}>
         <StatusBadge
           label={t('{{count}} model(s)', { count: models.length })}
           variant='neutral'
@@ -214,9 +213,7 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={<span className='-ml-1.5 inline-flex max-w-full' />}
-      >
+      <TooltipTrigger render={<BadgeCell />}>
         <StatusBadge
           label={t('{{count}} IP(s)', { count: ips.length })}
           variant='neutral'
