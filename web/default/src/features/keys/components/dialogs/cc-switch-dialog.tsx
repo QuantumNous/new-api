@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { getPublicApiBaseUrl, getPublicServerAddress } from '../../lib'
 
 const APP_CONFIGS = {
   claude: {
@@ -58,27 +59,15 @@ const APP_CONFIGS = {
 
 type AppType = keyof typeof APP_CONFIGS
 
-function getServerAddress(): string {
-  try {
-    const raw = localStorage.getItem('status')
-    if (raw) {
-      const status = JSON.parse(raw)
-      if (status.server_address) return status.server_address
-    }
-  } catch {
-    /* empty */
-  }
-  return window.location.origin
-}
-
 function buildCCSwitchURL(
   app: string,
   name: string,
   models: Record<string, string>,
   apiKey: string
 ): string {
-  const serverAddress = getServerAddress()
-  const endpoint = app === 'codex' ? serverAddress + '/v1' : serverAddress
+  const serverAddress = getPublicServerAddress()
+  const endpoint =
+    app === 'codex' ? getPublicApiBaseUrl(serverAddress) : serverAddress
   const params = new URLSearchParams()
   params.set('resource', 'provider')
   params.set('app', app)
