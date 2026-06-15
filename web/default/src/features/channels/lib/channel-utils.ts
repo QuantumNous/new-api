@@ -335,11 +335,11 @@ type TFunction = (key: string, options?: { value?: number | string }) => string
  */
 export function formatResponseTime(timeMs: number, t?: TFunction): string {
   if (timeMs === 0) return t ? t('Not tested') : 'Not tested'
-  if (timeMs < 1000)
-    return t ? t('{{value}}ms', { value: timeMs }) : `${timeMs}ms`
+  const ms = Math.round(timeMs)
+  if (ms < 1000) return t ? t('{{value}}ms', { value: ms }) : `${ms}ms`
   return t
-    ? t('{{value}}s', { value: (timeMs / 1000).toFixed(2) })
-    : `${(timeMs / 1000).toFixed(2)}s`
+    ? t('{{value}}s', { value: (ms / 1000).toFixed(2) })
+    : `${(ms / 1000).toFixed(2)}s`
 }
 
 /**
