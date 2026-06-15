@@ -131,10 +131,12 @@ func Compare(channelIDs []int, supplierRows []SupplierBillRow, parseErrs []Parse
 		return keyList[i].model < keyList[j].model
 	})
 
+	// This full per-bucket trace feeds the drift analysis only; the detail
+	// rows the UI shows come from alignAndExtractDiffs (v3.1). Single-side
+	// counts for the summary are likewise taken from the aligned result.
 	rows := make([]dto.ReconcileDiffRow, 0, len(keyList))
 	var cumulativeDelta float64
 	var maxAbsCumDelta float64
-	var supplierOnlyCount, localOnlyCount int
 
 	for _, k := range keyList {
 		sup := supAgg[k]
@@ -143,10 +145,8 @@ func Compare(channelIDs []int, supplierRows []SupplierBillRow, parseErrs []Parse
 		status := "matched"
 		if sup != nil && loc == nil {
 			status = "supplier_only"
-			supplierOnlyCount++
 		} else if sup == nil && loc != nil {
 			status = "local_only"
-			localOnlyCount++
 		}
 
 		// delta = supplier - local
@@ -207,8 +207,17 @@ func Compare(channelIDs []int, supplierRows []SupplierBillRow, parseErrs []Parse
 	// --- by-model aggregation ---
 	byModel := aggregateByModel(supAgg, locAgg)
 
-	// --- drift analysis ---
+	// --- drift analysis (over the FULL per-bucket trace, unchanged) ---
 	drift := analyseDrift(rows, supTotal.AmountCNY, maxAbsCumDelta, cumulativeDelta)
+
+	// --- v3.1: align drift away & keep only genuine difference rows ---
+	// This does not touch supAgg/locAgg/byModel/summary totals — those stay
+	// authoritative. It only replaces what the detail table shows.
+	align := alignAndExtractDiffs(supAgg, locAgg, supRegions, granularity)
+	for i := range byModel {
+		byModel[i].DiffKind = align.modelDiffKind[byModel[i].Model]
+	}
+	diffBreakdown := buildDiffBreakdown(byModel, align.modelDiffKind)
 
 	// --- build final result ---
 	convertedErrs := make([]dto.ReconcileParseError, len(parseErrs))
@@ -222,17 +231,18 @@ func Compare(channelIDs []int, supplierRows []SupplierBillRow, parseErrs []Parse
 			To:               to,
 			ChannelIDs:       channelIDs,
 			ModelsCount:      len(distinctModels),
-			RowsCount:        len(rows),
-			SupplierOnlyRows: supplierOnlyCount,
-			LocalOnlyRows:    localOnlyCount,
+			RowsCount:        len(align.rows),
+			SupplierOnlyRows: align.supplierOnly,
+			LocalOnlyRows:    align.localOnly,
 			ParseErrorsCount: len(parseErrs),
 			SupplierTotal:    roundTotals(supTotal),
 			LocalTotal:       roundTotals(locTotal),
 			Delta:            totalDelta,
 			DeltaAmountPct:   deltaPct,
+			DiffBreakdown:    diffBreakdown,
 		},
 		DriftAnalysis: drift,
-		Rows:          rows,
+		Rows:          align.rows,
 		ByModel:       byModel,
 		ParseErrors:   convertedErrs,
 	}
