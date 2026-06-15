@@ -536,6 +536,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
         n: Number(inputs.imageCount) || 1,
         size: inputs.imageSize || '1024x1024',
         quality: inputs.imageQuality || 'auto',
+        output_format: inputs.outputFormat || 'png',
         response_format: 'b64_json',
       };
 
@@ -544,6 +545,57 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       }
 
       return payload;
+    },
+    [inputs],
+  );
+
+  const buildImageEditFormData = useCallback(
+    async (prompt) => {
+      const images = (inputs.imageUrls || []).filter(
+        (url) => url.trim() !== '',
+      );
+      const formData = new FormData();
+
+      formData.append('model', inputs.imageModel);
+      formData.append('prompt', prompt);
+      formData.append('n', String(Number(inputs.imageCount) || 1));
+      formData.append('size', inputs.imageSize || '1024x1024');
+      formData.append('quality', inputs.imageQuality || 'auto');
+      formData.append('output_format', inputs.outputFormat || 'png');
+      formData.append('response_format', 'b64_json');
+
+      if (inputs.group) {
+        formData.append('group', inputs.group);
+      }
+
+      const toBlob = async (url, index) => {
+        if (url.startsWith('data:')) {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const mimeType = blob.type || 'image/png';
+          const extension = mimeType.split('/')[1] || 'png';
+          return new File([blob], `reference-${index + 1}.${extension}`, {
+            type: mimeType,
+          });
+        }
+
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const mimeType = blob.type || 'image/png';
+        const extension = mimeType.split('/')[1] || 'png';
+        return new File([blob], `reference-${index + 1}.${extension}`, {
+          type: mimeType,
+        });
+      };
+
+      const files = await Promise.all(
+        images.map((url, index) => toBlob(url, index)),
+      );
+      files.forEach((file) => {
+        formData.append('image[]', file);
+      });
+
+      return formData;
     },
     [inputs],
   );
@@ -1059,6 +1111,10 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
         },
       );
       const payload = buildImagePayload(prompt);
+      const hasReferenceImages =
+        Array.isArray(inputs.imageUrls) &&
+        inputs.imageEnabled &&
+        inputs.imageUrls.some((url) => url.trim() !== '');
 
       setMessage((prevMessage) => {
         const nextMessages = [...prevMessage, userMessage, assistantMessage];
@@ -1081,21 +1137,39 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
         const abortController = new AbortController();
         imageAbortControllerRef.current = abortController;
 
-        // const imageGenerationUrl = import.meta.env
-        //   .VITE_REACT_IMAGE_GENERATIONS_URL
-        //   ? import.meta.env.VITE_REACT_IMAGE_GENERATIONS_URL +
-        //     API_ENDPOINTS.IMAGE_GENERATIONS
-        //   : API_ENDPOINTS.IMAGE_GENERATIONS;
-
-        const createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
-          },
-          signal: abortController.signal,
-          body: JSON.stringify(payload),
-        });
+        let createResponse;
+        if (hasReferenceImages) {
+          const formData = await buildImageEditFormData(prompt);
+          setDebugData((prev) => ({
+            ...prev,
+            request: {
+              ...payload,
+              image: (inputs.imageUrls || []).filter(
+                (url) => url.trim() !== '',
+              ),
+              request_type: 'multipart/form-data',
+              endpoint: API_ENDPOINTS.IMAGE_EDITS,
+            },
+          }));
+          createResponse = await fetch(API_ENDPOINTS.IMAGE_EDITS, {
+            method: 'POST',
+            headers: {
+              'New-Api-User': getUserIdFromLocalStorage(),
+            },
+            signal: abortController.signal,
+            body: formData,
+          });
+        } else {
+          createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'New-Api-User': getUserIdFromLocalStorage(),
+            },
+            signal: abortController.signal,
+            body: JSON.stringify(payload),
+          });
+        }
 
         const createData = await createResponse.json();
         imageAbortControllerRef.current = null;
@@ -1148,8 +1222,11 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     },
     [
       buildImageAssistantContent,
+      buildImageEditFormData,
       buildImagePayload,
       extractImageUrls,
+      inputs.imageEnabled,
+      inputs.imageUrls,
       setIsImageGenerationPending,
       setActiveDebugTab,
       setDebugData,

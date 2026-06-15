@@ -160,6 +160,12 @@ const PlaygroundComposer = ({
                     { label: '1024x1024', value: '1024x1024' },
                     { label: '1024x1536', value: '1024x1536' },
                     { label: '1536x1024', value: '1536x1024' },
+
+                    { label: '2048x2048', value: '2048x2048' },
+                    { label: '2048x1152', value: '2048x1152' },
+                    { label: '1152x1152', value: '1152x2048' },
+
+                    { label: '2160x3840', value: '2160x3840' },
                     { label: 'auto', value: 'auto' },
                   ]}
                   onChange={(value) => onInputChange('imageSize', value)}
@@ -175,6 +181,17 @@ const PlaygroundComposer = ({
                     { label: 'low', value: 'low' },
                   ]}
                   onChange={(value) => onInputChange('imageQuality', value)}
+                  className='video-option-control'
+                  position='top'
+                />
+                <Select
+                  value={inputs.outputFormat}
+                  optionList={[
+                    { label: 'png', value: 'png' },
+                    { label: 'jpeg', value: 'jpeg' },
+                    { label: 'webp', value: 'webp' },
+                  ]}
+                  onChange={(value) => onInputChange('outputFormat', value)}
                   className='video-option-control'
                   position='top'
                 />

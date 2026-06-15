@@ -77,6 +77,7 @@ export const DEBUG_TABS = {
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
   IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/v1/images/edits',
   VIDEO_GENERATIONS: '/pg/video/generations',
   VIDEO_GENERATION_TASK: '/pg/video/generations',
   VIDEO_CONTENT: '/v1/videos',
@@ -117,6 +118,7 @@ export const DEFAULT_CONFIG = {
     videoDuration: 5,
     videoRatio: '16:9',
     videoResolution: '720p',
+    outputFormat: 'png',
   },
   parameterEnabled: {
     temperature: true,
