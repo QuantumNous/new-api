@@ -1,0 +1,131 @@
+name: Publish Docker image
+
+# Build & push the customized new-api image to the fork owner's Docker Hub.
+# Runs on GitHub Actions (overseas runners) so it can reach Docker Hub,
+# which the build host (CN) cannot.
+# Trigger: manual only. Produces multi-arch (amd64 + arm64) tags:
+#   yunlong1989/new-api:latest   and   yunlong1989/new-api:sha-<short>
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   DOCKERHUB_USERNAME  e.g. yunlong1989
+#   DOCKERHUB_TOKEN     a Docker Hub access token (Read/Write/Delete)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional version tag, e.g. v1.0.0 (also pushes :<version>)"
+        required: false
+
+jobs:
+  build_single_arch:
+    name: Build & push (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine tags
+        id: meta
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          NS="${{ secrets.DOCKERHUB_USERNAME }}/new-api"
+          echo "ns=$NS" >> "$GITHUB_OUTPUT"
+          TAGS="$NS:latest-${{ matrix.arch }}"
+          TAGS="$TAGS"$'\n'"$NS:sha-$SHA-${{ matrix.arch }}"
+          if [ -n "${{ inputs.version }}" ]; then
+            TAGS="$TAGS"$'\n'"$NS:${{ inputs.version }}-${{ matrix.arch }}"
+          fi
+          {
+            echo "tags<<EOF"
+            echo "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push (${{ matrix.arch }})
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  create_manifests:
+    name: Create multi-arch manifests
+    needs: [build_single_arch]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine tags
+        id: meta
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          NS="${{ secrets.DOCKERHUB_USERNAME }}/new-api"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "ns=$NS" >> "$GITHUB_OUTPUT"
+          echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create :latest manifest (amd64 + arm64)
+        run: |
+          docker buildx imagetools create \
+            -t ${{ steps.meta.outputs.ns }}:latest \
+            ${{ steps.meta.outputs.ns }}:latest-amd64 \
+            ${{ steps.meta.outputs.ns }}:latest-arm64
+
+      - name: Create :sha-<short> manifest
+        run: |
+          docker buildx imagetools create \
+            -t ${{ steps.meta.outputs.ns }}:sha-${{ steps.meta.outputs.sha }} \
+            ${{ steps.meta.outputs.ns }}:sha-${{ steps.meta.outputs.sha }}-amd64 \
+            ${{ steps.meta.outputs.ns }}:sha-${{ steps.meta.outputs.sha }}-arm64
+
+      - name: Create :<version> manifest
+        if: ${{ steps.meta.outputs.version != '' }}
+        run: |
+          docker buildx imagetools create \
+            -t ${{ steps.meta.outputs.ns }}:${{ steps.meta.outputs.version }} \
+            ${{ steps.meta.outputs.ns }}:${{ steps.meta.outputs.version }}-amd64 \
+            ${{ steps.meta.outputs.ns }}:${{ steps.meta.outputs.version }}-arm64
