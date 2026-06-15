@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
@@ -19,10 +20,6 @@ const (
 	codexOfficialNoticeAITimeout           = 20 * time.Second
 	codexOfficialNoticeAIResponseMaxBytes  = int64(256 * 1024)
 	codexOfficialNoticeAIContentMaxRunes   = 60000
-	codexOfficialNoticeAIDefaultBaseURL    = "https://api.openai.com/v1"
-	codexOfficialNoticeAIDefaultModel      = "gpt-5.4-mini"
-	codexOfficialNoticeAIEndpointEnv       = "MONITOR_AI_ANALYSIS_BASE_URL"
-	codexOfficialNoticeAIModelEnv          = "MONITOR_AI_ANALYSIS_MODEL"
 	codexOfficialNoticeAIMatchedRulePrefix = "ai_analysis"
 )
 
@@ -294,23 +291,23 @@ func codexOfficialNoticeAIEndpoint(baseURL string) string {
 func codexOfficialNoticeAIBaseURL(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
-		baseURL = strings.TrimSpace(os.Getenv(codexOfficialNoticeAIEndpointEnv))
+		baseURL = strings.TrimSpace(os.Getenv(operation_setting.MonitorAIAnalysisBaseURLEnv))
 	}
 	if baseURL != "" {
 		return baseURL
 	}
-	return codexOfficialNoticeAIDefaultBaseURL
+	return operation_setting.DefaultMonitorAIAnalysisBaseURL
 }
 
 func codexOfficialNoticeAIModel(modelName string) string {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
-		modelName = strings.TrimSpace(os.Getenv(codexOfficialNoticeAIModelEnv))
+		modelName = strings.TrimSpace(os.Getenv(operation_setting.MonitorAIAnalysisModelEnv))
 	}
 	if modelName != "" {
 		return modelName
 	}
-	return codexOfficialNoticeAIDefaultModel
+	return operation_setting.DefaultMonitorAIAnalysisModelName
 }
 
 func extractCodexOfficialNoticeAIOutputText(envelope codexOfficialNoticeAIHTTPResponse) string {
