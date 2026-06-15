@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -364,6 +365,202 @@ func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48ThinkingUsesAdaptiveHighEffort(
 	require.Nil(t, claudeRequest.Temperature)
 	require.Nil(t, claudeRequest.TopP)
 	require.Nil(t, claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_FutureClaudeModelUsesAdaptiveThinking(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-sonnet-4-6-xhigh",
+		Temperature: commonPointer(0.7),
+		TopP:        commonPointer(0.9),
+		TopK:        commonPointer(40),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-sonnet-4-6", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.Equal(t, "summarized", claudeRequest.Thinking.Display)
+	require.JSONEq(t, `{"effort":"xhigh"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.Nil(t, claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_ClaudeOpus46ThinkingKeepsLegacyBudgetThinking(t *testing.T) {
+	maxTokens := uint(2000)
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-opus-4-6-thinking",
+		MaxTokens:   &maxTokens,
+		Temperature: commonPointer(0.7),
+		TopP:        commonPointer(0.9),
+		TopK:        commonPointer(40),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-opus-4-6", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "enabled", claudeRequest.Thinking.Type)
+	require.NotNil(t, claudeRequest.Thinking.BudgetTokens)
+	require.Equal(t, 1600, *claudeRequest.Thinking.BudgetTokens)
+	require.Empty(t, claudeRequest.Thinking.Display)
+	require.Empty(t, claudeRequest.OutputConfig)
+	require.NotNil(t, claudeRequest.Temperature)
+	require.Equal(t, 1.0, *claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.NotNil(t, claudeRequest.TopK)
+	require.Equal(t, 40, *claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_Claude3ThinkingKeepsLegacyBudgetThinking(t *testing.T) {
+	maxTokens := uint(2000)
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-3-7-sonnet-20250219-thinking",
+		MaxTokens:   &maxTokens,
+		Temperature: commonPointer(0.7),
+		TopP:        commonPointer(0.9),
+		TopK:        commonPointer(40),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-3-7-sonnet-20250219", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "enabled", claudeRequest.Thinking.Type)
+	require.NotNil(t, claudeRequest.Thinking.BudgetTokens)
+	require.Equal(t, 1600, *claudeRequest.Thinking.BudgetTokens)
+	require.Empty(t, claudeRequest.Thinking.Display)
+	require.Empty(t, claudeRequest.OutputConfig)
+	require.NotNil(t, claudeRequest.Temperature)
+	require.Equal(t, 1.0, *claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.NotNil(t, claudeRequest.TopK)
+	require.Equal(t, 40, *claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_NewClaudeReasoningEffortUsesAdaptiveThinking(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:           "claude-sonnet-4-6",
+		ReasoningEffort: "high",
+		Temperature:     commonPointer(0.7),
+		TopP:            commonPointer(0.9),
+		TopK:            commonPointer(40),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-sonnet-4-6", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.Equal(t, "summarized", claudeRequest.Thinking.Display)
+	require.JSONEq(t, `{"effort":"high"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.Nil(t, claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_LegacyClaudeReasoningEffortKeepsBudgetThinking(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:           "claude-3-opus-20240229",
+		ReasoningEffort: "high",
+		Temperature:     commonPointer(0.7),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-3-opus-20240229", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "enabled", claudeRequest.Thinking.Type)
+	require.NotNil(t, claudeRequest.Thinking.BudgetTokens)
+	require.Equal(t, 4096, *claudeRequest.Thinking.BudgetTokens)
+	require.Empty(t, claudeRequest.Thinking.Display)
+	require.Empty(t, claudeRequest.OutputConfig)
+	require.NotNil(t, claudeRequest.Temperature)
+	require.Equal(t, 0.7, *claudeRequest.Temperature)
+}
+
+func TestRequestOpenAI2ClaudeMessage_NewClaudeReasoningJSONUsesAdaptiveThinking(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-sonnet-4-6",
+		Reasoning:   json.RawMessage(`{"max_tokens":4096}`),
+		Temperature: commonPointer(0.7),
+		TopP:        commonPointer(0.9),
+		TopK:        commonPointer(40),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-sonnet-4-6", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.Equal(t, "summarized", claudeRequest.Thinking.Display)
+	require.JSONEq(t, `{"effort":"high"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.Nil(t, claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_LegacyClaudeReasoningJSONKeepsBudgetThinking(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-3-opus-20240229",
+		Reasoning:   json.RawMessage(`{"max_tokens":4096}`),
+		Temperature: commonPointer(0.7),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hello",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Equal(t, "claude-3-opus-20240229", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "enabled", claudeRequest.Thinking.Type)
+	require.NotNil(t, claudeRequest.Thinking.BudgetTokens)
+	require.Equal(t, 4096, *claudeRequest.Thinking.BudgetTokens)
+	require.Empty(t, claudeRequest.Thinking.Display)
+	require.Empty(t, claudeRequest.OutputConfig)
+	require.NotNil(t, claudeRequest.Temperature)
+	require.Equal(t, 0.7, *claudeRequest.Temperature)
 }
 
 func TestRequestOpenAI2ClaudeMessage_SupportsPDFFileContent(t *testing.T) {
