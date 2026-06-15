@@ -169,6 +169,18 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
   return res.data
 }
 
+/**
+ * Get the user identity groups that an admin can assign to a user.
+ * Backed by the topup group ratio (充值分组比例), the authoritative source for
+ * user.Group — NOT the `UserUsableGroups` setting (which controls which groups a
+ * user may select for requests). Unlike getGroups(), this excludes
+ * model/channel/system pricing groups.
+ */
+export async function getAssignableUserGroups(): Promise<ApiResponse<string[]>> {
+  const res = await api.get('/api/group/?type=user')
+  return res.data
+}
+
 // ============================================================================
 // Admin Binding Management APIs
 // ============================================================================
