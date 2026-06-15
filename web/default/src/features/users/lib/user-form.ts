@@ -33,6 +33,7 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  referral_commission_percent: z.number().min(0).max(100).nullable().optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -49,6 +50,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  referral_commission_percent: null,
 }
 
 // ============================================================================
@@ -75,6 +77,8 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    payload.referral_commission_percent =
+      data.referral_commission_percent ?? null
     payload.id = userId
   }
 
@@ -93,5 +97,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    referral_commission_percent: user.referral_commission_percent ?? null,
   }
 }
