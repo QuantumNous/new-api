@@ -229,6 +229,43 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       meta: { mobileHidden: true },
     },
     {
+      accessorKey: 'billing_type',
+      header: t('Billing Type'),
+      cell: ({ row }) => {
+        const billingType = row.getValue('billing_type') as number
+        if (billingType === 1) {
+          return (
+            <StatusBadge
+              label={t('Balance Only')}
+              variant='warning'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        }
+        if (billingType === 2) {
+          return (
+            <StatusBadge
+              label={t('Subscription Only')}
+              variant='info'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        }
+        return (
+          <StatusBadge
+            label={t('Subscription First')}
+            variant='neutral'
+            copyable={false}
+            className='-ml-1.5'
+          />
+        )
+      },
+      size: 160,
+      meta: { mobileHidden: true },
+    },
+    {
       id: 'model_limits',
       accessorKey: 'model_limits',
       header: t('Models'),

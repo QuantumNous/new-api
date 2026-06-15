@@ -343,6 +343,7 @@
     "API key": "API 密钥",
     "API Key": "API 密钥",
     "API Key Billing Type": "API Key 计费类型",
+    "Billing Type": "计费类型",
     "API Key (one per line for batch mode)": "API 密钥（批量模式下每行一个）",
     "API Key (Production)": "API 密钥（生产）",
     "API Key (Sandbox)": "API 密钥（沙盒）",
