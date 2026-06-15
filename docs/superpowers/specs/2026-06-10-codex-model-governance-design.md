@@ -4,7 +4,7 @@
 
 Create an independent governance flow for Codex subscription models used through OAuth-authenticated ChatGPT accounts.
 
-The system should detect clearly unsupported Codex models, disable them before they are routed, alert operators through DingTalk, and require manual review before removing them from channel model configuration.
+The system should detect clearly unsupported Codex models, alert operators through DingTalk, and require manual review before removing models from channel model configuration. Probe-confirmed unsupported models are disabled before routing; official notice or AI findings enter manual review without disabling runtime access automatically.
 
 ## Non-Goals
 
@@ -21,7 +21,8 @@ It has four responsibilities:
 
 - Probe configured Codex models with lightweight checks.
 - Monitor configured official Codex information sources for model lifecycle notices.
-- Move unsupported models into a pending-review state and disable their runtime abilities.
+- Move unsupported probe findings into a pending-review state and disable their runtime abilities.
+- Move official notice or AI findings into the same review queue without disabling abilities automatically.
 - Provide admin review actions to remove, restore, or ignore the model.
 
 ## Domain Model
@@ -45,7 +46,7 @@ Recommended fields:
 Status meanings:
 
 - `active`: no current governance block.
-- `unsupported_pending_review`: model is disabled for routing and waiting for human review.
+- `unsupported_pending_review`: model is waiting for human review; probe findings disable routing immediately, while official notice or AI findings remain callable until an admin chooses a review action.
 - `removed`: human confirmed the model is unavailable and the model has been removed from affected Codex channel configuration.
 - `ignored`: human decided not to act on the finding for now.
 
@@ -106,7 +107,7 @@ The monitor should only create an unsupported finding when both conditions are m
 - The source text explicitly mentions a configured Codex model name.
 - Nearby text contains a lifecycle phrase such as `deprecated`, `retired`, `sunset`, `unavailable`, `not supported`, or equivalent configured terms.
 
-The official monitor does not remove models. It moves matching models to `unsupported_pending_review`, disables runtime abilities, and sends DingTalk.
+The official monitor does not remove or disable models automatically. It moves matching models to `unsupported_pending_review`, keeps runtime abilities callable, and sends DingTalk so an admin can decide whether to disable, restore, ignore, or remove the model.
 
 ## Manual Review Flow
 
@@ -165,9 +166,9 @@ The existing DingTalk webhook and secret settings remain shared. The new feature
 
 ## Routing And Listing Behavior
 
-While a model is `unsupported_pending_review`, the system should not route requests to affected Codex channel abilities for that model.
+When a probe-confirmed model is `unsupported_pending_review`, the system should not route requests to affected Codex channel abilities for that model. Official notice or AI findings may also be `unsupported_pending_review`, but they keep abilities enabled until an admin explicitly disables or removes the model.
 
-Because pending records set affected `abilities.enabled=false`, normal ability-backed user-facing model lists should stop showing the model as available. Admin review pages should still show the pending governance record.
+Because probe pending records set affected `abilities.enabled=false`, normal ability-backed user-facing model lists should stop showing those models as available. Admin review pages should still show every pending governance record, including alert-only official notice or AI findings.
 
 After `Confirm unavailable`, the model is removed from the relevant channels' configured model list and abilities are refreshed so the disabled state is durable.
 
@@ -190,7 +191,8 @@ Backend tests should cover:
 - Default Codex unsupported regex matches the known ChatGPT account error and extracts the model.
 - Generic unsupported or model-not-found errors do not trigger disable.
 - Custom regex rules validate and classify messages.
-- Transition to `unsupported_pending_review` disables affected abilities and sends one DingTalk alert.
+- Probe transition to `unsupported_pending_review` disables affected abilities and sends one DingTalk alert.
+- Official notice and AI transitions to `unsupported_pending_review` send DingTalk and remain callable until manual review.
 - Confirm unavailable removes the model from affected Codex channel `channels.models` and refreshes abilities.
 - Restore re-enables abilities only when the channel still configures the model.
 - Official monitor has no API deprecation default source and only matches exact configured Codex model names plus lifecycle terms from configured Codex official sources.
@@ -216,6 +218,7 @@ Recommended rollout:
 ## Implementation Constraints
 
 - Codex OAuth channels are identified by `constant.ChannelTypeCodex`.
-- Pending unsupported models disable affected `abilities` rows directly.
+- Probe-confirmed pending unsupported models disable affected `abilities` rows directly.
+- Official notice and AI pending records are alert-only until an admin review action disables or removes the model.
 - Manual removal edits `channels.models` only after a reviewer confirms the model is unavailable.
 - Official source fetching uses an internal service wrapper that applies the existing HTTP client, SSRF validation, request timeout, and sanitized logging.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -55,7 +56,7 @@ func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model
 	}
 	if shouldNotify {
 		if notifyErr := notifyDingTalkCodexModelGovernance(record); notifyErr != nil {
-			return record, notifyErr
+			common.SysError(fmt.Sprintf("Codex model governance DingTalk alert failed for %s: %v", modelName, notifyErr))
 		}
 	}
 	return record, nil

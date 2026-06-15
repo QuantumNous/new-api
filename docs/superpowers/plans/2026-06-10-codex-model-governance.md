@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an independent Codex model governance system that disables clearly unsupported Codex subscription models, alerts DingTalk, and requires manual review before removing models from Codex channel configuration.
+**Goal:** Build an independent Codex model governance system that disables probe-confirmed unsupported Codex subscription models, alerts DingTalk, and requires manual review before removing models from Codex channel configuration. Official notice and AI findings are alert-only and remain callable until an admin review action.
 
-**Architecture:** Add a Codex-specific governance table and service layer separate from the generic `model_availability` flow. Detection paths classify strict Codex unsupported errors or official Codex notices, transition records to `unsupported_pending_review`, disable affected `abilities`, and expose admin review APIs plus system settings UI.
+**Architecture:** Add a Codex-specific governance table and service layer separate from the generic `model_availability` flow. Strict probe errors transition records to `unsupported_pending_review` and disable affected `abilities`; official Codex notice or AI findings transition records to the same review queue without disabling abilities. The feature exposes admin review APIs plus system settings UI.
 
 **Tech Stack:** Go 1.22, Gin, GORM, existing `setting/config` runtime settings, existing DingTalk sender, React 19, TypeScript, React Hook Form, Zod, TanStack Query, Bun.
 

@@ -80,7 +80,7 @@ func TestMoveCodexModelToPendingReviewDisablesAbilitiesAndNotifiesOnce(t *testin
 	require.Equal(t, []string{"gpt-5.3-codex"}, notified)
 }
 
-func TestMoveCodexModelToPendingReviewReturnsNotifierErrorAfterStateChange(t *testing.T) {
+func TestMoveCodexModelToPendingReviewIgnoresNotifierErrorAfterStateChange(t *testing.T) {
 	setupCodexModelGovernanceServiceDB(t)
 	insertCodexModelGovernanceServiceChannel(t, 12, "gpt-5.4-codex")
 	originalNotifier := notifyDingTalkCodexModelGovernance
@@ -97,8 +97,7 @@ func TestMoveCodexModelToPendingReviewReturnsNotifierErrorAfterStateChange(t *te
 		LastError: "probe error",
 	})
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "dingtalk down")
+	require.NoError(t, err)
 	require.NotNil(t, record)
 	var disabledAbility model.Ability
 	require.NoError(t, model.DB.First(&disabledAbility, "channel_id = ? AND model = ?", 12, "gpt-5.4-codex").Error)
