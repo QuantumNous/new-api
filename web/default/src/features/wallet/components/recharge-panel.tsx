@@ -216,14 +216,15 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                     )}
                   >
                     {isPromo && (
-                      <span className='absolute -right-1.5 -top-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[9px] font-bold leading-none text-white'>
-                        {Math.round((1 - promoInfo.discount) * 100)}% OFF
+                      <span className='absolute -right-1.5 -top-2.5 flex flex-col items-center rounded-md bg-amber-500 px-1.5 py-0.5 text-white shadow'>
+                        <span className='text-[7px] font-semibold leading-tight tracking-wide uppercase opacity-90'>{t('New user')}</span>
+                        <span className='text-[10px] font-extrabold leading-tight'>{Math.round((1 - promoInfo.discount) * 100)}% OFF</span>
                       </span>
                     )}
                     ${amount}
                     {isPromo && (
                       <div className='mt-0.5 text-[10px] font-normal text-amber-600'>
-                        pay ${promoInfo.pay_amount.toFixed(2)}
+                        {t('pay ${{pay}} → get ${{amount}}', { pay: promoInfo.pay_amount.toFixed(2), amount: promoInfo.amount })}
                       </div>
                     )}
                   </button>
@@ -232,8 +233,10 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
             </div>
             {promoInfo && countdown && (
               <div className='mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs'>
-                <span className='font-semibold text-amber-700'>🎉 First top-up bonus</span>
-                <span className='ml-auto font-mono text-amber-600'>{countdown} left</span>
+                <span className='font-semibold text-amber-700'>
+                  {t('🎁 New user exclusive · {{pct}}% off first top-up', { pct: Math.round((1 - promoInfo.discount) * 100) })}
+                </span>
+                <span className='ml-auto font-mono text-amber-600'>{t('Expires in')} {countdown}</span>
               </div>
             )}
           </div>
