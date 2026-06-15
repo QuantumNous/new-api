@@ -1,10 +1,15 @@
 package common
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -32,7 +37,14 @@ func GenerateVerificationCode(length int) string {
 	return code[:length]
 }
 
-func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
+func RegisterVerificationCodeWithKey(key string, code string, purpose string) error {
+	if redisVerificationEnabled() {
+		if err := RedisSet(verificationRedisKey(key, purpose), code, verificationTTL()); err != nil {
+			return fmt.Errorf("failed to store verification code in Redis: %w", err)
+		}
+		return nil
+	}
+
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap[purpose+key] = verificationValue{
@@ -42,9 +54,22 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 	if len(verificationMap) > verificationMapMaxSize {
 		removeExpiredPairs()
 	}
+	return nil
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
+	if redisVerificationEnabled() {
+		value, err := RedisGet(verificationRedisKey(key, purpose))
+		if errors.Is(err, redis.Nil) {
+			return false
+		}
+		if err != nil {
+			SysLog(fmt.Sprintf("failed to get verification code from Redis: %v", err))
+			return false
+		}
+		return value == code
+	}
+
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	value, okay := verificationMap[purpose+key]
@@ -56,9 +81,29 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 }
 
 func DeleteKey(key string, purpose string) {
+	if redisVerificationEnabled() {
+		if err := RedisDel(verificationRedisKey(key, purpose)); err != nil {
+			SysLog(fmt.Sprintf("failed to delete verification code from Redis: %v", err))
+		}
+		return
+	}
+
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)
+}
+
+func redisVerificationEnabled() bool {
+	return RedisEnabled && RDB != nil
+}
+
+func verificationTTL() time.Duration {
+	return time.Duration(VerificationValidMinutes) * time.Minute
+}
+
+func verificationRedisKey(key string, purpose string) string {
+	sum := sha256.Sum256([]byte(purpose + ":" + key))
+	return "verification:" + purpose + ":" + hex.EncodeToString(sum[:])
 }
 
 // no lock inside, so the caller must lock the verificationMap before calling!
