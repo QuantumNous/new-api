@@ -1,6 +1,7 @@
 package ratio_setting
 
 import (
+	_ "embed"
 	"strings"
 
 	"github.com/QuantumNous/new-api/types"
@@ -14,80 +15,19 @@ const (
 	claudeCacheRatioDefault = 0.1
 )
 
-var defaultCacheRatio = map[string]float64{
-	"gemini-3-flash-preview":       0.1,
-	"gemini-3-pro-preview":         0.1,
-	"gemini-3.1-pro-preview":       0.1,
-	"gpt-4":                        0.5,
-	"o1":                           0.5,
-	"o1-2024-12-17":                0.5,
-	"o1-preview-2024-09-12":        0.5,
-	"o1-preview":                   0.5,
-	"o1-mini-2024-09-12":           0.5,
-	"o1-mini":                      0.5,
-	"o3-mini":                      0.5,
-	"o3-mini-2025-01-31":           0.5,
-	"gpt-4o-2024-11-20":            0.5,
-	"gpt-4o-2024-08-06":            0.5,
-	"gpt-4o":                       0.5,
-	"gpt-4o-mini-2024-07-18":       0.5,
-	"gpt-4o-mini":                  0.5,
-	"gpt-4o-realtime-preview":      0.5,
-	"gpt-4o-mini-realtime-preview": 0.5,
-	"gpt-4.5-preview":              0.5,
-	"gpt-4.5-preview-2025-02-27":   0.5,
-	"gpt-4.1":                      0.25,
-	"gpt-4.1-mini":                 0.25,
-	"gpt-4.1-nano":                 0.25,
-	"gpt-5":                        0.1,
-	"gpt-5-2025-08-07":             0.1,
-	"gpt-5-chat-latest":            0.1,
-	"gpt-5-mini":                   0.1,
-	"gpt-5-mini-2025-08-07":        0.1,
-	"gpt-5-nano":                   0.1,
-	"gpt-5-nano-2025-08-07":        0.1,
-	"deepseek-chat":                0.25,
-	"deepseek-reasoner":            0.25,
-	"deepseek-coder":               0.25,
-	// claude-* 全系缓存倍率统一为 0.1，已由 GetCacheRatio 的 claude- 前缀回退覆盖，
-	// 不再逐条枚举（避免新型号漏配）。如个别 claude 型号需要非 0.1 的特例，
-	// 在此显式列出即可（精确命中优先于前缀回退）。
-}
+// 默认缓存倍率表外置为 embed JSON，值采用 top（tln-special-1）线上 DB option，
+// 与其余默认表同源（任务 06-15-default-pricing-from-top）。claude-* 全系缓存读取
+// 倍率仍由 GetCacheRatio 的 claude- 前缀回退（claudeCacheRatioDefault=0.1）兜底，
+// 默认表只列 top 现役模型的显式值；如个别型号需非默认特例，加进 JSON（精确命中优先）。
+//
+//go:embed data/default_cache_ratio.json
+var defaultCacheRatioJSON []byte
 
-var defaultCreateCacheRatio = map[string]float64{
-	"claude-3-sonnet-20240229":            1.25,
-	"claude-3-opus-20240229":              1.25,
-	"claude-3-haiku-20240307":             1.25,
-	"claude-3-5-haiku-20241022":           1.25,
-	"claude-haiku-4-5-20251001":           1.25,
-	"claude-3-5-sonnet-20240620":          1.25,
-	"claude-3-5-sonnet-20241022":          1.25,
-	"claude-3-7-sonnet-20250219":          1.25,
-	"claude-3-7-sonnet-20250219-thinking": 1.25,
-	"claude-sonnet-4-20250514":            1.25,
-	"claude-sonnet-4-20250514-thinking":   1.25,
-	"claude-opus-4-20250514":              1.25,
-	"claude-opus-4-20250514-thinking":     1.25,
-	"claude-opus-4-1-20250805":            1.25,
-	"claude-opus-4-1-20250805-thinking":   1.25,
-	"claude-sonnet-4-5-20250929":          1.25,
-	"claude-sonnet-4-5-20250929-thinking": 1.25,
-	"claude-opus-4-5-20251101":            1.25,
-	"claude-opus-4-5-20251101-thinking":   1.25,
-	"claude-opus-4-6":                     1.25,
-	"claude-opus-4-6-thinking":            1.25,
-	"claude-opus-4-6-max":                 1.25,
-	"claude-opus-4-6-high":                1.25,
-	"claude-opus-4-6-medium":              1.25,
-	"claude-opus-4-6-low":                 1.25,
-	"claude-opus-4-7":                     1.25,
-	"claude-opus-4-7-thinking":            1.25,
-	"claude-opus-4-7-max":                 1.25,
-	"claude-opus-4-7-xhigh":               1.25,
-	"claude-opus-4-7-high":                1.25,
-	"claude-opus-4-7-medium":              1.25,
-	"claude-opus-4-7-low":                 1.25,
-}
+//go:embed data/default_create_cache_ratio.json
+var defaultCreateCacheRatioJSON []byte
+
+var defaultCacheRatio = mustParseRatioTable("default_cache_ratio.json", defaultCacheRatioJSON)
+var defaultCreateCacheRatio = mustParseRatioTable("default_create_cache_ratio.json", defaultCreateCacheRatioJSON)
 
 // 缓存倍率兜底：未配置=不打折(1)；创建缓存兜底=1.25
 const (

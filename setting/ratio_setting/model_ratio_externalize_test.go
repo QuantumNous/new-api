@@ -21,8 +21,10 @@ func loadSnapshot(t *testing.T, name string) map[string]float64 {
 	return m
 }
 
-// TestDefaultTablesEquivalentToSnapshot 锁死 3.1 外置等价：embed JSON 解析回的
-// 默认表必须与外置前的 Go 字面量逐条相等（条目数 + 全键值），否则数据漂移。
+// TestDefaultTablesEquivalentToSnapshot 锁死 embed JSON 解析回的默认表 == 固化快照
+// （条目数 + 全键值）。快照即「采纳时的权威默认」：model_ratio/completion/cache/
+// create_cache 源自 top（tln-special-1）线上定价（任务 06-15-default-pricing-from-top）；
+// model_price/audio/image 维持 D1 剪枝前内容。任一漂移即失败。
 func TestDefaultTablesEquivalentToSnapshot(t *testing.T) {
 	cases := []struct {
 		name string
@@ -34,6 +36,8 @@ func TestDefaultTablesEquivalentToSnapshot(t *testing.T) {
 		{"default_audio_completion_ratio", defaultAudioCompletionRatio},
 		{"default_completion_ratio", defaultCompletionRatio},
 		{"default_image_ratio", defaultImageRatio},
+		{"default_cache_ratio", defaultCacheRatio},
+		{"default_create_cache_ratio", defaultCreateCacheRatio},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -46,25 +50,23 @@ func TestDefaultTablesEquivalentToSnapshot(t *testing.T) {
 }
 
 // TestDefaultModelRatio2JSONStringStable 锁死 DefaultModelRatio2JSONString()（被
-// controller/pricing.go ResetModelRatio 调用）输出与外置前快照字符串完全相等。
+// controller/pricing.go ResetModelRatio 调用）输出 == 固化快照字符串。
 // Go map 经 common.Marshal 按键排序输出，确定性，可逐字节比较。
 func TestDefaultModelRatio2JSONStringStable(t *testing.T) {
 	want, err := os.ReadFile(filepath.Join("testdata", "default_model_ratio.snapshot.json"))
 	require.NoError(t, err)
 	require.Equal(t, string(want), DefaultModelRatio2JSONString(),
-		"DefaultModelRatio2JSONString 输出必须与外置前字节级一致")
+		"DefaultModelRatio2JSONString 输出必须与快照字节级一致（快照=top 现役集）")
 }
 
-// TestGetDefaultModelRatioMapComplete 确认 GetDefaultModelRatioMap() 返回完整表，
-// hasCustomModelRatio() 的判定基准不变（未缩表）。
-func TestGetDefaultModelRatioMapComplete(t *testing.T) {
+// TestGetDefaultModelRatioMapMatchesSnapshot 确认 GetDefaultModelRatioMap()（被
+// hasCustomModelRatio() 当判定基准）等于固化快照——即 top 现役默认集。
+func TestGetDefaultModelRatioMapMatchesSnapshot(t *testing.T) {
 	m := GetDefaultModelRatioMap()
 	require.NotEmpty(t, m)
 	want := loadSnapshot(t, "default_model_ratio")
-	require.Equal(t, len(want), len(m), "GetDefaultModelRatioMap 必须返回完整默认表（不缩表）")
-	require.Equal(t, want, m)
+	require.Equal(t, want, m, "GetDefaultModelRatioMap 必须等于快照（top 现役集）")
 
-	// GetDefaultModelPriceMap 同样完整。
 	pm := GetDefaultModelPriceMap()
 	wantPrice := loadSnapshot(t, "default_model_price")
 	require.Equal(t, wantPrice, pm)

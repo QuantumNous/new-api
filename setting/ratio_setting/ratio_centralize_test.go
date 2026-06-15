@@ -51,9 +51,9 @@ func TestCacheRatioPrefixFallback(t *testing.T) {
 		require.Equal(t, defaultCacheRatioFallback, ratio)
 	})
 
-	t.Run("精确命中优先（gpt-4o=0.5）", func(t *testing.T) {
-		ratio, ok := GetCacheRatio("gpt-4o")
-		require.True(t, ok)
-		require.Equal(t, 0.5, ratio)
+	t.Run("非 claude 精确命中走表值而非兜底1（gemini-2.5-pro=0.1）", func(t *testing.T) {
+		ratio, ok := GetCacheRatio("gemini-2.5-pro")
+		require.True(t, ok, "默认表精确命中应为有意义命中")
+		require.Equal(t, 0.1, ratio)
 	})
 }

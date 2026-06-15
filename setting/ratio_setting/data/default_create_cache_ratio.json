@@ -1,0 +1,18 @@
+{
+  "claude-fable-5": 1.25,
+  "claude-haiku-4-5": 1.25,
+  "claude-haiku-4-5-20251001": 1.25,
+  "claude-opus-4-6": 1.25,
+  "claude-opus-4-7": 1.25,
+  "claude-opus-4-8": 1.25,
+  "claude-sonnet-4-6": 1.25,
+  "gemini-2.5-flash": 1.25,
+  "gemini-2.5-flash-image": 1.25,
+  "gemini-2.5-flash-lite": 1.25,
+  "gemini-2.5-pro": 1.25,
+  "gemini-3-flash": 1.25,
+  "gemini-3-pro-image": 1.25,
+  "gemini-3.1-flash-image": 1.25,
+  "gemini-3.1-flash-lite": 1.25,
+  "gemini-3.1-pro": 1.25
+}
