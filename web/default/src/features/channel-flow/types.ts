@@ -33,11 +33,18 @@ export type PageResponse<T> = {
 export type ChannelFlowBackend = 'memory' | 'redis'
 export type ChannelFlowQueuePolicy = 'fifo'
 export type ChannelFlowOnLimit = 'queue' | 'reject' | 'fallback'
+export type ChannelFlowScheduleMode = 'always' | 'datetime_range' | 'weekly'
 export type ChannelFlowRedisFailurePolicy =
   | 'fail_open'
   | 'fail_closed'
   | 'local_memory'
 export type ChannelFlowMatchMode = 'channel' | 'channel_model'
+
+export type ChannelFlowScheduleWindow = {
+  weekdays: number[]
+  start_minute: number
+  end_minute: number
+}
 
 export type ChannelFlowPool = {
   id: number
@@ -58,6 +65,11 @@ export type ChannelFlowPool = {
   max_processing_ms: number
   lease_ms: number
   renew_interval_ms: number
+  schedule_mode: ChannelFlowScheduleMode
+  schedule_timezone: string
+  effective_start_time: number
+  effective_end_time: number
+  schedule_windows: string
   config_version: number
   created_time: number
   updated_time: number
@@ -91,6 +103,7 @@ export type ChannelFlowPoolStatus = {
   name: string
   backend: ChannelFlowBackend
   health: string
+  schedule_active: boolean
   running: number
   max_inflight: number
   queued: number

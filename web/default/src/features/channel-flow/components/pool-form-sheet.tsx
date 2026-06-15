@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -50,6 +51,10 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  formatTimestampForInput,
+  parseTimestampFromInput,
+} from '@/lib/format'
 import {
   channelFlowPoolFormSchema,
   defaultPoolFormValues,
@@ -99,6 +104,7 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
     defaultValues: defaultPoolFormValues,
   })
   const backend = form.watch('backend')
+  const scheduleMode = form.watch('schedule_mode')
   const isEditMode = Boolean(props.pool?.id)
   const backendOptions: SelectOption<ChannelFlowPoolFormValues['backend']>[] = [
     { value: 'memory', label: t('Memory') },
@@ -118,6 +124,22 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
     { value: 'fail_open', label: t('Fail open') },
     { value: 'fail_closed', label: t('Fail closed') },
     { value: 'local_memory', label: t('Local memory fallback') },
+  ]
+  const scheduleModeOptions: SelectOption<
+    ChannelFlowPoolFormValues['schedule_mode']
+  >[] = [
+    { value: 'always', label: t('Always active') },
+    { value: 'datetime_range', label: t('Date range') },
+    { value: 'weekly', label: t('Weekly schedule') },
+  ]
+  const weekdayOptions = [
+    { value: 0, label: t('Sun') },
+    { value: 1, label: t('Mon') },
+    { value: 2, label: t('Tue') },
+    { value: 3, label: t('Wed') },
+    { value: 4, label: t('Thu') },
+    { value: 5, label: t('Fri') },
+    { value: 6, label: t('Sat') },
   ]
 
   useEffect(() => {
@@ -229,6 +251,132 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                 </FormItem>
               )}
             />
+
+            <div className='space-y-3'>
+              <h3 className='text-sm font-medium'>{t('Effective schedule')}</h3>
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='schedule_mode'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Schedule mode')}</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className='w-full'>
+                            <SelectValue>
+                              {getOptionLabel(scheduleModeOptions, field.value)}
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {scheduleModeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t('Outside the active window, traffic bypasses this Flow Pool.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='schedule_timezone'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Timezone')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='Asia/Shanghai' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Used by weekly schedules')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {scheduleMode === 'datetime_range' && (
+                <div className='grid gap-4 sm:grid-cols-2'>
+                  <DateTimeField
+                    form={form}
+                    name='effective_start_time'
+                    label={t('Start time')}
+                  />
+                  <DateTimeField
+                    form={form}
+                    name='effective_end_time'
+                    label={t('End time')}
+                  />
+                </div>
+              )}
+
+              {scheduleMode === 'weekly' && (
+                <div className='space-y-3 rounded-lg border bg-muted/20 p-3'>
+                  <FormField
+                    control={form.control}
+                    name='schedule_weekdays'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Active weekdays')}</FormLabel>
+                        <div className='flex flex-wrap gap-2'>
+                          {weekdayOptions.map((option) => {
+                            const checked = field.value.includes(option.value)
+                            return (
+                              <label
+                                key={option.value}
+                                className='flex h-8 items-center gap-2 rounded-md border bg-background px-2.5 text-xs font-medium'
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(nextChecked) => {
+                                    if (nextChecked === true) {
+                                      field.onChange([
+                                        ...field.value,
+                                        option.value,
+                                      ])
+                                      return
+                                    }
+                                    field.onChange(
+                                      field.value.filter(
+                                        (weekday) => weekday !== option.value
+                                      )
+                                    )
+                                  }}
+                                />
+                                {option.label}
+                              </label>
+                            )
+                          })}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className='grid gap-4 sm:grid-cols-2'>
+                    <TimeField
+                      form={form}
+                      name='schedule_start_time'
+                      label={t('Start time')}
+                    />
+                    <TimeField
+                      form={form}
+                      name='schedule_end_time'
+                      label={t('End time')}
+                    />
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    {t('End time earlier than start time means the window crosses midnight.')}
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className='space-y-3'>
               <h3 className='text-sm font-medium'>{t('Concurrency and queue')}</h3>
@@ -419,6 +567,64 @@ type NumberFieldProps = {
   name: (typeof numberFields)[number]
   label: string
   description?: string
+}
+
+type DateTimeFieldProps = {
+  form: UseFormReturn<ChannelFlowPoolFormValues>
+  name: 'effective_start_time' | 'effective_end_time'
+  label: string
+}
+
+function DateTimeField(props: DateTimeFieldProps) {
+  return (
+    <FormField
+      control={props.form.control}
+      name={props.name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{props.label}</FormLabel>
+          <FormControl>
+            <Input
+              type='datetime-local'
+              value={
+                field.value > 0 ? formatTimestampForInput(field.value) : ''
+              }
+              onChange={(event) =>
+                field.onChange(
+                  Math.max(0, parseTimestampFromInput(event.target.value))
+                )
+              }
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
+type TimeFieldProps = {
+  form: UseFormReturn<ChannelFlowPoolFormValues>
+  name: 'schedule_start_time' | 'schedule_end_time'
+  label: string
+}
+
+function TimeField(props: TimeFieldProps) {
+  return (
+    <FormField
+      control={props.form.control}
+      name={props.name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{props.label}</FormLabel>
+          <FormControl>
+            <Input type='time' {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
 }
 
 function NumberField(props: NumberFieldProps) {

@@ -203,16 +203,17 @@ func (b *redisFlowBackend) Status(ctx context.Context, pool model.ChannelFlowPoo
 		}
 	}
 	return PoolStatus{
-		PoolKey:       pool.PoolKey,
-		Name:          pool.Name,
-		Backend:       pool.Backend,
-		Health:        flowHealth(int(running), pool.MaxInflight, int(queued), pool.MaxQueueSize),
-		Running:       int(running),
-		MaxInflight:   pool.MaxInflight,
-		Queued:        int(queued),
-		MaxQueueSize:  pool.MaxQueueSize,
-		OldestWaitMs:  oldestWaitMs,
-		ConfigVersion: pool.ConfigVersion,
+		PoolKey:        pool.PoolKey,
+		Name:           pool.Name,
+		Backend:        pool.Backend,
+		Health:         flowHealth(int(running), pool.MaxInflight, int(queued), pool.MaxQueueSize),
+		ScheduleActive: pool.Enabled && pool.IsScheduleActiveAt(time.Now()),
+		Running:        int(running),
+		MaxInflight:    pool.MaxInflight,
+		Queued:         int(queued),
+		MaxQueueSize:   pool.MaxQueueSize,
+		OldestWaitMs:   oldestWaitMs,
+		ConfigVersion:  pool.ConfigVersion,
 	}, nil
 }
 

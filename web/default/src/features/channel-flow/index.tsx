@@ -58,17 +58,40 @@ import {
   type ChannelFlowBindingFormValues,
   type ChannelFlowPoolFormValues,
 } from './lib'
-import type { ChannelFlowPool, ChannelFlowPoolBinding } from './types'
+import type {
+  ApiResponse,
+  ChannelFlowPool,
+  ChannelFlowPoolBinding,
+  PageResponse,
+} from './types'
 
 const FLOW_POOL_PAGE_SIZE = 50
-const FLOW_STATUS_REFETCH_MS = 5000
 const FLOW_TREND_REFETCH_MS = 30000
+const FLOW_STATUS_REFRESH_STORAGE_KEY = 'channel-flow-status-refresh-ms-v2'
+const FLOW_STATUS_REFRESH_OPTIONS = [
+  { label: 'Off', ms: 0 },
+  { label: '1 sec', ms: 1000 },
+  { label: '2 sec', ms: 2000 },
+  { label: '5 sec', ms: 5000 },
+  { label: '10 sec', ms: 10000 },
+  { label: '30 sec', ms: 30000 },
+]
 const FLOW_TREND_RANGE_OPTIONS = [
   { label: '15 min', minutes: 15 },
   { label: '1 hour', minutes: 60 },
   { label: '6 hours', minutes: 360 },
   { label: '24 hours', minutes: 1440 },
 ]
+
+function getInitialStatusRefreshMs() {
+  if (typeof window === 'undefined') return 5000
+  const storedRaw = window.localStorage.getItem(FLOW_STATUS_REFRESH_STORAGE_KEY)
+  if (storedRaw === null) return 5000
+  const stored = Number(storedRaw)
+  return FLOW_STATUS_REFRESH_OPTIONS.some((option) => option.ms === stored)
+    ? stored
+    : 5000
+}
 
 type PoolMutationVariables = {
   values: ChannelFlowPoolFormValues
@@ -84,6 +107,7 @@ export function ChannelFlowPools() {
   const [poolSheetOpen, setPoolSheetOpen] = useState(false)
   const [bindingSheetOpen, setBindingSheetOpen] = useState(false)
   const [trendRangeMinutes, setTrendRangeMinutes] = useState(60)
+  const [statusRefreshMs, setStatusRefreshMs] = useState(getInitialStatusRefreshMs)
   const [poolPendingDelete, setPoolPendingDelete] =
     useState<ChannelFlowPool | null>(null)
   const [deletingBindingId, setDeletingBindingId] = useState<number | null>(null)
@@ -116,11 +140,19 @@ export function ChannelFlowPools() {
     }
   }, [pools, selectedPoolId])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      FLOW_STATUS_REFRESH_STORAGE_KEY,
+      String(statusRefreshMs)
+    )
+  }, [statusRefreshMs])
+
   const statusQuery = useQuery({
     queryKey: channelFlowQueryKeys.status(selectedPool?.id ?? 0),
     queryFn: () => getChannelFlowPoolStatus(selectedPool!.id),
     enabled: Boolean(selectedPool),
-    refetchInterval: FLOW_STATUS_REFETCH_MS,
+    refetchInterval: statusRefreshMs > 0 ? statusRefreshMs : false,
   })
 
   const trendQuery = useQuery({
@@ -152,11 +184,33 @@ export function ChannelFlowPools() {
         toast.error(response.message || t('Failed to save Flow Pool'))
         return
       }
+      const savedPool = response.data
       toast.success(t('Flow Pool saved'))
       setPoolSheetOpen(false)
       setEditingPool(null)
-      if (response.data?.id) {
-        setSelectedPoolId(response.data.id)
+      if (savedPool?.id) {
+        setSelectedPoolId(savedPool.id)
+        queryClient.setQueriesData<ApiResponse<PageResponse<ChannelFlowPool>>>(
+          { queryKey: channelFlowQueryKeys.lists() },
+          (oldData) => {
+            if (!oldData?.data?.items) return oldData
+            const existing = oldData.data.items.some(
+              (pool) => pool.id === savedPool.id
+            )
+            return {
+              ...oldData,
+              data: {
+                ...oldData.data,
+                total: existing ? oldData.data.total : oldData.data.total + 1,
+                items: existing
+                  ? oldData.data.items.map((pool) =>
+                      pool.id === savedPool.id ? savedPool : pool
+                    )
+                  : [savedPool, ...oldData.data.items],
+              },
+            }
+          }
+        )
       }
       queryClient.invalidateQueries({ queryKey: channelFlowQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: channelFlowQueryKeys.all })
@@ -277,7 +331,6 @@ export function ChannelFlowPools() {
                 <PoolList
                   pools={pools}
                   selectedPoolId={selectedPool?.id}
-                  status={statusQuery.data?.data ?? null}
                   loading={poolsQuery.isLoading}
                   onSelect={(pool) => setSelectedPoolId(pool.id)}
                   onEdit={(pool) => {
@@ -299,6 +352,10 @@ export function ChannelFlowPools() {
                   trendRangeMinutes={trendRangeMinutes}
                   trendRangeOptions={FLOW_TREND_RANGE_OPTIONS}
                   onTrendRangeChange={setTrendRangeMinutes}
+                  statusUpdatedAt={statusQuery.dataUpdatedAt}
+                  statusRefreshMs={statusRefreshMs}
+                  statusRefreshOptions={FLOW_STATUS_REFRESH_OPTIONS}
+                  onStatusRefreshChange={setStatusRefreshMs}
                 />
                 <PoolBindingsPanel
                   pool={selectedPool}

@@ -61,6 +61,7 @@ type PoolStatus struct {
 	Name               string `json:"name"`
 	Backend            string `json:"backend"`
 	Health             string `json:"health"`
+	ScheduleActive     bool   `json:"schedule_active"`
 	Running            int    `json:"running"`
 	MaxInflight        int    `json:"max_inflight"`
 	Queued             int    `json:"queued"`
@@ -163,7 +164,7 @@ func ResolveChannelFlowPool(channelID int) (*model.ChannelFlowPoolBinding, *mode
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if pool == nil || !pool.Enabled {
+	if pool == nil || !pool.Enabled || !pool.IsScheduleActiveAt(time.Now()) {
 		return binding, pool, false, nil
 	}
 	return binding, pool, true, nil
@@ -344,23 +345,33 @@ func recordChannelFlowMetric(req AcquireRequest, eventType string, decision *Acq
 
 func GetChannelFlowPoolStatus(ctx context.Context, pool model.ChannelFlowPool) (PoolStatus, error) {
 	if passThrough, fallbackPool, _ := resolveRedisFlowUnavailable(ctx, &pool); passThrough {
-		return degradedRedisFlowStatus(pool), nil
+		return withPoolStatusMetadata(degradedRedisFlowStatus(pool), pool), nil
 	} else if fallbackPool != nil {
-		return GetChannelFlowController().Status(ctx, *fallbackPool)
+		status, err := GetChannelFlowController().Status(ctx, *fallbackPool)
+		return withPoolStatusMetadata(status, pool), err
 	}
 	status, err := GetChannelFlowController().Status(ctx, pool)
 	if err == nil {
-		return status, nil
+		return withPoolStatusMetadata(status, pool), nil
 	}
 	if errors.Is(err, ErrRedisFlowBackendUnavailable) {
 		switch pool.RedisFailurePolicy {
 		case model.ChannelFlowRedisFailureLocalMemory:
-			return GetChannelFlowController().Status(ctx, localMemoryFallbackFlowPool(pool))
+			status, err := GetChannelFlowController().Status(ctx, localMemoryFallbackFlowPool(pool))
+			return withPoolStatusMetadata(status, pool), err
 		default:
-			return degradedRedisFlowStatus(pool), nil
+			return withPoolStatusMetadata(degradedRedisFlowStatus(pool), pool), nil
 		}
 	}
-	return status, err
+	return withPoolStatusMetadata(status, pool), err
+}
+
+func withPoolStatusMetadata(status PoolStatus, pool model.ChannelFlowPool) PoolStatus {
+	pool.Normalize()
+	status.Name = pool.Name
+	status.ConfigVersion = pool.ConfigVersion
+	status.ScheduleActive = pool.Enabled && pool.IsScheduleActiveAt(time.Now())
+	return status
 }
 
 func localMemoryFallbackFlowPool(pool model.ChannelFlowPool) model.ChannelFlowPool {
@@ -408,13 +419,14 @@ func handleRedisFlowAcquireError(ctx context.Context, pool model.ChannelFlowPool
 func degradedRedisFlowStatus(pool model.ChannelFlowPool) PoolStatus {
 	pool.Normalize()
 	return PoolStatus{
-		PoolKey:       pool.PoolKey,
-		Name:          pool.Name,
-		Backend:       pool.Backend,
-		Health:        "degraded",
-		MaxInflight:   pool.MaxInflight,
-		MaxQueueSize:  pool.MaxQueueSize,
-		ConfigVersion: pool.ConfigVersion,
+		PoolKey:        pool.PoolKey,
+		Name:           pool.Name,
+		Backend:        pool.Backend,
+		Health:         "degraded",
+		ScheduleActive: pool.Enabled && pool.IsScheduleActiveAt(time.Now()),
+		MaxInflight:    pool.MaxInflight,
+		MaxQueueSize:   pool.MaxQueueSize,
+		ConfigVersion:  pool.ConfigVersion,
 	}
 }
 
@@ -655,16 +667,17 @@ func (b *memoryFlowBackend) Status(_ context.Context, pool model.ChannelFlowPool
 	slot.cleanupLocked(now)
 	running, queued, oldestWaitMs := slot.statsLocked(now)
 	return PoolStatus{
-		PoolKey:       pool.PoolKey,
-		Name:          pool.Name,
-		Backend:       pool.Backend,
-		Health:        flowHealth(running, pool.MaxInflight, queued, pool.MaxQueueSize),
-		Running:       running,
-		MaxInflight:   pool.MaxInflight,
-		Queued:        queued,
-		MaxQueueSize:  pool.MaxQueueSize,
-		OldestWaitMs:  oldestWaitMs,
-		ConfigVersion: pool.ConfigVersion,
+		PoolKey:        pool.PoolKey,
+		Name:           pool.Name,
+		Backend:        pool.Backend,
+		Health:         flowHealth(running, pool.MaxInflight, queued, pool.MaxQueueSize),
+		ScheduleActive: pool.Enabled && pool.IsScheduleActiveAt(time.Now()),
+		Running:        running,
+		MaxInflight:    pool.MaxInflight,
+		Queued:         queued,
+		MaxQueueSize:   pool.MaxQueueSize,
+		OldestWaitMs:   oldestWaitMs,
+		ConfigVersion:  pool.ConfigVersion,
 	}, nil
 }
 

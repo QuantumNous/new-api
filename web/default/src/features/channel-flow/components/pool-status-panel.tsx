@@ -33,6 +33,13 @@ import {
 } from 'recharts'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type {
   ChannelFlowPool,
   ChannelFlowPoolStatus,
@@ -50,6 +57,10 @@ type PoolStatusPanelProps = {
   trendRangeMinutes: number
   trendRangeOptions: Array<{ label: string; minutes: number }>
   onTrendRangeChange: (minutes: number) => void
+  statusUpdatedAt: number
+  statusRefreshMs: number
+  statusRefreshOptions: Array<{ label: string; ms: number }>
+  onStatusRefreshChange: (ms: number) => void
 }
 
 const trendChartInitialDimension = { width: 1, height: 300 }
@@ -85,6 +96,11 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
   const totals = props.trendTotals
   const requestCount = totals?.request_count ?? 0
   const succeededCount = totals?.succeeded_count ?? 0
+  const scheduleActive = status?.schedule_active ?? props.pool.enabled
+  const selectedRefreshLabel =
+    props.statusRefreshOptions.find(
+      (option) => option.ms === props.statusRefreshMs
+    )?.label ?? '5 sec'
   const selectedRangeLabel =
     props.trendRangeOptions.find(
       (option) => option.minutes === props.trendRangeMinutes
@@ -106,16 +122,48 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
               {props.pool.pool_key}
             </p>
           </div>
-          <HealthBadge health={status?.health || 'unknown'} />
+          <div className='flex shrink-0 flex-wrap justify-end gap-1.5'>
+            <ScheduleBadge active={scheduleActive} />
+            <HealthBadge health={status?.health || 'unknown'} />
+          </div>
         </div>
 
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2'>
-          <CapacityMeter
-            label={t('Inflight')}
-            value={running}
-            max={maxInflight}
-          />
-          <CapacityMeter label={t('Queued')} value={queued} max={maxQueueSize} />
+        <div className='space-y-3 rounded-lg border bg-muted/20 p-3'>
+          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+            <div>
+              <div className='text-xs font-medium'>{t('Latest status')}</div>
+              <div className='text-muted-foreground mt-0.5 text-xs'>
+                {props.statusUpdatedAt > 0
+                  ? `${t('Updated')} ${formatStatusUpdatedAt(props.statusUpdatedAt)}`
+                  : t('Not refreshed yet')}
+              </div>
+            </div>
+            <Select
+              value={String(props.statusRefreshMs)}
+              onValueChange={(value) =>
+                props.onStatusRefreshChange(Number(value))
+              }
+            >
+              <SelectTrigger className='h-8 w-full text-xs sm:w-32'>
+                <SelectValue>{t(selectedRefreshLabel)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {props.statusRefreshOptions.map((option) => (
+                  <SelectItem key={option.ms} value={String(option.ms)}>
+                    {t(option.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2'>
+            <CapacityMeter
+              label={t('Inflight')}
+              value={running}
+              max={maxInflight}
+            />
+            <CapacityMeter label={t('Queued')} value={queued} max={maxQueueSize} />
+          </div>
         </div>
 
         <div className='grid grid-cols-2 gap-2 text-xs'>
@@ -127,6 +175,10 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
           <Metric
             label={t('Backend')}
             value={backendLabel}
+          />
+          <Metric
+            label={t('Schedule')}
+            value={getScheduleModeLabel(props.pool.schedule_mode, t)}
           />
           <Metric
             label={t('Per-user queue cap')}
@@ -376,6 +428,14 @@ function formatCount(value?: number): string {
   return new Intl.NumberFormat().format(Math.round(value))
 }
 
+function formatStatusUpdatedAt(updatedAt: number): string {
+  return new Date(updatedAt).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 function formatPercent(value?: number, total?: number): string {
   if (!value || !total || total <= 0) {
     return '0%'
@@ -429,6 +489,24 @@ function HealthBadge(props: { health: string }) {
   }
 
   return <Badge variant={variant}>{label}</Badge>
+}
+
+function ScheduleBadge(props: { active: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <Badge variant={props.active ? 'outline' : 'secondary'}>
+      {props.active ? t('Active now') : t('Inactive now')}
+    </Badge>
+  )
+}
+
+function getScheduleModeLabel(
+  mode: ChannelFlowPool['schedule_mode'],
+  t: (key: string) => string
+) {
+  if (mode === 'datetime_range') return t('Date range')
+  if (mode === 'weekly') return t('Weekly schedule')
+  return t('Always active')
 }
 
 function formatMs(value?: number): string {

@@ -32,6 +32,11 @@ type channelFlowPoolRequest struct {
 	MaxProcessingMs    int64  `json:"max_processing_ms"`
 	LeaseMs            int64  `json:"lease_ms"`
 	RenewIntervalMs    int64  `json:"renew_interval_ms"`
+	ScheduleMode       string `json:"schedule_mode"`
+	ScheduleTimezone   string `json:"schedule_timezone"`
+	EffectiveStartTime int64  `json:"effective_start_time"`
+	EffectiveEndTime   int64  `json:"effective_end_time"`
+	ScheduleWindows    string `json:"schedule_windows"`
 }
 
 type channelFlowBindingRequest struct {
@@ -321,6 +326,11 @@ func channelFlowPoolFromRequest(req channelFlowPoolRequest, existing *model.Chan
 	pool.MaxProcessingMs = req.MaxProcessingMs
 	pool.LeaseMs = req.LeaseMs
 	pool.RenewIntervalMs = req.RenewIntervalMs
+	pool.ScheduleMode = req.ScheduleMode
+	pool.ScheduleTimezone = req.ScheduleTimezone
+	pool.EffectiveStartTime = req.EffectiveStartTime
+	pool.EffectiveEndTime = req.EffectiveEndTime
+	pool.ScheduleWindows = req.ScheduleWindows
 	pool.Normalize()
 	return pool
 }

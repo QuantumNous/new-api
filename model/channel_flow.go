@@ -20,6 +20,10 @@ const (
 	ChannelFlowOnLimitReject   = "reject"
 	ChannelFlowOnLimitFallback = "fallback"
 
+	ChannelFlowScheduleAlways        = "always"
+	ChannelFlowScheduleDateTimeRange = "datetime_range"
+	ChannelFlowScheduleWeekly        = "weekly"
+
 	ChannelFlowRedisFailureFailOpen    = "fail_open"
 	ChannelFlowRedisFailureFailClosed  = "fail_closed"
 	ChannelFlowRedisFailureLocalMemory = "local_memory"
@@ -60,9 +64,20 @@ type ChannelFlowPool struct {
 	MaxProcessingMs    int64  `json:"max_processing_ms" gorm:"bigint;default:0"`
 	LeaseMs            int64  `json:"lease_ms" gorm:"bigint;default:60000"`
 	RenewIntervalMs    int64  `json:"renew_interval_ms" gorm:"bigint;default:20000"`
+	ScheduleMode       string `json:"schedule_mode" gorm:"type:varchar(32);default:'always'"`
+	ScheduleTimezone   string `json:"schedule_timezone" gorm:"type:varchar(64);default:'Asia/Shanghai'"`
+	EffectiveStartTime int64  `json:"effective_start_time" gorm:"bigint;default:0"`
+	EffectiveEndTime   int64  `json:"effective_end_time" gorm:"bigint;default:0"`
+	ScheduleWindows    string `json:"schedule_windows" gorm:"type:text"`
 	ConfigVersion      int64  `json:"config_version" gorm:"bigint;default:1"`
 	CreatedTime        int64  `json:"created_time" gorm:"bigint"`
 	UpdatedTime        int64  `json:"updated_time" gorm:"bigint"`
+}
+
+type ChannelFlowScheduleWindow struct {
+	Weekdays    []int `json:"weekdays"`
+	StartMinute int   `json:"start_minute"`
+	EndMinute   int   `json:"end_minute"`
 }
 
 type ChannelFlowPoolBinding struct {
@@ -134,6 +149,9 @@ type ChannelFlowEvent struct {
 func (p *ChannelFlowPool) Normalize() {
 	p.Name = strings.TrimSpace(p.Name)
 	p.Description = strings.TrimSpace(p.Description)
+	p.ScheduleMode = strings.TrimSpace(p.ScheduleMode)
+	p.ScheduleTimezone = strings.TrimSpace(p.ScheduleTimezone)
+	p.ScheduleWindows = strings.TrimSpace(p.ScheduleWindows)
 	if p.Backend == "" {
 		p.Backend = ChannelFlowBackendMemory
 	}
@@ -145,6 +163,12 @@ func (p *ChannelFlowPool) Normalize() {
 	}
 	if p.RedisFailurePolicy == "" {
 		p.RedisFailurePolicy = ChannelFlowRedisFailureFailOpen
+	}
+	if p.ScheduleMode == "" {
+		p.ScheduleMode = ChannelFlowScheduleAlways
+	}
+	if p.ScheduleTimezone == "" {
+		p.ScheduleTimezone = "Asia/Shanghai"
 	}
 	if p.QueueTimeoutMs <= 0 {
 		p.QueueTimeoutMs = 120000
@@ -191,7 +215,122 @@ func (p *ChannelFlowPool) Validate() error {
 	default:
 		return fmt.Errorf("invalid flow pool redis_failure_policy: %s", p.RedisFailurePolicy)
 	}
+	switch p.ScheduleMode {
+	case ChannelFlowScheduleAlways:
+	case ChannelFlowScheduleDateTimeRange:
+		if p.EffectiveStartTime <= 0 || p.EffectiveEndTime <= 0 {
+			return fmt.Errorf("effective_start_time and effective_end_time are required for datetime_range schedule")
+		}
+		if p.EffectiveEndTime <= p.EffectiveStartTime {
+			return fmt.Errorf("effective_end_time must be after effective_start_time")
+		}
+	case ChannelFlowScheduleWeekly:
+		if _, err := p.ScheduleLocation(); err != nil {
+			return err
+		}
+		windows, err := p.ParseScheduleWindows()
+		if err != nil {
+			return err
+		}
+		if len(windows) == 0 {
+			return fmt.Errorf("schedule_windows is required for weekly schedule")
+		}
+	default:
+		return fmt.Errorf("invalid flow pool schedule_mode: %s", p.ScheduleMode)
+	}
 	return nil
+}
+
+func (p *ChannelFlowPool) ScheduleLocation() (*time.Location, error) {
+	p.Normalize()
+	loc, err := time.LoadLocation(p.ScheduleTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid flow pool schedule_timezone: %s", p.ScheduleTimezone)
+	}
+	return loc, nil
+}
+
+func (p *ChannelFlowPool) ParseScheduleWindows() ([]ChannelFlowScheduleWindow, error) {
+	p.Normalize()
+	if p.ScheduleWindows == "" {
+		return nil, nil
+	}
+	var windows []ChannelFlowScheduleWindow
+	if err := common.UnmarshalJsonStr(p.ScheduleWindows, &windows); err != nil {
+		return nil, fmt.Errorf("invalid flow pool schedule_windows: %w", err)
+	}
+	for _, window := range windows {
+		if len(window.Weekdays) == 0 {
+			return nil, fmt.Errorf("schedule window weekdays cannot be empty")
+		}
+		for _, weekday := range window.Weekdays {
+			if weekday < 0 || weekday > 6 {
+				return nil, fmt.Errorf("schedule window weekday must be between 0 and 6")
+			}
+		}
+		if window.StartMinute < 0 || window.StartMinute > 1439 {
+			return nil, fmt.Errorf("schedule window start_minute must be between 0 and 1439")
+		}
+		if window.EndMinute < 1 || window.EndMinute > 1440 {
+			return nil, fmt.Errorf("schedule window end_minute must be between 1 and 1440")
+		}
+		if window.StartMinute == window.EndMinute {
+			return nil, fmt.Errorf("schedule window start_minute and end_minute cannot be equal")
+		}
+	}
+	return windows, nil
+}
+
+func (p *ChannelFlowPool) IsScheduleActiveAt(now time.Time) bool {
+	p.Normalize()
+	switch p.ScheduleMode {
+	case ChannelFlowScheduleAlways:
+		return true
+	case ChannelFlowScheduleDateTimeRange:
+		nowUnix := now.Unix()
+		return p.EffectiveStartTime <= nowUnix && nowUnix < p.EffectiveEndTime
+	case ChannelFlowScheduleWeekly:
+		loc, err := p.ScheduleLocation()
+		if err != nil {
+			return false
+		}
+		windows, err := p.ParseScheduleWindows()
+		if err != nil {
+			return false
+		}
+		localNow := now.In(loc)
+		for _, window := range windows {
+			if scheduleWindowContains(window, localNow) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func scheduleWindowContains(window ChannelFlowScheduleWindow, now time.Time) bool {
+	currentMinute := now.Hour()*60 + now.Minute()
+	currentWeekday := int(now.Weekday())
+	if window.StartMinute < window.EndMinute {
+		return weekdayInSchedule(window.Weekdays, currentWeekday) &&
+			currentMinute >= window.StartMinute &&
+			currentMinute < window.EndMinute
+	}
+	previousWeekday := currentWeekday - 1
+	if previousWeekday < 0 {
+		previousWeekday = 6
+	}
+	return (weekdayInSchedule(window.Weekdays, currentWeekday) && currentMinute >= window.StartMinute) ||
+		(weekdayInSchedule(window.Weekdays, previousWeekday) && currentMinute < window.EndMinute)
+}
+
+func weekdayInSchedule(weekdays []int, target int) bool {
+	for _, weekday := range weekdays {
+		if weekday == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *ChannelFlowPool) BeforeCreate(_ *gorm.DB) error {

@@ -22,13 +22,13 @@ import { Edit, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
-import type { ChannelFlowPool, ChannelFlowPoolStatus } from '../types'
+import type { ChannelFlowPool, ChannelFlowScheduleWindow } from '../types'
 
 type PoolListProps = {
   pools: ChannelFlowPool[]
   selectedPoolId?: number
-  status?: ChannelFlowPoolStatus | null
   loading: boolean
   onSelect: (pool: ChannelFlowPool) => void
   onEdit: (pool: ChannelFlowPool) => void
@@ -62,22 +62,12 @@ export function PoolList(props: PoolListProps) {
     <div className='space-y-2 overflow-x-hidden'>
       {props.pools.map((pool) => {
         const isSelected = pool.id === props.selectedPoolId
-        const liveStatus =
-          isSelected && props.status?.pool_key === pool.pool_key
-            ? props.status
-            : null
-        const inflightValue = liveStatus
-          ? `${liveStatus.running}/${liveStatus.max_inflight}`
-          : String(pool.max_inflight)
-        const queuedValue = liveStatus
-          ? `${liveStatus.queued}/${liveStatus.max_queue_size}`
-          : String(pool.max_queue_size)
+        const isScheduleActive = isPoolScheduleActive(pool)
+        const scheduleSummary = getPoolScheduleSummary(pool, t)
         const backendLabel =
-          pool.backend === 'redis' && liveStatus?.backend === 'memory'
-            ? t('Local memory fallback')
-            : pool.backend === 'redis'
-              ? t('Redis')
-              : t('Memory')
+          pool.backend === 'redis'
+            ? t('Redis')
+            : t('Memory')
 
         return (
           <div
@@ -130,15 +120,30 @@ export function PoolList(props: PoolListProps) {
               </div>
             </div>
 
-            <div className='mt-3 grid grid-cols-2 gap-2'>
-              <PoolLimit
-                label={liveStatus ? t('Inflight') : t('Max inflight')}
-                value={inflightValue}
-              />
-              <PoolLimit
-                label={liveStatus ? t('Queued') : t('Max queue size')}
-                value={queuedValue}
-              />
+            <div className='mt-3 rounded-md bg-muted/35 px-2.5 py-2'>
+              <div className='flex min-w-0 items-center gap-2'>
+                <span
+                  className={cn(
+                    'size-2 shrink-0 rounded-full',
+                    pool.enabled && isScheduleActive
+                      ? 'bg-emerald-500'
+                      : 'bg-muted-foreground/45'
+                  )}
+                />
+                <span className='truncate text-xs font-medium'>
+                  {!pool.enabled
+                    ? t('Disabled')
+                    : isScheduleActive
+                      ? t('Active now')
+                      : t('Inactive now')}
+                </span>
+              </div>
+              <div
+                className='text-muted-foreground mt-1 truncate text-xs'
+                title={scheduleSummary}
+              >
+                {scheduleSummary}
+              </div>
             </div>
 
             <div className='mt-3 flex flex-wrap gap-1.5'>
@@ -155,6 +160,10 @@ export function PoolList(props: PoolListProps) {
                     ? t('Fallback on limit')
                     : t('Reject on limit')}
               </Badge>
+              <Badge variant='secondary'>
+                {t('Capacity')} {formatLimit(pool.max_inflight)}+
+                {formatLimit(pool.max_queue_size)}
+              </Badge>
             </div>
           </div>
         )
@@ -163,13 +172,149 @@ export function PoolList(props: PoolListProps) {
   )
 }
 
-function PoolLimit(props: { label: string; value: string }) {
+function formatLimit(value?: number): string {
+  if (!value || value <= 0) return '∞'
+  return String(value)
+}
+
+function getPoolScheduleSummary(
+  pool: ChannelFlowPool,
+  t: (key: string) => string
+) {
+  switch (pool.schedule_mode || 'always') {
+    case 'datetime_range':
+      return `${formatDateTime(pool.effective_start_time)} - ${formatDateTime(
+        pool.effective_end_time
+      )}`
+    case 'weekly': {
+      const window = parseScheduleWindows(pool.schedule_windows)[0]
+      if (!window) return t('Weekly schedule')
+      return `${formatWeekdays(window.weekdays, t)} ${formatMinute(
+        window.start_minute
+      )}-${formatMinute(window.end_minute)}`
+    }
+    default:
+      return t('Always active')
+  }
+}
+
+function formatDateTime(timestamp?: number) {
+  if (!timestamp || timestamp <= 0) return '-'
+  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm')
+}
+
+function parseScheduleWindows(raw?: string): ChannelFlowScheduleWindow[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (item): item is ChannelFlowScheduleWindow =>
+        item &&
+        Array.isArray(item.weekdays) &&
+        Number.isInteger(item.start_minute) &&
+        Number.isInteger(item.end_minute)
+    )
+  } catch {
+    return []
+  }
+}
+
+function formatWeekdays(weekdays: number[], t: (key: string) => string) {
+  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const normalized = [...new Set(weekdays)]
+    .filter((weekday) => weekday >= 0 && weekday <= 6)
+    .sort((a, b) => a - b)
+  if (normalized.length === 0) return t('Weekly schedule')
+  if (normalized.join(',') === '1,2,3,4,5') return `${t('Mon')}-${t('Fri')}`
+  if (normalized.join(',') === '0,6') return `${t('Sun')}, ${t('Sat')}`
+  return normalized.map((weekday) => t(labels[weekday])).join(', ')
+}
+
+function formatMinute(minute: number) {
+  const clamped = Math.max(0, Math.min(1440, Number.isFinite(minute) ? minute : 0))
+  if (clamped === 1440) return '24:00'
+  const hours = Math.floor(clamped / 60)
+  const minutes = clamped % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function isPoolScheduleActive(pool: ChannelFlowPool) {
+  if (!pool.enabled) return false
+  switch (pool.schedule_mode || 'always') {
+    case 'datetime_range': {
+      const now = Math.floor(Date.now() / 1000)
+      return (
+        pool.effective_start_time > 0 &&
+        pool.effective_end_time > 0 &&
+        pool.effective_start_time <= now &&
+        now < pool.effective_end_time
+      )
+    }
+    case 'weekly': {
+      const windows = parseScheduleWindows(pool.schedule_windows)
+      if (windows.length === 0) return false
+      const localNow = getTimePartsInTimezone(
+        new Date(),
+        pool.schedule_timezone || 'Asia/Shanghai'
+      )
+      return windows.some((window) =>
+        scheduleWindowContains(window, localNow.weekday, localNow.minute)
+      )
+    }
+    default:
+      return true
+  }
+}
+
+function getTimePartsInTimezone(date: Date, timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date)
+    const weekdayText = parts.find((part) => part.type === 'weekday')?.value
+    const hourText = parts.find((part) => part.type === 'hour')?.value
+    const minuteText = parts.find((part) => part.type === 'minute')?.value
+    const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+      weekdayText || ''
+    )
+    const hour = Number(hourText)
+    const minute = Number(minuteText)
+    return {
+      weekday: weekday >= 0 ? weekday : date.getDay(),
+      minute:
+        (Number.isFinite(hour) ? hour % 24 : date.getHours()) * 60 +
+        (Number.isFinite(minute) ? minute : date.getMinutes()),
+    }
+  } catch {
+    return {
+      weekday: date.getDay(),
+      minute: date.getHours() * 60 + date.getMinutes(),
+    }
+  }
+}
+
+function scheduleWindowContains(
+  window: ChannelFlowScheduleWindow,
+  currentWeekday: number,
+  currentMinute: number
+) {
+  if (window.start_minute < window.end_minute) {
+    return (
+      window.weekdays.includes(currentWeekday) &&
+      currentMinute >= window.start_minute &&
+      currentMinute < window.end_minute
+    )
+  }
+  const previousWeekday = currentWeekday === 0 ? 6 : currentWeekday - 1
   return (
-    <div className='rounded-md bg-muted/35 px-2 py-1.5'>
-      <div className='text-muted-foreground truncate text-xs'>{props.label}</div>
-      <div className='mt-0.5 text-sm font-semibold tabular-nums'>
-        {props.value}
-      </div>
-    </div>
+    (window.weekdays.includes(currentWeekday) &&
+      currentMinute >= window.start_minute) ||
+    (window.weekdays.includes(previousWeekday) &&
+      currentMinute < window.end_minute)
   )
 }
