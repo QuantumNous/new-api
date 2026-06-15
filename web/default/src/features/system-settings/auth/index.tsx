@@ -21,6 +21,7 @@ import type { AuthSettings } from '../types'
 import {
   AUTH_DEFAULT_SECTION,
   getAuthSectionContent,
+  getAuthSectionMeta,
 } from './section-registry.tsx'
 
 const defaultAuthSettings: AuthSettings = {
@@ -74,6 +75,7 @@ export function AuthSettings() {
       defaultSettings={defaultAuthSettings}
       defaultSection={AUTH_DEFAULT_SECTION}
       getSectionContent={getAuthSectionContent}
+      getSectionMeta={getAuthSectionMeta}
     />
   )
 }

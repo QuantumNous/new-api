@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getBgColorClass } from '@/lib/colors'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,14 +36,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -61,16 +54,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StaticDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -97,21 +84,23 @@ const createApiInfoSchema = (t: (key: string) => string) =>
 
 type ApiInfoFormValues = z.infer<ReturnType<typeof createApiInfoSchema>>
 
+const API_INFO_FORM_ID = 'api-info-form'
+
 const colorOptions = [
-  { value: 'blue', label: 'Blue', bgClass: 'bg-blue-500' },
-  { value: 'green', label: 'Green', bgClass: 'bg-green-500' },
-  { value: 'cyan', label: 'Cyan', bgClass: 'bg-cyan-500' },
-  { value: 'purple', label: 'Purple', bgClass: 'bg-purple-500' },
-  { value: 'pink', label: 'Pink', bgClass: 'bg-pink-500' },
-  { value: 'red', label: 'Red', bgClass: 'bg-red-500' },
-  { value: 'orange', label: 'Orange', bgClass: 'bg-orange-500' },
-  { value: 'amber', label: 'Amber', bgClass: 'bg-amber-500' },
-  { value: 'yellow', label: 'Yellow', bgClass: 'bg-yellow-500' },
-  { value: 'lime', label: 'Lime', bgClass: 'bg-lime-500' },
-  { value: 'teal', label: 'Teal', bgClass: 'bg-teal-500' },
-  { value: 'indigo', label: 'Indigo', bgClass: 'bg-indigo-500' },
-  { value: 'violet', label: 'Violet', bgClass: 'bg-violet-500' },
-  { value: 'slate', label: 'Slate', bgClass: 'bg-slate-500' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Green' },
+  { value: 'cyan', label: 'Cyan' },
+  { value: 'purple', label: 'Purple' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'red', label: 'Red' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'amber', label: 'Amber' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'lime', label: 'Lime' },
+  { value: 'teal', label: 'Teal' },
+  { value: 'indigo', label: 'Indigo' },
+  { value: 'violet', label: 'Violet' },
+  { value: 'slate', label: 'Slate' },
 ]
 
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
@@ -249,12 +238,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleSaveAll = async () => {
     try {
-      await updateOption.mutateAsync({
+      const result = await updateOption.mutateAsync({
         key: 'console_setting.api_info',
         value: JSON.stringify(apiInfoList),
       })
-      setHasChanges(false)
-      toast.success(t('API info saved successfully'))
+      if (result.success) {
+        setHasChanges(false)
+      }
     } catch {
       toast.error(t('Failed to save API info'))
     }
@@ -270,17 +260,10 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     )
   }
 
-  const getColorClass = (color: string) => {
-    return (
-      colorOptions.find((opt) => opt.value === color)?.bgClass || 'bg-blue-500'
-    )
-  }
+  const getColorClass = (color: string) => getBgColorClass(color)
 
   return (
-    <SettingsSection
-      title={t('API Addresses')}
-      description={t('Curate quick links to your different Domains')}
-    >
+    <SettingsSection title={t('API Addresses')}>
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -308,238 +291,235 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>
-              {t('Enabled')}
-            </span>
-            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
-          </div>
+          <SettingsSwitchField
+            checked={isEnabled}
+            onCheckedChange={handleToggleEnabled}
+            label={t('Enabled')}
+            className='border-b-0 py-0'
+          />
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === apiInfoList.length &&
-                      apiInfoList.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
+        <StaticDataTable
+          data={apiInfoList}
+          getRowKey={(apiInfo) => apiInfo.id}
+          emptyContent={t('No API Domains yet. Click "Add API" to create one.')}
+          columns={[
+            {
+              id: 'select',
+              header: (
+                <Checkbox
+                  checked={
+                    selectedIds.length === apiInfoList.length &&
+                    apiInfoList.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+              ),
+              className: 'w-12',
+              cell: (apiInfo) => (
+                <Checkbox
+                  checked={selectedIds.includes(apiInfo.id)}
+                  onCheckedChange={(checked) =>
+                    toggleSelectOne(apiInfo.id, checked as boolean)
+                  }
+                />
+              ),
+            },
+            {
+              id: 'url',
+              header: t('URL'),
+              cellClassName: 'max-w-xs truncate font-mono text-sm',
+              cell: (apiInfo) => (
+                <StatusBadge
+                  label={apiInfo.url}
+                  variant='neutral'
+                  copyable={false}
+                />
+              ),
+            },
+            {
+              id: 'route',
+              header: t('Route'),
+              cell: (apiInfo) => (
+                <StatusBadge
+                  label={apiInfo.route}
+                  variant='neutral'
+                  copyable={false}
+                />
+              ),
+            },
+            {
+              id: 'description',
+              header: t('Description'),
+              cellClassName: 'max-w-xs truncate',
+              cell: (apiInfo) => apiInfo.description,
+            },
+            {
+              id: 'color',
+              header: t('Color'),
+              cell: (apiInfo) => (
+                <div className='flex items-center gap-2'>
+                  <div
+                    className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
                   />
-                </TableHead>
-                <TableHead>{t('URL')}</TableHead>
-                <TableHead>{t('Route')}</TableHead>
-                <TableHead>{t('Description')}</TableHead>
-                <TableHead>{t('Color')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {apiInfoList.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
-                    {t('No API Domains yet. Click "Add API" to create one.')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                apiInfoList.map((apiInfo) => (
-                  <TableRow key={apiInfo.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(apiInfo.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(apiInfo.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate font-mono text-sm'
-                      title={apiInfo.url}
-                    >
-                      <StatusBadge
-                        label={apiInfo.url}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        label={apiInfo.route}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate'
-                      title={apiInfo.description}
-                    >
-                      {apiInfo.description}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex items-center gap-2'>
-                        <div
-                          className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
-                        />
-                        <span className='text-sm capitalize'>
-                          {apiInfo.color}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(apiInfo)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(apiInfo)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  <span className='text-sm capitalize'>{apiInfo.color}</span>
+                </div>
+              ),
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-32',
+              cell: (apiInfo) => (
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={() => handleEdit(apiInfo)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Edit className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(apiInfo)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingApiInfo ? t('Edit API Shortcut') : t('Add API Shortcut')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Configure API documentation links for the dashboard')}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className='space-y-4'
+      <Dialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        title={editingApiInfo ? t('Edit API Shortcut') : t('Add API Shortcut')}
+        description={t('Configure API documentation links for the dashboard')}
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setShowDialog(false)}
             >
-              <FormField
-                control={form.control}
-                name='url'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('API URL')}</FormLabel>
+              {t('Cancel')}
+            </Button>
+            <Button type='submit' form={API_INFO_FORM_ID}>
+              {editingApiInfo ? t('Update') : t('Add')}
+            </Button>
+          </>
+        }
+      >
+        <Form {...form}>
+          <form
+            id={API_INFO_FORM_ID}
+            onSubmit={form.handleSubmit(handleSubmitForm)}
+            className='space-y-4'
+          >
+            <FormField
+              control={form.control}
+              name='url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('API URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('https://api.example.com')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='route'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Route Description')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t('e.g., CN2 GIA')} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='description'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Description')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t(
+                        'e.g., Recommended for China Mainland Users'
+                      )}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='color'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Badge Color')}</FormLabel>
+                  <Select
+                    items={[
+                      ...colorOptions.map((option) => ({
+                        value: option.value,
+                        label: (
+                          <div className='flex items-center gap-2'>
+                            <div
+                              className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
+                            />
+                            {option.label}
+                          </div>
+                        ),
+                      })),
+                    ]}
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
                     <FormControl>
-                      <Input
-                        placeholder={t('https://api.example.com')}
-                        {...field}
-                      />
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('Select a color')} />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='route'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Route Description')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('e.g., CN2 GIA')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='description'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Description')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t(
-                          'e.g., Recommended for China Mainland Users'
-                        )}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='color'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Badge Color')}</FormLabel>
-                    <Select
-                      items={[
-                        ...colorOptions.map((option) => ({
-                          value: option.value,
-                          label: (
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {colorOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`h-4 w-4 rounded-full ${option.bgClass}`}
+                                className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
                               />
                               {option.label}
                             </div>
-                          ),
-                        })),
-                      ]}
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('Select a color')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {colorOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className='flex items-center gap-2'>
-                                <div
-                                  className={`h-4 w-4 rounded-full ${option.bgClass}`}
-                                />
-                                {option.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      {t('Visual indicator color for the API card')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setShowDialog(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit'>
-                  {editingApiInfo ? t('Update') : t('Add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {t('Visual indicator color for the API card')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

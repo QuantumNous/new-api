@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -31,18 +31,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { StaticDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { SettingsSwitchField } from '../../components/settings-form-layout'
+import { SettingsPageActionsPortal } from '../../components/settings-page-context'
 import { SettingsSection } from '../../components/settings-section'
 import { useUpdateOption } from '../../hooks/use-update-option'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
@@ -63,6 +57,61 @@ function parseRules(jsonStr: string): AffinityRule[] {
   }
 }
 
+function RuleBadgeList(props: { items: string[] }) {
+  return (
+    <StatusBadgeList
+      items={props.items}
+      max={2}
+      getKey={(item) => item}
+      renderItem={(item) => (
+        <StatusBadge
+          label={item}
+          variant='neutral'
+          size='sm'
+          copyable={false}
+        />
+      )}
+    />
+  )
+}
+
+function ChannelAffinityConfirmDialog(props: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: ReactNode
+  desc: ReactNode
+  handleConfirm: () => void
+  destructive?: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={props.title}
+      contentClassName='sm:max-w-md'
+      contentHeight='auto'
+      bodyClassName='flex items-start'
+      footer={
+        <>
+          <Button variant='outline' onClick={() => props.onOpenChange(false)}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            variant={props.destructive ? 'destructive' : 'default'}
+            onClick={props.handleConfirm}
+          >
+            {t('Continue')}
+          </Button>
+        </>
+      }
+    >
+      <div className='text-muted-foreground text-sm'>{props.desc}</div>
+    </Dialog>
+  )
+}
+
 function serializeRules(rules: AffinityRule[]): string {
   return JSON.stringify(rules.map(({ id: _, ...rest }) => rest))
 }
@@ -80,6 +129,9 @@ export function ChannelAffinitySection(props: Props) {
   )
   const [switchOnSuccess, setSwitchOnSuccess] = useState(
     props.defaultValues['channel_affinity_setting.switch_on_success']
+  )
+  const [keepOnChannelDisabled, setKeepOnChannelDisabled] = useState(
+    props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
   )
   const [maxEntries, setMaxEntries] = useState(
     props.defaultValues['channel_affinity_setting.max_entries']
@@ -116,6 +168,9 @@ export function ChannelAffinitySection(props: Props) {
     setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
     setSwitchOnSuccess(
       props.defaultValues['channel_affinity_setting.switch_on_success']
+    )
+    setKeepOnChannelDisabled(
+      props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
     )
     setMaxEntries(props.defaultValues['channel_affinity_setting.max_entries'])
     setDefaultTtl(
@@ -211,6 +266,14 @@ export function ChannelAffinitySection(props: Props) {
         updates.push({
           key: 'channel_affinity_setting.switch_on_success',
           value: String(switchOnSuccess),
+        })
+      if (
+        keepOnChannelDisabled !==
+        props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
+      )
+        updates.push({
+          key: 'channel_affinity_setting.keep_on_channel_disabled',
+          value: String(keepOnChannelDisabled),
         })
       if (
         maxEntries !==
@@ -333,12 +396,7 @@ export function ChannelAffinitySection(props: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('Channel Affinity')}
-        description={t(
-          'Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)'
-        )}
-      >
+      <SettingsSection title={t('Channel Affinity')}>
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -349,10 +407,12 @@ export function ChannelAffinitySection(props: Props) {
 
         {/* Basic Settings */}
         <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-          <div className='flex items-center gap-2'>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-            <Label>{t('Enable')}</Label>
-          </div>
+          <SettingsSwitchField
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            label={t('Enable')}
+            className='border-b-0 py-0'
+          />
           <div className='grid gap-1.5'>
             <Label>{t('Max Entries')}</Label>
             <Input
@@ -373,23 +433,26 @@ export function ChannelAffinitySection(props: Props) {
           </div>
         </div>
 
-        <div className='flex items-center gap-2'>
-          <Switch
-            checked={switchOnSuccess}
-            onCheckedChange={setSwitchOnSuccess}
-          />
-          <Label>{t('Switch affinity on success')}</Label>
-          <span className='text-muted-foreground text-xs'>
-            {t(
-              'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
-            )}
-          </span>
-        </div>
+        <SettingsSwitchField
+          checked={switchOnSuccess}
+          onCheckedChange={setSwitchOnSuccess}
+          label={t('Switch affinity on success')}
+          description={t(
+            'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
+          )}
+        />
+        <SettingsSwitchField
+          checked={keepOnChannelDisabled}
+          onCheckedChange={setKeepOnChannelDisabled}
+          label={t('Keep affinity when channel is disabled')}
+          description={t(
+            'When enabled, keep the affinity entry even if the affinity channel is disabled or no longer usable for the current group/model. Leave it off to delete the entry and select another channel.'
+          )}
+        />
 
         <Separator />
 
-        {/* Toolbar */}
-        <div className='flex flex-wrap items-center gap-2'>
+        <SettingsPageActionsPortal>
           <Button
             variant={editMode === 'visual' ? 'default' : 'outline'}
             size='sm'
@@ -472,192 +535,121 @@ export function ChannelAffinitySection(props: Props) {
               {cacheStats.cache_capacity}
             </span>
           )}
-        </div>
+        </SettingsPageActionsPortal>
 
         {/* Rules Table or JSON Editor */}
         {editMode === 'visual' ? (
-          <div className='overflow-x-auto rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('Name')}</TableHead>
-                  <TableHead>{t('Model Regex')}</TableHead>
-                  <TableHead>{t('Key Sources')}</TableHead>
-                  <TableHead>{t('TTL')}</TableHead>
-                  <TableHead>{t('Retry')}</TableHead>
-                  <TableHead>{t('Scope')}</TableHead>
-                  <TableHead>{t('Cache')}</TableHead>
-                  <TableHead className='text-right'>{t('Actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className='text-muted-foreground py-8 text-center'
+          <StaticDataTable
+            tableClassName='min-w-max'
+            data={rules}
+            emptyClassName='text-muted-foreground py-8'
+            emptyContent={t('No rules yet')}
+            columns={[
+              {
+                id: 'name',
+                header: t('Name'),
+                cellClassName: 'font-medium',
+                cell: (rule) => rule.name || '-',
+              },
+              {
+                id: 'model-regex',
+                header: t('Model Regex'),
+                cell: (rule) => <RuleBadgeList items={rule.model_regex || []} />,
+              },
+              {
+                id: 'key-sources',
+                header: t('Key Sources'),
+                cell: (rule) => (
+                  <RuleBadgeList
+                    items={(rule.key_sources || []).map(
+                      (src) =>
+                        `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
+                    )}
+                  />
+                ),
+              },
+              {
+                id: 'ttl',
+                header: t('TTL'),
+                cell: (rule) => rule.ttl_seconds || '-',
+              },
+              {
+                id: 'retry',
+                header: t('Retry'),
+                cell: (rule) => (
+                  <StatusBadge
+                    label={
+                      rule.skip_retry_on_failure ? t('No Retry') : t('Retry')
+                    }
+                    variant={rule.skip_retry_on_failure ? 'danger' : 'neutral'}
+                    copyable={false}
+                  />
+                ),
+              },
+              {
+                id: 'scope',
+                header: t('Scope'),
+                cell: (rule) => {
+                  const scopeItems = [
+                    rule.include_using_group && t('Group'),
+                    rule.include_model_name && t('Model'),
+                    rule.include_rule_name && t('Rule'),
+                  ].filter(Boolean) as string[]
+                  if (scopeItems.length === 0) return '-'
+                  return <RuleBadgeList items={scopeItems} />
+                },
+              },
+              {
+                id: 'cache',
+                header: t('Cache'),
+                cell: (rule) =>
+                  rule.include_rule_name && cacheStats?.by_rule_name
+                    ? cacheStats.by_rule_name[rule.name] || 0
+                    : 'N/A',
+              },
+              {
+                id: 'actions',
+                header: t('Actions'),
+                className: 'text-right',
+                cellClassName: 'text-right',
+                cell: (rule, idx) => (
+                  <div className='flex justify-end gap-1'>
+                    {rule.include_rule_name && (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7'
+                        onClick={() => setClearRuleName(rule.name)}
+                        title={t('Clear cache for this rule')}
+                      >
+                        <X className='h-3 w-3' />
+                      </Button>
+                    )}
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-7 w-7'
+                      onClick={() => {
+                        setEditingRule(rule)
+                        setRuleTemplateKey(null)
+                        setRuleEditorOpen(true)
+                      }}
                     >
-                      {t('No rules yet')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rules.map((rule, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className='font-medium'>
-                        {rule.name || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                          {(rule.model_regex || []).length > 0 && (
-                            <span
-                              className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                              aria-hidden='true'
-                            />
-                          )}
-                          {(rule.model_regex || [])
-                            .slice(0, 2)
-                            .map((r, i, arr) => (
-                              <span
-                                key={i}
-                                className='flex items-center gap-1.5'
-                              >
-                                {r}
-                                {i < arr.length - 1 && (
-                                  <span className='text-muted-foreground/30'>
-                                    ·
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                          {(rule.model_regex || []).length > 2 && (
-                            <span className='text-muted-foreground/50'>
-                              +{(rule.model_regex || []).length - 2}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                          {(rule.key_sources || []).length > 0 && (
-                            <span
-                              className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                              aria-hidden='true'
-                            />
-                          )}
-                          {(rule.key_sources || [])
-                            .slice(0, 2)
-                            .map((src, i, arr) => (
-                              <span
-                                key={i}
-                                className='flex items-center gap-1.5'
-                              >
-                                {src.type}:
-                                {src.type === 'gjson' ? src.path : src.key}
-                                {i < arr.length - 1 && (
-                                  <span className='text-muted-foreground/30'>
-                                    ·
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                          {(rule.key_sources || []).length > 2 && (
-                            <span className='text-muted-foreground/50'>
-                              +{(rule.key_sources || []).length - 2}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{rule.ttl_seconds || '-'}</TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          label={
-                            rule.skip_retry_on_failure
-                              ? t('No Retry')
-                              : t('Retry')
-                          }
-                          variant={
-                            rule.skip_retry_on_failure ? 'danger' : 'neutral'
-                          }
-                          copyable={false}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const scopeItems = [
-                            rule.include_using_group && t('Group'),
-                            rule.include_model_name && t('Model'),
-                            rule.include_rule_name && t('Rule'),
-                          ].filter(Boolean) as string[]
-                          if (scopeItems.length === 0) return '-'
-                          return (
-                            <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                              <span
-                                className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                                aria-hidden='true'
-                              />
-                              {scopeItems.map((item, idx, arr) => (
-                                <span
-                                  key={idx}
-                                  className='flex items-center gap-1.5'
-                                >
-                                  {item}
-                                  {idx < arr.length - 1 && (
-                                    <span className='text-muted-foreground/30'>
-                                      ·
-                                    </span>
-                                  )}
-                                </span>
-                              ))}
-                            </div>
-                          )
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {rule.include_rule_name && cacheStats?.by_rule_name
-                          ? cacheStats.by_rule_name[rule.name] || 0
-                          : 'N/A'}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <div className='flex justify-end gap-1'>
-                          {rule.include_rule_name && (
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='h-7 w-7'
-                              onClick={() => setClearRuleName(rule.name)}
-                              title={t('Clear cache for this rule')}
-                            >
-                              <X className='h-3 w-3' />
-                            </Button>
-                          )}
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='h-7 w-7'
-                            onClick={() => {
-                              setEditingRule(rule)
-                              setRuleTemplateKey(null)
-                              setRuleEditorOpen(true)
-                            }}
-                          >
-                            <Edit className='h-3 w-3' />
-                          </Button>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='h-7 w-7'
-                            onClick={() => handleDeleteRule(idx)}
-                          >
-                            <Trash2 className='h-3 w-3' />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                      <Edit className='h-3 w-3' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-7 w-7'
+                      onClick={() => handleDeleteRule(idx)}
+                    >
+                      <Trash2 className='h-3 w-3' />
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+          />
         ) : (
           <div className='grid gap-1.5'>
             <Label>{t('Rules JSON')}</Label>
@@ -678,7 +670,7 @@ export function ChannelAffinitySection(props: Props) {
         templateKey={ruleTemplateKey}
       />
 
-      <ConfirmDialog
+      <ChannelAffinityConfirmDialog
         open={clearAllDialogOpen}
         onOpenChange={setClearAllDialogOpen}
         title={t('Confirm clearing all channel affinity cache')}
@@ -690,7 +682,7 @@ export function ChannelAffinitySection(props: Props) {
       />
 
       {clearRuleName !== null && (
-        <ConfirmDialog
+        <ChannelAffinityConfirmDialog
           open
           onOpenChange={(v) => !v && setClearRuleName(null)}
           title={t('Confirm clearing cache for this rule')}
@@ -700,7 +692,7 @@ export function ChannelAffinitySection(props: Props) {
         />
       )}
 
-      <ConfirmDialog
+      <ChannelAffinityConfirmDialog
         open={fillTemplateDialogOpen}
         onOpenChange={setFillTemplateDialogOpen}
         title={t('Fill Codex CLI / Claude CLI Templates')}

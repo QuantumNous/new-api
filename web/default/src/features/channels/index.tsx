@@ -27,11 +27,8 @@ export function Channels() {
   const { t } = useTranslation()
   return (
     <ChannelsProvider>
-      <SectionPageLayout>
+      <SectionPageLayout fixedContent>
         <SectionPageLayout.Title>{t('Channels')}</SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {t('Manage API channels and provider configurations')}
-        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <ChannelsPrimaryButtons />
         </SectionPageLayout.Actions>

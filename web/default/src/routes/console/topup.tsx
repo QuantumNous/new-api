@@ -16,13 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+const topupSearchSchema = z.record(z.string(), z.unknown()).catch({})
+
 export const Route = createFileRoute('/console/topup')({
-  beforeLoad: () => {
+  validateSearch: topupSearchSchema,
+  beforeLoad: ({ search }) => {
     throw redirect({
       to: '/wallet',
-      search: { show_history: true },
+      search: { show_history: true, ...search },
     })
   },
 })

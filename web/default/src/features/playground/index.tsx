@@ -18,15 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
-import { DEFAULT_GROUP } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
 
 export function Playground() {
+  const { t } = useTranslation()
   const {
     config,
     parameterEnabled,
@@ -53,13 +55,35 @@ export function Playground() {
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ['playground-models'],
-    queryFn: getUserModels,
+    queryFn: async () => {
+      try {
+        return await getUserModels()
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t('Failed to load playground models')
+        )
+        return []
+      }
+    },
   })
 
   // Load groups
   const { data: groupsData } = useQuery({
     queryKey: ['playground-groups'],
-    queryFn: getUserGroups,
+    queryFn: async () => {
+      try {
+        return await getUserGroups()
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t('Failed to load playground groups')
+        )
+        return []
+      }
+    },
   })
 
   // Update models when data changes
@@ -79,22 +103,16 @@ export function Playground() {
   useEffect(() => {
     if (!groupsData) return
 
-    // Add auto group if not present
-    const hasAutoGroup = groupsData.some((g) => g.value === DEFAULT_GROUP)
-    const processedGroups = hasAutoGroup
-      ? groupsData
-      : [
-          {
-            value: DEFAULT_GROUP,
-            label: 'Auto',
-            ratio: 1,
-            desc: 'Circuit Breaker',
-          },
-          ...groupsData,
-        ]
+    setGroups(groupsData)
 
-    setGroups(processedGroups)
-  }, [groupsData, setGroups])
+    const hasCurrentGroup = groupsData.some((g) => g.value === config.group)
+    if (!hasCurrentGroup && groupsData.length > 0) {
+      const fallback =
+        groupsData.find((g) => g.value === 'default')?.value ??
+        groupsData[0].value
+      updateConfig('group', fallback)
+    }
+  }, [groupsData, setGroups, config.group, updateConfig])
 
   const handleSendMessage = (text: string) => {
     const userMessage = createUserMessage(text)

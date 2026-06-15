@@ -23,13 +23,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -38,15 +31,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StaticDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import {
   getMultiKeyStatus,
@@ -135,10 +122,12 @@ export function MultiKeyManageDialog({
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
+      } else {
+        toast.error(response.message || t('Failed to load key status'))
       }
     } catch (error: unknown) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to load key status'
+        error instanceof Error ? error.message : t('Failed to load key status')
       )
     } finally {
       setIsLoading(false)
@@ -181,7 +170,7 @@ export function MultiKeyManageDialog({
       }
 
       if (response?.success) {
-        toast.success(response.message || 'Operation successful')
+        toast.success(response.message || t('Operation successful'))
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
 
         // Reload data - reset to page 1 for bulk actions
@@ -193,10 +182,12 @@ export function MultiKeyManageDialog({
           loadKeyStatus(currentPage, pageSize)
         }
       } else {
-        toast.error(response?.message || 'Operation failed')
+        toast.error(response?.message || t('Operation failed'))
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Operation failed')
+      toast.error(
+        error instanceof Error ? error.message : t('Operation failed')
+      )
     } finally {
       setIsPerformingAction(false)
       setConfirmAction(null)
@@ -224,215 +215,222 @@ export function MultiKeyManageDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='flex max-h-[90vh] max-w-5xl flex-col'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              {t('Multi-Key Management')}
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={
+          <>
+            {t('Multi-Key Management')}
+            <StatusBadge
+              label={currentRow.name}
+              variant='neutral'
+              copyable={false}
+            />
+            {currentRow.channel_info?.multi_key_mode && (
               <StatusBadge
-                label={currentRow.name}
+                label={
+                  currentRow.channel_info.multi_key_mode === 'random'
+                    ? t('Random')
+                    : t('Polling')
+                }
                 variant='neutral'
                 copyable={false}
               />
-              {currentRow.channel_info?.multi_key_mode && (
-                <StatusBadge
-                  label={
-                    currentRow.channel_info.multi_key_mode === 'random'
-                      ? t('Random')
-                      : t('Polling')
-                  }
-                  variant='neutral'
-                  copyable={false}
-                />
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Manage multi-key status and configuration for this channel')}
-            </DialogDescription>
-          </DialogHeader>
+            )}
+          </>
+        }
+        description={t(
+          'Manage multi-key status and configuration for this channel'
+        )}
+        contentClassName='flex max-h-[90vh] max-w-5xl flex-col'
+        titleClassName='flex items-center gap-2'
+        contentHeight='min(72vh, 720px)'
+        bodyClassName='space-y-4'
+      >
+        <div className='flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden'>
+          {/* Statistics */}
+          <div className='grid shrink-0 grid-cols-3 gap-3'>
+            <StatisticsCard
+              label={t('Enabled')}
+              count={enabledCount}
+              total={total}
+            />
+            <StatisticsCard
+              label={t('Manual Disabled')}
+              count={manualDisabledCount}
+              total={total}
+            />
+            <StatisticsCard
+              label={t('Auto Disabled')}
+              count={autoDisabledCount}
+              total={total}
+            />
+          </div>
 
-          <div className='flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden'>
-            {/* Statistics */}
-            <div className='grid shrink-0 grid-cols-3 gap-3'>
-              <StatisticsCard
-                label={t('Enabled')}
-                count={enabledCount}
-                total={total}
-              />
-              <StatisticsCard
-                label={t('Manual Disabled')}
-                count={manualDisabledCount}
-                total={total}
-              />
-              <StatisticsCard
-                label={t('Auto Disabled')}
-                count={autoDisabledCount}
-                total={total}
-              />
-            </div>
+          <Separator className='shrink-0' />
 
-            <Separator className='shrink-0' />
+          {/* Toolbar */}
+          <div className='flex shrink-0 items-center justify-between'>
+            <Select
+              items={[
+                ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.label),
+                })),
+              ]}
+              value={statusFilter === null ? 'all' : statusFilter.toString()}
+              onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
+            >
+              <SelectTrigger className='w-40'>
+                <SelectValue placeholder={t('All Status')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {MULTI_KEY_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.label)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
 
-            {/* Toolbar */}
-            <div className='flex shrink-0 items-center justify-between'>
-              <Select
-                items={[
-                  ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: t(option.label),
-                  })),
-                ]}
-                value={statusFilter === null ? 'all' : statusFilter.toString()}
-                onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
+            <div className='flex items-center gap-2'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => loadKeyStatus()}
+                disabled={isLoading}
               >
-                <SelectTrigger className='w-40'>
-                  <SelectValue placeholder={t('All Status')} />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {MULTI_KEY_FILTER_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {t(option.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                <RefreshCw className='h-4 w-4' />
+              </Button>
 
-              <div className='flex items-center gap-2'>
+              {manualDisabledCount + autoDisabledCount > 0 && (
+                <Button
+                  variant='default'
+                  size='sm'
+                  onClick={() => setConfirmAction({ type: 'enable-all' })}
+                >
+                  <Power className='mr-2 h-4 w-4' />
+                  {t('Enable All')}
+                </Button>
+              )}
+
+              {enabledCount > 0 && (
+                <Button
+                  variant='destructive'
+                  size='sm'
+                  onClick={() => setConfirmAction({ type: 'disable-all' })}
+                >
+                  <PowerOff className='mr-2 h-4 w-4' />
+                  {t('Disable All')}
+                </Button>
+              )}
+
+              {autoDisabledCount > 0 && (
+                <Button
+                  variant='destructive'
+                  size='sm'
+                  onClick={() => setConfirmAction({ type: 'delete-disabled' })}
+                >
+                  <Trash2 className='mr-2 h-4 w-4' />
+                  {t('Delete Auto-Disabled')}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-12'>
+                <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
+              </div>
+            ) : keys.length === 0 ? (
+              <div className='text-muted-foreground py-12 text-center'>
+                {t('No keys found')}
+              </div>
+            ) : (
+              <StaticDataTable
+                className='rounded-none border-0'
+                tableClassName='min-w-[800px]'
+                data={keys}
+                getRowKey={(key) => key.index}
+                columns={[
+                  {
+                    id: 'index',
+                    header: t('Index'),
+                    className: 'w-20',
+                    cellClassName: 'font-mono text-sm',
+                    cell: (key) => `#${key.index + 1}`,
+                  },
+                  {
+                    id: 'status',
+                    header: t('Status'),
+                    className: 'w-32',
+                    cell: (key) => renderStatusBadge(key.status),
+                  },
+                  {
+                    id: 'reason',
+                    header: t('Disabled Reason'),
+                    className: 'min-w-[200px]',
+                    cellClassName: 'max-w-xs truncate text-sm',
+                    cell: (key) => key.reason || '-',
+                  },
+                  {
+                    id: 'disabled-time',
+                    header: t('Disabled Time'),
+                    className: 'w-44',
+                    cellClassName: 'text-muted-foreground text-sm',
+                    cell: (key) => formatKeyTimestamp(key.disabled_time),
+                  },
+                  {
+                    id: 'actions',
+                    header: t('Actions'),
+                    className: 'w-44 text-right',
+                    cell: (key) => (
+                      <MultiKeyTableRowActions
+                        keyIndex={key.index}
+                        status={key.status}
+                        onAction={setConfirmAction}
+                      />
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className='flex shrink-0 items-center justify-between'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Page {{current}} of {{total}}', {
+                  current: currentPage,
+                  total: totalPages,
+                })}
+              </div>
+              <div className='flex gap-2'>
                 <Button
                   variant='outline'
                   size='sm'
-                  onClick={() => loadKeyStatus()}
-                  disabled={isLoading}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isLoading}
                 >
-                  <RefreshCw className='h-4 w-4' />
+                  {t('Previous')}
                 </Button>
-
-                {manualDisabledCount + autoDisabledCount > 0 && (
-                  <Button
-                    variant='default'
-                    size='sm'
-                    onClick={() => setConfirmAction({ type: 'enable-all' })}
-                  >
-                    <Power className='mr-2 h-4 w-4' />
-                    {t('Enable All')}
-                  </Button>
-                )}
-
-                {enabledCount > 0 && (
-                  <Button
-                    variant='destructive'
-                    size='sm'
-                    onClick={() => setConfirmAction({ type: 'disable-all' })}
-                  >
-                    <PowerOff className='mr-2 h-4 w-4' />
-                    {t('Disable All')}
-                  </Button>
-                )}
-
-                {autoDisabledCount > 0 && (
-                  <Button
-                    variant='destructive'
-                    size='sm'
-                    onClick={() =>
-                      setConfirmAction({ type: 'delete-disabled' })
-                    }
-                  >
-                    <Trash2 className='mr-2 h-4 w-4' />
-                    {t('Delete Auto-Disabled')}
-                  </Button>
-                )}
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages || isLoading}
+                >
+                  {t('Next')}
+                </Button>
               </div>
             </div>
-
-            {/* Table */}
-            <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
-              {isLoading ? (
-                <div className='flex items-center justify-center py-12'>
-                  <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
-                </div>
-              ) : keys.length === 0 ? (
-                <div className='text-muted-foreground py-12 text-center'>
-                  {t('No keys found')}
-                </div>
-              ) : (
-                <div className='min-w-[800px]'>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className='w-20'>{t('Index')}</TableHead>
-                        <TableHead className='w-32'>{t('Status')}</TableHead>
-                        <TableHead className='min-w-[200px]'>
-                          {t('Disabled Reason')}
-                        </TableHead>
-                        <TableHead className='w-44'>
-                          {t('Disabled Time')}
-                        </TableHead>
-                        <TableHead className='w-44 text-right'>
-                          {t('Actions')}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {keys.map((key) => (
-                        <TableRow key={key.index}>
-                          <TableCell className='font-mono text-sm'>
-                            #{key.index + 1}
-                          </TableCell>
-                          <TableCell>{renderStatusBadge(key.status)}</TableCell>
-                          <TableCell className='max-w-xs truncate text-sm'>
-                            {key.reason || '-'}
-                          </TableCell>
-                          <TableCell className='text-muted-foreground text-sm'>
-                            {formatKeyTimestamp(key.disabled_time)}
-                          </TableCell>
-                          <TableCell>
-                            <MultiKeyTableRowActions
-                              keyIndex={key.index}
-                              status={key.status}
-                              onAction={setConfirmAction}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className='flex shrink-0 items-center justify-between'>
-                <div className='text-muted-foreground text-sm'>
-                  {t('Page {{current}} of {{total}}', {
-                    current: currentPage,
-                    total: totalPages,
-                  })}
-                </div>
-                <div className='flex gap-2'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || isLoading}
-                  >
-                    {t('Previous')}
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= totalPages || isLoading}
-                  >
-                    {t('Next')}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
+          )}
+        </div>
       </Dialog>
 
       {/* Confirmation Dialog */}

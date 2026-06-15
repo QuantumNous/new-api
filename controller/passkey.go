@@ -143,6 +143,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
+	recordUserSecurityAudit(c, user.Id, "user.passkey_register", nil)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Passkey 注册成功",
@@ -168,6 +169,7 @@ func PasskeyDelete(c *gin.Context) {
 		return
 	}
 
+	recordUserSecurityAudit(c, user.Id, "user.passkey_delete", nil)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Passkey 已解绑",
@@ -335,7 +337,6 @@ func PasskeyLoginFinish(c *gin.Context) {
 	}
 
 	setupLogin(modelUser, c)
-	return
 }
 
 func AdminResetPasskey(c *gin.Context) {
@@ -348,6 +349,11 @@ func AdminResetPasskey(c *gin.Context) {
 	user := &model.User{Id: id}
 	if err := user.FillUserById(); err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	myRole := c.GetInt("role")
+	if !canManageTargetRole(myRole, user.Role) {
+		common.ApiErrorMsg(c, "no permission")
 		return
 	}
 
@@ -368,6 +374,10 @@ func AdminResetPasskey(c *gin.Context) {
 		return
 	}
 
+	recordManageAuditFor(c, user.Id, "user.reset_passkey", map[string]interface{}{
+		"username": user.Username,
+		"id":       user.Id,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Passkey 已重置",
