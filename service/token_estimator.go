@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Provider 定义模型厂商大类
@@ -66,85 +67,131 @@ func getMultipliers(p Provider) multipliers {
 }
 
 // EstimateToken 计算 Token 数量
-func EstimateToken(provider Provider, text string) int {
-	m := getMultipliers(provider)
-	var count float64
+// wordType 是估算状态机里"当前是否处于一个连续单词/数字中"的状态。
+type wordType int
 
-	// 状态机变量
-	type WordType int
-	const (
-		None WordType = iota
-		Latin
-		Number
-	)
-	currentWordType := None
+const (
+	wordNone wordType = iota
+	wordLatin
+	wordNumber
+)
 
-	for _, r := range text {
-		// 1. 处理空格和换行符
-		if unicode.IsSpace(r) {
-			currentWordType = None
-			// 换行符和制表符使用Newline权重
-			if r == '\n' || r == '\t' {
-				count += m.Newline
-			} else {
-				// 普通空格使用Space权重
-				count += m.Space
-			}
-			continue
-		}
+// streamingEstimator 是 EstimateToken 的流式版本：逐 rune 喂入，维护与
+// EstimateToken 完全相同的状态机（count + currentWordType）。对任意切分方式，
+// 分块喂入的结果与一次性整体估算【逐位相同】（BasePad 仅在 result 时加一次，
+// 当前三个 provider 的 BasePad 均为 0）。内存为 O(1)（只有 count/状态/最多
+// 数字节的不完整 UTF-8 rune 缓冲），用于替代"用 strings.Builder 累积整个
+// 响应文本再 EstimateToken"的旧模式。
+type streamingEstimator struct {
+	m               multipliers
+	count           float64
+	currentWordType wordType
+	pending         []byte // 缓冲跨 chunk 边界被切断的不完整 UTF-8 rune
+}
 
-		// 2. 处理 CJK (中日韩) - 按字符计费
-		if isCJK(r) {
-			currentWordType = None
-			count += m.CJK
-			continue
-		}
+func newStreamingEstimator(provider Provider) *streamingEstimator {
+	return &streamingEstimator{m: getMultipliers(provider)}
+}
 
-		// 3. 处理Emoji - 使用专门的Emoji权重
-		if isEmoji(r) {
-			currentWordType = None
-			count += m.Emoji
-			continue
-		}
-
-		// 4. 处理拉丁字母/数字 (英文单词)
-		if isLatinOrNumber(r) {
-			isNum := unicode.IsNumber(r)
-			newType := Latin
-			if isNum {
-				newType = Number
-			}
-
-			// 如果之前不在单词中，或者类型发生变化（字母<->数字），则视为新token
-			// 注意：对于OpenAI，通常"version 3.5"会切分，"abc123xyz"有时也会切分
-			// 这里简单起见，字母和数字切换时增加权重
-			if currentWordType == None || currentWordType != newType {
-				if newType == Number {
-					count += m.Number
-				} else {
-					count += m.Word
-				}
-				currentWordType = newType
-			}
-			// 单词中间的字符不额外计费
-			continue
-		}
-
-		// 5. 处理标点符号/特殊字符 - 按类型使用不同权重
-		currentWordType = None
-		if isMathSymbol(r) {
-			count += m.MathSymbol
-		} else if r == '@' {
-			count += m.AtSign
-		} else if isURLDelim(r) {
-			count += m.URLDelim
-		} else {
-			count += m.Symbol
-		}
+// feed 喂入一段文本（可以是任意 chunk，包括把一个多字节 rune 切成两半）。
+func (e *streamingEstimator) feed(s string) {
+	if s == "" {
+		return
 	}
+	var b []byte
+	if len(e.pending) > 0 {
+		b = append(e.pending, s...)
+		e.pending = nil
+	} else {
+		b = []byte(s)
+	}
+	for i := 0; i < len(b); {
+		if !utf8.FullRune(b[i:]) {
+			// 不完整的 UTF-8 rune 被切在 chunk 末尾，缓冲等待下次
+			e.pending = append(e.pending[:0], b[i:]...)
+			return
+		}
+		r, size := utf8.DecodeRune(b[i:])
+		e.estimateRune(r)
+		i += size
+	}
+}
 
-	// 向上取整并加上基础 padding
-	return int(math.Ceil(count)) + m.BasePad
+// estimateRune 是从 EstimateToken 抽出的【单 rune】计费逻辑，二者共用，保证一致。
+func (e *streamingEstimator) estimateRune(r rune) {
+	m := e.m
+	// 1. 空格/换行
+	if unicode.IsSpace(r) {
+		e.currentWordType = wordNone
+		if r == '\n' || r == '\t' {
+			e.count += m.Newline
+		} else {
+			e.count += m.Space
+		}
+		return
+	}
+	// 2. CJK
+	if isCJK(r) {
+		e.currentWordType = wordNone
+		e.count += m.CJK
+		return
+	}
+	// 3. Emoji
+	if isEmoji(r) {
+		e.currentWordType = wordNone
+		e.count += m.Emoji
+		return
+	}
+	// 4. 拉丁字母/数字（连续单词）
+	if isLatinOrNumber(r) {
+		newType := wordLatin
+		if unicode.IsNumber(r) {
+			newType = wordNumber
+		}
+		if e.currentWordType == wordNone || e.currentWordType != newType {
+			if newType == wordNumber {
+				e.count += m.Number
+			} else {
+				e.count += m.Word
+			}
+			e.currentWordType = newType
+		}
+		return
+	}
+	// 5. 标点/特殊字符
+	e.currentWordType = wordNone
+	if isMathSymbol(r) {
+		e.count += m.MathSymbol
+	} else if r == '@' {
+		e.count += m.AtSign
+	} else if isURLDelim(r) {
+		e.count += m.URLDelim
+	} else {
+		e.count += m.Symbol
+	}
+}
+
+// result 返回当前累计的 token 估算（向上取整 + BasePad）。
+// 若仍有缓冲的不完整 UTF-8 尾字节（流在补齐前结束），按与一次性
+// EstimateToken（for range over string）一致的语义处理：每个残留字节
+// 解码为 utf8.RuneError，逐字节计入，保证流式与一次性结果逐位相同。
+func (e *streamingEstimator) result() int {
+	if len(e.pending) > 0 {
+		for range e.pending {
+			e.estimateRune(utf8.RuneError)
+		}
+		e.pending = nil
+	}
+	return int(math.Ceil(e.count)) + e.m.BasePad
+}
+
+func EstimateToken(provider Provider, text string) int {
+	if text == "" {
+		return 0
+	}
+	e := newStreamingEstimator(provider)
+	e.feed(text)
+	return e.result()
 }
 
 // 辅助：判断是否为 CJK 字符

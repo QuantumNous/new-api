@@ -224,7 +224,7 @@ func streamResponseDify2OpenAI(difyResponse DifyChunkChatCompletionResponse) *dt
 }
 
 func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
-	var responseText string
+	usageAcc := service.NewUsageAccumulator(info.UpstreamModelName)
 	usage := &dto.Usage{}
 	var nodeToken int
 	helper.SetEventStreamHeaders(c)
@@ -245,7 +245,7 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		}
 		openaiResponse := *streamResponseDify2OpenAI(difyResponse)
 		if len(openaiResponse.Choices) != 0 {
-			responseText += openaiResponse.Choices[0].Delta.GetContentString()
+			usageAcc.Feed(openaiResponse.Choices[0].Delta.GetContentString())
 			if openaiResponse.Choices[0].Delta.ReasoningContent != nil {
 				nodeToken += 1
 			}
@@ -257,9 +257,12 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	})
 	helper.Done(c)
 	if usage.TotalTokens == 0 {
-		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.CompletionTokens = usageAcc.LocalCompletionTokens()
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 	usage.CompletionTokens += nodeToken
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage, nil
 }
 

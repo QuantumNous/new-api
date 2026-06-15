@@ -84,7 +84,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	responseId := helper.GetResponseID(c)
 	createdTime := common.GetTimestamp()
 	usage := &dto.Usage{}
-	responseText := ""
+	usageAcc := service.NewUsageAccumulator(info.UpstreamModelName)
 	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		if atEOF && len(data) == 0 {
@@ -154,7 +154,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 						Index: 0,
 					},
 				}
-				responseText += cohereResp.Text
+				usageAcc.Feed(cohereResp.Text)
 			}
 			jsonStr, err := json.Marshal(openaiResp)
 			if err != nil {
@@ -169,8 +169,10 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 	})
 	if usage.PromptTokens == 0 {
-		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.CompletionTokens = usageAcc.LocalCompletionTokens()
 	}
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage, nil
 }
 

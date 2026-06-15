@@ -583,12 +583,22 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId string
+	Created    int64
+	Model      string
+	// usageAcc 流式累计 completion token（text + thinking 分离计数），
+	// 替代原先用 strings.Builder 累积整段响应文本再估算的做法，避免大响应内存堆积。
+	usageAcc *service.UsageAccumulator
+	Usage    *dto.Usage
+	Done     bool
+}
+
+// ensureUsageAcc 懒初始化 usageAcc（首次累积时按 Model 创建）。
+func (cri *ClaudeResponseInfo) ensureUsageAcc() *service.UsageAccumulator {
+	if cri.usageAcc == nil {
+		cri.usageAcc = service.NewUsageAccumulator(cri.Model)
+	}
+	return cri.usageAcc
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -738,10 +748,10 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	} else if claudeResponse.Type == "content_block_delta" {
 		if claudeResponse.Delta != nil {
 			if claudeResponse.Delta.Text != nil {
-				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
+				claudeInfo.ensureUsageAcc().Feed(*claudeResponse.Delta.Text)
 			}
 			if claudeResponse.Delta.Thinking != nil {
-				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
+				claudeInfo.ensureUsageAcc().FeedReasoning(*claudeResponse.Delta.Thinking)
 			}
 		}
 	} else if claudeResponse.Type == "message_delta" {
@@ -840,13 +850,13 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
 		// 只补缺失字段，不整份覆盖——保留 message_start 已拿到的 cache 字段
-		fallback := service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		fallbackCompletion := claudeInfo.ensureUsageAcc().LocalCompletionTokens()
 		if claudeInfo.Usage.CompletionTokens == 0 ||
-			(!claudeInfo.Done && fallback.CompletionTokens > claudeInfo.Usage.CompletionTokens) {
-			claudeInfo.Usage.CompletionTokens = fallback.CompletionTokens
+			(!claudeInfo.Done && fallbackCompletion > claudeInfo.Usage.CompletionTokens) {
+			claudeInfo.Usage.CompletionTokens = fallbackCompletion
 		}
 		if claudeInfo.Usage.PromptTokens == 0 {
-			claudeInfo.Usage.PromptTokens = fallback.PromptTokens
+			claudeInfo.Usage.PromptTokens = info.GetEstimatePromptTokens()
 		}
 		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 	}
@@ -874,7 +884,6 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
 		Model:        info.UpstreamModelName,
-		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
 	var err *types.NewAPIError
@@ -943,7 +952,6 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
 		Model:        info.UpstreamModelName,
-		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
 	responseBody, err := io.ReadAll(resp.Body)

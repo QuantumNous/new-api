@@ -3192,6 +3192,29 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        <FormField
+                          control={form.control}
+                          name='trust_upstream_usage'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between px-4 py-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel>{t('Trust Upstream Usage')}</FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Use the usage reported by the upstream for billing instead of buffering the full response to recount tokens. Enable for channels whose upstream returns accurate usage (e.g. official OpenAI Responses) to keep memory flat on large streaming responses.'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
                       </div>
 
                       <FormField

@@ -2863,6 +2863,8 @@
     "Pass request body directly to upstream": "Pass request body directly to upstream",
     "Pass specified request headers to upstream": "Pass specified request headers to upstream",
     "Pass Through Body": "Pass Through Body",
+    "Trust Upstream Usage": "Trust Upstream Usage",
+    "Use the usage reported by the upstream for billing instead of buffering the full response to recount tokens. Enable for channels whose upstream returns accurate usage (e.g. official OpenAI Responses) to keep memory flat on large streaming responses.": "Use the usage reported by the upstream for billing instead of buffering the full response to recount tokens. Enable for channels whose upstream returns accurate usage (e.g. official OpenAI Responses) to keep memory flat on large streaming responses.",
     "Pass Through Headers": "Pass Through Headers",
     "Pass through the anthropic-beta header for beta features": "Pass through the anthropic-beta header for beta features",
     "Pass through the include field for usage obfuscation": "Pass through the include field for usage obfuscation",

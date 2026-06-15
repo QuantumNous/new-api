@@ -236,7 +236,6 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types
 		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
 		Model:        info.UpstreamModelName,
-		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
 
@@ -268,7 +267,6 @@ func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (
 		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
 		Model:        info.UpstreamModelName,
-		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
 

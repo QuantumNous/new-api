@@ -2,7 +2,6 @@ package claude
 
 import (
 	"encoding/base64"
-	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
@@ -161,8 +160,8 @@ func TestFormatClaudeResponseInfo_NilClaudeInfo(t *testing.T) {
 func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	text := "hello"
 	claudeInfo := &ClaudeResponseInfo{
-		Usage:        &dto.Usage{},
-		ResponseText: strings.Builder{},
+		Model: "claude-3-5-sonnet",
+		Usage: &dto.Usage{},
 	}
 	claudeResponse := &dto.ClaudeResponse{
 		Type: "content_block_delta",
@@ -175,8 +174,9 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	if !ok {
 		t.Fatal("expected true")
 	}
-	if claudeInfo.ResponseText.String() != "hello" {
-		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
+	// 文本通过流式累计器计数，应反映已喂入的 "hello"
+	if got := claudeInfo.ensureUsageAcc().LocalCompletionTokens(); got <= 0 {
+		t.Errorf("LocalCompletionTokens = %d, want > 0 for %q", got, text)
 	}
 }
 

@@ -103,8 +103,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	var (
 		usage       = &dto.Usage{}
-		outputText  strings.Builder
-		usageText   strings.Builder
+		outputLen   int // 累计输出文本长度（替代 outputText.Len()，不缓冲全文）
+		usageAcc    = service.NewUsageAccumulator(info.UpstreamModelName)
 		sentStart   bool
 		sentStop    bool
 		sawToolCall bool
@@ -208,7 +208,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return false
 		}
 
-		usageText.WriteString(delta)
+		usageAcc.Feed(delta)
 		chunk := &dto.ChatCompletionsStreamResponse{
 			Id:      responseId,
 			Object:  "chat.completion.chunk",
@@ -234,7 +234,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if callID == "" {
 			return true
 		}
-		if outputText.Len() > 0 {
+		if outputLen > 0 {
 			// Prefer streaming assistant text over tool calls to match non-stream behavior.
 			return true
 		}
@@ -286,12 +286,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 		sawToolCall = true
 
-		// Include tool call data in the local builder for fallback token estimation.
+		// Include tool call data in the local accumulator for fallback token estimation.
 		if tool.Function.Name != "" {
-			usageText.WriteString(tool.Function.Name)
+			usageAcc.Feed(tool.Function.Name)
 		}
 		if argsDelta != "" {
-			usageText.WriteString(argsDelta)
+			usageAcc.Feed(argsDelta)
 		}
 		return true
 	}
@@ -364,8 +364,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			}
 
 			if streamResp.Delta != "" {
-				outputText.WriteString(streamResp.Delta)
-				usageText.WriteString(streamResp.Delta)
+				outputLen += len(streamResp.Delta)
+				usageAcc.Feed(streamResp.Delta)
 				delta := streamResp.Delta
 				chunk := &dto.ChatCompletionsStreamResponse{
 					Id:      responseId,
@@ -484,7 +484,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					info.ClaudeConvertInfo.Usage = usage
 				}
 				finishReason := "stop"
-				if sawToolCall && outputText.Len() == 0 {
+				if sawToolCall && outputLen == 0 {
 					finishReason = "tool_calls"
 				}
 				stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
@@ -516,7 +516,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	if usage.TotalTokens == 0 {
-		usage = service.ResponseText2Usage(c, usageText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.CompletionTokens = usageAcc.LocalCompletionTokens()
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 
 	if !sentStart {
@@ -529,7 +531,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			info.ClaudeConvertInfo.Usage = usage
 		}
 		finishReason := "stop"
-		if sawToolCall && outputText.Len() == 0 {
+		if sawToolCall && outputLen == 0 {
 			finishReason = "tool_calls"
 		}
 		stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
