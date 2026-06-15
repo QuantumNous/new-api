@@ -39,6 +39,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticEntries = [
     ...entry("/", 1, "daily"),
     ...entry("/pricing", 0.8, "daily"),
+    ...entry("/models/claude-api", 0.82, "daily"),
+    ...entry("/models/gpt-api", 0.82, "daily"),
     ...entry("/rankings", 0.7, "daily"),
     ...entry("/about", 0.5, "monthly"),
     ...entry("/blog", 0.9, "daily"),
