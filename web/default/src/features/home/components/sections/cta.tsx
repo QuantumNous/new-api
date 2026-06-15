@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { AnimateInView } from '@/components/animate-in-view'
 
@@ -29,6 +30,7 @@ interface CTAProps {
 
 export function CTA(props: CTAProps) {
   const { t } = useTranslation()
+  const { systemName } = useSystemConfig()
 
   if (props.isAuthenticated) {
     return null
@@ -61,7 +63,8 @@ export function CTA(props: CTAProps) {
         </h2>
         <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
           {t(
-            'Sign up for PaopaoApi, get your key, and start calling GLM, DeepSeek and more in minutes.'
+            'Sign up for {{name}}, get your key, and start calling GLM, DeepSeek and more in minutes.',
+            { name: systemName }
           )}
         </p>
         <div className='mt-8 flex items-center justify-center gap-3'>

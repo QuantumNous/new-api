@@ -21,7 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
+export const DEFAULT_SYSTEM_NAME = 'Yunlong API'
 export const DEFAULT_LOGO = '/logo.png'
 
 // LocalStorage Keys
