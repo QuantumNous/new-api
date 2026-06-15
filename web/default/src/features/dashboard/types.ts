@@ -31,6 +31,10 @@ export interface QuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+  cache_creation_tokens_5m?: number
+  cache_creation_tokens_1h?: number
 }
 
 // ============================================================================
@@ -64,9 +68,12 @@ export type ConsumptionDistributionChartType = 'bar' | 'area'
 
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'
 
+export type CacheAnalyticsTab = 'trend' | 'ranking' | 'nonCache'
+
 export interface DashboardChartPreferences {
   consumptionDistributionChart: ConsumptionDistributionChartType
   modelAnalyticsChart: ModelAnalyticsChartTab
+  cacheAnalyticsChart: CacheAnalyticsTab
   defaultTimeRangeDays: number
   defaultTimeGranularity: TimeGranularity
 }
@@ -110,6 +117,14 @@ export interface ProcessedChartData {
 export interface ProcessedUserChartData {
   spec_user_rank: VChartSpec
   spec_user_trend: VChartSpec
+}
+
+export interface ProcessedCacheChartData {
+  spec_cache_trend: VChartSpec
+  spec_cache_rank: VChartSpec
+  spec_non_cache: VChartSpec
+  totalCacheDisplay: string
+  totalNonCacheDisplay: string
 }
 
 // ============================================================================

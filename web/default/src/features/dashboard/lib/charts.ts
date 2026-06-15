@@ -23,6 +23,7 @@ import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
   ProcessedChartData,
+  ProcessedCacheChartData,
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
 
@@ -246,11 +247,26 @@ export function processChartData(
   // Aggregate all metrics by time and model
   const timeModelMap = new Map<
     string,
-    Map<string, { quota: number; count: number; tokens: number }>
+    Map<
+      string,
+      {
+        quota: number
+        count: number
+        tokens: number
+        cacheRead: number
+        cacheCreation: number
+      }
+    >
   >()
   const modelTotalsMap = new Map<
     string,
-    { quota: number; count: number; tokens: number }
+    {
+      quota: number
+      count: number
+      tokens: number
+      cacheRead: number
+      cacheCreation: number
+    }
   >()
 
   data.forEach((item) => {
@@ -260,17 +276,32 @@ export function processChartData(
     const quota = Number(item.quota) || 0
     const count = Number(item.count) || 0
     const tokens = Number(item.token_used) || 0
+    const cacheRead = Number(item.cache_tokens) || 0
+    const cacheCreation =
+      (Number(item.cache_creation_tokens_5m) || 0) > 0 ||
+      (Number(item.cache_creation_tokens_1h) || 0) > 0
+        ? (Number(item.cache_creation_tokens_5m) || 0) +
+          (Number(item.cache_creation_tokens_1h) || 0)
+        : Number(item.cache_creation_tokens) || 0
 
     // Aggregate by time and model
     if (!timeModelMap.has(timeKey)) {
       timeModelMap.set(timeKey, new Map())
     }
     const modelMap = timeModelMap.get(timeKey)!
-    const existing = modelMap.get(model) || { quota: 0, count: 0, tokens: 0 }
+    const existing = modelMap.get(model) || {
+      quota: 0,
+      count: 0,
+      tokens: 0,
+      cacheRead: 0,
+      cacheCreation: 0,
+    }
     modelMap.set(model, {
       quota: existing.quota + quota,
       count: existing.count + count,
       tokens: existing.tokens + tokens,
+      cacheRead: existing.cacheRead + cacheRead,
+      cacheCreation: existing.cacheCreation + cacheCreation,
     })
 
     // Calculate totals
@@ -278,11 +309,15 @@ export function processChartData(
       quota: 0,
       count: 0,
       tokens: 0,
+      cacheRead: 0,
+      cacheCreation: 0,
     }
     modelTotalsMap.set(model, {
       quota: totalExisting.quota + quota,
       count: totalExisting.count + count,
       tokens: totalExisting.tokens + tokens,
+      cacheRead: totalExisting.cacheRead + cacheRead,
+      cacheCreation: totalExisting.cacheCreation + cacheCreation,
     })
   })
 
@@ -350,6 +385,8 @@ export function processChartData(
     rawQuota: number
     Usage: number
     TimeSum: number
+    cacheRead: number
+    cacheCreation: number
   }> = []
 
   chartTimes.forEach((time) => {
@@ -365,6 +402,8 @@ export function processChartData(
         rawQuota,
         Usage: usage,
         TimeSum: 0,
+        cacheRead: Number(stats?.cacheRead) || 0,
+        cacheCreation: Number(stats?.cacheCreation) || 0,
       }
     })
 
@@ -389,7 +428,15 @@ export function processChartData(
 
   const areaValues: typeof lineValues = []
   chartTimes.forEach((time) => {
-    const buckets = new Map<string, { rawQuota: number; usage: number }>()
+    const buckets = new Map<
+      string,
+      {
+        rawQuota: number
+        usage: number
+        cacheRead: number
+        cacheCreation: number
+      }
+    >()
     const modelMap = timeModelMap.get(time)
     let timeSum = 0
     sortedModels.forEach((model) => {
@@ -397,12 +444,21 @@ export function processChartData(
       const rawQuota = Number(stats?.quota) || 0
       const usd = rawQuota ? rawQuota / quotaPerUnit : 0
       const usage = usd ? Number(usd.toFixed(4)) : 0
+      const cacheRead = Number(stats?.cacheRead) || 0
+      const cacheCreation = Number(stats?.cacheCreation) || 0
       timeSum += rawQuota
       const key = topAreaModels.has(model) ? model : otherLabel
-      const prev = buckets.get(key) || { rawQuota: 0, usage: 0 }
+      const prev = buckets.get(key) || {
+        rawQuota: 0,
+        usage: 0,
+        cacheRead: 0,
+        cacheCreation: 0,
+      }
       buckets.set(key, {
         rawQuota: prev.rawQuota + rawQuota,
         usage: Number((prev.usage + usage).toFixed(4)),
+        cacheRead: prev.cacheRead + cacheRead,
+        cacheCreation: prev.cacheCreation + cacheCreation,
       })
     })
     for (const [model, vals] of buckets) {
@@ -412,6 +468,8 @@ export function processChartData(
         rawQuota: vals.rawQuota,
         Usage: vals.usage,
         TimeSum: timeSum,
+        cacheRead: vals.cacheRead,
+        cacheCreation: vals.cacheCreation,
       })
     }
   })
@@ -716,6 +774,344 @@ export function processChartData(
     },
     totalQuotaDisplay: formatQuotaTotal(totalQuotaRaw),
     totalCountDisplay: formatInt(totalTimes),
+  }
+}
+
+export function processCacheChartData(
+  data: QuotaDataItem[],
+  timeGranularity: TimeGranularity = 'day',
+  t?: TFunction,
+  themeKey?: string,
+  chartCornerRadius?: number
+): ProcessedCacheChartData {
+  const tt: TFunction = t ?? ((x) => x)
+  const otherLabel = tt('Other')
+
+  const formatInt = (value: number) =>
+    Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
+
+  if (!data || data.length === 0) {
+    return {
+      spec_cache_trend: {
+        type: 'area',
+        data: [{ id: 'cacheTrendData', values: [] }],
+        xField: 'Time',
+        yField: 'Tokens',
+        seriesField: 'Type',
+        stack: true,
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Cache Trend'),
+          subtext: tt('No data available'),
+        },
+      },
+      spec_cache_rank: {
+        type: 'bar',
+        data: [{ id: 'cacheRankData', values: [] }],
+        xField: 'CacheTokens',
+        yField: 'Model',
+        seriesField: 'Model',
+        direction: 'horizontal',
+        title: {
+          visible: true,
+          text: tt('Cache Ranking'),
+          subtext: tt('No data available'),
+        },
+        legends: { visible: false },
+      },
+      spec_non_cache: {
+        type: 'area',
+        data: [{ id: 'nonCacheData', values: [] }],
+        xField: 'Time',
+        yField: 'Tokens',
+        seriesField: 'Model',
+        stack: true,
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Non-cache Tokens'),
+          subtext: tt('No data available'),
+        },
+      },
+      totalCacheDisplay: formatInt(0),
+      totalNonCacheDisplay: formatInt(0),
+    }
+  }
+
+  // Aggregate by time+type for cache trend, by model for cache rank
+  const timeTypeMap = new Map<string, { cacheRead: number; cacheCreation: number }>()
+  const modelCacheMap = new Map<string, number>()
+  const timeModelNonCacheMap = new Map<string, Map<string, number>>()
+  const modelNonCacheTotals = new Map<string, number>()
+  let totalCache = 0
+  let totalNonCache = 0
+
+  data.forEach((item) => {
+    const timestamp = Number(item.created_at)
+    const timeKey = formatChartTime(timestamp, timeGranularity)
+    const model = item.model_name || 'Unknown'
+    const tokens = Number(item.token_used) || 0
+    const cacheRead = Number(item.cache_tokens) || 0
+    const cacheCreation =
+      (Number(item.cache_creation_tokens_5m) || 0) > 0 ||
+      (Number(item.cache_creation_tokens_1h) || 0) > 0
+        ? (Number(item.cache_creation_tokens_5m) || 0) +
+          (Number(item.cache_creation_tokens_1h) || 0)
+        : Number(item.cache_creation_tokens) || 0
+    const nonCache = Math.max(0, tokens - cacheRead - cacheCreation)
+
+    // Cache trend aggregation
+    const timeType = timeTypeMap.get(timeKey) || { cacheRead: 0, cacheCreation: 0 }
+    timeType.cacheRead += cacheRead
+    timeType.cacheCreation += cacheCreation
+    timeTypeMap.set(timeKey, timeType)
+
+    // Cache rank aggregation
+    modelCacheMap.set(model, (modelCacheMap.get(model) || 0) + cacheRead + cacheCreation)
+
+    // Non-cache aggregation
+    if (!timeModelNonCacheMap.has(timeKey)) {
+      timeModelNonCacheMap.set(timeKey, new Map())
+    }
+    const modelMap = timeModelNonCacheMap.get(timeKey)!
+    modelMap.set(model, (modelMap.get(model) || 0) + nonCache)
+
+    modelNonCacheTotals.set(model, (modelNonCacheTotals.get(model) || 0) + nonCache)
+
+    totalCache += cacheRead + cacheCreation
+    totalNonCache += nonCache
+  })
+
+  // Cache trend values
+  const sortedTimes = Array.from(timeTypeMap.keys()).sort()
+  const cacheTrendValues: Array<{ Time: string; Type: string; Tokens: number }> = []
+  sortedTimes.forEach((time) => {
+    const { cacheRead, cacheCreation } = timeTypeMap.get(time)!
+    cacheTrendValues.push(
+      { Time: time, Type: tt('Cache Read'), Tokens: cacheRead },
+      { Time: time, Type: tt('Cache Creation'), Tokens: cacheCreation }
+    )
+  })
+
+  // Cache rank values (top 20 + Other)
+  const MAX_RANK_MODELS = 20
+  const sortedModels = Array.from(modelCacheMap.entries()).sort((a, b) => b[1] - a[1])
+  let cacheRankValues: Array<{ Model: string; CacheTokens: number }>
+  if (sortedModels.length > MAX_RANK_MODELS) {
+    const top = sortedModels.slice(0, MAX_RANK_MODELS)
+    const otherSum = sortedModels.slice(MAX_RANK_MODELS).reduce((s, [, v]) => s + v, 0)
+    cacheRankValues = [
+      ...top.map(([model, tokens]) => ({ Model: model, CacheTokens: tokens })),
+      { Model: otherLabel, CacheTokens: otherSum },
+    ]
+  } else {
+    cacheRankValues = sortedModels.map(([model, tokens]) => ({
+      Model: model,
+      CacheTokens: tokens,
+    }))
+  }
+
+  // Non-cache values (top 15 models + Other)
+  const MAX_NONCACHE_MODELS = 15
+  const sortedNonCacheModels = Array.from(modelNonCacheTotals.entries()).sort(
+    (a, b) => b[1] - a[1]
+  )
+  const topNonCacheModels = new Set(
+    sortedNonCacheModels.slice(0, MAX_NONCACHE_MODELS).map(([m]) => m)
+  )
+
+  const nonCacheValues: Array<{ Time: string; Model: string; Tokens: number }> = []
+  sortedTimes.forEach((time) => {
+    const buckets = new Map<string, number>()
+    const modelMap = timeModelNonCacheMap.get(time)
+    if (modelMap) {
+      for (const [model, tokens] of modelMap) {
+        const key = topNonCacheModels.has(model) ? model : otherLabel
+        buckets.set(key, (buckets.get(key) || 0) + tokens)
+      }
+    }
+    for (const [model, tokens] of buckets) {
+      nonCacheValues.push({ Time: time, Model: model, Tokens: tokens })
+    }
+  })
+
+  // Color config
+  const cacheTypeColor = {
+    type: 'ordinal',
+    domain: [tt('Cache Read'), tt('Cache Creation')],
+    range: getVChartDefaultColors(2, themeKey).slice(0, 2),
+  }
+
+  const nonCacheModelDomain = [
+    ...sortedNonCacheModels.slice(0, MAX_NONCACHE_MODELS).map(([m]) => m),
+    otherLabel,
+  ]
+  const nonCacheModelColor = {
+    type: 'ordinal',
+    domain: nonCacheModelDomain,
+    range: getVChartDefaultColors(nonCacheModelDomain.length, themeKey),
+  }
+
+  const rankModelDomain = cacheRankValues.map((v) => v.Model)
+  const rankModelColor = {
+    type: 'ordinal',
+    domain: rankModelDomain,
+    range: getVChartDefaultColors(rankModelDomain.length, themeKey),
+  }
+
+  return {
+    spec_cache_trend: {
+      type: 'area',
+      data: [{ id: 'cacheTrendData', values: cacheTrendValues }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Type',
+      stack: true,
+      legends: { visible: true, selectMode: 'single' },
+      color: cacheTypeColor,
+      area: {
+        style: { fillOpacity: 0.08, curveType: 'monotone' },
+      },
+      line: {
+        style: { lineWidth: 2, curveType: 'monotone' },
+      },
+      point: { visible: false },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Type,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Tokens) || 0),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Type,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.Tokens) || 0,
+            },
+          ],
+          updateContent: (
+            array: Array<{ key: string; value: string | number }>
+          ) => {
+            let sum = 0
+            for (let i = 0; i < array.length; i++) {
+              const v = Number(array[i].value) || 0
+              sum += v
+              array[i].value = formatInt(v)
+            }
+            array.unshift({ key: tt('Total:'), value: formatInt(sum) })
+            return array
+          },
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_cache_rank: {
+      type: 'bar',
+      data: [{ id: 'cacheRankData', values: cacheRankValues }],
+      xField: 'CacheTokens',
+      yField: 'Model',
+      seriesField: 'Model',
+      direction: 'horizontal',
+      legends: { visible: false },
+      color: rankModelColor,
+      bar: {
+        style: { cornerRadius: chartCornerRadius ?? 0 },
+        state: { hover: { stroke: '#000', lineWidth: 1 } },
+      },
+      label: {
+        visible: true,
+        position: 'outside',
+        formatMethod: (value: number) => formatInt(value),
+        style: { fontSize: 11 },
+      },
+      axes: [
+        { orient: 'left', type: 'band' },
+        { orient: 'bottom', type: 'linear', visible: false },
+      ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.CacheTokens) || 0),
+            },
+          ],
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_non_cache: {
+      type: 'area',
+      data: [{ id: 'nonCacheData', values: nonCacheValues }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Model',
+      stack: true,
+      legends: { visible: true, selectMode: 'single' },
+      color: nonCacheModelColor,
+      area: {
+        style: { fillOpacity: 0.08, curveType: 'monotone' },
+      },
+      line: {
+        style: { lineWidth: 2, curveType: 'monotone' },
+      },
+      point: { visible: false },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Tokens) || 0),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.Tokens) || 0,
+            },
+          ],
+          updateContent: (
+            array: Array<{ key: string; value: string | number }>
+          ) => {
+            const modelItems = array.filter(
+              (item) => !isOtherTooltipKey(item.key)
+            )
+            const otherItems = array.filter((item) =>
+              isOtherTooltipKey(item.key)
+            )
+            modelItems.sort(
+              (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
+            )
+            array = [...modelItems, ...otherItems]
+            let sum = 0
+            for (let i = 0; i < array.length; i++) {
+              const v = Number(array[i].value) || 0
+              sum += v
+              array[i].value = formatInt(v)
+            }
+            array.unshift({ key: tt('Total:'), value: formatInt(sum) })
+            return array
+          },
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    totalCacheDisplay: formatInt(totalCache),
+    totalNonCacheDisplay: formatInt(totalNonCache),
   }
 }
 

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
-import { Wallet, Activity, Zap, Gauge } from 'lucide-react';
+import { Wallet, Activity, Zap, Gauge, Database } from 'lucide-react';
 import {
   IconMoneyExchangeStroked,
   IconHistogram,
@@ -36,6 +36,8 @@ export const useDashboardStats = (
   userState,
   consumeQuota,
   consumeTokens,
+  consumeCacheRead,
+  consumeCacheCreation,
   times,
   trendData,
   performanceMetrics,
@@ -111,6 +113,28 @@ export const useDashboardStats = (
         ],
       },
       {
+        title: createSectionTitle(Database, t('缓存统计')),
+        color: 'bg-teal-50',
+        items: [
+          {
+            title: t('缓存读取'),
+            value: isNaN(consumeCacheRead) ? 0 : consumeCacheRead.toLocaleString(),
+            icon: <IconTextStroked />,
+            avatarColor: 'teal',
+            trendData: [],
+            trendColor: '#14b8a6',
+          },
+          {
+            title: t('缓存创建'),
+            value: isNaN(consumeCacheCreation) ? 0 : consumeCacheCreation.toLocaleString(),
+            icon: <IconTextStroked />,
+            avatarColor: 'cyan',
+            trendData: [],
+            trendColor: '#06b6d4',
+          },
+        ],
+      },
+      {
         title: createSectionTitle(Gauge, t('性能指标')),
         color: 'bg-indigo-50',
         items: [
@@ -140,6 +164,8 @@ export const useDashboardStats = (
       times,
       consumeQuota,
       consumeTokens,
+      consumeCacheRead,
+      consumeCacheCreation,
       trendData,
       performanceMetrics,
       navigate,
