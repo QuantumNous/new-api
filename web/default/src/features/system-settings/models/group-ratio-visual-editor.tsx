@@ -41,7 +41,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Combobox } from '@/components/ui/combobox'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -841,14 +848,24 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
           <div className='space-y-2'>
             <Label>{t('User group name')}</Label>
             <Combobox
-              options={availableUserGroupOptions}
+              items={availableUserGroupOptions.map((option) => option.value)}
               value={userGroupInput}
-              onValueChange={(value) => setUserGroupInput(value ?? '')}
-              placeholder={t('Select a group')}
-              emptyText={t('No available user groups')}
-              allowCustomValue={false}
-              openOnFocus={false}
-            />
+              onValueChange={(value) =>
+                setUserGroupInput((value as string | null) ?? '')
+              }
+            >
+              <ComboboxInput placeholder={t('Select a group')} />
+              <ComboboxContent>
+                <ComboboxEmpty>{t('No available user groups')}</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: string) => (
+                    <ComboboxItem key={item} value={item}>
+                      {item}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </div>
         </div>
       </Dialog>

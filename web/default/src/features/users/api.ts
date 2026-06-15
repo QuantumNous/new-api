@@ -169,6 +169,15 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
   return res.data
 }
 
+/**
+ * Get the configured user-usable groups (for assigning a group to a user).
+ * Unlike getGroups(), this excludes model/channel/system groups.
+ */
+export async function getUserUsableGroups(): Promise<ApiResponse<string[]>> {
+  const res = await api.get('/api/group/?type=user')
+  return res.data
+}
+
 // ============================================================================
 // Admin Binding Management APIs
 // ============================================================================

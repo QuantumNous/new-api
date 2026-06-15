@@ -39,3 +39,15 @@ func GetTopupGroupRatio(name string) float64 {
 	}
 	return ratio
 }
+
+// GetTopupGroupRatioKeys 返回所有充值分组比例中配置的分组名称。
+// 用户身份分组(user.Group)的合法取值以充值分组比例为权威来源。
+func GetTopupGroupRatioKeys() []string {
+	topupGroupRatioMutex.RLock()
+	defer topupGroupRatioMutex.RUnlock()
+	keys := make([]string, 0, len(topupGroupRatio))
+	for name := range topupGroupRatio {
+		keys = append(keys, name)
+	}
+	return keys
+}

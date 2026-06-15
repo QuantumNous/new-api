@@ -66,7 +66,7 @@ import {
   createUser,
   updateUser,
   getUser,
-  getGroups,
+  getUserUsableGroups,
   getUserInvoiceProfile,
   updateUserInvoiceProfile,
 } from '../api'
@@ -148,11 +148,15 @@ export function UsersMutateDrawer({
   )
   const [invoiceSaving, setInvoiceSaving] = useState(false)
 
-  // Fetch groups
+  // Fetch user-usable groups (configured in system settings), not all ratio groups.
+  // Groups can be edited elsewhere (system settings) right before opening this
+  // drawer, so always refetch on open instead of serving a stale cached list.
   const { data: groupsData } = useQuery({
-    queryKey: ['groups'],
-    queryFn: getGroups,
-    staleTime: 5 * 60 * 1000,
+    queryKey: ['user-usable-groups'],
+    queryFn: getUserUsableGroups,
+    enabled: open,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const groups = groupsData?.data || []
@@ -431,12 +435,19 @@ export function UsersMutateDrawer({
                   <FormField
                     control={form.control}
                     name='group'
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      // Ensure the user's current group stays visible even if it
+                      // is not part of the configured user-usable groups.
+                      const groupOptions =
+                        field.value && !groups.includes(field.value)
+                          ? [...groups, field.value]
+                          : groups
+                      return (
                       <FormItem>
                         <FormLabel>{t('Group')}</FormLabel>
                         <Select
                           items={[
-                            ...groups.map((group) => ({
+                            ...groupOptions.map((group) => ({
                               value: group,
                               label: group,
                             })),
@@ -451,7 +462,7 @@ export function UsersMutateDrawer({
                           </FormControl>
                           <SelectContent alignItemWithTrigger={false}>
                             <SelectGroup>
-                              {groups.map((group) => (
+                              {groupOptions.map((group) => (
                                 <SelectItem key={group} value={group}>
                                   {group}
                                 </SelectItem>
@@ -461,7 +472,8 @@ export function UsersMutateDrawer({
                         </Select>
                         <FormMessage />
                       </FormItem>
-                    )}
+                      )
+                    }}
                   />
 
                   <FormField
