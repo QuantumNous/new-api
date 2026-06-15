@@ -132,10 +132,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:         c,
+						ModelName:   modelRequest.Model,
+						TokenGroup:  usingGroup,
+						RelayFormat: types.InferRelayFormatFromPath(c.Request.URL.Path),
+						Retry:       common.GetPointer(0),
 					})
 					if err != nil {
 						showGroup := usingGroup

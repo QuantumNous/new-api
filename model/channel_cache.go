@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 )
 
 var group2model2channels map[string]map[string][]int // enabled channel
@@ -94,10 +95,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, relayFormat types.RelayFormat) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannel(group, model, retry, relayFormat)
 	}
 
 	channelSyncLock.RLock()
@@ -158,6 +159,34 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+
+	// Smart routing: when multiple channels share the same priority,
+	// prefer channels whose native API type matches the client request format.
+	// This avoids unnecessary request/response conversion.
+	if len(targetChannels) > 1 && relayFormat != "" {
+		if expectedAPIType, ok := types.RelayFormatToAPIType(relayFormat); ok {
+			var preferredChannels []*Channel
+			var fallbackChannels []*Channel
+			for _, ch := range targetChannels {
+				channelAPIType, typeOk := common.ChannelType2APIType(ch.Type)
+				if typeOk && channelAPIType == expectedAPIType {
+					preferredChannels = append(preferredChannels, ch)
+				} else {
+					fallbackChannels = append(fallbackChannels, ch)
+				}
+			}
+			// Only use preferred channels if at least one matches;
+			// otherwise fall back to the original set.
+			if len(preferredChannels) > 0 {
+				targetChannels = preferredChannels
+				// Recalculate sumWeight for the filtered set
+				sumWeight = 0
+				for _, ch := range targetChannels {
+					sumWeight += ch.GetWeight()
+				}
+			}
+		}
 	}
 
 	// smoothing factor and adjustment
