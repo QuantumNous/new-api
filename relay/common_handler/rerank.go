@@ -65,7 +65,14 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		if err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
-		jinaResp.Usage.PromptTokens = jinaResp.Usage.TotalTokens
+		if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) && jinaResp.Usage.TotalTokens != 0 {
+			jinaResp.Usage.PromptTokens = jinaResp.Usage.TotalTokens
+		} else {
+			jinaResp.Usage = dto.Usage{
+				PromptTokens: info.GetEstimatePromptTokens(),
+				TotalTokens:  info.GetEstimatePromptTokens(),
+			}
+		}
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")

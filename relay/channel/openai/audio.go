@@ -39,7 +39,7 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	if info.IsStream {
 		helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-			if service.SundaySearch(data, "usage") {
+			if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) && service.SundaySearch(data, "usage") {
 				var simpleResponse dto.SimpleResponse
 				if err := common.Unmarshal([]byte(data), &simpleResponse); err != nil {
 					logger.LogError(c, err.Error())
@@ -127,16 +127,18 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	var responseData struct {
 		Usage *dto.Usage `json:"usage"`
 	}
-	if err := common.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
-		if responseData.Usage.TotalTokens > 0 {
-			usage := responseData.Usage
-			if usage.PromptTokens == 0 {
-				usage.PromptTokens = usage.InputTokens
+	if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+		if err := common.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
+			if responseData.Usage.TotalTokens > 0 {
+				usage := responseData.Usage
+				if usage.PromptTokens == 0 {
+					usage.PromptTokens = usage.InputTokens
+				}
+				if usage.CompletionTokens == 0 {
+					usage.CompletionTokens = usage.OutputTokens
+				}
+				return nil, usage
 			}
-			if usage.CompletionTokens == 0 {
-				usage.CompletionTokens = usage.OutputTokens
-			}
-			return nil, usage
 		}
 	}
 

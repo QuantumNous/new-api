@@ -17,6 +17,56 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func shouldTrustResponsesUsage(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	return relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings)
+}
+
+func responsesTrustedUsage(info *relaycommon.RelayInfo, responseUsage *dto.Usage) (*dto.Usage, bool) {
+	if !shouldTrustResponsesUsage(info) {
+		return nil, false
+	}
+	usage := responsesUsageToUsage(responseUsage)
+	if !service.ValidUsage(usage) {
+		return nil, false
+	}
+	return usage, true
+}
+
+func responsesUsageToUsage(responseUsage *dto.Usage) *dto.Usage {
+	usage := &dto.Usage{}
+	if responseUsage == nil {
+		return usage
+	}
+	usage.PromptTokens = responseUsage.InputTokens
+	usage.CompletionTokens = responseUsage.OutputTokens
+	usage.TotalTokens = responseUsage.TotalTokens
+	usage.InputTokens = responseUsage.InputTokens
+	usage.OutputTokens = responseUsage.OutputTokens
+	if responseUsage.InputTokensDetails != nil {
+		usage.PromptTokensDetails.CachedTokens = responseUsage.InputTokensDetails.CachedTokens
+		usage.PromptTokensDetails.ImageTokens = responseUsage.InputTokensDetails.ImageTokens
+		usage.PromptTokensDetails.AudioTokens = responseUsage.InputTokensDetails.AudioTokens
+	}
+	if responseUsage.CompletionTokenDetails.ReasoningTokens != 0 {
+		usage.CompletionTokenDetails.ReasoningTokens = responseUsage.CompletionTokenDetails.ReasoningTokens
+	}
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+	return usage
+}
+
+func responsesLocalUsage(c *gin.Context, info *relaycommon.RelayInfo, response *dto.OpenAIResponsesResponse) *dto.Usage {
+	text := service.ExtractOutputTextFromResponses(response)
+	if info == nil {
+		return service.ResponseText2Usage(c, text, "", 0)
+	}
+	return service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+}
+
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -44,17 +94,14 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	// compute usage
-	usage := dto.Usage{}
-	if responsesResponse.Usage != nil {
-		usage.PromptTokens = responsesResponse.Usage.InputTokens
-		usage.CompletionTokens = responsesResponse.Usage.OutputTokens
-		usage.TotalTokens = responsesResponse.Usage.TotalTokens
-		if responsesResponse.Usage.InputTokensDetails != nil {
-			usage.PromptTokensDetails.CachedTokens = responsesResponse.Usage.InputTokensDetails.CachedTokens
-		}
+	var usage *dto.Usage
+	if trustedUsage, ok := responsesTrustedUsage(info, responsesResponse.Usage); ok {
+		usage = trustedUsage
+	} else {
+		usage = responsesLocalUsage(c, info, &responsesResponse)
 	}
 	if info == nil || info.ResponsesUsageInfo == nil || info.ResponsesUsageInfo.BuiltInTools == nil {
-		return &usage, nil
+		return usage, nil
 	}
 	// 解析 Tools 用量
 	for _, tool := range responsesResponse.Tools {
@@ -65,7 +112,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		buildToolinfo.CallCount++
 	}
-	return &usage, nil
+	return usage, nil
 }
 
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -92,19 +139,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {
-				if streamResponse.Response.Usage != nil {
-					if streamResponse.Response.Usage.InputTokens != 0 {
-						usage.PromptTokens = streamResponse.Response.Usage.InputTokens
-					}
-					if streamResponse.Response.Usage.OutputTokens != 0 {
-						usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
-					}
-					if streamResponse.Response.Usage.TotalTokens != 0 {
-						usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
-					}
-					if streamResponse.Response.Usage.InputTokensDetails != nil {
-						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
-					}
+				if trustedUsage, ok := responsesTrustedUsage(info, streamResponse.Response.Usage); ok {
+					usage = trustedUsage
 				}
 				if streamResponse.Response.HasImageGenerationCall() {
 					c.Set("image_generation_call", true)
@@ -131,17 +167,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	})
 
 	if usage.CompletionTokens == 0 {
-		// 计算输出文本的 token 数量
-		tempStr := responseTextBuilder.String()
-		if len(tempStr) > 0 {
-			// 非正常结束，使用输出文本的 token 数量
-			completionTokens := service.CountTextToken(tempStr, info.UpstreamModelName)
-			usage.CompletionTokens = completionTokens
+		if info == nil {
+			usage = service.ResponseText2Usage(c, responseTextBuilder.String(), "", 0)
+		} else {
+			usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		}
-	}
-
-	if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
-		usage.PromptTokens = info.GetEstimatePromptTokens()
 	}
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens

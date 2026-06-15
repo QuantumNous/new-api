@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,11 @@ func newImageTestContext(t *testing.T, body, contentType string, isStream bool) 
 		IsStream:    isStream,
 	}
 	return c, recorder, resp, info
+}
+
+func trustUpstreamUsageForImageTest(info *relaycommon.RelayInfo) {
+	value := true
+	info.ChannelOtherSettings = dto.ChannelOtherSettings{TrustUpstreamUsage: &value}
 }
 
 // TestOpenaiImageStreamHandlerForwardsSSEAndUsage covers the core SSE path:
@@ -56,6 +62,7 @@ func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	}, "\n")
 
 	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	trustUpstreamUsageForImageTest(info)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 	require.Nil(t, err)
@@ -81,6 +88,7 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	body := `{"created":1710000000,"data":[{"b64_json":"final","revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}`
 
 	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+	trustUpstreamUsageForImageTest(info)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 	require.Nil(t, err)
@@ -96,6 +104,34 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"b64_json":"final"`)
 	require.Contains(t, recorder.Body.String(), `"revised_prompt":"draw a cat"`)
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
+}
+
+func TestOpenaiImageStreamHandlerTrustUpstreamUsageDefaultUsesLocalUsage(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}`,
+		``,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	info.SetEstimatePromptTokens(5)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.Equal(t, 5, usage.PromptTokens)
+	require.Equal(t, 0, usage.CompletionTokens)
+	require.Equal(t, 5, usage.TotalTokens)
+	require.Equal(t, 0, usage.PromptTokensDetails.ImageTokens)
+	require.NotContains(t, recorder.Body.String(), `"input_tokens":3`)
 }
 
 // TestOpenaiImageHandlersReturnJSONError covers JSON error responses for both

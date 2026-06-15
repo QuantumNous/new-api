@@ -11,6 +11,9 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 	if info == nil || usage == nil {
 		return
 	}
+	if !relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+		return
+	}
 
 	switch info.ChannelType {
 	case constant.ChannelTypeDeepSeek:

@@ -144,7 +144,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	})
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
-	if isAudioModel && secondLastStreamData != "" {
+	if isAudioModel && secondLastStreamData != "" && relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
 		var streamResp struct {
 			Usage *dto.Usage `json:"usage"`
 		}
@@ -170,6 +170,9 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		if shouldSendLastResp {
+			if !relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+				lastStreamData = clearChatStreamUsage(lastStreamData)
+			}
 			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 		}
 	}
@@ -184,6 +187,35 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
+}
+
+func clearChatStreamUsage(data string) string {
+	var streamResponse map[string]interface{}
+	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+		return data
+	}
+	if _, ok := streamResponse["usage"]; !ok {
+		return data
+	}
+	delete(streamResponse, "usage")
+	modifiedData, err := common.Marshal(streamResponse)
+	if err != nil {
+		return data
+	}
+	return string(modifiedData)
+}
+
+func writeChatMessageUsageText(responseText *strings.Builder, message dto.Message, toolCount *int) {
+	responseText.WriteString(message.StringContent())
+	responseText.WriteString(message.GetReasoningContent())
+	toolCalls := message.ParseToolCalls()
+	if len(toolCalls) > *toolCount {
+		*toolCount = len(toolCalls)
+	}
+	for _, tool := range toolCalls {
+		responseText.WriteString(tool.Function.Name)
+		responseText.WriteString(tool.Function.Arguments)
+	}
 }
 
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -233,13 +265,25 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	usageModified := false
-	if simpleResponse.Usage.PromptTokens == 0 {
+	if !relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+		var responseText strings.Builder
+		var toolCount int
+		for _, choice := range simpleResponse.Choices {
+			writeChatMessageUsageText(&responseText, choice.Message, &toolCount)
+		}
+		simpleResponse.Usage = *service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		simpleResponse.Usage.CompletionTokens += toolCount * 7
+		simpleResponse.Usage.TotalTokens += toolCount * 7
+		usageModified = true
+	} else if simpleResponse.Usage.PromptTokens == 0 {
 		completionTokens := simpleResponse.Usage.CompletionTokens
 		if completionTokens == 0 {
+			var responseText strings.Builder
+			var toolCount int
 			for _, choice := range simpleResponse.Choices {
-				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.GetReasoningContent(), info.UpstreamModelName)
-				completionTokens += ctkm
+				writeChatMessageUsageText(&responseText, choice.Message, &toolCount)
 			}
+			completionTokens = service.CountTextToken(responseText.String(), info.UpstreamModelName) + toolCount*7
 		}
 		simpleResponse.Usage = dto.Usage{
 			PromptTokens:     info.GetEstimatePromptTokens(),

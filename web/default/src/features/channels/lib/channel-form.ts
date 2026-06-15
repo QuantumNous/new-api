@@ -195,6 +195,7 @@ export const channelFormSchema = z
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+    trust_upstream_usage: z.boolean().optional(), // Use upstream usage for billing/logging
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -313,6 +314,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  trust_upstream_usage: false,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -337,6 +339,7 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
   }
+  let legacyTrustUpstreamUsage: boolean | undefined
 
   if (channel.setting) {
     try {
@@ -348,6 +351,9 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+      }
+      if (typeof parsed.trust_upstream_usage === 'boolean') {
+        legacyTrustUpstreamUsage = parsed.trust_upstream_usage
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -367,6 +373,7 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let trustUpstreamUsage = legacyTrustUpstreamUsage ?? false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -385,6 +392,9 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      if (typeof parsed.trust_upstream_usage === 'boolean') {
+        trustUpstreamUsage = parsed.trust_upstream_usage
+      }
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -439,6 +449,7 @@ export function transformChannelToFormDefaults(
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
+    trust_upstream_usage: trustUpstreamUsage,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -539,6 +550,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
+  }
+
+  if (formData.trust_upstream_usage === true) {
+    settingsObj.trust_upstream_usage = true
+  } else if ('trust_upstream_usage' in settingsObj) {
+    delete settingsObj.trust_upstream_usage
   }
 
   // Upstream model update settings (for model-fetchable channel types)

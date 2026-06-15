@@ -323,6 +323,7 @@ export interface ChannelFormData {
   multi_key_mode?: 'single' | 'batch' | 'multi_to_single'
   multi_key_type?: 'random' | 'polling'
   batch_add_set_key_prefix_2_name?: boolean
+  trust_upstream_usage?: boolean
 }
 
 // ============================================================================
