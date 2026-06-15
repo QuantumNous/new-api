@@ -83,6 +83,8 @@ export type LogFilters = CommonLogFilters | DrawingLogFilters | TaskLogFilters
  */
 export interface ChannelAffinityInfo {
   rule_name?: string
+  channel_id?: number
+  key_index?: number
   selected_group?: string
   key_source?: string
   key_path?: string

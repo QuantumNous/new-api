@@ -153,6 +153,8 @@ function UsageLogsContent() {
                   '',
                 key_hint: affinityTarget.key_hint || '',
                 key_fp: affinityTarget.key_fp || '',
+                channel_id: affinityTarget.channel_id,
+                key_index: affinityTarget.key_index,
               }
             : null
         }
