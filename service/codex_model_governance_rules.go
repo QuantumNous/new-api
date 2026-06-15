@@ -2,6 +2,7 @@ package service
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -48,24 +49,37 @@ type OfficialCodexNoticeMatch struct {
 }
 
 func FindOfficialCodexNoticeMatch(content string, modelNames []string, lifecycleTerms []string) OfficialCodexNoticeMatch {
-	modelName, modelIndex := findOfficialCodexNoticeModel(content, modelNames)
-	if modelIndex < 0 {
-		return OfficialCodexNoticeMatch{}
+	for _, occurrence := range findOfficialCodexNoticeModelOccurrences(content, modelNames) {
+		segment := officialCodexNoticeSegment(content, occurrence.Index, len(occurrence.ModelName))
+		term := findOfficialCodexNoticeTerm(segment, lifecycleTerms)
+		if term == "" {
+			continue
+		}
+		return OfficialCodexNoticeMatch{
+			Matched:   true,
+			ModelName: occurrence.ModelName,
+			Term:      term,
+			Excerpt:   officialCodexNoticeExcerpt(segment, strings.Index(segment, occurrence.ModelName), len(occurrence.ModelName)),
+		}
 	}
-	segment := officialCodexNoticeSegment(content, modelIndex, len(modelName))
-	term := findOfficialCodexNoticeTerm(segment, lifecycleTerms)
-	if term == "" {
-		return OfficialCodexNoticeMatch{}
-	}
-	return OfficialCodexNoticeMatch{
-		Matched:   true,
-		ModelName: modelName,
-		Term:      term,
-		Excerpt:   officialCodexNoticeExcerpt(segment, strings.Index(segment, modelName), len(modelName)),
-	}
+	return OfficialCodexNoticeMatch{}
+}
+
+type officialCodexNoticeModelOccurrence struct {
+	ModelName string
+	Index     int
 }
 
 func findOfficialCodexNoticeModel(content string, modelNames []string) (string, int) {
+	occurrences := findOfficialCodexNoticeModelOccurrences(content, modelNames)
+	if len(occurrences) == 0 {
+		return "", -1
+	}
+	return occurrences[0].ModelName, occurrences[0].Index
+}
+
+func findOfficialCodexNoticeModelOccurrences(content string, modelNames []string) []officialCodexNoticeModelOccurrence {
+	occurrences := make([]officialCodexNoticeModelOccurrence, 0)
 	for _, modelName := range modelNames {
 		modelName = strings.TrimSpace(modelName)
 		if modelName == "" {
@@ -79,12 +93,18 @@ func findOfficialCodexNoticeModel(content string, modelNames []string) (string, 
 			}
 			absoluteIndex := searchStart + index
 			if isExactCodexModelNameAt(content, absoluteIndex, len(modelName)) {
-				return modelName, absoluteIndex
+				occurrences = append(occurrences, officialCodexNoticeModelOccurrence{
+					ModelName: modelName,
+					Index:     absoluteIndex,
+				})
 			}
 			searchStart = absoluteIndex + len(modelName)
 		}
 	}
-	return "", -1
+	sort.SliceStable(occurrences, func(i, j int) bool {
+		return occurrences[i].Index < occurrences[j].Index
+	})
+	return occurrences
 }
 
 func isExactCodexModelNameAt(content string, start int, length int) bool {

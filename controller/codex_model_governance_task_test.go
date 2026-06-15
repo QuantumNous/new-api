@@ -4,13 +4,45 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func resetCodexGovernanceProbeFailuresForTest() {
 	codexGovernanceProbeFailureMu.Lock()
 	codexGovernanceProbeFailures = make(map[codexGovernanceProbeFailureKey]int)
 	codexGovernanceProbeFailureMu.Unlock()
+}
+
+func setupCodexGovernanceProbeFailureStateTestDB(t *testing.T) {
+	t.Helper()
+
+	originalDB := model.DB
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.Exec(`
+CREATE TABLE codex_model_governance_probe_states (
+	model_name varchar(255) NOT NULL,
+	channel_id integer NOT NULL,
+	consecutive_failures integer NOT NULL DEFAULT 0,
+	last_failed_at bigint NOT NULL DEFAULT 0,
+	last_healthy_at bigint NOT NULL DEFAULT 0,
+	created_time bigint NOT NULL DEFAULT 0,
+	updated_time bigint NOT NULL DEFAULT 0,
+	PRIMARY KEY (model_name, channel_id)
+)`).Error)
+	model.DB = db
+
+	t.Cleanup(func() {
+		model.DB = originalDB
+		require.NoError(t, sqlDB.Close())
+	})
 }
 
 func TestCodexGovernanceProbeIntervalFallsBackToOneHour(t *testing.T) {
@@ -89,4 +121,20 @@ func TestCodexGovernanceProbeUnsupportedMatchIsScopedByChannel(t *testing.T) {
 	if _, escalate := recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11); !escalate {
 		t.Fatalf("first channel second hit did not escalate")
 	}
+}
+
+func TestCodexGovernanceProbeUnsupportedMatchPersistsAcrossProcessLocalReset(t *testing.T) {
+	setupCodexGovernanceProbeFailureStateTestDB(t)
+	resetCodexGovernanceProbeFailuresForTest()
+	t.Cleanup(resetCodexGovernanceProbeFailuresForTest)
+
+	count, escalate := recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Equal(t, 1, count)
+	require.False(t, escalate)
+
+	resetCodexGovernanceProbeFailuresForTest()
+
+	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Equal(t, codexGovernanceProbeUnsupportedConsecutiveThreshold, count)
+	require.True(t, escalate)
 }

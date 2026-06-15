@@ -132,16 +132,22 @@ func TestNotifyDingTalkCodexModelGovernanceSkipsWhenMonitorAlertDisabled(t *test
 	require.NoError(t, err)
 }
 
-func TestNotifyDingTalkCodexModelGovernanceUsesGovernanceCooldown(t *testing.T) {
+func TestNotifyDingTalkCodexModelGovernanceUsesAlertCooldown(t *testing.T) {
 	allowDingTalkTestServer(t)
-	originalMonitorSetting := *operation_setting.GetMonitorSetting()
+	originalSetting := *operation_setting.GetMonitorSetting()
 	originalGovernanceSetting := *operation_setting.GetCodexModelGovernanceSetting()
+	originalGovernanceCooldown := codexGovernanceAlertCooldown
 	originalHTTPClient := httpClient
+	originalDB := model.DB
 	t.Cleanup(func() {
-		*operation_setting.GetMonitorSetting() = originalMonitorSetting
+		*operation_setting.GetMonitorSetting() = originalSetting
 		*operation_setting.GetCodexModelGovernanceSetting() = originalGovernanceSetting
+		codexGovernanceAlertCooldown = originalGovernanceCooldown
 		httpClient = originalHTTPClient
+		model.DB = originalDB
 	})
+	model.DB = nil
+	codexGovernanceAlertCooldown = NewDingTalkModelAlertCooldown()
 
 	var requests int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,22 +158,25 @@ func TestNotifyDingTalkCodexModelGovernanceUsesGovernanceCooldown(t *testing.T) 
 	defer server.Close()
 
 	httpClient = server.Client()
-	monitorSetting := operation_setting.GetMonitorSetting()
-	monitorSetting.DingTalkAlertEnabled = true
-	monitorSetting.DingTalkAlertWebhookURL = server.URL
-	monitorSetting.DingTalkAlertSecret = ""
-	governanceSetting := operation_setting.GetCodexModelGovernanceSetting()
-	governanceSetting.AlertCooldownMinutes = 60
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	operation_setting.GetCodexModelGovernanceSetting().AlertCooldownMinutes = 60
 
 	record := &model.CodexModelGovernanceRecord{
-		ID:        7001,
-		ModelName: "gpt-5.3-codex",
-		Status:    model.CodexModelGovernanceStatusUnsupportedPendingReview,
-		Source:    model.CodexModelGovernanceSourceProbe,
+		ModelName:          "gpt-5.3-codex-cooldown",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:             model.CodexModelGovernanceSourceProbe,
+		MatchedRule:        "unsupported",
+		LastError:          "unsupported",
+		AffectedChannelIDs: "11",
+		AbilitiesDisabled:  true,
 	}
 
 	require.NoError(t, NotifyDingTalkCodexModelGovernance(record))
 	require.NoError(t, NotifyDingTalkCodexModelGovernance(record))
+
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 

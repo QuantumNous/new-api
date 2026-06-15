@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestClassifyCodexUnsupportedMessageMatchesConfiguredRegexAndExtractsModel(t *testing.T) {
 	message := "The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account."
@@ -105,6 +108,29 @@ func TestFindOfficialCodexNoticeMatchLifecycleTermsAreCaseInsensitive(t *testing
 	}
 	if match.Term != "not supported" {
 		t.Fatalf("term = %q, want configured term casing", match.Term)
+	}
+}
+
+func TestFindOfficialCodexNoticeMatchChecksLaterExactModelMentions(t *testing.T) {
+	content := "Codex update: gpt-5.4-codex remains available. Effective July 1, gpt-5.4-codex will be retired for Codex subscriptions."
+
+	match := FindOfficialCodexNoticeMatch(
+		content,
+		[]string{"gpt-5.4-codex"},
+		[]string{"retired"},
+	)
+
+	if !match.Matched {
+		t.Fatalf("expected later model mention with lifecycle term to match")
+	}
+	if match.ModelName != "gpt-5.4-codex" {
+		t.Fatalf("model name = %q, want %q", match.ModelName, "gpt-5.4-codex")
+	}
+	if match.Term != "retired" {
+		t.Fatalf("term = %q, want %q", match.Term, "retired")
+	}
+	if !strings.Contains(match.Excerpt, "retired") {
+		t.Fatalf("excerpt = %q, want later lifecycle segment", match.Excerpt)
 	}
 }
 

@@ -1901,7 +1901,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Proyectos relacionados",
     "footer.defaultCopyright": "Todos los derechos reservados.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Todos los derechos reservados. Diseñado y desarrollado por los colaboradores del proyecto.",
+    "footer.newapi.projectAttributionSuffix": "Todos los derechos reservados. Diseñado y desarrollado por los colaboradores del proyecto.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "For teams that need larger limits and support review.",

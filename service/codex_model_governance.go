@@ -4,11 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"gorm.io/gorm"
 )
 
@@ -27,7 +25,7 @@ type CodexModelUnsupportedFinding struct {
 	AffectedChannelIDs []int
 }
 
-var notifyDingTalkCodexModelGovernance = sendDingTalkCodexModelGovernance
+var notifyDingTalkCodexModelGovernance = NotifyDingTalkCodexModelGovernance
 
 // codexFindingShouldAutoDisable returns true only for probe findings: a probe
 // error is first-hand evidence from the upstream API, while official notice
@@ -42,62 +40,44 @@ func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model
 	if modelName == "" {
 		return nil, fmt.Errorf("model name is required")
 	}
-	var previous *model.CodexModelGovernanceRecord
-	previousRecord, err := model.GetCodexModelGovernanceRecordByModelName(modelName)
+	shouldNotify, err := shouldNotifyCodexModelGovernancePending(modelName)
 	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-	} else {
-		previous = previousRecord
+		return nil, err
 	}
 	source := strings.TrimSpace(finding.Source)
-	disableAbilities := codexFindingShouldAutoDisable(source)
 	record, err := model.UpsertCodexModelGovernancePending(model.CodexModelGovernancePendingInput{
 		ModelName:          modelName,
 		Source:             source,
 		MatchedRule:        strings.TrimSpace(finding.MatchedRule),
 		LastError:          strings.TrimSpace(finding.LastError),
 		AffectedChannelIDs: finding.AffectedChannelIDs,
-		DisableAbilities:   disableAbilities,
+		DisableAbilities:   codexFindingShouldAutoDisable(source),
 	})
 	if err != nil {
 		return record, err
 	}
-	if shouldNotifyCodexModelGovernancePending(record, previous, disableAbilities) {
+	if shouldNotify {
 		if notifyErr := notifyDingTalkCodexModelGovernance(record); notifyErr != nil {
 			common.SysError(fmt.Sprintf("Codex model governance DingTalk alert failed for %s: %v", modelName, notifyErr))
-		} else {
-			alertedAt := common.GetTimestamp()
-			if markErr := model.MarkCodexModelGovernanceRecordAlerted(record.ID, alertedAt); markErr != nil {
-				common.SysError(fmt.Sprintf("Codex model governance alert timestamp update failed for %s: %v", modelName, markErr))
-			} else {
-				record.LastAlertedAt = alertedAt
-			}
 		}
 	}
 	return record, nil
 }
 
-func shouldNotifyCodexModelGovernancePending(record *model.CodexModelGovernanceRecord, previous *model.CodexModelGovernanceRecord, disableAbilities bool) bool {
-	if record == nil || record.Status != model.CodexModelGovernanceStatusUnsupportedPendingReview {
-		return false
+func shouldNotifyCodexModelGovernancePending(modelName string) (bool, error) {
+	record, err := model.GetCodexModelGovernanceRecordByModelName(modelName)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true, nil
+		}
+		return false, err
 	}
-	if previous == nil {
-		return true
+	switch record.Status {
+	case model.CodexModelGovernanceStatusUnsupportedPendingReview, model.CodexModelGovernanceStatusUnsupportedDisabled:
+		return false, nil
+	default:
+		return true, nil
 	}
-	if previous.Status == model.CodexModelGovernanceStatusIgnored && disableAbilities {
-		return true
-	}
-	cooldownMinutes := 60
-	if setting := operation_setting.GetCodexModelGovernanceSetting(); setting != nil && setting.AlertCooldownMinutes > 0 {
-		cooldownMinutes = setting.AlertCooldownMinutes
-	}
-	if record.LastAlertedAt <= 0 {
-		return true
-	}
-	cooldownSeconds := int64(time.Duration(cooldownMinutes) * time.Minute / time.Second)
-	return common.GetTimestamp()-record.LastAlertedAt >= cooldownSeconds
 }
 
 func ReviewCodexModelGovernance(recordID int, action string, reviewerID int, note string) error {

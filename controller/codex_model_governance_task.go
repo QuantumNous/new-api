@@ -44,6 +44,21 @@ func recordCodexGovernanceProbeUnsupportedMatch(modelName string, channelID int)
 	if modelName == "" || channelID <= 0 {
 		return 0, false
 	}
+	if model.DB != nil {
+		count, escalate, err := model.RecordCodexModelGovernanceProbeUnsupportedFailure(
+			modelName,
+			channelID,
+			codexGovernanceProbeUnsupportedConsecutiveThreshold,
+		)
+		if err == nil {
+			return count, escalate
+		}
+		common.SysError(fmt.Sprintf("Codex governance probe failed to persist failure state for %s on channel #%d: %v", modelName, channelID, err))
+	}
+	return recordCodexGovernanceProbeUnsupportedMatchInMemory(modelName, channelID)
+}
+
+func recordCodexGovernanceProbeUnsupportedMatchInMemory(modelName string, channelID int) (int, bool) {
 	key := codexGovernanceProbeFailureKey{ModelName: modelName, ChannelID: channelID}
 	codexGovernanceProbeFailureMu.Lock()
 	defer codexGovernanceProbeFailureMu.Unlock()
@@ -60,6 +75,11 @@ func resetCodexGovernanceProbeFailure(modelName string, channelID int) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" || channelID <= 0 {
 		return
+	}
+	if model.DB != nil {
+		if err := model.ResetCodexModelGovernanceProbeFailure(modelName, channelID); err != nil {
+			common.SysError(fmt.Sprintf("Codex governance probe failed to reset persisted failure state for %s on channel #%d: %v", modelName, channelID, err))
+		}
 	}
 	key := codexGovernanceProbeFailureKey{ModelName: modelName, ChannelID: channelID}
 	codexGovernanceProbeFailureMu.Lock()
