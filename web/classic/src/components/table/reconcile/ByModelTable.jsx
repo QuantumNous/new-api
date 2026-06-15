@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Table, Tag, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import { diffKindTag } from './diffKind';
 
 const { Text } = Typography;
 
@@ -30,13 +31,20 @@ export default function ByModelTable({ byModel }) {
   const { t } = useTranslation();
 
   const data = useMemo(() => {
+    // Biggest amount contributors first, so the models driving the total gap
+    // sit at the top instead of being buried in alphabetical order.
+    const sorted = [...(byModel || [])].sort(
+      (a, b) =>
+        Math.abs(b.delta_amount_cny || 0) - Math.abs(a.delta_amount_cny || 0),
+    );
     const out = [];
-    (byModel || []).forEach((m) => {
+    sorted.forEach((m) => {
       m.kinds.forEach((k) => {
         out.push({
           _key: `${m.model}__${k.kind}`,
           model: m.model,
           kind: k.kind,
+          diffKind: m.diff_kind,
           sup: k.supplier_tokens,
           loc: k.local_tokens,
           delta: k.delta_tokens,
@@ -48,6 +56,7 @@ export default function ByModelTable({ byModel }) {
         _key: `${m.model}__amount`,
         model: m.model,
         kind: 'amount',
+        diffKind: m.diff_kind,
         sup: m.supplier_amount_cny,
         loc: m.local_amount_cny,
         delta: m.delta_amount_cny,
@@ -62,8 +71,19 @@ export default function ByModelTable({ byModel }) {
       {
         title: t('模型'),
         dataIndex: 'model',
-        width: 160,
-        render: (v, r) => (r.kind === 'input' || r.kind === 'amount' ? v : ''),
+        width: 220,
+        render: (v, r) => {
+          // Only label the model on its amount row (last row of the group),
+          // so the diff_kind tag appears once per model.
+          if (!r.isAmount) return r.kind === 'input' ? v : '';
+          const kt = diffKindTag(r.diffKind, t);
+          return (
+            <div className='flex items-center gap-2'>
+              <Text>{v}</Text>
+              {kt && <Tag color={kt.color}>{kt.label}</Tag>}
+            </div>
+          );
+        },
       },
       {
         title: t('维度'),
