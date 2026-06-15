@@ -14,7 +14,11 @@ export const APP_CONSOLE_ORIGIN = normalizeOrigin(
 
 export const SITE_ORIGIN = normalizeOrigin(process.env.NEXT_PUBLIC_SITE_ORIGIN, DEFAULT_SITE_ORIGIN);
 
-export function consoleUrl(pathname = "/"): string {
+export function buildConsoleUrl(pathname = "/", origin = APP_CONSOLE_ORIGIN): string {
   const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  return `${APP_CONSOLE_ORIGIN}${path}`;
+  return `${normalizeOrigin(origin, DEFAULT_APP_CONSOLE_ORIGIN)}${path}`;
+}
+
+export function consoleUrl(pathname = "/"): string {
+  return buildConsoleUrl(pathname);
 }
