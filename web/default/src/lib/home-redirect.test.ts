@@ -16,20 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
-import { getSelf } from '@/lib/api'
-import { resolveHomeRedirect } from '@/lib/home-redirect'
+import { describe, expect, test } from 'bun:test'
+import { resolveHomeRedirect } from './home-redirect'
 
-export const Route = createFileRoute('/')({
-  beforeLoad: async () => {
-    const { auth } = useAuthStore.getState()
-    const result = await resolveHomeRedirect(getSelf)
-    if (result.user) {
-      auth.setUser(result.user)
-    } else {
-      auth.reset()
-    }
-    throw redirect({ to: result.to })
-  },
+describe('resolveHomeRedirect', () => {
+  test('redirects to dashboard when self check returns a user', async () => {
+    const result = await resolveHomeRedirect(async () => ({
+      success: true,
+      data: { id: 1, username: 'demo', role: 1 },
+    }))
+
+    expect(result.to).toBe('/dashboard')
+    expect(result.user?.username).toBe('demo')
+  })
+
+  test('redirects to sign-in when self check fails', async () => {
+    const result = await resolveHomeRedirect(async () => ({
+      success: false,
+    }))
+
+    expect(result.to).toBe('/sign-in')
+    expect(result.user).toBeNull()
+  })
 })
