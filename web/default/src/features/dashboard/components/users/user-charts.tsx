@@ -38,7 +38,10 @@ import {
   saveGranularity,
   processUserChartData,
 } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import type {
+  ProcessedUserChartData,
+  UserRankMetric,
+} from '@/features/dashboard/types'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -79,6 +82,7 @@ export function UserCharts() {
     getDefaultDays(timeGranularity)
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
+  const [metric, setMetric] = useState<UserRankMetric>('quota')
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -139,7 +143,8 @@ export function UserCharts() {
         timeGranularity,
         t,
         topUserLimit,
-        customization.preset
+        customization.preset,
+        metric
       ),
     [
       userData,
@@ -149,6 +154,7 @@ export function UserCharts() {
       topUserLimit,
       customization.preset,
       customization.radius,
+      metric,
     ]
   )
 
@@ -214,6 +220,21 @@ export function UserCharts() {
           </TabsList>
         </Tabs>
 
+        <Tabs
+          value={metric}
+          onValueChange={(value) => setMetric(value as UserRankMetric)}
+          className='shrink-0'
+        >
+          <TabsList>
+            <TabsTrigger value='quota' className='px-2.5 text-xs'>
+              {t('Cost Consumption')}
+            </TabsTrigger>
+            <TabsTrigger value='count' className='px-2.5 text-xs'>
+              {t('Call Count')}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
@@ -240,7 +261,7 @@ export function UserCharts() {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
+                      key={`user-${chart.value}-${topUserLimit}-${metric}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',
