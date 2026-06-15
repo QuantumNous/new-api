@@ -45,10 +45,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableColumnHeader } from '@/components/data-table'
+import { BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
-import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
 import { getCodexUsage } from '../api'
@@ -96,22 +96,6 @@ function parseIonetMeta(otherInfo: string | null | undefined): null | {
     return null
   }
   return null
-}
-
-/**
- * Render limited items with "and X more" indicator
- */
-function renderLimitedItems(
-  items: React.ReactNode[],
-  maxDisplay: number = 2
-): React.ReactNode {
-  return (
-    <StatusBadgeList
-      items={items}
-      max={maxDisplay}
-      renderItem={(item) => item}
-    />
-  )
 }
 
 /**
@@ -314,6 +298,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
         size='sm'
         copyable={false}
         showDot={false}
+        className='-ml-1.5'
       />
     )
   }
@@ -349,7 +334,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
   return (
     <TooltipProvider>
-      <div className='flex items-center gap-1'>
+      <div className='-ml-1.5 flex items-center gap-1'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -476,10 +461,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // ID column
     {
       accessorKey: 'id',
-      meta: { label: t('ID'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='ID' />
-      ),
+      header: t('ID'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const id = row.getValue('id') as number
         return <TableId value={id} />
@@ -490,10 +473,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Name column
     {
       accessorKey: 'name',
-      meta: { label: t('Name'), mobileTitle: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
-      ),
+      header: t('Name'),
+      meta: { mobileTitle: true },
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
         const name = row.getValue('name') as string
@@ -603,7 +584,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Type column
     {
       accessorKey: 'type',
-      meta: { label: t('Type') },
       header: t('Type'),
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
@@ -615,6 +595,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               variant='blue'
               size='sm'
               copyable={false}
+              className='-ml-1.5'
             />
           )
         }
@@ -641,7 +622,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             : undefined
 
         return (
-          <div className='flex items-center gap-2'>
+          <div className='flex min-w-0 max-w-full items-center gap-2 overflow-hidden'>
             {isMultiKey && (
               <TooltipProvider delay={100}>
                 <Tooltip>
@@ -656,12 +637,24 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 </Tooltip>
               </TooltipProvider>
             )}
-            <ProviderBadge
-              iconKey={iconName}
-              label={typeName}
-              copyable={false}
-              showDot={false}
-            />
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div className='min-w-0 max-w-full overflow-hidden' />
+                  }
+                >
+                  <ProviderBadge
+                    iconKey={iconName}
+                    label={typeName}
+                    copyable={false}
+                    showDot={false}
+                    className='min-w-0 max-w-full overflow-hidden'
+                  />
+                </TooltipTrigger>
+                <TooltipContent side='top'>{typeName}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {isIonet && (
               <TooltipProvider delay={100}>
                 <Tooltip>
@@ -711,15 +704,15 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         if (!value || value.length === 0 || value.includes('all')) return true
         return value.includes(String(row.getValue(id)))
       },
-      size: 140,
+      size: 220,
       enableSorting: false,
     },
 
     // Status column
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
       header: t('Status'),
+      meta: { mobileBadge: true },
       cell: ({ row }) => {
         const isTagRow = isTagAggregateRow(row.original)
         const status = row.getValue('status') as number
@@ -737,6 +730,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 variant='success'
                 size='sm'
                 copyable={false}
+                className='-ml-1.5'
               />
             )
           } else {
@@ -746,6 +740,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 variant='neutral'
                 size='sm'
                 copyable={false}
+                className='-ml-1.5'
               />
             )
           }
@@ -823,6 +818,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -840,42 +836,23 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Models column
     {
       accessorKey: 'models',
-      meta: { label: t('Models'), mobileHidden: true },
       header: t('Models'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const models = row.getValue('models') as string
         const modelArray = parseModelsList(models)
-
-        if (modelArray.length === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const modelBadges = modelArray.map((model, idx) => (
-          <StatusBadge
-            key={idx}
-            label={model}
-            autoColor={model}
-            size='sm'
-            className='font-mono'
-          />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(modelBadges, 2)}
-              </TooltipTrigger>
-              {modelArray.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{modelBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={modelArray.map((model, idx) => (
+              <StatusBadge
+                key={idx}
+                label={model}
+                autoColor={model}
+                size='sm'
+                className='font-mono'
+              />
+            ))}
+          />
         )
       },
       size: 200,
@@ -885,32 +862,17 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Group column
     {
       accessorKey: 'group',
-      meta: { label: t('Groups'), mobileHidden: true },
       header: t('Groups'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const group = row.getValue('group') as string
         const groupArray = parseGroupsList(group)
-
-        const groupBadges = groupArray.map((g) => (
-          <GroupBadge key={g} group={g} size='sm' />
-        ))
-
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger render={<div />}>
-                {renderLimitedItems(groupBadges, 2)}
-              </TooltipTrigger>
-              {groupArray.length > 2 && (
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{groupBadges}</div>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <BadgeListCell
+            items={groupArray.map((g) => (
+              <GroupBadge key={g} group={g} size='sm' />
+            ))}
+          />
         )
       },
       filterFn: (row, id, value) => {
@@ -926,14 +888,14 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Tag column
     {
       accessorKey: 'tag',
-      meta: { label: t('Tag'), mobileHidden: true },
       header: t('Tag'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const tag = row.getValue('tag') as string | null
         if (!tag)
           return <span className='text-muted-foreground text-xs'>-</span>
 
-        return <StatusBadge label={tag} autoColor={tag} size='sm' />
+        return <StatusBadge label={tag} autoColor={tag} size='sm' className='-ml-1.5' />
       },
       size: 120,
       enableSorting: false,
@@ -942,10 +904,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Priority column
     {
       accessorKey: 'priority',
-      meta: { label: t('Priority'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Priority')} />
-      ),
+      header: t('Priority'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => <PriorityCell channel={row.original} />,
       size: 100,
     },
@@ -953,8 +913,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Weight column
     {
       accessorKey: 'weight',
-      meta: { label: t('Weight'), mobileHidden: true },
       header: t('Weight'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
       enableSorting: false,
@@ -963,10 +923,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Balance column (Used/Remaining)
     {
       accessorKey: 'balance',
-      meta: { label: t('Used / Remaining') },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Used / Remaining')} />
-      ),
+      header: t('Used / Remaining'),
       cell: ({ row }) => <BalanceCell channel={row.original} />,
       size: 180,
     },
@@ -974,10 +931,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Response Time column
     {
       accessorKey: 'response_time',
-      meta: { label: t('Response'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Response')} />
-      ),
+      header: t('Response'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const responseTime = row.getValue('response_time') as number
         const config = getResponseTimeConfig(responseTime)
@@ -988,6 +943,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
@@ -997,10 +953,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Test Time column
     {
       accessorKey: 'test_time',
-      meta: { label: t('Last Tested'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Last Tested')} />
-      ),
+      header: t('Last Tested'),
+      meta: { mobileHidden: true },
       cell: ({ row }) => {
         const testTime = row.getValue('test_time') as number
 
@@ -1037,6 +991,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
     // Actions column
     {
       id: 'actions',
+      header: () => t('Actions'),
       cell: ({ row }) => {
         // Check if this is a tag row (has children)
         const isTagRow = isTagAggregateRow(row.original)
@@ -1055,6 +1010,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       size: 132,
       enableSorting: false,
       enableHiding: false,
+      meta: { pinned: 'right' as const },
     },
   ]
 }

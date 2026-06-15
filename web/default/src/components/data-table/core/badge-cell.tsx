@@ -16,29 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { Table as TanstackTable } from '@tanstack/react-table'
+import * as React from 'react'
+import { cn } from '@/lib/utils'
 
-export function DataTableColgroup<TData>({
-  table,
-}: {
-  table: TanstackTable<TData>
-}) {
-  const columns = table.getVisibleLeafColumns()
-  const totalSize = columns.reduce((sum, col) => sum + col.getSize(), 0)
+type BadgeCellProps = React.HTMLAttributes<HTMLDivElement>
 
+export function BadgeCell({ className, ...props }: BadgeCellProps) {
   return (
-    <colgroup>
-      {columns.map((column) => (
-        <col
-          key={column.id}
-          style={{
-            width:
-              totalSize > 0
-                ? `${(column.getSize() / totalSize) * 100}%`
-                : undefined,
-          }}
-        />
-      ))}
-    </colgroup>
+    <div
+      className={cn(
+        '-ml-1.5 flex max-w-full min-w-0 items-center gap-1 overflow-hidden [&_[data-slot=status-badge]]:max-w-full [&_[data-slot=status-badge]]:min-w-0',
+        className
+      )}
+      {...props}
+    />
   )
 }

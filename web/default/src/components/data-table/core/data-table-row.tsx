@@ -16,9 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type * as React from 'react'
-import { flexRender, type Row } from '@tanstack/react-table'
+import * as React from 'react'
+import { flexRender, type Cell, type Row } from '@tanstack/react-table'
+import { cn } from '@/lib/utils'
 import { TableCell, TableRow } from '@/components/ui/table'
+import { TruncatedCell } from './truncated-cell'
 import type { DataTableColumnClassName } from './types'
 
 type DataTableRowProps<TData> = {
@@ -27,7 +29,7 @@ type DataTableRowProps<TData> = {
   getColumnClassName?: DataTableColumnClassName
 } & Omit<React.ComponentProps<typeof TableRow>, 'children'>
 
-export function DataTableRow<TData>({
+function DataTableRowInner<TData>({
   row,
   className,
   getColumnClassName,
@@ -42,11 +44,50 @@ export function DataTableRow<TData>({
       {row.getVisibleCells().map((cell) => (
         <TableCell
           key={cell.id}
-          className={getColumnClassName?.(cell.column.id, 'cell')}
+          className={cn(
+            'max-w-full min-w-0 overflow-hidden',
+            getColumnClassName?.(cell.column.id, 'cell')
+          )}
         >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          {renderCellContent(cell)}
         </TableCell>
       ))}
     </TableRow>
   )
+}
+
+export const DataTableRow = React.memo(DataTableRowInner, (prev, next) => {
+  // Skip re-render when only the getColumnClassName reference changed but the
+  // row identity and selection state are the same — callers rarely stabilize
+  // this callback, so excluding it from comparison avoids unnecessary renders.
+  return (
+    prev.row === next.row &&
+    prev.className === next.className &&
+    prev.row.getIsSelected() === next.row.getIsSelected()
+  )
+}) as typeof DataTableRowInner
+
+function renderCellContent<TData>(cell: Cell<TData, unknown>) {
+  const content = flexRender(cell.column.columnDef.cell, cell.getContext())
+  const textContent = getPrimitiveTextContent(content)
+
+  if (!textContent) return content
+
+  return <TruncatedCell tooltipContent={textContent}>{content}</TruncatedCell>
+}
+
+function getPrimitiveTextContent(content: React.ReactNode): string | null {
+  if (typeof content === 'string' || typeof content === 'number') {
+    return String(content)
+  }
+
+  if (
+    React.isValidElement<{ children?: React.ReactNode }>(content) &&
+    (typeof content.props.children === 'string' ||
+      typeof content.props.children === 'number')
+  ) {
+    return String(content.props.children)
+  }
+
+  return null
 }
