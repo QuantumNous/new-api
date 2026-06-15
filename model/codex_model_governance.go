@@ -34,13 +34,13 @@ type CodexModelGovernanceRecord struct {
 	LastError          string `json:"last_error" gorm:"type:text"`
 	AffectedChannelIDs string `json:"affected_channel_ids" gorm:"type:text"`
 	AbilitiesDisabled  bool   `json:"abilities_disabled" gorm:"default:false"`
-	DetectedAt         int64  `json:"detected_at" gorm:"bigint;index"`
-	LastCheckedAt      int64  `json:"last_checked_at" gorm:"bigint;index"`
-	ReviewedAt         int64  `json:"reviewed_at" gorm:"bigint"`
+	DetectedAt         int64  `json:"detected_at" gorm:"type:bigint;index"`
+	LastCheckedAt      int64  `json:"last_checked_at" gorm:"type:bigint;index"`
+	ReviewedAt         int64  `json:"reviewed_at" gorm:"type:bigint"`
 	ReviewedBy         int    `json:"reviewed_by" gorm:"index;default:0"`
 	ReviewNote         string `json:"review_note" gorm:"type:text"`
-	CreatedTime        int64  `json:"created_time" gorm:"bigint"`
-	UpdatedTime        int64  `json:"updated_time" gorm:"bigint"`
+	CreatedTime        int64  `json:"created_time" gorm:"type:bigint"`
+	UpdatedTime        int64  `json:"updated_time" gorm:"type:bigint"`
 }
 
 type CodexModelGovernancePendingInput struct {

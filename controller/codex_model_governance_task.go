@@ -14,9 +14,19 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
-const codexGovernanceProbePrompt = "ping"
+const (
+	codexGovernanceProbePrompt                          = "ping"
+	codexGovernanceProbeUnsupportedConsecutiveThreshold = 2
+)
 
 var codexModelGovernanceTaskOnce sync.Once
+var codexGovernanceProbeFailureMu sync.Mutex
+var codexGovernanceProbeFailures = make(map[codexGovernanceProbeFailureKey]int)
+
+type codexGovernanceProbeFailureKey struct {
+	ModelName string
+	ChannelID int
+}
 
 func codexGovernanceProbeInterval(setting *operation_setting.CodexModelGovernanceSetting) time.Duration {
 	if setting == nil || setting.ProbeIntervalMinutes < 60 {
@@ -27,6 +37,34 @@ func codexGovernanceProbeInterval(setting *operation_setting.CodexModelGovernanc
 
 func classifyCodexGovernanceProbeError(message string, patterns []string) service.CodexUnsupportedMatch {
 	return service.ClassifyCodexUnsupportedMessage(message, patterns)
+}
+
+func recordCodexGovernanceProbeUnsupportedMatch(modelName string, channelID int) (int, bool) {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" || channelID <= 0 {
+		return 0, false
+	}
+	key := codexGovernanceProbeFailureKey{ModelName: modelName, ChannelID: channelID}
+	codexGovernanceProbeFailureMu.Lock()
+	defer codexGovernanceProbeFailureMu.Unlock()
+
+	count := codexGovernanceProbeFailures[key] + 1
+	if count > codexGovernanceProbeUnsupportedConsecutiveThreshold {
+		count = codexGovernanceProbeUnsupportedConsecutiveThreshold
+	}
+	codexGovernanceProbeFailures[key] = count
+	return count, count >= codexGovernanceProbeUnsupportedConsecutiveThreshold
+}
+
+func resetCodexGovernanceProbeFailure(modelName string, channelID int) {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" || channelID <= 0 {
+		return
+	}
+	key := codexGovernanceProbeFailureKey{ModelName: modelName, ChannelID: channelID}
+	codexGovernanceProbeFailureMu.Lock()
+	delete(codexGovernanceProbeFailures, key)
+	codexGovernanceProbeFailureMu.Unlock()
 }
 
 func collectConfiguredCodexModelNames() ([]string, error) {
@@ -85,16 +123,29 @@ func runCodexModelGovernanceProbeOnce() {
 				SkipLog:    true,
 			})
 			if result.localErr == nil && result.newAPIError == nil {
+				resetCodexGovernanceProbeFailure(modelName, channel.Id)
 				continue
 			}
 			message := codexGovernanceProbeErrorMessage(result)
 			match := classifyCodexGovernanceProbeError(message, setting.UnsupportedMessagePatterns)
 			if !match.Matched {
+				resetCodexGovernanceProbeFailure(modelName, channel.Id)
 				continue
 			}
 			matchedModel := strings.TrimSpace(match.ModelName)
 			if matchedModel == "" {
 				matchedModel = modelName
+			}
+			count, shouldDisable := recordCodexGovernanceProbeUnsupportedMatch(modelName, channel.Id)
+			if !shouldDisable {
+				common.SysLog(fmt.Sprintf(
+					"Codex governance probe matched unsupported model %s on channel #%d (%d/%d); waiting for consecutive confirmation before disabling",
+					matchedModel,
+					channel.Id,
+					count,
+					codexGovernanceProbeUnsupportedConsecutiveThreshold,
+				))
+				continue
 			}
 			if _, err := service.MoveCodexModelToPendingReview(service.CodexModelUnsupportedFinding{
 				ModelName:          matchedModel,

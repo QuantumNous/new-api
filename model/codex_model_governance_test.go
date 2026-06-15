@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -8,6 +9,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 func setupCodexGovernanceTestDB(t *testing.T) *gorm.DB {
@@ -42,6 +44,23 @@ func setupCodexGovernanceTestDB(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func TestCodexGovernanceTimestampFieldsUseExplicitBigintType(t *testing.T) {
+	parsed, err := schema.Parse(&CodexModelGovernanceRecord{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+
+	for _, fieldName := range []string{
+		"DetectedAt",
+		"LastCheckedAt",
+		"ReviewedAt",
+		"CreatedTime",
+		"UpdatedTime",
+	} {
+		field := parsed.LookUpField(fieldName)
+		require.NotNil(t, field, fieldName)
+		require.Equal(t, "bigint", field.TagSettings["TYPE"], fieldName)
+	}
 }
 
 func insertCodexGovernanceChannel(t *testing.T, id int, channelType int, models string) {
