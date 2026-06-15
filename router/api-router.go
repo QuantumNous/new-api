@@ -75,6 +75,7 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/groups", controller.GetUserGroups)
+			userRoute.GET("/first_topup_promo", middleware.TryUserAuth(), controller.GetFirstTopupPromo)
 
 			selfRoute := userRoute.Group("/")
 			selfRoute.Use(middleware.UserAuth())
@@ -97,7 +98,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/invite_list", controller.GetInviteList)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
-				selfRoute.GET("/first_topup_promo", controller.GetFirstTopupPromo)
+				// first_topup_promo is below in the public userRoute section
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)

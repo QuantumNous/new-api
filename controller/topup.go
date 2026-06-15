@@ -185,18 +185,34 @@ func firstTopupPromoFactor(userId int, amount int64) float64 {
 }
 
 // GetFirstTopupPromo 返回当前用户的新用户首充优惠资格 + 参数，供充值页/弹窗展示折扣角标与倒计时。
+// 未登录访客（userId=0）视为 eligible=true，引导注册后充值。
 func GetFirstTopupPromo(c *gin.Context) {
-	userId := c.GetInt("id")
-	eligible, expiresAt := model.IsFirstTopupPromoEligible(userId)
 	amount := common.FirstTopupPromoAmount
 	discount := common.FirstTopupPromoDiscount
+	if !common.FirstTopupPromoEnabled {
+		common.ApiSuccess(c, gin.H{
+			"enabled":  false,
+			"eligible": false,
+		})
+		return
+	}
+	userId := c.GetInt("id")
+	var eligible bool
+	var expiresAt int64
+	if userId == 0 {
+		// 未登录访客：优惠开启中，且尚未注册，视为 eligible
+		eligible = true
+		expiresAt = 0
+	} else {
+		eligible, expiresAt = model.IsFirstTopupPromoEligible(userId)
+	}
 	common.ApiSuccess(c, gin.H{
-		"enabled":    common.FirstTopupPromoEnabled,
+		"enabled":    true,
 		"eligible":   eligible,
-		"discount":   discount,                   // 折扣率，如 0.75
-		"amount":     amount,                      // 适用档位（美元），如 10
-		"pay_amount": float64(amount) * discount,  // 实付，如 7.5
-		"expires_at": expiresAt,                   // 优惠到期 Unix 秒，前端倒计时
+		"discount":   discount,
+		"amount":     amount,
+		"pay_amount": float64(amount) * discount,
+		"expires_at": expiresAt,
 	})
 }
 
