@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
   type RowSelectionState,
@@ -67,7 +68,11 @@ import {
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
-import { formatResponseTime, handleTestChannel } from '../../lib'
+import {
+  channelsQueryKeys,
+  formatResponseTime,
+  handleTestChannel,
+} from '../../lib'
 import { useChannels } from '../channels-provider'
 
 type ChannelTestDialogProps = {
@@ -77,6 +82,8 @@ type ChannelTestDialogProps = {
 
 type ModelRow = {
   model: string
+  testResult?: TestResult
+  isTesting: boolean
 }
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
@@ -203,7 +210,8 @@ export function ChannelTestDialog({
   onOpenChange,
 }: ChannelTestDialogProps) {
   const { t } = useTranslation()
-  const { currentRow } = useChannels()
+  const queryClient = useQueryClient()
+  const { currentRow, setCurrentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -277,8 +285,13 @@ export function ChannelTestDialog({
   }, [searchTerm, modelsValue])
 
   const tableData = useMemo<ModelRow[]>(
-    () => filteredModels.map((model) => ({ model })),
-    [filteredModels]
+    () =>
+      filteredModels.map((model) => ({
+        model,
+        testResult: testResults[model],
+        isTesting: testingModels.has(model),
+      })),
+    [filteredModels, testResults, testingModels]
   )
 
   const markModelTesting = useCallback((key: string, isTesting: boolean) => {
@@ -326,6 +339,16 @@ export function ChannelTestDialog({
               errorCode,
             }
             updateTestResult(model, finalResult)
+            if (success && typeof responseTime === 'number') {
+              setCurrentRow({
+                ...currentRow,
+                response_time: responseTime,
+                test_time: Math.floor(Date.now() / 1000),
+              })
+              queryClient.invalidateQueries({
+                queryKey: channelsQueryKeys.lists(),
+              })
+            }
           }
         )
       } catch (error: unknown) {
@@ -344,6 +367,8 @@ export function ChannelTestDialog({
       endpointType,
       isStreamTest,
       markModelTesting,
+      queryClient,
+      setCurrentRow,
       t,
       updateTestResult,
     ]
@@ -455,7 +480,7 @@ export function ChannelTestDialog({
         header: t('Status'),
         cell: ({ row }) => {
           const model = row.original.model
-          const result = testResults[model]
+          const result = row.original.testResult
           return (
             <TestStatusCell
               result={result}
@@ -472,7 +497,7 @@ export function ChannelTestDialog({
         header: t('Actions'),
         cell: ({ row }) => {
           const model = row.original.model
-          const isTestingModel = testingModels.has(model)
+          const isTestingModel = row.original.isTesting
 
           return (
             <Button
@@ -492,14 +517,7 @@ export function ChannelTestDialog({
         size: 120,
       },
     ],
-    [
-      defaultTestModel,
-      isBatchTesting,
-      t,
-      testResults,
-      testingModels,
-      testSingleModel,
-    ]
+    [defaultTestModel, isBatchTesting, t, testSingleModel]
   )
 
   const { table } = useDataTable({
