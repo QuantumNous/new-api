@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -62,6 +63,17 @@ func toUnix(ts string) int64 {
 	return t.Unix()
 }
 
+func sendOllamaStreamResponse(c *gin.Context, info *relaycommon.RelayInfo, response *dto.ChatCompletionsStreamResponse) error {
+	if response == nil {
+		return nil
+	}
+	data, err := common.Marshal(response)
+	if err != nil {
+		return err
+	}
+	return openai.HandleStreamFormat(c, info, string(data), info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+}
+
 func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("empty response"), types.ErrorCodeBadResponse, http.StatusBadRequest)
@@ -76,8 +88,9 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var created = time.Now().Unix()
 	var toolCallIndex int
 	start := helper.GenerateStartEmptyResponse(responseId, created, model, nil)
-	if data, err := common.Marshal(start); err == nil {
-		_ = helper.StringData(c, string(data))
+	if err := sendOllamaStreamResponse(c, info, start); err != nil {
+		logger.LogError(c, "ollama stream send start error: "+err.Error())
+		return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	for scanner.Scan() {
@@ -143,8 +156,9 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 					delta.Choices[0].Delta.ToolCalls = append(delta.Choices[0].Delta.ToolCalls, tr)
 				}
 			}
-			if data, err := common.Marshal(delta); err == nil {
-				_ = helper.StringData(c, string(data))
+			if err := sendOllamaStreamResponse(c, info, &delta); err != nil {
+				logger.LogError(c, "ollama stream send delta error: "+err.Error())
+				return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 			continue
 		}
@@ -157,20 +171,35 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if finishReason == "" {
 			finishReason = "stop"
 		}
+		if info.RelayFormat == types.RelayFormatClaude {
+			info.FinishReason = finishReason
+			final := helper.GenerateFinalUsageResponse(responseId, created, model, *usage)
+			data, err := common.Marshal(final)
+			if err != nil {
+				logger.LogError(c, "ollama stream marshal Claude final response error: "+err.Error())
+				return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			}
+			openai.HandleFinalResponse(c, info, string(data), responseId, created, model, "", usage, true)
+			break
+		}
 		// emit stop delta
 		if stop := helper.GenerateStopResponse(responseId, created, model, finishReason); stop != nil {
-			if data, err := common.Marshal(stop); err == nil {
-				_ = helper.StringData(c, string(data))
+			if err := sendOllamaStreamResponse(c, info, stop); err != nil {
+				logger.LogError(c, "ollama stream send stop error: "+err.Error())
+				return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 		}
 		// emit usage frame
 		if final := helper.GenerateFinalUsageResponse(responseId, created, model, *usage); final != nil {
-			if data, err := common.Marshal(final); err == nil {
-				_ = helper.StringData(c, string(data))
+			if err := sendOllamaStreamResponse(c, info, final); err != nil {
+				logger.LogError(c, "ollama stream send usage error: "+err.Error())
+				return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 		}
 		// send [DONE]
-		helper.Done(c)
+		if info.RelayFormat == types.RelayFormatOpenAI {
+			helper.Done(c)
+		}
 		break
 	}
 	if err := scanner.Err(); err != nil && err != io.EOF {
