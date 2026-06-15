@@ -48,9 +48,9 @@ function getQuotaProgressColor(percentage: number): string {
 
 function useGroupRatios(): Record<string, number> {
   const { data } = useQuery({
-    queryKey: ['user-self-groups'],
+    queryKey: ['user-groups'],
     queryFn: getUserGroups,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     select: (res) => {
       if (!res.success || !res.data) return {}
       const ratios: Record<string, number> = {}
