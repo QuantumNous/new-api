@@ -268,6 +268,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "GlobalModelAlias":
+		err = setting.CheckGlobalModelAliasJSON(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "全局模型别名设置失败: " + err.Error(),
+			})
+			return
+		}
 	case "ModelRequestRateLimitGroup":
 		err = setting.CheckModelRequestRateLimitGroup(option.Value.(string))
 		if err != nil {
