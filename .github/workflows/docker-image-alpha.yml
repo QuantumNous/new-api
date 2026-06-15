@@ -77,6 +77,8 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
+          build-args: |
+            VITE_OFFICIAL_WEBSITE_ORIGIN=${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
           tags: |
             calciumion/new-api:alpha-${{ matrix.arch }}
             calciumion/new-api:${{ steps.version.outputs.value }}-${{ matrix.arch }}

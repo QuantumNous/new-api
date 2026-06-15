@@ -26,9 +26,4 @@ import { type TopNavLink } from '../types'
  *
  * If backend configuration is unavailable, keep public product routes discoverable.
  */
-export const defaultTopNavLinks: TopNavLink[] = [
-  {
-    title: 'Blog',
-    href: '/blog',
-  },
-]
+export const defaultTopNavLinks: TopNavLink[] = []

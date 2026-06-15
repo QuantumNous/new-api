@@ -45,6 +45,7 @@ jobs:
         env:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
+          VITE_OFFICIAL_WEBSITE_ORIGIN: ${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
         run: |
           cd web
           bun install
