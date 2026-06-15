@@ -1,6 +1,7 @@
 package doubao
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -220,7 +221,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 
 	if dResp.ID == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
+		taskErr = service.TaskErrorWrapper(errors.New(i18n.Translate("relay.task_id_is_empty")), "invalid_response", http.StatusInternalServerError)
 		return
 	}
 
@@ -238,7 +239,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid task_id")
+		return nil, errors.New(i18n.Translate("relay.invalid_task_id"))
 	}
 
 	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
@@ -254,7 +255,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("relay.new_proxy_http_client_failed"), err)
 	}
 	return client.Do(req)
 }

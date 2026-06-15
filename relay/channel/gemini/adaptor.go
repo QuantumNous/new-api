@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"fmt"
 	"io"
@@ -54,12 +55,12 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
+		return nil, errors.New(i18n.Translate("relay.not_supported_model_for_image_generation_only_imagen"))
 	}
 
 	// convert size to aspect ratio but allow user to specify aspect ratio
@@ -178,7 +179,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate("svc.request_is_nil"))
 	}
 
 	geminiRequest, err := CovertOpenAI2Gemini(c, *request, info)
@@ -195,12 +196,12 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
 	if request.Input == nil {
-		return nil, errors.New("input is required")
+		return nil, errors.New(i18n.Translate("relay.input_is_required"))
 	}
 
 	inputs := request.ParseInput()
 	if len(inputs) == 0 {
-		return nil, errors.New("input is empty")
+		return nil, errors.New(i18n.Translate("relay.input_is_empty"))
 	}
 	// We always build a batch-style payload with `requests`, so ensure we call the
 	// batch endpoint upstream to avoid payload/endpoint mismatches.
@@ -209,7 +210,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	geminiRequests := make([]map[string]interface{}, 0, len(inputs))
 	for _, input := range inputs {
 		geminiRequest := map[string]interface{}{
-			"model": fmt.Sprintf("models/%s", info.UpstreamModelName),
+			"model": fmt.Sprintf(i18n.Translate("relay.models"), info.UpstreamModelName),
 			"content": dto.GeminiChatContent{
 				Parts: []dto.GeminiPart{
 					{
@@ -239,7 +240,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	// TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

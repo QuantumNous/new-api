@@ -1,6 +1,7 @@
 package zhipu_4v
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"io"
 	"net/http"
 
@@ -86,7 +87,7 @@ func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 			url = data.ImageUrl
 		}
 		if url == "" {
-			logger.LogWarn(c, "zhipu_image_missing_url")
+			logger.LogWarn(c, i18n.Translate("relay.zhipu_image_missing_url"))
 			continue
 		}
 
@@ -106,7 +107,7 @@ func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		}
 
 		if b64 == "" {
-			logger.LogWarn(c, "zhipu_image_empty_b64")
+			logger.LogWarn(c, i18n.Translate("relay.zhipu_image_empty_b64"))
 			continue
 		}
 

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -20,11 +21,11 @@ func ValidateRedirectURL(rawURL string) error {
 	// Parse the URL
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("invalid URL format: %s", err.Error())
+		return fmt.Errorf(Translate("common.invalid_url_format"), err.Error())
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("invalid URL scheme: only http and https are allowed")
+		return errors.New(Translate("common.invalid_url_scheme_only_http_and_https_are"))
 	}
 
 	domain := strings.ToLower(parsedURL.Hostname())
@@ -35,5 +36,5 @@ func ValidateRedirectURL(rawURL string) error {
 		}
 	}
 
-	return fmt.Errorf("domain %s is not in the trusted domains list", domain)
+	return fmt.Errorf(Translate("common.domain_is_not_in_the_trusted_domains_list"), domain)
 }

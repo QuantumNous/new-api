@@ -12,7 +12,7 @@ func GetEnvOrDefault(env string, defaultValue int) int {
 	}
 	num, err := strconv.Atoi(os.Getenv(env))
 	if err != nil {
-		SysError(fmt.Sprintf("failed to parse %s: %s, using default value: %d", env, err.Error(), defaultValue))
+		SysError(fmt.Sprintf(Translate("common.failed_to_parse_using_default_value"), env, err.Error(), defaultValue))
 		return defaultValue
 	}
 	return num
@@ -31,7 +31,7 @@ func GetEnvOrDefaultBool(env string, defaultValue bool) bool {
 	}
 	b, err := strconv.ParseBool(os.Getenv(env))
 	if err != nil {
-		SysError(fmt.Sprintf("failed to parse %s: %s, using default value: %t", env, err.Error(), defaultValue))
+		SysError(fmt.Sprintf(Translate("common.failed_to_parse_using_default_value_e9a1"), env, err.Error(), defaultValue))
 		return defaultValue
 	}
 	return b
