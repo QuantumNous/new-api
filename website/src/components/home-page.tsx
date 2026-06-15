@@ -8,7 +8,7 @@ import { localizePath } from "@/lib/locales";
 import { APP_CONSOLE_ORIGIN, consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_IN_URL = consoleUrl("/sign-in");
+const SIGN_UP_URL = consoleUrl("/sign-up");
 const API_BASE_URL = `${APP_CONSOLE_ORIGIN}/v1`;
 
 type Props = {
@@ -154,7 +154,7 @@ export function HomePage(props: Props) {
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
                 <a
                   className="flatkey-hero-cta group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
-                  href={SIGN_IN_URL}
+                  href={SIGN_UP_URL}
                   style={{ borderRadius: "0.5rem" }}
                 >
                   {copy.home.primary}
@@ -336,7 +336,7 @@ export function HomePage(props: Props) {
             <div className="mt-8 flex items-center justify-center gap-3">
               <a
                 className="flatkey-hero-cta group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
-                href={SIGN_IN_URL}
+                href={SIGN_UP_URL}
                 style={{ borderRadius: "0.5rem" }}
               >
                 {copy.home.primary}
