@@ -42,44 +42,69 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const privacyFilterSchema = z.object({
-  'privacy_filter_setting.enabled': z.boolean(),
-  'privacy_filter_setting.gitleaks_toml': z.string(),
+  privacy_filter_setting: z.object({
+    enabled: z.boolean(),
+    gitleaks_toml: z.string(),
+  }),
 })
 
 type PrivacyFilterFormValues = z.infer<typeof privacyFilterSchema>
 
-type PrivacyFilterSectionProps = {
-  defaultValues: PrivacyFilterFormValues
+type PrivacyFilterSettingsValues = {
+  'privacy_filter_setting.enabled': boolean
+  'privacy_filter_setting.gitleaks_toml': string
 }
+
+type PrivacyFilterSectionProps = {
+  defaultValues: PrivacyFilterSettingsValues
+}
+
+const buildFormDefaults = (
+  defaults: PrivacyFilterSettingsValues
+): PrivacyFilterFormValues => ({
+  privacy_filter_setting: {
+    enabled: defaults['privacy_filter_setting.enabled'],
+    gitleaks_toml: defaults['privacy_filter_setting.gitleaks_toml'],
+  },
+})
+
+const normalizeDefaults = (
+  defaults: PrivacyFilterSettingsValues
+): PrivacyFilterSettingsValues => ({
+  'privacy_filter_setting.enabled': defaults['privacy_filter_setting.enabled'],
+  'privacy_filter_setting.gitleaks_toml':
+    defaults['privacy_filter_setting.gitleaks_toml'].trim(),
+})
+
+const normalizeFormValues = (
+  values: PrivacyFilterFormValues
+): PrivacyFilterSettingsValues => ({
+  'privacy_filter_setting.enabled': values.privacy_filter_setting.enabled,
+  'privacy_filter_setting.gitleaks_toml':
+    values.privacy_filter_setting.gitleaks_toml.trim(),
+})
 
 export function PrivacyFilterSection({
   defaultValues,
 }: PrivacyFilterSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const formDefaults = buildFormDefaults(defaultValues)
 
   const form = useForm<PrivacyFilterFormValues>({
     resolver: zodResolver(privacyFilterSchema),
-    defaultValues,
+    defaultValues: formDefaults,
   })
 
-  useResetForm(form, defaultValues)
+  useResetForm(form, formDefaults)
 
   const onSubmit = async (values: PrivacyFilterFormValues) => {
-    const sanitizedValues = {
-      ...values,
-      'privacy_filter_setting.gitleaks_toml':
-        values['privacy_filter_setting.gitleaks_toml'].trim(),
-    }
-    const sanitizedDefaults = {
-      ...defaultValues,
-      'privacy_filter_setting.gitleaks_toml':
-        defaultValues['privacy_filter_setting.gitleaks_toml'].trim(),
-    }
+    const sanitizedValues = normalizeFormValues(values)
+    const sanitizedDefaults = normalizeDefaults(defaultValues)
 
     const updates = Object.entries(sanitizedValues).filter(
       ([key, value]) =>
-        value !== sanitizedDefaults[key as keyof PrivacyFilterFormValues]
+        value !== sanitizedDefaults[key as keyof PrivacyFilterSettingsValues]
     )
 
     for (const [key, value] of updates) {
