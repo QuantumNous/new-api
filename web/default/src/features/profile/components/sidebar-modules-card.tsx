@@ -53,6 +53,8 @@ export function SidebarModulesCard() {
   const currentUser = useAuthStore((s) => s.auth.user)
   const setUser = useAuthStore((s) => s.auth.setUser)
   const canAccessAffiliateModule = currentUser?.distribution_enabled === true
+  const canAccessAffiliateCdkModule =
+    currentUser?.affiliate_cdk_enabled === true
 
   const sectionDefs = useMemo<SectionDef[]>(
     () => [
@@ -126,6 +128,17 @@ export function SidebarModulesCard() {
                 },
               ]
             : []),
+          ...(canAccessAffiliateCdkModule
+            ? [
+                {
+                  key: 'affiliate_cdk',
+                  title: t('CDK purchase module'),
+                  description: t(
+                    'Controls whether this user can see and use the sidebar CDK purchase module.'
+                  ),
+                },
+              ]
+            : []),
           {
             key: 'personal',
             title: t('Personal Settings'),
@@ -134,7 +147,7 @@ export function SidebarModulesCard() {
         ],
       },
     ],
-    [canAccessAffiliateModule, t]
+    [canAccessAffiliateCdkModule, canAccessAffiliateModule, t]
   )
 
   const buildDefaultConfig = useCallback(() => {

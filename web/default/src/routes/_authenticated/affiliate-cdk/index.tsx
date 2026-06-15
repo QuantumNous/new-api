@@ -31,7 +31,7 @@ const affiliateCdkSearchSchema = z.object({
 export const Route = createFileRoute('/_authenticated/affiliate-cdk/')({
   beforeLoad: () => {
     const user = useAuthStore.getState().auth.user
-    if (user?.distribution_enabled !== true) {
+    if (user?.affiliate_cdk_enabled !== true) {
       throw redirect({ to: '/wallet' })
     }
   },

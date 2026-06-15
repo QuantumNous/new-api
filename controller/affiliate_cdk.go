@@ -27,8 +27,21 @@ type affiliateCdkEpayPayRequest struct {
 	PaymentMethod string `json:"payment_method"`
 }
 
+func requireSelfAffiliateCdkPermission(c *gin.Context) bool {
+	user, err := model.GetUserById(c.GetInt("id"), false)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !user.AffiliateCdkEnabled {
+		common.ApiErrorMsg(c, "未开通 CDK 采购权限")
+		return false
+	}
+	return true
+}
+
 func GetSelfAffiliateCdkInfo(c *gin.Context) {
-	if !requireSelfAffiliatePermission(c) {
+	if !requireSelfAffiliateCdkPermission(c) {
 		return
 	}
 	if !requirePaymentCompliance(c) {
@@ -57,7 +70,7 @@ func GetSelfAffiliateCdkInfo(c *gin.Context) {
 }
 
 func QuoteSelfAffiliateCdk(c *gin.Context) {
-	if !requireSelfAffiliatePermission(c) {
+	if !requireSelfAffiliateCdkPermission(c) {
 		return
 	}
 	if !requirePaymentCompliance(c) {
@@ -77,7 +90,7 @@ func QuoteSelfAffiliateCdk(c *gin.Context) {
 }
 
 func RequestSelfAffiliateCdkEpay(c *gin.Context) {
-	if !requireSelfAffiliatePermission(c) {
+	if !requireSelfAffiliateCdkPermission(c) {
 		return
 	}
 	if !requirePaymentCompliance(c) {
@@ -152,7 +165,7 @@ func RequestSelfAffiliateCdkEpay(c *gin.Context) {
 }
 
 func GetSelfAffiliateCdkOrders(c *gin.Context) {
-	if !requireSelfAffiliatePermission(c) {
+	if !requireSelfAffiliateCdkPermission(c) {
 		return
 	}
 	if !requirePaymentCompliance(c) {
@@ -182,7 +195,7 @@ func GetSelfAffiliateCdkOrders(c *gin.Context) {
 }
 
 func GetSelfAffiliateCdkOrderCodes(c *gin.Context) {
-	if !requireSelfAffiliatePermission(c) {
+	if !requireSelfAffiliateCdkPermission(c) {
 		return
 	}
 	if !requirePaymentCompliance(c) {
@@ -202,7 +215,7 @@ func GetSelfAffiliateCdkOrderCodes(c *gin.Context) {
 }
 
 func GetSelfAffiliateCdkCodes(c *gin.Context) {
-	if !requireSelfAffiliatePermission(c) {
+	if !requireSelfAffiliateCdkPermission(c) {
 		return
 	}
 	if !requirePaymentCompliance(c) {

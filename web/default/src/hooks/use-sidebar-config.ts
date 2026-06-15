@@ -174,12 +174,14 @@ function isModuleEnabled(
   url: string,
   adminConfig: SidebarModulesAdminConfig,
   userConfig: SidebarModulesUserConfig,
-  canAccessAffiliateModule: boolean
+  canAccessAffiliateModule: boolean,
+  canAccessAffiliateCdkModule: boolean
 ): boolean {
-  if (
-    (url === '/affiliate' || url === '/affiliate-cdk') &&
-    !canAccessAffiliateModule
-  ) {
+  if (url === '/affiliate' && !canAccessAffiliateModule) {
+    return false
+  }
+
+  if (url === '/affiliate-cdk' && !canAccessAffiliateCdkModule) {
     return false
   }
 
@@ -211,7 +213,8 @@ function isNavItemVisible(
   item: NavItem,
   adminConfig: SidebarModulesAdminConfig,
   userConfig: SidebarModulesUserConfig,
-  canAccessAffiliateModule: boolean
+  canAccessAffiliateModule: boolean,
+  canAccessAffiliateCdkModule: boolean
 ): boolean {
   // Handle dynamic chat presets type — also runs the admin × user AND gate
   if ('type' in item && item.type === 'chat-presets') {
@@ -233,7 +236,8 @@ function isNavItemVisible(
         url as string,
         adminConfig,
         userConfig,
-        canAccessAffiliateModule
+        canAccessAffiliateModule,
+        canAccessAffiliateCdkModule
       )
     )
   }
@@ -246,7 +250,8 @@ function isNavItemVisible(
         subItem.url as string,
         adminConfig,
         userConfig,
-        canAccessAffiliateModule
+        canAccessAffiliateModule,
+        canAccessAffiliateCdkModule
       )
     )
   }
@@ -261,7 +266,8 @@ function filterNavItems(
   items: NavItem[],
   adminConfig: SidebarModulesAdminConfig,
   userConfig: SidebarModulesUserConfig,
-  canAccessAffiliateModule: boolean
+  canAccessAffiliateModule: boolean,
+  canAccessAffiliateCdkModule: boolean
 ): NavItem[] {
   return items
     .map((item) => {
@@ -272,7 +278,8 @@ function filterNavItems(
             subItem.url as string,
             adminConfig,
             userConfig,
-            canAccessAffiliateModule
+            canAccessAffiliateModule,
+            canAccessAffiliateCdkModule
           )
         )
 
@@ -288,7 +295,8 @@ function filterNavItems(
         item,
         adminConfig,
         userConfig,
-        canAccessAffiliateModule
+        canAccessAffiliateModule,
+        canAccessAffiliateCdkModule
       )
     )
 }
@@ -334,6 +342,7 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   }, [auth?.user?.permissions?.sidebar_settings, auth?.user?.sidebar_modules])
 
   const canAccessAffiliateModule = auth?.user?.distribution_enabled === true
+  const canAccessAffiliateCdkModule = auth?.user?.affiliate_cdk_enabled === true
 
   const filteredNavGroups = useMemo(
     () =>
@@ -344,11 +353,18 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
             group.items,
             adminConfig,
             userConfig,
-            canAccessAffiliateModule
+            canAccessAffiliateModule,
+            canAccessAffiliateCdkModule
           ),
         }))
         .filter((group) => group.items.length > 0), // Only show navigation groups with visible items
-    [navGroups, adminConfig, userConfig, canAccessAffiliateModule]
+    [
+      navGroups,
+      adminConfig,
+      userConfig,
+      canAccessAffiliateModule,
+      canAccessAffiliateCdkModule,
+    ]
   )
 
   return filteredNavGroups

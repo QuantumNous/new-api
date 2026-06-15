@@ -50,6 +50,7 @@ export const userSchema = z.object({
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
   distribution_enabled: z.boolean().optional(),
+  affiliate_cdk_enabled: z.boolean().optional(),
   linux_do_id: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
@@ -106,6 +107,7 @@ export interface UserFormData {
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
   distribution_enabled?: boolean // Only used when updating user
+  affiliate_cdk_enabled?: boolean // Only used when updating user
 }
 
 export type ManageUserAction =

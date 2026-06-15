@@ -34,6 +34,7 @@ export const userFormSchema = z.object({
   group: z.string().optional(),
   remark: z.string().optional(),
   distribution_enabled: z.boolean().optional(),
+  affiliate_cdk_enabled: z.boolean().optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -51,6 +52,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   group: DEFAULT_GROUP,
   remark: '',
   distribution_enabled: false,
+  affiliate_cdk_enabled: false,
 }
 
 // ============================================================================
@@ -78,6 +80,7 @@ export function transformFormDataToPayload(
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.distribution_enabled = data.distribution_enabled ?? false
+    payload.affiliate_cdk_enabled = data.affiliate_cdk_enabled ?? false
     payload.id = userId
   }
 
@@ -97,5 +100,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
     distribution_enabled: user.distribution_enabled ?? false,
+    affiliate_cdk_enabled: user.affiliate_cdk_enabled ?? false,
   }
 }

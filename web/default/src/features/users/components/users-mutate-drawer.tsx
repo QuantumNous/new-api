@@ -356,9 +356,7 @@ export function UsersMutateDrawer({
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
-                              value={
-                                (field.value || 0).toFixed(6)
-                              }
+                              value={(field.value || 0).toFixed(6)}
                               readOnly
                               className='flex-1'
                             />
@@ -390,6 +388,29 @@ export function UsersMutateDrawer({
                           <FormDescription>
                             {t(
                               'Controls whether this user can earn affiliate commissions as a promoter.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value ?? false}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='affiliate_cdk_enabled'
+                    render={({ field }) => (
+                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                        <div className='space-y-0.5'>
+                          <FormLabel>{t('CDK purchase module')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Controls whether this user can see and use the sidebar CDK purchase module.'
                             )}
                           </FormDescription>
                         </div>

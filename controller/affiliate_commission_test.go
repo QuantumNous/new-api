@@ -115,6 +115,43 @@ func TestSelfAffiliateAPIsRequireDistributionPermission(t *testing.T) {
 			body:   body,
 			call:   RedeemSelfAffiliateRewardPoints,
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, w := affiliateControllerTestContext(tt.method, tt.path, tt.body)
+			c.Set("id", 1001)
+			tt.call(c)
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Contains(t, w.Body.String(), `"success":false`)
+			require.Contains(t, w.Body.String(), "未开通代理分销权限")
+		})
+	}
+}
+
+func TestSelfAffiliateCdkAPIsRequireCdkPermission(t *testing.T) {
+	setupAffiliateCommissionControllerTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:                  1001,
+		Username:            "cdk_disabled_agent",
+		DisplayName:         "cdk_disabled_agent",
+		Status:              common.UserStatusEnabled,
+		Role:                common.RoleCommonUser,
+		AffCode:             "cdk_disabled_agent_code",
+		DistributionEnabled: true,
+		AffiliateCdkEnabled: false,
+	}).Error)
+
+	body, err := common.Marshal(map[string]any{"amount": 100, "quantity": 1})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+		call   func(*gin.Context)
+	}{
 		{
 			name:   "cdk info",
 			method: http.MethodGet,
@@ -149,7 +186,7 @@ func TestSelfAffiliateAPIsRequireDistributionPermission(t *testing.T) {
 			tt.call(c)
 			require.Equal(t, http.StatusOK, w.Code)
 			require.Contains(t, w.Body.String(), `"success":false`)
-			require.Contains(t, w.Body.String(), "未开通代理分销权限")
+			require.Contains(t, w.Body.String(), "未开通 CDK 采购权限")
 		})
 	}
 }
@@ -164,6 +201,7 @@ func TestAdminExportAffiliateCommissionsUsesRewardPointFields(t *testing.T) {
 		Role:                common.RoleCommonUser,
 		AffCode:             "agent_code",
 		DistributionEnabled: true,
+		AffiliateCdkEnabled: true,
 	}).Error)
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:                  1002,
@@ -216,6 +254,7 @@ func TestSelfAffiliateCdkAPIsRequireComplianceAndDiscount(t *testing.T) {
 		Role:                common.RoleCommonUser,
 		AffCode:             "agent_code",
 		DistributionEnabled: true,
+		AffiliateCdkEnabled: true,
 	}).Error)
 
 	payment := operation_setting.GetPaymentSetting()
@@ -261,6 +300,7 @@ func TestSelfAffiliateCdkCodesAPIListsOwnGeneratedCodes(t *testing.T) {
 		Role:                common.RoleCommonUser,
 		AffCode:             "agent_code",
 		DistributionEnabled: true,
+		AffiliateCdkEnabled: true,
 	}).Error)
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:                  1002,
@@ -270,6 +310,7 @@ func TestSelfAffiliateCdkCodesAPIListsOwnGeneratedCodes(t *testing.T) {
 		Role:                common.RoleCommonUser,
 		AffCode:             "other_agent_code",
 		DistributionEnabled: true,
+		AffiliateCdkEnabled: true,
 	}).Error)
 
 	payment := operation_setting.GetPaymentSetting()

@@ -2,7 +2,6 @@ package model
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -48,6 +47,7 @@ type User struct {
 	AffHistoryQuota     int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId           int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DistributionEnabled bool           `json:"distribution_enabled" gorm:"default:false;column:distribution_enabled"`
+	AffiliateCdkEnabled bool           `json:"affiliate_cdk_enabled" gorm:"default:false;column:affiliate_cdk_enabled"`
 	DeletedAt           gorm.DeletedAt `gorm:"index"`
 	LinuxDOId           string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting             string         `json:"setting" gorm:"type:text;column:setting"`
@@ -84,7 +84,7 @@ func (user *User) SetAccessToken(token string) {
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysLog("failed to unmarshal setting: " + err.Error())
 		}
@@ -93,7 +93,7 @@ func (user *User) GetSetting() dto.UserSetting {
 }
 
 func (user *User) SetSetting(setting dto.UserSetting) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
 		return
@@ -158,7 +158,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -410,7 +410,10 @@ func (user *User) Insert(inviterId int) error {
 	}
 	if err := DB.Model(&User{}).
 		Where("id = ?", user.Id).
-		Updates(map[string]interface{}{"distribution_enabled": user.DistributionEnabled}).Error; err != nil {
+		Updates(map[string]interface{}{
+			"distribution_enabled":  user.DistributionEnabled,
+			"affiliate_cdk_enabled": user.AffiliateCdkEnabled,
+		}).Error; err != nil {
 		return err
 	}
 
@@ -472,7 +475,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	if err := tx.Model(&User{}).
 		Where("id = ?", user.Id).
-		Updates(map[string]interface{}{"distribution_enabled": user.DistributionEnabled}).Error; err != nil {
+		Updates(map[string]interface{}{
+			"distribution_enabled":  user.DistributionEnabled,
+			"affiliate_cdk_enabled": user.AffiliateCdkEnabled,
+		}).Error; err != nil {
 		return err
 	}
 
@@ -567,11 +573,12 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":             newUser.Username,
-		"display_name":         newUser.DisplayName,
-		"group":                newUser.Group,
-		"remark":               newUser.Remark,
-		"distribution_enabled": newUser.DistributionEnabled,
+		"username":              newUser.Username,
+		"display_name":          newUser.DisplayName,
+		"group":                 newUser.Group,
+		"remark":                newUser.Remark,
+		"distribution_enabled":  newUser.DistributionEnabled,
+		"affiliate_cdk_enabled": newUser.AffiliateCdkEnabled,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
