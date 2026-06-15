@@ -25,7 +25,7 @@ func isNoThinkingRequest(req *dto.GeminiChatRequest) bool {
 	if req.GenerationConfig.ThinkingConfig != nil && req.GenerationConfig.ThinkingConfig.ThinkingBudget != nil {
 		configBudget := req.GenerationConfig.ThinkingConfig.ThinkingBudget
 		if configBudget != nil && *configBudget == 0 {
-			// 如果思考预算为 0，则认为是非思考请求
+			// A thinking budget of 0 signals a non-thinking request.
 			return true
 		}
 	}
@@ -33,16 +33,16 @@ func isNoThinkingRequest(req *dto.GeminiChatRequest) bool {
 }
 
 func trimModelThinking(modelName string) string {
-	// 去除模型名称中的 -nothinking 后缀
+	// Strip -nothinking suffix from model name.
 	if strings.HasSuffix(modelName, "-nothinking") {
 		return strings.TrimSuffix(modelName, "-nothinking")
 	}
-	// 去除模型名称中的 -thinking 后缀
+	// Strip -thinking suffix from model name.
 	if strings.HasSuffix(modelName, "-thinking") {
 		return strings.TrimSuffix(modelName, "-thinking")
 	}
 
-	// 去除模型名称中的 -thinking-number
+	// Strip -thinking-<number> variant.
 	if strings.Contains(modelName, "-thinking-") {
 		parts := strings.Split(modelName, "-thinking-")
 		if len(parts) > 1 {
@@ -65,17 +65,18 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	// model mapped 模型映射
+	// Airbotix / DeepRouter policy: checked against the client-requested model
+	// name BEFORE channel model_mapping. Gemini puts the model in the URL path
+	// (not the request struct), so we read it from info.OriginModelName which
+	// is set by middleware before any mapping occurs.
+	if rejErr := applyAirbotixPolicyToGemini(c, info.OriginModelName, request); rejErr != nil {
+		return rejErr
+	}
+
+	// channel model mapping
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Airbotix / DeepRouter policy: model whitelist + replace SystemInstructions
-	// on kids_mode. Gemini has no User/Store equivalents. Model name lives on
-	// info (Gemini puts it in the URL path), not on the request struct.
-	if rejErr := applyAirbotixPolicyToGemini(c, info.UpstreamModelName, request); rejErr != nil {
-		return rejErr
 	}
 
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
@@ -151,7 +152,6 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
-		// 使用 ConvertGeminiRequest 转换请求格式
 		convertedRequest, err := adaptor.ConvertGeminiRequest(c, info, request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -189,7 +189,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
+			// reset status code
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError
 		}
@@ -243,15 +243,16 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 		}
 	}
 
+	// Airbotix / DeepRouter policy: whitelist checked against the client-requested
+	// model name BEFORE channel model_mapping. Embedding payloads carry no
+	// user/system to mutate so only the whitelist guard is needed here.
+	if rejErr := checkAirbotixModelWhitelist(c, info.OriginModelName); rejErr != nil {
+		return rejErr
+	}
+
 	err = helper.ModelMappedHelper(c, info, req)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
-	}
-
-	// Airbotix / DeepRouter policy: model whitelist on the upstream-resolved
-	// Gemini model. Embedding payloads carry no user/system to mutate.
-	if rejErr := checkAirbotixModelWhitelist(c, info.UpstreamModelName); rejErr != nil {
-		return rejErr
 	}
 
 	req.SetModelName("models/" + info.UpstreamModelName)

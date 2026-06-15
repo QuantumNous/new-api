@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/internal/kids"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -24,6 +25,13 @@ type listModelsResponse struct {
 	Success bool               `json:"success"`
 	Data    []dto.OpenAIModels `json:"data"`
 	Object  string             `json:"object"`
+}
+
+type anthropicListModelsResponse struct {
+	Data    []dto.AnthropicModel `json:"data"`
+	FirstID string               `json:"first_id"`
+	HasMore bool                 `json:"has_more"`
+	LastID  string               `json:"last_id"`
 }
 
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
@@ -130,6 +138,16 @@ func withSelfUseModeDisabled(t *testing.T) {
 	})
 }
 
+func withSelfUseModeEnabled(t *testing.T) {
+	t.Helper()
+
+	original := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = original
+	})
+}
+
 func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
 	t.Helper()
 
@@ -146,12 +164,128 @@ func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder)
 	return ids
 }
 
+func decodeAnthropicListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) anthropicListModelsResponse {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload anthropicListModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	return payload
+}
+
+func seedListModelsUser(t *testing.T, db *gorm.DB, id int, group string, kidsMode bool) {
+	t.Helper()
+
+	require.NoError(t, db.Create(&model.User{
+		Id:       id,
+		Username: fmt.Sprintf("model-list-user-%d", id),
+		Password: "password",
+		Group:    group,
+		Status:   common.UserStatusEnabled,
+		KidsMode: kidsMode,
+	}).Error)
+}
+
+func seedListModelsAbilities(t *testing.T, db *gorm.DB, group string, models ...string) {
+	t.Helper()
+
+	abilities := make([]model.Ability, 0, len(models))
+	for i, modelName := range models {
+		abilities = append(abilities, model.Ability{
+			Group:     group,
+			Model:     modelName,
+			ChannelId: i + 1,
+			Enabled:   true,
+		})
+	}
+	require.NoError(t, db.Create(&abilities).Error)
+}
+
 func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 	byName := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {
 		byName[pricing.ModelName] = pricing
 	}
 	return byName
+}
+
+func TestListModelsKidsModeFiltersCatalog(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	seedListModelsUser(t, db, 1101, "kids-list", true)
+	seedListModelsAbilities(t, db, "kids-list",
+		"gpt-4o-mini",
+		"deepseek-chat",
+		"claude-3-opus-latest",
+	)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1101)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "gpt-4o-mini")
+	require.NotContains(t, ids, "deepseek-chat")
+	require.NotContains(t, ids, "claude-3-opus-latest")
+	for id := range ids {
+		require.True(t, kids.IsModelEligible(id), "kids_mode catalog exposed non-whitelisted model %q", id)
+	}
+}
+
+func TestListModelsKidsModeLookupErrorFailsClosed(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	// No user row is created for id=1201. GetUserGroup falls back to an empty
+	// group without error, then the later GetUserById lookup fails and must
+	// force kids filtering instead of exposing the full empty-group catalog.
+	seedListModelsAbilities(t, db, "",
+		"gpt-4o-mini",
+		"deepseek-chat",
+		"claude-3-opus-latest",
+	)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1201)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "gpt-4o-mini")
+	require.NotContains(t, ids, "deepseek-chat")
+	require.NotContains(t, ids, "claude-3-opus-latest")
+	for id := range ids {
+		require.True(t, kids.IsModelEligible(id), "fail-closed catalog exposed non-whitelisted model %q", id)
+	}
+}
+
+func TestListModelsAnthropicKidsModeEmptyCatalog(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	seedListModelsUser(t, db, 1301, "kids-anthropic-empty", true)
+	seedListModelsAbilities(t, db, "kids-anthropic-empty",
+		"deepseek-chat",
+		"claude-3-opus-latest",
+	)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1301)
+
+	require.NotPanics(t, func() {
+		ListModels(ctx, constant.ChannelTypeAnthropic)
+	})
+
+	payload := decodeAnthropicListModelsResponse(t, recorder)
+	require.Empty(t, payload.Data)
+	require.Empty(t, payload.FirstID)
+	require.Empty(t, payload.LastID)
+	require.False(t, payload.HasMore)
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {

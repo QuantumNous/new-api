@@ -14,7 +14,7 @@ const (
 	// ProfilePassthrough — no system prompt injection, no metadata strip.
 	// Provider's own safety only. Default for new tenants.
 	ProfilePassthrough Profile = "passthrough"
-	// ProfileAdult — light filtering, no system prompt forcing.
+	// ProfileAdult — light filtering + a soft adult-learner system prompt.
 	ProfileAdult Profile = "adult"
 	// ProfileKidSafe — strict input/output filtering + system prompt injection.
 	// Combined with KidsMode=true triggers the hard constraints in internal/kids.
@@ -32,10 +32,12 @@ type Decision struct {
 	EnforceModelWhitelist bool
 	// EnforceZDR forces `store: false` for OpenAI-family providers.
 	EnforceZDR bool
-	// InjectChildSafePrompt prepends kids.ChildSafeSystemPrompt() to messages.
-	InjectChildSafePrompt bool
+	// InjectSystemPrompt prepends the profile-level system prompt to messages.
+	InjectSystemPrompt bool
 	// StripIdentifying removes user_id / family_id / etc. before upstream send.
 	StripIdentifying bool
+	// RunInputFilter checks entry input text against the profile denylist.
+	RunInputFilter bool
 }
 
 // DecisionFor returns the Decision implied by a tenant's KidsMode + PolicyProfile.
@@ -48,8 +50,9 @@ func DecisionFor(kidsMode bool, rawProfile string) Decision {
 			Profile:               ProfileKidSafe,
 			EnforceModelWhitelist: true,
 			EnforceZDR:            true,
-			InjectChildSafePrompt: true,
+			InjectSystemPrompt:    true,
 			StripIdentifying:      true,
+			RunInputFilter:        true,
 		}
 	}
 	switch p {
@@ -58,11 +61,12 @@ func DecisionFor(kidsMode bool, rawProfile string) Decision {
 			Profile:               ProfileKidSafe,
 			EnforceModelWhitelist: true,
 			EnforceZDR:            true,
-			InjectChildSafePrompt: true,
+			InjectSystemPrompt:    true,
 			StripIdentifying:      true,
+			RunInputFilter:        true,
 		}
 	case ProfileAdult:
-		return Decision{Profile: ProfileAdult}
+		return Decision{Profile: ProfileAdult, InjectSystemPrompt: true, RunInputFilter: true}
 	default:
 		return Decision{Profile: ProfilePassthrough}
 	}

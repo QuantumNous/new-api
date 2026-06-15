@@ -32,10 +32,14 @@ type Token struct {
 	// When SimplePurpose != "", the token was created in Simple mode and
 	// distribution middleware resolves virtual model names (e.g. "deeprouter")
 	// to a real target via setting/alias_setting based on (purpose, brand).
-	SimplePurpose   string         `json:"simple_purpose" gorm:"default:''"`    // chat|coding|image|video|voice|all
-	SimpleBrand     string         `json:"simple_brand" gorm:"default:''"`      // claude|openai|gemini|deepseek; empty = no preference
-	SimplePriceTier string         `json:"simple_price_tier" gorm:"default:''"` // economy|standard|premium|ultra; only used when SimplePurpose=all
-	DeletedAt       gorm.DeletedAt `gorm:"index"`
+	SimplePurpose   string `json:"simple_purpose" gorm:"default:''"`    // chat|coding|image|video|voice|all
+	SimpleBrand     string `json:"simple_brand" gorm:"default:''"`      // claude|openai|gemini|deepseek; empty = no preference
+	SimplePriceTier string `json:"simple_price_tier" gorm:"default:''"` // economy|standard|premium|ultra; only used when SimplePurpose=all
+	// Tenant-level rate limits (DR-13). 0 = unlimited.
+	RpmLimit     int            `json:"rpm_limit" gorm:"default:0"`     // max requests per minute
+	TpmLimit     int            `json:"tpm_limit" gorm:"default:0"`     // max estimated tokens per minute
+	MonthlyLimit int            `json:"monthly_limit" gorm:"default:0"` // max requests per calendar month
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
 }
 
 func (token *Token) Clean() {

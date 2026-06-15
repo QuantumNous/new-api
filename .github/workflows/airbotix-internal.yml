@@ -8,30 +8,40 @@ on:
     branches: [main]
     paths:
       - 'model/user.go'
+      - 'model/user_airbotix_test.go'
       - 'internal/**'
       - 'middleware/policy.go'
+      - 'middleware/policy_test.go'
       - 'relay/airbotix_policy.go'
       - 'relay/airbotix_policy_test.go'
+      - 'relay/kids_coverage_matrix_test.go'
       - 'service/airbotix_billing.go'
       - 'constant/context_key.go'
       - 'controller/**'
       - 'router/**'
       - 'dto/**'
       - 'common/**'
+      - 'docs/kids-coverage-matrix.md'
+      - 'scripts/check-kids-coverage-matrix.sh'
       - '.github/workflows/airbotix-internal.yml'
   pull_request:
     paths:
       - 'model/user.go'
+      - 'model/user_airbotix_test.go'
       - 'internal/**'
       - 'middleware/policy.go'
+      - 'middleware/policy_test.go'
       - 'relay/airbotix_policy.go'
       - 'relay/airbotix_policy_test.go'
+      - 'relay/kids_coverage_matrix_test.go'
       - 'service/airbotix_billing.go'
       - 'constant/context_key.go'
       - 'controller/**'
       - 'router/**'
       - 'dto/**'
       - 'common/**'
+      - 'docs/kids-coverage-matrix.md'
+      - 'scripts/check-kids-coverage-matrix.sh'
       - '.github/workflows/airbotix-internal.yml'
   workflow_dispatch:
 
@@ -71,9 +81,19 @@ jobs:
         run: |
           go test ./internal/... -count=1 -race -timeout 60s
           go test ./model/ -run 'TestUser_Airbotix' -count=1 -timeout 60s
-          go test ./relay/ -run 'TestApplyAirbotixPolicy' -count=1 -race -timeout 60s
+          # kids_mode relay layer: all constraints incl. max_tokens cap and model
+          # whitelist gate (DR-12). TestKidsModeCoverageMatrix enforces that every
+          # function listed in docs/kids-coverage-matrix.md actually exists.
+          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
           # Smart-router integration: catalog endpoint pricing math, kids
           # pre-filter, brand map, input validation, cross-model fallback,
           # internal-token auth, ResolveAutoModel hot path.
-          go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
-          go test ./middleware/ -run 'TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
+          go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestListModels|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
+          # kids_mode middleware layer: policy resolution + defensive pass-through (DR-12).
+          go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
+
+      - name: Verify kids coverage matrix (go test -list)
+        # scripts/check-kids-coverage-matrix.sh parses docs/kids-coverage-matrix.md,
+        # runs go test -list for each referenced package, and fails if any explicitly
+        # named function is absent. This catches deletions that broad -run regexes miss.
+        run: bash scripts/check-kids-coverage-matrix.sh
