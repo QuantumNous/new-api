@@ -1,10 +1,14 @@
 package claude
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -25,6 +29,62 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+// fileCategory classifies a file by extension/mime for Claude formatting.
+type fileCategory int
+
+const (
+	fileCategoryUnsupported fileCategory = iota
+	fileCategoryPDF
+	fileCategoryText
+	fileCategoryImage
+)
+
+// classifyFile inspects a MessageFile and returns the (category, mimeType) tuple
+// used to build a Claude content block. The mimeType is best-effort and may be
+// empty when the file is unsupported.
+func classifyFile(file *dto.MessageFile) (fileCategory, string) {
+	if file == nil {
+		return fileCategoryUnsupported, ""
+	}
+
+	ext := strings.ToLower(filepath.Ext(file.FileName))
+	mimeType := strings.ToLower(mime.TypeByExtension(ext))
+	if idx := strings.Index(mimeType, ";"); idx >= 0 {
+		mimeType = strings.TrimSpace(mimeType[:idx])
+	}
+
+	switch ext {
+	case ".pdf":
+		return fileCategoryPDF, "application/pdf"
+	case ".txt", ".md", ".csv", ".log":
+		return fileCategoryText, "text/plain"
+	case ".json":
+		return fileCategoryText, "application/json"
+	case ".png":
+		return fileCategoryImage, "image/png"
+	case ".jpg", ".jpeg":
+		return fileCategoryImage, "image/jpeg"
+	case ".gif":
+		return fileCategoryImage, "image/gif"
+	case ".webp":
+		return fileCategoryImage, "image/webp"
+	}
+
+	// Fallback to MIME detection (only when extension lookup was ambiguous).
+	switch {
+	case mimeType == "application/pdf":
+		return fileCategoryPDF, "application/pdf"
+	case strings.HasPrefix(mimeType, "text/"):
+		return fileCategoryText, mimeType
+	case mimeType == "application/json":
+		return fileCategoryText, "application/json"
+	case strings.HasPrefix(mimeType, "image/"):
+		return fileCategoryImage, mimeType
+	}
+
+	return fileCategoryUnsupported, ""
+}
+
 const (
 	WebSearchMaxUsesLow    = 1
 	WebSearchMaxUsesMedium = 5
@@ -42,6 +102,210 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
 	}
+}
+
+// claudeToolCacheControlMarker is the cache_control marker applied to the
+// final tool block per Anthropic's prompt-caching guidance. Tools use the 1h
+// TTL because tool schemas are typically long-lived across calls (spec §15).
+var claudeToolCacheControlMarker = json.RawMessage(`{"type":"ephemeral","ttl":"1h"}`)
+
+// claudeAssistantCacheControlMarker is the cache_control marker applied to
+// the last eligible content block of the last assistant message. Per
+// responses-to-anthropic-translation spec §581-583, this marker MUST NOT
+// carry a TTL field — emit only {type:"ephemeral"}.
+var claudeAssistantCacheControlMarker = json.RawMessage(`{"type":"ephemeral"}`)
+
+// applyCacheControlToLastTool sets the ephemeral 1h cache_control marker on
+// the trailing element of the tools array, if any. We mutate in place because
+// the slice elements are stored as pointers.
+func applyCacheControlToLastTool(tools []any) {
+	if len(tools) == 0 {
+		return
+	}
+	last := tools[len(tools)-1]
+	switch t := last.(type) {
+	case *dto.Tool:
+		t.CacheControl = &dto.ClaudeCacheControl{Type: "ephemeral", TTL: "1h"}
+	case *dto.ClaudeWebSearchTool:
+		// ClaudeWebSearchTool has no CacheControl field defined yet; do
+		// nothing rather than fabricate an unsupported shape.
+	}
+}
+
+// applyCacheControlToLastAssistantContent walks the messages in reverse and,
+// for the final assistant message, attaches the ephemeral cache_control
+// marker to the last eligible content block. Eligible block types are
+// {text, tool_use, tool_result, image}; thinking blocks are NOT eligible
+// because Anthropic does not honour cache_control on them (spec §581-598).
+//
+// The emitted marker is {type:"ephemeral"} with NO TTL field per the spec.
+func applyCacheControlToLastAssistantContent(messages []dto.ClaudeMessage) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role != "assistant" {
+			continue
+		}
+		blocks, ok := messages[i].Content.([]dto.ClaudeMediaMessage)
+		if !ok {
+			// RequestOpenAI2ClaudeMessage emits plain-string content for the
+			// common text-only assistant case; promote it to a single-block
+			// []ClaudeMediaMessage so we can attach cache_control.
+			if text, ok := messages[i].Content.(string); ok && text != "" {
+				blocks = []dto.ClaudeMediaMessage{{
+					Type: "text",
+					Text: common.GetPointer[string](text),
+				}}
+			} else {
+				return
+			}
+		}
+		for j := len(blocks) - 1; j >= 0; j-- {
+			switch blocks[j].Type {
+			case "text", "tool_use", "tool_result", "image":
+				blocks[j].CacheControl = claudeAssistantCacheControlMarker
+				messages[i].Content = blocks
+				return
+			}
+			// thinking / redacted_thinking / anything else: skip past.
+		}
+		return
+	}
+}
+
+// buildResponseFormatSystemShim renders an English instruction that nudges
+// Claude to obey OpenAI's response_format (json_object / json_schema). Returns
+// "" when there is nothing to do.
+//
+// Spec compliance (responses-to-anthropic-translation §19):
+//   - For json_schema with non-nil schema, the appended text MUST include all
+//     three literal phrases: "You must respond with valid JSON",
+//     a pretty-printed JSON rendering of the schema, and
+//     "Respond ONLY with the JSON object".
+//   - For json_object, the appended text MUST include both
+//     "You must respond with valid JSON" and "Respond ONLY with a JSON object".
+func buildResponseFormatSystemShim(format *dto.ResponseFormat) string {
+	if format == nil {
+		return ""
+	}
+	switch format.Type {
+	case "json_schema":
+		raw := bytes.TrimSpace(format.JsonSchema)
+		if len(raw) == 0 {
+			// Empty / nil schema: emit only when we have a schema rendering to
+			// include, per the spec's "with a non-null json_schema.schema"
+			// precondition. Fall through to no-op.
+			return ""
+		}
+		// Pretty-print the schema using common.Marshal for the raw bytes (Rule 1),
+		// then json.Indent (no wrapper exists for Indent).
+		marshaled, err := common.Marshal(json.RawMessage(raw))
+		if err != nil {
+			// Fall back to the original raw bytes if marshalling fails.
+			marshaled = raw
+		}
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, marshaled, "", "  "); err != nil {
+			// Fall back to the raw form when indentation fails.
+			buf.Reset()
+			buf.Write(marshaled)
+		}
+		return "You must respond with valid JSON matching this schema:\n" +
+			buf.String() +
+			"\nRespond ONLY with the JSON object. Do not include any explanatory text outside the JSON."
+	case "json_object":
+		return "You must respond with valid JSON. Respond ONLY with a JSON object. " +
+			"Do not include any explanatory text, markdown, or commentary outside the JSON."
+	}
+	return ""
+}
+
+// injectMissingToolResults walks the messages array and ensures that every
+// tool_use block in an assistant message is matched by a tool_result block in
+// the immediately-following user message. Missing tool_use IDs receive an
+// empty placeholder tool_result so the upstream Anthropic API does not reject
+// the request.
+func injectMissingToolResults(messages []dto.ClaudeMessage) []dto.ClaudeMessage {
+	if len(messages) == 0 {
+		return messages
+	}
+
+	out := make([]dto.ClaudeMessage, 0, len(messages))
+	for i := 0; i < len(messages); i++ {
+		msg := messages[i]
+		out = append(out, msg)
+
+		if msg.Role != "assistant" {
+			continue
+		}
+		assistantBlocks, ok := msg.Content.([]dto.ClaudeMediaMessage)
+		if !ok {
+			continue
+		}
+
+		// Collect every tool_use ID present on this assistant message.
+		toolUseIds := make([]string, 0)
+		for _, b := range assistantBlocks {
+			if b.Type == "tool_use" && b.Id != "" {
+				toolUseIds = append(toolUseIds, b.Id)
+			}
+		}
+		if len(toolUseIds) == 0 {
+			continue
+		}
+
+		// Look at the next message (if any) and inventory which tool_result
+		// IDs are already present.
+		matched := make(map[string]bool, len(toolUseIds))
+		nextIsAdjacentUser := false
+		if i+1 < len(messages) && messages[i+1].Role == "user" {
+			nextIsAdjacentUser = true
+			if userBlocks, ok := messages[i+1].Content.([]dto.ClaudeMediaMessage); ok {
+				for _, b := range userBlocks {
+					if b.Type == "tool_result" && b.ToolUseId != "" {
+						matched[b.ToolUseId] = true
+					}
+				}
+			}
+		}
+
+		missing := make([]dto.ClaudeMediaMessage, 0)
+		for _, id := range toolUseIds {
+			if matched[id] {
+				continue
+			}
+			missing = append(missing, dto.ClaudeMediaMessage{
+				Type:      "tool_result",
+				ToolUseId: id,
+				Content:   "",
+			})
+		}
+		if len(missing) == 0 {
+			continue
+		}
+
+		if nextIsAdjacentUser {
+			// Append synthesised tool_result blocks to the existing user
+			// message in-place.
+			userBlocks, ok := messages[i+1].Content.([]dto.ClaudeMediaMessage)
+			if !ok {
+				// Promote a string content to a single text block.
+				if s, ok := messages[i+1].Content.(string); ok {
+					userBlocks = []dto.ClaudeMediaMessage{{Type: "text", Text: common.GetPointer[string](s)}}
+				} else {
+					userBlocks = nil
+				}
+			}
+			userBlocks = append(userBlocks, missing...)
+			messages[i+1].Content = userBlocks
+		} else {
+			// Insert a fresh user message immediately after this assistant
+			// to host the synthesised tool_result blocks.
+			out = append(out, dto.ClaudeMessage{
+				Role:    "user",
+				Content: missing,
+			})
+		}
+	}
+	return out
 }
 
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
@@ -120,6 +384,11 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 		claudeTools = append(claudeTools, &webSearchTool)
 	}
+
+	// GAP-B: apply prompt-cache marker to the LAST tool to preserve the
+	// (typically long-lived) tool schema across calls. Anthropic only
+	// honours cache_control on the final tool block.
+	applyCacheControlToLastTool(claudeTools)
 
 	claudeRequest := dto.ClaudeRequest{
 		Model:         textRequest.Model,
@@ -380,6 +649,45 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case dto.ContentTypeFile:
+						file := mediaMessage.GetFile()
+						if file == nil || file.FileData == "" {
+							continue
+						}
+						category, mimeType := classifyFile(file)
+						switch category {
+						case fileCategoryPDF:
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "document",
+								Source: &dto.ClaudeMessageSource{
+									Type:      "base64",
+									MediaType: mimeType,
+									Data:      file.FileData,
+								},
+							})
+						case fileCategoryText:
+							decoded, err := base64.StdEncoding.DecodeString(file.FileData)
+							if err != nil {
+								continue
+							}
+							text := string(decoded)
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "text",
+								Text: common.GetPointer[string](text),
+							})
+						case fileCategoryImage:
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "image",
+								Source: &dto.ClaudeMessageSource{
+									Type:      "base64",
+									MediaType: mimeType,
+									Data:      file.FileData,
+								},
+							})
+						default:
+							// Unsupported file type — skip without inserting a placeholder.
+							continue
+						}
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {
@@ -432,6 +740,25 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	if len(systemMessages) > 0 {
 		claudeRequest.System = systemMessages
 	}
+
+	// GAP-A: response_format JSON-mode shim — Claude has no native equivalent,
+	// so we append an English instruction system block guiding the model to
+	// emit valid JSON (and optionally match a schema).
+	if shim := buildResponseFormatSystemShim(textRequest.ResponseFormat); shim != "" {
+		systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+			Type: "text",
+			Text: common.GetPointer[string](shim),
+		})
+		claudeRequest.System = systemMessages
+	}
+
+	// GAP-C: tag the LAST text/tool_use block of the LAST assistant message
+	// with the prompt-cache marker. Trailing thinking blocks are skipped.
+	applyCacheControlToLastAssistantContent(claudeMessages)
+
+	// GAP-D: inject empty tool_result blocks for any tool_use IDs that lack
+	// a matching tool_result in the subsequent user message.
+	claudeMessages = injectMissingToolResults(claudeMessages)
 
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages

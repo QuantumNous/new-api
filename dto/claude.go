@@ -171,9 +171,17 @@ func (c *ClaudeMessage) ParseContent() ([]ClaudeMediaMessage, error) {
 }
 
 type Tool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	InputSchema map[string]interface{} `json:"input_schema"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description,omitempty"`
+	InputSchema  map[string]interface{} `json:"input_schema"`
+	CacheControl *ClaudeCacheControl    `json:"cache_control,omitempty"`
+}
+
+// ClaudeCacheControl mirrors Anthropic's prompt-caching marker.
+// See https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+type ClaudeCacheControl struct {
+	Type string `json:"type"`
+	TTL  string `json:"ttl,omitempty"`
 }
 
 type InputSchema struct {
