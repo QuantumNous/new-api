@@ -14,6 +14,7 @@ import (
 const (
 	CodexModelGovernanceStatusActive                   = "active"
 	CodexModelGovernanceStatusUnsupportedPendingReview = "unsupported_pending_review"
+	CodexModelGovernanceStatusUnsupportedDisabled      = "unsupported_disabled"
 	CodexModelGovernanceStatusPendingReview            = CodexModelGovernanceStatusUnsupportedPendingReview
 	CodexModelGovernanceStatusRemoved                  = "removed"
 	CodexModelGovernanceStatusIgnored                  = "ignored"
@@ -125,61 +126,77 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 	}
 
 	var record CodexModelGovernanceRecord
-	err := DB.First(&record, "model_name = ?", modelName).Error
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+	abilitiesChanged := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.First(&record, "model_name = ?", modelName).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			record = CodexModelGovernanceRecord{
+				ModelName:          modelName,
+				Status:             CodexModelGovernanceStatusUnsupportedPendingReview,
+				Source:             source,
+				MatchedRule:        strings.TrimSpace(input.MatchedRule),
+				LastError:          strings.TrimSpace(input.LastError),
+				AffectedChannelIDs: encodeCodexModelGovernanceChannelIDs(affectedChannelIDs),
+				AbilitiesDisabled:  input.DisableAbilities,
+				DetectedAt:         now,
+				LastCheckedAt:      lastCheckedAt,
+				CreatedTime:        now,
+				UpdatedTime:        now,
+			}
+			if err := tx.Create(&record).Error; err != nil {
+				return err
+			}
+		} else {
+			if record.DetectedAt == 0 {
+				record.DetectedAt = now
+			}
+			affectedChannelIDs = normalizeCodexModelGovernanceChannelIDs(
+				append(decodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs), affectedChannelIDs...),
+			)
+			nextStatus := CodexModelGovernanceStatusUnsupportedPendingReview
+			if record.Status == CodexModelGovernanceStatusUnsupportedDisabled {
+				nextStatus = CodexModelGovernanceStatusUnsupportedDisabled
+			}
+			updates := map[string]any{
+				"status":               nextStatus,
+				"source":               source,
+				"matched_rule":         strings.TrimSpace(input.MatchedRule),
+				"last_error":           strings.TrimSpace(input.LastError),
+				"affected_channel_ids": encodeCodexModelGovernanceChannelIDs(affectedChannelIDs),
+				"detected_at":          record.DetectedAt,
+				"last_checked_at":      lastCheckedAt,
+				"updated_time":         now,
+			}
+			// Never downgrade: once abilities were disabled (by a probe finding or
+			// an operator), an alert-only finding must not flip the flag back.
+			if input.DisableAbilities {
+				updates["abilities_disabled"] = true
+			}
+			if err := tx.Model(&CodexModelGovernanceRecord{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
+				return err
+			}
+			if err := tx.First(&record, "id = ?", record.ID).Error; err != nil {
+				return err
+			}
 		}
-		record = CodexModelGovernanceRecord{
-			ModelName:          modelName,
-			Status:             CodexModelGovernanceStatusUnsupportedPendingReview,
-			Source:             source,
-			MatchedRule:        strings.TrimSpace(input.MatchedRule),
-			LastError:          strings.TrimSpace(input.LastError),
-			AffectedChannelIDs: encodeCodexModelGovernanceChannelIDs(affectedChannelIDs),
-			AbilitiesDisabled:  input.DisableAbilities,
-			DetectedAt:         now,
-			LastCheckedAt:      lastCheckedAt,
-			CreatedTime:        now,
-			UpdatedTime:        now,
-		}
-		if err := DB.Create(&record).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		if record.DetectedAt == 0 {
-			record.DetectedAt = now
-		}
-		affectedChannelIDs = normalizeCodexModelGovernanceChannelIDs(
-			append(decodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs), affectedChannelIDs...),
-		)
-		updates := map[string]any{
-			"status":               CodexModelGovernanceStatusUnsupportedPendingReview,
-			"source":               source,
-			"matched_rule":         strings.TrimSpace(input.MatchedRule),
-			"last_error":           strings.TrimSpace(input.LastError),
-			"affected_channel_ids": encodeCodexModelGovernanceChannelIDs(affectedChannelIDs),
-			"detected_at":          record.DetectedAt,
-			"last_checked_at":      lastCheckedAt,
-			"updated_time":         now,
-		}
-		// Never downgrade: once abilities were disabled (by a probe finding or
-		// an operator), an alert-only finding must not flip the flag back.
-		if input.DisableAbilities {
-			updates["abilities_disabled"] = true
-		}
-		if err := DB.Model(&CodexModelGovernanceRecord{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
-			return nil, err
-		}
-		if err := DB.First(&record, "id = ?", record.ID).Error; err != nil {
-			return nil, err
-		}
-	}
 
-	if input.DisableAbilities {
-		if err := DisableCodexModelAbilities(modelName, affectedChannelIDs); err != nil {
-			return &record, err
+		if input.DisableAbilities {
+			changed, err := setCodexModelAbilityEnabledWithDB(tx, modelName, affectedChannelIDs, false)
+			if err != nil {
+				return err
+			}
+			abilitiesChanged = abilitiesChanged || changed
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if abilitiesChanged {
+		publishChannelsChanged()
 	}
 	return &record, nil
 }
@@ -200,6 +217,18 @@ func GetCodexModelGovernanceRecord(id int) (*CodexModelGovernanceRecord, error) 
 	}
 	var record CodexModelGovernanceRecord
 	if err := DB.First(&record, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func GetCodexModelGovernanceRecordByModelName(modelName string) (*CodexModelGovernanceRecord, error) {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var record CodexModelGovernanceRecord
+	if err := DB.First(&record, "model_name = ?", modelName).Error; err != nil {
 		return nil, err
 	}
 	return &record, nil
@@ -320,19 +349,11 @@ func removeCodexModelFromChannelsWithDB(db *gorm.DB, modelName string, channelID
 			}
 			return false, err
 		}
-		if err := tx.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error; err != nil {
+		if err := tx.Where("channel_id = ? AND model = ?", channel.Id, modelName).Delete(&Ability{}).Error; err != nil {
 			if ownsTx {
 				tx.Rollback()
 			}
 			return false, err
-		}
-		if strings.TrimSpace(channel.Models) != "" {
-			if err := channel.AddAbilities(tx); err != nil {
-				if ownsTx {
-					tx.Rollback()
-				}
-				return false, err
-			}
 		}
 	}
 	if ownsTx {
@@ -393,7 +414,7 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 		changed = changed || actionChanged
 		abilitiesDisabled = true
 	case CodexModelGovernanceStatusIgnored:
-	case CodexModelGovernanceStatusUnsupportedPendingReview:
+	case CodexModelGovernanceStatusUnsupportedPendingReview, CodexModelGovernanceStatusUnsupportedDisabled:
 		actionChanged, err := setCodexModelAbilityEnabledWithDB(tx, record.ModelName, channelIDs, false)
 		if err != nil {
 			tx.Rollback()

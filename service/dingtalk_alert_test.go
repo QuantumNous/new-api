@@ -97,6 +97,24 @@ func TestBuildDingTalkCodexModelGovernanceAlertContentHighlightsNotDisabled(t *t
 	require.Contains(t, content, "review and disable it as soon as possible")
 }
 
+func TestBuildDingTalkCodexModelGovernanceAlertContentDoesNotHighlightReviewedDisabled(t *testing.T) {
+	record := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.4-codex",
+		Status:             model.CodexModelGovernanceStatusUnsupportedDisabled,
+		Source:             model.CodexModelGovernanceSourceOfficialCodexNotice,
+		MatchedRule:        "ai_analysis:deprecated",
+		LastError:          "gpt-5.4-codex is deprecated",
+		AffectedChannelIDs: "21",
+		AbilitiesDisabled:  true,
+	}
+
+	content := BuildDingTalkCodexModelGovernanceAlertContent(record)
+
+	require.Contains(t, content, "Auto Disabled: yes")
+	require.NotContains(t, content, "MODEL IS STILL SERVING")
+	require.NotContains(t, content, "review and disable it as soon as possible")
+}
+
 func TestNotifyDingTalkCodexModelGovernanceSkipsWhenMonitorAlertDisabled(t *testing.T) {
 	originalSetting := *operation_setting.GetMonitorSetting()
 	t.Cleanup(func() {

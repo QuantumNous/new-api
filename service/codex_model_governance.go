@@ -1,11 +1,13 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"gorm.io/gorm"
 )
 
 const (
@@ -63,17 +65,19 @@ func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model
 }
 
 func shouldNotifyCodexModelGovernancePending(modelName string) (bool, error) {
-	records, err := model.ListCodexModelGovernanceRecords("")
+	record, err := model.GetCodexModelGovernanceRecordByModelName(modelName)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true, nil
+		}
 		return false, err
 	}
-	for _, record := range records {
-		if record.ModelName != modelName {
-			continue
-		}
-		return record.Status != model.CodexModelGovernanceStatusUnsupportedPendingReview, nil
+	switch record.Status {
+	case model.CodexModelGovernanceStatusUnsupportedPendingReview, model.CodexModelGovernanceStatusUnsupportedDisabled:
+		return false, nil
+	default:
+		return true, nil
 	}
-	return true, nil
 }
 
 func ReviewCodexModelGovernance(recordID int, action string, reviewerID int, note string) error {
@@ -93,9 +97,7 @@ func codexModelGovernanceStatusForReviewAction(action string) (string, error) {
 	case CodexModelGovernanceReviewActionIgnore:
 		return model.CodexModelGovernanceStatusIgnored, nil
 	case CodexModelGovernanceReviewActionDisable:
-		// Disable keeps the record pending: the model-layer pending-review
-		// transition disables abilities and marks abilities_disabled.
-		return model.CodexModelGovernanceStatusUnsupportedPendingReview, nil
+		return model.CodexModelGovernanceStatusUnsupportedDisabled, nil
 	default:
 		return "", fmt.Errorf("unsupported Codex model governance review action: %s", action)
 	}

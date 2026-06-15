@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 export type CodexModelGovernanceStatus =
   | 'active'
   | 'unsupported_pending_review'
+  | 'unsupported_disabled'
   | 'removed'
   | 'ignored'
 

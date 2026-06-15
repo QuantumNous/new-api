@@ -3,6 +3,7 @@ package service
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -126,6 +127,34 @@ func TestExtractCodexOfficialNoticeFindingsByAIIgnoresModelsOutsideCandidateList
 
 	require.NoError(t, err)
 	require.Empty(t, findings)
+}
+
+func TestExtractCodexOfficialNoticeFindingsByAITruncatesEvidence(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	longEvidence := strings.Repeat("e", officialCodexNoticeExcerptMaxLength+50)
+	payload, err := common.Marshal(codexOfficialNoticeAIHTTPResponse{
+		OutputText: `{"findings":[{"model_name":"gpt-5.3-codex","lifecycle_term":"retired","evidence":"` + longEvidence + `"}]}`,
+	})
+	require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer server.Close()
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
+
+	findings, err := ExtractCodexOfficialNoticeFindingsByAI(
+		"gpt-5.3-codex is retired.",
+		[]string{"gpt-5.3-codex"},
+		"https://example.com/codex/changelog",
+		"sk-test",
+	)
+
+	require.NoError(t, err)
+	require.Len(t, findings, 1)
+	require.LessOrEqual(t, len([]rune(findings[0].LastError)), officialCodexNoticeExcerptMaxLength)
 }
 
 func TestExtractCodexOfficialNoticeFindingsByAIReturnsErrorOnMalformedResponse(t *testing.T) {

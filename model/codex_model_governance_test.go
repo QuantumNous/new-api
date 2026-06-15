@@ -111,6 +111,54 @@ func TestCodexGovernanceUpsertPendingDisablesAffectedCodexAbilities(t *testing.T
 	require.True(t, untouchedNonCodex.Enabled)
 }
 
+func TestCodexGovernanceUpsertPendingRollsBackRecordWhenAbilityDisableFails(t *testing.T) {
+	originalDB := DB
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&Channel{}, &CodexModelGovernanceRecord{}))
+	DB = db
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	t.Cleanup(func() {
+		DB = originalDB
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+		require.NoError(t, sqlDB.Close())
+	})
+
+	channel := &Channel{
+		Id:     17,
+		Type:   constant.ChannelTypeCodex,
+		Key:    "test-key",
+		Name:   "test-channel",
+		Status: common.ChannelStatusEnabled,
+		Models: "gpt-5.3-codex",
+		Group:  "default",
+	}
+	require.NoError(t, DB.Create(channel).Error)
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{17},
+		DisableAbilities:   true,
+	})
+
+	require.Error(t, err)
+	require.Nil(t, record)
+	var count int64
+	require.NoError(t, DB.Model(&CodexModelGovernanceRecord{}).Where("model_name = ?", "gpt-5.3-codex").Count(&count).Error)
+	require.Zero(t, count)
+}
+
 func TestCodexGovernanceUpsertPendingMergesAffectedChannelsAcrossProbeRuns(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
 	insertCodexGovernanceChannel(t, 71, constant.ChannelTypeCodex, "gpt-5.3-codex")
@@ -174,6 +222,24 @@ func TestCodexGovernanceRemoveModelUpdatesChannelsAndAbilities(t *testing.T) {
 	require.True(t, remainingAbility.Enabled)
 }
 
+func TestCodexGovernanceRemoveModelPreservesOtherModelDisabledAbility(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 24, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex")
+	require.NoError(t, DisableCodexModelAbilities("gpt-5.4-codex", []int{24}))
+
+	require.NoError(t, RemoveCodexModelFromChannels("gpt-5.3-codex", []int{24}))
+
+	var removedCount int64
+	require.NoError(t, DB.Model(&Ability{}).
+		Where("channel_id = ? AND model = ?", 24, "gpt-5.3-codex").
+		Count(&removedCount).Error)
+	require.Zero(t, removedCount)
+
+	var remainingAbility Ability
+	require.NoError(t, DB.First(&remainingAbility, "channel_id = ? AND model = ?", 24, "gpt-5.4-codex").Error)
+	require.False(t, remainingAbility.Enabled)
+}
+
 func TestCodexGovernanceRestoreDoesNotEnableDisabledChannels(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
 	insertCodexGovernanceChannelWithStatus(t, 31, constant.ChannelTypeCodex, "gpt-5.3-codex", common.ChannelStatusManuallyDisabled)
@@ -214,7 +280,23 @@ func TestCodexGovernanceUpsertPendingWithoutDisableKeepsAbilitiesEnabled(t *test
 	require.True(t, ability.Enabled)
 }
 
-func TestCodexGovernanceReviewDisableActionDisablesAbilitiesAndKeepsPending(t *testing.T) {
+func TestCodexGovernanceGetRecordByModelName(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName: "gpt-5.3-codex",
+		Source:    CodexModelGovernanceSourceOfficialCodexNotice,
+	})
+	require.NoError(t, err)
+
+	got, err := GetCodexModelGovernanceRecordByModelName(" gpt-5.3-codex ")
+	require.NoError(t, err)
+	require.Equal(t, record.ID, got.ID)
+
+	_, err = GetCodexModelGovernanceRecordByModelName("missing-codex")
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestCodexGovernanceReviewDisableActionStoresReviewedDisabledStatus(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
 	insertCodexGovernanceChannel(t, 51, constant.ChannelTypeCodex, "gpt-5.3-codex")
 
@@ -227,17 +309,45 @@ func TestCodexGovernanceReviewDisableActionDisablesAbilitiesAndKeepsPending(t *t
 	require.NoError(t, err)
 	require.False(t, record.AbilitiesDisabled)
 
-	require.NoError(t, ReviewCodexModelGovernanceRecord(record.ID, CodexModelGovernanceStatusUnsupportedPendingReview, 7, "operator disable"))
+	require.NoError(t, ReviewCodexModelGovernanceRecord(record.ID, CodexModelGovernanceStatusUnsupportedDisabled, 7, "operator disable"))
 
 	var updated CodexModelGovernanceRecord
 	require.NoError(t, DB.First(&updated, "id = ?", record.ID).Error)
-	require.Equal(t, CodexModelGovernanceStatusUnsupportedPendingReview, updated.Status)
+	require.Equal(t, CodexModelGovernanceStatusUnsupportedDisabled, updated.Status)
 	require.True(t, updated.AbilitiesDisabled)
 	require.Equal(t, 7, updated.ReviewedBy)
+	require.NotZero(t, updated.ReviewedAt)
 
 	var ability Ability
 	require.NoError(t, DB.First(&ability, "channel_id = ? AND model = ?", 51, "gpt-5.3-codex").Error)
 	require.False(t, ability.Enabled)
+}
+
+func TestCodexGovernanceUpsertPendingPreservesReviewedDisabledStatus(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 52, constant.ChannelTypeCodex, "gpt-5.3-codex")
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceOfficialCodexNotice,
+		AffectedChannelIDs: []int{52},
+		DisableAbilities:   false,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ReviewCodexModelGovernanceRecord(record.ID, CodexModelGovernanceStatusUnsupportedDisabled, 7, "operator disable"))
+
+	updated, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		LastError:          "still unsupported",
+		AffectedChannelIDs: []int{52},
+		DisableAbilities:   true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, CodexModelGovernanceStatusUnsupportedDisabled, updated.Status)
+	require.True(t, updated.AbilitiesDisabled)
+	require.Equal(t, "still unsupported", updated.LastError)
 }
 
 func TestCodexGovernanceRestoreAfterRemovedReturnsExplicitError(t *testing.T) {

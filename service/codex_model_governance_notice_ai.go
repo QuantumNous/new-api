@@ -353,10 +353,19 @@ func codexOfficialNoticeAIResultToFindings(result codexOfficialNoticeAIResult, c
 			ModelName:   modelName,
 			Source:      model.CodexModelGovernanceSourceOfficialCodexNotice,
 			MatchedRule: codexOfficialNoticeAIMatchedRulePrefix + ":" + term,
-			LastError:   strings.TrimSpace(item.Evidence),
+			LastError:   codexOfficialNoticeEvidenceExcerpt(item.Evidence),
 		})
 	}
 	return findings
+}
+
+func codexOfficialNoticeEvidenceExcerpt(value string) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) <= officialCodexNoticeExcerptMaxLength {
+		return value
+	}
+	return string(runes[:officialCodexNoticeExcerptMaxLength])
 }
 
 func normalizeCodexOfficialNoticeCandidateModels(modelNames []string) []string {

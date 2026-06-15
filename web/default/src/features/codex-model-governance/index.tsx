@@ -45,6 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SectionPageLayout } from '@/components/layout'
 import {
   codexModelGovernanceQueryKeys,
@@ -57,6 +58,10 @@ import type {
 } from './types'
 
 const PENDING_STATUS = 'unsupported_pending_review' as const
+const destructiveReviewActions = new Set<CodexModelGovernanceReviewAction>([
+  'disable',
+  'confirm_remove',
+])
 
 const formatTimestamp = (timestamp: number): string => {
   if (!timestamp) return '-'
@@ -79,6 +84,7 @@ type GovernanceReviewRowProps = {
   record: CodexModelGovernanceRecord
   note: string
   pendingAction?: CodexModelGovernanceReviewAction
+  isReviewing: boolean
   onNoteChange: (id: number, note: string) => void
   onReview: (
     record: CodexModelGovernanceRecord,
@@ -160,6 +166,7 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
         <Textarea
           aria-label={t('Review note')}
           className='min-h-20 resize-y'
+          disabled={props.isReviewing}
           value={props.note}
           onChange={(event) =>
             props.onNoteChange(props.record.id, event.target.value)
@@ -177,7 +184,7 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
                 key={actionButton.action}
                 size='sm'
                 variant={actionButton.variant}
-                disabled={Boolean(props.pendingAction)}
+                disabled={props.isReviewing}
                 onClick={() =>
                   props.onReview(props.record, actionButton.action)
                 }
@@ -199,6 +206,10 @@ export function CodexModelGovernance() {
   const [notesById, setNotesById] = useState<Record<number, string>>({})
   const [pendingReview, setPendingReview] = useState<{
     id: number
+    action: CodexModelGovernanceReviewAction
+  } | null>(null)
+  const [confirmReview, setConfirmReview] = useState<{
+    record: CodexModelGovernanceRecord
     action: CodexModelGovernanceReviewAction
   } | null>(null)
 
@@ -232,13 +243,18 @@ export function CodexModelGovernance() {
         queryKey: codexModelGovernanceQueryKeys.all,
       })
     },
+    onError: () => {
+      toast.error(t('Failed to save review'))
+    },
     onSettled: () => {
       setPendingReview(null)
+      setConfirmReview(null)
     },
   })
 
   const records = recordsQuery.data?.data ?? []
   const isLoading = recordsQuery.isLoading || recordsQuery.isFetching
+  const isReviewing = reviewMutation.isPending
 
   const handleNoteChange = (id: number, note: string) => {
     setNotesById((current) => ({
@@ -251,7 +267,42 @@ export function CodexModelGovernance() {
     record: CodexModelGovernanceRecord,
     action: CodexModelGovernanceReviewAction
   ) => {
+    if (isReviewing) return
+    if (destructiveReviewActions.has(action)) {
+      setConfirmReview({ record, action })
+      return
+    }
     reviewMutation.mutate({ record, action })
+  }
+
+  const handleConfirmReview = () => {
+    if (!confirmReview || isReviewing) return
+    reviewMutation.mutate({
+      record: confirmReview.record,
+      action: confirmReview.action,
+    })
+  }
+
+  const getConfirmDescription = () => {
+    if (!confirmReview) return ''
+    if (confirmReview.action === 'disable') {
+      return t(
+        'Disabling {{model}} will stop routing this model on the affected Codex channels.',
+        { model: confirmReview.record.model_name }
+      )
+    }
+    return t(
+      'Removing {{model}} will remove this model from the affected Codex channel configuration.',
+      { model: confirmReview.record.model_name }
+    )
+  }
+
+  const getConfirmText = () => {
+    if (!confirmReview) return t('Continue')
+    if (confirmReview.action === 'disable') {
+      return t('Disable model')
+    }
+    return t('Confirm removal')
   }
 
   return (
@@ -313,6 +364,7 @@ export function CodexModelGovernance() {
                             ? pendingReview.action
                             : undefined
                         }
+                        isReviewing={isReviewing}
                         onNoteChange={handleNoteChange}
                         onReview={handleReview}
                       />
@@ -323,6 +375,20 @@ export function CodexModelGovernance() {
             ) : null}
           </CardContent>
         </Card>
+        <ConfirmDialog
+          open={Boolean(confirmReview)}
+          onOpenChange={(open) => {
+            if (!open && !isReviewing) {
+              setConfirmReview(null)
+            }
+          }}
+          title={getConfirmText()}
+          desc={getConfirmDescription()}
+          confirmText={getConfirmText()}
+          destructive
+          handleConfirm={handleConfirmReview}
+          isLoading={isReviewing}
+        />
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )
