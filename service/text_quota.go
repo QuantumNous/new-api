@@ -55,6 +55,8 @@ type textQuotaSummary struct {
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
+	ChannelRatio             float64
+	UpstreamQuota            int // quota before channel ratio
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -306,6 +308,13 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		summary.Quota = 1
 	}
 
+	// record channel ratio for later application (after tiered settlement)
+	channelRatio := relayInfo.PriceData.ChannelRatio
+	if channelRatio <= 0 {
+		channelRatio = 1.0
+	}
+	summary.ChannelRatio = channelRatio
+
 	return summary
 }
 
@@ -343,6 +352,15 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			tieredBillingApplied = true
 			tieredResult = tieredRes
 			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
+		}
+	}
+
+	// apply channel ratio after all quota sources (token-based and tiered) are resolved
+	if summary.ChannelRatio != 1.0 {
+		summary.UpstreamQuota = summary.Quota
+		summary.Quota = int(decimal.NewFromInt(int64(summary.Quota)).Mul(decimal.NewFromFloat(summary.ChannelRatio)).Round(0).IntPart())
+		if summary.UpstreamQuota > 0 && summary.Quota == 0 {
+			summary.Quota = 1
 		}
 	}
 
@@ -400,6 +418,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
+	}
+	if summary.ChannelRatio != 0 && summary.ChannelRatio != 1.0 {
+		other["upstream_quota"] = summary.UpstreamQuota
 	}
 	if summary.ImageTokens != 0 {
 		other["image"] = true

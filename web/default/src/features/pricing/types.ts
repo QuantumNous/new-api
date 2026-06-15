@@ -57,6 +57,16 @@ export type PricingModel = {
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
+   * Minimum channel ratio per group (best price a user can get).
+   * Omitted when all channels use ratio 1.0.
+   */
+  group_channel_ratio_min?: Record<string, number>
+  /**
+   * Maximum channel ratio per group. Only present when channels in the same
+   * group carry different ratios (i.e. a price range exists).
+   */
+  group_channel_ratio_max?: Record<string, number>
+  /**
    * Optional model metadata fields. These are not yet returned by the backend
    * and are populated client-side from {@link inferModelMetadata}.
    * When the backend ships these fields, the inference layer becomes a
