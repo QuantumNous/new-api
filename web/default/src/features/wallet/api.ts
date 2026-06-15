@@ -321,7 +321,7 @@ export interface FirstTopupPromoInfo {
 export async function getFirstTopupPromo(): Promise<FirstTopupPromoInfo | null> {
   try {
     const res = await api.get('/api/user/first_topup_promo')
-    if (res.success && res.data) return res.data as FirstTopupPromoInfo
+    if (res.data?.success && res.data?.data) return res.data.data as FirstTopupPromoInfo
   } catch { /* ignore */ }
   return null
 }
