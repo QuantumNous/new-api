@@ -28,6 +28,7 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
+import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
@@ -114,14 +115,42 @@ function OAuthCallback() {
 
       const consumeSignupOAuthStart = () => {
         if (typeof window === 'undefined') return ''
+        // Always consume both stores so a stale fallback entry can never be
+        // replayed by a later (non-signup) OAuth callback within its TTL.
+        let sessionProvider = ''
         try {
-          const startedProvider =
+          sessionProvider =
             window.sessionStorage.getItem('ads:oauth_signup_start') || ''
           window.sessionStorage.removeItem('ads:oauth_signup_start')
-          return startedProvider
         } catch {
-          return ''
+          /* ignore storage failures */
         }
+        let localRaw: string | null = null
+        try {
+          localRaw = window.localStorage.getItem('ads:oauth_signup_start')
+          window.localStorage.removeItem('ads:oauth_signup_start')
+        } catch {
+          /* ignore storage failures */
+        }
+        if (sessionProvider) return sessionProvider
+        if (!localRaw) return ''
+        try {
+          const parsed = JSON.parse(localRaw) as {
+            provider?: string
+            started_at?: number
+          }
+          const maxAgeMs = 30 * 60 * 1000
+          if (
+            parsed?.provider &&
+            parsed?.started_at &&
+            Date.now() - parsed.started_at <= maxAgeMs
+          ) {
+            return parsed.provider
+          }
+        } catch {
+          /* ignore storage failures */
+        }
+        return ''
       }
 
       const trackOAuthResult = (result: 'success' | 'error', message?: string) => {
@@ -192,6 +221,7 @@ function OAuthCallback() {
       }
 
       try {
+        const adsAttribution = getAdsAttributionPayload()
         const config: OAuthRequestConfig = {
           params: {
             code: search.code,
@@ -200,6 +230,7 @@ function OAuthCallback() {
             // backend token exchange matches it even when the web frontend and
             // backend (ServerAddress) are on different domains.
             redirect_uri: `${window.location.origin}/oauth/${provider}`,
+            ads_attribution: adsAttribution || undefined,
           },
           skipBusinessError: true,
         }

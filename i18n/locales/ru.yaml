@@ -1,0 +1,14 @@
+# Russian translations (email content only; other keys fall back to English)
+
+# Email content messages
+email.verification_subject: "Подтверждение электронной почты {{.SystemName}}"
+email.verification_content: "<p>Здравствуйте! Вы подтверждаете свою электронную почту для {{.SystemName}}.</p><p>Ваш код подтверждения: <strong>{{.Code}}</strong></p><p>Код действителен в течение {{.Minutes}} минут. Если это были не вы, проигнорируйте это письмо.</p>"
+email.password_reset_subject: "Сброс пароля {{.SystemName}}"
+email.password_reset_content: "<p>Здравствуйте! Вы сбрасываете пароль для своей учётной записи {{.SystemName}}.</p><p>Нажмите <a href='{{.Link}}'>здесь</a>, чтобы сбросить пароль.</p><p>Если ссылка не открывается, скопируйте её в браузер:<br> {{.Link}} </p><p>Ссылка для сброса действительна в течение {{.Minutes}} минут. Если это были не вы, проигнорируйте это письмо.</p>"
+
+# User notification messages
+notify.quota_warning_title: "Ваша квота заканчивается"
+notify.subscription_quota_warning_title: "Квота вашей подписки заканчивается"
+notify.quota_warning_email: "{{.Warning}}. Ваш текущий остаток квоты: {{.Quota}}. Чтобы избежать прерывания обслуживания, пополните вовремя.<br/>Ссылка для пополнения: <a href='{{.Link}}'>{{.Link}}</a>"
+notify.quota_warning_bark: "{{.Warning}}. Остаток квоты: {{.Quota}}. Пополните вовремя."
+notify.quota_warning_gotify: "{{.Warning}}. Ваш текущий остаток квоты: {{.Quota}}. Пополните вовремя."
