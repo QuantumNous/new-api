@@ -16,18 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export function normalizeOrigin(origin: string | undefined): string {
-  return origin?.trim().replace(/\/+$/, '') ?? ''
-}
+import { describe, expect, test } from 'bun:test'
+import { officialWebsiteUrl } from './origins'
 
-export const OFFICIAL_WEBSITE_ORIGIN = normalizeOrigin(
-  import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN as string | undefined
-)
+describe('officialWebsiteUrl', () => {
+  test('builds paths from OFFICIAL_WEBSITE_ORIGIN without duplicate slashes', () => {
+    expect(officialWebsiteUrl('/pricing', 'https://flatkey.ai/')).toBe(
+      'https://flatkey.ai/pricing'
+    )
+  })
 
-export function officialWebsiteUrl(
-  path: string,
-  origin = OFFICIAL_WEBSITE_ORIGIN
-): string {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return origin ? `${normalizeOrigin(origin)}${normalizedPath}` : normalizedPath
-}
+  test('falls back to an app-relative path when the origin is not configured', () => {
+    expect(officialWebsiteUrl('/pricing', '')).toBe('/pricing')
+  })
+})
