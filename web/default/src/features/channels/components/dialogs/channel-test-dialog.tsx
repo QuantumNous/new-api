@@ -369,7 +369,7 @@ export function ChannelTestDialog({
                   size='sm'
                   className='w-fit'
                   onClick={() =>
-                    window.open('/console/setting?tab=ratio', '_blank')
+                    window.open('/system-settings/billing/model-pricing', '_blank')
                   }
                 >
                   <Settings className='mr-1 h-3 w-3' />

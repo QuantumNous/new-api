@@ -135,12 +135,15 @@ var defaultModelRatio = map[string]float64{
 	"text-moderation-latest":                    0.1,
 	"claude-3-haiku-20240307":                   0.125, // $0.25 / 1M tokens
 	"claude-3-5-haiku-20241022":                 0.5,   // $1 / 1M tokens
+	"claude-3-5-haiku-latest":                   0.5,   // -latest alias
 	"claude-haiku-4-5-20251001":                 0.5,   // $1 / 1M tokens
 	"claude-3-sonnet-20240229":                  1.5,   // $3 / 1M tokens
 	"claude-3-5-sonnet-20240620":                1.5,
 	"claude-3-5-sonnet-20241022":                1.5,
+	"claude-3-5-sonnet-latest":                  1.5, // -latest alias
 	"claude-3-7-sonnet-20250219":                1.5,
 	"claude-3-7-sonnet-20250219-thinking":       1.5,
+	"claude-3-7-sonnet-latest":                  1.5, // -latest alias
 	"claude-sonnet-4-20250514":                  1.5,
 	"claude-sonnet-4-5-20250929":                1.5,
 	"claude-opus-4-5-20251101":                  2.5,
@@ -155,6 +158,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-8-high":                      2.5,
 	"claude-opus-4-8-medium":                    2.5,
 	"claude-opus-4-8-low":                       2.5,
+	"claude-opus-4-8-thinking":                  2.5,
 	"claude-opus-4-7":                           2.5,
 	"claude-opus-4-7-max":                       2.5,
 	"claude-opus-4-7-xhigh":                     2.5,
@@ -162,6 +166,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-7-medium":                    2.5,
 	"claude-opus-4-7-low":                       2.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
+	"claude-3-opus-latest":                      7.5, // -latest alias
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
 	"ERNIE-4.0-8K":                              0.120 * RMB,

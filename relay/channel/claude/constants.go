@@ -33,6 +33,18 @@ var ModelList = []string{
 	"claude-opus-4-7-medium",
 	"claude-opus-4-7-low",
 	"claude-opus-4-7-thinking",
+	"claude-opus-4-8",
+	"claude-opus-4-8-max",
+	"claude-opus-4-8-xhigh",
+	"claude-opus-4-8-high",
+	"claude-opus-4-8-medium",
+	"claude-opus-4-8-low",
+	"claude-opus-4-8-thinking",
+	// Anthropic "-latest" rolling aliases
+	"claude-3-5-haiku-latest",
+	"claude-3-5-sonnet-latest",
+	"claude-3-opus-latest",
+	"claude-3-7-sonnet-latest",
 }
 
 var ChannelName = "claude"
