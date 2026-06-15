@@ -138,7 +138,29 @@ export const UPTIME_STATUS_MAP = {
 export const STORAGE_KEYS = {
   DATA_EXPORT_DEFAULT_TIME: 'data_export_default_time',
   MJ_NOTIFY_ENABLED: 'mj_notify_enabled',
+  CHART_TABS_USER: 'dashboard_chart_tabs_user',
+  CHART_TABS_GLOBAL: 'data_dashboard_chart_tabs',
 };
+
+// ========== 图表可见性编码 ==========
+// DataDashboardChartTabs 取值语义：
+//   ''         → 未设置，显示全部（向后兼容）
+//   '__none__' → 管理员显式选择全部隐藏
+//   'k1,k2'    → 显式白名单（逗号分隔 key）
+export const CHART_TABS_NONE = '__none__';
+
+// ========== 图表 Tab 元信息 ==========
+export const ALL_CHART_TABS = [
+  { key: '1', label: '消耗分布', adminOnly: false },
+  { key: '2', label: '调用趋势', adminOnly: false },
+  { key: '3', label: '调用次数分布', adminOnly: false },
+  { key: '4', label: '调用次数排行', adminOnly: false },
+  { key: '7', label: 'Token消耗分布', adminOnly: false },
+  { key: '5', label: '用户消耗排行', adminOnly: true },
+  { key: '6', label: '用户消耗趋势', adminOnly: true },
+  { key: '8', label: '用户Token排行', adminOnly: true },
+  { key: '9', label: '用户Token趋势', adminOnly: true },
+];
 
 // ========== 默认值 ==========
 export const DEFAULTS = {
