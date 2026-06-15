@@ -17,6 +17,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// preConsumeRatioDivisor 是按量计费预扣额度时对 modelRatio 的折半除数。
+// 数值上 = 1e6 / QuotaPerUnit（QuotaPerUnit=500000 时为 2），与前端共享常量
+// RATIO_USD_PER_MILLION_TOKENS、common.RatioToUSDPerMillion 同源，统一收敛避免硬编码 2。
+var preConsumeRatioDivisor = 1e6 / common.QuotaPerUnit
+
 func modelPriceNotConfiguredError(modelName string, userId int) error {
 	if model.IsAdmin(userId) {
 		return fmt.Errorf(
@@ -202,8 +207,11 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 			}
 		}
 	} else {
-		// 按量计费：以模型倍率的一半作为预扣额度
-		quota = int(modelRatio / 2 * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		// 按量计费：以模型倍率的一半作为预扣额度。
+		// 这里的除数 preConsumeRatioDivisor 数值上 = 1e6/QuotaPerUnit（QuotaPerUnit=500000 时为 2），
+		// 即「ratio ↔ $/1M tokens」换算系数 common.RatioToUSDPerMillion 的反向因子，
+		// 抽为具名常量避免裸 2 漂移；含义仍是「按倍率的一半预扣」。
+		quota = int(modelRatio / preConsumeRatioDivisor * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		modelPrice = -1
 		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
 			if groupRatioInfo.GroupRatio == 0 || modelRatio == 0 {

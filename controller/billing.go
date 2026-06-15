@@ -8,6 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	// unlimitedQuotaDisplayUSD 无限额度令牌在订阅接口中展示的额度上限占位值。
+	unlimitedQuotaDisplayUSD = 1e8
+	// usageCentsMultiplier OpenAI usage 接口的 total_usage 以美分计，需将美元金额乘 100。
+	usageCentsMultiplier = 100
+)
+
 func GetSubscription(c *gin.Context) {
 	var remainQuota int
 	var usedQuota int
@@ -54,7 +61,7 @@ func GetSubscription(c *gin.Context) {
 		amount = amount / common.QuotaPerUnit
 	}
 	if token != nil && token.UnlimitedQuota {
-		amount = 100000000
+		amount = unlimitedQuotaDisplayUSD
 	}
 	subscription := OpenAISubscriptionResponse{
 		Object:             "billing_subscription",
@@ -101,7 +108,7 @@ func GetUsage(c *gin.Context) {
 	}
 	usage := OpenAIUsageResponse{
 		Object:     "list",
-		TotalUsage: amount * 100,
+		TotalUsage: amount * usageCentsMultiplier,
 	}
 	c.JSON(200, usage)
 	return

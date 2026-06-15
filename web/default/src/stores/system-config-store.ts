@@ -46,11 +46,23 @@ export interface SystemConfig {
   currency: CurrencyConfig
 }
 
+/**
+ * Single source of truth for currency-related defaults used when the backend
+ * config (`/api/...`) has not yet hydrated the store.
+ *
+ * usdExchangeRate fallback = 7: the backend default is USDExchangeRate=7.3, and
+ * the billing settings form historically defaulted to 7. A fallback of 7 keeps
+ * CNY display close to reality (vs. an incorrect 1:1 when the value is missing).
+ * The real value is still overwritten by the API response once loaded.
+ *
+ * quotaPerUnit = 500000 mirrors the backend common.QuotaPerUnit (protocol-level
+ * constant). Keep these two in sync if the backend base ever changes.
+ */
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   displayInCurrency: true,
   quotaDisplayType: 'USD',
   quotaPerUnit: 500000,
-  usdExchangeRate: 1,
+  usdExchangeRate: 7,
   customCurrencySymbol: '¤',
   customCurrencyExchangeRate: 1,
 }

@@ -25,6 +25,21 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+// Sora 计费默认值与 size 倍率常量（来源：sora 视频计费）。具名化以替代散落字面量，
+// 默认值与未命中回退保持与外置前一致。
+const (
+	soraDefaultSeconds = 4          // 未指定或非法时长时的默认计费秒数
+	soraDefaultSize    = "720x1280" // 未指定分辨率时的默认 size
+	soraSizeRatioBase  = 1.0        // 标准 size 倍率
+	soraSizeRatioLarge = 1.666667   // 大尺寸（1792x1024 / 1024x1792）倍率
+)
+
+// soraLargeSizes 触发 soraSizeRatioLarge 的 size 集合；未命中回退到 soraSizeRatioBase。
+var soraLargeSizes = map[string]bool{
+	"1792x1024": true,
+	"1024x1792": true,
+}
+
 // ============================
 // Request / Response structures
 // ============================
@@ -112,20 +127,20 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		seconds = req.Duration
 	}
 	if seconds <= 0 {
-		seconds = 4
+		seconds = soraDefaultSeconds
 	}
 
 	size := req.Size
 	if size == "" {
-		size = "720x1280"
+		size = soraDefaultSize
 	}
 
 	ratios := map[string]float64{
 		"seconds": float64(seconds),
-		"size":    1,
+		"size":    soraSizeRatioBase,
 	}
-	if size == "1792x1024" || size == "1024x1792" {
-		ratios["size"] = 1.666667
+	if soraLargeSizes[size] {
+		ratios["size"] = soraSizeRatioLarge
 	}
 	return ratios
 }

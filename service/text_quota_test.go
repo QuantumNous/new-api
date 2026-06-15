@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -12,8 +13,81 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
+
+// TestPerUnitQuotaHelpersMatchInlineFormula 锁死阶段2 R4：收敛后的计费 helper
+// (perThousandQuota/perMillionQuota/perCallQuota) 必须与迁移前内联 decimal 公式
+// 逐用例严格相等（含 decimal 精度边界）。
+func TestPerUnitQuotaHelpersMatchInlineFormula(t *testing.T) {
+	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+
+	t.Run("perThousandQuota", func(t *testing.T) {
+		cases := []struct {
+			price      float64
+			count      int
+			groupRatio float64
+		}{
+			{0, 0, 1},
+			{10, 1, 1},
+			{10, 3, 1.25},
+			{0.035, 7, 1}, // 非整除，验证 decimal 精度
+			{12.345, 999, 0.5},
+		}
+		for _, c := range cases {
+			want := decimal.NewFromFloat(c.price).
+				Mul(decimal.NewFromInt(int64(c.count))).
+				Div(decimal.NewFromInt(1000)).
+				Mul(decimal.NewFromFloat(c.groupRatio)).
+				Mul(dQuotaPerUnit)
+			got := perThousandQuota(c.price, c.count, c.groupRatio)
+			require.True(t, want.Equal(got), "price=%v count=%d gr=%v want=%s got=%s",
+				c.price, c.count, c.groupRatio, want.String(), got.String())
+		}
+	})
+
+	t.Run("perMillionQuota", func(t *testing.T) {
+		cases := []struct {
+			price      float64
+			tokens     int
+			groupRatio float64
+		}{
+			{0, 0, 1},
+			{2.5, 1000000, 1},
+			{0.43, 12345, 1.25},
+			{3.81, 7, 0.5}, // 非整除
+		}
+		for _, c := range cases {
+			want := decimal.NewFromFloat(c.price).
+				Div(decimal.NewFromInt(1000000)).
+				Mul(decimal.NewFromInt(int64(c.tokens))).
+				Mul(decimal.NewFromFloat(c.groupRatio)).
+				Mul(dQuotaPerUnit)
+			got := perMillionQuota(c.price, c.tokens, c.groupRatio)
+			require.True(t, want.Equal(got), "price=%v tokens=%d gr=%v want=%s got=%s",
+				c.price, c.tokens, c.groupRatio, want.String(), got.String())
+		}
+	})
+
+	t.Run("perCallQuota", func(t *testing.T) {
+		for _, c := range []struct {
+			price      float64
+			groupRatio float64
+		}{
+			{0, 1},
+			{0.011, 1},
+			{0.167, 1.25},
+		} {
+			want := decimal.NewFromFloat(c.price).
+				Mul(decimal.NewFromFloat(c.groupRatio)).
+				Mul(dQuotaPerUnit)
+			got := perCallQuota(c.price, c.groupRatio)
+			require.True(t, want.Equal(got), "price=%v gr=%v want=%s got=%s",
+				c.price, c.groupRatio, want.String(), got.String())
+		}
+	})
+}
 
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)

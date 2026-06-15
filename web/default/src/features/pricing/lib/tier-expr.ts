@@ -18,6 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { BILLING_CACHE_VAR_MAP } from './billing-expr'
 
+// 零计费表达式：prompt 与 completion 均不计费
+export const ZERO_BILLING_EXPR = 'p * 0 + c * 0'
+
 export const CACHE_MODE_TIMED = 'timed'
 export const CACHE_MODE_GENERIC = 'generic'
 export type CacheMode = typeof CACHE_MODE_TIMED | typeof CACHE_MODE_GENERIC
@@ -129,7 +132,7 @@ export function generateExprFromVisualConfig(
   config: VisualConfig | null | undefined
 ): string {
   if (!config || !config.tiers || config.tiers.length === 0) {
-    return 'p * 0 + c * 0'
+    return ZERO_BILLING_EXPR
   }
   const tiers = config.tiers
 
@@ -139,7 +142,7 @@ export function generateExprFromVisualConfig(
     const body = `tier("${label}", ${buildTierBodyExpr(tier)})`
     const cond = buildConditionStr(tier.conditions)
     if (cond) {
-      return `${cond} ? ${body} : p * 0 + c * 0`
+      return `${cond} ? ${body} : ${ZERO_BILLING_EXPR}`
     }
     return body
   }

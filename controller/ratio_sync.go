@@ -774,7 +774,11 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 		}
 
 		// Normal case: promptPrice > 0
-		ratio := promptPrice * 1000 * ratio_setting.USD
+		// OpenRouter 的 Prompt 价格单位是 $/token，先换算为 $/1M tokens
+		// (promptPrice*1e6) 再经 common.PricePerMillionToRatio 转为内部倍率。
+		// 等价于历史写法 promptPrice * 1000 * USD（=promptPrice*500000），但
+		// 去掉裸字面量 1000，统一走单一换算来源。
+		ratio := common.PricePerMillionToRatio(promptPrice * 1e6)
 		ratio = roundRatioValue(ratio)
 		modelRatioMap[m.ID] = ratio
 

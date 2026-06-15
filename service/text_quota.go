@@ -57,6 +57,45 @@ type textQuotaSummary struct {
 	ToolCallSurchargeQuota   decimal.Decimal
 }
 
+// 计费量纲基准除数：工具调用价格按「每 1K 次」计价，token 类（音频输入等）
+// 按「每 1M tokens」计价。集中为常量，避免 service 包内多处裸 1000/1000000 漂移。
+// tool_billing.go 的 per-1K 量纲亦引用 perThousandDivisor。
+const (
+	perThousandDivisor = 1000    // price-per-1K 单价基准
+	perMillionDivisor  = 1000000 // price-per-1M 单价基准
+)
+
+// perThousandQuota 计算「按每 1K 计价的单价 * 次数」对应的 quota（含 groupRatio）。
+// 公式：price * count / 1000 * groupRatio * QuotaPerUnit。
+// 这是工具调用计费（web_search / file_search 等）计算与日志展示共用的单一入口，
+// 保持 decimal 精度，避免计算与日志两处公式漂移。
+func perThousandQuota(price float64, count int, groupRatio float64) decimal.Decimal {
+	return decimal.NewFromFloat(price).
+		Mul(decimal.NewFromInt(int64(count))).
+		Div(decimal.NewFromInt(perThousandDivisor)).
+		Mul(decimal.NewFromFloat(groupRatio)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+}
+
+// perMillionQuota 计算「按每 1M tokens 计价的单价 * token 数」对应的 quota（含 groupRatio）。
+// 公式：price / 1000000 * tokens * groupRatio * QuotaPerUnit。
+// 音频输入计费的计算与日志展示共用此入口，保持 decimal 精度。
+func perMillionQuota(price float64, tokens int, groupRatio float64) decimal.Decimal {
+	return decimal.NewFromFloat(price).
+		Div(decimal.NewFromInt(perMillionDivisor)).
+		Mul(decimal.NewFromInt(int64(tokens))).
+		Mul(decimal.NewFromFloat(groupRatio)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+}
+
+// perCallQuota 计算「一次性调用单价」对应的 quota（含 groupRatio），无 1K/1M 量纲缩放。
+// 公式：price * groupRatio * QuotaPerUnit。图像生成一次性调用计费的计算与日志共用此入口。
+func perCallQuota(price float64, groupRatio float64) decimal.Decimal {
+	return decimal.NewFromFloat(price).
+		Mul(decimal.NewFromFloat(groupRatio)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+}
+
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	if summary.CacheCreationTokens5m > 0 || summary.CacheCreationTokens1h > 0 {
 		splitCacheWriteTokens := summary.CacheCreationTokens5m + summary.CacheCreationTokens1h
@@ -82,57 +121,37 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 }
 
 func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary) decimal.Decimal {
-	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
-	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-
 	var surcharge decimal.Decimal
 
 	if relayInfo.ResponsesUsageInfo != nil {
 		if webSearchTool, exists := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool.CallCount > 0 {
 			summary.WebSearchCallCount = webSearchTool.CallCount
 			summary.WebSearchPrice = operation_setting.GetToolPriceForModel("web_search_preview", summary.ModelName)
-			surcharge = surcharge.Add(decimal.NewFromFloat(summary.WebSearchPrice).
-				Mul(decimal.NewFromInt(int64(webSearchTool.CallCount))).
-				Div(decimal.NewFromInt(1000)).
-				Mul(dGroupRatio).
-				Mul(dQuotaPerUnit))
+			surcharge = surcharge.Add(perThousandQuota(summary.WebSearchPrice, webSearchTool.CallCount, summary.GroupRatio))
 		}
 	} else if strings.HasSuffix(summary.ModelName, "search-preview") {
 		summary.WebSearchCallCount = 1
 		summary.WebSearchPrice = operation_setting.GetToolPriceForModel("web_search_preview", summary.ModelName)
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.WebSearchPrice).
-			Div(decimal.NewFromInt(1000)).
-			Mul(dGroupRatio).
-			Mul(dQuotaPerUnit))
+		surcharge = surcharge.Add(perThousandQuota(summary.WebSearchPrice, 1, summary.GroupRatio))
 	}
 
 	summary.ClaudeWebSearchCallCount = ctx.GetInt("claude_web_search_requests")
 	if summary.ClaudeWebSearchCallCount > 0 {
 		summary.ClaudeWebSearchPrice = operation_setting.GetToolPrice("web_search")
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ClaudeWebSearchPrice).
-			Div(decimal.NewFromInt(1000)).
-			Mul(dGroupRatio).
-			Mul(dQuotaPerUnit).
-			Mul(decimal.NewFromInt(int64(summary.ClaudeWebSearchCallCount))))
+		surcharge = surcharge.Add(perThousandQuota(summary.ClaudeWebSearchPrice, summary.ClaudeWebSearchCallCount, summary.GroupRatio))
 	}
 
 	if relayInfo.ResponsesUsageInfo != nil {
 		if fileSearchTool, exists := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolFileSearch]; exists && fileSearchTool.CallCount > 0 {
 			summary.FileSearchCallCount = fileSearchTool.CallCount
 			summary.FileSearchPrice = operation_setting.GetToolPrice("file_search")
-			surcharge = surcharge.Add(decimal.NewFromFloat(summary.FileSearchPrice).
-				Mul(decimal.NewFromInt(int64(fileSearchTool.CallCount))).
-				Div(decimal.NewFromInt(1000)).
-				Mul(dGroupRatio).
-				Mul(dQuotaPerUnit))
+			surcharge = surcharge.Add(perThousandQuota(summary.FileSearchPrice, fileSearchTool.CallCount, summary.GroupRatio))
 		}
 	}
 
 	if ctx.GetBool("image_generation_call") {
 		summary.ImageGenerationCallPrice = operation_setting.GetGPTImage1PriceOnceCall(ctx.GetString("image_generation_call_quality"), ctx.GetString("image_generation_call_size"))
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ImageGenerationCallPrice).
-			Mul(dGroupRatio).
-			Mul(dQuotaPerUnit))
+		surcharge = surcharge.Add(perCallQuota(summary.ImageGenerationCallPrice, summary.GroupRatio))
 	}
 
 	return surcharge
@@ -267,8 +286,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			summary.AudioInputPrice = operation_setting.GetGeminiInputAudioPricePerMillionTokens(summary.ModelName)
 			if summary.AudioInputPrice > 0 {
 				baseTokens = baseTokens.Sub(dAudioTokens)
-				audioInputQuota = decimal.NewFromFloat(summary.AudioInputPrice).
-					Div(decimal.NewFromInt(1000000)).Mul(dAudioTokens).Mul(dGroupRatio).Mul(dQuotaPerUnit)
+				audioInputQuota = perMillionQuota(summary.AudioInputPrice, summary.AudioTokens, summary.GroupRatio)
 			}
 		}
 
@@ -347,19 +365,19 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	if summary.WebSearchCallCount > 0 {
-		extraContent = append(extraContent, fmt.Sprintf("Web Search 调用 %d 次，调用花费 %s", summary.WebSearchCallCount, decimal.NewFromFloat(summary.WebSearchPrice).Mul(decimal.NewFromInt(int64(summary.WebSearchCallCount))).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+		extraContent = append(extraContent, fmt.Sprintf("Web Search 调用 %d 次，调用花费 %s", summary.WebSearchCallCount, perThousandQuota(summary.WebSearchPrice, summary.WebSearchCallCount, summary.GroupRatio).String()))
 	}
 	if summary.ClaudeWebSearchCallCount > 0 {
-		extraContent = append(extraContent, fmt.Sprintf("Claude Web Search 调用 %d 次，调用花费 %s", summary.ClaudeWebSearchCallCount, decimal.NewFromFloat(summary.ClaudeWebSearchPrice).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Mul(decimal.NewFromInt(int64(summary.ClaudeWebSearchCallCount))).String()))
+		extraContent = append(extraContent, fmt.Sprintf("Claude Web Search 调用 %d 次，调用花费 %s", summary.ClaudeWebSearchCallCount, perThousandQuota(summary.ClaudeWebSearchPrice, summary.ClaudeWebSearchCallCount, summary.GroupRatio).String()))
 	}
 	if summary.FileSearchCallCount > 0 {
-		extraContent = append(extraContent, fmt.Sprintf("File Search 调用 %d 次，调用花费 %s", summary.FileSearchCallCount, decimal.NewFromFloat(summary.FileSearchPrice).Mul(decimal.NewFromInt(int64(summary.FileSearchCallCount))).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+		extraContent = append(extraContent, fmt.Sprintf("File Search 调用 %d 次，调用花费 %s", summary.FileSearchCallCount, perThousandQuota(summary.FileSearchPrice, summary.FileSearchCallCount, summary.GroupRatio).String()))
 	}
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {
-		extraContent = append(extraContent, fmt.Sprintf("Audio Input 花费 %s", decimal.NewFromFloat(summary.AudioInputPrice).Div(decimal.NewFromInt(1000000)).Mul(decimal.NewFromInt(int64(summary.AudioTokens))).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+		extraContent = append(extraContent, fmt.Sprintf("Audio Input 花费 %s", perMillionQuota(summary.AudioInputPrice, summary.AudioTokens, summary.GroupRatio).String()))
 	}
 	if summary.ImageGenerationCallPrice > 0 {
-		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", perCallQuota(summary.ImageGenerationCallPrice, summary.GroupRatio).String()))
 	}
 
 	if summary.TotalTokens == 0 {

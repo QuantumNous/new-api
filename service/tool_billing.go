@@ -48,7 +48,8 @@ func ComputeToolCallQuota(usage ToolCallUsage, groupRatio float64) ToolCallResul
 		if pricePer1K <= 0 {
 			return
 		}
-		totalPrice := pricePer1K * float64(count) / 1000
+		// 量纲与 text_quota.go 的 per-1K 计费保持单一来源，避免裸 1000 漂移。
+		totalPrice := pricePer1K * float64(count) / perThousandDivisor
 		quota := int(math.Round(totalPrice * common.QuotaPerUnit * groupRatio))
 		items = append(items, ToolCallItem{
 			Name:       toolName,
