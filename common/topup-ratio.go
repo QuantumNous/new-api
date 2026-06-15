@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"sort"
 	"sync"
 )
 
@@ -49,5 +50,6 @@ func GetTopupGroupRatioKeys() []string {
 	for name := range topupGroupRatio {
 		keys = append(keys, name)
 	}
+	sort.Strings(keys)
 	return keys
 }

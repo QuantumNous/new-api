@@ -66,7 +66,7 @@ import {
   createUser,
   updateUser,
   getUser,
-  getUserUsableGroups,
+  getAssignableUserGroups,
   getUserInvoiceProfile,
   updateUserInvoiceProfile,
 } from '../api'
@@ -148,12 +148,13 @@ export function UsersMutateDrawer({
   )
   const [invoiceSaving, setInvoiceSaving] = useState(false)
 
-  // Fetch user-usable groups (configured in system settings), not all ratio groups.
-  // Groups can be edited elsewhere (system settings) right before opening this
-  // drawer, so always refetch on open instead of serving a stale cached list.
+  // Fetch the user identity groups an admin can assign (topup group ratio keys),
+  // not all ratio groups. Groups can be edited elsewhere (system settings) right
+  // before opening this drawer, so always refetch on open instead of serving a
+  // stale cached list.
   const { data: groupsData } = useQuery({
-    queryKey: ['user-usable-groups'],
-    queryFn: getUserUsableGroups,
+    queryKey: ['assignable-user-groups'],
+    queryFn: getAssignableUserGroups,
     enabled: open,
     staleTime: 0,
     refetchOnMount: 'always',
