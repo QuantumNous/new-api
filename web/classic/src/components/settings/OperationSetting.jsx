@@ -60,6 +60,7 @@ const OperationSetting = () => {
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
     SensitiveWords: '',
+    SensitiveRefusalText: '',
 
     /* 日志设置 */
     LogConsumeEnabled: false,

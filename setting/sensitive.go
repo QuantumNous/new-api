@@ -13,6 +13,9 @@ var StopOnSensitiveEnabled = true
 // StreamCacheQueueLength 流模式缓存队列长度，0表示无缓存
 var StreamCacheQueueLength = 0
 
+// SensitiveRefusalText 敏感词命中时返回给用户的拒绝文案，空则使用默认值
+var SensitiveRefusalText = ""
+
 // SensitiveWords 敏感词
 // var SensitiveWords []string
 var SensitiveWords = []string{

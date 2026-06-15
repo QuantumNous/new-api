@@ -141,7 +141,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		contains, words := service.CheckSensitiveText(meta.CombineText)
 		if contains {
 			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+			if service.WriteSensitiveRefusal(c, relayFormat, relayInfo, request) {
+				return
+			}
+			// fallback: unsupported format, return explicit 400 refusal
+			newAPIError = types.NewErrorWithStatusCode(
+				errors.New(service.GetSensitiveRefusalText()),
+				types.ErrorCodeSensitiveWordsDetected,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
 			return
 		}
 	}
