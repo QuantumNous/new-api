@@ -63,6 +63,10 @@ const BILLING_SECTIONS = [
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInvitee: settings.QuotaForInvitee,
           AffRatio: settings.AffRatio,
+          FirstTopupPromoEnabled: settings.FirstTopupPromoEnabled,
+          FirstTopupPromoDiscount: settings.FirstTopupPromoDiscount,
+          FirstTopupPromoAmount: settings.FirstTopupPromoAmount,
+          FirstTopupPromoWindowDays: settings.FirstTopupPromoWindowDays,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
