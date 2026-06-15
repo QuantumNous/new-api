@@ -155,6 +155,15 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 - Whitelabel is mandatory: never leak the upstream supplier name, host, or internal model name in responses/logs/docs; results go through the `/v1/videos/{task_id}/content` proxy. Token `usage` is surfaced automatically via `task.PrivateData`.
 - Reference implementation: `relay/channel/task/kuaizi/`.
 
+### Rule 9: Official Public Website Lives Only in `website/`
+
+The public-facing official website — home/marketing, pricing, rankings, blog, legal pages, and SEO surfaces (`sitemap.xml` / `robots.txt` / `llms.txt`, canonical/hreflang) — is maintained **exclusively** in the standalone Next.js project under `website/`. Read `website/AGENTS.md` before touching it.
+
+- **Do NOT** add, restore, or maintain public website / marketing / landing / legal / pricing pages in the Go application or in `web/default`. `web/default` is the authenticated **console/dashboard SPA only**; the old in-SPA marketing pages are deprecated — extend the public site in `website/`, never in `web/default` or the Go app.
+- Production routing is **host-based** at the GCP LB: `flatkey.ai` + `www.flatkey.ai` → the Next website (Cloud Run `newapi-web`); `console.flatkey.ai` / `router.flatkey.ai` → the Go app. Do not reintroduce public pages on the Go hosts.
+- Cross-app wiring is **environment-driven** — never hardcode the peer origin: `APP_CONSOLE_ORIGIN` (website → Go console/API), `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` (website's own canonical origin), `OFFICIAL_WEBSITE_ORIGIN` (console → website).
+- CI/CD & infra: `website/` builds and deploys via `.github/workflows/gcp-deploy-website.yml` (separate Cloud Run service, container port 4000); the Go app uses `gcp-deploy.yml` (which `paths-ignore`s `website/**`). LB host-split + second Cloud Run live in `deploy/gcp/` — see `deploy/gcp/docs/WEBSITE_ROLLOUT.md`.
+
 ---
 
 ## Code Map — 按需加载的模块级文档（重要）
@@ -239,6 +248,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 - `web/AGENTS.md` — 前端容器（双主题）
 - `web/default/AGENTS.md` — 默认主题（React 19 + Rsbuild + Base UI + Tailwind，规范详尽）
 - `web/classic/AGENTS.md` — 经典主题（React 18 + Vite + Semi Design）
+- `website/AGENTS.md` — 独立官网（Next.js 16 standalone Node 应用；SEO/营销/法务/定价/博客；**新增/修改公开页必读**，→ Rule 9）
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

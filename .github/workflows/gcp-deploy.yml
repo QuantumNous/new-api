@@ -6,6 +6,11 @@ name: GCP Deploy
 on:
   push:
     branches: [main]
+    # Skip the Go app deploy for website-only changes (those are handled by
+    # gcp-deploy-website.yml). A push that also touches app code still runs.
+    paths-ignore:
+      - 'website/**'
+      - '.github/workflows/gcp-deploy-website.yml'
   workflow_dispatch:
     inputs:
       image_tag:

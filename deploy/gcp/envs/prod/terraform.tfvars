@@ -47,8 +47,7 @@ enable_website             = true
 website_service_name       = "newapi-web"
 website_app_console_origin = "https://console.flatkey.ai"
 website_site_origin        = "https://flatkey.ai"
-// Phase A (this value): apex/www stay on the Go app; only the website service +
-// backend are created. Verify the site via its *.run.app URL and CI deploy first.
-// Phase B (flip): change to ["flatkey.ai", "www.flatkey.ai"] and apply — the LB
-// host_rule appears and apex+www move to Node. Reverting to [] instantly rolls back.
-website_domains = []
+// Phase C (flipped): apex + www are routed to the Next.js website backend via the
+// LB host_rule; everything else (console/router/etc.) stays on the Go app.
+// Reverting to [] and re-applying instantly rolls back (host_rule disappears).
+website_domains = ["flatkey.ai", "www.flatkey.ai"]
