@@ -32,6 +32,7 @@ import { Progress } from '@/components/ui/progress'
 import type {
   ChannelFlowPool,
   ChannelFlowPoolStatus,
+  FlowTrendTotals,
   FlowTrendPoint,
 } from '../types'
 
@@ -39,6 +40,7 @@ type PoolStatusPanelProps = {
   pool?: ChannelFlowPool | null
   status?: ChannelFlowPoolStatus | null
   trend: FlowTrendPoint[]
+  trendTotals?: FlowTrendTotals
 }
 
 const trendChartInitialDimension = { width: 1, height: 300 }
@@ -106,7 +108,11 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
           />
           <Metric
             label={t('Lease renew failures')}
-            value={String(status?.lease_renew_failures ?? 0)}
+            value={String(
+              props.trendTotals?.lease_renew_fail ??
+                status?.lease_renew_failures ??
+                0
+            )}
           />
         </div>
       </div>
@@ -118,9 +124,23 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
               {t('Inflight / queued trend')}
             </h3>
             <p className='text-muted-foreground mt-1 text-xs'>
-              {t('Recent frontend samples until minute metrics API is available')}
+              {t('Gateway minute metrics from completed and active buckets')}
             </p>
           </div>
+        </div>
+        <div className='mb-3 grid gap-2 text-xs sm:grid-cols-3'>
+          <Metric
+            label={t('Rejected')}
+            value={String(props.trendTotals?.rejected_count ?? 0)}
+          />
+          <Metric
+            label={t('Timeouts')}
+            value={String(props.trendTotals?.timeout_count ?? 0)}
+          />
+          <Metric
+            label={t('Avg wait')}
+            value={formatMs(props.trendTotals?.wait_ms_avg)}
+          />
         </div>
         <div className='min-h-[260px] min-w-0 flex-1'>
           <ResponsiveContainer
@@ -157,6 +177,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
                 width={32}
               />
               <Tooltip
+                formatter={formatTrendTooltipValue}
                 contentStyle={{
                   background: 'hsl(var(--popover))',
                   border: '1px solid hsl(var(--border))',
@@ -164,17 +185,17 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
                 }}
               />
               <Area
-                type='monotone'
-                dataKey='running'
-                name={t('Inflight')}
+                type='stepAfter'
+                dataKey='running_max'
+                name={`${t('Inflight')} ${t('Peak')}`}
                 stroke='var(--primary)'
                 fill='url(#flowRunning)'
                 strokeWidth={2}
               />
               <Area
-                type='monotone'
-                dataKey='queued'
-                name={t('Queued')}
+                type='stepAfter'
+                dataKey='queued_max'
+                name={`${t('Queued')} ${t('Peak')}`}
                 stroke='var(--destructive)'
                 fill='url(#flowQueued)'
                 strokeWidth={2}
@@ -185,6 +206,17 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
       </div>
     </div>
   )
+}
+
+function formatTrendTooltipValue(value: unknown, name: unknown) {
+  return [formatTrendCount(value), name]
+}
+
+function formatTrendCount(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return String(value ?? '')
+  }
+  return String(Math.round(value))
 }
 
 function CapacityMeter(props: { label: string; value: number; max: number }) {

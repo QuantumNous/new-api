@@ -101,8 +101,47 @@ export type ChannelFlowPoolStatus = {
 }
 
 export type FlowTrendPoint = {
+  bucket_ts: number
   at: string
   running: number
+  running_avg: number
+  running_max: number
   queued: number
+  queued_avg: number
+  queued_max: number
+  acquired_count: number
+  queued_count: number
+  released_count: number
+  rejected_count: number
+  timeout_count: number
+  cancelled_count: number
+  billing_failed_count: number
+  lease_renew_fail: number
+  lease_expired_count: number
+  wait_ms_avg: number
+  wait_ms_max: number
+  process_ms_avg: number
+  process_ms_max: number
 }
 
+export type FlowTrendTotals = {
+  acquired_count: number
+  queued_count: number
+  released_count: number
+  rejected_count: number
+  timeout_count: number
+  cancelled_count: number
+  billing_failed_count: number
+  lease_renew_fail: number
+  lease_expired_count: number
+  wait_ms_avg: number
+  wait_ms_max: number
+  process_ms_avg: number
+  process_ms_max: number
+}
+
+export type ChannelFlowTrend = {
+  pool_key: string
+  points: FlowTrendPoint[]
+  totals: FlowTrendTotals
+}

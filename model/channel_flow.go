@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -25,6 +26,16 @@ const (
 
 	ChannelFlowMatchModeChannel      = "channel"
 	ChannelFlowMatchModeChannelModel = "channel_model"
+
+	ChannelFlowEventQueued           = "queued"
+	ChannelFlowEventAcquired         = "acquired"
+	ChannelFlowEventReleased         = "released"
+	ChannelFlowEventRejected         = "rejected"
+	ChannelFlowEventTimeout          = "timeout"
+	ChannelFlowEventCancelled        = "cancelled"
+	ChannelFlowEventBillingFailed    = "billing_failed"
+	ChannelFlowEventLeaseRenewFailed = "lease_renew_failed"
+	ChannelFlowEventLeaseExpired     = "lease_expired"
 )
 
 type ChannelFlowPool struct {
@@ -64,12 +75,15 @@ type ChannelFlowPoolBinding struct {
 
 type ChannelFlowMetricMinute struct {
 	Id                 int     `json:"id"`
-	BucketTs           int64   `json:"bucket_ts" gorm:"bigint;index"`
-	PoolKey            string  `json:"pool_key" gorm:"type:varchar(64);index"`
-	ChannelId          int     `json:"channel_id" gorm:"index"`
-	Model              string  `json:"model" gorm:"type:varchar(191);index"`
+	BucketTs           int64   `json:"bucket_ts" gorm:"bigint;uniqueIndex:idx_channel_flow_metric_bucket,priority:1;index"`
+	PoolKey            string  `json:"pool_key" gorm:"type:varchar(64);uniqueIndex:idx_channel_flow_metric_bucket,priority:2;index"`
+	ChannelId          int     `json:"channel_id" gorm:"uniqueIndex:idx_channel_flow_metric_bucket,priority:3;index"`
+	Model              string  `json:"model" gorm:"type:varchar(191);uniqueIndex:idx_channel_flow_metric_bucket,priority:4;index"`
+	SampleCount        int64   `json:"-" gorm:"bigint;default:0"`
+	RunningSum         int64   `json:"-" gorm:"bigint;default:0"`
 	RunningAvg         float64 `json:"running_avg"`
 	RunningMax         int     `json:"running_max"`
+	QueuedSum          int64   `json:"-" gorm:"bigint;default:0"`
 	QueuedAvg          float64 `json:"queued_avg"`
 	QueuedMax          int     `json:"queued_max"`
 	AcquiredCount      int     `json:"acquired_count"`
@@ -81,8 +95,12 @@ type ChannelFlowMetricMinute struct {
 	BillingFailedCount int     `json:"billing_failed_count"`
 	LeaseRenewFail     int     `json:"lease_renew_fail"`
 	LeaseExpiredCount  int     `json:"lease_expired_count"`
+	WaitMsSum          int64   `json:"-" gorm:"bigint;default:0"`
+	WaitSampleCount    int64   `json:"-" gorm:"bigint;default:0"`
 	WaitMsAvg          int64   `json:"wait_ms_avg" gorm:"bigint"`
 	WaitMsMax          int64   `json:"wait_ms_max" gorm:"bigint"`
+	ProcessMsSum       int64   `json:"-" gorm:"bigint;default:0"`
+	ProcessSampleCount int64   `json:"-" gorm:"bigint;default:0"`
 	ProcessMsAvg       int64   `json:"process_ms_avg" gorm:"bigint"`
 	ProcessMsMax       int64   `json:"process_ms_max" gorm:"bigint"`
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
@@ -278,4 +296,96 @@ func CountChannelFlowPoolBindings(poolID int) (int64, error) {
 	var count int64
 	err := DB.Model(&ChannelFlowPoolBinding{}).Where("pool_id = ?", poolID).Count(&count).Error
 	return count, err
+}
+
+func InsertChannelFlowEvent(event *ChannelFlowEvent) error {
+	if event == nil {
+		return nil
+	}
+	now := time.Now().Unix()
+	if event.CreatedTime == 0 {
+		event.CreatedTime = now
+	}
+	return DB.Create(event).Error
+}
+
+func UpsertChannelFlowMetricMinute(delta *ChannelFlowMetricMinute) error {
+	if delta == nil || delta.PoolKey == "" || delta.BucketTs <= 0 {
+		return nil
+	}
+	now := time.Now().Unix()
+	if delta.CreatedTime == 0 {
+		delta.CreatedTime = now
+	}
+	delta.UpdatedTime = now
+	delta.recalculateAverages()
+
+	table := "channel_flow_metric_minutes"
+	return DB.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "bucket_ts"},
+			{Name: "pool_key"},
+			{Name: "channel_id"},
+			{Name: "model"},
+		},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"sample_count":         gorm.Expr(table+".sample_count + ?", delta.SampleCount),
+			"running_sum":          gorm.Expr(table+".running_sum + ?", delta.RunningSum),
+			"running_avg":          gorm.Expr("CASE WHEN "+table+".sample_count + ? > 0 THEN ("+table+".running_sum + ?) * 1.0 / ("+table+".sample_count + ?) ELSE 0 END", delta.SampleCount, delta.RunningSum, delta.SampleCount),
+			"running_max":          gorm.Expr("CASE WHEN "+table+".running_max > ? THEN "+table+".running_max ELSE ? END", delta.RunningMax, delta.RunningMax),
+			"queued_sum":           gorm.Expr(table+".queued_sum + ?", delta.QueuedSum),
+			"queued_avg":           gorm.Expr("CASE WHEN "+table+".sample_count + ? > 0 THEN ("+table+".queued_sum + ?) * 1.0 / ("+table+".sample_count + ?) ELSE 0 END", delta.SampleCount, delta.QueuedSum, delta.SampleCount),
+			"queued_max":           gorm.Expr("CASE WHEN "+table+".queued_max > ? THEN "+table+".queued_max ELSE ? END", delta.QueuedMax, delta.QueuedMax),
+			"acquired_count":       gorm.Expr(table+".acquired_count + ?", delta.AcquiredCount),
+			"queued_count":         gorm.Expr(table+".queued_count + ?", delta.QueuedCount),
+			"released_count":       gorm.Expr(table+".released_count + ?", delta.ReleasedCount),
+			"rejected_count":       gorm.Expr(table+".rejected_count + ?", delta.RejectedCount),
+			"timeout_count":        gorm.Expr(table+".timeout_count + ?", delta.TimeoutCount),
+			"cancelled_count":      gorm.Expr(table+".cancelled_count + ?", delta.CancelledCount),
+			"billing_failed_count": gorm.Expr(table+".billing_failed_count + ?", delta.BillingFailedCount),
+			"lease_renew_fail":     gorm.Expr(table+".lease_renew_fail + ?", delta.LeaseRenewFail),
+			"lease_expired_count":  gorm.Expr(table+".lease_expired_count + ?", delta.LeaseExpiredCount),
+			"wait_ms_sum":          gorm.Expr(table+".wait_ms_sum + ?", delta.WaitMsSum),
+			"wait_sample_count":    gorm.Expr(table+".wait_sample_count + ?", delta.WaitSampleCount),
+			"wait_ms_avg":          gorm.Expr("CASE WHEN "+table+".wait_sample_count + ? > 0 THEN ("+table+".wait_ms_sum + ?) / ("+table+".wait_sample_count + ?) ELSE 0 END", delta.WaitSampleCount, delta.WaitMsSum, delta.WaitSampleCount),
+			"wait_ms_max":          gorm.Expr("CASE WHEN "+table+".wait_ms_max > ? THEN "+table+".wait_ms_max ELSE ? END", delta.WaitMsMax, delta.WaitMsMax),
+			"process_ms_sum":       gorm.Expr(table+".process_ms_sum + ?", delta.ProcessMsSum),
+			"process_sample_count": gorm.Expr(table+".process_sample_count + ?", delta.ProcessSampleCount),
+			"process_ms_avg":       gorm.Expr("CASE WHEN "+table+".process_sample_count + ? > 0 THEN ("+table+".process_ms_sum + ?) / ("+table+".process_sample_count + ?) ELSE 0 END", delta.ProcessSampleCount, delta.ProcessMsSum, delta.ProcessSampleCount),
+			"process_ms_max":       gorm.Expr("CASE WHEN "+table+".process_ms_max > ? THEN "+table+".process_ms_max ELSE ? END", delta.ProcessMsMax, delta.ProcessMsMax),
+			"updated_time":         now,
+		}),
+	}).Create(delta).Error
+}
+
+func GetChannelFlowMetricMinutes(poolKey string, startTs int64, endTs int64) ([]ChannelFlowMetricMinute, error) {
+	var metrics []ChannelFlowMetricMinute
+	err := DB.Model(&ChannelFlowMetricMinute{}).
+		Where("pool_key = ? AND bucket_ts >= ? AND bucket_ts <= ?", poolKey, startTs, endTs).
+		Order("bucket_ts ASC").
+		Find(&metrics).Error
+	return metrics, err
+}
+
+func DeleteChannelFlowMetricMinutesBefore(cutoffTs int64) error {
+	if cutoffTs <= 0 {
+		return nil
+	}
+	return DB.Where("bucket_ts < ?", cutoffTs).Delete(&ChannelFlowMetricMinute{}).Error
+}
+
+func (m *ChannelFlowMetricMinute) recalculateAverages() {
+	if m == nil {
+		return
+	}
+	if m.SampleCount > 0 {
+		m.RunningAvg = float64(m.RunningSum) / float64(m.SampleCount)
+		m.QueuedAvg = float64(m.QueuedSum) / float64(m.SampleCount)
+	}
+	if m.WaitSampleCount > 0 {
+		m.WaitMsAvg = m.WaitMsSum / m.WaitSampleCount
+	}
+	if m.ProcessSampleCount > 0 {
+		m.ProcessMsAvg = m.ProcessMsSum / m.ProcessSampleCount
+	}
 }

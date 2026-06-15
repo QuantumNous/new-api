@@ -41,6 +41,7 @@ import {
   deleteChannelFlowPool,
   deleteChannelFlowPoolBinding,
   getChannelFlowPoolStatus,
+  getChannelFlowPoolTrend,
   listChannelFlowPoolBindings,
   listChannelFlowPools,
   updateChannelFlowPool,
@@ -57,11 +58,12 @@ import {
   type ChannelFlowBindingFormValues,
   type ChannelFlowPoolFormValues,
 } from './lib'
-import type { ChannelFlowPool, ChannelFlowPoolBinding, FlowTrendPoint } from './types'
+import type { ChannelFlowPool, ChannelFlowPoolBinding } from './types'
 
 const FLOW_POOL_PAGE_SIZE = 50
 const FLOW_STATUS_REFETCH_MS = 5000
-const FLOW_TREND_LIMIT = 30
+const FLOW_TREND_HOURS = 6
+const FLOW_TREND_REFETCH_MS = 30000
 
 type PoolMutationVariables = {
   values: ChannelFlowPoolFormValues
@@ -79,7 +81,6 @@ export function ChannelFlowPools() {
   const [poolPendingDelete, setPoolPendingDelete] =
     useState<ChannelFlowPool | null>(null)
   const [deletingBindingId, setDeletingBindingId] = useState<number | null>(null)
-  const [trend, setTrend] = useState<FlowTrendPoint[]>([])
 
   const listParams = useMemo(
     () => ({
@@ -109,10 +110,6 @@ export function ChannelFlowPools() {
     }
   }, [pools, selectedPoolId])
 
-  useEffect(() => {
-    setTrend([])
-  }, [selectedPoolId])
-
   const statusQuery = useQuery({
     queryKey: channelFlowQueryKeys.status(selectedPool?.id ?? 0),
     queryFn: () => getChannelFlowPoolStatus(selectedPool!.id),
@@ -120,32 +117,21 @@ export function ChannelFlowPools() {
     refetchInterval: FLOW_STATUS_REFETCH_MS,
   })
 
+  const trendQuery = useQuery({
+    queryKey: channelFlowQueryKeys.trend(
+      selectedPool?.id ?? 0,
+      FLOW_TREND_HOURS
+    ),
+    queryFn: () => getChannelFlowPoolTrend(selectedPool!.id, FLOW_TREND_HOURS),
+    enabled: Boolean(selectedPool),
+    refetchInterval: FLOW_TREND_REFETCH_MS,
+  })
+
   const bindingsQuery = useQuery({
     queryKey: channelFlowQueryKeys.bindings(selectedPool?.id ?? 0),
     queryFn: () => listChannelFlowPoolBindings(selectedPool!.id),
     enabled: Boolean(selectedPool),
   })
-
-  useEffect(() => {
-    const status = statusQuery.data?.data
-    if (!status) return
-    setTrend((current) => {
-      const next = [
-        ...current,
-        {
-          at: new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-          }),
-          running: status.running,
-          queued: status.queued,
-        },
-      ]
-      return next.slice(-FLOW_TREND_LIMIT)
-    })
-  }, [statusQuery.dataUpdatedAt, statusQuery.data])
 
   const poolMutation = useMutation({
     mutationFn: async (variables: PoolMutationVariables) => {
@@ -253,6 +239,7 @@ export function ChannelFlowPools() {
             onClick={() => {
               poolsQuery.refetch()
               statusQuery.refetch()
+              trendQuery.refetch()
               bindingsQuery.refetch()
             }}
           >
@@ -301,7 +288,8 @@ export function ChannelFlowPools() {
                 <PoolStatusPanel
                   pool={selectedPool}
                   status={statusQuery.data?.data ?? null}
-                  trend={trend}
+                  trend={trendQuery.data?.data?.points ?? []}
+                  trendTotals={trendQuery.data?.data?.totals}
                 />
                 <PoolBindingsPanel
                   pool={selectedPool}

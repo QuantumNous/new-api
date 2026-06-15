@@ -275,6 +275,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelFlowRoute.PUT("/pools/:id", controller.UpdateChannelFlowPool)
 			channelFlowRoute.DELETE("/pools/:id", controller.DeleteChannelFlowPool)
 			channelFlowRoute.GET("/pools/:id/status", controller.GetChannelFlowPoolStatus)
+			channelFlowRoute.GET("/pools/:id/trend", controller.GetChannelFlowPoolTrend)
 			channelFlowRoute.GET("/pools/:id/bindings", controller.ListChannelFlowPoolBindings)
 			channelFlowRoute.POST("/pools/:id/bindings", controller.CreateChannelFlowPoolBinding)
 			channelFlowRoute.DELETE("/bindings/:id", controller.DeleteChannelFlowPoolBinding)

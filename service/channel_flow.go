@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	channelflowmetrics "github.com/QuantumNous/new-api/pkg/channel_flow_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -205,17 +206,118 @@ func AcquireChannelFlowGuard(c *gin.Context, channelID int, info *relaycommon.Re
 	guard, decision, acquireErr := GetChannelFlowController().Acquire(c.Request.Context(), req)
 	if acquireErr != nil {
 		if passThrough, fallbackPool, apiErr := handleRedisFlowAcquireError(c.Request.Context(), *pool, decision, acquireErr); apiErr != nil || passThrough {
+			if apiErr != nil {
+				recordChannelFlowMetric(req, channelFlowEventTypeFromDecision(decision), decision, true, decisionWaitMs(decision), 0)
+			}
 			return nil, decision, apiErr
 		} else if fallbackPool != nil {
 			req.Pool = *fallbackPool
 			guard, decision, acquireErr = GetChannelFlowController().Acquire(c.Request.Context(), req)
 			if acquireErr == nil {
+				bindChannelFlowGuardCallbacks(guard, req, decision)
 				return guard, decision, nil
 			}
 		}
+		recordChannelFlowMetric(req, channelFlowEventTypeFromDecision(decision), decision, true, decisionWaitMs(decision), 0)
 		return nil, decision, flowDecisionToAPIError(decision, acquireErr)
 	}
+	bindChannelFlowGuardCallbacks(guard, req, decision)
 	return guard, decision, nil
+}
+
+func bindChannelFlowGuardCallbacks(guard FlowGuard, req AcquireRequest, decision *AcquireDecision) {
+	if guard == nil || decision == nil {
+		return
+	}
+	if decision.Queued {
+		recordChannelFlowMetric(req, model.ChannelFlowEventQueued, decision, false, 0, 0)
+	}
+	recordChannelFlowMetric(req, model.ChannelFlowEventAcquired, decision, true, decision.WaitedMs, 0)
+
+	acquiredAt := time.Now()
+	stopRenew := startChannelFlowLeaseRenewer(guard, req)
+	guard.BindRelease(func() {
+		stopRenew()
+		recordChannelFlowMetric(req, model.ChannelFlowEventReleased, nil, false, 0, time.Since(acquiredAt).Milliseconds())
+	})
+}
+
+func startChannelFlowLeaseRenewer(guard FlowGuard, req AcquireRequest) func() {
+	if guard == nil || req.Pool.Backend != model.ChannelFlowBackendRedis {
+		return func() {}
+	}
+	interval := channelFlowRenewInterval(req.Pool)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if guard.IsReleased() {
+					return
+				}
+				if err := guard.RenewLease(context.Background()); err != nil {
+					recordChannelFlowMetric(req, model.ChannelFlowEventLeaseRenewFailed, nil, false, 0, 0)
+				}
+			}
+		}
+	}()
+	return cancel
+}
+
+func channelFlowRenewInterval(pool model.ChannelFlowPool) time.Duration {
+	pool.Normalize()
+	interval := time.Duration(pool.RenewIntervalMs) * time.Millisecond
+	lease := time.Duration(pool.LeaseMs) * time.Millisecond
+	if lease > 0 && interval >= lease {
+		interval = lease / 2
+	}
+	if interval < time.Second {
+		interval = time.Second
+	}
+	return interval
+}
+
+func channelFlowEventTypeFromDecision(decision *AcquireDecision) string {
+	if decision == nil {
+		return model.ChannelFlowEventRejected
+	}
+	if decision.RejectCode == FlowDecisionRejectQueueTimeout {
+		return model.ChannelFlowEventTimeout
+	}
+	return model.ChannelFlowEventRejected
+}
+
+func decisionWaitMs(decision *AcquireDecision) int64 {
+	if decision == nil {
+		return 0
+	}
+	return decision.WaitedMs
+}
+
+func recordChannelFlowMetric(req AcquireRequest, eventType string, decision *AcquireDecision, includeCapacity bool, waitMs int64, processMs int64) {
+	if eventType == "" || req.Pool.PoolKey == "" {
+		return
+	}
+	running := -1
+	queued := -1
+	if includeCapacity && decision != nil {
+		running = decision.RunningNow
+		queued = decision.QueuedNow
+	}
+	channelflowmetrics.Record(channelflowmetrics.Sample{
+		PoolKey:   req.Pool.PoolKey,
+		ChannelID: req.ChannelID,
+		Model:     req.UpstreamModel,
+		EventType: eventType,
+		Running:   running,
+		Queued:    queued,
+		WaitMs:    waitMs,
+		ProcessMs: processMs,
+	})
 }
 
 func GetChannelFlowPoolStatus(ctx context.Context, pool model.ChannelFlowPool) (PoolStatus, error) {

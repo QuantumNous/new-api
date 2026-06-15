@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	channelflowmetrics "github.com/QuantumNous/new-api/pkg/channel_flow_metrics"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -171,6 +172,34 @@ func GetChannelFlowPoolStatus(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, status)
+}
+
+func GetChannelFlowPoolTrend(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pool, err := model.GetChannelFlowPoolByID(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	hours := 6
+	if rawHours := c.Query("hours"); rawHours != "" {
+		if parsed, parseErr := strconv.Atoi(rawHours); parseErr == nil {
+			hours = parsed
+		}
+	}
+	trend, err := channelflowmetrics.Query(channelflowmetrics.QueryParams{
+		PoolKey: pool.PoolKey,
+		Hours:   hours,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, trend)
 }
 
 func ListChannelFlowPoolBindings(c *gin.Context) {

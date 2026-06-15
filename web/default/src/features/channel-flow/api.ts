@@ -25,6 +25,7 @@ import type {
   ChannelFlowPoolBinding,
   ChannelFlowPoolPayload,
   ChannelFlowPoolStatus,
+  ChannelFlowTrend,
   PageResponse,
 } from './types'
 
@@ -88,6 +89,17 @@ export async function getChannelFlowPoolStatus(
   return res.data
 }
 
+export async function getChannelFlowPoolTrend(
+  poolId: number,
+  hours = 6
+): Promise<ApiResponse<ChannelFlowTrend>> {
+  const res = await api.get(`/api/channel_flow/pools/${poolId}/trend`, {
+    params: { hours },
+    disableDuplicate: true,
+  })
+  return res.data
+}
+
 export async function listChannelFlowPoolBindings(
   poolId: number
 ): Promise<ApiResponse<ChannelFlowPoolBinding[]>> {
@@ -116,4 +128,3 @@ export async function deleteChannelFlowPoolBinding(
   )
   return res.data
 }
-
