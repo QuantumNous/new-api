@@ -34,8 +34,11 @@ type ChannelFlowTrendPoint struct {
 	Queued             float64 `json:"queued"`
 	QueuedAvg          float64 `json:"queued_avg"`
 	QueuedMax          int     `json:"queued_max"`
+	RequestCount       int     `json:"request_count"`
 	AcquiredCount      int     `json:"acquired_count"`
 	QueuedCount        int     `json:"queued_count"`
+	SucceededCount     int     `json:"succeeded_count"`
+	FailedCount        int     `json:"failed_count"`
 	ReleasedCount      int     `json:"released_count"`
 	RejectedCount      int     `json:"rejected_count"`
 	TimeoutCount       int     `json:"timeout_count"`
@@ -50,8 +53,15 @@ type ChannelFlowTrendPoint struct {
 }
 
 type ChannelFlowTrendTotals struct {
+	RequestCount       int   `json:"request_count"`
+	RunningAvg         int   `json:"running_avg"`
+	RunningMax         int   `json:"running_max"`
+	QueuedAvg          int   `json:"queued_avg"`
+	QueuedMax          int   `json:"queued_max"`
 	AcquiredCount      int   `json:"acquired_count"`
 	QueuedCount        int   `json:"queued_count"`
+	SucceededCount     int   `json:"succeeded_count"`
+	FailedCount        int   `json:"failed_count"`
 	ReleasedCount      int   `json:"released_count"`
 	RejectedCount      int   `json:"rejected_count"`
 	TimeoutCount       int   `json:"timeout_count"`
@@ -80,6 +90,8 @@ type counters struct {
 	queuedMax          int64
 	acquiredCount      int64
 	queuedCount        int64
+	succeededCount     int64
+	failedCount        int64
 	releasedCount      int64
 	rejectedCount      int64
 	timeoutCount       int64
@@ -103,6 +115,8 @@ type atomicBucket struct {
 	queuedMax          atomic.Int64
 	acquiredCount      atomic.Int64
 	queuedCount        atomic.Int64
+	succeededCount     atomic.Int64
+	failedCount        atomic.Int64
 	releasedCount      atomic.Int64
 	rejectedCount      atomic.Int64
 	timeoutCount       atomic.Int64
@@ -136,6 +150,10 @@ func countersFromSample(sample Sample) counters {
 		c.acquiredCount = 1
 	case "queued":
 		c.queuedCount = 1
+	case "succeeded":
+		c.succeededCount = 1
+	case "failed":
+		c.failedCount = 1
 	case "released":
 		c.releasedCount = 1
 	case "rejected":
@@ -173,6 +191,8 @@ func (b *atomicBucket) snapshot() counters {
 		queuedMax:          b.queuedMax.Load(),
 		acquiredCount:      b.acquiredCount.Load(),
 		queuedCount:        b.queuedCount.Load(),
+		succeededCount:     b.succeededCount.Load(),
+		failedCount:        b.failedCount.Load(),
 		releasedCount:      b.releasedCount.Load(),
 		rejectedCount:      b.rejectedCount.Load(),
 		timeoutCount:       b.timeoutCount.Load(),
@@ -198,6 +218,8 @@ func (b *atomicBucket) drain() counters {
 		queuedMax:          b.queuedMax.Swap(0),
 		acquiredCount:      b.acquiredCount.Swap(0),
 		queuedCount:        b.queuedCount.Swap(0),
+		succeededCount:     b.succeededCount.Swap(0),
+		failedCount:        b.failedCount.Swap(0),
 		releasedCount:      b.releasedCount.Swap(0),
 		rejectedCount:      b.rejectedCount.Swap(0),
 		timeoutCount:       b.timeoutCount.Swap(0),
@@ -222,6 +244,8 @@ func (b *atomicBucket) addCounters(c counters) {
 	updateAtomicMax(&b.queuedMax, c.queuedMax)
 	b.acquiredCount.Add(c.acquiredCount)
 	b.queuedCount.Add(c.queuedCount)
+	b.succeededCount.Add(c.succeededCount)
+	b.failedCount.Add(c.failedCount)
 	b.releasedCount.Add(c.releasedCount)
 	b.rejectedCount.Add(c.rejectedCount)
 	b.timeoutCount.Add(c.timeoutCount)

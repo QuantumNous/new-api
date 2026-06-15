@@ -63,6 +63,7 @@ func TestFlushCompletedBucketsUpsertsAndDeletesHotBucket(t *testing.T) {
 	}
 	bucket := &atomicBucket{}
 	bucket.add(Sample{EventType: model.ChannelFlowEventAcquired, Running: 1, Queued: 2, WaitMs: 15})
+	bucket.add(Sample{EventType: model.ChannelFlowEventSucceeded, Running: -1, Queued: -1})
 	bucket.add(Sample{EventType: model.ChannelFlowEventReleased, Running: -1, Queued: -1, ProcessMs: 100})
 	hotBuckets.Store(key, bucket)
 
@@ -80,12 +81,14 @@ func TestFlushCompletedBucketsUpsertsAndDeletesHotBucket(t *testing.T) {
 	require.Equal(t, int64(2), rows[0].QueuedSum)
 	require.Equal(t, 2.0, rows[0].QueuedAvg)
 	require.Equal(t, 1, rows[0].AcquiredCount)
+	require.Equal(t, 1, rows[0].SucceededCount)
 	require.Equal(t, 1, rows[0].ReleasedCount)
 	require.Equal(t, int64(15), rows[0].WaitMsAvg)
 	require.Equal(t, int64(100), rows[0].ProcessMsAvg)
 
 	nextBucket := &atomicBucket{}
 	nextBucket.add(Sample{EventType: model.ChannelFlowEventAcquired, Running: 3, Queued: 0, WaitMs: 45})
+	nextBucket.add(Sample{EventType: model.ChannelFlowEventFailed, Running: -1, Queued: -1})
 	hotBuckets.Store(key, nextBucket)
 
 	flushCompletedBuckets()
@@ -100,6 +103,8 @@ func TestFlushCompletedBucketsUpsertsAndDeletesHotBucket(t *testing.T) {
 	require.Equal(t, int64(2), rows[0].QueuedSum)
 	require.Equal(t, 1.0, rows[0].QueuedAvg)
 	require.Equal(t, 2, rows[0].AcquiredCount)
+	require.Equal(t, 1, rows[0].SucceededCount)
+	require.Equal(t, 1, rows[0].FailedCount)
 	require.Equal(t, int64(30), rows[0].WaitMsAvg)
 	require.Equal(t, int64(45), rows[0].WaitMsMax)
 }

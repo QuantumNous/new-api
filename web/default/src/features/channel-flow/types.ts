@@ -109,8 +109,11 @@ export type FlowTrendPoint = {
   queued: number
   queued_avg: number
   queued_max: number
+  request_count: number
   acquired_count: number
   queued_count: number
+  succeeded_count: number
+  failed_count: number
   released_count: number
   rejected_count: number
   timeout_count: number
@@ -125,8 +128,15 @@ export type FlowTrendPoint = {
 }
 
 export type FlowTrendTotals = {
+  request_count: number
+  running_avg: number
+  running_max: number
+  queued_avg: number
+  queued_max: number
   acquired_count: number
   queued_count: number
+  succeeded_count: number
+  failed_count: number
   released_count: number
   rejected_count: number
   timeout_count: number

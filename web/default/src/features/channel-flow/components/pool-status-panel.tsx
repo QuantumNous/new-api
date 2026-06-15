@@ -17,9 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  Bar,
   CartesianGrid,
+  ComposedChart,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -36,6 +40,8 @@ import type {
   FlowTrendPoint,
 } from '../types'
 
+type TrendChartMode = 'requests' | 'capacity'
+
 type PoolStatusPanelProps = {
   pool?: ChannelFlowPool | null
   status?: ChannelFlowPoolStatus | null
@@ -47,9 +53,19 @@ type PoolStatusPanelProps = {
 }
 
 const trendChartInitialDimension = { width: 1, height: 300 }
+const tooltipContentStyle = {
+  background: 'hsl(var(--popover))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 8,
+}
+const trendChartModes: Array<{ label: string; value: TrendChartMode }> = [
+  { label: 'Requests', value: 'requests' },
+  { label: 'Capacity', value: 'capacity' },
+]
 
 export function PoolStatusPanel(props: PoolStatusPanelProps) {
   const { t } = useTranslation()
+  const [chartMode, setChartMode] = useState<TrendChartMode>('requests')
 
   if (!props.pool) {
     return (
@@ -66,6 +82,13 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
   const queued = status?.queued ?? 0
   const maxInflight = status?.max_inflight ?? props.pool.max_inflight
   const maxQueueSize = status?.max_queue_size ?? props.pool.max_queue_size
+  const totals = props.trendTotals
+  const requestCount = totals?.request_count ?? 0
+  const succeededCount = totals?.succeeded_count ?? 0
+  const selectedRangeLabel =
+    props.trendRangeOptions.find(
+      (option) => option.minutes === props.trendRangeMinutes
+    )?.label ?? '1 hour'
   const backendLabel =
     props.pool.backend === 'redis' && status?.backend === 'memory'
       ? t('Local memory fallback')
@@ -120,14 +143,14 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
         </div>
       </div>
 
-      <div className='flex min-h-[320px] flex-col rounded-lg border p-4'>
+      <div className='flex min-h-[460px] flex-col rounded-lg border p-4'>
         <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div>
             <h3 className='text-sm font-semibold'>
-              {t('Inflight / queued trend')}
+              {t('Flow Pool analytics')}
             </h3>
             <p className='text-muted-foreground mt-1 text-xs'>
-              {t('Minute peak history')}
+              {t('Selected range summary')}: {t(selectedRangeLabel)}
             </p>
           </div>
           <div className='inline-flex w-fit rounded-md border bg-muted/20 p-0.5'>
@@ -151,19 +174,67 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
             })}
           </div>
         </div>
-        <div className='mb-3 grid gap-2 text-xs sm:grid-cols-3'>
+        <div className='mb-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4'>
+          <Metric
+            label={t('Total requests')}
+            value={formatCount(requestCount)}
+          />
+          <Metric
+            label={t('Succeeded')}
+            value={formatCount(succeededCount)}
+          />
+          <Metric
+            label={t('Success rate')}
+            value={formatPercent(succeededCount, requestCount)}
+          />
           <Metric
             label={t('Rejected')}
-            value={String(props.trendTotals?.rejected_count ?? 0)}
+            value={formatCount(totals?.rejected_count ?? 0)}
+          />
+          <Metric
+            label={t('Queued requests')}
+            value={formatCount(totals?.queued_count ?? 0)}
           />
           <Metric
             label={t('Timeouts')}
-            value={String(props.trendTotals?.timeout_count ?? 0)}
+            value={formatCount(totals?.timeout_count ?? 0)}
           />
           <Metric
-            label={t('Avg wait')}
-            value={formatMs(props.trendTotals?.wait_ms_avg)}
+            label={t('Peak inflight')}
+            value={`${formatCount(totals?.running_max ?? 0)}/${formatLimit(maxInflight)}`}
           />
+          <Metric
+            label={t('Peak queued')}
+            value={`${formatCount(totals?.queued_max ?? 0)}/${formatLimit(maxQueueSize)}`}
+          />
+        </div>
+
+        <div className='mb-2 flex items-center justify-between gap-3'>
+          <p className='text-muted-foreground text-xs'>
+            {chartMode === 'capacity'
+              ? t('Capacity peaks per minute')
+              : t('Request outcomes per minute')}
+          </p>
+          <div className='inline-flex w-fit rounded-md border bg-muted/20 p-0.5'>
+            {trendChartModes.map((option) => {
+              const selected = option.value === chartMode
+              return (
+                <button
+                  key={option.value}
+                  type='button'
+                  aria-pressed={selected}
+                  className={
+                    selected
+                      ? 'bg-background text-foreground shadow-xs h-7 rounded px-2.5 text-xs font-medium'
+                      : 'text-muted-foreground hover:text-foreground h-7 rounded px-2.5 text-xs font-medium'
+                  }
+                  onClick={() => setChartMode(option.value)}
+                >
+                  {t(option.label)}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div className='min-h-[260px] min-w-0 flex-1'>
           <ResponsiveContainer
@@ -171,53 +242,115 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
             height='100%'
             initialDimension={trendChartInitialDimension}
           >
-            <LineChart
-              data={props.trend}
-              margin={{ top: 8, right: 12, bottom: 0, left: -12 }}
-            >
-              <CartesianGrid strokeDasharray='3 3' vertical={false} />
-              <XAxis
-                dataKey='at'
-                tickLine={false}
-                axisLine={false}
-                minTickGap={28}
-                tickMargin={8}
-              />
-              <YAxis
-                allowDecimals={false}
-                tickLine={false}
-                axisLine={false}
-                width={32}
-              />
-              <Tooltip
-                formatter={formatTrendTooltipValue}
-                contentStyle={{
-                  background: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 8,
-                }}
-              />
-              <Line
-                type='linear'
-                dataKey='running_max'
-                name={`${t('Inflight')} ${t('Peak')}`}
-                stroke='var(--primary)'
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-              />
-              <Line
-                type='linear'
-                dataKey='queued_max'
-                name={`${t('Queued')} ${t('Peak')}`}
-                stroke='var(--destructive)'
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-              />
-            </LineChart>
+            {chartMode === 'capacity' ? (
+              <LineChart
+                data={props.trend}
+                margin={{ top: 8, right: 12, bottom: 0, left: 4 }}
+              >
+                <CartesianGrid strokeDasharray='3 3' vertical={false} />
+                <XAxis
+                  dataKey='at'
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={28}
+                  tickMargin={8}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  width={40}
+                />
+                <Legend verticalAlign='top' height={28} />
+                <Tooltip
+                  formatter={formatTrendTooltipValue}
+                  contentStyle={tooltipContentStyle}
+                />
+                <Line
+                  type='linear'
+                  dataKey='running_max'
+                  name={`${t('Inflight')} ${t('Peak')}`}
+                  stroke='var(--primary)'
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type='linear'
+                  dataKey='queued_max'
+                  name={`${t('Queued')} ${t('Peak')}`}
+                  stroke='var(--destructive)'
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            ) : (
+              <ComposedChart
+                data={props.trend}
+                margin={{ top: 8, right: 12, bottom: 0, left: 4 }}
+              >
+                <CartesianGrid strokeDasharray='3 3' vertical={false} />
+                <XAxis
+                  dataKey='at'
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={28}
+                  tickMargin={8}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  width={40}
+                />
+                <Legend verticalAlign='top' height={28} />
+                <Tooltip
+                  formatter={formatTrendTooltipValue}
+                  contentStyle={tooltipContentStyle}
+                />
+                <Bar
+                  dataKey='succeeded_count'
+                  name={t('Succeeded')}
+                  stackId='outcomes'
+                  fill='var(--chart-2)'
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey='failed_count'
+                  name={t('Failed')}
+                  stackId='outcomes'
+                  fill='var(--chart-4)'
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey='rejected_count'
+                  name={t('Rejected')}
+                  stackId='outcomes'
+                  fill='var(--destructive)'
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey='timeout_count'
+                  name={t('Timeouts')}
+                  stackId='outcomes'
+                  fill='var(--chart-5)'
+                  isAnimationActive={false}
+                />
+                <Line
+                  type='linear'
+                  dataKey='request_count'
+                  name={t('Total requests')}
+                  stroke='var(--primary)'
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                />
+              </ComposedChart>
+            )}
           </ResponsiveContainer>
         </div>
       </div>
@@ -234,6 +367,20 @@ function formatTrendCount(value: unknown) {
     return String(value ?? '')
   }
   return String(Math.round(value))
+}
+
+function formatCount(value?: number): string {
+  if (!value || value <= 0) {
+    return '0'
+  }
+  return new Intl.NumberFormat().format(Math.round(value))
+}
+
+function formatPercent(value?: number, total?: number): string {
+  if (!value || !total || total <= 0) {
+    return '0%'
+  }
+  return `${((value / total) * 100).toFixed(1)}%`
 }
 
 function CapacityMeter(props: { label: string; value: number; max: number }) {

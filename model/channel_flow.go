@@ -29,6 +29,8 @@ const (
 
 	ChannelFlowEventQueued           = "queued"
 	ChannelFlowEventAcquired         = "acquired"
+	ChannelFlowEventSucceeded        = "succeeded"
+	ChannelFlowEventFailed           = "failed"
 	ChannelFlowEventReleased         = "released"
 	ChannelFlowEventRejected         = "rejected"
 	ChannelFlowEventTimeout          = "timeout"
@@ -89,6 +91,8 @@ type ChannelFlowMetricMinute struct {
 	QueuedMax          int     `json:"queued_max"`
 	AcquiredCount      int     `json:"acquired_count"`
 	QueuedCount        int     `json:"queued_count"`
+	SucceededCount     int     `json:"succeeded_count"`
+	FailedCount        int     `json:"failed_count"`
 	ReleasedCount      int     `json:"released_count"`
 	RejectedCount      int     `json:"rejected_count"`
 	TimeoutCount       int     `json:"timeout_count"`
@@ -345,6 +349,8 @@ func UpsertChannelFlowMetricMinute(delta *ChannelFlowMetricMinute) error {
 			"queued_max":           gorm.Expr("CASE WHEN "+table+".queued_max > ? THEN "+table+".queued_max ELSE ? END", delta.QueuedMax, delta.QueuedMax),
 			"acquired_count":       gorm.Expr(table+".acquired_count + ?", delta.AcquiredCount),
 			"queued_count":         gorm.Expr(table+".queued_count + ?", delta.QueuedCount),
+			"succeeded_count":      gorm.Expr(table+".succeeded_count + ?", delta.SucceededCount),
+			"failed_count":         gorm.Expr(table+".failed_count + ?", delta.FailedCount),
 			"released_count":       gorm.Expr(table+".released_count + ?", delta.ReleasedCount),
 			"rejected_count":       gorm.Expr(table+".rejected_count + ?", delta.RejectedCount),
 			"timeout_count":        gorm.Expr(table+".timeout_count + ?", delta.TimeoutCount),

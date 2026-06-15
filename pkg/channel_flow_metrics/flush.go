@@ -58,6 +58,8 @@ func metricFromCounters(k bucketKey, c counters) *model.ChannelFlowMetricMinute 
 		QueuedMax:          safeInt(c.queuedMax),
 		AcquiredCount:      safeInt(c.acquiredCount),
 		QueuedCount:        safeInt(c.queuedCount),
+		SucceededCount:     safeInt(c.succeededCount),
+		FailedCount:        safeInt(c.failedCount),
 		ReleasedCount:      safeInt(c.releasedCount),
 		RejectedCount:      safeInt(c.rejectedCount),
 		TimeoutCount:       safeInt(c.timeoutCount),

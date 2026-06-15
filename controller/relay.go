@@ -253,6 +253,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if flowGuard != nil {
+			service.RecordChannelFlowOutcome(flowGuard, channel.Id, relayInfo, newAPIError == nil)
 			_ = flowGuard.Release(context.Background())
 		}
 

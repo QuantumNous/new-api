@@ -101,6 +101,8 @@ func mergeCounters(merged map[int64]counters, bucketTs int64, value counters) {
 	}
 	current.acquiredCount += value.acquiredCount
 	current.queuedCount += value.queuedCount
+	current.succeededCount += value.succeededCount
+	current.failedCount += value.failedCount
 	current.releasedCount += value.releasedCount
 	current.rejectedCount += value.rejectedCount
 	current.timeoutCount += value.timeoutCount
@@ -138,8 +140,15 @@ func buildTotals(merged map[int64]counters) ChannelFlowTrendTotals {
 		total = mergeTwoCounters(total, value)
 	}
 	return ChannelFlowTrendTotals{
+		RequestCount:       safeInt(total.requestCount()),
+		RunningAvg:         safeInt(avg(total.runningSum, total.sampleCount)),
+		RunningMax:         safeInt(total.runningMax),
+		QueuedAvg:          safeInt(avg(total.queuedSum, total.sampleCount)),
+		QueuedMax:          safeInt(total.queuedMax),
 		AcquiredCount:      safeInt(total.acquiredCount),
 		QueuedCount:        safeInt(total.queuedCount),
+		SucceededCount:     safeInt(total.succeededCount),
+		FailedCount:        safeInt(total.failedCount),
 		ReleasedCount:      safeInt(total.releasedCount),
 		RejectedCount:      safeInt(total.rejectedCount),
 		TimeoutCount:       safeInt(total.timeoutCount),
@@ -166,6 +175,8 @@ func mergeTwoCounters(current counters, value counters) counters {
 	}
 	current.acquiredCount += value.acquiredCount
 	current.queuedCount += value.queuedCount
+	current.succeededCount += value.succeededCount
+	current.failedCount += value.failedCount
 	current.releasedCount += value.releasedCount
 	current.rejectedCount += value.rejectedCount
 	current.timeoutCount += value.timeoutCount
@@ -202,8 +213,11 @@ func counterPoint(ts int64, value counters) ChannelFlowTrendPoint {
 		Queued:             queuedAvg,
 		QueuedAvg:          queuedAvg,
 		QueuedMax:          safeInt(value.queuedMax),
+		RequestCount:       safeInt(value.requestCount()),
 		AcquiredCount:      safeInt(value.acquiredCount),
 		QueuedCount:        safeInt(value.queuedCount),
+		SucceededCount:     safeInt(value.succeededCount),
+		FailedCount:        safeInt(value.failedCount),
 		ReleasedCount:      safeInt(value.releasedCount),
 		RejectedCount:      safeInt(value.rejectedCount),
 		TimeoutCount:       safeInt(value.timeoutCount),
@@ -227,6 +241,8 @@ func metricToCounters(metric model.ChannelFlowMetricMinute) counters {
 		queuedMax:          int64(metric.QueuedMax),
 		acquiredCount:      int64(metric.AcquiredCount),
 		queuedCount:        int64(metric.QueuedCount),
+		succeededCount:     int64(metric.SucceededCount),
+		failedCount:        int64(metric.FailedCount),
 		releasedCount:      int64(metric.ReleasedCount),
 		rejectedCount:      int64(metric.RejectedCount),
 		timeoutCount:       int64(metric.TimeoutCount),
@@ -261,6 +277,8 @@ func (c counters) hasData() bool {
 	return c.sampleCount > 0 ||
 		c.acquiredCount > 0 ||
 		c.queuedCount > 0 ||
+		c.succeededCount > 0 ||
+		c.failedCount > 0 ||
 		c.releasedCount > 0 ||
 		c.rejectedCount > 0 ||
 		c.timeoutCount > 0 ||
@@ -270,4 +288,8 @@ func (c counters) hasData() bool {
 		c.leaseExpiredCount > 0 ||
 		c.waitSampleCount > 0 ||
 		c.processSampleCount > 0
+}
+
+func (c counters) requestCount() int64 {
+	return c.acquiredCount + c.rejectedCount + c.timeoutCount + c.billingFailedCount
 }

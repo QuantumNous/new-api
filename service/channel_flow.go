@@ -242,6 +242,28 @@ func bindChannelFlowGuardCallbacks(guard FlowGuard, req AcquireRequest, decision
 	})
 }
 
+func RecordChannelFlowOutcome(guard FlowGuard, channelID int, info *relaycommon.RelayInfo, success bool) {
+	if guard == nil || info == nil || guard.PoolKey() == "" {
+		return
+	}
+	upstreamModel := info.OriginModelName
+	if info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		upstreamModel = info.UpstreamModelName
+	}
+	eventType := model.ChannelFlowEventFailed
+	if success {
+		eventType = model.ChannelFlowEventSucceeded
+	}
+	channelflowmetrics.Record(channelflowmetrics.Sample{
+		PoolKey:   guard.PoolKey(),
+		ChannelID: channelID,
+		Model:     upstreamModel,
+		EventType: eventType,
+		Running:   -1,
+		Queued:    -1,
+	})
+}
+
 func startChannelFlowLeaseRenewer(guard FlowGuard, req AcquireRequest) func() {
 	if guard == nil || req.Pool.Backend != model.ChannelFlowBackendRedis {
 		return func() {}
