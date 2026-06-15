@@ -3762,7 +3762,14 @@
     "暂无报告数据": "Aucune donnée de rapport",
     "指标说明": "Notes sur les métriques",
     "原始额度是实际 Channel.Balance。多密钥渠道命中多个输入密钥时，该余额可能为共享余额；页面不会按命中密钥数拆分或展示 balance / M。": "Le montant initial est le Channel.Balance réel. Lorsqu’un canal multi-clés correspond à plusieurs clés saisies, ce solde peut être partagé ; cette page ne le divise pas par le nombre de clés correspondantes et n’affiche pas balance / M.",
-    "请输入密钥并生成报告": "Saisissez des clés et générez un rapport"
+    "请输入密钥并生成报告": "Saisissez des clés et générez un rapport",
+    "复制带表头": "Copier avec en-tête",
+    "复制不带表头": "Copier sans en-tête",
+    "当前筛选结果": "Résultats filtrés actuels",
+    "全部结果": "Tous les résultats",
+    "当前筛选渠道明细": "Détails des canaux filtrés actuels",
+    "全部渠道明细": "Tous les détails des canaux",
+    "单列（当前筛选）": "Colonne unique (filtre actuel)"
   },
   "渠道备货池": "",
   "候选渠道只保存在备货池，不参与真实渠道调用，晋升后才会创建正式渠道。": "",

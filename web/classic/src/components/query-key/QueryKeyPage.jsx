@@ -24,6 +24,7 @@ import {
   Button,
   Card,
   Collapse,
+  Dropdown,
   Empty,
   Space,
   Spin,
@@ -132,6 +133,24 @@ const getStatusConfig = (status) =>
 const getSourceConfig = (source) =>
   SOURCE_CONFIG[source || 'channel'] || SOURCE_CONFIG.channel;
 
+const normalizeCopyCell = (value) => {
+  if (value === null || value === undefined) return '';
+  return String(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+};
+
+const buildTsv = (rows, columns, includeHeader) => {
+  const lines = [];
+  if (includeHeader) {
+    lines.push(columns.map((column) => normalizeCopyCell(column.label)).join('\t'));
+  }
+  rows.forEach((row) => {
+    lines.push(
+      columns.map((column) => normalizeCopyCell(column.getValue(row))).join('\t'),
+    );
+  });
+  return lines.join('\n');
+};
+
 const MetricCard = ({ title, value, color }) => (
   <Card className='!rounded-xl' bodyStyle={{ padding: 16 }}>
     <div className='text-sm text-semi-color-text-2'>{title}</div>
@@ -208,6 +227,180 @@ const QueryKeyPage = () => {
     if (ok) showSuccess(t('已复制'));
     else showError(t('复制失败'));
   };
+
+  const getStatusLabel = (item) => {
+    const config = getStatusConfig(item.status);
+    const labels = [t(config.label)];
+    if (item.original_amount_shared) {
+      labels.push(t('原始额度为共享余额'));
+    }
+    return labels.join(' / ');
+  };
+
+  const getChannelStatusLabel = (channel) => {
+    if (channel.source === 'preparation') return t('待晋升');
+    return channel.status === 1 ? t('已启用') : t('已禁用');
+  };
+
+  const mainCopyColumns = useMemo(
+    () => [
+      { label: t('密钥'), getValue: (item) => item.key || '' },
+      { label: t('结果'), getValue: getStatusLabel },
+      {
+        label: t('渠道数'),
+        getValue: (item) => item.channel_count || 0,
+      },
+      {
+        label: t('已用额度'),
+        getValue: (item) => renderQuota(item.used_quota || 0),
+      },
+      {
+        label: t('已用金额'),
+        getValue: (item) => renderQuotaWithAmount(item.used_amount || 0),
+      },
+      {
+        label: t('原始额度'),
+        getValue: (item) => {
+          const amount = renderQuotaWithAmount(item.original_amount || 0);
+          return item.original_amount_shared ? `${amount} (${t('共享')})` : amount;
+        },
+      },
+      {
+        label: t('理论当前额度'),
+        getValue: (item) => renderQuotaWithAmount(item.current_amount || 0),
+      },
+      {
+        label: t('超刷金额'),
+        getValue: (item) => renderQuotaWithAmount(item.over_brush_amount || 0),
+      },
+    ],
+    [t],
+  );
+
+  const channelDetailCopyColumns = useMemo(
+    () => [
+      { label: t('密钥'), getValue: ({ item }) => item.key || '' },
+      {
+        label: t('来源'),
+        getValue: ({ channel }) => t(getSourceConfig(channel.source).label),
+      },
+      { label: 'ID', getValue: ({ channel }) => channel.id || '' },
+      { label: t('渠道'), getValue: ({ channel }) => channel.name || '' },
+      {
+        label: t('类型'),
+        getValue: ({ channel }) => channelTypeLabel(channel.type),
+      },
+      {
+        label: t('状态'),
+        getValue: ({ channel }) => getChannelStatusLabel(channel),
+      },
+      { label: t('分组'), getValue: ({ channel }) => channel.group || '' },
+      {
+        label: t('匹配密钥数'),
+        getValue: ({ channel }) => channel.matched_key_count || 1,
+      },
+      {
+        label: t('已用额度'),
+        getValue: ({ channel }) => renderQuota(channel.used_quota || 0),
+      },
+      {
+        label: t('匹配已用金额'),
+        getValue: ({ channel }) =>
+          renderQuotaWithAmount(channel.matched_used_amount || 0),
+      },
+      {
+        label: t('原始额度'),
+        getValue: ({ channel }) =>
+          renderQuotaWithAmount(channel.original_amount || 0),
+      },
+      {
+        label: t('理论当前额度'),
+        getValue: ({ channel }) =>
+          renderQuotaWithAmount(channel.current_amount || 0),
+      },
+      {
+        label: t('超刷金额'),
+        getValue: ({ channel }) =>
+          renderQuotaWithAmount(channel.over_brush_amount || 0),
+      },
+      {
+        label: t('余额更新时间'),
+        getValue: ({ channel }) => formatDate(channel.balance_updated_time),
+      },
+    ],
+    [t],
+  );
+
+  const flattenChannelDetails = (rows) =>
+    rows.flatMap((item) =>
+      (Array.isArray(item.channels) ? item.channels : []).map((channel) => ({
+        item,
+        channel,
+      })),
+    );
+
+  const copyRows = async (rows, copyColumns, includeHeader) => {
+    if (!rows.length) {
+      showError(t('暂无报告数据'));
+      return;
+    }
+    const ok = await copy(buildTsv(rows, copyColumns, includeHeader));
+    if (ok) showSuccess(t('已复制'));
+    else showError(t('复制失败'));
+  };
+
+  const copyColumn = async (rows, copyColumnConfig, includeHeader) => {
+    await copyRows(rows, [copyColumnConfig], includeHeader);
+  };
+
+  const renderCopyMenu = (includeHeader) => (
+    <Dropdown.Menu>
+      <Dropdown.Item
+        onClick={() => copyRows(filteredItems, mainCopyColumns, includeHeader)}
+      >
+        {t('当前筛选结果')}
+      </Dropdown.Item>
+      <Dropdown.Item onClick={() => copyRows(items, mainCopyColumns, includeHeader)}>
+        {t('全部结果')}
+      </Dropdown.Item>
+      <Dropdown.Item
+        onClick={() =>
+          copyRows(
+            flattenChannelDetails(filteredItems),
+            channelDetailCopyColumns,
+            includeHeader,
+          )
+        }
+      >
+        {t('当前筛选渠道明细')}
+      </Dropdown.Item>
+      <Dropdown.Item
+        onClick={() =>
+          copyRows(
+            flattenChannelDetails(items),
+            channelDetailCopyColumns,
+            includeHeader,
+          )
+        }
+      >
+        {t('全部渠道明细')}
+      </Dropdown.Item>
+      <Dropdown.Divider />
+      <div className='px-3 py-2 text-xs text-semi-color-text-2'>
+        {t('单列（当前筛选）')}
+      </div>
+      {mainCopyColumns.map((copyColumnConfig) => (
+        <Dropdown.Item
+          key={copyColumnConfig.label}
+          onClick={() =>
+            copyColumn(filteredItems, copyColumnConfig, includeHeader)
+          }
+        >
+          {copyColumnConfig.label}
+        </Dropdown.Item>
+      ))}
+    </Dropdown.Menu>
+  );
 
   const channelColumns = [
     {
@@ -551,18 +744,40 @@ const QueryKeyPage = () => {
           </div>
 
           <Card className='!rounded-2xl overflow-x-auto'>
-            <div className='mb-3 flex flex-wrap gap-2'>
-              {BUCKETS.map((bucket) => (
-                <Button
-                  key={bucket.key}
-                  size='small'
-                  type={activeBucket === bucket.key ? 'primary' : 'tertiary'}
-                  theme={activeBucket === bucket.key ? 'solid' : 'light'}
-                  onClick={() => setActiveBucket(bucket.key)}
+            <div className='mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+              <div className='flex flex-wrap gap-2'>
+                {BUCKETS.map((bucket) => (
+                  <Button
+                    key={bucket.key}
+                    size='small'
+                    type={activeBucket === bucket.key ? 'primary' : 'tertiary'}
+                    theme={activeBucket === bucket.key ? 'solid' : 'light'}
+                    onClick={() => setActiveBucket(bucket.key)}
+                  >
+                    {t(bucket.label)} ({bucketCounts[bucket.key] || 0})
+                  </Button>
+                ))}
+              </div>
+              <Space wrap>
+                <Dropdown
+                  trigger='click'
+                  position='bottomRight'
+                  render={renderCopyMenu(true)}
                 >
-                  {t(bucket.label)} ({bucketCounts[bucket.key] || 0})
-                </Button>
-              ))}
+                  <Button size='small' icon={<IconCopy />}>
+                    {t('复制带表头')}
+                  </Button>
+                </Dropdown>
+                <Dropdown
+                  trigger='click'
+                  position='bottomRight'
+                  render={renderCopyMenu(false)}
+                >
+                  <Button size='small' type='tertiary' icon={<IconCopy />}>
+                    {t('复制不带表头')}
+                  </Button>
+                </Dropdown>
+              </Space>
             </div>
             {filteredItems.length === 0 ? (
               <Empty description={t('暂无报告数据')} />

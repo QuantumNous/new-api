@@ -3907,7 +3907,14 @@
     "暂无报告数据": "No report data",
     "指标说明": "Metric notes",
     "原始额度是实际 Channel.Balance。多密钥渠道命中多个输入密钥时，该余额可能为共享余额；页面不会按命中密钥数拆分或展示 balance / M。": "Original amount is the actual Channel.Balance. When a multi-key channel matches multiple input keys, that balance may be shared; this page does not divide it by matched key count or display balance / M.",
-    "请输入密钥并生成报告": "Enter keys and generate a report"
+    "请输入密钥并生成报告": "Enter keys and generate a report",
+    "复制带表头": "Copy with header",
+    "复制不带表头": "Copy without header",
+    "当前筛选结果": "Current filtered results",
+    "全部结果": "All results",
+    "当前筛选渠道明细": "Current filtered channel details",
+    "全部渠道明细": "All channel details",
+    "单列（当前筛选）": "Single column (current filter)"
   },
   "渠道备货池": "Channel Prep Pool",
   "候选渠道只保存在备货池，不参与真实渠道调用，晋升后才会创建正式渠道。": "Candidate channels stay in the prep pool, do not serve live traffic, and become live channels only after promotion.",

@@ -4296,7 +4296,14 @@
     "暂无报告数据": "Không có dữ liệu báo cáo",
     "指标说明": "Ghi chú chỉ số",
     "原始额度是实际 Channel.Balance。多密钥渠道命中多个输入密钥时，该余额可能为共享余额；页面不会按命中密钥数拆分或展示 balance / M。": "Số dư gốc là Channel.Balance thực tế. Khi kênh nhiều khóa khớp với nhiều khóa đầu vào, số dư đó có thể được dùng chung; trang này không chia theo số khóa khớp và không hiển thị balance / M.",
-    "请输入密钥并生成报告": "Nhập khóa và tạo báo cáo"
+    "请输入密钥并生成报告": "Nhập khóa và tạo báo cáo",
+    "复制带表头": "Sao chép kèm tiêu đề",
+    "复制不带表头": "Sao chép không tiêu đề",
+    "当前筛选结果": "Kết quả lọc hiện tại",
+    "全部结果": "Tất cả kết quả",
+    "当前筛选渠道明细": "Chi tiết kênh đã lọc hiện tại",
+    "全部渠道明细": "Tất cả chi tiết kênh",
+    "单列（当前筛选）": "Một cột (bộ lọc hiện tại)"
   },
   "渠道备货池": "",
   "候选渠道只保存在备货池，不参与真实渠道调用，晋升后才会创建正式渠道。": "",
