@@ -141,7 +141,7 @@ func GetEpayClient() *epay.Client {
 	return withUrl
 }
 
-func getPayMoney(amount int64, group string) float64 {
+func getPayMoney(amount int64, group string, userId int) float64 {
 	dAmount := decimal.NewFromInt(amount)
 	// 充值金额以“展示类型”为准：
 	// - USD/CNY: 前端传 amount 为金额单位；TOKENS: 前端传 tokens，需要换成 USD 金额
@@ -168,7 +168,36 @@ func getPayMoney(amount int64, group string) float64 {
 
 	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
 
+	// 新用户首充优惠：仅 FirstTopupPromoAmount 这一档打折（crypto 不走此函数，在上账层按比例补）。
+	payMoney = payMoney.Mul(decimal.NewFromFloat(firstTopupPromoFactor(userId, amount)))
+
 	return payMoney.InexactFloat64()
+}
+
+// firstTopupPromoFactor 符合新用户首充资格 + 命中 FirstTopupPromoAmount 档位时返回折扣率（如 0.75），否则 1.0。
+func firstTopupPromoFactor(userId int, amount int64) float64 {
+	if common.FirstTopupPromoEnabled && int(amount) == common.FirstTopupPromoAmount {
+		if eligible, _ := model.IsFirstTopupPromoEligible(userId); eligible {
+			return common.FirstTopupPromoDiscount
+		}
+	}
+	return 1.0
+}
+
+// GetFirstTopupPromo 返回当前用户的新用户首充优惠资格 + 参数，供充值页/弹窗展示折扣角标与倒计时。
+func GetFirstTopupPromo(c *gin.Context) {
+	userId := c.GetInt("id")
+	eligible, expiresAt := model.IsFirstTopupPromoEligible(userId)
+	amount := common.FirstTopupPromoAmount
+	discount := common.FirstTopupPromoDiscount
+	common.ApiSuccess(c, gin.H{
+		"enabled":    common.FirstTopupPromoEnabled,
+		"eligible":   eligible,
+		"discount":   discount,                   // 折扣率，如 0.75
+		"amount":     amount,                      // 适用档位（美元），如 10
+		"pay_amount": float64(amount) * discount,  // 实付，如 7.5
+		"expires_at": expiresAt,                   // 优惠到期 Unix 秒，前端倒计时
+	})
 }
 
 func getMinTopup() int64 {
@@ -200,7 +229,7 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney := getPayMoney(req.Amount, group, id)
 	if payMoney < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow)})
 		return
@@ -426,7 +455,7 @@ func RequestAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney := getPayMoney(req.Amount, group, id)
 	if payMoney <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow)})
 		return

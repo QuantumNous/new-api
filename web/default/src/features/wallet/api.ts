@@ -308,3 +308,20 @@ export async function getCryptoDepositStatus(
   const res = await api.get(`/api/user/crypto/deposit/${depositId}`)
   return res.data
 }
+
+export interface FirstTopupPromoInfo {
+  enabled: boolean
+  eligible: boolean
+  discount: number
+  amount: number
+  pay_amount: number
+  expires_at: number
+}
+
+export async function getFirstTopupPromo(): Promise<FirstTopupPromoInfo | null> {
+  try {
+    const res = await api.get('/api/user/first_topup_promo')
+    if (res.success && res.data) return res.data as FirstTopupPromoInfo
+  } catch { /* ignore */ }
+  return null
+}

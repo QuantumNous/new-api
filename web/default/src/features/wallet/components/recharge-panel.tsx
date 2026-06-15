@@ -24,7 +24,8 @@ import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CryptoDepositModal } from './crypto-deposit-modal'
-import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory } from '../api'
+import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory, getFirstTopupPromo } from '../api'
+import type { FirstTopupPromoInfo } from '../api'
 import { paymentErrorMessage } from '../lib/payment'
 import { GLASS_CARD_CLS } from '../constants'
 import type { TopupInfo } from '../types'
@@ -48,6 +49,8 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
   const [paypalLoading, setPaypalLoading] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
+  const [promoInfo, setPromoInfo] = useState<FirstTopupPromoInfo | null>(null)
+  const [countdown, setCountdown] = useState('')
 
   const effectiveAmount = customAmount ? parseFloat(customAmount) || 0 : selectedAmount
 
@@ -77,6 +80,27 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
       .then((res) => { if (res.success && res.data) setTopupInfo(res.data) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    getFirstTopupPromo().then((info) => {
+      if (info?.enabled && info?.eligible) setPromoInfo(info)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!promoInfo) return
+    function tick() {
+      const secs = Math.max(0, promoInfo!.expires_at - Math.floor(Date.now() / 1000))
+      if (secs === 0) { setCountdown(''); return }
+      const h = Math.floor(secs / 3600)
+      const m = Math.floor((secs % 3600) / 60)
+      const s = secs % 60
+      setCountdown(`${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [promoInfo])
 
   function handleCustomInput(v: string) {
     if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) {
@@ -174,23 +198,44 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
             <div className='grid grid-cols-3 gap-2'>
               {PRESET_AMOUNTS.map((amount) => {
                 const active = selectedAmount === amount && !customAmount
+                const isPromo = !!promoInfo && amount === promoInfo.amount
                 return (
                   <button
                     key={amount}
                     type='button'
                     onClick={() => handlePresetClick(amount)}
                     className={cn(
-                      'rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all',
-                      active
-                        ? 'border-cyan-400 bg-cyan-50 font-bold text-cyan-700'
-                        : 'border-border hover:border-cyan-300 hover:bg-cyan-50/50 hover:text-cyan-700'
+                      'relative rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all',
+                      isPromo
+                        ? active
+                          ? 'border-amber-400 bg-amber-50 text-amber-800'
+                          : 'border-amber-300 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-800'
+                        : active
+                          ? 'border-cyan-400 bg-cyan-50 font-bold text-cyan-700'
+                          : 'border-border hover:border-cyan-300 hover:bg-cyan-50/50 hover:text-cyan-700'
                     )}
                   >
+                    {isPromo && (
+                      <span className='absolute -right-1.5 -top-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[9px] font-bold leading-none text-white'>
+                        {Math.round((1 - promoInfo.discount) * 100)}% OFF
+                      </span>
+                    )}
                     ${amount}
+                    {isPromo && (
+                      <div className='mt-0.5 text-[10px] font-normal text-amber-600'>
+                        pay ${promoInfo.pay_amount.toFixed(2)}
+                      </div>
+                    )}
                   </button>
                 )
               })}
             </div>
+            {promoInfo && countdown && (
+              <div className='mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs'>
+                <span className='font-semibold text-amber-700'>🎉 First top-up bonus</span>
+                <span className='ml-auto font-mono text-amber-600'>{countdown} left</span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -262,7 +307,11 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                 </div>
                 <div className='min-w-0'>
                   <div className='truncate text-sm font-semibold text-gray-800'>Crypto</div>
-                  <div className='truncate text-[11px] text-gray-400'>USDT / USDC</div>
+                  <div className='truncate text-[11px] text-gray-400'>
+                    {promoInfo && effectiveAmount === promoInfo.amount
+                      ? `send $${promoInfo.pay_amount.toFixed(2)} → get $${promoInfo.amount}`
+                      : 'USDT / USDC'}
+                  </div>
                 </div>
               </button>
 
@@ -339,9 +388,18 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                 ? (
                   <p className='text-muted-foreground text-xs'>
                     {t('You will pay')}:{' '}
-                    <span className='font-mono font-semibold text-cyan-600'>
-                      ${effectiveAmount.toFixed(2)}
-                    </span>
+                    {promoInfo && effectiveAmount === promoInfo.amount
+                      ? (
+                        <>
+                          <span className='font-mono font-semibold text-amber-600'>${promoInfo.pay_amount.toFixed(2)}</span>
+                          <span className='ml-1 text-muted-foreground line-through'>${effectiveAmount.toFixed(2)}</span>
+                        </>
+                      )
+                      : (
+                        <span className='font-mono font-semibold text-cyan-600'>
+                          ${effectiveAmount.toFixed(2)}
+                        </span>
+                      )}
                   </p>
                 )
                 : <span />}

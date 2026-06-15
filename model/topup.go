@@ -751,6 +751,36 @@ func OnTopupSucceeded(userId int, quotaAdded int, paymentMethod string) {
 	NotifyPaymentSuccess(userId, quotaAdded, paymentMethod)
 }
 
+// HasSuccessfulTopUp 该用户是否有过成功充值（用于「首次充值」判定）。
+func HasSuccessfulTopUp(userId int) bool {
+	var count int64
+	DB.Model(&TopUp{}).Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).Limit(1).Count(&count)
+	return count > 0
+}
+
+// IsFirstTopupPromoEligible 新用户首充优惠资格：开关开 + 折扣合法 + 注册在窗口内 + 还没成功充值过。
+// 返回 (是否符合, 优惠窗口到期时间戳秒)。注意：crypto 路径须在本次 TopUp 写入 success 之前调用。
+func IsFirstTopupPromoEligible(userId int) (bool, int64) {
+	if !common.FirstTopupPromoEnabled {
+		return false, 0
+	}
+	if common.FirstTopupPromoDiscount <= 0 || common.FirstTopupPromoDiscount >= 1 {
+		return false, 0
+	}
+	user, err := GetUserById(userId, false)
+	if err != nil || user == nil {
+		return false, 0
+	}
+	expiresAt := user.CreatedAt + int64(common.FirstTopupPromoWindowDays)*86400
+	if common.GetTimestamp() > expiresAt {
+		return false, expiresAt
+	}
+	if HasSuccessfulTopUp(userId) {
+		return false, expiresAt
+	}
+	return true, expiresAt
+}
+
 // NotifyPaymentSuccess sends a Feishu card to the ops group on successful payment.
 // quotaAdded is the quota units credited; USD amount is derived via QuotaPerUnit.
 // Runs in a goroutine so it never blocks the caller.

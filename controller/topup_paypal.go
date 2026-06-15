@@ -66,7 +66,7 @@ func RequestPayPalAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgOAuthGetUserErr)})
 		return
 	}
-	payMoney := GetChargedAmount(float64(req.Amount), *user)
+	payMoney := GetChargedAmount(float64(req.Amount), *user) * firstTopupPromoFactor(id, req.Amount)
 	if payMoney <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow)})
 		return
@@ -104,7 +104,7 @@ func RequestPayPalPay(c *gin.Context) {
 	id := c.GetInt("id")
 	TouchUserCountry(id, c.ClientIP())
 	user, _ := model.GetUserById(id, false)
-	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
+	chargedMoney := GetChargedAmount(float64(req.Amount), *user) * firstTopupPromoFactor(id, req.Amount)
 
 	reference := fmt.Sprintf("new-api-paypal-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceID := "pp_" + common.Sha1([]byte(reference))

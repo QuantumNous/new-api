@@ -124,6 +124,13 @@ var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 var AffRatio = 0 // 充值返佣比例 (%)，0 = 关闭
+
+// 新用户首充优惠（参数可在「系统设置」改，支持 ABtest / 一键关）
+var FirstTopupPromoEnabled = false  // 总开关
+var FirstTopupPromoDiscount = 0.75  // 折扣率 (0~1)，0.75=7.5折；卡类付 amount×discount，crypto 到账 = 实付/discount
+var FirstTopupPromoAmount = 10      // 适用档位（美元）；卡类仅此档打折，crypto 让利封顶按此
+var FirstTopupPromoWindowDays = 3   // 注册后多少天内有效
+
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
