@@ -18,6 +18,15 @@ type RankingQuotaBucket struct {
 	Tokens    int64  `json:"tokens"`
 }
 
+type RankingUserTotal struct {
+	UserID      int    `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	TotalTokens int64  `json:"total_tokens"`
+	Count       int    `json:"count"`
+	TopModel    string `json:"top_model"`
+}
+
 func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal, error) {
 	var rows []RankingQuotaTotal
 	query := DB.Table("quota_data").
@@ -28,6 +37,43 @@ func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal,
 		Order("total_tokens DESC")
 	query = applyRankingQuotaTimeRange(query, startTime, endTime)
 	err := query.Find(&rows).Error
+	return rows, err
+}
+
+func GetRankingUserTotals(startTime int64, endTime int64) ([]RankingUserTotal, error) {
+	var rows []RankingUserTotal
+	query := DB.Table("quota_data").
+		Select("quota_data.user_id, quota_data.username, COALESCE(users.display_name, '') as display_name, sum(quota_data.token_used) as total_tokens, sum(quota_data.count) as count").
+		Joins("LEFT JOIN users ON quota_data.user_id = users.id").
+		Where("quota_data.model_name <> ''").
+		Group("quota_data.user_id, quota_data.username, users.display_name").
+		Having("sum(quota_data.token_used) > 0").
+		Order("total_tokens DESC")
+	if startTime > 0 {
+		query = query.Where("quota_data.created_at >= ?", startTime)
+	}
+	if endTime > 0 {
+		query = query.Where("quota_data.created_at <= ?", endTime)
+	}
+	err := query.Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		var topModel string
+		topQuery := DB.Table("quota_data").
+			Select("model_name").
+			Where("user_id = ? AND model_name <> ''", rows[i].UserID).
+			Group("model_name").
+			Order("sum(token_used) DESC").
+			Limit(1)
+		topQuery = applyRankingQuotaTimeRange(topQuery, startTime, endTime)
+		row := topQuery.Row()
+		if row != nil {
+			_ = row.Scan(&topModel)
+		}
+		rows[i].TopModel = topModel
+	}
 	return rows, err
 }
 
