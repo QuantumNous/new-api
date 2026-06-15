@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { BlogArticlePage } from "@/components/blog-pages";
 import { getBlogPost } from "@/lib/blog";
+import { getCopy } from "@/lib/copy";
 import { isLocale, LOCALES } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
@@ -14,9 +15,10 @@ export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
   const post = await getBlogPost(params.slug);
+  const copy = getCopy(params.locale).blog;
   return buildMetadata({
-    title: post?.title ?? "Blog article",
-    description: post?.summary ?? "Article from flatkey.ai.",
+    title: post?.title ?? copy.articleFallbackTitle,
+    description: post?.summary ?? copy.articleFallbackDescription,
     pathname: `/blog/${params.slug}`,
     locale: params.locale,
     image: post?.cover,

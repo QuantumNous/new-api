@@ -70,10 +70,14 @@ export type PricingSearch = {
 const QUOTA_TYPE_TOKEN = 0;
 const QUOTA_TYPE_REQUEST = 1;
 
+export function publicPricingUrl(apiBaseUrl = API_BASE_URL): string {
+  return `${apiBaseUrl}/api/website/pricing`;
+}
+
 export async function getPricingData(): Promise<PricingData> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/pricing`, {
-      cache: "no-store",
+    const response = await fetch(publicPricingUrl(), {
+      next: { revalidate: 300 },
       headers: { accept: "application/json" },
     });
     if (!response.ok) return emptyPricingData();

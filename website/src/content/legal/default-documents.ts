@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { LOCALIZED_DEFAULT_LEGAL_DOCUMENTS } from './localized-default-documents'
+import { ES_DEFAULT_LEGAL_DOCUMENTS } from './localized-default-documents-es'
 import { PT_DEFAULT_LEGAL_DOCUMENTS } from './localized-default-documents-pt'
 
 export const DEFAULT_TERMS_OF_SERVICE = `# flatkey.ai User Agreement
@@ -442,7 +443,7 @@ All of the above contents shall be subject to the English version.`
 
 export type LegalDocumentKind = 'terms' | 'privacy' | 'refund' | 'sla'
 
-type SupportedLegalLocale = 'en' | 'zh' | 'fr' | 'ja' | 'pt' | 'ru' | 'vi'
+type SupportedLegalLocale = 'en' | 'zh' | 'es' | 'fr' | 'ja' | 'pt' | 'ru' | 'vi'
 
 type LegalDocumentSet = Record<LegalDocumentKind, string>
 
@@ -463,6 +464,12 @@ export const DEFAULT_LEGAL_DOCUMENTS_BY_LOCALE: Record<
     privacy: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.privacy,
     refund: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.refund,
     sla: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.zh.sla,
+  },
+  es: {
+    terms: ES_DEFAULT_LEGAL_DOCUMENTS.terms,
+    privacy: ES_DEFAULT_LEGAL_DOCUMENTS.privacy,
+    refund: ES_DEFAULT_LEGAL_DOCUMENTS.refund,
+    sla: ES_DEFAULT_LEGAL_DOCUMENTS.sla,
   },
   fr: {
     terms: LOCALIZED_DEFAULT_LEGAL_DOCUMENTS.fr.terms,
@@ -500,6 +507,7 @@ function resolveLegalLocale(language?: string): SupportedLegalLocale {
   const normalized = language?.toLowerCase().split('-')[0]
   if (
     normalized === 'zh' ||
+    normalized === 'es' ||
     normalized === 'fr' ||
     normalized === 'ja' ||
     normalized === 'pt' ||

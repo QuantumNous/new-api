@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { HomePage } from "@/components/home-page";
+import { getCopy } from "@/lib/copy";
 import { isLocale, LOCALES, type Locale } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
@@ -14,10 +15,10 @@ export function generateStaticParams() {
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
+  const copy = getCopy(params.locale);
   return buildMetadata({
-    title: "AI API gateway for production teams",
-    description:
-      "flatkey.ai unifies AI model access, routing, billing, usage analytics, and operations controls for production teams.",
+    title: copy.home.title,
+    description: copy.home.description,
     pathname: "/",
     locale: params.locale,
   });

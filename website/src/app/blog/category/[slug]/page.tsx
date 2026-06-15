@@ -1,4 +1,6 @@
 import { BlogCategoryPage, parseBlogSearch } from "@/components/blog-pages";
+import { formatBlogCopy } from "@/lib/blog-copy";
+import { getCopy } from "@/lib/copy";
 import { buildMetadata } from "@/lib/seo";
 
 type Props = {
@@ -8,9 +10,10 @@ type Props = {
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
+  const copy = getCopy("en").blog;
   return buildMetadata({
-    title: `Blog category: ${params.slug}`,
-    description: "Browse flatkey.ai blog articles by category.",
+    title: formatBlogCopy(copy.categoryTitle, { category: params.slug }),
+    description: copy.categoryFallbackDescription,
     pathname: `/blog/category/${params.slug}`,
   });
 }
