@@ -66,10 +66,33 @@ const chatCompletionsToResponsesPolicyAllChannelsExample = JSON.stringify(
   2,
 );
 
+const responsesToChatCompletionsPolicyExample = JSON.stringify(
+  {
+    enabled: true,
+    all_channels: false,
+    channel_ids: [1, 2],
+    channel_types: [43, 16, 26],
+    model_patterns: ['^deepseek-.*$', '^glm-.*$'],
+  },
+  null,
+  2,
+);
+
+const responsesToChatCompletionsPolicyAllChannelsExample = JSON.stringify(
+  {
+    enabled: true,
+    all_channels: true,
+    model_patterns: ['^deepseek-.*$', '^glm-.*$'],
+  },
+  null,
+  2,
+);
+
 const defaultGlobalSettingInputs = {
   'global.pass_through_request_enabled': false,
   'global.thinking_model_blacklist': '[]',
   'global.chat_completions_to_responses_policy': '{}',
+  'global.responses_to_chat_completions_policy': '{}',
   'general_setting.ping_interval_enabled': false,
   'general_setting.ping_interval_seconds': 60,
 };
@@ -83,6 +106,8 @@ export default function SettingGlobalModel(props) {
   const [inputsRow, setInputsRow] = useState(defaultGlobalSettingInputs);
   const chatCompletionsToResponsesPolicyKey =
     'global.chat_completions_to_responses_policy';
+  const responsesToChatCompletionsPolicyKey =
+    'global.responses_to_chat_completions_policy';
 
   const setChatCompletionsToResponsesPolicyValue = (value) => {
     setInputs((prev) => ({
@@ -94,12 +119,23 @@ export default function SettingGlobalModel(props) {
     }
   };
 
+  const setResponsesToChatCompletionsPolicyValue = (value) => {
+    setInputs((prev) => ({
+      ...prev,
+      [responsesToChatCompletionsPolicyKey]: value,
+    }));
+    if (refForm.current) {
+      refForm.current.setValue(responsesToChatCompletionsPolicyKey, value);
+    }
+  };
+
   const normalizeValueBeforeSave = (key, value) => {
     if (key === 'global.thinking_model_blacklist') {
       const text = typeof value === 'string' ? value.trim() : '';
       return text === '' ? '[]' : value;
     }
-    if (key === 'global.chat_completions_to_responses_policy') {
+    if (key === 'global.chat_completions_to_responses_policy' ||
+        key === 'global.responses_to_chat_completions_policy') {
       const text = typeof value === 'string' ? value.trim() : '';
       return text === '' ? '{}' : value;
     }
@@ -156,7 +192,8 @@ export default function SettingGlobalModel(props) {
             value = defaultGlobalSettingInputs[key];
           }
         }
-        if (key === 'global.chat_completions_to_responses_policy') {
+        if (key === 'global.chat_completions_to_responses_policy' ||
+            key === 'global.responses_to_chat_completions_policy') {
           try {
             value =
               value && String(value).trim() !== ''
@@ -288,6 +325,9 @@ export default function SettingGlobalModel(props) {
                         message: t('不是合法的 JSON 字符串'),
                       },
                     ]}
+                    extraText={t(
+                      'model_patterns 支持正则匹配模型名称，例如 ["^deepseek-.*$", "^glm-.*$"]，留空表示匹配所有模型',
+                    )}
                     onChange={(value) =>
                       setInputs((prev) => ({
                         ...prev,
@@ -343,6 +383,130 @@ export default function SettingGlobalModel(props) {
                             2,
                           );
                           setChatCompletionsToResponsesPolicyValue(formatted);
+                        } catch (error) {
+                          showError(t('不是合法的 JSON 字符串'));
+                        }
+                      }}
+                    >
+                      {t('格式化 JSON')}
+                    </Button>
+                  </div>
+                </Col>
+              </Row>
+            </Form.Section>
+
+            <Form.Section
+              text={
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {t('Responses→ChatCompletions 兼容配置')}
+                  <Tag color='orange' size='small'>
+                    测试版
+                  </Tag>
+                </span>
+              }
+            >
+              <Row style={{ marginTop: 10 }}>
+                <Col span={24}>
+                  <Banner
+                    type='warning'
+                    description={t(
+                      '提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。',
+                    )}
+                  />
+                </Col>
+              </Row>
+
+              <Row style={{ marginTop: 10 }}>
+                <Col span={24}>
+                  <Form.TextArea
+                    label={t('参数配置')}
+                    field={responsesToChatCompletionsPolicyKey}
+                    placeholder={
+                      t('例如（指定渠道）：') +
+                      '\n' +
+                      responsesToChatCompletionsPolicyExample +
+                      '\n\n' +
+                      t('例如（全渠道）：') +
+                      '\n' +
+                      responsesToChatCompletionsPolicyAllChannelsExample
+                    }
+                    rows={8}
+                    rules={[
+                      {
+                        validator: (rule, value) => {
+                          if (!value || value.trim() === '') return true;
+                          return verifyJSON(value);
+                        },
+                        message: t('不是合法的 JSON 字符串'),
+                      },
+                    ]}
+                    extraText={t(
+                      'model_patterns 支持正则匹配模型名称，例如 ["^deepseek-.*$", "^glm-.*$"]，留空表示匹配所有模型',
+                    )}
+                    onChange={(value) =>
+                      setInputs((prev) => ({
+                        ...prev,
+                        [responsesToChatCompletionsPolicyKey]: value,
+                      }))
+                    }
+                  />
+                </Col>
+              </Row>
+
+              <Row style={{ marginTop: 10, marginBottom: 16 }}>
+                <Col span={24}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() =>
+                        setResponsesToChatCompletionsPolicyValue(
+                          responsesToChatCompletionsPolicyExample,
+                        )
+                      }
+                    >
+                      {t('填充模板（指定渠道）')}
+                    </Button>
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() =>
+                        setResponsesToChatCompletionsPolicyValue(
+                          responsesToChatCompletionsPolicyAllChannelsExample,
+                        )
+                      }
+                    >
+                      {t('填充模板（全渠道）')}
+                    </Button>
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() => {
+                        const raw = inputs[responsesToChatCompletionsPolicyKey];
+                        if (!raw || String(raw).trim() === '') return;
+                        try {
+                          const formatted = JSON.stringify(
+                            JSON.parse(raw),
+                            null,
+                            2,
+                          );
+                          setResponsesToChatCompletionsPolicyValue(formatted);
                         } catch (error) {
                           showError(t('不是合法的 JSON 字符串'));
                         }

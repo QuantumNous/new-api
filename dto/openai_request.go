@@ -247,6 +247,7 @@ type FunctionRequest struct {
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name"`
 	Parameters  any    `json:"parameters,omitempty"`
+	Strict      *bool  `json:"strict,omitempty"`
 	Arguments   string `json:"arguments,omitempty"`
 }
 

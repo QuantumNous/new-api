@@ -108,6 +108,7 @@
     "Changing batch type to:": "Changement du type de lot en :",
     "ChatCompletions→Responses 兼容配置": "Configuration de compatibilité ChatCompletions→Responses",
     "ChatCompletions→Responses 兼容配置（Beta）": "Compatibilité ChatCompletions→Responses (bêta)",
+    "Responses→ChatCompletions 兼容配置": "Compatibilité Responses→ChatCompletions",
     "Claude 强制 beta=true": "Claude forcer beta=true",
     "Claude会在原有请求头基础上追加这些值，不会覆盖已有同名请求头；重复值会自动忽略。": "Claude ajoute ces valeurs aux en-tetes de requete existants. Les en-tetes existants ne sont pas remplaces et les valeurs en double sont ignorees automatiquement.",
     "Claude思考适配 BudgetTokens = MaxTokens * BudgetTokens 百分比": "Adaptation de la pensée Claude BudgetTokens = MaxTokens * BudgetTokens pourcentage",

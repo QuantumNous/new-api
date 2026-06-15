@@ -2584,6 +2584,7 @@
     "签到奖励的最大额度": "签到奖励的最大额度",
     "保存签到设置": "保存签到设置",
     "ChatCompletions→Responses 兼容配置（Beta）": "ChatCompletions→Responses 兼容配置（Beta）",
+    "Responses→ChatCompletions 兼容配置": "Responses→ChatCompletions 兼容配置",
     "提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。": "提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。",
     "填充模板（指定渠道）": "填充模板（指定渠道）",
     "填充模板（全渠道）": "填充模板（全渠道）",
