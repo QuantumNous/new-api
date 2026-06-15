@@ -91,10 +91,10 @@ export async function getChannelFlowPoolStatus(
 
 export async function getChannelFlowPoolTrend(
   poolId: number,
-  hours = 6
+  minutes = 60
 ): Promise<ApiResponse<ChannelFlowTrend>> {
   const res = await api.get(`/api/channel_flow/pools/${poolId}/trend`, {
-    params: { hours },
+    params: { minutes },
     disableDuplicate: true,
   })
   return res.data

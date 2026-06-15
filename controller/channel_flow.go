@@ -191,9 +191,16 @@ func GetChannelFlowPoolTrend(c *gin.Context) {
 			hours = parsed
 		}
 	}
+	minutes := 0
+	if rawMinutes := c.Query("minutes"); rawMinutes != "" {
+		if parsed, parseErr := strconv.Atoi(rawMinutes); parseErr == nil {
+			minutes = parsed
+		}
+	}
 	trend, err := channelflowmetrics.Query(channelflowmetrics.QueryParams{
 		PoolKey: pool.PoolKey,
 		Hours:   hours,
+		Minutes: minutes,
 	})
 	if err != nil {
 		common.ApiError(c, err)

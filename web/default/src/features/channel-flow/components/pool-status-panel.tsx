@@ -19,9 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useTranslation } from 'react-i18next'
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -41,6 +41,9 @@ type PoolStatusPanelProps = {
   status?: ChannelFlowPoolStatus | null
   trend: FlowTrendPoint[]
   trendTotals?: FlowTrendTotals
+  trendRangeMinutes: number
+  trendRangeOptions: Array<{ label: string; minutes: number }>
+  onTrendRangeChange: (minutes: number) => void
 }
 
 const trendChartInitialDimension = { width: 1, height: 300 }
@@ -118,14 +121,34 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
       </div>
 
       <div className='flex min-h-[320px] flex-col rounded-lg border p-4'>
-        <div className='mb-3 flex items-center justify-between'>
+        <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div>
             <h3 className='text-sm font-semibold'>
               {t('Inflight / queued trend')}
             </h3>
             <p className='text-muted-foreground mt-1 text-xs'>
-              {t('Gateway minute metrics from completed and active buckets')}
+              {t('Minute peak history')}
             </p>
+          </div>
+          <div className='inline-flex w-fit rounded-md border bg-muted/20 p-0.5'>
+            {props.trendRangeOptions.map((option) => {
+              const selected = option.minutes === props.trendRangeMinutes
+              return (
+                <button
+                  key={option.minutes}
+                  type='button'
+                  aria-pressed={selected}
+                  className={
+                    selected
+                      ? 'bg-background text-foreground shadow-xs h-7 rounded px-2.5 text-xs font-medium'
+                      : 'text-muted-foreground hover:text-foreground h-7 rounded px-2.5 text-xs font-medium'
+                  }
+                  onClick={() => props.onTrendRangeChange(option.minutes)}
+                >
+                  {t(option.label)}
+                </button>
+              )
+            })}
           </div>
         </div>
         <div className='mb-3 grid gap-2 text-xs sm:grid-cols-3'>
@@ -148,20 +171,10 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
             height='100%'
             initialDimension={trendChartInitialDimension}
           >
-            <AreaChart
+            <LineChart
               data={props.trend}
               margin={{ top: 8, right: 12, bottom: 0, left: -12 }}
             >
-              <defs>
-                <linearGradient id='flowRunning' x1='0' y1='0' x2='0' y2='1'>
-                  <stop offset='5%' stopColor='var(--primary)' stopOpacity={0.3} />
-                  <stop offset='95%' stopColor='var(--primary)' stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id='flowQueued' x1='0' y1='0' x2='0' y2='1'>
-                  <stop offset='5%' stopColor='var(--destructive)' stopOpacity={0.25} />
-                  <stop offset='95%' stopColor='var(--destructive)' stopOpacity={0} />
-                </linearGradient>
-              </defs>
               <CartesianGrid strokeDasharray='3 3' vertical={false} />
               <XAxis
                 dataKey='at'
@@ -184,23 +197,27 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
                   borderRadius: 8,
                 }}
               />
-              <Area
-                type='stepAfter'
+              <Line
+                type='linear'
                 dataKey='running_max'
                 name={`${t('Inflight')} ${t('Peak')}`}
                 stroke='var(--primary)'
-                fill='url(#flowRunning)'
                 strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
               />
-              <Area
-                type='stepAfter'
+              <Line
+                type='linear'
                 dataKey='queued_max'
                 name={`${t('Queued')} ${t('Peak')}`}
                 stroke='var(--destructive)'
-                fill='url(#flowQueued)'
                 strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
               />
-            </AreaChart>
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>

@@ -62,8 +62,13 @@ import type { ChannelFlowPool, ChannelFlowPoolBinding } from './types'
 
 const FLOW_POOL_PAGE_SIZE = 50
 const FLOW_STATUS_REFETCH_MS = 5000
-const FLOW_TREND_HOURS = 6
 const FLOW_TREND_REFETCH_MS = 30000
+const FLOW_TREND_RANGE_OPTIONS = [
+  { label: '15 min', minutes: 15 },
+  { label: '1 hour', minutes: 60 },
+  { label: '6 hours', minutes: 360 },
+  { label: '24 hours', minutes: 1440 },
+]
 
 type PoolMutationVariables = {
   values: ChannelFlowPoolFormValues
@@ -78,6 +83,7 @@ export function ChannelFlowPools() {
   const [editingPool, setEditingPool] = useState<ChannelFlowPool | null>(null)
   const [poolSheetOpen, setPoolSheetOpen] = useState(false)
   const [bindingSheetOpen, setBindingSheetOpen] = useState(false)
+  const [trendRangeMinutes, setTrendRangeMinutes] = useState(60)
   const [poolPendingDelete, setPoolPendingDelete] =
     useState<ChannelFlowPool | null>(null)
   const [deletingBindingId, setDeletingBindingId] = useState<number | null>(null)
@@ -120,9 +126,9 @@ export function ChannelFlowPools() {
   const trendQuery = useQuery({
     queryKey: channelFlowQueryKeys.trend(
       selectedPool?.id ?? 0,
-      FLOW_TREND_HOURS
+      trendRangeMinutes
     ),
-    queryFn: () => getChannelFlowPoolTrend(selectedPool!.id, FLOW_TREND_HOURS),
+    queryFn: () => getChannelFlowPoolTrend(selectedPool!.id, trendRangeMinutes),
     enabled: Boolean(selectedPool),
     refetchInterval: FLOW_TREND_REFETCH_MS,
   })
@@ -290,6 +296,9 @@ export function ChannelFlowPools() {
                   status={statusQuery.data?.data ?? null}
                   trend={trendQuery.data?.data?.points ?? []}
                   trendTotals={trendQuery.data?.data?.totals}
+                  trendRangeMinutes={trendRangeMinutes}
+                  trendRangeOptions={FLOW_TREND_RANGE_OPTIONS}
+                  onTrendRangeChange={setTrendRangeMinutes}
                 />
                 <PoolBindingsPanel
                   pool={selectedPool}

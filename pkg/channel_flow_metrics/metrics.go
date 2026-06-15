@@ -10,6 +10,7 @@ import (
 const (
 	defaultQueryHours = 6
 	maxQueryHours     = 24 * 7
+	maxQueryMinutes   = maxQueryHours * 60
 	flowBucketSeconds = 60
 )
 
@@ -35,14 +36,17 @@ func Record(sample Sample) {
 }
 
 func Query(params QueryParams) (TrendResult, error) {
-	if params.Hours <= 0 {
-		params.Hours = defaultQueryHours
+	if params.Minutes <= 0 {
+		if params.Hours <= 0 {
+			params.Hours = defaultQueryHours
+		}
+		params.Minutes = params.Hours * 60
 	}
-	if params.Hours > maxQueryHours {
-		params.Hours = maxQueryHours
+	if params.Minutes > maxQueryMinutes {
+		params.Minutes = maxQueryMinutes
 	}
 	endBucket := bucketStart(time.Now().Unix())
-	bucketCount := params.Hours * 3600 / flowBucketSeconds
+	bucketCount := params.Minutes * 60 / flowBucketSeconds
 	if bucketCount <= 0 {
 		bucketCount = 1
 	}

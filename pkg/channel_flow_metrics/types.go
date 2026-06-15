@@ -16,6 +16,7 @@ type Sample struct {
 type QueryParams struct {
 	PoolKey string
 	Hours   int
+	Minutes int
 }
 
 type TrendResult struct {
