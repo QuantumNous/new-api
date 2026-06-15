@@ -210,6 +210,50 @@ module "cloud_run" {
 
 // External HTTPS LB sitting in front of Cloud Run, used when the operator lacks
 // run.domainmappings.create permission.
+// --- Standalone Next.js marketing website (apex flatkey.ai + www) ---
+// A SEPARATE Cloud Run service (port 4000, no VPC/SQL) with a minimal runtime SA.
+// Everything here is gated by var.enable_website, so the existing stack is
+// untouched until the operator opts in. The LB host-based split (below) sends
+// var.website_domains to this service and leaves all other hosts on the Go app.
+
+resource "google_service_account" "web_runtime" {
+  count = var.enable_website ? 1 : 0
+
+  project      = var.project_id
+  account_id   = "newapi-web-runtime"
+  display_name = "new-api website (Next.js) Cloud Run runtime"
+}
+
+resource "google_project_iam_member" "web_runtime_log_writer" {
+  count = var.enable_website ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.web_runtime[0].email}"
+}
+
+resource "google_project_iam_member" "web_runtime_metric_writer" {
+  count = var.enable_website ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.web_runtime[0].email}"
+}
+
+module "cloud_run_web" {
+  count = var.enable_website ? 1 : 0
+
+  source             = "../../modules/cloud-run-web"
+  project_id         = var.project_id
+  region             = var.region
+  service_name       = var.website_service_name
+  runtime_sa_email   = google_service_account.web_runtime[0].email
+  app_console_origin = var.website_app_console_origin
+  site_origin        = var.website_site_origin
+
+  depends_on = [module.apis]
+}
+
 module "cloud_lb" {
   count = var.enable_load_balancer ? 1 : 0
 
@@ -219,7 +263,12 @@ module "cloud_lb" {
   cloud_run_service_name = module.cloud_run.service_name
   domains                = var.lb_domains
 
-  depends_on = [module.apis, module.cloud_run]
+  // Host-based split: when the website is enabled, route var.website_domains to
+  // the Next.js backend; all other hosts stay on the Go backend. Empty otherwise.
+  website_cloud_run_service_name = var.enable_website ? module.cloud_run_web[0].service_name : ""
+  website_domains                = var.website_domains
+
+  depends_on = [module.apis, module.cloud_run, module.cloud_run_web]
 }
 
 // Uptime check target priority:

@@ -21,11 +21,21 @@ import { describe, test } from 'node:test'
 import { parseHeaderNavModules } from './nav-modules'
 
 describe('header navigation modules', () => {
-  test('keeps Blog visible by default', () => {
-    assert.equal(parseHeaderNavModules('').blog, true)
+  test('keeps legacy public header links hidden by default', () => {
+    const modules = parseHeaderNavModules('')
+    assert.equal(modules.home, false)
+    assert.equal(modules.console, false)
+    assert.equal(modules.blog, false)
   })
 
-  test('allows Blog to be disabled explicitly', () => {
-    assert.equal(parseHeaderNavModules({ blog: false }).blog, false)
+  test('still parses legacy public header link flags when explicitly set', () => {
+    const modules = parseHeaderNavModules({
+      home: true,
+      console: true,
+      blog: true,
+    })
+    assert.equal(modules.home, true)
+    assert.equal(modules.console, true)
+    assert.equal(modules.blog, true)
   })
 })

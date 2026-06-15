@@ -67,3 +67,35 @@ variable "enable_usage_recon_token" {
   description = "Inject BLOCKRUN_USAGE_SUMMARY_TOKEN into Cloud Run from Secret Manager. Flip to true ONLY after the secret value has been added (`gcloud secrets versions add newapi-blockrun-usage-summary-token ...`); otherwise the revision fails to start because the secret has no version."
   default     = false
 }
+
+// --- Standalone Next.js website (website/) ---
+
+variable "enable_website" {
+  type        = bool
+  description = "Create the separate Next.js website Cloud Run service + minimal SA and enable the LB host-based split. Safe to leave false; nothing website-related is created until true."
+  default     = false
+}
+
+variable "website_service_name" {
+  type        = string
+  description = "Cloud Run service name for the Next.js website."
+  default     = "newapi-web"
+}
+
+variable "website_domains" {
+  type        = list(string)
+  description = "Hosts the LB routes to the website backend (host-based split). Served via Cloudflare orange-cloud, so they do NOT need to be in lb_domains / the managed cert (no cert rotation, no downtime)."
+  default     = []
+}
+
+variable "website_app_console_origin" {
+  type        = string
+  description = "Origin of the Go console/app the website links to and proxies (sign-in, /dashboard, /api/perf-metrics). e.g. https://console.flatkey.ai"
+  default     = "https://console.flatkey.ai"
+}
+
+variable "website_site_origin" {
+  type        = string
+  description = "Public origin of the marketing site itself."
+  default     = "https://flatkey.ai"
+}

@@ -80,6 +80,8 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
+          build-args: |
+            VITE_OFFICIAL_WEBSITE_ORIGIN=${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
           tags: |
             calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
             calciumion/new-api:latest-${{ matrix.arch }}
