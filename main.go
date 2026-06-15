@@ -310,6 +310,7 @@ func InitResources() error {
 
 	perfmetrics.Init()
 	channelflowmetrics.Init()
+	service.StartChannelFlowStatusSampler()
 
 	// 启动系统监控
 	common.StartSystemMonitor()

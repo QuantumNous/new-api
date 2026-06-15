@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -14,18 +15,40 @@ import (
 func setupMetricDB(t *testing.T) {
 	t.Helper()
 	oldDB := model.DB
+	oldRedisEnabled := common.RedisEnabled
+	oldRDB := common.RDB
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.ChannelFlowMetricMinute{}))
 	model.DB = db
+	common.RedisEnabled = false
+	common.RDB = nil
 	hotBuckets = sync.Map{}
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
 		require.NoError(t, sqlDB.Close())
 		model.DB = oldDB
+		common.RedisEnabled = oldRedisEnabled
+		common.RDB = oldRDB
 		hotBuckets = sync.Map{}
 	})
+}
+
+func TestQueryFillsEmptyMinuteBuckets(t *testing.T) {
+	setupMetricDB(t)
+
+	result, err := Query(QueryParams{PoolKey: "flow_pool_empty_test", Hours: 1})
+	require.NoError(t, err)
+	require.Len(t, result.Points, 60)
+	require.Equal(t, "flow_pool_empty_test", result.PoolKey)
+	for _, point := range result.Points {
+		require.Zero(t, point.RunningMax)
+		require.Zero(t, point.QueuedMax)
+		require.Zero(t, point.AcquiredCount)
+	}
+	require.Zero(t, result.Totals.AcquiredCount)
+	require.Zero(t, result.Totals.RejectedCount)
 }
 
 func TestFlushCompletedBucketsUpsertsAndDeletesHotBucket(t *testing.T) {

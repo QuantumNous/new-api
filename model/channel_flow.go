@@ -36,6 +36,7 @@ const (
 	ChannelFlowEventBillingFailed    = "billing_failed"
 	ChannelFlowEventLeaseRenewFailed = "lease_renew_failed"
 	ChannelFlowEventLeaseExpired     = "lease_expired"
+	ChannelFlowEventStatusSample     = "status_sample"
 )
 
 type ChannelFlowPool struct {
@@ -276,6 +277,12 @@ func GetChannelFlowPoolByKey(poolKey string) (*ChannelFlowPool, error) {
 		return nil, err
 	}
 	return &pool, nil
+}
+
+func ListEnabledChannelFlowPools() ([]*ChannelFlowPool, error) {
+	var pools []*ChannelFlowPool
+	err := DB.Where("enabled = ?", true).Order("id ASC").Find(&pools).Error
+	return pools, err
 }
 
 func GetChannelFlowPoolBindingForChannel(channelID int) (*ChannelFlowPoolBinding, *ChannelFlowPool, error) {

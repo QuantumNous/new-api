@@ -118,43 +118,49 @@ type atomicBucket struct {
 }
 
 func (b *atomicBucket) add(sample Sample) {
+	b.addCounters(countersFromSample(sample))
+}
+
+func countersFromSample(sample Sample) counters {
+	c := counters{}
 	if sample.Running >= 0 && sample.Queued >= 0 {
-		b.sampleCount.Add(1)
-		b.runningSum.Add(int64(sample.Running))
-		updateAtomicMax(&b.runningMax, int64(sample.Running))
-		b.queuedSum.Add(int64(sample.Queued))
-		updateAtomicMax(&b.queuedMax, int64(sample.Queued))
+		c.sampleCount = 1
+		c.runningSum = int64(sample.Running)
+		c.runningMax = int64(sample.Running)
+		c.queuedSum = int64(sample.Queued)
+		c.queuedMax = int64(sample.Queued)
 	}
 	switch sample.EventType {
 	case "acquired":
-		b.acquiredCount.Add(1)
+		c.acquiredCount = 1
 	case "queued":
-		b.queuedCount.Add(1)
+		c.queuedCount = 1
 	case "released":
-		b.releasedCount.Add(1)
+		c.releasedCount = 1
 	case "rejected":
-		b.rejectedCount.Add(1)
+		c.rejectedCount = 1
 	case "timeout":
-		b.timeoutCount.Add(1)
+		c.timeoutCount = 1
 	case "cancelled":
-		b.cancelledCount.Add(1)
+		c.cancelledCount = 1
 	case "billing_failed":
-		b.billingFailedCount.Add(1)
+		c.billingFailedCount = 1
 	case "lease_renew_failed":
-		b.leaseRenewFail.Add(1)
+		c.leaseRenewFail = 1
 	case "lease_expired":
-		b.leaseExpiredCount.Add(1)
+		c.leaseExpiredCount = 1
 	}
 	if sample.WaitMs > 0 {
-		b.waitMsSum.Add(sample.WaitMs)
-		b.waitSampleCount.Add(1)
-		updateAtomicMax(&b.waitMsMax, sample.WaitMs)
+		c.waitMsSum = sample.WaitMs
+		c.waitSampleCount = 1
+		c.waitMsMax = sample.WaitMs
 	}
 	if sample.ProcessMs > 0 {
-		b.processMsSum.Add(sample.ProcessMs)
-		b.processSampleCount.Add(1)
-		updateAtomicMax(&b.processMsMax, sample.ProcessMs)
+		c.processMsSum = sample.ProcessMs
+		c.processSampleCount = 1
+		c.processMsMax = sample.ProcessMs
 	}
+	return c
 }
 
 func (b *atomicBucket) snapshot() counters {

@@ -1,7 +1,6 @@
 package channelflowmetrics
 
 import (
-	"sort"
 	"sync"
 	"time"
 
@@ -32,6 +31,7 @@ func Record(sample Sample) {
 	}
 	actual, _ := hotBuckets.LoadOrStore(key, &atomicBucket{})
 	actual.(*atomicBucket).add(sample)
+	recordRedis(key, sample)
 }
 
 func Query(params QueryParams) (TrendResult, error) {
@@ -41,11 +41,15 @@ func Query(params QueryParams) (TrendResult, error) {
 	if params.Hours > maxQueryHours {
 		params.Hours = maxQueryHours
 	}
-	endTs := time.Now().Unix()
-	startTs := endTs - int64(params.Hours)*3600
+	endBucket := bucketStart(time.Now().Unix())
+	bucketCount := params.Hours * 3600 / flowBucketSeconds
+	if bucketCount <= 0 {
+		bucketCount = 1
+	}
+	startBucket := endBucket - int64(bucketCount-1)*flowBucketSeconds
 
 	merged := map[int64]counters{}
-	rows, err := model.GetChannelFlowMetricMinutes(params.PoolKey, startTs, endTs)
+	rows, err := model.GetChannelFlowMetricMinutes(params.PoolKey, startBucket, endBucket)
 	if err != nil {
 		return TrendResult{}, err
 	}
@@ -53,9 +57,13 @@ func Query(params QueryParams) (TrendResult, error) {
 		mergeCounters(merged, row.BucketTs, metricToCounters(row))
 	}
 
+	redisActiveMerged := mergeRedisActiveBucket(merged, params.PoolKey, endBucket)
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
-		if k.poolKey != params.PoolKey || k.bucketTs < startTs || k.bucketTs > endTs {
+		if k.poolKey != params.PoolKey || k.bucketTs < startBucket || k.bucketTs > endBucket {
+			return true
+		}
+		if redisActiveMerged && k.bucketTs == endBucket {
 			return true
 		}
 		mergeCounters(merged, k.bucketTs, value.(*atomicBucket).snapshot())
@@ -64,7 +72,7 @@ func Query(params QueryParams) (TrendResult, error) {
 
 	return TrendResult{
 		PoolKey: params.PoolKey,
-		Points:  buildPoints(merged),
+		Points:  buildPoints(merged, startBucket, endBucket),
 		Totals:  buildTotals(merged),
 	}, nil
 }
@@ -109,16 +117,12 @@ func mergeCounters(merged map[int64]counters, bucketTs int64, value counters) {
 	merged[bucketTs] = current
 }
 
-func buildPoints(merged map[int64]counters) []ChannelFlowTrendPoint {
-	timestamps := make([]int64, 0, len(merged))
-	for ts := range merged {
-		timestamps = append(timestamps, ts)
+func buildPoints(merged map[int64]counters, startBucket int64, endBucket int64) []ChannelFlowTrendPoint {
+	if endBucket < startBucket {
+		return []ChannelFlowTrendPoint{}
 	}
-	sort.Slice(timestamps, func(i, j int) bool {
-		return timestamps[i] < timestamps[j]
-	})
-	points := make([]ChannelFlowTrendPoint, 0, len(timestamps))
-	for _, ts := range timestamps {
+	points := make([]ChannelFlowTrendPoint, 0, int((endBucket-startBucket)/flowBucketSeconds)+1)
+	for ts := startBucket; ts <= endBucket; ts += flowBucketSeconds {
 		points = append(points, counterPoint(ts, merged[ts]))
 	}
 	return points
