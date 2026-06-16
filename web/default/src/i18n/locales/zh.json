@@ -4462,7 +4462,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -4634,6 +4634,22 @@
     "A successful call returns a JSON reply with the model's answer (e.g. choices[0].message.content). If you get a 401, the key is wrong; a 402/insufficient-balance means you need to top up.": "调用成功会返回一段 JSON，里面是模型的回答（如 choices[0].message.content）。如果返回 401，说明密钥不对；返回 402 / 余额不足，则需要先充值。",
     "Not a developer? Run a one-click test instead:": "不是开发者？可以改用一键测试：",
     "Lost the key value? Regenerate it from the table — your balance stays safe.": "丢了密钥内容？从列表里重新生成即可，余额不受影响。",
-    "View code examples →": "查看代码示例 →"
+    "View code examples →": "查看代码示例 →",
+    "Easy": "简单",
+    "“What day is it today?”": "“今天星期几?”",
+    "→ a fast, cheap model": "→ 用快速、便宜的小模型",
+    "about 95% cheaper": "约便宜 95%",
+    "Medium": "中等",
+    "“Write a polite follow-up email”": "“写一封礼貌的跟进邮件”",
+    "→ a balanced mid-tier model": "→ 用均衡的中档模型",
+    "best value": "性价比最高",
+    "Hard": "复杂",
+    "“Analyse this code and fix the bug”": "“分析这段代码并修复 bug”",
+    "→ a top-tier model, only when needed": "→ 才动用顶级模型",
+    "full power": "火力全开",
+    "Smart Routing": "智能路由",
+    "Don't know which model to pick? We do.": "不知道该用哪个模型?我们替你选。",
+    "Up to 90% cheaper on everyday tasks": "日常任务最高省 90%",
+    "For example": "举个例子"
   }
 }
