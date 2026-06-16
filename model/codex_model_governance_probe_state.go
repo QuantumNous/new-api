@@ -46,8 +46,12 @@ func RecordCodexModelGovernanceProbeUnsupportedFailure(modelName string, channel
 				CreatedTime:         now,
 				UpdatedTime:         now,
 			}
-			if err := tx.Create(&state).Error; err != nil {
-				return err
+			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&state)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				return incrementCodexModelGovernanceProbeUnsupportedFailure(tx, modelName, channelID, threshold, now, &count)
 			}
 			count = state.ConsecutiveFailures
 			return nil
@@ -56,17 +60,7 @@ func RecordCodexModelGovernanceProbeUnsupportedFailure(modelName string, channel
 			return err
 		}
 
-		count = state.ConsecutiveFailures + 1
-		if count > threshold {
-			count = threshold
-		}
-		return tx.Model(&CodexModelGovernanceProbeState{}).
-			Where("model_name = ? AND channel_id = ?", modelName, channelID).
-			Updates(map[string]any{
-				"consecutive_failures": count,
-				"last_failed_at":       now,
-				"updated_time":         now,
-			}).Error
+		return updateCodexModelGovernanceProbeUnsupportedFailure(tx, state, threshold, now, &count)
 	})
 	if err != nil {
 		if isModelAvailabilityTableMissingError(err) {
@@ -77,11 +71,39 @@ func RecordCodexModelGovernanceProbeUnsupportedFailure(modelName string, channel
 	return count, count >= threshold, nil
 }
 
+func incrementCodexModelGovernanceProbeUnsupportedFailure(tx *gorm.DB, modelName string, channelID int, threshold int, now int64, count *int) error {
+	var state CodexModelGovernanceProbeState
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&state, "model_name = ? AND channel_id = ?", modelName, channelID).Error; err != nil {
+		return err
+	}
+	return updateCodexModelGovernanceProbeUnsupportedFailure(tx, state, threshold, now, count)
+}
+
+func updateCodexModelGovernanceProbeUnsupportedFailure(tx *gorm.DB, state CodexModelGovernanceProbeState, threshold int, now int64, count *int) error {
+	nextCount := state.ConsecutiveFailures + 1
+	if nextCount > threshold {
+		nextCount = threshold
+	}
+	*count = nextCount
+	return tx.Model(&CodexModelGovernanceProbeState{}).
+		Where("model_name = ? AND channel_id = ?", state.ModelName, state.ChannelID).
+		Updates(map[string]any{
+			"consecutive_failures": nextCount,
+			"last_failed_at":       now,
+			"updated_time":         now,
+		}).Error
+}
+
 func ResetCodexModelGovernanceProbeFailure(modelName string, channelID int) error {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" || channelID <= 0 || DB == nil {
 		return nil
 	}
-	return DB.Where("model_name = ? AND channel_id = ?", modelName, channelID).
+	err := DB.Where("model_name = ? AND channel_id = ?", modelName, channelID).
 		Delete(&CodexModelGovernanceProbeState{}).Error
+	if isModelAvailabilityTableMissingError(err) {
+		return nil
+	}
+	return err
 }

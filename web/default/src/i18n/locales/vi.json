@@ -4961,7 +4961,7 @@
     "Lightweight checks run only against Codex channels.": "Kiểm tra nhẹ chỉ chạy trên các kênh Codex.",
     "Matched rule": "Quy tắc khớp",
     "Move explicitly unsupported Codex subscription models to manual review.": "Đưa các mô hình đăng ký Codex được xác định không hỗ trợ vào xét duyệt thủ công.",
-    "Note: automatic routing disable does not take effect when MEMORY_CACHE_ENABLED is on; rely on alerts and manual review in that mode.": "Lưu ý: tự động tắt định tuyến không có hiệu lực khi MEMORY_CACHE_ENABLED bật; ở chế độ đó hãy dựa vào cảnh báo và xét duyệt thủ công.",
+    "Note: automatic routing disable updates Codex abilities and refreshes channel caches; linked review-only channels stay callable until manual action.": "Lưu ý: tự động tắt định tuyến cập nhật năng lực Codex và làm mới bộ nhớ đệm kênh; các kênh liên kết chỉ để xét duyệt vẫn gọi được cho đến khi thao tác thủ công.",
     "No pending Codex model governance records.": "Không có bản ghi quản trị mô hình Codex đang chờ.",
     "Official Codex source URLs": "URL nguồn Codex chính thức",
     "Official lifecycle terms": "Thuật ngữ vòng đời chính thức",

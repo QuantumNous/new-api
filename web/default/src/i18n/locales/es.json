@@ -4961,7 +4961,7 @@
     "Lightweight checks run only against Codex channels.": "Las comprobaciones ligeras solo se ejecutan en canales Codex.",
     "Matched rule": "Regla coincidente",
     "Move explicitly unsupported Codex subscription models to manual review.": "Mover a revisión manual los modelos de suscripción Codex explícitamente no compatibles.",
-    "Note: automatic routing disable does not take effect when MEMORY_CACHE_ENABLED is on; rely on alerts and manual review in that mode.": "Nota: la desactivación automática del enrutamiento no tiene efecto cuando MEMORY_CACHE_ENABLED está activado; en ese modo, usa las alertas y la revisión manual.",
+    "Note: automatic routing disable updates Codex abilities and refreshes channel caches; linked review-only channels stay callable until manual action.": "Nota: la desactivación automática del enrutamiento actualiza las capacidades de Codex y refresca las cachés de canales; los canales vinculados solo para revisión siguen disponibles hasta una acción manual.",
     "No pending Codex model governance records.": "No hay registros pendientes de gobernanza de modelos Codex.",
     "Official Codex source URLs": "URL de fuentes oficiales de Codex",
     "Official lifecycle terms": "Términos oficiales del ciclo de vida",

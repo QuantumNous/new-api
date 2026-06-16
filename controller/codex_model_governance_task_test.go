@@ -97,6 +97,24 @@ func TestCodexGovernanceProbeIntervalFallsBackToOneHour(t *testing.T) {
 	}
 }
 
+func TestCodexGovernanceTaskPollsDisabledSettingFrequently(t *testing.T) {
+	got := codexGovernanceTaskSleepDuration(&operation_setting.CodexModelGovernanceSetting{
+		Enabled:              false,
+		ProbeIntervalMinutes: 1440,
+	})
+
+	require.Equal(t, time.Minute, got)
+}
+
+func TestCodexGovernanceTaskUsesProbeIntervalWhenEnabled(t *testing.T) {
+	got := codexGovernanceTaskSleepDuration(&operation_setting.CodexModelGovernanceSetting{
+		Enabled:              true,
+		ProbeIntervalMinutes: 120,
+	})
+
+	require.Equal(t, 2*time.Hour, got)
+}
+
 func TestClassifyCodexGovernanceProbeErrorOnlyMatchesConfiguredRules(t *testing.T) {
 	patterns := []string{`The '([^']+)' model is not supported when using Codex with a ChatGPT account\.`}
 	strict := classifyCodexGovernanceProbeError(

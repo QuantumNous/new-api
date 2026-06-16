@@ -17,6 +17,7 @@ import (
 const (
 	codexGovernanceProbePrompt                          = "ping"
 	codexGovernanceProbeUnsupportedConsecutiveThreshold = 2
+	codexGovernanceDisabledPollInterval                 = time.Minute
 )
 
 var codexModelGovernanceTaskOnce sync.Once
@@ -33,6 +34,13 @@ func codexGovernanceProbeInterval(setting *operation_setting.CodexModelGovernanc
 		return time.Hour
 	}
 	return time.Duration(setting.ProbeIntervalMinutes) * time.Minute
+}
+
+func codexGovernanceTaskSleepDuration(setting *operation_setting.CodexModelGovernanceSetting) time.Duration {
+	if setting == nil || !setting.Enabled {
+		return codexGovernanceDisabledPollInterval
+	}
+	return codexGovernanceProbeInterval(setting)
 }
 
 func classifyCodexGovernanceProbeError(message string, patterns []string) service.CodexUnsupportedMatch {
@@ -164,6 +172,9 @@ func runCodexModelGovernanceProbeOnce() {
 			})
 			if result.localErr == nil && result.newAPIError == nil {
 				resetCodexGovernanceProbeFailure(modelName, channel.Id)
+				if err := model.RestoreCodexModelGovernanceAfterProbeSuccess(modelName, channel.Id); err != nil {
+					common.SysError(fmt.Sprintf("Codex governance probe failed to restore healthy model %s on channel #%d: %v", modelName, channel.Id, err))
+				}
 				continue
 			}
 			message := codexGovernanceProbeErrorMessage(result)
@@ -256,12 +267,11 @@ func StartCodexModelGovernanceTask() {
 		gopool.Go(func() {
 			for {
 				setting := operation_setting.GetCodexModelGovernanceSetting()
-				interval := codexGovernanceProbeInterval(setting)
 				if setting != nil && setting.Enabled {
 					runCodexModelGovernanceProbeOnce()
 					runCodexOfficialNoticeMonitorOnce()
 				}
-				time.Sleep(interval)
+				time.Sleep(codexGovernanceTaskSleepDuration(setting))
 			}
 		})
 	})

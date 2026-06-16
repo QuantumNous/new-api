@@ -129,10 +129,10 @@ func normalizeStringSliceOptionValue(value any) (string, []string, error) {
 		return "", nil, err
 	}
 	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			normalized = append(normalized, value)
+	for _, item := range values {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			normalized = append(normalized, item)
 		}
 	}
 	raw, isString := value.(string)

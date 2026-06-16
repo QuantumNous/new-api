@@ -1069,7 +1069,7 @@ export function MonitoringSettingsSection({
                     <FormDescription>
                       {t('Lightweight checks run only against Codex channels.')}{' '}
                       {t(
-                        'Note: automatic routing disable does not take effect when MEMORY_CACHE_ENABLED is on; rely on alerts and manual review in that mode.'
+                        'Note: automatic routing disable updates Codex abilities and refreshes channel caches; linked review-only channels stay callable until manual action.'
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>

@@ -4961,7 +4961,7 @@
     "Lightweight checks run only against Codex channels.": "Легковесные проверки выполняются только для каналов Codex.",
     "Matched rule": "Совпавшее правило",
     "Move explicitly unsupported Codex subscription models to manual review.": "Перемещать явно неподдерживаемые модели подписки Codex на ручную проверку.",
-    "Note: automatic routing disable does not take effect when MEMORY_CACHE_ENABLED is on; rely on alerts and manual review in that mode.": "Примечание: автоматическое отключение маршрутизации не действует, когда включен MEMORY_CACHE_ENABLED; в этом режиме полагайтесь на оповещения и ручную проверку.",
+    "Note: automatic routing disable updates Codex abilities and refreshes channel caches; linked review-only channels stay callable until manual action.": "Примечание: автоматическое отключение маршрутизации обновляет возможности Codex и кэши каналов; связанные каналы только для проверки остаются доступными до ручного действия.",
     "No pending Codex model governance records.": "Нет ожидающих записей управления моделями Codex.",
     "Official Codex source URLs": "URL официальных источников Codex",
     "Official lifecycle terms": "Официальные термины жизненного цикла",
