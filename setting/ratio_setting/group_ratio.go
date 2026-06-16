@@ -102,6 +102,18 @@ func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
 	return ratio, true
 }
 
+// GetGroupGroupRatioKeys 返回分组专属倍率(GroupGroupRatio)中配置的外层分组名称,
+// 即配置了子分组专属费率的用户身份分组(user.Group)。与充值分组比例一并作为
+// 可分配用户分组的权威来源,详见 controller.GetGroups 的 type=user 分支。
+func GetGroupGroupRatioKeys() []string {
+	all := groupGroupRatioMap.ReadAll()
+	keys := make([]string, 0, len(all))
+	for name := range all {
+		keys = append(keys, name)
+	}
+	return keys
+}
+
 func GroupGroupRatio2JSONString() string {
 	return groupGroupRatioMap.MarshalJSONString()
 }

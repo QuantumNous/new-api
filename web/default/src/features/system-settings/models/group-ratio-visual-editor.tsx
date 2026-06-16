@@ -105,6 +105,11 @@ function createGroupPricingId() {
   return `gpr_${groupPricingIdCounter}`
 }
 
+// System default user identity group, mirroring the `default:'default'` column
+// default on the backend user model. Always shown as a non-removable baseline in
+// the top-up group ratio table.
+const TOPUP_DEFAULT_GROUP = 'default'
+
 function normalizeRatio(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 1
@@ -235,16 +240,28 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   const [userGroupDialogOpen, setUserGroupDialogOpen] = useState(false)
   const [userGroupInput, setUserGroupInput] = useState('')
 
-  // Parse topup group ratios
+  // Parse topup group ratios. The system default user group ("default", assigned
+  // to every newly registered user) is always surfaced as a non-removable baseline
+  // row — even when the persisted JSON omits it — so an admin can always see and
+  // tune its multiplier. Its multiplier stays editable; only deletion is blocked.
   const topupRatioList = useMemo(() => {
     const map = safeJsonParse<Record<string, number>>(topupGroupRatio, {
       fallback: {},
       context: 'topup group ratios',
     })
-    return Object.entries(map).map(([name, value]) => ({
+    const rows = Object.entries(map).map(([name, value]) => ({
       name,
       value: String(value),
+      isDefault: name === TOPUP_DEFAULT_GROUP,
     }))
+    if (!rows.some((row) => row.isDefault)) {
+      rows.unshift({
+        name: TOPUP_DEFAULT_GROUP,
+        value: '1',
+        isDefault: true,
+      })
+    }
+    return rows
   }, [topupGroupRatio])
 
   // Parse auto groups
@@ -359,6 +376,11 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
     type: 'groupRatio' | 'topupGroupRatio',
     name: string
   ) => {
+    // The system default top-up group is a non-removable baseline; guard against
+    // deletion even if a caller bypasses the disabled button.
+    if (type === 'topupGroupRatio' && name === TOPUP_DEFAULT_GROUP) {
+      return
+    }
     const fieldName = type === 'groupRatio' ? groupRatio : topupGroupRatio
     const map = safeJsonParse<Record<string, number>>(fieldName, {
       fallback: {},
@@ -561,6 +583,12 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                             <Button
                               variant='ghost'
                               size='sm'
+                              disabled={group.isDefault}
+                              aria-label={
+                                group.isDefault
+                                  ? t('System default group cannot be removed')
+                                  : t('Delete')
+                              }
                               onClick={() =>
                                 handleSimpleDelete(
                                   'topupGroupRatio',
