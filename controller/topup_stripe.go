@@ -461,7 +461,11 @@ func fulfillCardBind(ctx context.Context, event stripe.Event, referenceId string
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
 
-	bonusGranted, bonusQuota, err := model.MarkStripeCardBound(userId, customerId)
+	// Fetch the bound card's fingerprint for anti-abuse dedup (same physical card across
+	// accounts earns the bonus only once). Best-effort: empty on failure just skips dedup.
+	cardFingerprint := fetchCardFingerprint(strings.TrimSpace(customerId))
+
+	bonusGranted, bonusQuota, err := model.MarkStripeCardBound(userId, customerId, cardFingerprint)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 绑卡回调处理失败 user_id=%d ref=%s client_ip=%s error=%q", userId, referenceId, callerIp, err.Error()))
 		return

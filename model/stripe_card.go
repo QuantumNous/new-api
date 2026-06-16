@@ -10,7 +10,38 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// StripeBonusClaim records that a physical card (identified by its stable Stripe fingerprint)
+// has already earned the one-time new-user bonus. The UNIQUE index on CardFingerprint lets
+// the database atomically enforce "one bonus per card" — concurrent binds of the same card
+// across different accounts race on the insert, and only the winner grants the bonus. This
+// avoids the read-then-write TOCTOU of a count-based check.
+type StripeBonusClaim struct {
+	Id              int    `json:"id"`
+	CardFingerprint string `json:"card_fingerprint" gorm:"type:varchar(64);uniqueIndex"`
+	UserId          int    `json:"user_id" gorm:"index"`
+	CreatedTime     int64  `json:"created_time" gorm:"bigint"`
+}
+
+// claimBonusForFingerprint atomically claims the one-time bonus for a card fingerprint within
+// the given transaction. Returns true if THIS user won the claim (and should be granted the
+// bonus), false if the card already claimed it (insert lost on the unique index).
+func claimBonusForFingerprint(tx *gorm.DB, userId int, cardFingerprint string) (bool, error) {
+	claim := &StripeBonusClaim{
+		CardFingerprint: cardFingerprint,
+		UserId:          userId,
+		CreatedTime:     common.GetTimestamp(),
+	}
+	// Insert; on unique-key conflict the card already claimed the bonus -> we lost the race.
+	res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(claim)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	// RowsAffected == 0 means ON CONFLICT DO NOTHING skipped the insert (already claimed).
+	return res.RowsAffected > 0, nil
+}
 
 // PaymentProviderStripeAuto marks top-up orders created by the threshold-triggered
 // automatic off-session charge, so they can be distinguished from manual top-ups.
@@ -22,10 +53,11 @@ const PaymentProviderStripeAuto = "stripe_auto"
 // The whole operation runs in a single transaction and is safe to call repeatedly from
 // webhook retries: the bonus is only granted when new_user_bonus_given is still false,
 // guarded by a row-level lock. Returns (bonusGranted, bonusQuota, error).
-func MarkStripeCardBound(userId int, customerId string) (bonusGranted bool, bonusQuota int, err error) {
+func MarkStripeCardBound(userId int, customerId string, cardFingerprint string) (bonusGranted bool, bonusQuota int, err error) {
 	if userId <= 0 {
 		return false, 0, errors.New("invalid user id")
 	}
+	cardFingerprint = strings.TrimSpace(cardFingerprint)
 
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		user := &User{}
@@ -33,10 +65,13 @@ func MarkStripeCardBound(userId int, customerId string) (bonusGranted bool, bonu
 			return err
 		}
 
-		// Always mark the card as bound.
+		// Always mark the card as bound (and remember the fingerprint for anti-abuse dedup).
 		boundFields := map[string]interface{}{"stripe_card_bound": true}
 		if strings.TrimSpace(customerId) != "" {
 			boundFields["stripe_customer"] = strings.TrimSpace(customerId)
+		}
+		if cardFingerprint != "" {
+			boundFields["stripe_card_fingerprint"] = cardFingerprint
 		}
 		if err := tx.Model(&User{}).Where("id = ?", userId).Updates(boundFields).Error; err != nil {
 			return err
@@ -48,6 +83,20 @@ func MarkStripeCardBound(userId int, customerId string) (bonusGranted bool, bonu
 		grantQuota := setting.StripeNewUserBonusAmount * int(common.QuotaPerUnit)
 		if grantQuota <= 0 {
 			return nil
+		}
+
+		// Anti-abuse: the same physical card (Stripe fingerprint, stable across customers)
+		// may only earn the new-user bonus once, even across multiple accounts. Claim it via
+		// an atomic insert on a unique index — concurrent binds of the same card race on the
+		// insert and only the winner proceeds, so there is no read-then-write TOCTOU.
+		if cardFingerprint != "" {
+			won, err := claimBonusForFingerprint(tx, userId, cardFingerprint)
+			if err != nil {
+				return err
+			}
+			if !won {
+				return nil
+			}
 		}
 
 		// Grant the one-time bonus with a conditional UPDATE: the WHERE clause makes the
@@ -111,6 +160,32 @@ func HasRecentStripeAutoCharge(userId int, windowSeconds int64) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// RecordStripeAutoChargeAttempt persists a failed/aborted auto-charge attempt as a
+// stripe_auto TopUp row (status=failed) so that HasRecentStripeAutoCharge treats it as a
+// recent charge and applies the cooldown. This stops a declined/unverifiable card from
+// triggering a charge attempt on every relay request (decline storm + log spam), and is
+// cross-instance / restart-safe. attemptKey makes the trade_no unique per attempt window.
+func RecordStripeAutoChargeAttempt(userId int, amountUnits int, attemptKey string) {
+	if userId <= 0 {
+		return
+	}
+	now := common.GetTimestamp()
+	topUp := &TopUp{
+		UserId:          userId,
+		Amount:          int64(amountUnits),
+		TradeNo:         "autofail_" + strings.TrimSpace(attemptKey),
+		PaymentMethod:   PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripeAuto,
+		CreateTime:      now,
+		CompleteTime:    now,
+		Status:          common.TopUpStatusFailed,
+	}
+	if err := DB.Create(topUp).Error; err != nil {
+		// A duplicate trade_no (same attempt key) is fine — the cooldown row already exists.
+		common.SysLog("failed to record stripe auto-charge attempt cooldown row: " + err.Error())
+	}
 }
 
 // RecordStripeAutoChargeFailure writes a user-visible system log entry when an automatic

@@ -22,8 +22,6 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
-const BONUS_LABEL = '$10'
-
 /**
  * A persistent banner shown to any signed-in user who has not yet bound a card,
  * inviting them to bind one and claim the bonus. Disappears once a card is bound
@@ -34,6 +32,7 @@ export function CardBindBanner() {
   const config = useSystemConfig()
   const user = useAuthStore((s) => s.auth.user)
   const openOnboarding = useOnboardingStore((s) => s.openOnboarding)
+  const bonusLabel = `$${config.stripeNewUserBonusAmount ?? 10}`
 
   if (!config.enableStripeCardBind) return null
   if (!user || user.stripe_card_bound) return null
@@ -47,7 +46,7 @@ export function CardBindBanner() {
       <Gift className='size-4 shrink-0' aria-hidden='true' />
       <span>
         {t('Bind a credit card to claim {{amount}} in API credit', {
-          amount: BONUS_LABEL,
+          amount: bonusLabel,
         })}
       </span>
       <ChevronRight className='size-4 shrink-0' aria-hidden='true' />

@@ -21,11 +21,11 @@ import { Gift, Loader2, Zap } from 'lucide-react'
 import { useTranslation, Trans } from 'react-i18next'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@/stores/onboarding-store'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { beginCardBind, isApiSuccess } from './api'
 
-const BONUS_LABEL = '$10'
 // Visual-only urgency timer (seconds). Resets each time the dialog opens.
 const COUNTDOWN_SECONDS = 10 * 60
 
@@ -44,6 +44,8 @@ function pad(n: number) {
 export function Onboarding() {
   const { t } = useTranslation()
   const open = useOnboardingStore((s) => s.open)
+  const config = useSystemConfig()
+  const BONUS_LABEL = `$${config.stripeNewUserBonusAmount ?? 10}`
   const closeOnboarding = useOnboardingStore((s) => s.closeOnboarding)
   const [submitting, setSubmitting] = useState(false)
   const [remaining, setRemaining] = useState(COUNTDOWN_SECONDS)

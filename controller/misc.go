@@ -98,7 +98,8 @@ func GetStatus(c *gin.Context) {
 		"stripe_unit_price": setting.StripeUnitPrice,
 
 		// 绑卡（SetupIntent 后付费）开关
-		"enable_stripe_card_bind": setting.StripeCardBindEnabled,
+		"enable_stripe_card_bind":      setting.StripeCardBindEnabled,
+		"stripe_new_user_bonus_amount": setting.StripeNewUserBonusAmount,
 
 		// 面板启用开关
 		"api_info_enabled":      cs.ApiInfoEnabled,

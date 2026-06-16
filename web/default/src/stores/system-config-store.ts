@@ -44,6 +44,7 @@ export interface SystemConfig {
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
   enableStripeCardBind?: boolean
+  stripeNewUserBonusAmount?: number
   currency: CurrencyConfig
 }
 

@@ -14,6 +14,7 @@ import (
 func TestMarkStripeCardBoundIdempotentBonus(t *testing.T) {
 	truncateTables(t)
 	DB.Exec("DELETE FROM users")
+	DB.Exec("DELETE FROM stripe_bonus_claims")
 
 	origEnabled := setting.StripeCardBindEnabled
 	origAmount := setting.StripeNewUserBonusAmount
@@ -32,7 +33,7 @@ func TestMarkStripeCardBoundIdempotentBonus(t *testing.T) {
 	expectBonus := 10 * int(common.QuotaPerUnit)
 
 	// First call grants the bonus.
-	granted, quota, err := MarkStripeCardBound(userId, "cus_a")
+	granted, quota, err := MarkStripeCardBound(userId, "cus_a", "fp_user8888")
 	if err != nil {
 		t.Fatalf("first MarkStripeCardBound failed: %v", err)
 	}
@@ -42,7 +43,7 @@ func TestMarkStripeCardBoundIdempotentBonus(t *testing.T) {
 
 	// Second & third calls (duplicate webhooks / second bind session) must NOT re-grant.
 	for i := 0; i < 2; i++ {
-		granted, quota, err = MarkStripeCardBound(userId, "cus_b")
+		granted, quota, err = MarkStripeCardBound(userId, "cus_b", "fp_user8888")
 		if err != nil {
 			t.Fatalf("repeat MarkStripeCardBound failed: %v", err)
 		}
@@ -61,6 +62,63 @@ func TestMarkStripeCardBoundIdempotentBonus(t *testing.T) {
 	}
 	if !u.StripeCardBound || !u.NewUserBonusGiven {
 		t.Fatalf("expected card bound + bonus given flags set, got bound=%v bonus=%v", u.StripeCardBound, u.NewUserBonusGiven)
+	}
+}
+
+// TestMarkStripeCardBoundFingerprintDedup verifies the same physical card (same Stripe
+// fingerprint) earns the new-user bonus only once, even across different accounts.
+func TestMarkStripeCardBoundFingerprintDedup(t *testing.T) {
+	truncateTables(t)
+	DB.Exec("DELETE FROM users")
+	DB.Exec("DELETE FROM stripe_bonus_claims")
+
+	origEnabled := setting.StripeCardBindEnabled
+	origAmount := setting.StripeNewUserBonusAmount
+	t.Cleanup(func() {
+		setting.StripeCardBindEnabled = origEnabled
+		setting.StripeNewUserBonusAmount = origAmount
+	})
+	setting.StripeCardBindEnabled = true
+	setting.StripeNewUserBonusAmount = 10
+
+	const userA = 1001
+	const userB = 1002
+	const sharedFp = "fp_shared_card"
+	if err := DB.Create(&User{Id: userA, Username: "acctA", AffCode: "affA"}).Error; err != nil {
+		t.Fatalf("create userA failed: %v", err)
+	}
+	if err := DB.Create(&User{Id: userB, Username: "acctB", AffCode: "affB"}).Error; err != nil {
+		t.Fatalf("create userB failed: %v", err)
+	}
+
+	// Account A binds the card → gets the bonus.
+	grantedA, _, err := MarkStripeCardBound(userA, "cus_a", sharedFp)
+	if err != nil {
+		t.Fatalf("userA bind failed: %v", err)
+	}
+	if !grantedA {
+		t.Fatalf("userA: expected bonus granted")
+	}
+
+	// Account B binds the SAME physical card (same fingerprint) → must NOT get the bonus.
+	grantedB, quotaB, err := MarkStripeCardBound(userB, "cus_b", sharedFp)
+	if err != nil {
+		t.Fatalf("userB bind failed: %v", err)
+	}
+	if grantedB || quotaB != 0 {
+		t.Fatalf("userB: expected NO bonus for reused card, got granted=%v quota=%d", grantedB, quotaB)
+	}
+
+	// But account B is still marked as card-bound (the binding itself succeeds).
+	var b User
+	if err := DB.Where("id = ?", userB).First(&b).Error; err != nil {
+		t.Fatalf("reload userB failed: %v", err)
+	}
+	if !b.StripeCardBound {
+		t.Fatalf("userB: expected card bound even without bonus")
+	}
+	if b.NewUserBonusGiven {
+		t.Fatalf("userB: bonus flag must stay false for reused card")
 	}
 }
 
@@ -183,5 +241,30 @@ func TestHasRecentStripeAutoCharge(t *testing.T) {
 	}
 	if recent {
 		t.Fatalf("a manual top-up must not trigger the auto-charge cooldown")
+	}
+}
+
+// TestRecordStripeAutoChargeAttemptTriggersCooldown verifies a FAILED attempt also makes
+// the persistent cooldown fire, so a declined card can't be retried on every request.
+func TestRecordStripeAutoChargeAttemptTriggersCooldown(t *testing.T) {
+	truncateTables(t)
+	DB.Exec("DELETE FROM top_ups")
+
+	const userId = 9001
+	const window int64 = 120
+
+	recent, _ := HasRecentStripeAutoCharge(userId, window)
+	if recent {
+		t.Fatalf("expected no cooldown before any attempt")
+	}
+
+	RecordStripeAutoChargeAttempt(userId, 20, "9001_t1")
+
+	recent, err := HasRecentStripeAutoCharge(userId, window)
+	if err != nil {
+		t.Fatalf("query failed: %v", err)
+	}
+	if !recent {
+		t.Fatalf("expected a failed attempt to trigger the cooldown")
 	}
 }

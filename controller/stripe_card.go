@@ -243,6 +243,31 @@ func fetchDefaultCard(customerId string) (brand string, last4 string) {
 	return "", ""
 }
 
+// fetchCardFingerprint returns the Stripe fingerprint of the customer's first card. The
+// fingerprint is stable for the same physical card across customers/accounts, so it is used
+// for anti-abuse dedup of the one-time bonus. Best-effort: ensures the key, swallows errors.
+func fetchCardFingerprint(customerId string) string {
+	if customerId == "" {
+		return ""
+	}
+	if err := ensureStripeKey(); err != nil {
+		return ""
+	}
+	listParams := &stripe.PaymentMethodListParams{
+		Customer: stripe.String(customerId),
+		Type:     stripe.String(string(stripe.PaymentMethodTypeCard)),
+	}
+	listParams.Limit = stripe.Int64(1)
+	iter := stripepaymentmethod.List(listParams)
+	for iter.Next() {
+		pm := iter.PaymentMethod()
+		if pm != nil && pm.Card != nil {
+			return strings.TrimSpace(pm.Card.Fingerprint)
+		}
+	}
+	return ""
+}
+
 // RemoveStripeCard detaches the user's saved card(s) and clears the bound flag.
 func RemoveStripeCard(c *gin.Context) {
 	id := c.GetInt("id")
@@ -377,11 +402,23 @@ func performStripeAutoCharge(userId int) {
 		return
 	}
 
+	// A unique key for this attempt window, used for the in-flight cooldown row's trade_no
+	// so concurrent failures don't collide on the unique index.
+	attemptKey := strconv.Itoa(userId) + "_" + strconv.FormatInt(now, 10)
+	// markFailedCooldown records a failed attempt to both the in-memory and the persistent
+	// (cross-instance / restart-safe) cooldown, so a declined/unusable card does not trigger
+	// a charge attempt on every relay request.
+	markFailedCooldown := func() {
+		autoChargeLastAt.Store(userId, time.Now().Unix())
+		model.RecordStripeAutoChargeAttempt(userId, amountUnits, attemptKey)
+	}
+
 	// Find the customer's default card payment method.
 	customerId := strings.TrimSpace(user.StripeCustomer)
 	paymentMethodId := findDefaultPaymentMethodId(customerId)
 	if paymentMethodId == "" {
 		logger.LogWarn(nil, fmt.Sprintf("Stripe 自动扣费：未找到可用支付方式 user_id=%d customer=%s", userId, customerId))
+		markFailedCooldown()
 		model.RecordStripeAutoChargeFailure(userId, amountUnits, "未找到可用的支付方式")
 		return
 	}
@@ -398,11 +435,15 @@ func performStripeAutoCharge(userId int) {
 		"user_id": strconv.Itoa(userId),
 		"purpose": "auto_charge",
 	}
+	// Idempotency key guards against stripe-go retrying on a network error and double-charging.
+	// Scoped to the attempt window so a genuine later charge (new window) is not blocked.
+	params.SetIdempotencyKey("autocharge_" + attemptKey)
 
 	intent, err := stripepaymentintent.New(params)
 	if err != nil {
 		// Off-session failures (e.g. authentication_required / declined) are expected; log and bail.
 		logger.LogWarn(nil, fmt.Sprintf("Stripe 自动扣费失败 user_id=%d amount_units=%d error=%q", userId, amountUnits, err.Error()))
+		markFailedCooldown()
 		model.RecordStripeAutoChargeFailure(userId, amountUnits, "扣款被拒绝或需要验证")
 		return
 	}
@@ -412,6 +453,7 @@ func performStripeAutoCharge(userId int) {
 			status = string(intent.Status)
 		}
 		logger.LogWarn(nil, fmt.Sprintf("Stripe 自动扣费未成功 user_id=%d status=%s", userId, status))
+		markFailedCooldown()
 		model.RecordStripeAutoChargeFailure(userId, amountUnits, "扣款未完成")
 		return
 	}
@@ -419,11 +461,9 @@ func performStripeAutoCharge(userId int) {
 	autoChargeLastAt.Store(userId, time.Now().Unix())
 
 	if err := model.CreditStripeAutoCharge(userId, amountUnits, money, intent.ID, common.GetIp()); err != nil {
-		// Money was captured but crediting failed — this needs operator attention.
-		// KNOWN RESIDUAL: no stripe_auto TopUp row is written on this path, so the DB
-		// cooldown (HasRecentStripeAutoCharge) cannot block a re-charge if the process
-		// restarts before the next in-memory cooldown window. Bounded to the rare
-		// success-then-credit-failure window; the log below flags it for manual reconcile.
+		// Money was captured but crediting failed. Persist a cooldown row so a restart can't
+		// re-charge this user within the window, and flag it for manual reconcile.
+		markFailedCooldown()
 		logger.LogError(nil, fmt.Sprintf("Stripe 自动扣费已扣款但充值入账失败 user_id=%d payment_intent=%s amount_units=%d error=%q", userId, intent.ID, amountUnits, err.Error()))
 		model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf(
 			"自动扣费已成功扣款 $%d，但额度入账失败（支付单号 %s），我们将尽快为您处理，如未到账请联系客服。",
@@ -434,8 +474,20 @@ func performStripeAutoCharge(userId int) {
 	logger.LogInfo(nil, fmt.Sprintf("Stripe 自动扣费成功 user_id=%d payment_intent=%s amount_units=%d money=%.2f", userId, intent.ID, amountUnits, money))
 }
 
-// findDefaultPaymentMethodId returns the customer's first card payment method id, or "".
+// findDefaultPaymentMethodId returns the customer's default card payment method id, falling
+// back to the first card on file. Preferring invoice_settings.default_payment_method ensures
+// a multi-card customer is charged on the card they designated as default.
 func findDefaultPaymentMethodId(customerId string) string {
+	// Prefer the customer's explicitly designated default payment method.
+	if cust, err := stripecustomer.Get(customerId, nil); err == nil && cust != nil {
+		if is := cust.InvoiceSettings; is != nil && is.DefaultPaymentMethod != nil {
+			if id := strings.TrimSpace(is.DefaultPaymentMethod.ID); id != "" {
+				return id
+			}
+		}
+	}
+
+	// Fall back to the first card on file.
 	listParams := &stripe.PaymentMethodListParams{
 		Customer: stripe.String(customerId),
 		Type:     stripe.String(string(stripe.PaymentMethodTypeCard)),
