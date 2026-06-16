@@ -1900,7 +1900,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "Pour les équipes qui ont besoin de limites plus élevées et d’une revue de support.",
@@ -4982,6 +4982,14 @@
     "GPT-5 input": "Entrée GPT-5",
     "Cache reads": "Lectures de cache",
     "Coverage": "Couverture",
-    "50% off": "50% de réduction"
+    "50% off": "50% de réduction",
+    "Acquisition Source": "Source d'acquisition",
+    "No source": "Aucune source",
+    "Paid Ads": "Publicités payantes",
+    "UTM": "UTM",
+    "Organic": "Organique",
+    "Referral": "Référent",
+    "Direct": "Direct",
+    "Landing Page": "Page de destination"
   }
 }

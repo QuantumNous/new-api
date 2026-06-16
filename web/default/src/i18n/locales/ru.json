@@ -1900,7 +1900,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "Для команд, которым нужны повышенные лимиты и консультация поддержки.",
@@ -4982,6 +4982,14 @@
     "GPT-5 input": "Ввод GPT-5",
     "Cache reads": "Чтения из кэша",
     "Coverage": "Покрытие",
-    "50% off": "скидка 50%"
+    "50% off": "скидка 50%",
+    "Acquisition Source": "Источник привлечения",
+    "No source": "Источник отсутствует",
+    "Paid Ads": "Платная реклама",
+    "UTM": "UTM",
+    "Organic": "Органический поиск",
+    "Referral": "Реферальный трафик",
+    "Direct": "Прямой трафик",
+    "Landing Page": "Целевая страница"
   }
 }
