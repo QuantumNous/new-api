@@ -19,10 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import * as z from 'zod'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfigStore } from '@/stores/system-config-store'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -36,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -118,7 +117,13 @@ export function QQGroupSection({ defaultValues }: QQGroupSectionProps) {
         description={t('Configure the global QQ group entry for users')}
       >
         <Form {...form}>
-          <form onSubmit={handleSubmit} className='space-y-6'>
+          <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
+            <SettingsPageFormActions
+              onSave={handleSubmit}
+              onReset={handleReset}
+              isSaving={isSubmitting || updateOption.isPending}
+              isResetDisabled={!isDirty}
+            />
             <FormDirtyIndicator isDirty={isDirty} />
 
             <FormField
@@ -203,24 +208,6 @@ export function QQGroupSection({ defaultValues }: QQGroupSectionProps) {
                 </FormItem>
               )}
             />
-
-            <div className='flex gap-2'>
-              <Button
-                type='submit'
-                disabled={isSubmitting || updateOption.isPending}
-              >
-                {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-              </Button>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleReset}
-                disabled={!isDirty || updateOption.isPending || isSubmitting}
-              >
-                <RotateCcw className='mr-2 h-4 w-4' />
-                {t('Reset')}
-              </Button>
-            </div>
           </form>
         </Form>
       </SettingsSection>

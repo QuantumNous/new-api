@@ -21,7 +21,6 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -33,6 +32,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -180,6 +180,10 @@ export function DistributionSettingsSection({
     form.reset(values)
   }
 
+  const handleReset = () => {
+    form.reset()
+  }
+
   return (
     <SettingsSection
       title={t('Distribution')}
@@ -189,8 +193,17 @@ export function DistributionSettingsSection({
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           autoComplete='off'
-          className='space-y-6'
+          className='flex flex-col gap-6'
         >
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            onReset={handleReset}
+            isSaving={updateOption.isPending || isSubmitting}
+            isSaveDisabled={!isDirty}
+            isResetDisabled={!isDirty}
+            saveLabel='Save distribution settings'
+          />
+
           <FormField
             control={form.control}
             name='enabled'
@@ -307,15 +320,6 @@ export function DistributionSettingsSection({
               )}
             />
           </div>
-
-          <Button
-            type='submit'
-            disabled={!isDirty || updateOption.isPending || isSubmitting}
-          >
-            {updateOption.isPending || isSubmitting
-              ? t('Saving...')
-              : t('Save distribution settings')}
-          </Button>
         </form>
       </Form>
     </SettingsSection>
