@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { requestStripePayment } from '@/features/wallet/api'
+import type { StripePaymentResponse } from '@/features/wallet/types'
 import type {
   ApiResponse,
   CardBindRequest,
@@ -55,25 +57,22 @@ export async function getCardStatus(): Promise<CardStatusResponse> {
  * Start a promo top-up: a real Stripe payment (payment mode) that also saves the card
  * (save_card → setup_future_usage) so it can be charged off-session later. Returns a hosted
  * Checkout link to redirect to. amount is the USD top-up amount (e.g. 20, 200).
+ *
+ * Delegates to the wallet's requestStripePayment so the promo and wallet flows share one
+ * client wrapper for POST /api/user/stripe/pay; only the promo-specific fields differ.
+ * success_url carries card_bound=1 so the wallet runs its post-bind confirmation flow.
  */
 export async function requestPromoTopup(
   amount: number
-): Promise<ApiResponse<{ pay_link: string }>> {
-  const res = await api.post(
-    '/api/user/stripe/pay',
-    {
-      amount,
-      payment_method: 'stripe',
-      save_card: true,
-      // card_bound=1 makes the wallet run its post-bind confirmation flow (poll card status,
-      // refresh auth user, celebratory toast) — the promo top-up also binds the card.
-      success_url: new URL(
-        '/wallet?show_history=true&card_bound=1',
-        window.location.origin
-      ).href,
-      cancel_url: new URL('/onboarding', window.location.origin).href,
-    },
-    { skipBusinessError: true } as Record<string, unknown>
-  )
-  return res.data
+): Promise<StripePaymentResponse> {
+  return requestStripePayment({
+    amount,
+    payment_method: 'stripe',
+    save_card: true,
+    success_url: new URL(
+      '/wallet?show_history=true&card_bound=1',
+      window.location.origin
+    ).href,
+    cancel_url: new URL('/onboarding', window.location.origin).href,
+  })
 }

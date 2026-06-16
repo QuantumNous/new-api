@@ -286,11 +286,11 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 		if err := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd+bonusQuota)); err != nil {
 			common.SysLog("failed to increase user quota cache after stripe topup: " + err.Error())
 		}
+		logMsg := fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money)
 		if bonusQuota > 0 {
-			RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值额度: %v（含赠送 %v），支付金额：%.2f", logger.FormatQuota(quotaToAdd), logger.FormatQuota(bonusQuota), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
-		} else {
-			RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+			logMsg = fmt.Sprintf("使用在线充值成功，充值额度: %v（含赠送 %v），支付金额：%.2f", logger.FormatQuota(quotaToAdd), logger.FormatQuota(bonusQuota), topUp.Money)
 		}
+		RecordTopupLog(topUp.UserId, logMsg, callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 	}
 
 	return credited, nil
