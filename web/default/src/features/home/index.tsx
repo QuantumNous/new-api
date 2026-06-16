@@ -63,9 +63,9 @@ export function Home() {
   return (
     <PublicLayout showMainContainer={false}>
       <Hero isAuthenticated={isAuthenticated} />
+      <SmartRouting />
       <Stats />
       <Features />
-      <SmartRouting />
       <HowItWorks />
       <CTA isAuthenticated={isAuthenticated} />
       <Footer />

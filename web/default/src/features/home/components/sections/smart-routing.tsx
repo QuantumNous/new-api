@@ -188,14 +188,14 @@ export function SmartRouting() {
   const { t } = useTranslation()
 
   return (
-    <section className='border-border relative z-10 border-t px-6 py-24 md:py-32'>
-      <div className='mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2 md:gap-16'>
+    <section className='border-border from-accent/10 relative z-10 border-y bg-gradient-to-b to-transparent px-6 py-28 md:py-36'>
+      <div className='mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2 md:gap-20'>
         <AnimateInView animation='fade-up'>
           <p className='text-muted-foreground mb-3 flex items-center gap-2 text-xs font-semibold tracking-widest uppercase'>
             <Sparkles className='size-4' strokeWidth={1.5} />
             {t('Smart Routing')}
           </p>
-          <h2 className='mb-5 text-3xl font-bold tracking-normal md:text-5xl'>
+          <h2 className='mb-5 text-4xl font-bold tracking-tight md:text-6xl'>
             {t("Don't know which model to pick? We do.")}
           </h2>
           <p className='text-muted-foreground mb-6 text-base leading-relaxed md:text-lg'>
