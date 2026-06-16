@@ -1902,7 +1902,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Proyectos relacionados",
     "footer.defaultCopyright": "Todos los derechos reservados.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Todos los derechos reservados. Diseñado y desarrollado por los colaboradores del proyecto.",
+    "footer.newapi.projectAttributionSuffix": "Todos los derechos reservados. Diseñado y desarrollado por los colaboradores del proyecto.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "For teams that need larger limits and support review.",
@@ -5042,9 +5042,7 @@
     "Failed to start card binding": "No se pudo iniciar la vinculación de la tarjeta",
     "Bind a credit card to claim {{amount}} in API credit": "Vincula una tarjeta de crédito para obtener {{amount}} en crédito de API",
     "Confirming your card binding…": "Confirmando la vinculación de tu tarjeta…",
-    "Card bound. Your $10 credit is being processed — refresh in a moment.": "Tarjeta vinculada. Tu crédito de $10 se está procesando: actualiza en un momento.",
     "Card bound successfully 🎉": "Tarjeta vinculada con éxito 🎉",
-    "Your $10 API credit has been added to your wallet. Enjoy!": "Se han añadido $10 de crédito de API a tu billetera. ¡Que lo disfrutes!",
     "Got it": "Entendido",
     "Congrats — you’ve unlocked a new-user exclusive offer": "Felicidades — has desbloqueado una oferta exclusiva para nuevos usuarios",
     "Across Claude / GPT / Gemini and more. Limited-time only — prices revert after it ends.": "En Claude / GPT / Gemini y más. Por tiempo limitado — los precios vuelven a la normalidad al terminar.",
@@ -5056,6 +5054,8 @@
     "New user registration bonus {{amount}}": "Bono de registro de nuevo usuario {{amount}}",
     "Invitation code bonus {{amount}}": "Bono por código de invitación {{amount}}",
     "Referral reward {{amount}}": "Recompensa por referido {{amount}}",
-    "Check-in reward {{amount}}": "Recompensa por registro diario {{amount}}"
+    "Check-in reward {{amount}}": "Recompensa por registro diario {{amount}}",
+    "Your {{amount}} API credit has been added to your wallet. Enjoy!": "Se han añadido {{amount}} de crédito de API a tu billetera. ¡Que lo disfrutes!",
+    "Card bound. Your {{amount}} credit is being processed — refresh in a moment.": "Tarjeta vinculada. Tu crédito de {{amount}} se está procesando: actualiza en un momento."
   }
 }

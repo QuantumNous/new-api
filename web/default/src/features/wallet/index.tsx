@@ -130,7 +130,8 @@ export function Wallet(props: WalletProps) {
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { status } = useStatus()
-  const { currency } = useSystemConfig()
+  const { currency, stripeNewUserBonusAmount } = useSystemConfig()
+  const cardBonusLabel = `$${stripeNewUserBonusAmount ?? 10}`
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
@@ -317,7 +318,10 @@ export function Wallet(props: WalletProps) {
       // Webhook hasn't landed in time; reassure the user instead of claiming success.
       toast.dismiss(pendingToast)
       toast.info(
-        t('Card bound. Your $10 credit is being processed — refresh in a moment.')
+        t(
+          'Card bound. Your {{amount}} credit is being processed — refresh in a moment.',
+          { amount: cardBonusLabel }
+        )
       )
       await refreshAuthUser()
       await fetchUser()
@@ -805,7 +809,9 @@ export function Wallet(props: WalletProps) {
               {t('Card bound successfully 🎉')}
             </DialogTitle>
             <DialogDescription>
-              {t('Your $10 API credit has been added to your wallet. Enjoy!')}
+              {t('Your {{amount}} API credit has been added to your wallet. Enjoy!', {
+                amount: cardBonusLabel,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -1902,7 +1902,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "Cho các đội cần giới hạn lớn hơn và được hỗ trợ đánh giá.",
@@ -5042,9 +5042,7 @@
     "Failed to start card binding": "Không thể bắt đầu liên kết thẻ",
     "Bind a credit card to claim {{amount}} in API credit": "Liên kết thẻ tín dụng để nhận {{amount}} tín dụng API",
     "Confirming your card binding…": "Đang xác nhận liên kết thẻ…",
-    "Card bound. Your $10 credit is being processed — refresh in a moment.": "Đã liên kết thẻ. Khoản tín dụng $10 đang được xử lý — hãy làm mới sau giây lát.",
     "Card bound successfully 🎉": "Liên kết thẻ thành công 🎉",
-    "Your $10 API credit has been added to your wallet. Enjoy!": "Khoản tín dụng API $10 đã được thêm vào ví của bạn. Chúc bạn sử dụng vui vẻ!",
     "Got it": "Đã hiểu",
     "Congrats — you’ve unlocked a new-user exclusive offer": "Chúc mừng — bạn đã mở khóa ưu đãi độc quyền cho người dùng mới",
     "Across Claude / GPT / Gemini and more. Limited-time only — prices revert after it ends.": "Áp dụng cho Claude / GPT / Gemini và hơn thế. Chỉ trong thời gian giới hạn — giá sẽ trở lại sau khi kết thúc.",
@@ -5056,6 +5054,8 @@
     "New user registration bonus {{amount}}": "Thưởng đăng ký người dùng mới {{amount}}",
     "Invitation code bonus {{amount}}": "Thưởng mã mời {{amount}}",
     "Referral reward {{amount}}": "Thưởng giới thiệu {{amount}}",
-    "Check-in reward {{amount}}": "Thưởng điểm danh {{amount}}"
+    "Check-in reward {{amount}}": "Thưởng điểm danh {{amount}}",
+    "Your {{amount}} API credit has been added to your wallet. Enjoy!": "Khoản tín dụng API {{amount}} đã được thêm vào ví của bạn. Chúc bạn sử dụng vui vẻ!",
+    "Card bound. Your {{amount}} credit is being processed — refresh in a moment.": "Đã liên kết thẻ. Khoản tín dụng {{amount}} đang được xử lý — hãy làm mới sau giây lát."
   }
 }

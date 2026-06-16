@@ -1902,7 +1902,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "For teams that need larger limits and support review.": "Для команд, которым нужны повышенные лимиты и консультация поддержки.",
@@ -5042,9 +5042,7 @@
     "Failed to start card binding": "Не удалось начать привязку карты",
     "Bind a credit card to claim {{amount}} in API credit": "Привяжите банковскую карту, чтобы получить {{amount}} кредита API",
     "Confirming your card binding…": "Подтверждаем привязку карты…",
-    "Card bound. Your $10 credit is being processed — refresh in a moment.": "Карта привязана. Кредит $10 обрабатывается — обновите страницу через мгновение.",
     "Card bound successfully 🎉": "Карта успешно привязана 🎉",
-    "Your $10 API credit has been added to your wallet. Enjoy!": "Кредит API на $10 добавлен в ваш кошелёк. Приятного использования!",
     "Got it": "Понятно",
     "Congrats — you’ve unlocked a new-user exclusive offer": "Поздравляем — вы получили эксклюзивное предложение для новых пользователей",
     "Across Claude / GPT / Gemini and more. Limited-time only — prices revert after it ends.": "Claude / GPT / Gemini и другие. Только ограниченное время — затем цены вернутся к обычным.",
@@ -5056,6 +5054,8 @@
     "New user registration bonus {{amount}}": "Бонус за регистрацию нового пользователя {{amount}}",
     "Invitation code bonus {{amount}}": "Бонус за код приглашения {{amount}}",
     "Referral reward {{amount}}": "Реферальное вознаграждение {{amount}}",
-    "Check-in reward {{amount}}": "Награда за ежедневный вход {{amount}}"
+    "Check-in reward {{amount}}": "Награда за ежедневный вход {{amount}}",
+    "Your {{amount}} API credit has been added to your wallet. Enjoy!": "Кредит API на {{amount}} добавлен в ваш кошелёк. Приятного использования!",
+    "Card bound. Your {{amount}} credit is being processed — refresh in a moment.": "Карта привязана. Кредит {{amount}} обрабатывается — обновите страницу через мгновение."
   }
 }
