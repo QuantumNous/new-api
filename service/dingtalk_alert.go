@@ -263,6 +263,22 @@ func reserveCodexGovernanceAlertCooldown(modelName string, now time.Time, cooldo
 	}, true
 }
 
+func codexGovernanceAlertCooldownKey(record *model.CodexModelGovernanceRecord) string {
+	if record == nil {
+		return ""
+	}
+	modelName := strings.TrimSpace(record.ModelName)
+	if modelName == "" {
+		return ""
+	}
+	affectedChannelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	disabledChannelIDs := model.CodexModelGovernanceDisabledChannelIDs(*record)
+	scope := "affected:" + model.EncodeCodexModelGovernanceChannelIDsForDisplay(affectedChannelIDs) +
+		"|disabled:" + model.EncodeCodexModelGovernanceChannelIDsForDisplay(disabledChannelIDs)
+	sum := sha256.Sum256([]byte(modelName + "\x00" + scope))
+	return fmt.Sprintf("codex-governance:%x", sum[:])
+}
+
 func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 	now := alert.Now
 	if now.IsZero() {
@@ -325,8 +341,9 @@ func BuildDingTalkCodexModelGovernanceAlertContent(record *model.CodexModelGover
 		detectedAt = time.Unix(record.DetectedAt, 0).Format("2006-01-02 15:04:05")
 	}
 	channelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	disabledChannelIDs := model.CodexModelGovernanceDisabledChannelIDs(*record)
 	autoDisabled := "no"
-	if record.AbilitiesDisabled {
+	if len(disabledChannelIDs) > 0 {
 		autoDisabled = "yes"
 	}
 	lines := []string{
@@ -336,14 +353,20 @@ func BuildDingTalkCodexModelGovernanceAlertContent(record *model.CodexModelGover
 		fmt.Sprintf("Source: %s", sanitizeDingTalkAlertText(record.Source)),
 		fmt.Sprintf("Matched Rule: %s", sanitizeDingTalkAlertText(record.MatchedRule)),
 		fmt.Sprintf("Affected Channels: %d (%s)", len(channelIDs), sanitizeDingTalkAlertText(record.AffectedChannelIDs)),
+		fmt.Sprintf("Disabled Channels: %d (%s)", len(disabledChannelIDs), sanitizeDingTalkAlertText(model.EncodeCodexModelGovernanceChannelIDsForDisplay(disabledChannelIDs))),
 		fmt.Sprintf("Auto Disabled: %s", autoDisabled),
 		fmt.Sprintf("Reason: %s", sanitizeDingTalkAlertText(record.LastError)),
 		fmt.Sprintf("Detected At: %s", detectedAt),
 	}
-	if !record.AbilitiesDisabled && record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview {
+	if len(disabledChannelIDs) == 0 && record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview {
 		lines = append(lines,
 			"!! MODEL IS STILL SERVING USER REQUESTS !!",
 			"Please review and disable it as soon as possible in the Codex model governance page.",
+		)
+	} else if len(disabledChannelIDs) < len(channelIDs) && record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview {
+		lines = append(lines,
+			"!! LINKED CHANNELS ARE STILL SERVING USER REQUESTS !!",
+			"Please review linked Codex channels and disable or remove the model if confirmed unsupported.",
 		)
 	}
 	return strings.Join(lines, "\n")
@@ -470,7 +493,7 @@ func NotifyDingTalkCodexModelGovernance(record *model.CodexModelGovernanceRecord
 	}
 	modelName := ""
 	if record != nil {
-		modelName = record.ModelName
+		modelName = codexGovernanceAlertCooldownKey(record)
 	}
 	reservation, allowed := reserveCodexGovernanceAlertCooldown(
 		modelName,

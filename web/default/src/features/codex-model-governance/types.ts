@@ -37,6 +37,7 @@ export type CodexModelGovernanceRecord = {
   matched_rule: string
   last_error: string
   affected_channel_ids: number[]
+  disabled_channel_ids: number[]
   abilities_disabled: boolean
   detected_at: number
   last_checked_at: number

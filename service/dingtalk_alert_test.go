@@ -64,6 +64,7 @@ func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.
 		MatchedRule:        `The '([^']+)' model is not supported when using Codex with a ChatGPT account\.`,
 		LastError:          "access_token secret-token sk-sensitive",
 		AffectedChannelIDs: "11,12",
+		DisabledChannelIDs: "11,12",
 		AbilitiesDisabled:  true,
 		DetectedAt:         time.Date(2026, 6, 10, 12, 0, 0, 0, time.Local).Unix(),
 	}
@@ -74,9 +75,30 @@ func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.
 	require.Contains(t, content, "Model: gpt-5.3-codex")
 	require.Contains(t, content, "Status: unsupported_pending_review")
 	require.Contains(t, content, "Affected Channels: 2 (11,12)")
+	require.Contains(t, content, "Disabled Channels: 2 (11,12)")
 	require.Contains(t, content, "Auto Disabled: yes")
 	require.NotContains(t, content, "secret-token")
 	require.NotContains(t, content, "sk-sensitive")
+}
+
+func TestBuildDingTalkCodexModelGovernanceAlertContentHighlightsLinkedStillServingChannels(t *testing.T) {
+	record := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:             model.CodexModelGovernanceSourceProbe,
+		MatchedRule:        "unsupported",
+		LastError:          "probe rejected the model",
+		AffectedChannelIDs: "11,12",
+		DisabledChannelIDs: "11",
+		AbilitiesDisabled:  true,
+	}
+
+	content := BuildDingTalkCodexModelGovernanceAlertContent(record)
+
+	require.Contains(t, content, "Affected Channels: 2 (11,12)")
+	require.Contains(t, content, "Disabled Channels: 1 (11)")
+	require.Contains(t, content, "Auto Disabled: yes")
+	require.Contains(t, content, "LINKED CHANNELS ARE STILL SERVING")
 }
 
 func TestBuildDingTalkCodexModelGovernanceAlertContentHighlightsNotDisabled(t *testing.T) {
@@ -178,6 +200,125 @@ func TestNotifyDingTalkCodexModelGovernanceUsesAlertCooldown(t *testing.T) {
 	require.NoError(t, NotifyDingTalkCodexModelGovernance(record))
 
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+}
+
+func TestNotifyDingTalkCodexModelGovernanceAllowsNewDisabledScopeAfterReviewOnlyAlert(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalGovernanceSetting := *operation_setting.GetCodexModelGovernanceSetting()
+	originalGovernanceCooldown := codexGovernanceAlertCooldown
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		*operation_setting.GetCodexModelGovernanceSetting() = originalGovernanceSetting
+		codexGovernanceAlertCooldown = originalGovernanceCooldown
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+	})
+	model.DB = nil
+	codexGovernanceAlertCooldown = NewDingTalkModelAlertCooldown()
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	operation_setting.GetCodexModelGovernanceSetting().AlertCooldownMinutes = 60
+
+	reviewOnly := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex-scope",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:             model.CodexModelGovernanceSourceOfficialCodexNotice,
+		MatchedRule:        "deprecated",
+		LastError:          "official notice mentioned the model",
+		AffectedChannelIDs: "11,12",
+		AbilitiesDisabled:  false,
+	}
+	disabled := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex-scope",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:             model.CodexModelGovernanceSourceProbe,
+		MatchedRule:        "unsupported",
+		LastError:          "probe rejected the model",
+		AffectedChannelIDs: "11,12",
+		DisabledChannelIDs: "11",
+		AbilitiesDisabled:  true,
+	}
+
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(reviewOnly))
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(disabled))
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(disabled))
+
+	require.Equal(t, int32(2), atomic.LoadInt32(&requests))
+}
+
+func TestNotifyDingTalkCodexModelGovernanceAllowsAffectedScopeExpansionWithSameDisabledScope(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalGovernanceSetting := *operation_setting.GetCodexModelGovernanceSetting()
+	originalGovernanceCooldown := codexGovernanceAlertCooldown
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		*operation_setting.GetCodexModelGovernanceSetting() = originalGovernanceSetting
+		codexGovernanceAlertCooldown = originalGovernanceCooldown
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+	})
+	model.DB = nil
+	codexGovernanceAlertCooldown = NewDingTalkModelAlertCooldown()
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	operation_setting.GetCodexModelGovernanceSetting().AlertCooldownMinutes = 60
+
+	first := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex-affected-scope",
+		Status:             model.CodexModelGovernanceStatusUnsupportedDisabled,
+		Source:             model.CodexModelGovernanceSourceProbe,
+		MatchedRule:        "unsupported",
+		LastError:          "probe rejected the model",
+		AffectedChannelIDs: "11",
+		DisabledChannelIDs: "11",
+		AbilitiesDisabled:  true,
+	}
+	expanded := &model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex-affected-scope",
+		Status:             model.CodexModelGovernanceStatusUnsupportedDisabled,
+		Source:             model.CodexModelGovernanceSourceOfficialCodexNotice,
+		MatchedRule:        "deprecated",
+		LastError:          "official notice mentioned linked channel",
+		AffectedChannelIDs: "11,12",
+		DisabledChannelIDs: "11",
+		AbilitiesDisabled:  true,
+	}
+
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(first))
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(expanded))
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(expanded))
+
+	require.Equal(t, int32(2), atomic.LoadInt32(&requests))
 }
 
 func TestBuildDingTalkChannelAlertContentMasksChannelMetadata(t *testing.T) {

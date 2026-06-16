@@ -175,23 +175,33 @@ func officialCodexNoticeExcerpt(content string, modelIndex int, modelLength int)
 	if modelIndex < 0 {
 		modelIndex = 0
 	}
-	if len(content) <= officialCodexNoticeExcerptMaxLength {
+	if modelIndex > len(content) {
+		modelIndex = len(content)
+	}
+	runes := []rune(content)
+	if len(runes) <= officialCodexNoticeExcerptMaxLength {
 		return strings.TrimSpace(content)
 	}
-	modelEnd := modelIndex + modelLength
-	remaining := officialCodexNoticeExcerptMaxLength - modelLength
+	modelEndByte := modelIndex + modelLength
+	if modelEndByte > len(content) {
+		modelEndByte = len(content)
+	}
+	modelRuneIndex := len([]rune(content[:modelIndex]))
+	modelRuneLength := len([]rune(content[modelIndex:modelEndByte]))
+	modelRuneEnd := modelRuneIndex + modelRuneLength
+	remaining := officialCodexNoticeExcerptMaxLength - modelRuneLength
 	if remaining < 0 {
 		remaining = 0
 	}
 	before := remaining / 2
 	after := remaining - before
-	start := modelIndex - before
+	start := modelRuneIndex - before
 	if start < 0 {
 		start = 0
 	}
-	end := modelEnd + after
-	if end > len(content) {
-		end = len(content)
+	end := modelRuneEnd + after
+	if end > len(runes) {
+		end = len(runes)
 	}
 	if end-start < officialCodexNoticeExcerptMaxLength && start > 0 {
 		start -= officialCodexNoticeExcerptMaxLength - (end - start)
@@ -199,13 +209,13 @@ func officialCodexNoticeExcerpt(content string, modelIndex int, modelLength int)
 			start = 0
 		}
 	}
-	if end-start < officialCodexNoticeExcerptMaxLength && end < len(content) {
+	if end-start < officialCodexNoticeExcerptMaxLength && end < len(runes) {
 		end += officialCodexNoticeExcerptMaxLength - (end - start)
-		if end > len(content) {
-			end = len(content)
+		if end > len(runes) {
+			end = len(runes)
 		}
 	}
-	return strings.TrimSpace(content[start:end])
+	return strings.TrimSpace(string(runes[start:end]))
 }
 
 func isCodexModelNameRune(value rune) bool {

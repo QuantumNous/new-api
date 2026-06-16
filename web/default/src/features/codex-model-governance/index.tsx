@@ -94,9 +94,17 @@ type GovernanceReviewRowProps = {
 
 function GovernanceReviewRow(props: GovernanceReviewRowProps) {
   const { t } = useTranslation()
+  const affectedChannelIds = props.record.affected_channel_ids ?? []
+  const disabledChannelIds = props.record.disabled_channel_ids ?? []
+  const hasDisabledChannels =
+    props.record.abilities_disabled || disabledChannelIds.length > 0
+  const hasStillServingChannels =
+    affectedChannelIds.length === 0
+      ? !hasDisabledChannels
+      : disabledChannelIds.length < affectedChannelIds.length
   const actionButtons: ReviewActionButton[] = [
-    // Only offer one-click disable while the model is still serving.
-    ...(!props.record.abilities_disabled
+    // Offer one-click disable while any affected channel is still serving.
+    ...(hasStillServingChannels
       ? [
           {
             action: 'disable',
@@ -118,7 +126,7 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
       variant: 'default',
       icon: RotateCcw,
     },
-    ...(!props.record.abilities_disabled
+    ...(!hasDisabledChannels
       ? [
           {
             action: 'ignore',
@@ -153,15 +161,29 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
       <TableCell className='align-top'>
         <div className='flex flex-col gap-1.5'>
           <Badge variant='secondary'>{t(props.record.status)}</Badge>
-          {props.record.abilities_disabled ? (
+          {hasDisabledChannels ? (
             <Badge variant='outline'>{t('Routing disabled')}</Badge>
-          ) : (
+          ) : null}
+          {hasStillServingChannels ? (
             <Badge variant='destructive'>{t('Still serving')}</Badge>
-          )}
+          ) : null}
         </div>
       </TableCell>
       <TableCell className='min-w-40 align-top whitespace-normal'>
-        {formatChannelIds(props.record.affected_channel_ids)}
+        <div className='space-y-1'>
+          <div>
+            <span className='text-muted-foreground text-xs'>
+              {t('Affected channels')}:
+            </span>{' '}
+            {formatChannelIds(affectedChannelIds)}
+          </div>
+          <div>
+            <span className='text-muted-foreground text-xs'>
+              {t('Routing disabled')}:
+            </span>{' '}
+            {formatChannelIds(disabledChannelIds)}
+          </div>
+        </div>
       </TableCell>
       <TableCell className='min-w-44 align-top'>
         {formatTimestamp(props.record.detected_at)}

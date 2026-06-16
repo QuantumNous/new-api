@@ -47,6 +47,20 @@ func TestTestCodexModelGovernanceRuleReturnsExtractedModel(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"model_name":"gpt-5.3-codex"`)
 }
 
+func TestBuildCodexModelGovernanceRecordResponseIncludesDisabledChannelIDs(t *testing.T) {
+	response := buildCodexModelGovernanceRecordResponse(model.CodexModelGovernanceRecord{
+		ModelName:          "gpt-5.3-codex",
+		Status:             model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		AffectedChannelIDs: "11,12",
+		DisabledChannelIDs: "11",
+		AbilitiesDisabled:  true,
+	})
+
+	require.Equal(t, []int{11, 12}, response.AffectedChannelIDs)
+	require.Equal(t, []int{11}, response.DisabledChannelIDs)
+	require.True(t, response.AbilitiesDisabled)
+}
+
 func TestReviewCodexModelGovernanceRecordHandler(t *testing.T) {
 	setupCodexModelGovernanceControllerDB(t)
 	gin.SetMode(gin.TestMode)

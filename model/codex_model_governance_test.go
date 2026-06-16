@@ -92,6 +92,12 @@ func insertCodexGovernanceChannel(t *testing.T, id int, channelType int, models 
 func insertCodexGovernanceChannelWithStatus(t *testing.T, id int, channelType int, models string, status int) {
 	t.Helper()
 
+	insertCodexGovernanceChannelWithStatusAndTag(t, id, channelType, models, status, nil)
+}
+
+func insertCodexGovernanceChannelWithStatusAndTag(t *testing.T, id int, channelType int, models string, status int, tag *string) {
+	t.Helper()
+
 	priority := int64(0)
 	weight := uint(0)
 	channel := &Channel{
@@ -104,6 +110,7 @@ func insertCodexGovernanceChannelWithStatus(t *testing.T, id int, channelType in
 		Group:    "default",
 		Priority: &priority,
 		Weight:   &weight,
+		Tag:      tag,
 	}
 	require.NoError(t, DB.Create(channel).Error)
 	require.NoError(t, channel.AddAbilities(nil))
@@ -149,6 +156,96 @@ func TestCodexGovernanceUpsertPendingDisablesAffectedCodexAbilities(t *testing.T
 	var untouchedNonCodex Ability
 	require.NoError(t, DB.First(&untouchedNonCodex, "channel_id = ? AND model = ?", 12, "gpt-5.3-codex").Error)
 	require.True(t, untouchedNonCodex.Enabled)
+}
+
+func TestCodexGovernanceProbeDisablesOnlyDirectChannelAndLinksAllCodexChannelsForReview(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 71, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex")
+	insertCodexGovernanceChannel(t, 72, constant.ChannelTypeCodex, "gpt-5.3-codex")
+	insertCodexGovernanceChannel(t, 73, constant.ChannelTypeOpenAI, "gpt-5.3-codex")
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		MatchedRule:        "default-unsupported",
+		LastError:          "The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account.",
+		AffectedChannelIDs: []int{71},
+		DisableAbilities:   true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "71,72", record.AffectedChannelIDs)
+	require.Equal(t, "71", record.DisabledChannelIDs)
+	require.True(t, record.AbilitiesDisabled)
+
+	var direct Ability
+	require.NoError(t, DB.First(&direct, "channel_id = ? AND model = ?", 71, "gpt-5.3-codex").Error)
+	require.False(t, direct.Enabled)
+
+	var linked Ability
+	require.NoError(t, DB.First(&linked, "channel_id = ? AND model = ?", 72, "gpt-5.3-codex").Error)
+	require.True(t, linked.Enabled)
+
+	channel, err := GetChannelById(72, true)
+	require.NoError(t, err)
+	require.NoError(t, channel.UpdateAbilities(nil))
+	require.NoError(t, DB.First(&linked, "channel_id = ? AND model = ?", 72, "gpt-5.3-codex").Error)
+	require.True(t, linked.Enabled)
+
+	var nonCodex Ability
+	require.NoError(t, DB.First(&nonCodex, "channel_id = ? AND model = ?", 73, "gpt-5.3-codex").Error)
+	require.True(t, nonCodex.Enabled)
+}
+
+func TestCodexGovernanceLegacyEnablePreservesProbeDisabledChannel(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 83, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex")
+
+	_, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{83},
+		DisableAbilities:   true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", 83).Update("status", common.ChannelStatusAutoDisabled).Error)
+	require.NoError(t, UpdateAbilityStatus(83, false))
+
+	require.True(t, UpdateChannelStatus(83, "", common.ChannelStatusEnabled, "manual restore"))
+
+	var disabled Ability
+	require.NoError(t, DB.First(&disabled, "channel_id = ? AND model = ?", 83, "gpt-5.3-codex").Error)
+	require.False(t, disabled.Enabled)
+
+	var unaffected Ability
+	require.NoError(t, DB.First(&unaffected, "channel_id = ? AND model = ?", 83, "gpt-5.4-codex").Error)
+	require.True(t, unaffected.Enabled)
+}
+
+func TestCodexGovernanceEnableChannelByTagPreservesProbeDisabledChannels(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	tag := "codex-batch"
+	insertCodexGovernanceChannelWithStatusAndTag(t, 84, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex", common.ChannelStatusEnabled, &tag)
+
+	_, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{84},
+		DisableAbilities:   true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", 84).Update("status", common.ChannelStatusManuallyDisabled).Error)
+	require.NoError(t, UpdateAbilityStatusByTag(tag, false))
+
+	require.NoError(t, EnableChannelByTag(tag))
+
+	var disabled Ability
+	require.NoError(t, DB.First(&disabled, "channel_id = ? AND model = ?", 84, "gpt-5.3-codex").Error)
+	require.False(t, disabled.Enabled)
+
+	var unaffected Ability
+	require.NoError(t, DB.First(&unaffected, "channel_id = ? AND model = ?", 84, "gpt-5.4-codex").Error)
+	require.True(t, unaffected.Enabled)
 }
 
 func TestCodexGovernanceDisableAbilityRefreshesLocalChannelCache(t *testing.T) {
@@ -284,7 +381,8 @@ func TestCodexGovernanceUpsertPendingMergesAffectedChannelsAcrossProbeRuns(t *te
 		DisableAbilities:   true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, "71", first.AffectedChannelIDs)
+	require.Equal(t, "71,72", first.AffectedChannelIDs)
+	require.Equal(t, "71", first.DisabledChannelIDs)
 
 	second, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
 		ModelName:          "gpt-5.3-codex",
@@ -294,6 +392,7 @@ func TestCodexGovernanceUpsertPendingMergesAffectedChannelsAcrossProbeRuns(t *te
 	})
 	require.NoError(t, err)
 	require.Equal(t, "71,72", second.AffectedChannelIDs)
+	require.Equal(t, "71,72", second.DisabledChannelIDs)
 
 	require.NoError(t, ReviewCodexModelGovernanceRecord(second.ID, CodexModelGovernanceStatusActive, 7, "restore all"))
 

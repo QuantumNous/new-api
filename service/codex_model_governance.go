@@ -64,7 +64,7 @@ func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model
 	if err != nil {
 		return record, err
 	}
-	if shouldNotifyCodexModelGovernancePending(record, previous, disableAbilities) {
+	if shouldNotifyCodexModelGovernanceFinding(record, previous, disableAbilities) {
 		if notifyErr := notifyDingTalkCodexModelGovernance(record); notifyErr != nil {
 			common.SysError(fmt.Sprintf("Codex model governance DingTalk alert failed for %s: %v", modelName, notifyErr))
 		} else {
@@ -79,12 +79,22 @@ func MoveCodexModelToPendingReview(finding CodexModelUnsupportedFinding) (*model
 	return record, nil
 }
 
-func shouldNotifyCodexModelGovernancePending(record *model.CodexModelGovernanceRecord, previous *model.CodexModelGovernanceRecord, disableAbilities bool) bool {
-	if record == nil || record.Status != model.CodexModelGovernanceStatusUnsupportedPendingReview {
+func shouldNotifyCodexModelGovernanceFinding(record *model.CodexModelGovernanceRecord, previous *model.CodexModelGovernanceRecord, disableAbilities bool) bool {
+	if record == nil {
 		return false
 	}
 	if previous == nil {
+		return record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview ||
+			record.Status == model.CodexModelGovernanceStatusUnsupportedDisabled
+	}
+	if hasNewCodexGovernanceDisabledChannels(record, previous) {
 		return true
+	}
+	if hasNewCodexGovernanceAffectedChannels(record, previous) {
+		return true
+	}
+	if record.Status != model.CodexModelGovernanceStatusUnsupportedPendingReview {
+		return false
 	}
 	if previous.Status == model.CodexModelGovernanceStatusIgnored && disableAbilities {
 		return true
@@ -98,6 +108,42 @@ func shouldNotifyCodexModelGovernancePending(record *model.CodexModelGovernanceR
 	}
 	cooldownSeconds := int64(time.Duration(cooldownMinutes) * time.Minute / time.Second)
 	return common.GetTimestamp()-record.LastAlertedAt >= cooldownSeconds
+}
+
+func hasNewCodexGovernanceDisabledChannels(record *model.CodexModelGovernanceRecord, previous *model.CodexModelGovernanceRecord) bool {
+	if record == nil || previous == nil {
+		return false
+	}
+	return hasNewCodexGovernanceChannelIDs(
+		model.CodexModelGovernanceDisabledChannelIDs(*record),
+		model.CodexModelGovernanceDisabledChannelIDs(*previous),
+	)
+}
+
+func hasNewCodexGovernanceAffectedChannels(record *model.CodexModelGovernanceRecord, previous *model.CodexModelGovernanceRecord) bool {
+	if record == nil || previous == nil {
+		return false
+	}
+	return hasNewCodexGovernanceChannelIDs(
+		model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs),
+		model.DecodeCodexModelGovernanceChannelIDs(previous.AffectedChannelIDs),
+	)
+}
+
+func hasNewCodexGovernanceChannelIDs(currentChannelIDs []int, previousChannelIDs []int) bool {
+	if len(currentChannelIDs) == 0 {
+		return false
+	}
+	seen := make(map[int]struct{}, len(previousChannelIDs))
+	for _, channelID := range previousChannelIDs {
+		seen[channelID] = struct{}{}
+	}
+	for _, channelID := range currentChannelIDs {
+		if _, ok := seen[channelID]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 func ReviewCodexModelGovernance(recordID int, action string, reviewerID int, note string) error {

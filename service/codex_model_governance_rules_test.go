@@ -3,6 +3,7 @@ package service
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestClassifyCodexUnsupportedMessageMatchesConfiguredRegexAndExtractsModel(t *testing.T) {
@@ -174,5 +175,21 @@ func TestFindOfficialCodexNoticeMatchRequiresBothModelAndTerm(t *testing.T) {
 				t.Fatalf("unexpected official notice match: %#v", match)
 			}
 		})
+	}
+}
+
+func TestOfficialCodexNoticeExcerptKeepsUTF8Boundaries(t *testing.T) {
+	modelName := "gpt-5.30-codex"
+	content := strings.Repeat("\u524d", 160) + modelName + strings.Repeat("\u540e", 160)
+	excerpt := officialCodexNoticeExcerpt(content, strings.Index(content, modelName), len(modelName))
+
+	if !utf8.ValidString(excerpt) {
+		t.Fatalf("excerpt is not valid UTF-8: %q", excerpt)
+	}
+	if !strings.Contains(excerpt, modelName) {
+		t.Fatalf("excerpt = %q, want model %q", excerpt, modelName)
+	}
+	if got := len([]rune(excerpt)); got > officialCodexNoticeExcerptMaxLength {
+		t.Fatalf("excerpt rune length = %d, want <= %d", got, officialCodexNoticeExcerptMaxLength)
 	}
 }
