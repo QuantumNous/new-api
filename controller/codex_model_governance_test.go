@@ -54,11 +54,13 @@ func TestBuildCodexModelGovernanceRecordResponseIncludesDisabledChannelIDs(t *te
 		AffectedChannelIDs: "11,12",
 		DisabledChannelIDs: "11",
 		AbilitiesDisabled:  true,
+		LastAlertedAt:      123456,
 	})
 
 	require.Equal(t, []int{11, 12}, response.AffectedChannelIDs)
 	require.Equal(t, []int{11}, response.DisabledChannelIDs)
 	require.True(t, response.AbilitiesDisabled)
+	require.Equal(t, int64(123456), response.LastAlertedAt)
 }
 
 func TestReviewCodexModelGovernanceRecordHandler(t *testing.T) {

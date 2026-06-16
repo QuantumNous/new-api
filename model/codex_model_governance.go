@@ -606,6 +606,13 @@ func reapplyCodexModelGovernanceDisabledAbilitiesWithDB(db *gorm.DB, channelIDs 
 	if len(channelIDs) == 0 {
 		return false, nil
 	}
+	codexChannelIDs, err := filterCodexChannelIDs(db, channelIDs)
+	if err != nil {
+		return false, err
+	}
+	if len(codexChannelIDs) == 0 {
+		return false, nil
+	}
 	var records []CodexModelGovernanceRecord
 	if err := db.Model(&CodexModelGovernanceRecord{}).
 		Where("status IN ?", []string{
@@ -622,7 +629,7 @@ func reapplyCodexModelGovernanceDisabledAbilitiesWithDB(db *gorm.DB, channelIDs 
 	if len(records) == 0 {
 		return false, nil
 	}
-	requested := codexModelGovernanceChannelIDSet(channelIDs)
+	requested := codexModelGovernanceChannelIDSet(codexChannelIDs)
 	changed := false
 	for _, record := range records {
 		targetChannelIDs := []int(nil)
@@ -632,7 +639,7 @@ func reapplyCodexModelGovernanceDisabledAbilitiesWithDB(db *gorm.DB, channelIDs 
 			targetChannelIDs = CodexModelGovernanceDisabledChannelIDs(record)
 		}
 		if len(targetChannelIDs) == 0 && record.AbilitiesDisabled {
-			targetChannelIDs = channelIDs
+			targetChannelIDs = codexChannelIDs
 		}
 		targetChannelIDs = normalizeCodexModelGovernanceChannelIDs(targetChannelIDs)
 		if len(targetChannelIDs) == 0 {

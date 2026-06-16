@@ -30,6 +30,10 @@ export const codexModelGovernanceQueryKeys = {
     [...codexModelGovernanceQueryKeys.all, 'list', params] as const,
 }
 
+export function getDefaultCodexModelGovernanceListParams(): CodexModelGovernanceListParams {
+  return {}
+}
+
 export async function getCodexModelGovernanceRecords(
   params: CodexModelGovernanceListParams = {}
 ): Promise<ApiResponse<CodexModelGovernanceRecord[]>> {

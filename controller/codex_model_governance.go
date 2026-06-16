@@ -22,6 +22,7 @@ type codexModelGovernanceRecordResponse struct {
 	AbilitiesDisabled  bool   `json:"abilities_disabled"`
 	DetectedAt         int64  `json:"detected_at"`
 	LastCheckedAt      int64  `json:"last_checked_at"`
+	LastAlertedAt      int64  `json:"last_alerted_at"`
 	ReviewedAt         int64  `json:"reviewed_at"`
 	ReviewedBy         int    `json:"reviewed_by"`
 	ReviewNote         string `json:"review_note"`
@@ -108,6 +109,7 @@ func buildCodexModelGovernanceRecordResponse(record model.CodexModelGovernanceRe
 		AbilitiesDisabled:  record.AbilitiesDisabled,
 		DetectedAt:         record.DetectedAt,
 		LastCheckedAt:      record.LastCheckedAt,
+		LastAlertedAt:      record.LastAlertedAt,
 		ReviewedAt:         record.ReviewedAt,
 		ReviewedBy:         record.ReviewedBy,
 		ReviewNote:         record.ReviewNote,

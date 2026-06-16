@@ -29,13 +29,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -50,6 +44,7 @@ import { SectionPageLayout } from '@/components/layout'
 import {
   codexModelGovernanceQueryKeys,
   getCodexModelGovernanceRecords,
+  getDefaultCodexModelGovernanceListParams,
   reviewCodexModelGovernanceRecord,
 } from './api'
 import type {
@@ -57,7 +52,6 @@ import type {
   CodexModelGovernanceReviewAction,
 } from './types'
 
-const PENDING_STATUS = 'unsupported_pending_review' as const
 const destructiveReviewActions = new Set<CodexModelGovernanceReviewAction>([
   'disable',
   'confirm_remove',
@@ -186,7 +180,20 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
         </div>
       </TableCell>
       <TableCell className='min-w-44 align-top'>
-        {formatTimestamp(props.record.detected_at)}
+        <div className='space-y-1 text-xs'>
+          <div>
+            <span className='text-muted-foreground'>{t('Detected time')}:</span>{' '}
+            {formatTimestamp(props.record.detected_at)}
+          </div>
+          <div>
+            <span className='text-muted-foreground'>{t('Last checked')}:</span>{' '}
+            {formatTimestamp(props.record.last_checked_at)}
+          </div>
+          <div>
+            <span className='text-muted-foreground'>{t('Last alerted')}:</span>{' '}
+            {formatTimestamp(props.record.last_alerted_at)}
+          </div>
+        </div>
       </TableCell>
       <TableCell className='min-w-64 align-top'>
         <Textarea
@@ -239,7 +246,7 @@ export function CodexModelGovernance() {
     action: CodexModelGovernanceReviewAction
   } | null>(null)
 
-  const listParams = { status: PENDING_STATUS }
+  const listParams = getDefaultCodexModelGovernanceListParams()
   const recordsQuery = useQuery({
     queryKey: codexModelGovernanceQueryKeys.list(listParams),
     queryFn: () => getCodexModelGovernanceRecords(listParams),
@@ -341,11 +348,8 @@ export function CodexModelGovernance() {
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
               <ShieldAlert className='h-5 w-5' />
-              {t('Pending review')}
+              {t('Codex model governance')}
             </CardTitle>
-            <CardDescription>
-              {t('Unsupported Codex model findings waiting for admin review.')}
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {recordsQuery.isError ? (
@@ -362,7 +366,7 @@ export function CodexModelGovernance() {
 
             {!recordsQuery.isError && !isLoading && records.length === 0 ? (
               <div className='text-muted-foreground py-8 text-center text-sm'>
-                {t('No pending Codex model governance records.')}
+                {t('No data')}
               </div>
             ) : null}
 

@@ -2296,6 +2296,7 @@
     "Last 30 days uptime": "近 30 天可用率",
     "Last check time": "上次检测时间",
     "Last checked": "上次检测",
+    "Last alerted": "上次告警",
     "Last detected addable models": "上次检测到可加入模型",
     "Last Login": "最后登录",
     "Last Seen": "最近一次",

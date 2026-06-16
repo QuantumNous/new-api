@@ -2296,6 +2296,7 @@
     "Last 30 days uptime": "直近 30 日の稼働率",
     "Last check time": "最終チェック時刻",
     "Last checked": "最終チェック",
+    "Last alerted": "最終アラート",
     "Last detected addable models": "最後に検出された追加可能モデル",
     "Last Login": "最終ログイン",
     "Last Seen": "最終確認",
