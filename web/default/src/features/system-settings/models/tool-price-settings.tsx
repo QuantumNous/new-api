@@ -263,11 +263,11 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               id: 'tool',
               header: t('Tool identifier'),
               cell: (row) => (
-                    <Input
-                      value={row.key}
-                      placeholder='web_search_preview:gpt-4o*'
-                      onChange={(e) => updateRow(row.id, 'key', e.target.value)}
-                    />
+                <Input
+                  value={row.key}
+                  placeholder='web_search_preview:gpt-4o*'
+                  onChange={(e) => updateRow(row.id, 'key', e.target.value)}
+                />
               ),
             },
             {
@@ -275,15 +275,15 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               header: t('Price ($/1K calls)'),
               className: 'w-[200px]',
               cell: (row) => (
-                    <Input
-                      type='number'
-                      min={0}
-                      step={0.5}
-                      value={row.price}
-                      onChange={(e) =>
-                        updateRow(row.id, 'price', Number(e.target.value) || 0)
-                      }
-                    />
+                <Input
+                  type='number'
+                  min={0}
+                  step={0.5}
+                  value={row.price}
+                  onChange={(e) =>
+                    updateRow(row.id, 'price', Number(e.target.value) || 0)
+                  }
+                />
               ),
             },
             {
@@ -292,14 +292,14 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               className: 'w-[80px] text-right',
               cellClassName: 'text-right',
               cell: (row) => (
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      onClick={() => removeRow(row.id)}
-                      aria-label={t('Delete')}
-                    >
-                      <Trash2 className='text-destructive h-4 w-4' />
-                    </Button>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  onClick={() => removeRow(row.id)}
+                  aria-label={t('Delete')}
+                >
+                  <Trash2 className='text-destructive h-4 w-4' />
+                </Button>
               ),
             },
           ]}

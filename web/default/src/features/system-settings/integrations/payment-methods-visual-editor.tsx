@@ -26,9 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  StaticDataTable,
-} from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import {

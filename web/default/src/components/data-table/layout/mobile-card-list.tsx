@@ -25,7 +25,6 @@ import {
 } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { StatusBadgeTypeContext } from '@/components/status-badge'
 import { cn } from '@/lib/utils'
 import {
   Empty,
@@ -35,6 +34,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusBadgeTypeContext } from '@/components/status-badge'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -211,7 +211,10 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
 
         if (!label) {
           return (
-            <div key={cell.id} className='flex justify-end overflow-hidden [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+            <div
+              key={cell.id}
+              className='flex justify-end overflow-hidden [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'
+            >
               <StatusBadgeTypeContext.Provider value='text'>
                 {renderCellContent(cell)}
               </StatusBadgeTypeContext.Provider>
