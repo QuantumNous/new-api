@@ -138,3 +138,28 @@ func TestCodexGovernanceProbeUnsupportedMatchPersistsAcrossProcessLocalReset(t *
 	require.Equal(t, codexGovernanceProbeUnsupportedConsecutiveThreshold, count)
 	require.True(t, escalate)
 }
+
+func TestCodexGovernanceProbePendingReviewResetsProbedAndMatchedFailureKeys(t *testing.T) {
+	setupCodexGovernanceProbeFailureStateTestDB(t)
+	resetCodexGovernanceProbeFailuresForTest()
+	t.Cleanup(resetCodexGovernanceProbeFailuresForTest)
+
+	_, escalate := recordCodexGovernanceProbeUnsupportedMatch("alias-codex", 11)
+	require.False(t, escalate)
+	_, escalate = recordCodexGovernanceProbeUnsupportedMatch("alias-codex", 11)
+	require.True(t, escalate)
+
+	count, escalate := recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Equal(t, 1, count)
+	require.False(t, escalate)
+
+	resetCodexGovernanceProbeFailuresAfterPending("alias-codex", "gpt-5.3-codex", 11)
+
+	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("alias-codex", 11)
+	require.Equal(t, 1, count)
+	require.False(t, escalate)
+
+	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Equal(t, 1, count)
+	require.False(t, escalate)
+}

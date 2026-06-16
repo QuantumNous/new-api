@@ -27,7 +27,7 @@ func buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP string)
 func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) {
 	ruleName := t.Name()
 	usingGroup := "default"
-	keyFP := t.Name()
+	keyFP := "fp_" + t.Name()
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	usage := &dto.Usage{
@@ -54,7 +54,7 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
 	ruleName := t.Name()
 	usingGroup := "default"
-	keyFP := t.Name()
+	keyFP := "fp_" + t.Name()
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	openAIUsage := &dto.Usage{
@@ -84,7 +84,7 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
 func TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty(t *testing.T) {
 	ruleName := t.Name()
 	usingGroup := "default"
-	keyFP := t.Name()
+	keyFP := "fp_" + t.Name()
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	usage := &dto.Usage{

@@ -161,9 +161,9 @@ func requestCodexOfficialNoticeAIAnalysis(content string, modelNames []string, s
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "NewAPI-Codex-Governance-AI/1.0")
 
-	client := GetHttpClient()
-	if client == nil {
-		client = http.DefaultClient
+	client, err := requireHttpClient()
+	if err != nil {
+		return codexOfficialNoticeAIResult{}, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {

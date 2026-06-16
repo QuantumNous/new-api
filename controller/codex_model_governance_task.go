@@ -87,6 +87,15 @@ func resetCodexGovernanceProbeFailure(modelName string, channelID int) {
 	codexGovernanceProbeFailureMu.Unlock()
 }
 
+func resetCodexGovernanceProbeFailuresAfterPending(probedModelName string, matchedModelName string, channelID int) {
+	probedModelName = strings.TrimSpace(probedModelName)
+	matchedModelName = strings.TrimSpace(matchedModelName)
+	resetCodexGovernanceProbeFailure(probedModelName, channelID)
+	if matchedModelName != "" && matchedModelName != probedModelName {
+		resetCodexGovernanceProbeFailure(matchedModelName, channelID)
+	}
+}
+
 func collectConfiguredCodexModelNames() ([]string, error) {
 	channels, err := model.GetAllChannelsByType(constant.ChannelTypeCodex, true)
 	if err != nil {
@@ -175,6 +184,8 @@ func runCodexModelGovernanceProbeOnce() {
 				AffectedChannelIDs: []int{channel.Id},
 			}); err != nil {
 				common.SysError(fmt.Sprintf("Codex governance probe failed to mark %s pending: %v", matchedModel, err))
+			} else {
+				resetCodexGovernanceProbeFailuresAfterPending(modelName, matchedModel, channel.Id)
 			}
 		}
 	}

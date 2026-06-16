@@ -48,6 +48,7 @@ func TestExtractCodexOfficialNoticeFindingsByAIUsesStructuredResponse(t *testing
 		}`))
 	}))
 	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
 
 	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
 	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
@@ -84,6 +85,7 @@ func TestExtractCodexOfficialNoticeFindingsByAIUsesConfiguredEndpointAndModel(t 
 		}`))
 	}))
 	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
 
 	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", "http://127.0.0.1:9/env")
 	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-env-monitor")
@@ -114,6 +116,7 @@ func TestExtractCodexOfficialNoticeFindingsByAIIgnoresModelsOutsideCandidateList
 		}`))
 	}))
 	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
 
 	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
 	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
@@ -141,6 +144,7 @@ func TestExtractCodexOfficialNoticeFindingsByAITruncatesEvidence(t *testing.T) {
 		_, _ = w.Write(payload)
 	}))
 	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
 
 	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
 	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
@@ -164,6 +168,7 @@ func TestExtractCodexOfficialNoticeFindingsByAIReturnsErrorOnMalformedResponse(t
 		_, _ = w.Write([]byte(`{"output_text":"not json"}`))
 	}))
 	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
 
 	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
 	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
@@ -185,6 +190,7 @@ func TestExtractCodexOfficialNoticeFindingsWithOptionalAIDowngradesToRulesWhenAI
 		_, _ = w.Write([]byte(`{"error":{"message":"temporary unavailable"}}`))
 	}))
 	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
 
 	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
 	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
@@ -222,6 +228,44 @@ func TestExtractCodexOfficialNoticeFindingsWithOptionalAIUsesRulesWithoutAPIKey(
 	require.Equal(t, "gpt-5.3-codex", findings[0].ModelName)
 }
 
+func TestFetchCodexOfficialSourceFailsClosedWhenHTTPClientMissing(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	useCodexOfficialNoticeHTTPClient(t, nil)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("gpt-5.3-codex retired"))
+	}))
+	defer server.Close()
+
+	_, err := FetchCodexOfficialSource(server.URL)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "http client")
+}
+
+func TestExtractCodexOfficialNoticeFindingsByAIFailsClosedWhenHTTPClientMissing(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	useCodexOfficialNoticeHTTPClient(t, nil)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"output_text":"{\"findings\":[]}"}`))
+	}))
+	defer server.Close()
+
+	_, err := ExtractCodexOfficialNoticeFindingsByAIWithOptions(
+		"gpt-5.3-codex retired",
+		[]string{"gpt-5.3-codex"},
+		"https://example.com/codex/changelog",
+		CodexOfficialNoticeAIOptions{
+			APIKey:  "sk-test",
+			BaseURL: server.URL + "/v1",
+			Model:   "gpt-test",
+		},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "http client")
+}
+
 func allowCodexOfficialNoticeAITestServer(t *testing.T) {
 	t.Helper()
 	original := *system_setting.GetFetchSetting()
@@ -229,4 +273,13 @@ func allowCodexOfficialNoticeAITestServer(t *testing.T) {
 		*system_setting.GetFetchSetting() = original
 	})
 	system_setting.GetFetchSetting().EnableSSRFProtection = false
+}
+
+func useCodexOfficialNoticeHTTPClient(t *testing.T, client *http.Client) {
+	t.Helper()
+	original := httpClient
+	httpClient = client
+	t.Cleanup(func() {
+		httpClient = original
+	})
 }

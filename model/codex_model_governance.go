@@ -205,7 +205,7 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 		return nil, err
 	}
 	if abilitiesChanged {
-		publishChannelsChanged()
+		refreshLocalChannelCacheAndPublishChanged()
 	}
 	return &record, nil
 }
@@ -286,7 +286,7 @@ func RestoreCodexModelAbilities(modelName string, channelIDs []int) error {
 		return err
 	}
 	if changed {
-		publishChannelsChanged()
+		refreshLocalChannelCacheAndPublishChanged()
 	}
 	return nil
 }
@@ -303,13 +303,15 @@ func restoreCodexModelAbilitiesWithDB(db *gorm.DB, modelName string, channelIDs 
 	if len(codexChannelIDs) == 0 {
 		return false, nil
 	}
-	if err := db.Model(&Ability{}).
+	result := db.Model(&Ability{}).
 		Where("model = ? AND channel_id IN ?", modelName, codexChannelIDs).
+		Where("enabled <> ?", true).
 		Select("enabled").
-		Update("enabled", true).Error; err != nil {
-		return false, err
+		Update("enabled", true)
+	if result.Error != nil {
+		return false, result.Error
 	}
-	return true, nil
+	return result.RowsAffected > 0, nil
 }
 
 func RemoveCodexModelFromChannels(modelName string, channelIDs []int) error {
@@ -318,7 +320,7 @@ func RemoveCodexModelFromChannels(modelName string, channelIDs []int) error {
 		return err
 	}
 	if changed {
-		publishChannelsChanged()
+		refreshLocalChannelCacheAndPublishChanged()
 	}
 	return nil
 }
@@ -425,6 +427,10 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 			tx.Rollback()
 			return err
 		}
+		if record.AbilitiesDisabled && !actionChanged {
+			tx.Rollback()
+			return fmt.Errorf("no Codex abilities were restored for model %s; ensure affected Codex channels are enabled and still include the model", record.ModelName)
+		}
 		changed = changed || actionChanged
 		abilitiesDisabled = false
 	case CodexModelGovernanceStatusRemoved:
@@ -469,7 +475,7 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 		return err
 	}
 	if changed {
-		publishChannelsChanged()
+		refreshLocalChannelCacheAndPublishChanged()
 	}
 	return nil
 }
@@ -480,7 +486,7 @@ func setCodexModelAbilityEnabled(modelName string, channelIDs []int, enabled boo
 		return err
 	}
 	if changed {
-		publishChannelsChanged()
+		refreshLocalChannelCacheAndPublishChanged()
 	}
 	return nil
 }
@@ -501,13 +507,15 @@ func setCodexModelAbilityEnabledWithDB(db *gorm.DB, modelName string, channelIDs
 	if len(codexChannelIDs) == 0 {
 		return false, nil
 	}
-	if err := db.Model(&Ability{}).
+	result := db.Model(&Ability{}).
 		Where("model = ? AND channel_id IN ?", modelName, codexChannelIDs).
+		Where("enabled <> ?", enabled).
 		Select("enabled").
-		Update("enabled", enabled).Error; err != nil {
-		return false, err
+		Update("enabled", enabled)
+	if result.Error != nil {
+		return false, result.Error
 	}
-	return true, nil
+	return result.RowsAffected > 0, nil
 }
 
 func filterCodexChannelIDs(db *gorm.DB, channelIDs []int) ([]int, error) {

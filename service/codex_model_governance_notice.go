@@ -56,9 +56,9 @@ func FetchCodexOfficialSource(sourceURL string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("User-Agent", "NewAPI-Codex-Governance/1.0")
-	client := GetHttpClient()
-	if client == nil {
-		client = http.DefaultClient
+	client, err := requireHttpClient()
+	if err != nil {
+		return "", err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
