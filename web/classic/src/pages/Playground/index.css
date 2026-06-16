@@ -81,21 +81,6 @@
   min-width: 0;
 }
 
-.new-playground-logo {
-  display: flex;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #2563eb;
-  box-shadow:
-    0 10px 24px rgba(37, 99, 235, 0.12),
-    inset 0 0 0 1px rgba(148, 163, 184, 0.16);
-}
-
 .new-playground-logo-image {
   width: 24px;
   height: 24px;
@@ -402,14 +387,6 @@ html.dark .new-playground-sidebar {
 
 html.dark .new-playground-sidebar-backdrop {
   background: rgba(2, 6, 23, 0.54);
-}
-
-html.dark .new-playground-logo {
-  background: rgba(15, 23, 42, 0.92);
-  color: #8dc2ff;
-  box-shadow:
-    0 14px 28px rgba(2, 6, 23, 0.3),
-    inset 0 0 0 1px rgba(96, 117, 146, 0.24);
 }
 
 html.dark .new-playground-brand .brand-title {
