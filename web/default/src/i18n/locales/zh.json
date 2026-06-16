@@ -3386,6 +3386,8 @@
     "Secret env (JSON object)": "密钥环境 (JSON 对象)",
     "Secret environment variables (JSON)": "密钥环境变量 (JSON)",
     "Secure & Reliable": "安全可靠",
+    "Privacy-First": "注重隐私",
+    "We never sell your data; your prompts are used only to fulfil your requests": "绝不出售你的数据；请求内容仅用于完成你的调用",
     "Secured": "已保护",
     "Security": "安全",
     "Security & Limits": "安全与限制",
