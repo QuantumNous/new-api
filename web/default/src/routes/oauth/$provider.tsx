@@ -27,6 +27,9 @@ import {
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { useOnboardingStore } from '@/stores/onboarding-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { isCardBindEligible } from '@/components/layout/components/card-bind-eligibility'
 import { api, getSelf } from '@/lib/api'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
@@ -253,7 +256,12 @@ function OAuthCallback() {
           }
           // Otherwise it's a login, use payload user if available
           if (loginUser) {
-            useAuthStore.getState().auth.setUser(loginUser)
+            // is_new_user is a one-shot signal for triggering onboarding below; strip it
+            // before persisting so a hard refresh can't re-read a stale flag from storage.
+            const isNewUser = loginUser.is_new_user === true
+            const { is_new_user: _isNew, ...persistedUser } = loginUser
+            void _isNew
+            useAuthStore.getState().auth.setUser(persistedUser)
             try {
               if (typeof window !== 'undefined' && loginUser.id != null) {
                 window.localStorage.setItem('uid', String(loginUser.id))
@@ -262,6 +270,16 @@ function OAuthCallback() {
               void _error
             }
             trackOAuthResult('success')
+            // Brand-new OAuth registrations get the first-login onboarding dialog, mirroring
+            // the password-register flow (use-auth-redirect.ts): only when the card-bind
+            // feature is enabled and the user hasn't already bound a card.
+            const config = useSystemConfigStore.getState().config
+            if (
+              isNewUser &&
+              isCardBindEligible(loginUser, config.enableStripeCardBind)
+            ) {
+              useOnboardingStore.getState().openOnboarding()
+            }
             redirectAfterLogin()
             return
           }

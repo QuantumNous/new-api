@@ -10,8 +10,9 @@ var StripePromotionCodesEnabled = false
 // --- Card binding (SetupIntent postpaid) ---
 
 // StripeCardBindEnabled is the master switch for the card-binding onboarding flow.
-// When false: no onboarding redirect, no banner, no $10 bonus.
-var StripeCardBindEnabled = false
+// Defaults to true so every new user sees the recharge-promo onboarding without an admin
+// having to flip a setting. When false: no onboarding redirect, no banner, no $10 bonus.
+var StripeCardBindEnabled = true
 
 // StripeAutoChargeEnabled toggles threshold-triggered automatic off-session charging.
 var StripeAutoChargeEnabled = false

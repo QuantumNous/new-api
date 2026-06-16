@@ -16,18 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { AuthUser } from '@/stores/auth-store'
 
-export interface ApiResponse<T = unknown> {
-  success?: boolean
-  message?: string
-  data?: T
+/**
+ * Single source of truth for "should the new-user card-bind promo banner / onboarding be
+ * offered to this user". Used by CardBindBanner (to render), TopupBonusBanner (to suppress
+ * itself when the card-bind banner is showing), and the OAuth onboarding trigger — so the
+ * three never drift apart.
+ *
+ * Eligible when the feature is enabled and the user hasn't already bound a card.
+ */
+export function isCardBindEligible(
+  user: Pick<AuthUser, 'stripe_card_bound'> | null | undefined,
+  enableStripeCardBind: boolean | undefined
+): boolean {
+  if (!enableStripeCardBind) return false
+  if (!user || user.stripe_card_bound) return false
+  return true
 }
-
-export interface CardStatus {
-  card_bound: boolean
-  bonus_given: boolean
-  brand?: string
-  last4?: string
-}
-
-export type CardStatusResponse = ApiResponse<CardStatus>

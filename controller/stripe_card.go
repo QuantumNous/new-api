@@ -16,21 +16,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/checkout/session"
 	stripecustomer "github.com/stripe/stripe-go/v81/customer"
 	stripepaymentintent "github.com/stripe/stripe-go/v81/paymentintent"
 	stripepaymentmethod "github.com/stripe/stripe-go/v81/paymentmethod"
 	stripeprice "github.com/stripe/stripe-go/v81/price"
-	"github.com/thanhpk/randstr"
 )
-
-// StripeCardBindRequest is the body for initiating a card-binding Checkout Session.
-type StripeCardBindRequest struct {
-	// SuccessURL is the optional URL to return to after the card is bound.
-	SuccessURL string `json:"success_url,omitempty"`
-	// CancelURL is the optional URL to return to if the user abandons binding.
-	CancelURL string `json:"cancel_url,omitempty"`
-}
 
 // stripeCardBindReferencePrefix tags the client_reference_id so the webhook can
 // distinguish a card-binding setup session from a regular top-up payment.
@@ -93,100 +83,6 @@ func ensureStripeCustomerForUser(user *model.User) (string, error) {
 	}
 	user.StripeCustomer = customerId
 	return customerId, nil
-}
-
-// StripeCardBindBegin creates a Stripe Checkout Session in setup mode so the user can
-// save a card for postpaid (off-session) charging. Returns a hosted bind link.
-func StripeCardBindBegin(c *gin.Context) {
-	if !setting.StripeCardBindEnabled {
-		common.ApiErrorMsg(c, "绑卡功能未开启")
-		return
-	}
-
-	var req StripeCardBindRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// Body is optional; ignore parse errors and fall back to defaults.
-		req = StripeCardBindRequest{}
-	}
-
-	if req.SuccessURL != "" {
-		if err := validateStripeRedirectURL(c, req.SuccessURL); err != nil {
-			common.ApiErrorMsg(c, "成功重定向URL不在可信任域名列表中")
-			return
-		}
-	}
-	if req.CancelURL != "" {
-		if err := validateStripeRedirectURL(c, req.CancelURL); err != nil {
-			common.ApiErrorMsg(c, "取消重定向URL不在可信任域名列表中")
-			return
-		}
-	}
-
-	if err := ensureStripeKey(); err != nil {
-		common.ApiErrorMsg(c, err.Error())
-		return
-	}
-
-	id := c.GetInt("id")
-	user, err := model.GetUserById(id, false)
-	if err != nil || user == nil {
-		common.ApiErrorMsg(c, "用户不存在")
-		return
-	}
-
-	customerId, err := ensureStripeCustomerForUser(user)
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 绑卡：创建 customer 失败 user_id=%d error=%q", id, err.Error()))
-		common.ApiErrorMsg(c, "创建 Stripe 客户失败")
-		return
-	}
-
-	referenceId := stripeCardBindReferencePrefix + strconv.Itoa(id) + "_" + randstr.String(8)
-
-	successURL := req.SuccessURL
-	if successURL == "" {
-		successURL = paymentReturnPath("/wallet?card_bound=1")
-	}
-	cancelURL := req.CancelURL
-	if cancelURL == "" {
-		cancelURL = paymentReturnPath("/onboarding")
-	}
-
-	// Setup-mode sessions require a currency so the saved card can be charged
-	// off-session later. Resolve it from the configured template price.
-	currency := resolveStripeCurrency()
-
-	params := &stripe.CheckoutSessionParams{
-		Mode:              stripe.String(string(stripe.CheckoutSessionModeSetup)),
-		Currency:          stripe.String(currency),
-		Customer:          stripe.String(customerId),
-		ClientReferenceID: stripe.String(referenceId),
-		SuccessURL:        stripe.String(successURL),
-		CancelURL:         stripe.String(cancelURL),
-		// Restrict to plain card entry: setting payment_method_types explicitly to
-		// ["card"] disables the Stripe Link wallet (and its email/OTP prompt), so the
-		// user sees only the card form.
-		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
-	}
-	params.Metadata = map[string]string{
-		"user_id":  strconv.Itoa(id),
-		"purpose":  "card_bind",
-		"trade_no": referenceId,
-	}
-
-	result, err := session.New(params)
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 绑卡：创建 setup session 失败 user_id=%d error=%q", id, err.Error()))
-		common.ApiErrorMsg(c, "拉起绑卡失败")
-		return
-	}
-	if result == nil || strings.TrimSpace(result.URL) == "" {
-		common.ApiErrorMsg(c, "拉起绑卡失败")
-		return
-	}
-
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Stripe 绑卡 session 创建成功 user_id=%d ref=%s session_id=%s", id, referenceId, result.ID))
-	common.ApiSuccess(c, gin.H{"bind_link": result.URL})
 }
 
 // StripeCardStatus is the card-binding status returned to the frontend.

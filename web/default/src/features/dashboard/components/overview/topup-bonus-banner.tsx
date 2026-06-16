@@ -20,6 +20,8 @@ import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { Zap } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { isCardBindEligible } from '@/components/layout/components/card-bind-eligibility'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
@@ -37,11 +39,16 @@ const LOW_BALANCE_QUOTA = 0.5 * QUOTA_PER_UNIT // < $0.50
  */
 export function TopupBonusBanner() {
   const { t } = useTranslation()
-  const remainQuota = Number(
-    useAuthStore((s) => s.auth.user?.quota) ?? 0
-  )
+  const config = useSystemConfig()
+  const user = useAuthStore((s) => s.auth.user)
+  const remainQuota = Number(user?.quota ?? 0)
 
   if (remainQuota >= LOW_BALANCE_QUOTA) return null
+
+  // Defer to the new-user card-bind promo banner (rendered in the app layout): when it is
+  // showing, this low-balance warning must stay hidden so the two banners never stack. Shares
+  // isCardBindEligible with CardBindBanner so the two conditions can't drift.
+  if (isCardBindEligible(user, config.enableStripeCardBind)) return null
 
   const balanceLabel = formatQuota(remainQuota)
 

@@ -21,7 +21,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { SectionPageLayout } from '@/components/layout'
@@ -129,7 +128,6 @@ export function Wallet(props: WalletProps) {
   const cardBoundHandledRef = useRef(false)
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
-  const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
 
@@ -724,8 +722,6 @@ export function Wallet(props: WalletProps) {
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
-                  priceRatio={(status?.price as number) || 1}
-                  usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
                   enableCreemTopup={topupInfo?.enable_creem_topup}
