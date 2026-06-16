@@ -4650,6 +4650,9 @@
     "Smart Routing": "智能路由",
     "Don't know which model to pick? We do.": "不知道该用哪个模型?我们替你选。",
     "Up to 90% cheaper on everyday tasks": "日常任务最高省 90%",
-    "For example": "举个例子"
+    "For example": "举个例子",
+    "If every request used a premium model": "如果每个请求都用顶级模型",
+    "With smart routing": "用智能路由后",
+    "Just set the model to “auto”. DeepRouter reads each request and sends it to the cheapest model that can do the job well — so simple questions cost pennies and only the hard ones use a premium model. You save money without thinking about it.": "只要把模型设成“auto”,DeepRouter 会读懂每个请求,自动发给能胜任的最便宜的模型——简单问题只花几分钱,只有难题才动用高级模型。你什么都不用想,钱就省下来了。"
   }
 }
