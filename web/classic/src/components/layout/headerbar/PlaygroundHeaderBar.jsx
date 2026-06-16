@@ -16,17 +16,17 @@ const PLAYGROUND_NAV_ITEMS = [
   },
   {
     key: 'playground',
-    labelKey: '操练场',
+    labelKey: '聊天助手',
     to: '/console/playground',
   },
   {
     key: 'image-playground',
-    labelKey: '图片',
+    labelKey: '图片助手',
     to: '/console/image-playground',
   },
   {
     key: 'video-playground',
-    labelKey: '视频',
+    labelKey: '视频助手',
     to: '/console/video-playground',
   },
 ];
@@ -88,7 +88,10 @@ const PlaygroundHeaderBar = ({
               className='app-header-brand group flex items-center gap-3 flex-shrink-0'
             >
               <div className='app-header-brand-mark relative w-9 h-9 md:w-9 md:h-9'>
-                <SkeletonWrapper loading={isLoading || !logoLoaded} type='image' />
+                <SkeletonWrapper
+                  loading={isLoading || !logoLoaded}
+                  type='image'
+                />
                 <img
                   src={logo}
                   alt='logo'

@@ -4638,6 +4638,9 @@
     "违规扣费：{{quota}} 配额": "Phí vi phạm bị trừ: {{quota}} hạn mức",
     "任务退款：{{taskId}}": "Hoàn tiền tác vụ: {{taskId}}",
     "任务补扣费：{{delta}} 配额": "Thu bổ sung cho tác vụ: {{delta}} hạn mức",
-    "任务退还费用：{{delta}} 配额": "Hoàn lại phí tác vụ: {{delta}} hạn mức"
+    "任务退还费用：{{delta}} 配额": "Hoàn lại phí tác vụ: {{delta}} hạn mức",
+    "聊天助手": "Trợ lý chat",
+    "图片助手": "Trợ lý hình ảnh",
+    "视频助手": "Trợ lý video"
   }
 }

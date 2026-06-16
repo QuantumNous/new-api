@@ -232,16 +232,6 @@ const SiderBar = ({
         to: '/playground',
       },
       {
-        text: t('图片'),
-        itemKey: 'image-playground',
-        to: '/image-playground',
-      },
-      {
-        text: t('视频'),
-        itemKey: 'video-playground',
-        to: '/video-playground',
-      },
-      {
         text: t('模型广场'),
         itemKey: 'pricing',
         to: '/pricing',

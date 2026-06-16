@@ -4118,6 +4118,9 @@
     "违规扣费：{{quota}} 配额": "Frais de violation prélevés : {{quota}} de quota",
     "任务退款：{{taskId}}": "Remboursement de tâche : {{taskId}}",
     "任务补扣费：{{delta}} 配额": "Débit complémentaire de tâche : {{delta}} de quota",
-    "任务退还费用：{{delta}} 配额": "Remboursement de frais de tâche : {{delta}} de quota"
+    "任务退还费用：{{delta}} 配额": "Remboursement de frais de tâche : {{delta}} de quota",
+    "聊天助手": "Assistant de chat",
+    "图片助手": "Assistant d'image",
+    "视频助手": "Assistant vidéo"
   }
 }
