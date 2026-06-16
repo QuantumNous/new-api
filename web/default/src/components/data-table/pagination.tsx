@@ -39,6 +39,25 @@ type DataTablePaginationProps<TData> = {
   table: Table<TData>
 }
 
+function getRowCountSummary<TData>(table: Table<TData>) {
+  const totalRows = table.options.rowCount
+  if (totalRows == null || totalRows < 0) {
+    return null
+  }
+
+  const { pageIndex, pageSize } = table.getState().pagination
+  const currentPageRows = table.getRowModel().rows.length
+
+  if (totalRows === 0) {
+    return { start: 0, end: 0, total: 0, currentPageRows: 0 }
+  }
+
+  const start = pageIndex * pageSize + 1
+  const end = pageIndex * pageSize + currentPageRows
+
+  return { start, end, total: totalRows, currentPageRows }
+}
+
 export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
@@ -46,6 +65,7 @@ export function DataTablePagination<TData>({
   const currentPage = table.getState().pagination.pageIndex + 1
   const totalPages = table.getPageCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
+  const rowSummary = getRowCountSummary(table)
 
   return (
     <div
@@ -56,11 +76,24 @@ export function DataTablePagination<TData>({
       style={{ overflowClipMargin: 1 }}
     >
       <div className='flex w-full items-center justify-between gap-2'>
-        <div className='flex min-w-0 items-center text-xs font-medium whitespace-nowrap sm:min-w-[130px] sm:text-sm @2xl/content:hidden'>
-          {t('Page {{current}} of {{total}}', {
-            current: currentPage,
-            total: totalPages,
-          })}
+        <div className='text-muted-foreground flex min-w-0 flex-col gap-0.5 text-xs sm:flex-row sm:items-center sm:gap-3 sm:text-sm'>
+          {rowSummary && (
+            <span className='font-medium whitespace-nowrap'>
+              {rowSummary.total === 0
+                ? t('Total {{count}} records', { count: 0 })
+                : t('Showing {{start}}-{{end}} of {{total}}', {
+                    start: rowSummary.start.toLocaleString(),
+                    end: rowSummary.end.toLocaleString(),
+                    total: rowSummary.total.toLocaleString(),
+                  })}
+            </span>
+          )}
+          <span className='font-medium whitespace-nowrap @2xl/content:hidden'>
+            {t('Page {{current}} of {{total}}', {
+              current: currentPage,
+              total: totalPages,
+            })}
+          </span>
         </div>
         <div className='flex items-center gap-2 @max-2xl/content:flex-row-reverse'>
           <Select
@@ -95,11 +128,20 @@ export function DataTablePagination<TData>({
       </div>
 
       <div className='flex items-center sm:space-x-6 lg:space-x-8'>
-        <div className='flex min-w-[130px] items-center text-sm font-medium whitespace-nowrap @max-3xl/content:hidden'>
-          {t('Page {{current}} of {{total}}', {
-            current: currentPage,
-            total: totalPages,
-          })}
+        <div className='text-muted-foreground hidden min-w-[130px] flex-col gap-0.5 text-sm font-medium whitespace-nowrap @max-3xl/content:hidden @3xl/content:flex'>
+          {rowSummary && rowSummary.total > 0 && (
+            <span>
+              {t('{{count}} on this page', {
+                count: rowSummary.currentPageRows.toLocaleString(),
+              })}
+            </span>
+          )}
+          <span>
+            {t('Page {{current}} of {{total}}', {
+              current: currentPage,
+              total: totalPages,
+            })}
+          </span>
         </div>
         <div className='flex items-center space-x-1.5 sm:space-x-2'>
           <Button

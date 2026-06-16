@@ -237,6 +237,19 @@ export function CommonLogsFilterBar<TData>(
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      {(() => {
+        const total = props.table.options.rowCount
+        const current = props.table.getRowModel().rows.length
+        if (total == null) return null
+        return (
+          <span className='text-muted-foreground shrink-0 rounded-full border px-2.5 py-0.5 text-xs'>
+            {t('{{current}} on this page · {{total}} total', {
+              current: current.toLocaleString(),
+              total: total.toLocaleString(),
+            })}
+          </span>
+        )
+      })()}
       <Tooltip>
         <TooltipTrigger
           render={
