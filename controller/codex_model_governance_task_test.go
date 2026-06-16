@@ -4,7 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -37,6 +40,24 @@ CREATE TABLE codex_model_governance_probe_states (
 	updated_time bigint NOT NULL DEFAULT 0,
 	PRIMARY KEY (model_name, channel_id)
 )`).Error)
+	model.DB = db
+
+	t.Cleanup(func() {
+		model.DB = originalDB
+		require.NoError(t, sqlDB.Close())
+	})
+}
+
+func setupCodexGovernanceProbeFindingTestDB(t *testing.T) {
+	t.Helper()
+
+	originalDB := model.DB
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.CodexModelGovernanceRecord{}))
 	model.DB = db
 
 	t.Cleanup(func() {
@@ -162,4 +183,52 @@ func TestCodexGovernanceProbePendingReviewResetsProbedAndMatchedFailureKeys(t *t
 	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
 	require.Equal(t, 1, count)
 	require.False(t, escalate)
+}
+
+func TestCodexGovernanceProbeFindingUsesConfiguredModelAsGovernanceKey(t *testing.T) {
+	setupCodexGovernanceProbeFindingTestDB(t)
+
+	match := service.CodexUnsupportedMatch{
+		Matched:   true,
+		ModelName: "gpt-5.3-codex-upstream",
+		Pattern:   `The '([^']+)' model is not supported`,
+	}
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:     42,
+		Type:   constant.ChannelTypeCodex,
+		Status: common.ChannelStatusEnabled,
+		Models: "gpt-5.3-codex-alias",
+		Group:  "default",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gpt-5.3-codex-alias",
+		ChannelId: 42,
+		Enabled:   true,
+	}).Error)
+
+	finding := codexGovernanceProbeUnsupportedFinding(
+		"gpt-5.3-codex-alias",
+		42,
+		match,
+		"The 'gpt-5.3-codex-upstream' model is not supported",
+	)
+
+	require.Equal(t, "gpt-5.3-codex-alias", finding.ModelName)
+	require.Equal(t, model.CodexModelGovernanceSourceProbe, finding.Source)
+	require.Equal(t, match.Pattern, finding.MatchedRule)
+	require.Equal(t, []int{42}, finding.AffectedChannelIDs)
+	require.Contains(t, finding.LastError, "gpt-5.3-codex-upstream")
+
+	record, err := service.MoveCodexModelToPendingReview(finding)
+	require.NoError(t, err)
+	require.Equal(t, "gpt-5.3-codex-alias", record.ModelName)
+
+	var aliasAbility model.Ability
+	require.NoError(t, model.DB.First(&aliasAbility, "channel_id = ? AND model = ?", 42, "gpt-5.3-codex-alias").Error)
+	require.False(t, aliasAbility.Enabled)
+
+	var upstreamRecord model.CodexModelGovernanceRecord
+	err = model.DB.First(&upstreamRecord, "model_name = ?", "gpt-5.3-codex-upstream").Error
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }

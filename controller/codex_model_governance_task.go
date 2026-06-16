@@ -96,6 +96,16 @@ func resetCodexGovernanceProbeFailuresAfterPending(probedModelName string, match
 	}
 }
 
+func codexGovernanceProbeUnsupportedFinding(modelName string, channelID int, match service.CodexUnsupportedMatch, message string) service.CodexModelUnsupportedFinding {
+	return service.CodexModelUnsupportedFinding{
+		ModelName:          strings.TrimSpace(modelName),
+		Source:             model.CodexModelGovernanceSourceProbe,
+		MatchedRule:        strings.TrimSpace(match.Pattern),
+		LastError:          strings.TrimSpace(message),
+		AffectedChannelIDs: []int{channelID},
+	}
+}
+
 func collectConfiguredCodexModelNames() ([]string, error) {
 	channels, err := model.GetAllChannelsByType(constant.ChannelTypeCodex, true)
 	if err != nil {
@@ -176,14 +186,9 @@ func runCodexModelGovernanceProbeOnce() {
 				))
 				continue
 			}
-			if _, err := service.MoveCodexModelToPendingReview(service.CodexModelUnsupportedFinding{
-				ModelName:          matchedModel,
-				Source:             model.CodexModelGovernanceSourceProbe,
-				MatchedRule:        match.Pattern,
-				LastError:          message,
-				AffectedChannelIDs: []int{channel.Id},
-			}); err != nil {
-				common.SysError(fmt.Sprintf("Codex governance probe failed to mark %s pending: %v", matchedModel, err))
+			finding := codexGovernanceProbeUnsupportedFinding(modelName, channel.Id, match, message)
+			if _, err := service.MoveCodexModelToPendingReview(finding); err != nil {
+				common.SysError(fmt.Sprintf("Codex governance probe failed to mark configured model %s pending after matching %s: %v", finding.ModelName, matchedModel, err))
 			} else {
 				resetCodexGovernanceProbeFailuresAfterPending(modelName, matchedModel, channel.Id)
 			}
