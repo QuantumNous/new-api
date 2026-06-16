@@ -4982,6 +4982,11 @@
     "GPT-5 input": "GPT-5 入力",
     "Cache reads": "キャッシュ読み取り",
     "Coverage": "対応モデル",
-    "50% off": "50% オフ"
+    "50% off": "50% オフ",
+    "Only {{balance}} left — keep using Claude / GPT?": "残高はあと {{balance}} — Claude / GPT を続けますか？",
+    "Top up and": "チャージで",
+    "get a 50% bonus": "50% ボーナス進呈",
+    "— the same models already cost 30–50% less than official.": "— 同じモデルが公式より 30–50% お得です。",
+    "Top up, get 50% →": "チャージして 50% 進呈 →"
   }
 }

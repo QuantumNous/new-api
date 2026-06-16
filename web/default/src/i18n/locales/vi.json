@@ -4982,6 +4982,11 @@
     "GPT-5 input": "Đầu vào GPT-5",
     "Cache reads": "Đọc bộ nhớ đệm",
     "Coverage": "Phạm vi hỗ trợ",
-    "50% off": "giảm 50%"
+    "50% off": "giảm 50%",
+    "Only {{balance}} left — keep using Claude / GPT?": "Chỉ còn {{balance}} — tiếp tục dùng Claude / GPT?",
+    "Top up and": "Nạp tiền và",
+    "get a 50% bonus": "nhận thưởng 50%",
+    "— the same models already cost 30–50% less than official.": "— cùng mô hình nhưng rẻ hơn 30–50% so với giá chính thức.",
+    "Top up, get 50% →": "Nạp tiền, +50% →"
   }
 }

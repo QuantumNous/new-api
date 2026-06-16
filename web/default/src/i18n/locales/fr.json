@@ -4982,6 +4982,11 @@
     "GPT-5 input": "Entrée GPT-5",
     "Cache reads": "Lectures de cache",
     "Coverage": "Couverture",
-    "50% off": "50% de réduction"
+    "50% off": "50% de réduction",
+    "Only {{balance}} left — keep using Claude / GPT?": "Plus que {{balance}} — continuer avec Claude / GPT ?",
+    "Top up and": "Rechargez et",
+    "get a 50% bonus": "obtenez 50% de bonus",
+    "— the same models already cost 30–50% less than official.": "— les mêmes modèles coûtent déjà 30–50% de moins que l'officiel.",
+    "Top up, get 50% →": "Recharger, +50% →"
   }
 }

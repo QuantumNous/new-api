@@ -4982,6 +4982,11 @@
     "GPT-5 input": "GPT-5 输入",
     "Cache reads": "缓存读取",
     "Coverage": "覆盖范围",
-    "50% off": "5 折"
+    "50% off": "5 折",
+    "Only {{balance}} left — keep using Claude / GPT?": "余额仅剩 {{balance}}，继续用 Claude / GPT？",
+    "Top up and": "充值即",
+    "get a 50% bonus": "送 50%",
+    "— the same models already cost 30–50% less than official.": "—— 同款模型本就比官方便宜 30–50%。",
+    "Top up, get 50% →": "充值送 50% →"
   }
 }
