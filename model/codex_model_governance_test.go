@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
@@ -119,7 +120,13 @@ func insertCodexGovernanceChannelWithStatusAndTag(t *testing.T, id int, channelT
 func TestCodexGovernanceDecodeChannelIDsTrimsDedupesAndIgnoresInvalid(t *testing.T) {
 	got := decodeCodexModelGovernanceChannelIDs(" 3,0,abc, 2,3, -4, 2 ")
 
-	require.Equal(t, []int{3, 2}, got)
+	require.Equal(t, []int{2, 3}, got)
+}
+
+func TestCodexGovernanceEncodeChannelIDsSortsForStableKeys(t *testing.T) {
+	got := encodeCodexModelGovernanceChannelIDs([]int{3, 0, 2, 3, -4, 2})
+
+	require.Equal(t, "2,3", got)
 }
 
 func TestCodexGovernanceUpsertPendingDisablesAffectedCodexAbilities(t *testing.T) {
@@ -397,6 +404,47 @@ func TestCodexGovernanceUpsertPendingKeepsRecordWhenAbilityDisableFails(t *testi
 	var count int64
 	require.NoError(t, DB.Model(&CodexModelGovernanceRecord{}).Where("model_name = ?", "gpt-5.3-codex").Count(&count).Error)
 	require.Equal(t, int64(1), count)
+}
+
+func TestCodexGovernanceUpsertPendingRollsBackAbilityDisableWhenMetadataUpdateFails(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 18, constant.ChannelTypeCodex, "gpt-5.3-codex")
+
+	callbackName := "codex_governance_metadata_update_failure"
+	expectedErr := errors.New("metadata update failed")
+	injected := false
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if injected || tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "CodexModelGovernanceRecord" {
+			return
+		}
+		injected = true
+		tx.AddError(expectedErr)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{18},
+		DisableAbilities:   true,
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+	require.NotNil(t, record)
+	require.True(t, injected)
+
+	var stored CodexModelGovernanceRecord
+	require.NoError(t, DB.First(&stored, "model_name = ?", "gpt-5.3-codex").Error)
+	require.Equal(t, CodexModelGovernanceStatusUnsupportedPendingReview, stored.Status)
+	require.Equal(t, "18", stored.AffectedChannelIDs)
+	require.Empty(t, stored.DisabledChannelIDs)
+	require.False(t, stored.AbilitiesDisabled)
+
+	var ability Ability
+	require.NoError(t, DB.First(&ability, "channel_id = ? AND model = ?", 18, "gpt-5.3-codex").Error)
+	require.True(t, ability.Enabled)
 }
 
 func TestCodexGovernanceUpsertPendingMergesAffectedChannelsAcrossProbeRuns(t *testing.T) {

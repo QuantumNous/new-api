@@ -70,14 +70,6 @@ type officialCodexNoticeModelOccurrence struct {
 	Index     int
 }
 
-func findOfficialCodexNoticeModel(content string, modelNames []string) (string, int) {
-	occurrences := findOfficialCodexNoticeModelOccurrences(content, modelNames)
-	if len(occurrences) == 0 {
-		return "", -1
-	}
-	return occurrences[0].ModelName, occurrences[0].Index
-}
-
 func findOfficialCodexNoticeModelOccurrences(content string, modelNames []string) []officialCodexNoticeModelOccurrence {
 	occurrences := make([]officialCodexNoticeModelOccurrence, 0)
 	for _, modelName := range modelNames {

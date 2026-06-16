@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -117,6 +118,7 @@ func normalizeCodexModelGovernanceChannelIDs(channelIDs []int) []int {
 		seen[id] = struct{}{}
 		normalized = append(normalized, id)
 	}
+	sort.Ints(normalized)
 	return normalized
 }
 
@@ -302,7 +304,7 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 		return nil, err
 	}
 	if len(requestedDisabledChannelIDs) > 0 {
-		changed, disableErr := setCodexModelAbilityEnabledWithDB(DB, modelName, requestedDisabledChannelIDs, false)
+		updated, changed, disableErr, markErr := disableCodexModelGovernanceAbilitiesAndMark(record.ID, modelName, requestedDisabledChannelIDs)
 		if disableErr != nil {
 			common.SysError(fmt.Sprintf(
 				"Codex model governance failed to disable abilities for %s on channel(s) %s; record #%d remains pending: %v",
@@ -313,9 +315,8 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 			))
 			return &record, nil
 		}
-		updated, err := markCodexModelGovernanceAbilitiesDisabled(record.ID, requestedDisabledChannelIDs)
-		if err != nil {
-			return &record, err
+		if markErr != nil {
+			return &record, markErr
 		}
 		if updated != nil {
 			record = *updated
@@ -328,13 +329,15 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 	return &record, nil
 }
 
-func markCodexModelGovernanceAbilitiesDisabled(recordID int, channelIDs []int) (*CodexModelGovernanceRecord, error) {
+func disableCodexModelGovernanceAbilitiesAndMark(recordID int, modelName string, channelIDs []int) (*CodexModelGovernanceRecord, bool, error, error) {
 	channelIDs = normalizeCodexModelGovernanceChannelIDs(channelIDs)
 	if recordID <= 0 || len(channelIDs) == 0 {
-		return nil, nil
+		return nil, false, nil, nil
 	}
 	now := common.GetTimestamp()
 	var record CodexModelGovernanceRecord
+	abilitiesChanged := false
+	var disableErr error
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, "id = ?", recordID).Error; err != nil {
 			return err
@@ -342,6 +345,12 @@ func markCodexModelGovernanceAbilitiesDisabled(recordID int, channelIDs []int) (
 		if record.Status == CodexModelGovernanceStatusRemoved {
 			return nil
 		}
+		changed, err := setCodexModelAbilityEnabledWithDB(tx, modelName, channelIDs, false)
+		if err != nil {
+			disableErr = err
+			return err
+		}
+		abilitiesChanged = abilitiesChanged || changed
 		disabledChannelIDs := normalizeCodexModelGovernanceChannelIDs(
 			append(CodexModelGovernanceDisabledChannelIDs(record), channelIDs...),
 		)
@@ -354,10 +363,13 @@ func markCodexModelGovernanceAbilitiesDisabled(recordID int, channelIDs []int) (
 		}
 		return tx.First(&record, "id = ?", record.ID).Error
 	})
-	if err != nil {
-		return nil, err
+	if disableErr != nil {
+		return &record, false, disableErr, nil
 	}
-	return &record, nil
+	if err != nil {
+		return &record, false, nil, err
+	}
+	return &record, abilitiesChanged, nil, nil
 }
 
 func MarkCodexModelGovernanceRecordAlerted(id int, alertedAt int64) error {
