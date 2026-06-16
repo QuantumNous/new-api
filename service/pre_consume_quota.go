@@ -35,6 +35,9 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 	}
+	// Fire-and-forget: top up via the user's bound card when balance is below threshold.
+	// Never blocks this request; the checks below still apply to the current call.
+	MaybeTriggerStripeAutoCharge(relayInfo.UserId, userQuota)
 	if userQuota <= 0 {
 		return types.NewErrorWithStatusCode(fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}

@@ -58,6 +58,9 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  stripe_customer: z.string().optional(),
+  stripe_card_bound: z.boolean().optional(),
+  new_user_bonus_given: z.boolean().optional(),
 })
 export type User = z.infer<typeof userSchema>
 

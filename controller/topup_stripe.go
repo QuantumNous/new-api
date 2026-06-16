@@ -421,6 +421,13 @@ func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) 
 		return
 	}
 
+	// Card-binding (setup mode) sessions don't carry a payment; handle them separately
+	// before the paid-status gate below.
+	if event.GetObjectValue("mode") == string(stripe.CheckoutSessionModeSetup) || strings.HasPrefix(referenceId, stripeCardBindReferencePrefix) {
+		fulfillCardBind(ctx, event, referenceId, customerId, callerIp)
+		return
+	}
+
 	paymentStatus := event.GetObjectValue("payment_status")
 	if paymentStatus != "paid" {
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe Checkout 支付未完成，等待异步结果 trade_no=%s payment_status=%s client_ip=%s", referenceId, paymentStatus, callerIp))
@@ -428,6 +435,55 @@ func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) 
 	}
 
 	fulfillOrder(ctx, event, referenceId, customerId, callerIp)
+}
+
+// fulfillCardBind handles a completed setup-mode Checkout Session: it marks the user's card
+// as bound and idempotently grants the one-time new-user bonus. The user id is parsed from
+// the client_reference_id ("cardbind_<userId>_<rand>").
+func fulfillCardBind(ctx context.Context, event stripe.Event, referenceId string, customerId string, callerIp string) {
+	userId := parseCardBindUserId(referenceId)
+	if userId <= 0 {
+		// Fall back to session metadata when the reference id is unexpected.
+		if metaUser := event.GetObjectValue("metadata", "user_id"); metaUser != "" {
+			if parsed, err := strconv.Atoi(metaUser); err == nil {
+				userId = parsed
+			}
+		}
+	}
+	if userId <= 0 {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 绑卡回调无法解析用户 ref=%s client_ip=%s", referenceId, callerIp))
+		return
+	}
+
+	// Serialize duplicate webhook deliveries for the same setup session, mirroring
+	// fulfillOrder. Without this, at-least-once delivery can grant the bonus twice
+	// (FOR UPDATE is a no-op on SQLite).
+	LockOrder(referenceId)
+	defer UnlockOrder(referenceId)
+
+	bonusGranted, bonusQuota, err := model.MarkStripeCardBound(userId, customerId)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("Stripe 绑卡回调处理失败 user_id=%d ref=%s client_ip=%s error=%q", userId, referenceId, callerIp, err.Error()))
+		return
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("Stripe 绑卡成功 user_id=%d ref=%s bonus_granted=%t bonus_quota=%d client_ip=%s", userId, referenceId, bonusGranted, bonusQuota, callerIp))
+}
+
+// parseCardBindUserId extracts the user id from a "cardbind_<userId>_<rand>" reference id.
+func parseCardBindUserId(referenceId string) int {
+	if !strings.HasPrefix(referenceId, stripeCardBindReferencePrefix) {
+		return 0
+	}
+	rest := strings.TrimPrefix(referenceId, stripeCardBindReferencePrefix)
+	idx := strings.IndexByte(rest, '_')
+	if idx > 0 {
+		rest = rest[:idx]
+	}
+	userId, err := strconv.Atoi(rest)
+	if err != nil {
+		return 0
+	}
+	return userId
 }
 
 // sessionAsyncPaymentSucceeded handles delayed payment methods (bank transfer, SEPA, etc.)

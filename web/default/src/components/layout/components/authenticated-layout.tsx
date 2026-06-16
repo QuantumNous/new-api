@@ -25,6 +25,8 @@ import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
+import { CardBindBanner } from './card-bind-banner'
+import { Onboarding } from '@/features/onboarding'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -39,6 +41,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
         <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
           <SkipToMain />
           <AppHeader />
+          <CardBindBanner />
           <div className='flex min-h-0 w-full flex-1'>
             <AppSidebar />
             <SidebarInset
@@ -54,6 +57,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
           </div>
         </SidebarProvider>
       </SearchProvider>
+      <Onboarding />
     </LayoutProvider>
   )
 }

@@ -28,7 +28,44 @@ const STORAGE_KEYS = {
   USER_ID: 'uid',
   AFFILIATE: 'aff',
   STATUS: 'status',
+  PENDING_ONBOARDING: 'pending_onboarding',
 } as const
+
+// ============================================================================
+// Onboarding Storage
+// ============================================================================
+
+/**
+ * Mark that the user just registered and should be guided through onboarding
+ * on their next successful login.
+ */
+export function setPendingOnboarding(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(STORAGE_KEYS.PENDING_ONBOARDING, '1')
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to set pending onboarding flag:', error)
+  }
+}
+
+/**
+ * Consume the pending-onboarding flag, returning whether it was set.
+ */
+export function consumePendingOnboarding(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEYS.PENDING_ONBOARDING)
+    if (value) {
+      window.localStorage.removeItem(STORAGE_KEYS.PENDING_ONBOARDING)
+      return true
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to consume pending onboarding flag:', error)
+  }
+  return false
+}
 
 // ============================================================================
 // User ID Storage

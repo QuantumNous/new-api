@@ -43,6 +43,7 @@ export interface SystemConfig {
   footerHtml?: string
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
+  enableStripeCardBind?: boolean
   currency: CurrencyConfig
 }
 
