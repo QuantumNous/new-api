@@ -118,12 +118,16 @@ function GovernanceReviewRow(props: GovernanceReviewRowProps) {
       variant: 'default',
       icon: RotateCcw,
     },
-    {
-      action: 'ignore',
-      label: t('Ignore finding'),
-      variant: 'outline',
-      icon: CheckCircle2,
-    },
+    ...(!props.record.abilities_disabled
+      ? [
+          {
+            action: 'ignore',
+            label: t('Ignore finding'),
+            variant: 'outline',
+            icon: CheckCircle2,
+          } satisfies ReviewActionButton,
+        ]
+      : []),
   ]
 
   return (

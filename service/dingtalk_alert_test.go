@@ -132,6 +132,45 @@ func TestNotifyDingTalkCodexModelGovernanceSkipsWhenMonitorAlertDisabled(t *test
 	require.NoError(t, err)
 }
 
+func TestNotifyDingTalkCodexModelGovernanceUsesGovernanceCooldown(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalMonitorSetting := *operation_setting.GetMonitorSetting()
+	originalGovernanceSetting := *operation_setting.GetCodexModelGovernanceSetting()
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalMonitorSetting
+		*operation_setting.GetCodexModelGovernanceSetting() = originalGovernanceSetting
+		httpClient = originalHTTPClient
+	})
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	monitorSetting := operation_setting.GetMonitorSetting()
+	monitorSetting.DingTalkAlertEnabled = true
+	monitorSetting.DingTalkAlertWebhookURL = server.URL
+	monitorSetting.DingTalkAlertSecret = ""
+	governanceSetting := operation_setting.GetCodexModelGovernanceSetting()
+	governanceSetting.AlertCooldownMinutes = 60
+
+	record := &model.CodexModelGovernanceRecord{
+		ID:        7001,
+		ModelName: "gpt-5.3-codex",
+		Status:    model.CodexModelGovernanceStatusUnsupportedPendingReview,
+		Source:    model.CodexModelGovernanceSourceProbe,
+	}
+
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(record))
+	require.NoError(t, NotifyDingTalkCodexModelGovernance(record))
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+}
+
 func TestBuildDingTalkChannelAlertContentMasksChannelMetadata(t *testing.T) {
 	content := BuildDingTalkChannelAlertContent(DingTalkChannelAlert{
 		ChannelID:       12,

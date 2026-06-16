@@ -40,6 +40,7 @@ export type CodexModelGovernanceRecord = {
   abilities_disabled: boolean
   detected_at: number
   last_checked_at: number
+  last_alerted_at: number
   reviewed_at: number
   reviewed_by: number
   review_note: string

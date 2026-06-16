@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -36,6 +37,7 @@ type CodexModelGovernanceRecord struct {
 	AbilitiesDisabled  bool   `json:"abilities_disabled" gorm:"default:false"`
 	DetectedAt         int64  `json:"detected_at" gorm:"type:bigint;index"`
 	LastCheckedAt      int64  `json:"last_checked_at" gorm:"type:bigint;index"`
+	LastAlertedAt      int64  `json:"last_alerted_at" gorm:"type:bigint;index"`
 	ReviewedAt         int64  `json:"reviewed_at" gorm:"type:bigint"`
 	ReviewedBy         int    `json:"reviewed_by" gorm:"index;default:0"`
 	ReviewNote         string `json:"review_note" gorm:"type:text"`
@@ -128,7 +130,7 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 	var record CodexModelGovernanceRecord
 	abilitiesChanged := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.First(&record, "model_name = ?", modelName).Error
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, "model_name = ?", modelName).Error
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
@@ -159,6 +161,8 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 			nextStatus := CodexModelGovernanceStatusUnsupportedPendingReview
 			if record.Status == CodexModelGovernanceStatusUnsupportedDisabled {
 				nextStatus = CodexModelGovernanceStatusUnsupportedDisabled
+			} else if record.Status == CodexModelGovernanceStatusIgnored && !input.DisableAbilities {
+				nextStatus = CodexModelGovernanceStatusIgnored
 			}
 			updates := map[string]any{
 				"status":               nextStatus,
@@ -169,6 +173,11 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 				"detected_at":          record.DetectedAt,
 				"last_checked_at":      lastCheckedAt,
 				"updated_time":         now,
+			}
+			if nextStatus == CodexModelGovernanceStatusUnsupportedPendingReview && record.Status != CodexModelGovernanceStatusUnsupportedPendingReview {
+				updates["reviewed_at"] = int64(0)
+				updates["reviewed_by"] = 0
+				updates["review_note"] = ""
 			}
 			// Never downgrade: once abilities were disabled (by a probe finding or
 			// an operator), an alert-only finding must not flip the flag back.
@@ -199,6 +208,19 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 		publishChannelsChanged()
 	}
 	return &record, nil
+}
+
+func MarkCodexModelGovernanceRecordAlerted(id int, alertedAt int64) error {
+	if id <= 0 {
+		return gorm.ErrRecordNotFound
+	}
+	if alertedAt == 0 {
+		alertedAt = common.GetTimestamp()
+	}
+	return DB.Model(&CodexModelGovernanceRecord{}).
+		Where("id = ?", id).
+		Select("last_alerted_at").
+		Update("last_alerted_at", alertedAt).Error
 }
 
 func ListCodexModelGovernanceRecords(status string) ([]CodexModelGovernanceRecord, error) {
@@ -380,7 +402,7 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 	}()
 
 	var record CodexModelGovernanceRecord
-	err := tx.First(&record, "id = ?", id).Error
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, "id = ?", id).Error
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -414,6 +436,10 @@ func ReviewCodexModelGovernanceRecord(id int, status string, reviewerID int, not
 		changed = changed || actionChanged
 		abilitiesDisabled = true
 	case CodexModelGovernanceStatusIgnored:
+		if record.AbilitiesDisabled {
+			tx.Rollback()
+			return fmt.Errorf("model %s already has routing disabled; restore or remove it instead of ignoring the finding", record.ModelName)
+		}
 	case CodexModelGovernanceStatusUnsupportedPendingReview, CodexModelGovernanceStatusUnsupportedDisabled:
 		actionChanged, err := setCodexModelAbilityEnabledWithDB(tx, record.ModelName, channelIDs, false)
 		if err != nil {
