@@ -91,7 +91,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const imageAbortControllerRef = useRef(null);
   const videoPollingRef = useRef(new Set());
 
-  const state = usePlaygroundState();
+  const state = usePlaygroundState(userState?.user?.id || null);
   const {
     inputs,
     parameterEnabled,
@@ -1724,6 +1724,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       <div className='new-playground-page'>
         <PlaygroundSidebar
           conversations={conversations}
+          playgroundMode={playgroundMode}
           activeConversationId={activeConversationId}
           collapsed={sidebarCollapsed && !isMobile}
           isMobile={isMobile}

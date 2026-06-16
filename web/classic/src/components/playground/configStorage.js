@@ -30,6 +30,10 @@ const MAX_STORAGE_TEXT_LENGTH = 4000;
 const MAX_STORAGE_REASONING_LENGTH = 2000;
 const DATA_URL_PLACEHOLDER = '[local image omitted from localStorage]';
 const LONG_TEXT_PLACEHOLDER = '...[truncated]';
+const DEFAULT_CONVERSATION_TYPE = 'chat';
+
+export const normalizePlaygroundConversationType = (type) =>
+  ['chat', 'image', 'video'].includes(type) ? type : DEFAULT_CONVERSATION_TYPE;
 
 const buildConversationTitle = (messages = []) => {
   const firstUserMessage = messages.find((message) => message?.role === 'user');
@@ -125,7 +129,9 @@ const sanitizeMessageForStorage = (message) => {
   }
 
   if (Array.isArray(sanitized.imageUrls)) {
-    sanitized.imageUrls = sanitized.imageUrls.map((url) => trimTextForStorage(url));
+    sanitized.imageUrls = sanitized.imageUrls.map((url) =>
+      trimTextForStorage(url),
+    );
   }
 
   return sanitized;
@@ -159,7 +165,8 @@ const hasPlaceholderValue = (value) => {
 };
 
 const hasPlaceholderInMessages = (messages) =>
-  Array.isArray(messages) && messages.some((message) => hasPlaceholderValue(message));
+  Array.isArray(messages) &&
+  messages.some((message) => hasPlaceholderValue(message));
 
 const hasPlaceholderInConversations = (conversations) =>
   Array.isArray(conversations) &&
@@ -177,6 +184,7 @@ const buildConversationStorageFallback = (conversations = []) => ({
   conversations: Array.isArray(conversations)
     ? conversations.map((conversation) => ({
         id: conversation?.id || `pg-${Date.now()}`,
+        type: normalizePlaygroundConversationType(conversation?.type),
         title: conversation?.title || '',
         messages: [],
         createdAt: conversation?.createdAt || Date.now(),
@@ -310,10 +318,15 @@ export const loadMessages = () => {
   return null;
 };
 
-export const createStoredConversation = (messages = [], id = null) => {
+export const createStoredConversation = (
+  messages = [],
+  id = null,
+  type = DEFAULT_CONVERSATION_TYPE,
+) => {
   const now = Date.now();
   return {
     id: id || `pg-${now}`,
+    type: normalizePlaygroundConversationType(type),
     title: buildConversationTitle(messages),
     messages,
     createdAt: now,
@@ -323,7 +336,10 @@ export const createStoredConversation = (messages = [], id = null) => {
 
 const normalizeConversationState = (state) => {
   const conversations = Array.isArray(state?.conversations)
-    ? state.conversations
+    ? state.conversations.map((conversation) => ({
+        ...conversation,
+        type: normalizePlaygroundConversationType(conversation?.type),
+      }))
     : [];
   const activeConversationId =
     state?.activeConversationId || conversations[0]?.id || null;

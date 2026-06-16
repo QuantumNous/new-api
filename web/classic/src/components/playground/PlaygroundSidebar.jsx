@@ -28,9 +28,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { normalizePlaygroundConversationType } from './configStorage';
 
 const PlaygroundSidebar = ({
   conversations,
+  playgroundMode,
   activeConversationId,
   collapsed,
   isMobile,
@@ -79,10 +81,16 @@ const PlaygroundSidebar = ({
   };
 
   const recentThreads = useMemo(() => {
+    const currentType = normalizePlaygroundConversationType(playgroundMode);
     return (conversations || [])
+      .filter(
+        (conversation) =>
+          normalizePlaygroundConversationType(conversation?.type) ===
+          currentType,
+      )
       .slice()
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  }, [conversations]);
+  }, [conversations, playgroundMode]);
 
   const filteredThreads = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
