@@ -100,6 +100,7 @@
   "transactions": [
     {
       "transaction_id": "txn_9001",
+      "upstream_request_id": "chatcmpl-abc123",
       "request_id": "req_abc123",
       "api_key_id": "84",
       "api_key_name": "BlockRun Main",
@@ -139,6 +140,7 @@
 | `requested_model`（仅 transactions） | `logs.model_name`（= `OriginModelName`） | 客户端请求名；blockrun 无映射时与 model 相等 |
 | `by_api_key` / `api_key_id`,`api_key_name` | `logs.token_id`(转字符串) / `logs.token_name` | summary 按 token 分组 |
 | `transaction_id`（transactions） | `"txn_" + logs.id` | 确定性唯一 |
+| `upstream_request_id`（transactions） | `logs.upstream_request_id` | BlockRun 上游响应顶层 id / CallTransaction.id；旧数据或未捕获时为空 |
 | `request_id`（transactions） | `logs.request_id` | |
 | `created_at`（transactions） | `logs.created_at`(unix 秒) → RFC3339 | **秒精度**（`.000Z`，无毫秒） |
 | `duration_ms`（transactions） | `logs.use_time`(秒) × 1000 | **秒级粒度** |
@@ -164,7 +166,7 @@
 ### 5.3 性能与索引（已评审）
 - **命中索引**：查询 `WHERE type AND channel_id IN(...) AND created_at∈[start,end) ORDER BY created_at,id` 由现有 **`idx_created_at_id (created_at,id)`** 服务——`created_at` 前导列限定时间窗范围扫描，`ORDER BY` 被该索引覆盖**无 filesort**；`type`/`channel_id` 为残余过滤。`Count` 同走该索引。
 - **不新增索引**（已评审）：理论最优是 `(channel_id, created_at)` 复合索引，但需在生产巨大且高频写入的 `logs` 表上 ALTER 加索引（成本/锁风险），**本期不加**；靠 `idx_created_at_id` + 时间窗 + 流式足够。后续若 profiling 显示时间窗内非 blockrun 行占比过高再评估。
-- **列裁剪**：summary 仅 `SELECT model_name, token_id, token_name, prompt_tokens, completion_tokens, quota, other`，跳过 content/ip/username/upstream_request_id 等大列。
+- **列裁剪**：summary 仅 `SELECT model_name, token_id, token_name, prompt_tokens, completion_tokens, quota, other`；transactions 额外读取 `upstream_request_id`，仍跳过 content/ip/username 等大列。
 - **范围上限**：`end-start` > **31 天** → 400（防超长区间扫描/OOM）。
 - **主要 CPU 成本**：逐行 `Other` JSON 解析（day 级范围可接受；范围上限兜底）。高流量对账必须使用 cursor 模式，避免深翻页 OFFSET 丢弃成本。
 
