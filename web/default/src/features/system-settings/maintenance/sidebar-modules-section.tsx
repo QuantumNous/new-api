@@ -67,6 +67,10 @@ export function SidebarModulesSection({
       title: t('Personal area'),
       description: t('Wallet management and personal preferences.'),
     },
+    marketplace: {
+      title: t('Marketplace area'),
+      description: t('Skill discovery and management.'),
+    },
     admin: {
       title: t('Admin area'),
       description: t('Global configuration and administrative tools.'),
@@ -117,6 +121,16 @@ export function SidebarModulesSection({
       personal: {
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
+      },
+    },
+    marketplace: {
+      skills: {
+        title: t('Skills'),
+        description: t('Browse the skill marketplace catalog.'),
+      },
+      mySkills: {
+        title: t('My Skills'),
+        description: t('Manage skills enabled for your account.'),
       },
     },
     admin: {

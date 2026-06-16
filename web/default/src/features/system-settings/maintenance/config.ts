@@ -72,6 +72,11 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     topup: true,
     personal: true,
   },
+  marketplace: {
+    enabled: true,
+    skills: true,
+    mySkills: true,
+  },
   admin: {
     enabled: true,
     channel: true,
