@@ -94,3 +94,20 @@ func TestUpdateConfigFromMap_ScalarFieldsUnchanged(t *testing.T) {
 		t.Errorf("Modes should be unchanged, got %v", cfg.Modes)
 	}
 }
+
+func TestConfigToMap_UsesSnapshotFunc(t *testing.T) {
+	called := false
+	cfgMap, err := ConfigToMap(SnapshotFunc(func() interface{} {
+		called = true
+		return &testConfigWithMap{Name: "snapshot"}
+	}))
+	if err != nil {
+		t.Fatalf("ConfigToMap failed: %v", err)
+	}
+	if !called {
+		t.Fatal("SnapshotFunc was not called")
+	}
+	if cfgMap["name"] != "snapshot" {
+		t.Fatalf("name = %q, want snapshot", cfgMap["name"])
+	}
+}
