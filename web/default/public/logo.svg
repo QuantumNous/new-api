@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="agentlyGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="0.55" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <!-- rounded-square background -->
+  <rect x="0" y="0" width="128" height="128" rx="30" fill="url(#agentlyGrad)"/>
+  <!-- letter A : left leg -->
+  <polygon points="30,98 64,22 64,42 50,98" fill="#ffffff"/>
+  <!-- letter A : right leg -->
+  <polygon points="64,22 98,98 78,98 64,42" fill="#ffffff"/>
+  <!-- letter A : crossbar -->
+  <rect x="55" y="60" width="18" height="12" rx="3" fill="#ffffff"/>
+  <!-- spark accent (agent) -->
+  <path d="M92 22 Q92 30 100 30 Q92 30 92 38 Q92 30 84 30 Q92 30 92 22 Z" fill="#ffffff"/>
+</svg>
