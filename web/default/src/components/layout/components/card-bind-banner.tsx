@@ -16,15 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gift, ChevronRight } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Sparkles, ChevronRight } from 'lucide-react'
+import { useTranslation, Trans } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
 /**
- * A persistent banner shown to any signed-in user who has not yet bound a card,
- * inviting them to bind one and claim the bonus. Disappears once a card is bound
+ * A persistent, festive promo banner shown to any signed-in user who has not yet bound a
+ * card (e.g. after they skipped the onboarding dialog). Clicking it re-opens that dialog.
+ * Renders in the same top slot as the low-balance banner. Disappears once a card is bound
  * or when the card-bind feature is disabled.
  */
 export function CardBindBanner() {
@@ -32,24 +33,36 @@ export function CardBindBanner() {
   const config = useSystemConfig()
   const user = useAuthStore((s) => s.auth.user)
   const openOnboarding = useOnboardingStore((s) => s.openOnboarding)
-  const bonusLabel = `$${config.stripeNewUserBonusAmount ?? 10}`
 
   if (!config.enableStripeCardBind) return null
   if (!user || user.stripe_card_bound) return null
 
   return (
-    <button
-      type='button'
-      onClick={openOnboarding}
-      className='bg-primary/10 text-primary hover:bg-primary/15 flex w-full items-center justify-center gap-2 px-4 py-2 text-sm transition-colors'
-    >
-      <Gift className='size-4 shrink-0' aria-hidden='true' />
-      <span>
-        {t('Bind a credit card to claim {{amount}} in API credit', {
-          amount: bonusLabel,
-        })}
-      </span>
-      <ChevronRight className='size-4 shrink-0' aria-hidden='true' />
-    </button>
+    // Outer padding mirrors SectionPageLayout's content gutters (px-3 sm:px-4) so the banner's
+    // left/right edges line up with the page (e.g. the overview cards) below it. pt matches the
+    // page title's top padding; mb-[15px] keeps a 15px gap to the content beneath.
+    <div className='shrink-0 px-3 pt-3 sm:px-4'>
+      <button
+        type='button'
+        onClick={openOnboarding}
+        className='group bg-primary/5 hover:bg-primary/10 border-primary/15 relative mb-[15px] flex h-[50px] w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl border px-4 text-sm font-medium text-foreground transition-colors'
+      >
+        {/* Limited-time pill */}
+        <span className='bg-primary text-primary-foreground flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold'>
+          <Sparkles className='size-3' aria-hidden='true' />
+          {t('Limited time')}
+        </span>
+        <span>
+          <Trans
+            i18nKey='First top-up <hl>50% bonus</hl> · same models at half the official price'
+            components={{ hl: <span className='text-primary font-extrabold' /> }}
+          />
+        </span>
+        <ChevronRight
+          className='text-primary size-4 shrink-0 transition-transform group-hover:translate-x-0.5'
+          aria-hidden='true'
+        />
+      </button>
+    </div>
   )
 }

@@ -21,61 +21,95 @@ import { Gift, Loader2, Zap } from 'lucide-react'
 import { useTranslation, Trans } from 'react-i18next'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@/stores/onboarding-store'
-import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { beginCardBind, isApiSuccess } from './api'
+import { requestPromoTopup, isApiSuccess } from './api'
+import { depositBonusUsd } from '../wallet/lib/deposit-bonus'
 
-// Visual-only urgency timer (seconds). Resets each time the dialog opens.
-const COUNTDOWN_SECONDS = 10 * 60
+// Visual urgency timer: 10 days from the moment the user FIRST sees the dialog. The anchor
+// (end timestamp) is persisted in localStorage so a refresh or reopen doesn't reset it.
+const COUNTDOWN_DURATION_MS = 10 * 24 * 60 * 60 * 1000
+const COUNTDOWN_STORAGE_KEY = 'onboarding_promo_deadline'
 
-function pad(n: number) {
-  return String(n).padStart(2, '0')
+// Returns the promo end timestamp (ms), creating+persisting it on first call.
+function getPromoDeadline(): number {
+  try {
+    const stored = localStorage.getItem(COUNTDOWN_STORAGE_KEY)
+    if (stored) {
+      const parsed = Number(stored)
+      if (Number.isFinite(parsed) && parsed > 0) return parsed
+    }
+    const deadline = Date.now() + COUNTDOWN_DURATION_MS
+    localStorage.setItem(COUNTDOWN_STORAGE_KEY, String(deadline))
+    return deadline
+  } catch {
+    // localStorage unavailable (private mode / SSR): fall back to a non-persisted window.
+    return Date.now() + COUNTDOWN_DURATION_MS
+  }
+}
+
+// Two promo recharge tiers. amount = USD charged; the bonus is the single source of truth in
+// deposit-bonus.ts (depositBonusUsd), mirrored from the backend depositBonusTiers. The
+// usage/off labels are marketing copy (actual discount lives in group ratios).
+interface PromoTier {
+  amount: number
+  off: string // e.g. "40% OFF"
+  usage: string // e.g. "3X"
+  highlight?: boolean
+}
+const TIERS: PromoTier[] = [
+  { amount: 20, off: '40% OFF', usage: '3X' },
+  { amount: 200, off: '50% OFF', usage: '40X', highlight: true },
+]
+
+function breakdown(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  return {
+    days: Math.floor(total / 86400),
+    hours: Math.floor((total % 86400) / 3600),
+    minutes: Math.floor((total % 3600) / 60),
+    seconds: total % 60,
+  }
 }
 
 /**
- * Card-binding onboarding dialog. Floats over the console with a translucent,
- * blurred backdrop (so the dashboard shows through). Visibility is driven by the
- * onboarding store — opened on first login or via the card-bind banner.
- *
- * Promo presentation only: the discount figures are marketing copy; actual
- * pricing/discount is configured on the backend, not enforced here.
+ * Onboarding promo dialog. Floats over the console with a translucent, blurred backdrop.
+ * Presents two recharge tiers; clicking one starts a real Stripe payment that also binds
+ * the card (save_card) for later postpaid auto-charge. The bonus/discount figures shown are
+ * marketing copy — the actual deposit bonus and pricing are enforced on the backend.
  */
 export function Onboarding() {
   const { t } = useTranslation()
   const open = useOnboardingStore((s) => s.open)
-  const config = useSystemConfig()
-  const BONUS_LABEL = `$${config.stripeNewUserBonusAmount ?? 10}`
   const closeOnboarding = useOnboardingStore((s) => s.closeOnboarding)
-  const [submitting, setSubmitting] = useState(false)
-  const [remaining, setRemaining] = useState(COUNTDOWN_SECONDS)
+  const [pendingAmount, setPendingAmount] = useState<number | null>(null)
+  const [remainingMs, setRemainingMs] = useState(COUNTDOWN_DURATION_MS)
 
-  // Visual countdown: restart when the dialog opens, tick down to zero and hold.
   useEffect(() => {
     if (!open) return
-    setRemaining(COUNTDOWN_SECONDS)
-    const timer = setInterval(() => {
-      setRemaining((s) => (s <= 1 ? 0 : s - 1))
-    }, 1000)
+    const deadline = getPromoDeadline()
+    const tick = () => setRemainingMs(Math.max(0, deadline - Date.now()))
+    tick()
+    const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
   }, [open])
 
-  const minutes = Math.floor(remaining / 60)
-  const seconds = remaining % 60
+  const { days, hours, minutes, seconds } = breakdown(remainingMs)
+  const submitting = pendingAmount !== null
 
-  const startBind = async () => {
-    setSubmitting(true)
+  const startTopup = async (amount: number) => {
+    setPendingAmount(amount)
     try {
-      const res = await beginCardBind()
-      if (isApiSuccess(res) && res.data?.bind_link) {
-        window.location.assign(res.data.bind_link)
+      const res = await requestPromoTopup(amount)
+      if (isApiSuccess(res) && res.data?.pay_link) {
+        window.location.assign(res.data.pay_link)
         return
       }
-      toast.error(res.message || t('Failed to start card binding'))
+      toast.error(res.message || t('Failed to start payment'))
     } catch {
-      toast.error(t('Failed to start card binding'))
+      toast.error(t('Failed to start payment'))
     } finally {
-      setSubmitting(false)
+      setPendingAmount(null)
     }
   }
 
@@ -86,10 +120,7 @@ export function Onboarding() {
         if (!next) closeOnboarding()
       }}
     >
-      <DialogContent
-        className='gap-5 sm:max-w-md'
-        showCloseButton={!submitting}
-      >
+      <DialogContent className='gap-5 sm:max-w-md' showCloseButton={!submitting}>
         {/* Eyebrow */}
         <p className='text-muted-foreground text-center text-xs font-medium'>
           🎟 {t('Congrats — you’ve unlocked a new-user exclusive offer')}
@@ -103,74 +134,88 @@ export function Onboarding() {
           <Gift className='size-8 text-black' aria-hidden='true' />
         </div>
 
-        {/* Headline with neon highlights */}
+        {/* Headline */}
         <h2 className='text-center text-2xl font-extrabold leading-tight tracking-tight'>
           <Trans
-            i18nKey='Bind a card for <hl>up to 40% OFF</hl> on all models<br/>＋ <hl>{{amount}} free credit</hl>'
-            values={{ amount: BONUS_LABEL }}
+            i18nKey='Top up & get <hl>up to 50% OFF</hl><br/>＋ bonus credit on every plan'
             components={{ hl: <span className='text-[#FF2D78]' />, br: <br /> }}
           />
         </h2>
-
         <p className='text-muted-foreground text-center text-sm'>
           {t(
             'Across Claude / GPT / Gemini and more. Limited-time only — prices revert after it ends.'
           )}
         </p>
 
-        {/* Promo ticket */}
-        <div className='bg-muted/60 rounded-xl border p-4'>
-          <p className='flex items-center justify-center gap-1.5 text-center text-sm font-medium'>
-            <span className='text-[#C6F24E]'>✓</span>
-            {t('New-user discount auto-activated (no code needed)')}
-          </p>
-          <div className='border-border my-3 border-t border-dashed' />
-          <div className='flex items-stretch'>
-            <div className='flex flex-1 flex-col items-center justify-center'>
-              <span className='text-2xl font-extrabold text-[#FF2D78]'>
-                {t('Up to 40% OFF')}
-              </span>
-              <span className='text-muted-foreground mt-0.5 text-xs'>
-                {t('All models, limited time')}
-              </span>
-            </div>
-            <div className='bg-border w-px' aria-hidden='true' />
-            <div className='flex flex-1 flex-col items-center justify-center'>
-              <span className='font-mono text-2xl font-extrabold tabular-nums'>
-                {pad(minutes)} : {pad(seconds)}
-              </span>
-              <span className='text-muted-foreground mt-0.5 text-xs'>
-                {t('minutes')} &nbsp; {t('seconds')}
-              </span>
-            </div>
-          </div>
+        {/* Tier cards */}
+        <div className='flex flex-col gap-2.5'>
+          {TIERS.map((tier) => (
+            <button
+              key={tier.amount}
+              type='button'
+              disabled={submitting}
+              onClick={() => startTopup(tier.amount)}
+              className={
+                'relative flex items-center justify-between rounded-xl border p-4 text-left transition-colors disabled:opacity-60 ' +
+                (tier.highlight
+                  ? 'border-[#FF2D78] bg-[#FF2D78]/5 hover:bg-[#FF2D78]/10'
+                  : 'bg-muted/50 hover:bg-muted')
+              }
+            >
+              {tier.highlight && (
+                <span className='absolute -top-2 right-3 rounded-full bg-[#FF2D78] px-2 py-0.5 text-[10px] font-bold text-white'>
+                  {t('Best value')}
+                </span>
+              )}
+              <div className='flex flex-col'>
+                <span className='text-lg font-extrabold'>
+                  {t('Top up ${{amount}} → get ${{total}}', {
+                    amount: tier.amount,
+                    total: tier.amount + depositBonusUsd(tier.amount),
+                  })}
+                </span>
+                <span className='text-muted-foreground text-xs'>
+                  {t('{{usage}} more usage than the official plan', {
+                    usage: tier.usage,
+                  })}
+                </span>
+              </div>
+              <div className='flex flex-col items-end gap-1'>
+                <span className='text-sm font-extrabold text-[#FF2D78]'>
+                  {tier.off}
+                </span>
+                {submitting && pendingAmount === tier.amount ? (
+                  <Loader2 className='size-4 animate-spin' aria-hidden='true' />
+                ) : (
+                  <Zap className='size-4 text-[#FF2D78]' aria-hidden='true' />
+                )}
+              </div>
+            </button>
+          ))}
         </div>
 
-        {/* CTA */}
-        <div className='flex flex-col gap-2'>
-          <Button
-            size='lg'
-            className='w-full'
-            onClick={startBind}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <Loader2 className='size-4 animate-spin' aria-hidden='true' />
-            ) : (
-              <Zap className='size-4' aria-hidden='true' />
-            )}
-            {t('Bind card & claim now')}
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='w-full'
-            onClick={closeOnboarding}
-            disabled={submitting}
-          >
-            {t('Skip for now')}
-          </Button>
-        </div>
+        {/* Countdown */}
+        <p className='text-muted-foreground text-center text-xs'>
+          {t('Offer ends in')}{' '}
+          <span className='font-bold tabular-nums text-foreground'>
+            {t('{{days}}d {{hours}}h {{minutes}}m {{seconds}}s', {
+              days,
+              hours,
+              minutes,
+              seconds,
+            })}
+          </span>
+        </p>
+
+        <Button
+          variant='ghost'
+          size='sm'
+          className='w-full'
+          onClick={closeOnboarding}
+          disabled={submitting}
+        >
+          {t('Skip for now')}
+        </Button>
       </DialogContent>
     </Dialog>
   )

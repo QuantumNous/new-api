@@ -50,3 +50,30 @@ export async function getCardStatus(): Promise<CardStatusResponse> {
   const res = await api.get('/api/user/stripe/card')
   return res.data
 }
+
+/**
+ * Start a promo top-up: a real Stripe payment (payment mode) that also saves the card
+ * (save_card → setup_future_usage) so it can be charged off-session later. Returns a hosted
+ * Checkout link to redirect to. amount is the USD top-up amount (e.g. 20, 200).
+ */
+export async function requestPromoTopup(
+  amount: number
+): Promise<ApiResponse<{ pay_link: string }>> {
+  const res = await api.post(
+    '/api/user/stripe/pay',
+    {
+      amount,
+      payment_method: 'stripe',
+      save_card: true,
+      // card_bound=1 makes the wallet run its post-bind confirmation flow (poll card status,
+      // refresh auth user, celebratory toast) — the promo top-up also binds the card.
+      success_url: new URL(
+        '/wallet?show_history=true&card_bound=1',
+        window.location.origin
+      ).href,
+      cancel_url: new URL('/onboarding', window.location.origin).href,
+    },
+    { skipBusinessError: true } as Record<string, unknown>
+  )
+  return res.data
+}

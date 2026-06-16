@@ -122,6 +122,90 @@ func TestMarkStripeCardBoundFingerprintDedup(t *testing.T) {
 	}
 }
 
+// TestClaimStripeCardFingerprintBlocksLaterNewUserBonus verifies the round-3 #3 fix: a card
+// first bound through the paid recharge-with-save-card flow (which calls
+// ClaimStripeCardFingerprint to consume the card's one bonus slot) can no longer farm the free
+// new-user bonus on another account via the setup-mode bind path.
+func TestClaimStripeCardFingerprintBlocksLaterNewUserBonus(t *testing.T) {
+	truncateTables(t)
+	DB.Exec("DELETE FROM users")
+	DB.Exec("DELETE FROM stripe_bonus_claims")
+
+	origEnabled := setting.StripeCardBindEnabled
+	origAmount := setting.StripeNewUserBonusAmount
+	t.Cleanup(func() {
+		setting.StripeCardBindEnabled = origEnabled
+		setting.StripeNewUserBonusAmount = origAmount
+	})
+	setting.StripeCardBindEnabled = true
+	setting.StripeNewUserBonusAmount = 10
+
+	const promoUser = 2001
+	const farmUser = 2002
+	const sharedFp = "fp_promo_then_farm"
+	if err := DB.Create(&User{Id: promoUser, Username: "promoUser", AffCode: "affP"}).Error; err != nil {
+		t.Fatalf("create promoUser failed: %v", err)
+	}
+	if err := DB.Create(&User{Id: farmUser, Username: "farmUser", AffCode: "affF"}).Error; err != nil {
+		t.Fatalf("create farmUser failed: %v", err)
+	}
+
+	// promoUser binds the card via the paid recharge flow: it consumes the card's bonus slot
+	// (no free bonus granted — the user already got a purchased deposit bonus).
+	if err := ClaimStripeCardFingerprint(promoUser, sharedFp); err != nil {
+		t.Fatalf("ClaimStripeCardFingerprint failed: %v", err)
+	}
+
+	// farmUser tries to earn the FREE new-user bonus with the SAME physical card via setup mode.
+	granted, quota, err := MarkStripeCardBound(farmUser, "cus_farm", sharedFp)
+	if err != nil {
+		t.Fatalf("farmUser bind failed: %v", err)
+	}
+	if granted || quota != 0 {
+		t.Fatalf("farmUser: reused card must NOT earn the free bonus, got granted=%v quota=%d", granted, quota)
+	}
+
+	// farmUser is still bound (binding succeeds), just without the bonus.
+	var f User
+	if err := DB.Where("id = ?", farmUser).First(&f).Error; err != nil {
+		t.Fatalf("reload farmUser failed: %v", err)
+	}
+	if !f.StripeCardBound || f.NewUserBonusGiven {
+		t.Fatalf("farmUser: expected bound=true bonus=false, got bound=%v bonus=%v", f.StripeCardBound, f.NewUserBonusGiven)
+	}
+}
+
+// TestClaimStripeCardFingerprintIdempotentAndGuards verifies the claim is a harmless no-op on
+// repeat calls and for empty/invalid input.
+func TestClaimStripeCardFingerprintIdempotentAndGuards(t *testing.T) {
+	truncateTables(t)
+	DB.Exec("DELETE FROM users")
+	DB.Exec("DELETE FROM stripe_bonus_claims")
+
+	const userId = 2003
+	// Empty fingerprint / invalid user → no-op, no error, no row.
+	if err := ClaimStripeCardFingerprint(userId, ""); err != nil {
+		t.Fatalf("empty fingerprint should be a no-op, got %v", err)
+	}
+	if err := ClaimStripeCardFingerprint(0, "fp_x"); err != nil {
+		t.Fatalf("invalid user should be a no-op, got %v", err)
+	}
+
+	// Repeated claims of the same fingerprint must not error (ON CONFLICT DO NOTHING).
+	for i := 0; i < 3; i++ {
+		if err := ClaimStripeCardFingerprint(userId, "fp_repeat"); err != nil {
+			t.Fatalf("repeat claim %d failed: %v", i, err)
+		}
+	}
+	var count int64
+	if err := DB.Model(&StripeBonusClaim{}).Where("card_fingerprint = ?", "fp_repeat").Count(&count).Error; err != nil {
+		t.Fatalf("count failed: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly 1 claim row for repeated fingerprint, got %d", count)
+	}
+}
+
 // TestRecordStripeAutoChargeFailureWritesUserLog verifies that an auto-charge failure
 // produces a user-visible system log entry the user can see in their log page.
 func TestRecordStripeAutoChargeFailureWritesUserLog(t *testing.T) {
@@ -266,5 +350,31 @@ func TestRecordStripeAutoChargeAttemptTriggersCooldown(t *testing.T) {
 	}
 	if !recent {
 		t.Fatalf("expected a failed attempt to trigger the cooldown")
+	}
+}
+
+// TestDepositBonusQuota verifies the deposit-bonus tier table (充X送Y) and that
+// non-tier amounts get no bonus.
+func TestDepositBonusQuota(t *testing.T) {
+	u := int(common.QuotaPerUnit)
+	cases := []struct {
+		paid int64
+		want int
+	}{
+		{10, 2 * u},
+		{20, 5 * u},
+		{50, 15 * u},
+		{100, 35 * u},
+		{200, 100 * u},
+		{1000, 500 * u},
+		{33, 0},  // custom amount, no bonus
+		{0, 0},   // zero
+		{500, 0}, // not a configured tier
+		{15, 0},
+	}
+	for _, c := range cases {
+		if got := DepositBonusQuota(c.paid); got != c.want {
+			t.Errorf("DepositBonusQuota(%d) = %d, want %d", c.paid, got, c.want)
+		}
 	}
 }

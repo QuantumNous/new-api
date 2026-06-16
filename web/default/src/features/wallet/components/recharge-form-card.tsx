@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { depositBonusUsd } from '../lib/deposit-bonus'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -324,6 +325,13 @@ export function RechargeFormCard({
                               </div>
                             )}
                           </div>
+                          {depositBonusUsd(preset.value) > 0 && (
+                            <div className='mt-1 text-xs font-semibold text-[#FF2D78]'>
+                              {t('Get ${{bonus}} free', {
+                                bonus: depositBonusUsd(preset.value),
+                              })}
+                            </div>
+                          )}
                           {showLocalCurrencyBreakdown && (
                             <div
                               className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'

@@ -143,6 +143,41 @@ func SetStripeCardUnbound(userId int) error {
 	return DB.Model(&User{}).Where("id = ?", userId).Update("stripe_card_bound", false).Error
 }
 
+// SetStripeCardBound marks a user's card as bound (and records customer + fingerprint),
+// without granting any bonus. Used by the recharge-with-save-card flow, where the card is
+// saved during a paid Checkout via setup_future_usage.
+func SetStripeCardBound(userId int, customerId string, cardFingerprint string) error {
+	if userId <= 0 {
+		return errors.New("invalid user id")
+	}
+	fields := map[string]interface{}{"stripe_card_bound": true}
+	if strings.TrimSpace(customerId) != "" {
+		fields["stripe_customer"] = strings.TrimSpace(customerId)
+	}
+	if strings.TrimSpace(cardFingerprint) != "" {
+		fields["stripe_card_fingerprint"] = strings.TrimSpace(cardFingerprint)
+	}
+	return DB.Model(&User{}).Where("id = ?", userId).Updates(fields).Error
+}
+
+// ClaimStripeCardFingerprint atomically consumes the one-time new-user-bonus eligibility for a
+// physical card (Stripe fingerprint) without granting any bonus. It is used by the paid
+// recharge-with-save-card flow: that flow gives the user a (purchased) deposit bonus instead of
+// the free new-user bonus, so the card must still "use up" its one bonus slot to stop the same
+// physical card from later earning the free new-user bonus on another account via the setup-mode
+// bind path (which guards on the same StripeBonusClaim unique index). No-op when fingerprint is
+// empty. Idempotent: a card already claimed (by this or another user) is a harmless no-op.
+func ClaimStripeCardFingerprint(userId int, cardFingerprint string) error {
+	cardFingerprint = strings.TrimSpace(cardFingerprint)
+	if userId <= 0 || cardFingerprint == "" {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		_, err := claimBonusForFingerprint(tx, userId, cardFingerprint)
+		return err
+	})
+}
+
 // HasRecentStripeAutoCharge reports whether the user already has an automatic off-session
 // charge recorded within the last windowSeconds. This is a persistent (cross-instance,
 // restart-safe) cooldown guard that complements the in-memory dedup in the controller —
