@@ -55,6 +55,7 @@ import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
+  setPendingOnboarding,
 } from '@/features/auth/lib/storage'
 
 export function SignUpForm({
@@ -184,6 +185,8 @@ export function SignUpForm({
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })
+        // Guide the new user through card-binding onboarding on first login.
+        setPendingOnboarding()
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {

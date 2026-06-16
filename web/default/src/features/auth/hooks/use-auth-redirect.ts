@@ -19,9 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { useOnboardingStore } from '@/stores/onboarding-store'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
-import { saveUserId } from '../lib/storage'
+import { consumePendingOnboarding, saveUserId } from '../lib/storage'
 
 function getSavedLanguage(user: User): string | undefined {
   const userData = user as Record<string, unknown>
@@ -63,10 +65,12 @@ export function useAuthRedirect() {
     }
 
     // Fetch and set user data
+    let freshUser: User | null = null
     try {
       const self = await getSelf()
       if (self?.success && self.data) {
         const user = self.data as User
+        freshUser = user
         auth.setUser(user)
 
         // Update user ID if not already set
@@ -85,8 +89,24 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
-    // Navigate to target page
+    // Always consume the pending-onboarding flag so it can never leak into a later
+    // login (e.g. when this login carried a redirectTo and skipped onboarding).
+    const pendingOnboarding = consumePendingOnboarding()
+
+    // Navigate to target page. First-time registrants land on the dashboard with
+    // the card-binding onboarding dialog opened over it (unless they already bound
+    // a card), as long as the feature is enabled. An explicit redirectTo always wins.
     const targetPath = redirectTo || '/dashboard'
+    if (!redirectTo && pendingOnboarding) {
+      const cardBindEnabled =
+        useSystemConfigStore.getState().config.enableStripeCardBind === true
+      // Read the freshly fetched user (the closed-over auth.user is the pre-login
+      // snapshot and would be null/stale on first login).
+      const cardBound = freshUser?.stripe_card_bound === true
+      if (cardBindEnabled && !cardBound) {
+        useOnboardingStore.getState().openOnboarding()
+      }
+    }
     navigate({ to: targetPath, replace: true })
   }
 

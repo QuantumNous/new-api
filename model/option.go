@@ -88,6 +88,11 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["StripeCardBindEnabled"] = strconv.FormatBool(setting.StripeCardBindEnabled)
+	common.OptionMap["StripeAutoChargeEnabled"] = strconv.FormatBool(setting.StripeAutoChargeEnabled)
+	common.OptionMap["StripeAutoChargeThreshold"] = strconv.Itoa(setting.StripeAutoChargeThreshold)
+	common.OptionMap["StripeAutoChargeAmount"] = strconv.Itoa(setting.StripeAutoChargeAmount)
+	common.OptionMap["StripeNewUserBonusAmount"] = strconv.Itoa(setting.StripeNewUserBonusAmount)
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -483,6 +488,16 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "StripeCardBindEnabled":
+		setting.StripeCardBindEnabled = value == "true"
+	case "StripeAutoChargeEnabled":
+		setting.StripeAutoChargeEnabled = value == "true"
+	case "StripeAutoChargeThreshold":
+		setting.StripeAutoChargeThreshold, _ = strconv.Atoi(value)
+	case "StripeAutoChargeAmount":
+		setting.StripeAutoChargeAmount, _ = strconv.Atoi(value)
+	case "StripeNewUserBonusAmount":
+		setting.StripeNewUserBonusAmount, _ = strconv.Atoi(value)
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":

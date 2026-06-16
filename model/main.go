@@ -259,6 +259,7 @@ func migrateDB() error {
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&StripeBonusClaim{},
 		&UserInvoiceProfile{},
 		&PaymentInvoice{},
 		&QuotaData{},

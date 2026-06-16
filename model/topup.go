@@ -27,7 +27,12 @@ type TopUp struct {
 	CreateTime      int64           `json:"create_time"`
 	CompleteTime    int64           `json:"complete_time"`
 	Status          string          `json:"status"`
-	Invoice         *PaymentInvoice `json:"invoice,omitempty" gorm:"foreignKey:TradeNo;references:TradeNo"`
+	// SaveCard records that this top-up's Checkout was created with setup_future_usage
+	// (onboarding promo flow), so the webhook should mark the user card-bound on fulfillment.
+	// This is persisted because Stripe payment-mode sessions don't expose setup_intent on the
+	// checkout.session.completed event, so the event alone can't tell us a card was saved.
+	SaveCard bool            `json:"save_card" gorm:"default:false"`
+	Invoice  *PaymentInvoice `json:"invoice,omitempty" gorm:"foreignKey:TradeNo;references:TradeNo"`
 }
 
 const (
@@ -54,6 +59,28 @@ var (
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
+
+// depositBonusTiers maps a paid USD amount to the bonus USD granted on top of it
+// (充X送Y). Only exact-amount top-ups qualify; custom amounts get no bonus.
+// $1 == 1 top-up unit == common.QuotaPerUnit, so the bonus quota is bonusUSD * QuotaPerUnit.
+var depositBonusTiers = map[int64]int{
+	10:   2,
+	20:   5,
+	50:   15,
+	100:  35,
+	200:  100,
+	1000: 500,
+}
+
+// DepositBonusQuota returns the bonus quota (already in quota units) for a top-up of
+// paidAmount USD, or 0 if the amount is not an eligible tier.
+func DepositBonusQuota(paidAmount int64) int {
+	bonusUSD, ok := depositBonusTiers[paidAmount]
+	if !ok {
+		return 0
+	}
+	return bonusUSD * int(common.QuotaPerUnit)
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error
@@ -180,6 +207,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 	}
 
 	var quotaToAdd int
+	var bonusQuota int
 	var credited bool
 	topUp := &TopUp{}
 
@@ -211,6 +239,13 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 			return errors.New("无效的充值额度")
 		}
 
+		// Deposit bonus: certain top-up amounts grant extra quota (充X送Y), keyed on the
+		// paid USD amount. topUp.Amount equals the USD figure when QuotaDisplayType=USD (the
+		// default), where normalizeStripeTopUpAmount is a passthrough. Under TOKENS display the
+		// stored Amount is divided by QuotaPerUnit, so tiers would not match — the promo tiers
+		// are defined in USD and assume USD display mode.
+		bonusQuota = DepositBonusQuota(topUp.Amount)
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
@@ -218,9 +253,20 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 			return err
 		}
 
-		updateFields := map[string]interface{}{"quota": gorm.Expr("quota + ?", quotaToAdd)}
+		updateFields := map[string]interface{}{"quota": gorm.Expr("quota + ?", quotaToAdd+bonusQuota)}
 		if strings.TrimSpace(customerId) != "" {
 			updateFields["stripe_customer"] = strings.TrimSpace(customerId)
+		}
+		// Bind the card atomically with the credit when this was a save-card (onboarding promo)
+		// top-up: setting stripe_card_bound here — inside the same status-gated transaction that
+		// credits quota — makes binding exactly as idempotent as the credit. It runs only on the
+		// pending→success transition (redelivery hits the Status==Success early return above), so
+		// a webhook replay cannot re-bind a card the user has since removed, and a binding can
+		// never be "lost" relative to a successful credit. Requires a customer to charge later;
+		// without one we skip binding rather than record an unchargeable card_bound=true. The
+		// fingerprint is fetched best-effort outside this tx (Stripe API call) by the caller.
+		if topUp.SaveCard && strings.TrimSpace(customerId) != "" {
+			updateFields["stripe_card_bound"] = true
 		}
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
 		if err != nil {
@@ -237,10 +283,14 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 	}
 
 	if credited {
-		if err := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd)); err != nil {
+		if err := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd+bonusQuota)); err != nil {
 			common.SysLog("failed to increase user quota cache after stripe topup: " + err.Error())
 		}
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+		logMsg := fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money)
+		if bonusQuota > 0 {
+			logMsg = fmt.Sprintf("使用在线充值成功，充值额度: %v（含赠送 %v），支付金额：%.2f", logger.FormatQuota(quotaToAdd), logger.FormatQuota(bonusQuota), topUp.Money)
+		}
+		RecordTopupLog(topUp.UserId, logMsg, callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 	}
 
 	return credited, nil

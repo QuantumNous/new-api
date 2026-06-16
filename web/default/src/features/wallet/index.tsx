@@ -20,16 +20,28 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { SectionPageLayout } from '@/components/layout'
 import { getPaddleTopUpStatus, isApiSuccess } from './api'
+import { getCardStatus } from '@/features/onboarding/api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { PartyPopper } from 'lucide-react'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -68,6 +80,7 @@ interface WalletProps {
   initialShowHistory?: boolean
   initialPaddleOrderId?: string
   initialPaddleTransactionId?: string
+  cardJustBound?: boolean
 }
 
 type PaddleCheckoutNotice = {
@@ -113,6 +126,8 @@ export function Wallet(props: WalletProps) {
     useState<PaddleCheckoutNotice | null>(null)
   const handledPaddleTransactionRef = useRef<string | null>(null)
   const paddleCheckoutCompletedRef = useRef(false)
+  const cardBoundHandledRef = useRef(false)
+  const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -250,6 +265,66 @@ export function Wallet(props: WalletProps) {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [props.initialShowHistory])
+
+  useEffect(() => {
+    if (!props.cardJustBound) return
+    // Run this confirmation flow at most once per mount, even if the effect
+    // re-fires due to dependency identity changes (e.g. fetchUser). Without this
+    // guard, a re-render would cancel the in-flight poll before it can confirm.
+    if (cardBoundHandledRef.current) return
+    cardBoundHandledRef.current = true
+
+    // Clean the query param immediately so a refresh doesn't re-trigger this.
+    window.history.replaceState({}, '', window.location.pathname)
+
+    // The card-binding bonus is granted by an async Stripe webhook, which may not
+    // have arrived yet at the moment we land back here. Poll the card status until
+    // the binding is confirmed, then show success and refresh; otherwise tell the
+    // user it's still processing.
+    const POLL_ATTEMPTS = 6
+    const POLL_INTERVAL_MS = 2000
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+    const refreshAuthUser = async () => {
+      try {
+        const res = await getSelf()
+        if (res?.success && res.data) {
+          useAuthStore.getState().auth.setUser(res.data)
+        }
+      } catch {
+        // Non-fatal: the next navigation will re-verify the session.
+      }
+    }
+
+    const confirmBinding = async () => {
+      const pendingToast = toast.loading(t('Confirming your card binding…'))
+      for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+        try {
+          const res = await getCardStatus()
+          if (res?.success && res.data?.card_bound) {
+            toast.dismiss(pendingToast)
+            await refreshAuthUser()
+            await fetchUser()
+            // Celebratory confirmation that the bonus has landed.
+            setCardBoundDialogOpen(true)
+            return
+          }
+        } catch {
+          // Ignore transient errors and keep polling.
+        }
+        await sleep(POLL_INTERVAL_MS)
+      }
+      // Webhook hasn't landed in time; reassure the user instead of claiming success.
+      toast.dismiss(pendingToast)
+      toast.info(
+        t('Recharge successful. Your bonus is being credited — refresh in a moment.')
+      )
+      await refreshAuthUser()
+      await fetchUser()
+    }
+
+    confirmBinding()
+  }, [props.cardJustBound, t, fetchUser])
 
   useEffect(() => {
     if (!topupInfo) return
@@ -719,6 +794,30 @@ export function Wallet(props: WalletProps) {
         product={selectedCreemProduct}
         processing={creemProcessing}
       />
+
+      <Dialog open={cardBoundDialogOpen} onOpenChange={setCardBoundDialogOpen}>
+        <DialogContent className='sm:max-w-md' showCloseButton>
+          <DialogHeader className='items-center text-center'>
+            <div className='mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-primary/10'>
+              <PartyPopper className='size-7 text-primary' aria-hidden='true' />
+            </div>
+            <DialogTitle className='text-xl'>
+              {t('Recharge successful 🎉')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('Your bonus has been credited to your wallet. Enjoy!')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              className='w-full'
+              onClick={() => setCardBoundDialogOpen(false)}
+            >
+              {t('Got it')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

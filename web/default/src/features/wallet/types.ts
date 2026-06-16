@@ -252,6 +252,8 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
+  save_card?: boolean
   /** Optional redirect URL after successful hosted checkout */
   success_url?: string
   /** Optional redirect URL after cancelled hosted checkout */

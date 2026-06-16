@@ -29,6 +29,12 @@ const walletSearchSchema = z.object({
     .union([z.boolean(), z.string()])
     .optional()
     .transform((value) => value === true || value === 'true'),
+  card_bound: z
+    .union([z.boolean(), z.string(), z.number()])
+    .optional()
+    .transform(
+      (value) => value === true || value === 'true' || value === '1' || value === 1
+    ),
   [PADDLE_ORDER_SEARCH_PARAM]: z.string().optional(),
   [PADDLE_TRANSACTION_SEARCH_PARAM]: z.string().optional(),
 })
@@ -46,6 +52,7 @@ function RouteComponent() {
       initialPaddleOrderId={search[PADDLE_ORDER_SEARCH_PARAM]}
       initialPaddleTransactionId={paddleTransactionId}
       initialShowHistory={search.show_history && !paddleTransactionId}
+      cardJustBound={search.card_bound}
     />
   )
 }
