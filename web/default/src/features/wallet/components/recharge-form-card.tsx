@@ -482,6 +482,11 @@ export function RechargeFormCard({
                     <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                       {t('Pay with Airwallex')}
                     </Label>
+                    <p className='text-xs leading-relaxed text-amber-600'>
+                      {t(
+                        'Airwallex top-ups are one-time only. To enable auto-recharge (auto top-up when your balance is low), pay with Stripe instead.'
+                      )}
+                    </p>
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
                       <div className='flex gap-1.5 overflow-x-auto'>
                         {airwallexCurrencies!.map((c) => (
