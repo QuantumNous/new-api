@@ -45,19 +45,16 @@ export const REDEMPTION_STATUSES: Record<
     labelKey: 'Unused',
     variant: 'success',
     value: REDEMPTION_STATUS.ENABLED,
-    showDot: true,
   },
   [REDEMPTION_STATUS.DISABLED]: {
     labelKey: 'Disabled',
     variant: 'neutral',
     value: REDEMPTION_STATUS.DISABLED,
-    showDot: true,
   },
   [REDEMPTION_STATUS.USED]: {
     labelKey: 'Used',
     variant: 'neutral',
     value: REDEMPTION_STATUS.USED,
-    showDot: true,
   },
 } as const
 

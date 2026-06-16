@@ -130,6 +130,7 @@ export interface SystemStatus {
     privacy_policy_enabled?: boolean
     oauth_register_enabled?: boolean
     register_enabled?: boolean
+    password_login_enabled?: boolean
     password_register_enabled?: boolean
     notice_force_popup?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
@@ -177,6 +178,7 @@ export interface SystemStatus {
   privacy_policy_enabled?: boolean
   oauth_register_enabled?: boolean
   register_enabled?: boolean
+  password_login_enabled?: boolean
   password_register_enabled?: boolean
   notice_force_popup?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]

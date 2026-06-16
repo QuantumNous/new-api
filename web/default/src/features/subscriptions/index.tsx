@@ -34,13 +34,10 @@ function SubscriptionsContent() {
 
   return (
     <>
-      <SectionPageLayout>
+      <SectionPageLayout fixedContent>
         <SectionPageLayout.Title>
           {t('Subscription Management')}
         </SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {t('Manage subscription plan creation, pricing and status')}
-        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <div className='flex items-center gap-2'>
             <Alert variant='default' className='hidden px-3 py-2 sm:flex'>
@@ -55,16 +52,20 @@ function SubscriptionsContent() {
           </div>
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          {!complianceConfirmed ? (
-            <Alert variant='destructive' className='mb-4'>
-              <AlertDescription>
-                {t(
-                  'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
-                )}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <SubscriptionsTable />
+          <div className='flex h-full min-h-0 flex-col gap-4'>
+            {!complianceConfirmed ? (
+              <Alert variant='destructive' className='shrink-0'>
+                <AlertDescription>
+                  {t(
+                    'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <div className='min-h-0 flex-1'>
+              <SubscriptionsTable />
+            </div>
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

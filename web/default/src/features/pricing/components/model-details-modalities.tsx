@@ -30,6 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { StaticDataTable } from '@/components/data-table'
 import type { Modality } from '../types'
 
 type IconComponent = React.ComponentType<{ className?: string }>
@@ -95,79 +96,65 @@ export function ModalitiesMatrix(props: {
   const inputSet = new Set(props.input)
   const outputSet = new Set(props.output)
 
-  const renderRow = (label: string, set: Set<Modality>) => (
-    <tr>
-      <th
-        scope='row'
-        className='text-muted-foreground bg-muted/30 px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase'
-      >
-        {label}
-      </th>
-      {ALL_MODALITIES.map((modality) => {
-        const enabled = set.has(modality)
-        const Icon = MODALITY_META[modality].icon
-        return (
-          <td
-            key={modality}
-            className={cn(
+  return (
+    <StaticDataTable
+      className='rounded-lg'
+      tableClassName='text-sm'
+      headerRowClassName='bg-muted/40'
+      data={[
+        { label: t('Input'), set: inputSet },
+        { label: t('Output'), set: outputSet },
+      ]}
+      getRowKey={(row) => row.label}
+      columns={[
+        {
+          id: 'modality',
+          header: t('Modality'),
+          className:
+            'text-muted-foreground px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase',
+          cellClassName:
+            'text-muted-foreground bg-muted/30 px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase',
+          cell: (row) => row.label,
+        },
+        ...ALL_MODALITIES.map((modality) => ({
+          id: modality,
+          header: t(MODALITY_META[modality].labelKey),
+          className:
+            'text-muted-foreground border-l px-3 py-2 text-center text-[11px] font-medium tracking-wider uppercase',
+          cellClassName: (row: { label: string; set: Set<Modality> }) =>
+            cn(
               'border-l px-3 py-2 text-center',
-              enabled
+              row.set.has(modality)
                 ? 'bg-emerald-50/40 dark:bg-emerald-500/10'
                 : 'bg-background'
-            )}
-          >
-            <span
-              className={cn(
-                'inline-flex items-center justify-center',
-                enabled
-                  ? 'text-emerald-700 dark:text-emerald-300'
-                  : 'text-muted-foreground/40'
-              )}
-              aria-label={
-                enabled
-                  ? t('{{modality}} supported', {
-                      modality: t(MODALITY_META[modality].labelKey),
-                    })
-                  : t('{{modality}} not supported', {
-                      modality: t(MODALITY_META[modality].labelKey),
-                    })
-              }
-            >
-              <Icon className='size-4' />
-            </span>
-          </td>
-        )
-      })}
-    </tr>
-  )
-
-  return (
-    <div className='overflow-x-auto rounded-lg border'>
-      <table className='w-full text-sm'>
-        <thead>
-          <tr className='bg-muted/40'>
-            <th
-              scope='col'
-              className='text-muted-foreground px-3 py-2 text-left text-[11px] font-medium tracking-wider uppercase'
-            >
-              {t('Modality')}
-            </th>
-            {ALL_MODALITIES.map((modality) => (
-              <th
-                key={modality}
-                scope='col'
-                className='text-muted-foreground border-l px-3 py-2 text-center text-[11px] font-medium tracking-wider uppercase'
+            ),
+          cell: (row: { label: string; set: Set<Modality> }) => {
+            const enabled = row.set.has(modality)
+            const Icon = MODALITY_META[modality].icon
+            return (
+              <span
+                className={cn(
+                  'inline-flex items-center justify-center',
+                  enabled
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : 'text-muted-foreground/40'
+                )}
+                aria-label={
+                  enabled
+                    ? t('{{modality}} supported', {
+                        modality: t(MODALITY_META[modality].labelKey),
+                      })
+                    : t('{{modality}} not supported', {
+                        modality: t(MODALITY_META[modality].labelKey),
+                      })
+                }
               >
-                {t(MODALITY_META[modality].labelKey)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {renderRow(t('Input'), inputSet)}
-          {renderRow(t('Output'), outputSet)}
-        </tbody>
-      </table>
-    </div>
+                <Icon className='size-4' />
+              </span>
+            )
+          },
+        })),
+      ]}
+    />
   )
 }

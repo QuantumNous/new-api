@@ -27,13 +27,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -45,8 +38,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog } from '@/components/dialog'
+import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { RULE_TEMPLATES } from './constants'
 import type { AffinityRule, KeySource } from './types'
 
@@ -68,6 +62,8 @@ const CONTEXT_KEY_PRESETS = [
   'user_email',
   'specific_channel_id',
 ]
+
+const RULE_FORM_ID = 'channel-affinity-rule-form'
 
 interface RuleFormValues {
   name: string
@@ -230,235 +226,230 @@ export function RuleEditorDialog(props: Props) {
   }
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-h-[85vh] max-w-2xl overflow-y-auto'>
-        <DialogHeader>
-          <DialogTitle>{isEdit ? t('Edit Rule') : t('Add Rule')}</DialogTitle>
-        </DialogHeader>
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={isEdit ? t('Edit Rule') : t('Add Rule')}
+      contentClassName='max-w-2xl'
+      contentHeight='auto'
+      bodyClassName='pr-2'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => props.onOpenChange(false)}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button type='submit' form={RULE_FORM_ID}>
+            {t('Save')}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={RULE_FORM_ID}
+        onSubmit={form.handleSubmit(handleSave)}
+        className='min-w-0 space-y-4 overflow-x-clip'
+      >
+        <div className='grid gap-1.5'>
+          <Label>{t('Name')} *</Label>
+          <Input
+            placeholder='prefer-by-conversation-id'
+            {...form.register('name', { required: true })}
+          />
+        </div>
 
-        <form onSubmit={form.handleSubmit(handleSave)} className='space-y-4'>
+        <div className='grid gap-3 sm:grid-cols-2'>
           <div className='grid gap-1.5'>
-            <Label>{t('Name')} *</Label>
-            <Input
-              placeholder='prefer-by-conversation-id'
-              {...form.register('name', { required: true })}
+            <Label>{t('Model Regex (one per line)')} *</Label>
+            <Textarea
+              rows={4}
+              placeholder={'^gpt-4o.*$\n^claude-3.*$'}
+              {...form.register('model_regex_text', { required: true })}
             />
           </div>
-
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='grid gap-1.5'>
-              <Label>{t('Model Regex (one per line)')} *</Label>
-              <Textarea
-                rows={4}
-                placeholder={'^gpt-4o.*$\n^claude-3.*$'}
-                {...form.register('model_regex_text', { required: true })}
-              />
-            </div>
-            <div className='grid gap-1.5'>
-              <Label>{t('Path Regex (one per line)')}</Label>
-              <Textarea
-                rows={4}
-                placeholder='/v1/chat/completions'
-                {...form.register('path_regex_text')}
-              />
-            </div>
-          </div>
-
-          <div className='flex items-center gap-2'>
-            <Switch
-              checked={form.watch('skip_retry_on_failure')}
-              onCheckedChange={(v) => form.setValue('skip_retry_on_failure', v)}
+          <div className='grid gap-1.5'>
+            <Label>{t('Path Regex (one per line)')}</Label>
+            <Textarea
+              rows={4}
+              placeholder='/v1/chat/completions'
+              {...form.register('path_regex_text')}
             />
-            <Label>{t('Skip retry on failure')}</Label>
           </div>
+        </div>
 
-          <Separator />
+        <SettingsSwitchField
+          checked={form.watch('skip_retry_on_failure')}
+          onCheckedChange={(v) => form.setValue('skip_retry_on_failure', v)}
+          label={t('Skip retry on failure')}
+        />
 
-          {/* Key Sources */}
-          <div>
-            <div className='mb-2 flex items-center justify-between'>
-              <Label>{t('Key Sources')}</Label>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() =>
-                  setKeySources((prev) => [
-                    ...prev,
-                    { type: 'gjson', path: '' },
-                  ])
-                }
-              >
-                <Plus className='mr-1 h-3 w-3' />
-                {t('Add')}
-              </Button>
-            </div>
-            <p className='text-muted-foreground mb-2 text-xs'>
-              {t('Common Keys')}: {CONTEXT_KEY_PRESETS.join(', ')}
-            </p>
-            <div className='space-y-2'>
-              {keySources.map((src, idx) => (
-                <div key={idx} className='flex items-center gap-2'>
-                  <Select
-                    items={[
-                      ...KEY_SOURCE_TYPES.map((t) => ({ value: t, label: t })),
-                    ]}
-                    value={src.type}
-                    onValueChange={(v) => {
-                      if (v === null) return
-                      const next = [...keySources]
-                      next[idx] = normalizeKeySource({
-                        ...src,
-                        type: v as KeySource['type'],
-                      })
-                      setKeySources(next)
-                    }}
-                  >
-                    <SelectTrigger className='w-[160px]'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent alignItemWithTrigger={false}>
-                      <SelectGroup>
-                        {KEY_SOURCE_TYPES.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    className='flex-1'
-                    placeholder={
-                      src.type === 'gjson'
-                        ? 'metadata.conversation_id'
-                        : 'user_id'
-                    }
-                    value={
-                      src.type === 'gjson' ? src.path || '' : src.key || ''
-                    }
-                    onChange={(e) => {
-                      const next = [...keySources]
-                      if (src.type === 'gjson') {
-                        next[idx] = { ...src, path: e.target.value }
-                      } else {
-                        next[idx] = { ...src, key: e.target.value }
-                      }
-                      setKeySources(next)
-                    }}
-                  />
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    onClick={() =>
-                      setKeySources((prev) => prev.filter((_, i) => i !== idx))
-                    }
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
+        <Separator />
 
-          <Separator />
-
-          {/* Advanced */}
-          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger
-              render={
-                <Button
-                  type='button'
-                  variant='ghost'
-                  className='w-full justify-start'
-                />
-              }
-            >
-              {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
-            </CollapsibleTrigger>
-            <CollapsibleContent className='space-y-3 pt-2'>
-              <div className='grid gap-1.5'>
-                <Label>{t('User-Agent include (one per line)')}</Label>
-                <Textarea
-                  rows={3}
-                  placeholder='curl&#10;PostmanRuntime'
-                  {...form.register('user_agent_include_text')}
-                />
-              </div>
-
-              <div className='grid grid-cols-2 gap-3'>
-                <div className='grid gap-1.5'>
-                  <Label>{t('Value Regex')}</Label>
-                  <Input
-                    placeholder='^[-0-9A-Za-z._:]{1,128}$'
-                    {...form.register('value_regex')}
-                  />
-                </div>
-                <div className='grid gap-1.5'>
-                  <Label>{t('TTL (seconds, 0 = default)')}</Label>
-                  <Input
-                    type='number'
-                    min={0}
-                    {...form.register('ttl_seconds')}
-                  />
-                </div>
-              </div>
-
-              <div className='grid gap-1.5'>
-                <Label>{t('Parameter Override Template (JSON)')}</Label>
-                <Textarea
-                  rows={5}
-                  placeholder='{"operations": [...]}'
-                  {...form.register('param_override_template_json')}
-                  className='font-mono text-xs'
-                />
-              </div>
-
-              <div className='grid grid-cols-3 gap-3'>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    checked={form.watch('include_using_group')}
-                    onCheckedChange={(v) =>
-                      form.setValue('include_using_group', v)
-                    }
-                  />
-                  <Label className='text-xs'>{t('Include Group')}</Label>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    checked={form.watch('include_model_name')}
-                    onCheckedChange={(v) =>
-                      form.setValue('include_model_name', v)
-                    }
-                  />
-                  <Label className='text-xs'>{t('Include Model')}</Label>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    checked={form.watch('include_rule_name')}
-                    onCheckedChange={(v) =>
-                      form.setValue('include_rule_name', v)
-                    }
-                  />
-                  <Label className='text-xs'>{t('Include Rule Name')}</Label>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <DialogFooter>
+        {/* Key Sources */}
+        <div>
+          <div className='mb-2 flex items-center justify-between'>
+            <Label>{t('Key Sources')}</Label>
             <Button
               type='button'
               variant='outline'
-              onClick={() => props.onOpenChange(false)}
+              size='sm'
+              onClick={() =>
+                setKeySources((prev) => [...prev, { type: 'gjson', path: '' }])
+              }
             >
-              {t('Cancel')}
+              <Plus className='mr-1 h-3 w-3' />
+              {t('Add')}
             </Button>
-            <Button type='submit'>{t('Save')}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+          </div>
+          <p className='text-muted-foreground mb-2 text-xs'>
+            {t('Common Keys')}: {CONTEXT_KEY_PRESETS.join(', ')}
+          </p>
+          <div className='space-y-2'>
+            {keySources.map((src, idx) => (
+              <div
+                key={idx}
+                className='flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center'
+              >
+                <Select
+                  items={[
+                    ...KEY_SOURCE_TYPES.map((t) => ({ value: t, label: t })),
+                  ]}
+                  value={src.type}
+                  onValueChange={(v) => {
+                    if (v === null) return
+                    const next = [...keySources]
+                    next[idx] = normalizeKeySource({
+                      ...src,
+                      type: v as KeySource['type'],
+                    })
+                    setKeySources(next)
+                  }}
+                >
+                  <SelectTrigger className='w-full sm:w-[160px]'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {KEY_SOURCE_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Input
+                  className='min-w-0 flex-1'
+                  placeholder={
+                    src.type === 'gjson'
+                      ? 'metadata.conversation_id'
+                      : 'user_id'
+                  }
+                  value={src.type === 'gjson' ? src.path || '' : src.key || ''}
+                  onChange={(e) => {
+                    const next = [...keySources]
+                    if (src.type === 'gjson') {
+                      next[idx] = { ...src, path: e.target.value }
+                    } else {
+                      next[idx] = { ...src, key: e.target.value }
+                    }
+                    setKeySources(next)
+                  }}
+                />
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  onClick={() =>
+                    setKeySources((prev) => prev.filter((_, i) => i !== idx))
+                  }
+                >
+                  <Trash2 className='h-4 w-4' />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Advanced */}
+        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <CollapsibleTrigger
+            render={
+              <Button
+                type='button'
+                variant='ghost'
+                className='w-full justify-start'
+              />
+            }
+          >
+            {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
+          </CollapsibleTrigger>
+          <CollapsibleContent className='space-y-3 pt-2'>
+            <div className='grid gap-1.5'>
+              <Label>{t('User-Agent include (one per line)')}</Label>
+              <Textarea
+                rows={3}
+                placeholder='curl&#10;PostmanRuntime'
+                {...form.register('user_agent_include_text')}
+              />
+            </div>
+
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <div className='grid gap-1.5'>
+                <Label>{t('Value Regex')}</Label>
+                <Input
+                  placeholder='^[-0-9A-Za-z._:]{1,128}$'
+                  {...form.register('value_regex')}
+                />
+              </div>
+              <div className='grid gap-1.5'>
+                <Label>{t('TTL (seconds, 0 = default)')}</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  {...form.register('ttl_seconds')}
+                />
+              </div>
+            </div>
+
+            <div className='grid gap-1.5'>
+              <Label>{t('Parameter Override Template (JSON)')}</Label>
+              <Textarea
+                rows={5}
+                placeholder='{"operations": [...]}'
+                {...form.register('param_override_template_json')}
+                className='font-mono text-xs'
+              />
+            </div>
+
+            <div className='grid gap-3 sm:grid-cols-3'>
+              <SettingsSwitchField
+                checked={form.watch('include_using_group')}
+                onCheckedChange={(v) => form.setValue('include_using_group', v)}
+                label={t('Include Group')}
+                className='border-b-0 py-0'
+              />
+              <SettingsSwitchField
+                checked={form.watch('include_model_name')}
+                onCheckedChange={(v) => form.setValue('include_model_name', v)}
+                label={t('Include Model')}
+                className='border-b-0 py-0'
+              />
+              <SettingsSwitchField
+                checked={form.watch('include_rule_name')}
+                onCheckedChange={(v) => form.setValue('include_rule_name', v)}
+                label={t('Include Rule Name')}
+                className='border-b-0 py-0'
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </form>
     </Dialog>
   )
 }

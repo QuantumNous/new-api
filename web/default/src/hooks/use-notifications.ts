@@ -103,7 +103,7 @@ function mergeVisibleAnnouncements(
  * Provides unread counts and read status management
  */
 export function useNotifications() {
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<NotificationTab>('notice')
 
   // Fetch Notice from API
@@ -190,24 +190,47 @@ export function useNotifications() {
     ...pendingAnnouncementForcePopupKeys,
   ].join('|')
 
-  const handleDialogOpenChange = useCallback(
-    (open: boolean) => {
-      setDialogOpen(open)
-    },
-    []
-  )
+  const markAnnouncementsAsRead = () => {
+    if (announcements.length > 0) {
+      const allKeys = announcements.map((item: Record<string, unknown>) =>
+        getAnnouncementKey(item)
+      )
+      markAnnouncementsRead(allKeys)
+    }
+  }
 
-  // Handle dialog open
-  const handleOpenDialog = (tab?: NotificationTab) => {
-    const nextTab = tab || 'notice'
+  // Handle popover open
+  const handleOpenPopover = (tab?: NotificationTab) => {
+    const nextTab = tab || activeTab
 
-    // Mark Notice as read when opening dialog
-    if (nextTab === 'notice' && noticeContent) {
+    // Mark currently visible content as read when opening the notification center
+    if (noticeContent) {
       markNoticeRead(noticeContent)
+    }
+    if (nextTab === 'announcements') {
+      markAnnouncementsAsRead()
     }
 
     setActiveTab(nextTab)
-    setDialogOpen(true)
+    setPopoverOpen(true)
+  }
+
+  const handlePopoverOpenChange = (open: boolean) => {
+    if (open) {
+      handleOpenPopover(activeTab)
+      return
+    }
+
+    setPopoverOpen(false)
+  }
+
+  // Handle tab change - mark announcements as read when switching to that tab
+  const handleTabChange = (tab: NotificationTab) => {
+    setActiveTab(tab)
+
+    if (tab === 'announcements') {
+      markAnnouncementsAsRead()
+    }
   }
 
   const handleOpenForcePopup = useCallback(() => {
@@ -218,28 +241,29 @@ export function useNotifications() {
       return false
     }
 
-    setActiveTab(pendingNoticeForcePopup ? 'notice' : 'announcements')
-    setDialogOpen(true)
-    return true
-  }, [pendingAnnouncementForcePopupKeys.length, pendingNoticeForcePopup])
-
-  // Handle tab change - mark announcements as read when switching to that tab
-  const handleTabChange = (tab: NotificationTab) => {
-    setActiveTab(tab)
-
-    if (tab === 'announcements' && announcements.length > 0) {
-      const allKeys = announcements.map((item: Record<string, unknown>) =>
-        getAnnouncementKey(item)
-      )
-      markAnnouncementsRead(allKeys)
+    const nextTab = pendingNoticeForcePopup ? 'notice' : 'announcements'
+    setActiveTab(nextTab)
+    if (nextTab === 'notice' && noticeContent) {
+      markNoticeRead(noticeContent)
     }
-  }
+    if (nextTab === 'announcements') {
+      markAnnouncementsAsRead()
+    }
+    setPopoverOpen(true)
+    return true
+  }, [
+    markNoticeRead,
+    noticeContent,
+    pendingAnnouncementForcePopupKeys.length,
+    pendingNoticeForcePopup,
+    markAnnouncementsAsRead,
+  ])
 
-  // Handle "Close Today" action
+  // Handle "Close Today" action for forced popups.
   const handleCloseToday = () => {
     const today = new Date().toDateString()
     setClosedUntilDate(today)
-    setDialogOpen(false)
+    setPopoverOpen(false)
   }
 
   return {
@@ -253,17 +277,22 @@ export function useNotifications() {
     unreadNoticeCount: unreadCounts.notice,
     unreadAnnouncementsCount: unreadCounts.announcements,
 
-    // Dialog state
-    dialogOpen,
-    setDialogOpen: handleDialogOpenChange,
+    // Popover state
+    popoverOpen,
+    setPopoverOpen: handlePopoverOpenChange,
+    // Backward-compatible dialog aliases used by force-popup callers.
+    dialogOpen: popoverOpen,
+    setDialogOpen: handlePopoverOpenChange,
     activeTab,
     setActiveTab: handleTabChange,
 
     // Actions
-    openDialog: handleOpenDialog,
+    openDialog: handleOpenPopover,
     openForcePopup: handleOpenForcePopup,
-    closeDialog: () => handleDialogOpenChange(false),
+    closeDialog: () => setPopoverOpen(false),
     closeToday: handleCloseToday,
+    openPopover: handleOpenPopover,
+    closePopover: () => setPopoverOpen(false),
     refetchNotice,
 
     // Status

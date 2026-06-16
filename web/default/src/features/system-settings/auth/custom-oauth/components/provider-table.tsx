@@ -20,15 +20,8 @@ import { useState } from 'react'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StaticDataTable } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { useDeleteProvider } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthProvider } from '../types'
@@ -64,73 +57,82 @@ export function ProviderTable(props: ProviderTableProps) {
         </Button>
       </div>
 
-      {props.providers.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm'>
-          {t('No custom OAuth providers configured yet.')}
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('Icon')}</TableHead>
-              <TableHead>{t('Name')}</TableHead>
-              <TableHead>{t('Slug')}</TableHead>
-              <TableHead>{t('Status')}</TableHead>
-              <TableHead>{t('Client ID')}</TableHead>
-              <TableHead className='text-right'>{t('Actions')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {props.providers.map((provider) => (
-              <TableRow key={provider.id}>
-                <TableCell>
-                  {provider.icon ? (
-                    <span className='text-lg'>{provider.icon}</span>
-                  ) : (
-                    <span className='text-muted-foreground text-xs'>--</span>
-                  )}
-                </TableCell>
-                <TableCell className='font-medium'>{provider.name}</TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={provider.slug}
-                    variant='neutral'
-                    copyable={false}
-                  />
-                </TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={provider.enabled ? t('Enabled') : t('Disabled')}
-                    variant={provider.enabled ? 'success' : 'neutral'}
-                    copyable={false}
-                  />
-                </TableCell>
-                <TableCell className='text-muted-foreground max-w-[120px] truncate font-mono text-xs'>
-                  {provider.client_id}
-                </TableCell>
-                <TableCell className='text-right'>
-                  <div className='flex justify-end gap-1'>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => props.onEdit(provider)}
-                    >
-                      <Pencil className='h-4 w-4' />
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => setDeleteTarget(provider)}
-                    >
-                      <Trash2 className='text-destructive h-4 w-4' />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <StaticDataTable
+        data={props.providers}
+        getRowKey={(provider) => provider.id}
+        emptyClassName='text-sm'
+        emptyContent={t('No custom OAuth providers configured yet.')}
+        columns={[
+          {
+            id: 'icon',
+            header: t('Icon'),
+            cell: (provider) =>
+              provider.icon ? (
+                <span className='text-lg'>{provider.icon}</span>
+              ) : (
+                <span className='text-muted-foreground text-sm'>--</span>
+              ),
+          },
+          {
+            id: 'name',
+            header: t('Name'),
+            cellClassName: 'font-medium',
+            cell: (provider) => provider.name,
+          },
+          {
+            id: 'slug',
+            header: t('Slug'),
+            cell: (provider) => (
+              <StatusBadge
+                label={provider.slug}
+                variant='neutral'
+                copyable={false}
+              />
+            ),
+          },
+          {
+            id: 'status',
+            header: t('Status'),
+            cell: (provider) => (
+              <StatusBadge
+                label={provider.enabled ? t('Enabled') : t('Disabled')}
+                variant={provider.enabled ? 'success' : 'neutral'}
+                copyable={false}
+              />
+            ),
+          },
+          {
+            id: 'client-id',
+            header: t('Client ID'),
+            cellClassName: 'text-muted-foreground max-w-[120px] truncate font-mono',
+            cell: (provider) => provider.client_id,
+          },
+          {
+            id: 'actions',
+            header: t('Actions'),
+            className: 'text-right',
+            cellClassName: 'text-right',
+            cell: (provider) => (
+              <div className='flex justify-end gap-1'>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => props.onEdit(provider)}
+                >
+                  <Pencil className='h-4 w-4' />
+                </Button>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => setDeleteTarget(provider)}
+                >
+                  <Trash2 className='text-destructive h-4 w-4' />
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

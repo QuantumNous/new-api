@@ -42,14 +42,18 @@ interface MaskedValueDisplayProps {
  */
 export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
   return (
-    <div className='flex items-center'>
+    <div className='flex max-w-full min-w-0 items-center'>
       <Popover>
         <PopoverTrigger
           render={
-            <Button variant='ghost' size='sm' className='h-7 font-mono' />
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono hover:bg-transparent aria-expanded:bg-transparent'
+            />
           }
         >
-          {props.maskedValue}
+          <span className='truncate'>{props.maskedValue}</span>
         </PopoverTrigger>
         <PopoverContent
           className='w-auto max-w-[min(90vw,28rem)]'

@@ -71,6 +71,7 @@ export function ForgotPasswordForm({
     resolver: zodResolver(forgotPasswordFormSchema),
     defaultValues: { email: '' },
   })
+  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   async function onSubmit(data: z.infer<typeof forgotPasswordFormSchema>) {
     if (!validateTurnstile()) return
@@ -121,7 +122,11 @@ export function ForgotPasswordForm({
           )}
         />
 
-        <Button type='submit' className='mt-2' disabled={isLoading || isActive}>
+        <Button
+          type='submit'
+          className='mt-2'
+          disabled={isLoading || isActive || !turnstileReady}
+        >
           {isActive
             ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
             : t('Send reset email')}

@@ -36,14 +36,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormDescription,
@@ -53,16 +45,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { StaticDataTable } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
+import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -89,6 +75,8 @@ const faqSchema = z.object({
 })
 
 type FAQFormValues = z.infer<typeof faqSchema>
+
+const FAQ_FORM_ID = 'faq-form'
 
 export function FAQSection({ enabled, data }: FAQSectionProps) {
   const { t } = useTranslation()
@@ -238,12 +226,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   }
 
   return (
-    <SettingsSection
-      title={t('FAQ')}
-      description={t(
-        'Maintain a list of common questions for the dashboard help panel'
-      )}
-    >
+    <SettingsSection title={t('FAQ')}>
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -271,161 +254,150 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>
-              {t('Enabled')}
-            </span>
-            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
-          </div>
+          <SettingsSwitchField
+            checked={isEnabled}
+            onCheckedChange={handleToggleEnabled}
+            label={t('Enabled')}
+            className='border-b-0 py-0'
+          />
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === faqList.length &&
-                      faqList.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>{t('Question')}</TableHead>
-                <TableHead>{t('Answer')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {faqList.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className='h-24 text-center'>
-                    {t('No FAQ entries yet. Click "Add FAQ" to create one.')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                faqList.map((faq) => (
-                  <TableRow key={faq.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(faq.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(faq.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate font-medium'
-                      title={faq.question}
-                    >
-                      {faq.question}
-                    </TableCell>
-                    <TableCell
-                      className='text-muted-foreground max-w-md truncate'
-                      title={faq.answer}
-                    >
-                      {faq.answer}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(faq)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(faq)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <StaticDataTable
+          data={faqList}
+          getRowKey={(faq) => faq.id}
+          emptyContent={t('No FAQ entries yet. Click "Add FAQ" to create one.')}
+          columns={[
+            {
+              id: 'select',
+              header: (
+                <Checkbox
+                  checked={
+                    selectedIds.length === faqList.length && faqList.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+              ),
+              className: 'w-12',
+              cell: (faq) => (
+                <Checkbox
+                  checked={selectedIds.includes(faq.id)}
+                  onCheckedChange={(checked) =>
+                    toggleSelectOne(faq.id, checked as boolean)
+                  }
+                />
+              ),
+            },
+            {
+              id: 'question',
+              header: t('Question'),
+              cellClassName: 'max-w-xs truncate font-medium',
+              cell: (faq) => faq.question,
+            },
+            {
+              id: 'answer',
+              header: t('Answer'),
+              cellClassName: 'text-muted-foreground max-w-md truncate',
+              cell: (faq) => faq.answer,
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-32',
+              cell: (faq) => (
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={() => handleEdit(faq)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Edit className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(faq)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className='max-w-2xl'>
-          <DialogHeader>
-            <DialogTitle>
-              {editingFaq ? t('Edit FAQ') : t('Add FAQ')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('Create or update frequently asked questions for users')}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmitForm)}
-              className='space-y-4'
+      <Dialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        title={editingFaq ? t('Edit FAQ') : t('Add FAQ')}
+        description={t('Create or update frequently asked questions for users')}
+        contentClassName='max-w-2xl'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setShowDialog(false)}
             >
-              <FormField
-                control={form.control}
-                name='question'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Question')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('How to reset my quota?')}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Maximum 200 characters')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='answer'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Answer')}</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder={t(
-                          'Visit Settings → General and adjust quota options...'
-                        )}
-                        rows={8}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Maximum 1000 characters. Supports Markdown and HTML.'
+              {t('Cancel')}
+            </Button>
+            <Button type='submit' form={FAQ_FORM_ID}>
+              {editingFaq ? t('Update') : t('Add')}
+            </Button>
+          </>
+        }
+      >
+        <Form {...form}>
+          <form
+            id={FAQ_FORM_ID}
+            onSubmit={form.handleSubmit(handleSubmitForm)}
+            className='space-y-4'
+          >
+            <FormField
+              control={form.control}
+              name='question'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Question')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('How to reset my quota?')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Maximum 200 characters')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='answer'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Answer')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder={t(
+                        'Visit Settings → General and adjust quota options...'
                       )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setShowDialog(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit'>
-                  {editingFaq ? t('Update') : t('Add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
+                      rows={8}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Maximum 1000 characters. Supports Markdown and HTML.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
