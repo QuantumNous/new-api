@@ -71,6 +71,30 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.dingtalk_alert_secret'],
           'monitor_setting.dingtalk_alert_cooldown_minutes':
             settings['monitor_setting.dingtalk_alert_cooldown_minutes'],
+          'monitor_setting.ai_analysis_api_key':
+            settings['monitor_setting.ai_analysis_api_key'],
+          'monitor_setting.ai_analysis_base_url':
+            settings['monitor_setting.ai_analysis_base_url'],
+          'monitor_setting.ai_analysis_model':
+            settings['monitor_setting.ai_analysis_model'],
+          'codex_model_governance_setting.enabled':
+            settings['codex_model_governance_setting.enabled'],
+          'codex_model_governance_setting.probe_enabled':
+            settings['codex_model_governance_setting.probe_enabled'],
+          'codex_model_governance_setting.probe_interval_minutes':
+            settings['codex_model_governance_setting.probe_interval_minutes'],
+          'codex_model_governance_setting.unsupported_message_patterns':
+            settings[
+              'codex_model_governance_setting.unsupported_message_patterns'
+            ],
+          'codex_model_governance_setting.official_source_urls':
+            settings['codex_model_governance_setting.official_source_urls'],
+          'codex_model_governance_setting.official_lifecycle_terms':
+            settings[
+              'codex_model_governance_setting.official_lifecycle_terms'
+            ],
+          'codex_model_governance_setting.alert_cooldown_minutes':
+            settings['codex_model_governance_setting.alert_cooldown_minutes'],
         }}
       />
     ),

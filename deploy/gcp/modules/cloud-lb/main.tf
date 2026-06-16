@@ -144,6 +144,14 @@ resource "google_compute_target_https_proxy" "https" {
   name             = "${var.name_prefix}-https-proxy"
   url_map          = google_compute_url_map.https.id
   ssl_certificates = [google_compute_managed_ssl_certificate.main.id]
+
+  // Advertise HTTP/3 (QUIC over UDP/443). Clients that don't negotiate QUIC fall
+  // back to HTTP/2 over TCP automatically, so this is a zero-risk, in-place update
+  // (GCP setQuicOverride — does not recreate the proxy or touch the cert).
+  // Motivation: cross-border (mainland China) clients pay a ~500ms TCP+TLS 2-RTT
+  // handshake on the ~185ms-RTT path to the LB; QUIC collapses it to 1-RTT (0-RTT
+  // on resumption) and tolerates jitter on the China Telecom 163 egress better.
+  quic_override = "ENABLE"
 }
 
 resource "google_compute_global_forwarding_rule" "https" {

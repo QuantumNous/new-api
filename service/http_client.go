@@ -63,6 +63,14 @@ func GetHttpClient() *http.Client {
 	return httpClient
 }
 
+func requireHttpClient() (*http.Client, error) {
+	client := GetHttpClient()
+	if client == nil {
+		return nil, fmt.Errorf("http client is not initialized")
+	}
+	return client, nil
+}
+
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
 func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
 	if proxyURL == "" {

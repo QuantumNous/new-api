@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { HomeTerminalCopy } from "@/lib/copy";
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
@@ -42,13 +43,13 @@ const ACCENT_CLASSES: Record<AccentTone, { activeText: string; activeBorder: str
   },
 };
 
-const API_DEMOS: ApiDemoConfig[] = [
+export const API_DEMOS: ApiDemoConfig[] = [
   {
     id: "gpt-chat",
     label: "Chat",
     method: "POST",
     endpoint: `${APP_CONSOLE_ORIGIN}/v1/chat/completions`,
-    headers: ['"Authorization: Bearer sk-fk-••••"'],
+    headers: ['"Authorization: Bearer sk-fk-••••"', '"Content-Type: application/json"'],
     request: ['"model": "your-model",', '"messages": [', '  { "role": "user", "content": "..." }', "]"],
     response: ["{", '  "choices": [{ "message": { "content": <text> } }],', '  "usage": { "total_tokens": <tokens> }', "}"],
     tokens: 27,
@@ -60,7 +61,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     label: "Responses",
     method: "POST",
     endpoint: `${APP_CONSOLE_ORIGIN}/v1/responses`,
-    headers: ['"Authorization: Bearer sk-fk-••••"'],
+    headers: ['"Authorization: Bearer sk-fk-••••"', '"Content-Type: application/json"'],
     request: ['"model": "your-model",', '"input": "..."'],
     response: ["{", '  "output": [{ "type": "output_text", "text": <text> }],', '  "usage": { "total_tokens": <tokens> }', "}"],
     tokens: 31,
@@ -72,7 +73,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     label: "Claude",
     method: "POST",
     endpoint: `${APP_CONSOLE_ORIGIN}/v1/messages`,
-    headers: ['"x-api-key: sk-fk-••••"', '"anthropic-version: 2023-06-01"'],
+    headers: ['"x-api-key: sk-fk-••••"', '"anthropic-version: 2023-06-01"', '"Content-Type: application/json"'],
     request: ['"model": "your-model",', '"max_tokens": 1024,', '"messages": [', '  { "role": "user", "content": "..." }', "]"],
     response: ["{", '  "content": [{ "type": "text", "text": <text> }],', '  "usage": { "input_tokens": <in>, "output_tokens": <out> }', "}"],
     tokens: 29,
@@ -84,7 +85,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     label: "Gemini",
     method: "POST",
     endpoint: `${APP_CONSOLE_ORIGIN}/v1beta/models/{model}:generateContent`,
-    headers: ['"x-goog-api-key: sk-fk-••••"'],
+    headers: ['"x-goog-api-key: sk-fk-••••"', '"Content-Type: application/json"'],
     request: ['"contents": [', '  { "role": "user",', '    "parts": [{ "text": "..." }] }', "]"],
     response: ["{", '  "candidates": [{ "content": { "parts": [{ "text": <text> }] } }],', '  "usageMetadata": { "totalTokenCount": <tokens> }', "}"],
     tokens: 25,
@@ -98,7 +99,7 @@ const TRANSITION_MS = 220;
 const STRING_RE = /"[^"]*"/g;
 const PLACEHOLDER_RE = /<[a-z]+>/gi;
 
-export function HeroTerminalDemo(props: { className?: string }) {
+export function HeroTerminalDemo(props: { className?: string; copy: HomeTerminalCopy }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -170,17 +171,17 @@ export function HeroTerminalDemo(props: { className?: string }) {
         </div>
 
         <div className="grid h-[400px] grid-rows-[235px_minmax(0,1fr)] font-mono text-[12.5px] leading-[1.55]">
-          <RequestBlock demo={demo} transitioning={transitioning} />
-          <ResponseBlock demo={demo} transitioning={transitioning} />
+          <RequestBlock demo={demo} transitioning={transitioning} label={props.copy.request} />
+          <ResponseBlock demo={demo} transitioning={transitioning} copy={props.copy} />
         </div>
 
         <div className="flex items-center justify-between border-t border-violet-500/10 bg-violet-500/[0.035] px-5 py-2.5">
           <div className="text-foreground/40 flex items-center gap-3 text-[10px] tabular-nums">
-            <span className="flex items-center gap-1"><span className="font-mono">{demo.latency}</span><span className="tracking-wider uppercase">ms</span></span>
+            <span className="flex items-center gap-1"><span className="font-mono">{demo.latency}</span><span className="tracking-wider uppercase">{props.copy.ms}</span></span>
             <span className="bg-foreground/15 size-1 rounded-full" />
-            <span className="flex items-center gap-1"><span className="font-mono">{demo.tokens}</span><span className="tracking-wider uppercase">tokens</span></span>
+            <span className="flex items-center gap-1"><span className="font-mono">{demo.tokens}</span><span className="tracking-wider uppercase">{props.copy.tokens}</span></span>
             <span className="bg-foreground/15 size-1 rounded-full" />
-            <span className="flex items-center gap-1"><span className="tracking-wider uppercase">Cost</span><span className="font-mono">${(demo.tokens * 0.00003).toFixed(5)}</span></span>
+            <span className="flex items-center gap-1"><span className="tracking-wider uppercase">{props.copy.cost}</span><span className="font-mono">${(demo.tokens * 0.00003).toFixed(5)}</span></span>
           </div>
           <span className="text-foreground/30 font-mono text-[10px] tracking-wider uppercase">stream · sse</span>
         </div>
@@ -189,10 +190,10 @@ export function HeroTerminalDemo(props: { className?: string }) {
   );
 }
 
-function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
+function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean; label: string }) {
   return (
     <div className="relative px-5 py-4">
-      <SectionLabel>Request</SectionLabel>
+      <SectionLabel>{props.label}</SectionLabel>
       <div className={cn("mt-2 transition-opacity duration-200", props.transitioning ? "opacity-0" : "opacity-100")}>
         <CodeLine><Command>curl</Command> <Flag>-X</Flag> <Flag>POST</Flag> <StringText>&quot;{props.demo.endpoint}&quot;</StringText> <Muted>{"\\"}</Muted></CodeLine>
         {props.demo.headers.map((header) => (
@@ -206,12 +207,12 @@ function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
   );
 }
 
-function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
+function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean; copy: HomeTerminalCopy }) {
   return (
     <div className="relative border-t border-violet-500/10 bg-violet-500/[0.025] px-5 py-4">
-      <SectionLabel>Response</SectionLabel>
+      <SectionLabel>{props.copy.response}</SectionLabel>
       <div className={cn("mt-2 transition-opacity duration-200", props.transitioning ? "opacity-0" : "opacity-100")}>
-        {props.demo.response.map((line, i) => <CodeLine key={i}>{renderResponseLine(line, props.demo)}</CodeLine>)}
+        {props.demo.response.map((line, i) => <CodeLine key={i}>{renderResponseLine(line, props.demo, props.copy)}</CodeLine>)}
       </div>
     </div>
   );
@@ -221,7 +222,7 @@ function SectionLabel(props: { children: ReactNode }) {
   return <span className="text-foreground/30 font-sans text-[10px] font-semibold tracking-[0.18em] uppercase">{props.children}</span>;
 }
 
-function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
+function renderResponseLine(line: string, demo: ApiDemoConfig, copy: HomeTerminalCopy): ReactNode {
   const segments: ReactNode[] = [];
   let cursor = 0;
   const matches = [...line.matchAll(PLACEHOLDER_RE)];
@@ -230,7 +231,7 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
     const start = match.index ?? 0;
     if (start > cursor) segments.push(<span key={`pre-${idx}`}>{tokenize(line.slice(cursor, start))}</span>);
     const placeholder = match[0];
-    if (placeholder === "<text>") segments.push(<Accent key={`ph-${idx}`} accent={demo.accent}>{`"${truncateResponse(demo)}"`}</Accent>);
+    if (placeholder === "<text>") segments.push(<Accent key={`ph-${idx}`} accent={demo.accent}>{`"${copy.responses[demo.id] ?? "..."}"`}</Accent>);
     else if (placeholder === "<tokens>") segments.push(<NumberText key={`ph-${idx}`}>{demo.tokens}</NumberText>);
     else if (placeholder === "<in>") segments.push(<NumberText key={`ph-${idx}`}>{Math.floor(demo.tokens * 0.4)}</NumberText>);
     else if (placeholder === "<out>") segments.push(<NumberText key={`ph-${idx}`}>{Math.ceil(demo.tokens * 0.6)}</NumberText>);
@@ -239,15 +240,6 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
   });
   if (cursor < line.length) segments.push(<span key="tail">{tokenize(line.slice(cursor))}</span>);
   return segments;
-}
-
-function truncateResponse(demo: ApiDemoConfig): string {
-  return {
-    "gpt-chat": "Chat request routed.",
-    responses: "Response workflow ready.",
-    claude: "Claude message routed.",
-    gemini: "Gemini request served.",
-  }[demo.id] ?? "...";
 }
 
 function tokenize(input: string): ReactNode {

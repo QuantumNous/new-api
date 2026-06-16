@@ -14,7 +14,12 @@ export const APP_CONSOLE_ORIGIN = normalizeOrigin(
 
 export const SITE_ORIGIN = normalizeOrigin(process.env.NEXT_PUBLIC_SITE_ORIGIN, DEFAULT_SITE_ORIGIN);
 
-export function consoleUrl(pathname = "/"): string {
+export function buildConsoleUrl(pathname = "/", origin = APP_CONSOLE_ORIGIN, search = ""): string {
   const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  return `${APP_CONSOLE_ORIGIN}${path}`;
+  const normalizedSearch = search ? (search.startsWith("?") ? search : `?${search}`) : "";
+  return `${normalizeOrigin(origin, DEFAULT_APP_CONSOLE_ORIGIN)}${path}${normalizedSearch}`;
+}
+
+export function consoleUrl(pathname = "/", search = ""): string {
+  return buildConsoleUrl(pathname, APP_CONSOLE_ORIGIN, search);
 }

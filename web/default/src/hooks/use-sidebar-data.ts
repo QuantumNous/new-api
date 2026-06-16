@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Radio,
   Settings,
+  ShieldAlert,
   Ticket,
   User,
   Users,
@@ -125,6 +126,11 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+          },
+          {
+            title: t('Codex model governance'),
+            url: '/codex-model-governance',
+            icon: ShieldAlert,
           },
           {
             title: t('Users'),

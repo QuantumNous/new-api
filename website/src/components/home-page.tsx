@@ -76,20 +76,20 @@ export function HomePage(props: Props) {
   const copy = getCopy(props.locale);
   const features = [
     {
-      title: "One-click access",
-      desc: "Get one API key and call every connected AI model without applying for each provider separately.",
+      title: copy.home.features.items[0].title,
+      desc: copy.home.features.items[0].desc,
       icon: <Server className="size-7" strokeWidth={1.7} />,
       iconClass: "bg-violet-600 text-white shadow-[0_14px_32px_-16px_rgba(124,58,237,0.85)]",
     },
     {
-      title: "Stable and reliable",
-      desc: "Intelligently route multiple upstream accounts with automatic switching and load balancing to avoid frequent errors.",
+      title: copy.home.features.items[1].title,
+      desc: copy.home.features.items[1].desc,
       icon: <UsersRound className="size-7" strokeWidth={1.7} />,
       iconClass: "bg-indigo-500 text-white shadow-[0_14px_32px_-16px_rgba(99,102,241,0.78)]",
     },
     {
-      title: "Pay as you go",
-      desc: "Bill by actual usage, set quota limits, and keep team consumption clear at a glance.",
+      title: copy.home.features.items[2].title,
+      desc: copy.home.features.items[2].desc,
       icon: <BadgeDollarSign className="size-7" strokeWidth={1.7} />,
       iconClass: "bg-violet-500 text-white shadow-[0_14px_30px_-16px_rgba(139,92,246,0.75)]",
     },
@@ -101,11 +101,13 @@ export function HomePage(props: Props) {
     ["Claude Sonnet 4.6", "$2.4 / 1M", "from-slate-100 via-violet-300 to-slate-950"],
   ];
   const productHighlights = [
-    ["AI product teams", "Add model access to your product without managing separate provider accounts, keys, and SDK changes.", <Boxes key="boxes" className="size-6" strokeWidth={1.6} />],
-    ["Operations and finance", "Keep token spend, recharge records, and team usage visible in one dashboard.", <ReceiptText key="receipt" className="size-6" strokeWidth={1.6} />],
-    ["Automation builders", "Route high-volume workflows to suitable models while keeping failures and cost easier to review.", <Route key="route" className="size-6" strokeWidth={1.6} />],
-    ["Model evaluation and iteration", "Compare providers, switch models, and keep existing OpenAI-compatible clients pointed at the same base URL.", <Gauge key="gauge" className="size-6" strokeWidth={1.6} />],
+    [copy.home.productHighlights.items[0].title, copy.home.productHighlights.items[0].desc, <Boxes key="boxes" className="size-6" strokeWidth={1.6} />],
+    [copy.home.productHighlights.items[1].title, copy.home.productHighlights.items[1].desc, <ReceiptText key="receipt" className="size-6" strokeWidth={1.6} />],
+    [copy.home.productHighlights.items[2].title, copy.home.productHighlights.items[2].desc, <Route key="route" className="size-6" strokeWidth={1.6} />],
+    [copy.home.productHighlights.items[3].title, copy.home.productHighlights.items[3].desc, <Gauge key="gauge" className="size-6" strokeWidth={1.6} />],
   ] as const;
+  const apiBaseUrlDescription = (text: string) => text.replace("{{apiBaseUrl}}", API_BASE_URL);
+  const ctaDescription = copy.home.cta.description.replace("{{host}}", APP_CONSOLE_ORIGIN.replace(/^https?:\/\//, ""));
 
   return (
     <SiteShell locale={props.locale} pathname="/">
@@ -135,18 +137,18 @@ export function HomePage(props: Props) {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-75" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-violet-500" />
                 </span>
-                <span>Multi-model compatible, enterprise-ready</span>
+                <span>{copy.home.hero.badge}</span>
               </div>
 
               <h1 className="landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight" style={{ animationDelay: "60ms" }}>
-                Every model.
+                {copy.home.hero.titleLine1}
                 <br />
                 <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300">
-                  One key. Flat rate.
+                  {copy.home.hero.titleLine2}
                 </span>
               </h1>
               <p className="landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]" style={{ animationDelay: "120ms" }}>
-                Access Claude, GPT, Gemini, DeepSeek, Qwen, Seedance 2.0, GPT Image, and more with one API key. No need to manage separate provider accounts. Clear pricing, unified billing, and one dashboard for keys, usage, and routing.
+                {copy.home.description}
               </p>
 
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
@@ -155,18 +157,18 @@ export function HomePage(props: Props) {
                   href={SIGN_UP_URL}
                   style={{ borderRadius: "0.5rem" }}
                 >
-                  Get a key
+                  {copy.home.primary}
                   <ArrowRight className="ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </a>
                 <Link className="inline-flex h-11 items-center rounded-lg border border-violet-500/20 bg-white/65 px-5 text-sm font-medium hover:border-violet-500/35 hover:bg-violet-500/10" href={localizePath("/pricing", props.locale)}>
-                  View Pricing
+                  {copy.home.secondary}
                 </Link>
               </div>
 
               <div className="landing-animate-fade-up mt-10 w-full max-w-xl opacity-0" style={{ animationDelay: "240ms" }}>
                 <div className="mb-4 flex flex-col gap-1">
-                  <span className="text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase">Works with your current tools</span>
-                  <p className="text-muted-foreground/60 text-xs leading-relaxed">Supports one-click configuration and perfectly adapts to NewAPI multi-protocol configuration.</p>
+                  <span className="text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase">{copy.home.hero.toolsLabel}</span>
+                  <p className="text-muted-foreground/60 text-xs leading-relaxed">{copy.home.hero.toolsDescription}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   {supportedApps.map((item) => (
@@ -178,7 +180,7 @@ export function HomePage(props: Props) {
                       )}
                     >
                       {item.icon}
-                      <span>{item.label}</span>
+                      <span>{item.muted ? copy.home.hero.moreApps : item.label}</span>
                     </div>
                   ))}
                 </div>
@@ -186,19 +188,19 @@ export function HomePage(props: Props) {
             </div>
 
             <div className="landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6" style={{ animationDelay: "320ms" }}>
-              <HeroTerminalDemo className="mt-8 lg:mt-0" />
+              <HeroTerminalDemo className="mt-8 lg:mt-0" copy={copy.home.terminal} />
             </div>
           </div>
         </section>
 
-        <Stats />
+        <Stats items={copy.home.stats.items} />
 
         <section className="relative z-10 overflow-hidden px-6 py-24 md:py-32">
           <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(124,58,237,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.1)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_52%_at_50%_42%,black_18%,transparent_90%)] bg-[size:4rem_4rem] opacity-40 dark:bg-[linear-gradient(to_right,rgba(148,163,184,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.045)_1px,transparent_1px)] dark:opacity-40" />
           <div className="mx-auto max-w-7xl">
             <div className="mb-14 max-w-lg">
-              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">Why flatkey</p>
-              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">One place for access,<br />pricing, and control</h2>
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">{copy.home.features.eyebrow}</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{copy.home.features.titleLine1}<br />{copy.home.features.titleLine2}</h2>
             </div>
             <div className="grid gap-5 md:grid-cols-3">
               {features.map((feature) => (
@@ -213,8 +215,8 @@ export function HomePage(props: Props) {
             </div>
 
             <div className="mt-20 md:mt-24">
-              <h3 className="text-2xl font-bold tracking-tight md:text-3xl">Recommended AI models</h3>
-              <p className="text-muted-foreground mt-3 text-sm md:text-base">Curated top models selected by the flatkey community</p>
+              <h3 className="text-2xl font-bold tracking-tight md:text-3xl">{copy.home.models.title}</h3>
+              <p className="text-muted-foreground mt-3 text-sm md:text-base">{copy.home.models.description}</p>
             </div>
             <div className="mt-8 grid gap-5 lg:grid-cols-4">
               {recommendedModels.map(([name, price, gradient]) => (
@@ -226,7 +228,7 @@ export function HomePage(props: Props) {
                     <h4 className="text-[21px] leading-tight font-bold tracking-tight xl:text-2xl">{name}</h4>
                     <div className="mt-3 font-mono text-lg font-semibold text-white/90">{price}</div>
                     <div className="mt-5 flex flex-wrap gap-2">
-                      <span className="rounded-full border border-white/20 bg-slate-950/45 px-3 py-1 text-xs font-semibold text-white/90 shadow-sm backdrop-blur-sm">text-to-text</span>
+                      <span className="rounded-full border border-white/20 bg-slate-950/45 px-3 py-1 text-xs font-semibold text-white/90 shadow-sm backdrop-blur-sm">{copy.home.models.tag}</span>
                     </div>
                   </div>
                 </article>
@@ -252,17 +254,17 @@ export function HomePage(props: Props) {
         <section className="relative z-10 px-6 py-16 md:py-20">
           <div className="mx-auto max-w-7xl">
             <div className="mb-10 max-w-3xl md:mb-12">
-              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">About flatkey.ai</p>
-              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">A unified API layer for modern AI products</h2>
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">{copy.home.about.eyebrow}</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{copy.home.about.title}</h2>
               <p className="text-muted-foreground mt-4 max-w-2xl text-sm leading-7 md:text-base">
-                flatkey.ai provides hosted software and prepaid account balance for metered AI API usage. Usage charges are calculated from model input, output, and cache-hit prices multiplied by token usage.
+                {copy.home.about.description}
               </p>
             </div>
             <div className="grid gap-5 md:grid-cols-3">
               {[
-                ["What flatkey.ai is", "flatkey.ai is a unified AI API gateway that lets teams call supported AI models through one API key, one base URL, and one dashboard.", <Boxes key="boxes" className="size-6" strokeWidth={1.6} />],
-                ["Problem it solves", "It reduces separate provider accounts, scattered API keys, inconsistent routing, and fragmented usage tracking for teams building AI features.", <Route key="route" className="size-6" strokeWidth={1.6} />],
-                ["Who uses it", "flatkey.ai is built for developers, AI product teams, automation builders, and operations teams that need predictable access to multiple models.", <UsersRound key="users" className="size-6" strokeWidth={1.6} />],
+                [copy.home.about.items[0].title, copy.home.about.items[0].desc, <Boxes key="boxes" className="size-6" strokeWidth={1.6} />],
+                [copy.home.about.items[1].title, copy.home.about.items[1].desc, <Route key="route" className="size-6" strokeWidth={1.6} />],
+                [copy.home.about.items[2].title, copy.home.about.items[2].desc, <UsersRound key="users" className="size-6" strokeWidth={1.6} />],
               ].map(([title, desc, icon]) => (
                 <article key={String(title)} className="group min-h-[230px] rounded-2xl border border-violet-500/16 bg-white/62 p-7 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm transition-colors duration-300 hover:border-violet-500/28 hover:bg-white/78 md:p-8">
                   <div className="mb-7 flex size-14 items-center justify-center rounded-2xl border border-violet-500/20 bg-violet-500/8 text-violet-700 shadow-[0_18px_44px_-30px_rgba(124,58,237,0.8)] transition-transform duration-300 group-hover:scale-[1.03]">
@@ -279,9 +281,9 @@ export function HomePage(props: Props) {
         <section className="relative z-10 px-6 py-24 md:py-32">
           <div className="mx-auto max-w-7xl">
             <div className="mb-10 max-w-3xl md:mb-12">
-              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">Product focus</p>
-              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">Built for teams shipping AI features</h2>
-              <p className="text-muted-foreground mt-4 max-w-2xl text-sm leading-7 md:text-base">flatkey keeps model access, routing, billing, and usage policy in one place so teams can move faster without extra provider management.</p>
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">{copy.home.productHighlights.eyebrow}</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{copy.home.productHighlights.title}</h2>
+              <p className="text-muted-foreground mt-4 max-w-2xl text-sm leading-7 md:text-base">{copy.home.productHighlights.description}</p>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
               {productHighlights.map(([title, desc, icon]) => (
@@ -300,14 +302,14 @@ export function HomePage(props: Props) {
         <section className="relative z-10 border-t border-violet-500/10 px-6 py-24 md:py-32">
           <div className="mx-auto max-w-6xl">
             <div className="mb-16 text-center md:mb-20">
-              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">How it fits together</p>
-              <h2 className="text-2xl font-bold tracking-tight md:text-3xl">From homepage to production calls</h2>
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">{copy.home.howItWorks.eyebrow}</p>
+              <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{copy.home.howItWorks.title}</h2>
             </div>
             <div className="grid gap-8 md:grid-cols-3 md:gap-12">
               {[
-                ["1", "Get one key", "Create a flatkey account, open the dashboard, and generate an API key for your app.", <KeyRound key="key" className="size-6" strokeWidth={1.5} />],
-                ["2", "Change the base URL", `Point your OpenAI-compatible client to ${API_BASE_URL} and keep your existing SDK.`, <Link2 key="link" className="size-6" strokeWidth={1.5} />],
-                ["3", "Monitor and optimize", "Review usage, cost, routing, and errors from the same product dashboard.", <BarChart3 key="chart" className="size-6" strokeWidth={1.5} />],
+                [copy.home.howItWorks.steps[0].num, copy.home.howItWorks.steps[0].title, copy.home.howItWorks.steps[0].desc, <KeyRound key="key" className="size-6" strokeWidth={1.5} />],
+                [copy.home.howItWorks.steps[1].num, copy.home.howItWorks.steps[1].title, apiBaseUrlDescription(copy.home.howItWorks.steps[1].desc), <Link2 key="link" className="size-6" strokeWidth={1.5} />],
+                [copy.home.howItWorks.steps[2].num, copy.home.howItWorks.steps[2].title, copy.home.howItWorks.steps[2].desc, <BarChart3 key="chart" className="size-6" strokeWidth={1.5} />],
               ].map(([num, title, desc, icon]) => (
                 <article key={String(num)} className="relative flex flex-col items-center text-center">
                   <div className="relative mb-6">
@@ -326,22 +328,22 @@ export function HomePage(props: Props) {
           <div className="absolute inset-0 -z-10 opacity-20" style={{ background: "radial-gradient(ellipse 55% 45% at 30% 50%, rgba(124,58,237,0.28) 0%, transparent 70%), radial-gradient(ellipse 42% 38% at 70% 40%, rgba(217,70,239,0.2) 0%, transparent 70%)" }} />
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-4xl">
-              Ready to replace
+              {copy.home.cta.titleLine1}
               <br />
-              <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300">model chaos with one key?</span>
+              <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300">{copy.home.cta.titleLine2}</span>
             </h2>
-            <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">Start from the flatkey homepage, manage your product dashboard, and keep {APP_CONSOLE_ORIGIN.replace(/^https?:\/\//, "")} as the stable API endpoint.</p>
+            <p className="text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base">{ctaDescription}</p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <a
                 className="flatkey-hero-cta group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
                 href={SIGN_UP_URL}
                 style={{ borderRadius: "0.5rem" }}
               >
-                Get a key
+                {copy.home.primary}
                 <ArrowRight className="ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
               </a>
               <Link className="inline-flex h-10 items-center rounded-lg border border-violet-500/20 bg-white/65 px-4 text-sm font-medium hover:border-violet-500/35 hover:bg-violet-500/10" href={localizePath("/pricing", props.locale)}>
-                {copy.home.primary}
+                {copy.home.secondary}
               </Link>
             </div>
           </div>
@@ -351,21 +353,15 @@ export function HomePage(props: Props) {
   );
 }
 
-function Stats() {
-  const stats = [
-    ["200+", "models behind one key"],
-    ["1", "OpenAI-compatible base URL"],
-    ["24/7", "usage and billing visibility"],
-    ["1", "dashboard for keys and routing"],
-  ];
+function Stats(props: { items: { value: string; label: string }[] }) {
   return (
     <div className="relative z-10 border-y border-violet-500/10 bg-white/45 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-6 py-10 md:py-12">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12">
-          {stats.map(([value, label]) => (
-            <div key={label} className="flex flex-col items-center text-center">
-              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">{value}</span>
-              <span className="text-muted-foreground mt-1.5 text-xs">{label}</span>
+          {props.items.map((item) => (
+            <div key={item.label} className="flex flex-col items-center text-center">
+              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">{item.value}</span>
+              <span className="text-muted-foreground mt-1.5 text-xs">{item.label}</span>
             </div>
           ))}
         </div>

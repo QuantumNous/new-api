@@ -1,9 +1,12 @@
 import { BlogIndexPage, parseBlogSearch } from "@/components/blog-pages";
+import { getCopy } from "@/lib/copy";
 import { buildMetadata } from "@/lib/seo";
 
+const copy = getCopy("en").blog;
+
 export const metadata = buildMetadata({
-  title: "flatkey.ai Blog",
-  description: "Insights, product notes, and implementation guides for teams building on AI APIs.",
+  title: copy.title,
+  description: copy.description,
   pathname: "/blog",
 });
 

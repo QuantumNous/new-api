@@ -1,4 +1,5 @@
 import sanitizeHtml from "sanitize-html";
+import type { Locale } from "@/lib/locales";
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 const API_BASE_URL = APP_CONSOLE_ORIGIN;
@@ -116,11 +117,22 @@ export function sanitizeBlogHtml(html: string): string {
   }));
 }
 
-export function formatBlogDate(value: string | undefined, length: "short" | "long"): string {
+const BLOG_DATE_LOCALES: Record<Locale, string> = {
+  en: "en-US",
+  zh: "zh-CN",
+  es: "es-ES",
+  fr: "fr-FR",
+  pt: "pt-PT",
+  ru: "ru-RU",
+  ja: "ja-JP",
+  vi: "vi-VN",
+};
+
+export function formatBlogDate(value: string | undefined, length: "short" | "long", locale: Locale = "en"): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(BLOG_DATE_LOCALES[locale], {
     year: "numeric",
     month: length === "long" ? "long" : "short",
     day: "numeric",

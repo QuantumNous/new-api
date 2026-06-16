@@ -23,3 +23,11 @@ export function normalizeOrigin(origin: string | undefined): string {
 export const OFFICIAL_WEBSITE_ORIGIN = normalizeOrigin(
   import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN as string | undefined
 )
+
+export function officialWebsiteUrl(
+  path: string,
+  origin = OFFICIAL_WEBSITE_ORIGIN
+): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return origin ? `${normalizeOrigin(origin)}${normalizedPath}` : normalizedPath
+}

@@ -67,6 +67,7 @@ type usageSummaryResponse struct {
 
 type usageTransaction struct {
 	SourceID            string `json:"source_id"`
+	UpstreamRequestID   string `json:"upstream_request_id,omitempty"`
 	RequestID           string `json:"request_id"`
 	APIKeyID            string `json:"api_key_id"`
 	APIKeyName          string `json:"api_key_name"`
@@ -704,6 +705,7 @@ func buildUsageTransactions(logs []*model.Log, channels map[int]model.BlockRunCh
 		ch := channels[log.ChannelId]
 		txns = append(txns, usageTransaction{
 			SourceID:            strconv.Itoa(log.Id),
+			UpstreamRequestID:   log.UpstreamRequestId,
 			RequestID:           log.RequestId,
 			APIKeyID:            strconv.Itoa(log.TokenId),
 			APIKeyName:          log.TokenName,

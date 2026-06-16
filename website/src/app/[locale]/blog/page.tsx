@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { BlogIndexPage, parseBlogSearch } from "@/components/blog-pages";
+import { getCopy } from "@/lib/copy";
 import { isLocale, LOCALES } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
@@ -15,9 +16,10 @@ export function generateStaticParams() {
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
+  const copy = getCopy(params.locale).blog;
   return buildMetadata({
-    title: "flatkey.ai Blog",
-    description: "Insights, product notes, and implementation guides for teams building on AI APIs.",
+    title: copy.title,
+    description: copy.description,
     pathname: "/blog",
     locale: params.locale,
   });

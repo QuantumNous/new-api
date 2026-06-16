@@ -36,6 +36,11 @@ type DingTalkAlertCooldown struct {
 	lastAt map[int]time.Time
 }
 
+type DingTalkModelAlertCooldown struct {
+	mu     sync.Mutex
+	lastAt map[string]time.Time
+}
+
 type dingTalkAlertCooldownReservation struct {
 	c             *DingTalkAlertCooldown
 	channelID     int
@@ -45,6 +50,15 @@ type dingTalkAlertCooldownReservation struct {
 	dbReservation *model.DingTalkAlertCooldownReservation
 }
 
+type dingTalkModelAlertCooldownReservation struct {
+	c             *DingTalkModelAlertCooldown
+	modelName     string
+	reservedAt    time.Time
+	previousAt    time.Time
+	hadPrevious   bool
+	dbReservation *model.CodexModelGovernanceAlertCooldownReservation
+}
+
 type dingTalkSendResponse struct {
 	ErrCode *int   `json:"errcode"`
 	ErrMsg  string `json:"errmsg"`
@@ -52,6 +66,7 @@ type dingTalkSendResponse struct {
 
 var (
 	dingTalkAlertCooldown              = NewDingTalkAlertCooldown()
+	codexGovernanceAlertCooldown       = NewDingTalkModelAlertCooldown()
 	dingTalkCredentialPattern          = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
 	dingTalkQuotedCredentialPattern    = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
 	dingTalkSKPattern                  = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
@@ -66,6 +81,10 @@ const maxDingTalkChannelAlertBatchSize = 5
 
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
 	return &DingTalkAlertCooldown{lastAt: make(map[int]time.Time)}
+}
+
+func NewDingTalkModelAlertCooldown() *DingTalkModelAlertCooldown {
+	return &DingTalkModelAlertCooldown{lastAt: make(map[string]time.Time)}
 }
 
 func (c *DingTalkAlertCooldown) Allow(channelID int, now time.Time, cooldown time.Duration) bool {
@@ -98,6 +117,28 @@ func (c *DingTalkAlertCooldown) reserve(channelID int, now time.Time, cooldown t
 	return &dingTalkAlertCooldownReservation{
 		c:           c,
 		channelID:   channelID,
+		reservedAt:  now,
+		previousAt:  last,
+		hadPrevious: ok,
+	}, true
+}
+
+func (c *DingTalkModelAlertCooldown) reserve(modelName string, now time.Time, cooldown time.Duration) (*dingTalkModelAlertCooldownReservation, bool) {
+	modelName = strings.TrimSpace(modelName)
+	if c == nil || cooldown <= 0 || modelName == "" {
+		return nil, true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	last, ok := c.lastAt[modelName]
+	if ok && now.Sub(last) < cooldown {
+		return nil, false
+	}
+	c.lastAt[modelName] = now
+	return &dingTalkModelAlertCooldownReservation{
+		c:           c,
+		modelName:   modelName,
 		reservedAt:  now,
 		previousAt:  last,
 		hadPrevious: ok,
@@ -138,6 +179,40 @@ func (r *dingTalkAlertCooldownReservation) Commit() error {
 	return model.CommitDingTalkAlertCooldown(r.dbReservation)
 }
 
+func (r *dingTalkModelAlertCooldownReservation) Rollback() {
+	if r == nil {
+		return
+	}
+	if r.dbReservation != nil {
+		if err := model.RollbackCodexModelGovernanceAlertCooldown(r.dbReservation); err != nil {
+			common.SysError("failed to rollback codex governance alert cooldown reservation: " + err.Error())
+		}
+		return
+	}
+	if r.c == nil {
+		return
+	}
+	r.c.mu.Lock()
+	defer r.c.mu.Unlock()
+
+	current, ok := r.c.lastAt[r.modelName]
+	if !ok || !current.Equal(r.reservedAt) {
+		return
+	}
+	if r.hadPrevious {
+		r.c.lastAt[r.modelName] = r.previousAt
+		return
+	}
+	delete(r.c.lastAt, r.modelName)
+}
+
+func (r *dingTalkModelAlertCooldownReservation) Commit() error {
+	if r == nil || r.dbReservation == nil {
+		return nil
+	}
+	return model.CommitCodexModelGovernanceAlertCooldown(r.dbReservation)
+}
+
 func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool) {
 	if model.DB == nil {
 		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
@@ -159,6 +234,49 @@ func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Du
 		channelID:     channelID,
 		dbReservation: dbReservation,
 	}, true
+}
+
+func reserveCodexGovernanceAlertCooldown(modelName string, now time.Time, cooldown time.Duration) (*dingTalkModelAlertCooldownReservation, bool) {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return nil, true
+	}
+	if model.DB == nil {
+		return codexGovernanceAlertCooldown.reserve(modelName, now, cooldown)
+	}
+	reservationToken, err := common.GenerateRandomCharsKey(32)
+	if err != nil {
+		common.SysError("failed to generate codex governance alert cooldown reservation token: " + err.Error())
+		return nil, false
+	}
+	dbReservation, allowed, err := model.ReserveCodexModelGovernanceAlertCooldown(modelName, cooldown, dingTalkAlertPendingReservationTTL, reservationToken)
+	if err != nil {
+		common.SysError("failed to reserve codex governance alert cooldown in database: " + err.Error())
+		return codexGovernanceAlertCooldown.reserve(modelName, now, cooldown)
+	}
+	if !allowed || dbReservation == nil {
+		return nil, allowed
+	}
+	return &dingTalkModelAlertCooldownReservation{
+		modelName:     modelName,
+		dbReservation: dbReservation,
+	}, true
+}
+
+func codexGovernanceAlertCooldownKey(record *model.CodexModelGovernanceRecord) string {
+	if record == nil {
+		return ""
+	}
+	modelName := strings.TrimSpace(record.ModelName)
+	if modelName == "" {
+		return ""
+	}
+	affectedChannelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	disabledChannelIDs := model.CodexModelGovernanceDisabledChannelIDs(*record)
+	scope := "affected:" + model.EncodeCodexModelGovernanceChannelIDsForDisplay(affectedChannelIDs) +
+		"|disabled:" + model.EncodeCodexModelGovernanceChannelIDsForDisplay(disabledChannelIDs)
+	sum := sha256.Sum256([]byte(modelName + "\x00" + scope))
+	return fmt.Sprintf("codex-governance:%x", sum[:])
 }
 
 func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
@@ -212,6 +330,46 @@ func BuildDingTalkChannelAlertBatchContent(alerts []DingTalkChannelAlert) string
 		blocks = append(blocks, BuildDingTalkChannelAlertContent(alert))
 	}
 	return strings.Join(blocks, "\n\n")
+}
+
+func BuildDingTalkCodexModelGovernanceAlertContent(record *model.CodexModelGovernanceRecord) string {
+	if record == nil {
+		return "Codex model governance alert\nRecord: <nil>"
+	}
+	detectedAt := "-"
+	if record.DetectedAt > 0 {
+		detectedAt = time.Unix(record.DetectedAt, 0).Format("2006-01-02 15:04:05")
+	}
+	channelIDs := model.DecodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs)
+	disabledChannelIDs := model.CodexModelGovernanceDisabledChannelIDs(*record)
+	autoDisabled := "no"
+	if len(disabledChannelIDs) > 0 {
+		autoDisabled = "yes"
+	}
+	lines := []string{
+		"Codex model governance alert",
+		fmt.Sprintf("Model: %s", sanitizeDingTalkAlertText(record.ModelName)),
+		fmt.Sprintf("Status: %s", sanitizeDingTalkAlertText(record.Status)),
+		fmt.Sprintf("Source: %s", sanitizeDingTalkAlertText(record.Source)),
+		fmt.Sprintf("Matched Rule: %s", sanitizeDingTalkAlertText(record.MatchedRule)),
+		fmt.Sprintf("Affected Channels: %d (%s)", len(channelIDs), sanitizeDingTalkAlertText(record.AffectedChannelIDs)),
+		fmt.Sprintf("Disabled Channels: %d (%s)", len(disabledChannelIDs), sanitizeDingTalkAlertText(model.EncodeCodexModelGovernanceChannelIDsForDisplay(disabledChannelIDs))),
+		fmt.Sprintf("Auto Disabled: %s", autoDisabled),
+		fmt.Sprintf("Reason: %s", sanitizeDingTalkAlertText(record.LastError)),
+		fmt.Sprintf("Detected At: %s", detectedAt),
+	}
+	if len(disabledChannelIDs) == 0 && record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview {
+		lines = append(lines,
+			"!! MODEL IS STILL SERVING USER REQUESTS !!",
+			"Please review and disable it as soon as possible in the Codex model governance page.",
+		)
+	} else if len(disabledChannelIDs) < len(channelIDs) && record.Status == model.CodexModelGovernanceStatusUnsupportedPendingReview {
+		lines = append(lines,
+			"!! LINKED CHANNELS ARE STILL SERVING USER REQUESTS !!",
+			"Please review linked Codex channels and disable or remove the model if confirmed unsupported.",
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func sanitizeDingTalkAlertText(value string) string {
@@ -319,6 +477,48 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 
 func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
 	return NotifyDingTalkChannelTestFailures([]DingTalkChannelAlert{alert})
+}
+
+func NotifyDingTalkCodexModelGovernance(record *model.CodexModelGovernanceRecord) error {
+	setting := operation_setting.GetMonitorSetting()
+	if setting == nil || !setting.DingTalkAlertEnabled {
+		return nil
+	}
+	if strings.TrimSpace(setting.DingTalkAlertWebhookURL) == "" {
+		return fmt.Errorf("dingtalk alert webhook url is empty")
+	}
+	cooldownMinutes := 60
+	if governanceSetting := operation_setting.GetCodexModelGovernanceSetting(); governanceSetting != nil && governanceSetting.AlertCooldownMinutes > 0 {
+		cooldownMinutes = governanceSetting.AlertCooldownMinutes
+	}
+	modelName := ""
+	if record != nil {
+		modelName = codexGovernanceAlertCooldownKey(record)
+	}
+	reservation, allowed := reserveCodexGovernanceAlertCooldown(
+		modelName,
+		time.Now(),
+		time.Duration(cooldownMinutes)*time.Minute,
+	)
+	if !allowed {
+		return nil
+	}
+	if err := SendDingTalkText(
+		setting.DingTalkAlertWebhookURL,
+		setting.DingTalkAlertSecret,
+		BuildDingTalkCodexModelGovernanceAlertContent(record),
+	); err != nil {
+		if reservation != nil {
+			reservation.Rollback()
+		}
+		return err
+	}
+	if reservation != nil {
+		if err := reservation.Commit(); err != nil {
+			common.SysError("failed to commit codex governance alert cooldown reservation: " + err.Error())
+		}
+	}
+	return nil
 }
 
 func NotifyDingTalkChannelTestFailures(alerts []DingTalkChannelAlert) error {

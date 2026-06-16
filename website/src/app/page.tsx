@@ -1,10 +1,12 @@
 import { HomePage } from "@/components/home-page";
+import { getCopy } from "@/lib/copy";
 import { buildMetadata } from "@/lib/seo";
 
+const copy = getCopy("en");
+
 export const metadata = buildMetadata({
-  title: "AI API gateway for production teams",
-  description:
-    "flatkey.ai unifies AI model access, routing, billing, usage analytics, and operations controls for production teams.",
+  title: copy.home.title,
+  description: copy.home.description,
   pathname: "/",
 });
 

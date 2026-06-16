@@ -109,4 +109,6 @@ func TestMigrateDBFastCreatesDingTalkAlertCooldownTable(t *testing.T) {
 
 	require.NoError(t, migrateDBFast())
 	require.True(t, db.Migrator().HasTable(&DingTalkAlertCooldownRecord{}))
+	require.True(t, db.Migrator().HasTable(&CodexModelGovernanceProbeState{}))
+	require.True(t, db.Migrator().HasTable(&CodexModelGovernanceAlertCooldownRecord{}))
 }
