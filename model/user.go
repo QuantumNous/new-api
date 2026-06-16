@@ -687,6 +687,20 @@ func (user *User) UpdateGitHubId(newGitHubId string) error {
 	return DB.Model(user).Update("github_id", newGitHubId).Error
 }
 
+// UpdateAutoTopup persists only the three auto-topup columns. A map (not a
+// struct) is used so that turning the feature OFF (enabled=false, a zero value)
+// is actually written — a plain Updates(struct) would silently skip the false.
+func (user *User) UpdateAutoTopup() error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	return DB.Model(user).Updates(map[string]interface{}{
+		"auto_topup_enabled":   user.AutoTopupEnabled,
+		"auto_topup_threshold": user.AutoTopupThreshold,
+		"auto_topup_amount":    user.AutoTopupAmount,
+	}).Error
+}
+
 func (user *User) FillUserByDiscordId() error {
 	if user.DiscordId == "" {
 		return errors.New("discord id 为空！")

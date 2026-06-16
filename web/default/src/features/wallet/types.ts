@@ -259,6 +259,14 @@ export interface UserWalletData {
   aff_count: number
   /** User group */
   group: string
+  /** Saved Stripe customer id — non-empty once a card has been saved */
+  stripe_customer?: string
+  /** Auto-topup: charge saved card when balance runs low */
+  auto_topup_enabled?: boolean
+  /** Auto-topup: trigger when quota drops below this (quota units) */
+  auto_topup_threshold?: number
+  /** Auto-topup: quota credited per auto-recharge (quota units) */
+  auto_topup_amount?: number
 }
 
 /**

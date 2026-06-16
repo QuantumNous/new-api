@@ -4653,6 +4653,12 @@
     "For example": "举个例子",
     "If every request used a premium model": "如果每个请求都用顶级模型",
     "With smart routing": "用智能路由后",
-    "Just set the model to “auto”. DeepRouter reads each request and sends it to the cheapest model that can do the job well — so simple questions cost pennies and only the hard ones use a premium model. You save money without thinking about it.": "只要把模型设成“auto”,DeepRouter 会读懂每个请求,自动发给能胜任的最便宜的模型——简单问题只花几分钱,只有难题才动用高级模型。你什么都不用想,钱就省下来了。"
+    "Just set the model to “auto”. DeepRouter reads each request and sends it to the cheapest model that can do the job well — so simple questions cost pennies and only the hard ones use a premium model. You save money without thinking about it.": "只要把模型设成“auto”,DeepRouter 会读懂每个请求,自动发给能胜任的最便宜的模型——简单问题只花几分钱,只有难题才动用高级模型。你什么都不用想,钱就省下来了。",
+    "Each auto-recharge charges your saved card": "每次自动充值会从你保存的银行卡扣款",
+    "Never run out — top up automatically when your balance is low": "余额不足时自动充值,服务永不中断",
+    "Top up once with a card first to enable auto-recharge.": "请先用银行卡手动充值一次以保存卡片,之后才能启用自动充值。",
+    "When your balance runs low we automatically charge the selected amount to the card saved on your last top-up, so your service never stops. You can turn this off anytime.": "当余额不足时,我们会自动从你上次充值保存的银行卡扣取所选金额,确保服务不中断。你可以随时关闭。",
+    "Auto-recharge settings saved": "自动充值设置已保存",
+    "Auto-recharge": "自动充值"
   }
 }

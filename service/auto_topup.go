@@ -39,12 +39,12 @@ import (
 // AutoTopupResult is the outcome of MaybeAutoTopup. Exposed for testing
 // and observability; the caller normally ignores it.
 type AutoTopupResult struct {
-	Triggered       bool   // we actually ran a Stripe charge
-	SkipReason      string // why we skipped (when Triggered=false)
-	StripeIntentID  string // payment intent id on success
-	ChargedCents    int64  // amount charged in cents
-	QuotaIncreased  int    // quota units added on success
-	Err             error  // non-nil if the charge attempt failed
+	Triggered      bool   // we actually ran a Stripe charge
+	SkipReason     string // why we skipped (when Triggered=false)
+	StripeIntentID string // payment intent id on success
+	ChargedCents   int64  // amount charged in cents
+	QuotaIncreased int    // quota units added on success
+	Err            error  // non-nil if the charge attempt failed
 }
 
 // stripeChargeFn is the function we call to actually charge Stripe.
@@ -86,12 +86,20 @@ func decideAutoTopup(p autoTopupPreconditions) (shouldCharge bool, cents int64, 
 	if !p.RedisEnabled {
 		return false, 0, "redis_not_enabled"
 	}
-	cents = quotaUnitsToStripeCents(p.Amount)
-	if cents < 50 { // Stripe minimum charge is $0.50 USD
+	// Auto-topup is charged at the SELLING rate, not the cost basis. quotaUnits-
+	// ToStripeCents gives the cost-dollar value of the quota; we multiply by
+	// autoTopupSellMultiplier so the platform earns the same markup as a manual
+	// top-up instead of selling quota at cost. Operator-tunable later.
+	cents = quotaUnitsToStripeCents(p.Amount) * autoTopupSellMultiplier
+	if cents < 500 { // platform minimum auto-topup charge: $5.00 USD
 		return false, cents, "amount_below_stripe_minimum"
 	}
 	return true, cents, ""
 }
+
+// autoTopupSellMultiplier is the USD selling price per cost-dollar of quota.
+// 5 ⇒ $5 charged per $1 of model usage (≈ the 8 AUD/unit manual price).
+const autoTopupSellMultiplier int64 = 5
 
 // MaybeAutoTopup checks the user's auto-topup config and, if conditions
 // are met, charges the saved Stripe payment method and increments the
@@ -219,4 +227,3 @@ func looksLikeStripeKey(s string) bool {
 	}
 	return s[:3] == "sk_" || s[:3] == "rk_"
 }
-
