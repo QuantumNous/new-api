@@ -57,6 +57,34 @@ func TestMonitorSettingLoadsAIAnalysisEndpointFieldsFromConfigMap(t *testing.T) 
 	require.Equal(t, "gpt-monitor", setting.AIAnalysisModel)
 }
 
+func TestMonitorSettingUsesAIAnalysisEndpointEnvWhenConfigIsDefault(t *testing.T) {
+	original := monitorSetting
+	monitorSetting.AIAnalysisBaseURL = DefaultMonitorAIAnalysisBaseURL
+	monitorSetting.AIAnalysisModel = DefaultMonitorAIAnalysisModelName
+	t.Cleanup(func() {
+		monitorSetting = original
+	})
+	t.Setenv(MonitorAIAnalysisBaseURLEnv, "https://ai-env.example.com/v1")
+	t.Setenv(MonitorAIAnalysisModelEnv, "gpt-env-monitor")
+
+	require.Equal(t, "https://ai-env.example.com/v1", GetMonitorAIAnalysisBaseURL())
+	require.Equal(t, "gpt-env-monitor", GetMonitorAIAnalysisModel())
+}
+
+func TestMonitorSettingConfiguredAIAnalysisEndpointOverridesEnv(t *testing.T) {
+	original := monitorSetting
+	monitorSetting.AIAnalysisBaseURL = "https://ai-config.example.com/v1"
+	monitorSetting.AIAnalysisModel = "gpt-config-monitor"
+	t.Cleanup(func() {
+		monitorSetting = original
+	})
+	t.Setenv(MonitorAIAnalysisBaseURLEnv, "https://ai-env.example.com/v1")
+	t.Setenv(MonitorAIAnalysisModelEnv, "gpt-env-monitor")
+
+	require.Equal(t, "https://ai-config.example.com/v1", GetMonitorAIAnalysisBaseURL())
+	require.Equal(t, "gpt-config-monitor", GetMonitorAIAnalysisModel())
+}
+
 func TestMonitorSettingLoadsChannelTypeFiltersFromConfigMap(t *testing.T) {
 	setting := &MonitorSetting{}
 

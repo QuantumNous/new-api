@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,6 +52,7 @@ type channelTestOptions struct {
 	MaxTokens    uint
 	SkipLog      bool
 	EndpointType string
+	Context      context.Context
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -167,12 +169,16 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
 
-	c.Request = &http.Request{
+	requestContext := options.Context
+	if requestContext == nil {
+		requestContext = context.Background()
+	}
+	c.Request = (&http.Request{
 		Method: "POST",
 		URL:    &url.URL{Path: requestPath}, // 使用动态路径
 		Body:   nil,
 		Header: make(http.Header),
-	}
+	}).WithContext(requestContext)
 
 	cache, err := model.GetUserCache(testUserID)
 	if err != nil {

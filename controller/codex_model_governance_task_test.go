@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -113,6 +114,46 @@ func TestCodexGovernanceTaskUsesProbeIntervalWhenEnabled(t *testing.T) {
 	})
 
 	require.Equal(t, 2*time.Hour, got)
+}
+
+func TestCodexGovernanceProbeShouldStopWhenContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.False(t, codexGovernanceProbeShouldContinue(ctx))
+}
+
+func TestCodexGovernanceProbeShouldStopWhenGovernanceDisabled(t *testing.T) {
+	setting := operation_setting.GetCodexModelGovernanceSetting()
+	original := *setting
+	t.Cleanup(func() {
+		*setting = original
+	})
+
+	setting.Enabled = true
+	setting.ProbeEnabled = true
+	require.True(t, codexGovernanceProbeShouldContinue(context.Background()))
+
+	setting.ProbeEnabled = false
+	require.False(t, codexGovernanceProbeShouldContinue(context.Background()))
+
+	setting.Enabled = false
+	setting.ProbeEnabled = true
+	require.False(t, codexGovernanceProbeShouldContinue(context.Background()))
+}
+
+func TestCodexGovernanceTaskWaitDurationUsesFixedNextRun(t *testing.T) {
+	now := time.Unix(100, 0)
+	nextRun := now.Add(30 * time.Second)
+
+	require.Equal(t, 30*time.Second, codexGovernanceTaskWaitDuration(now, nextRun, true))
+}
+
+func TestCodexGovernanceTaskWaitDurationKeepsIdleWhenProbeOverruns(t *testing.T) {
+	now := time.Unix(100, 0)
+	nextRun := now.Add(-time.Second)
+
+	require.Equal(t, codexGovernanceMinimumProbeIdle, codexGovernanceTaskWaitDuration(now, nextRun, true))
 }
 
 func TestClassifyCodexGovernanceProbeErrorOnlyMatchesConfiguredRules(t *testing.T) {

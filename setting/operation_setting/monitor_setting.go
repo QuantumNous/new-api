@@ -65,25 +65,23 @@ func GetMonitorAIAnalysisAPIKey() string {
 }
 
 func GetMonitorAIAnalysisBaseURL() string {
-	baseURL := strings.TrimSpace(GetMonitorSetting().AIAnalysisBaseURL)
-	if baseURL != "" {
-		return baseURL
-	}
-	baseURL = strings.TrimSpace(os.Getenv(MonitorAIAnalysisBaseURLEnv))
-	if baseURL != "" {
-		return baseURL
-	}
-	return DefaultMonitorAIAnalysisBaseURL
+	return getMonitorStringWithEnvFallback(GetMonitorSetting().AIAnalysisBaseURL, DefaultMonitorAIAnalysisBaseURL, MonitorAIAnalysisBaseURLEnv)
 }
 
 func GetMonitorAIAnalysisModel() string {
-	modelName := strings.TrimSpace(GetMonitorSetting().AIAnalysisModel)
-	if modelName != "" {
-		return modelName
+	return getMonitorStringWithEnvFallback(GetMonitorSetting().AIAnalysisModel, DefaultMonitorAIAnalysisModelName, MonitorAIAnalysisModelEnv)
+}
+
+func getMonitorStringWithEnvFallback(configValue string, defaultValue string, envName string) string {
+	value := strings.TrimSpace(configValue)
+	if value != "" && value != defaultValue {
+		return value
 	}
-	modelName = strings.TrimSpace(os.Getenv(MonitorAIAnalysisModelEnv))
-	if modelName != "" {
-		return modelName
+	if envValue := strings.TrimSpace(os.Getenv(envName)); envValue != "" {
+		return envValue
 	}
-	return DefaultMonitorAIAnalysisModelName
+	if value != "" {
+		return value
+	}
+	return defaultValue
 }

@@ -1523,6 +1523,7 @@
     "Enter announcement content (supports Markdown/HTML)": "Введите содержимое объявления (поддерживает Markdown/HTML)",
     "Enter API Key": "Введите API-ключ",
     "Enter API key for this channel": "Введите ключ API для этого канала",
+    "Enter a valid http or https URL": "Введите допустимый URL http или https",
     "Enter API Key, format: APIKey|Region": "Введите ключ API, формат: APIKey|Region",
     "Enter API Key, one per line, format: APIKey|Region": "Введите ключ API, по одному на строку, формат: APIKey|Region",
     "Enter application token": "Введите токен приложения",

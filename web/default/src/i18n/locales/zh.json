@@ -1523,6 +1523,7 @@
     "Enter announcement content (supports Markdown/HTML)": "输入公告内容（支持 Markdown/HTML）",
     "Enter API Key": "请输入 API Key",
     "Enter API key for this channel": "输入此渠道的 API 密钥",
+    "Enter a valid http or https URL": "请输入有效的 http 或 https URL",
     "Enter API Key, format: APIKey|Region": "请输入 API Key，格式：APIKey|Region",
     "Enter API Key, one per line, format: APIKey|Region": "请输入 API Key（每行一个），格式：APIKey|Region",
     "Enter application token": "输入应用程序令牌",

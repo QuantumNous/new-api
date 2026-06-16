@@ -354,7 +354,7 @@ func TestCodexGovernanceUpdateAbilitiesDoesNotRecreateRemovedModel(t *testing.T)
 	require.True(t, unaffected.Enabled)
 }
 
-func TestCodexGovernanceUpsertPendingKeepsRecordWhenAbilityDisableFails(t *testing.T) {
+func TestCodexGovernanceUpsertPendingRollsBackRecordWhenAbilityDisableFails(t *testing.T) {
 	originalDB := DB
 	originalUsingSQLite := common.UsingSQLite
 	originalUsingMySQL := common.UsingMySQL
@@ -395,15 +395,11 @@ func TestCodexGovernanceUpsertPendingKeepsRecordWhenAbilityDisableFails(t *testi
 		DisableAbilities:   true,
 	})
 
-	require.NoError(t, err)
-	require.NotNil(t, record)
-	require.Equal(t, CodexModelGovernanceStatusUnsupportedPendingReview, record.Status)
-	require.Equal(t, "17", record.AffectedChannelIDs)
-	require.Empty(t, record.DisabledChannelIDs)
-	require.False(t, record.AbilitiesDisabled)
+	require.Error(t, err)
+	require.Nil(t, record)
 	var count int64
 	require.NoError(t, DB.Model(&CodexModelGovernanceRecord{}).Where("model_name = ?", "gpt-5.3-codex").Count(&count).Error)
-	require.Equal(t, int64(1), count)
+	require.Zero(t, count)
 }
 
 func TestCodexGovernanceUpsertPendingRollsBackAbilityDisableWhenMetadataUpdateFails(t *testing.T) {
@@ -432,15 +428,11 @@ func TestCodexGovernanceUpsertPendingRollsBackAbilityDisableWhenMetadataUpdateFa
 	})
 
 	require.ErrorIs(t, err, expectedErr)
-	require.NotNil(t, record)
+	require.Nil(t, record)
 	require.True(t, injected)
 
 	var stored CodexModelGovernanceRecord
-	require.NoError(t, DB.First(&stored, "model_name = ?", "gpt-5.3-codex").Error)
-	require.Equal(t, CodexModelGovernanceStatusUnsupportedPendingReview, stored.Status)
-	require.Equal(t, "18", stored.AffectedChannelIDs)
-	require.Empty(t, stored.DisabledChannelIDs)
-	require.False(t, stored.AbilitiesDisabled)
+	require.ErrorIs(t, DB.First(&stored, "model_name = ?", "gpt-5.3-codex").Error, gorm.ErrRecordNotFound)
 
 	var ability Ability
 	require.NoError(t, DB.First(&ability, "channel_id = ? AND model = ?", 18, "gpt-5.3-codex").Error)
@@ -675,6 +667,7 @@ func TestCodexGovernanceProbeSuccessRestoresAlertOnlyPendingRecord(t *testing.T)
 		ModelName:          "gpt-5.3-codex",
 		Source:             CodexModelGovernanceSourceOfficialCodexNotice,
 		AffectedChannelIDs: []int{58},
+		LastCheckedAt:      123,
 		DisableAbilities:   false,
 	})
 	require.NoError(t, err)
@@ -684,9 +677,10 @@ func TestCodexGovernanceProbeSuccessRestoresAlertOnlyPendingRecord(t *testing.T)
 
 	updated, err := GetCodexModelGovernanceRecord(record.ID)
 	require.NoError(t, err)
-	require.Equal(t, CodexModelGovernanceStatusActive, updated.Status)
+	require.Equal(t, CodexModelGovernanceStatusUnsupportedPendingReview, updated.Status)
 	require.Empty(t, updated.DisabledChannelIDs)
 	require.False(t, updated.AbilitiesDisabled)
+	require.Greater(t, updated.LastCheckedAt, int64(123))
 }
 
 func TestCodexGovernanceProbeSuccessPreservesRemovedRecord(t *testing.T) {
@@ -736,16 +730,22 @@ func TestCodexGovernanceUpsertPendingPreservesRemovedStatusForOfficialNotice(t *
 
 	require.NoError(t, err)
 	require.Equal(t, CodexModelGovernanceStatusRemoved, updated.Status)
-	require.Equal(t, "63", updated.AffectedChannelIDs)
-	require.Equal(t, "63", updated.DisabledChannelIDs)
+	require.Equal(t, "63,64", updated.AffectedChannelIDs)
+	require.Equal(t, "63,64", updated.DisabledChannelIDs)
 	require.True(t, updated.AbilitiesDisabled)
 	require.Equal(t, 7, updated.ReviewedBy)
 	require.NotZero(t, updated.ReviewedAt)
 	require.Equal(t, "confirmed removed", updated.ReviewNote)
 
-	var reintroduced Ability
-	require.NoError(t, DB.First(&reintroduced, "channel_id = ? AND model = ?", 64, "gpt-5.3-codex").Error)
-	require.True(t, reintroduced.Enabled)
+	var reintroducedCount int64
+	require.NoError(t, DB.Model(&Ability{}).
+		Where("channel_id = ? AND model = ?", 64, "gpt-5.3-codex").
+		Count(&reintroducedCount).Error)
+	require.Zero(t, reintroducedCount)
+
+	var channel Channel
+	require.NoError(t, DB.First(&channel, "id = ?", 64).Error)
+	require.NotContains(t, splitCodexGovernanceModels(channel.Models), "gpt-5.3-codex")
 }
 
 func TestCodexGovernanceUpsertPendingPreservesRemovedStatusForProbeFinding(t *testing.T) {
@@ -772,16 +772,22 @@ func TestCodexGovernanceUpsertPendingPreservesRemovedStatusForProbeFinding(t *te
 
 	require.NoError(t, err)
 	require.Equal(t, CodexModelGovernanceStatusRemoved, updated.Status)
-	require.Equal(t, "65", updated.AffectedChannelIDs)
-	require.Equal(t, "65", updated.DisabledChannelIDs)
+	require.Equal(t, "65,66", updated.AffectedChannelIDs)
+	require.Equal(t, "65,66", updated.DisabledChannelIDs)
 	require.True(t, updated.AbilitiesDisabled)
 	require.Equal(t, 7, updated.ReviewedBy)
 	require.NotZero(t, updated.ReviewedAt)
 	require.Equal(t, "confirmed removed", updated.ReviewNote)
 
-	var reintroduced Ability
-	require.NoError(t, DB.First(&reintroduced, "channel_id = ? AND model = ?", 66, "gpt-5.3-codex").Error)
-	require.True(t, reintroduced.Enabled)
+	var reintroducedCount int64
+	require.NoError(t, DB.Model(&Ability{}).
+		Where("channel_id = ? AND model = ?", 66, "gpt-5.3-codex").
+		Count(&reintroducedCount).Error)
+	require.Zero(t, reintroducedCount)
+
+	var channel Channel
+	require.NoError(t, DB.First(&channel, "id = ?", 66).Error)
+	require.NotContains(t, splitCodexGovernanceModels(channel.Models), "gpt-5.3-codex")
 }
 
 func TestCodexGovernanceProbeUnsupportedFailureIgnoresMissingStateTable(t *testing.T) {
@@ -913,6 +919,34 @@ func TestCodexGovernanceUpsertKeepsIgnoredAlertOnlyFindingIgnored(t *testing.T) 
 	require.Equal(t, CodexModelGovernanceStatusIgnored, updated.Status)
 	require.False(t, updated.AbilitiesDisabled)
 	require.Equal(t, "still mentioned", updated.LastError)
+}
+
+func TestCodexGovernanceProbeSuccessPreservesIgnoredAlertOnlyRecord(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 60, constant.ChannelTypeCodex, "gpt-5.3-codex")
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceOfficialCodexNotice,
+		MatchedRule:        "deprecated",
+		AffectedChannelIDs: []int{60},
+		LastCheckedAt:      123,
+		DisableAbilities:   false,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ReviewCodexModelGovernanceRecord(record.ID, CodexModelGovernanceStatusIgnored, 7, "not actionable"))
+
+	require.NoError(t, RestoreCodexModelGovernanceAfterProbeSuccess("gpt-5.3-codex", 60))
+
+	updated, err := GetCodexModelGovernanceRecord(record.ID)
+	require.NoError(t, err)
+	require.Equal(t, CodexModelGovernanceStatusIgnored, updated.Status)
+	require.False(t, updated.AbilitiesDisabled)
+	require.Empty(t, updated.DisabledChannelIDs)
+	require.Equal(t, 7, updated.ReviewedBy)
+	require.NotZero(t, updated.ReviewedAt)
+	require.Equal(t, "not actionable", updated.ReviewNote)
+	require.Greater(t, updated.LastCheckedAt, int64(123))
 }
 
 func TestCodexGovernanceProbeReopensIgnoredAlertOnlyFinding(t *testing.T) {

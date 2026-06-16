@@ -1523,6 +1523,7 @@
     "Enter announcement content (supports Markdown/HTML)": "Nhập nội dung thông báo (hỗ trợ Markdown/HTML)",
     "Enter API Key": "Nhập khóa API",
     "Enter API key for this channel": "Nhập khóa API cho kênh này",
+    "Enter a valid http or https URL": "Nhập URL http hoặc https hợp lệ",
     "Enter API Key, format: APIKey|Region": "Nhập khóa API, định dạng: APIKey|Region",
     "Enter API Key, one per line, format: APIKey|Region": "Nhập khóa API, mỗi dòng một khóa, định dạng: APIKey|Region",
     "Enter application token": "Nhập token ứng dụng",

@@ -1523,6 +1523,7 @@
     "Enter announcement content (supports Markdown/HTML)": "アナウンス内容を入力（Markdown/HTML対応）",
     "Enter API Key": "API キーを入力",
     "Enter API key for this channel": "このチャネルの API キーを入力してください",
+    "Enter a valid http or https URL": "有効な http または https URL を入力してください",
     "Enter API Key, format: APIKey|Region": "APIキーを入力してください。形式: APIKey | Region",
     "Enter API Key, one per line, format: APIKey|Region": "APIキーを1行に1つずつ入力してください。形式: APIKey | Region",
     "Enter application token": "アプリケーショントークンを入力",

@@ -1523,6 +1523,7 @@
     "Enter announcement content (supports Markdown/HTML)": "Enter announcement content (supports Markdown/HTML)",
     "Enter API Key": "Enter API Key",
     "Enter API key for this channel": "Enter API key for this channel",
+    "Enter a valid http or https URL": "Enter a valid http or https URL",
     "Enter API Key, format: APIKey|Region": "Enter API Key, format: APIKey|Region",
     "Enter API Key, one per line, format: APIKey|Region": "Enter API Key, one per line, format: APIKey|Region",
     "Enter application token": "Enter application token",

@@ -1523,6 +1523,7 @@
     "Enter announcement content (supports Markdown/HTML)": "Insira o conteúdo do anúncio (suporta Markdown/HTML)",
     "Enter API Key": "Insira a chave da API",
     "Enter API key for this channel": "Insira a chave API para este canal",
+    "Enter a valid http or https URL": "Insira uma URL http ou https válida",
     "Enter API Key, format: APIKey|Region": "Insira a chave da API, formato: APIKey|Region",
     "Enter API Key, one per line, format: APIKey|Region": "Insira a chave API, uma por linha, formato: APIKey|Region",
     "Enter application token": "Insira o token do aplicativo",

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ const (
 	codexGovernanceProbePrompt                          = "ping"
 	codexGovernanceProbeUnsupportedConsecutiveThreshold = 2
 	codexGovernanceDisabledPollInterval                 = time.Minute
+	codexGovernanceMinimumProbeIdle                     = time.Minute
 )
 
 var codexModelGovernanceTaskOnce sync.Once
@@ -41,6 +43,40 @@ func codexGovernanceTaskSleepDuration(setting *operation_setting.CodexModelGover
 		return codexGovernanceDisabledPollInterval
 	}
 	return codexGovernanceProbeInterval(setting)
+}
+
+func codexGovernanceTaskWaitDuration(now time.Time, nextRun time.Time, ranWork bool) time.Duration {
+	wait := nextRun.Sub(now)
+	if wait > 0 {
+		return wait
+	}
+	if ranWork {
+		return codexGovernanceMinimumProbeIdle
+	}
+	return codexGovernanceDisabledPollInterval
+}
+
+func codexGovernanceContextDone(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func codexGovernanceProbeSettingEnabled(ctx context.Context, setting *operation_setting.CodexModelGovernanceSetting) bool {
+	if codexGovernanceContextDone(ctx) {
+		return false
+	}
+	return setting != nil && setting.Enabled && setting.ProbeEnabled
+}
+
+func codexGovernanceProbeShouldContinue(ctx context.Context) bool {
+	return codexGovernanceProbeSettingEnabled(ctx, operation_setting.GetCodexModelGovernanceSetting())
 }
 
 func classifyCodexGovernanceProbeError(message string, patterns []string) service.CodexUnsupportedMatch {
@@ -139,8 +175,12 @@ func collectConfiguredCodexModelNames() ([]string, error) {
 }
 
 func runCodexModelGovernanceProbeOnce() {
+	runCodexModelGovernanceProbeOnceWithContext(context.Background())
+}
+
+func runCodexModelGovernanceProbeOnceWithContext(ctx context.Context) {
 	setting := operation_setting.GetCodexModelGovernanceSetting()
-	if setting == nil || !setting.Enabled || !setting.ProbeEnabled {
+	if !codexGovernanceProbeSettingEnabled(ctx, setting) {
 		return
 	}
 	testUserID, err := resolveChannelTestUserID(nil)
@@ -154,10 +194,17 @@ func runCodexModelGovernanceProbeOnce() {
 		return
 	}
 	for _, channel := range channels {
+		if !codexGovernanceProbeShouldContinue(ctx) {
+			return
+		}
 		if channel.Status != common.ChannelStatusEnabled {
 			continue
 		}
 		for _, modelName := range channel.GetModels() {
+			setting = operation_setting.GetCodexModelGovernanceSetting()
+			if !codexGovernanceProbeSettingEnabled(ctx, setting) {
+				return
+			}
 			modelName = strings.TrimSpace(modelName)
 			if modelName == "" {
 				continue
@@ -169,7 +216,11 @@ func runCodexModelGovernanceProbeOnce() {
 				LogContent: "Codex model governance probe",
 				MaxTokens:  8,
 				SkipLog:    true,
+				Context:    ctx,
 			})
+			if !codexGovernanceProbeShouldContinue(ctx) {
+				return
+			}
 			if result.localErr == nil && result.newAPIError == nil {
 				resetCodexGovernanceProbeFailure(modelName, channel.Id)
 				if err := model.RestoreCodexModelGovernanceAfterProbeSuccess(modelName, channel.Id); err != nil {
@@ -205,6 +256,24 @@ func runCodexModelGovernanceProbeOnce() {
 				resetCodexGovernanceProbeFailuresAfterPending(modelName, matchedModel, channel.Id)
 			}
 		}
+	}
+}
+
+func sleepCodexGovernanceTask(ctx context.Context, duration time.Duration) bool {
+	if duration <= 0 {
+		return true
+	}
+	if ctx == nil {
+		time.Sleep(duration)
+		return true
+	}
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
@@ -264,14 +333,26 @@ func StartCodexModelGovernanceTask() {
 		return
 	}
 	codexModelGovernanceTaskOnce.Do(func() {
+		ctx := context.Background()
 		gopool.Go(func() {
 			for {
+				if codexGovernanceContextDone(ctx) {
+					return
+				}
 				setting := operation_setting.GetCodexModelGovernanceSetting()
 				if setting != nil && setting.Enabled {
-					runCodexModelGovernanceProbeOnce()
+					startedAt := time.Now()
+					nextRun := startedAt.Add(codexGovernanceProbeInterval(setting))
+					runCodexModelGovernanceProbeOnceWithContext(ctx)
 					runCodexOfficialNoticeMonitorOnce()
+					if !sleepCodexGovernanceTask(ctx, codexGovernanceTaskWaitDuration(time.Now(), nextRun, true)) {
+						return
+					}
+					continue
 				}
-				time.Sleep(codexGovernanceTaskSleepDuration(setting))
+				if !sleepCodexGovernanceTask(ctx, codexGovernanceTaskSleepDuration(setting)) {
+					return
+				}
 			}
 		})
 	})

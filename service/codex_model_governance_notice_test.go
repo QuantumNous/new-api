@@ -213,6 +213,35 @@ func TestExtractCodexOfficialNoticeFindingsWithOptionalAIDowngradesToRulesWhenAI
 	require.Equal(t, "retired", findings[0].MatchedRule)
 }
 
+func TestExtractCodexOfficialNoticeFindingsWithOptionalAIRedactsNon2xxBody(t *testing.T) {
+	allowCodexOfficialNoticeAITestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"Authorization: Bearer sk-leaked-token temporary unavailable"}`))
+	}))
+	defer server.Close()
+	useCodexOfficialNoticeHTTPClient(t, server.Client())
+
+	t.Setenv("MONITOR_AI_ANALYSIS_BASE_URL", server.URL+"/v1")
+	t.Setenv("MONITOR_AI_ANALYSIS_MODEL", "gpt-test")
+
+	findings, usedAI, err := ExtractCodexOfficialNoticeFindingsWithOptionalAI(
+		"Codex update: gpt-5.3-codex will be retired.",
+		[]string{"gpt-5.3-codex"},
+		[]string{"retired"},
+		"https://example.com/codex/changelog",
+		"sk-test",
+	)
+
+	require.True(t, usedAI)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "status 401")
+	require.NotContains(t, err.Error(), "sk-leaked-token")
+	require.NotContains(t, err.Error(), "Authorization")
+	require.NotContains(t, err.Error(), "temporary unavailable")
+	require.Len(t, findings, 1)
+}
+
 func TestExtractCodexOfficialNoticeFindingsWithOptionalAIUsesRulesWithoutAPIKey(t *testing.T) {
 	findings, usedAI, err := ExtractCodexOfficialNoticeFindingsWithOptionalAI(
 		"Codex update: gpt-5.3-codex will be retired.",

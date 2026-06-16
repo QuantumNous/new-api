@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -179,7 +178,7 @@ func requestCodexOfficialNoticeAIAnalysis(content string, modelNames []string, s
 		return codexOfficialNoticeAIResult{}, fmt.Errorf("monitoring AI analysis response exceeds %d bytes", codexOfficialNoticeAIResponseMaxBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return codexOfficialNoticeAIResult{}, fmt.Errorf("monitoring AI analysis returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+		return codexOfficialNoticeAIResult{}, fmt.Errorf("monitoring AI analysis returned status %d: %s", resp.StatusCode, codexOfficialNoticeAIErrorBodySummary(raw))
 	}
 
 	var envelope codexOfficialNoticeAIHTTPResponse
@@ -272,10 +271,18 @@ func buildCodexOfficialNoticeAIResponseSchema() codexOfficialNoticeAIJSONSchema 
 }
 
 func resolveCodexOfficialNoticeAIOptions(options CodexOfficialNoticeAIOptions) CodexOfficialNoticeAIOptions {
+	baseURL := strings.TrimSpace(options.BaseURL)
+	if baseURL == "" {
+		baseURL = operation_setting.GetMonitorAIAnalysisBaseURL()
+	}
+	modelName := strings.TrimSpace(options.Model)
+	if modelName == "" {
+		modelName = operation_setting.GetMonitorAIAnalysisModel()
+	}
 	return CodexOfficialNoticeAIOptions{
 		APIKey:  strings.TrimSpace(options.APIKey),
-		BaseURL: codexOfficialNoticeAIBaseURL(options.BaseURL),
-		Model:   codexOfficialNoticeAIModel(options.Model),
+		BaseURL: codexOfficialNoticeAIBaseURL(baseURL),
+		Model:   codexOfficialNoticeAIModel(modelName),
 	}
 }
 
@@ -290,9 +297,6 @@ func codexOfficialNoticeAIEndpoint(baseURL string) string {
 
 func codexOfficialNoticeAIBaseURL(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
-	if baseURL == "" {
-		baseURL = strings.TrimSpace(os.Getenv(operation_setting.MonitorAIAnalysisBaseURLEnv))
-	}
 	if baseURL != "" {
 		return baseURL
 	}
@@ -301,13 +305,19 @@ func codexOfficialNoticeAIBaseURL(baseURL string) string {
 
 func codexOfficialNoticeAIModel(modelName string) string {
 	modelName = strings.TrimSpace(modelName)
-	if modelName == "" {
-		modelName = strings.TrimSpace(os.Getenv(operation_setting.MonitorAIAnalysisModelEnv))
-	}
 	if modelName != "" {
 		return modelName
 	}
 	return operation_setting.DefaultMonitorAIAnalysisModelName
+}
+
+func codexOfficialNoticeAIErrorBodySummary(raw []byte) string {
+	body := strings.TrimSpace(string(raw))
+	if body == "" {
+		return "empty response body"
+	}
+	sanitized := common.LocalLogPreview(common.MaskSensitiveInfo(body))
+	return fmt.Sprintf("response body redacted (sanitized_length=%d)", len([]rune(sanitized)))
 }
 
 func extractCodexOfficialNoticeAIOutputText(envelope codexOfficialNoticeAIHTTPResponse) string {
