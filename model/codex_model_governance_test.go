@@ -588,6 +588,99 @@ func TestCodexGovernanceUpsertPendingPreservesReviewedDisabledStatus(t *testing.
 	require.Equal(t, "still unsupported", updated.LastError)
 }
 
+func TestCodexGovernanceUpsertPendingPreservesRemovedStatusForOfficialNotice(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 63, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex")
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{63},
+		DisableAbilities:   true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ReviewCodexModelGovernanceRecord(record.ID, CodexModelGovernanceStatusRemoved, 7, "confirmed removed"))
+
+	insertCodexGovernanceChannel(t, 64, constant.ChannelTypeCodex, "gpt-5.3-codex")
+	updated, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceOfficialCodexNotice,
+		MatchedRule:        "deprecated",
+		LastError:          "official notice still mentions gpt-5.3-codex",
+		AffectedChannelIDs: []int{64},
+		DisableAbilities:   false,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, CodexModelGovernanceStatusRemoved, updated.Status)
+	require.Equal(t, "63", updated.AffectedChannelIDs)
+	require.Equal(t, "63", updated.DisabledChannelIDs)
+	require.True(t, updated.AbilitiesDisabled)
+	require.Equal(t, 7, updated.ReviewedBy)
+	require.NotZero(t, updated.ReviewedAt)
+	require.Equal(t, "confirmed removed", updated.ReviewNote)
+
+	var reintroduced Ability
+	require.NoError(t, DB.First(&reintroduced, "channel_id = ? AND model = ?", 64, "gpt-5.3-codex").Error)
+	require.True(t, reintroduced.Enabled)
+}
+
+func TestCodexGovernanceUpsertPendingPreservesRemovedStatusForProbeFinding(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	insertCodexGovernanceChannel(t, 65, constant.ChannelTypeCodex, "gpt-5.3-codex,gpt-5.4-codex")
+
+	record, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		AffectedChannelIDs: []int{65},
+		DisableAbilities:   true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, ReviewCodexModelGovernanceRecord(record.ID, CodexModelGovernanceStatusRemoved, 7, "confirmed removed"))
+
+	insertCodexGovernanceChannel(t, 66, constant.ChannelTypeCodex, "gpt-5.3-codex")
+	updated, err := UpsertCodexModelGovernancePending(CodexModelGovernancePendingInput{
+		ModelName:          "gpt-5.3-codex",
+		Source:             CodexModelGovernanceSourceProbe,
+		LastError:          "probe still rejects the model",
+		AffectedChannelIDs: []int{66},
+		DisableAbilities:   true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, CodexModelGovernanceStatusRemoved, updated.Status)
+	require.Equal(t, "65", updated.AffectedChannelIDs)
+	require.Equal(t, "65", updated.DisabledChannelIDs)
+	require.True(t, updated.AbilitiesDisabled)
+	require.Equal(t, 7, updated.ReviewedBy)
+	require.NotZero(t, updated.ReviewedAt)
+	require.Equal(t, "confirmed removed", updated.ReviewNote)
+
+	var reintroduced Ability
+	require.NoError(t, DB.First(&reintroduced, "channel_id = ? AND model = ?", 66, "gpt-5.3-codex").Error)
+	require.True(t, reintroduced.Enabled)
+}
+
+func TestCodexGovernanceProbeUnsupportedFailureIgnoresMissingStateTable(t *testing.T) {
+	originalDB := DB
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	DB = db
+	t.Cleanup(func() {
+		DB = originalDB
+		require.NoError(t, sqlDB.Close())
+	})
+
+	count, escalate, err := RecordCodexModelGovernanceProbeUnsupportedFailure("gpt-5.3-codex", 11, 2)
+
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.False(t, escalate)
+}
+
 func TestCodexGovernanceReviewRejectsIgnoreWhenAbilitiesAreDisabled(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
 	insertCodexGovernanceChannel(t, 53, constant.ChannelTypeCodex, "gpt-5.3-codex")

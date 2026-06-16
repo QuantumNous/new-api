@@ -231,6 +231,24 @@ func UpsertCodexModelGovernancePending(input CodexModelGovernancePendingInput) (
 			if record.DetectedAt == 0 {
 				record.DetectedAt = now
 			}
+			if record.Status == CodexModelGovernanceStatusRemoved {
+				updates := map[string]any{
+					"source":          source,
+					"matched_rule":    strings.TrimSpace(input.MatchedRule),
+					"last_error":      strings.TrimSpace(input.LastError),
+					"detected_at":     record.DetectedAt,
+					"last_checked_at": lastCheckedAt,
+					"updated_time":    now,
+				}
+				if err := tx.Model(&CodexModelGovernanceRecord{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
+					return err
+				}
+				if err := tx.First(&record, "id = ?", record.ID).Error; err != nil {
+					return err
+				}
+				disabledChannelIDs = nil
+				return nil
+			}
 			affectedChannelIDs = normalizeCodexModelGovernanceChannelIDs(
 				append(decodeCodexModelGovernanceChannelIDs(record.AffectedChannelIDs), affectedChannelIDs...),
 			)

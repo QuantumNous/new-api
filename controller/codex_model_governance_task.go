@@ -54,6 +54,7 @@ func recordCodexGovernanceProbeUnsupportedMatch(modelName string, channelID int)
 			return count, escalate
 		}
 		common.SysError(fmt.Sprintf("Codex governance probe failed to persist failure state for %s on channel #%d: %v", modelName, channelID, err))
+		return 0, false
 	}
 	return recordCodexGovernanceProbeUnsupportedMatchInMemory(modelName, channelID)
 }

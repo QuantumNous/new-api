@@ -48,6 +48,29 @@ CREATE TABLE codex_model_governance_probe_states (
 	})
 }
 
+func setupBrokenCodexGovernanceProbeFailureStateTestDB(t *testing.T) {
+	t.Helper()
+
+	originalDB := model.DB
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.Exec(`
+CREATE TABLE codex_model_governance_probe_states (
+	model_name varchar(255) NOT NULL,
+	channel_id integer NOT NULL,
+	PRIMARY KEY (model_name, channel_id)
+)`).Error)
+	model.DB = db
+
+	t.Cleanup(func() {
+		model.DB = originalDB
+		require.NoError(t, sqlDB.Close())
+	})
+}
+
 func setupCodexGovernanceProbeFindingTestDB(t *testing.T) {
 	t.Helper()
 
@@ -158,6 +181,25 @@ func TestCodexGovernanceProbeUnsupportedMatchPersistsAcrossProcessLocalReset(t *
 	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
 	require.Equal(t, codexGovernanceProbeUnsupportedConsecutiveThreshold, count)
 	require.True(t, escalate)
+}
+
+func TestCodexGovernanceProbeUnsupportedMatchDoesNotUseMemoryFallbackWhenPersistenceFails(t *testing.T) {
+	setupBrokenCodexGovernanceProbeFailureStateTestDB(t)
+	resetCodexGovernanceProbeFailuresForTest()
+	t.Cleanup(resetCodexGovernanceProbeFailuresForTest)
+
+	count, escalate := recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Zero(t, count)
+	require.False(t, escalate)
+
+	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Zero(t, count)
+	require.False(t, escalate)
+
+	model.DB = nil
+	count, escalate = recordCodexGovernanceProbeUnsupportedMatch("gpt-5.3-codex", 11)
+	require.Equal(t, 1, count)
+	require.False(t, escalate)
 }
 
 func TestCodexGovernanceProbePendingReviewResetsProbedAndMatchedFailureKeys(t *testing.T) {

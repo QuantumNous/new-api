@@ -70,7 +70,7 @@ func RecordCodexModelGovernanceProbeUnsupportedFailure(modelName string, channel
 	})
 	if err != nil {
 		if isModelAvailabilityTableMissingError(err) {
-			return 0, false, err
+			return 0, false, nil
 		}
 		return 0, false, err
 	}
