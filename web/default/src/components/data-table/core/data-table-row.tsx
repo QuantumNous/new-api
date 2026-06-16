@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
+import { type ComponentProps } from 'react'
 import { flexRender, type Row } from '@tanstack/react-table'
 import { TableCell, TableRow } from '@/components/ui/table'
 import type { DataTableColumnClassName } from './types'
@@ -25,9 +25,9 @@ type DataTableRowProps<TData> = {
   row: Row<TData>
   className?: string
   getColumnClassName?: DataTableColumnClassName
-} & Omit<React.ComponentProps<typeof TableRow>, 'children'>
+} & Omit<ComponentProps<typeof TableRow>, 'children'>
 
-function DataTableRowInner<TData>({
+export function DataTableRow<TData>({
   row,
   className,
   getColumnClassName,
@@ -50,14 +50,3 @@ function DataTableRowInner<TData>({
     </TableRow>
   )
 }
-
-export const DataTableRow = React.memo(DataTableRowInner, (prev, next) => {
-  // Skip re-render when only the getColumnClassName reference changed but the
-  // row identity and selection state are the same — callers rarely stabilize
-  // this callback, so excluding it from comparison avoids unnecessary renders.
-  return (
-    prev.row === next.row &&
-    prev.className === next.className &&
-    prev.row.getIsSelected() === next.row.getIsSelected()
-  )
-}) as typeof DataTableRowInner
