@@ -33,6 +33,58 @@ func TestMonitorSettingLoadsDingTalkFieldsFromConfigMap(t *testing.T) {
 	require.Equal(t, 15.0, setting.DingTalkAlertCooldownMinutes)
 }
 
+func TestMonitorSettingLoadsAIAnalysisAPIKeyFromConfigMap(t *testing.T) {
+	setting := &MonitorSetting{}
+
+	err := config.UpdateConfigFromMap(setting, map[string]string{
+		"ai_analysis_api_key": "sk-monitor",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "sk-monitor", setting.AIAnalysisAPIKey)
+}
+
+func TestMonitorSettingLoadsAIAnalysisEndpointFieldsFromConfigMap(t *testing.T) {
+	setting := &MonitorSetting{}
+
+	err := config.UpdateConfigFromMap(setting, map[string]string{
+		"ai_analysis_base_url": "https://ai-gateway.example.com/v1",
+		"ai_analysis_model":    "gpt-monitor",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "https://ai-gateway.example.com/v1", setting.AIAnalysisBaseURL)
+	require.Equal(t, "gpt-monitor", setting.AIAnalysisModel)
+}
+
+func TestMonitorSettingUsesAIAnalysisEndpointEnvWhenConfigIsDefault(t *testing.T) {
+	original := monitorSetting
+	monitorSetting.AIAnalysisBaseURL = DefaultMonitorAIAnalysisBaseURL
+	monitorSetting.AIAnalysisModel = DefaultMonitorAIAnalysisModelName
+	t.Cleanup(func() {
+		monitorSetting = original
+	})
+	t.Setenv(MonitorAIAnalysisBaseURLEnv, "https://ai-env.example.com/v1")
+	t.Setenv(MonitorAIAnalysisModelEnv, "gpt-env-monitor")
+
+	require.Equal(t, "https://ai-env.example.com/v1", GetMonitorAIAnalysisBaseURL())
+	require.Equal(t, "gpt-env-monitor", GetMonitorAIAnalysisModel())
+}
+
+func TestMonitorSettingConfiguredAIAnalysisEndpointOverridesEnv(t *testing.T) {
+	original := monitorSetting
+	monitorSetting.AIAnalysisBaseURL = "https://ai-config.example.com/v1"
+	monitorSetting.AIAnalysisModel = "gpt-config-monitor"
+	t.Cleanup(func() {
+		monitorSetting = original
+	})
+	t.Setenv(MonitorAIAnalysisBaseURLEnv, "https://ai-env.example.com/v1")
+	t.Setenv(MonitorAIAnalysisModelEnv, "gpt-env-monitor")
+
+	require.Equal(t, "https://ai-config.example.com/v1", GetMonitorAIAnalysisBaseURL())
+	require.Equal(t, "gpt-config-monitor", GetMonitorAIAnalysisModel())
+}
+
 func TestMonitorSettingLoadsChannelTypeFiltersFromConfigMap(t *testing.T) {
 	setting := &MonitorSetting{}
 

@@ -29,6 +29,12 @@ type listModelsResponse struct {
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
+	originalRedisEnabled := common.RedisEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
 	initModelListColumnNames(t)
 
 	gin.SetMode(gin.TestMode)
@@ -46,6 +52,12 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
 
 	t.Cleanup(func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
+		common.RedisEnabled = originalRedisEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -220,10 +232,12 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 		"zz-token-tiered-visible-model":    `tier("base", p * 1 + c * 2)`,
 		"zz-token-tiered-empty-expr-model": "",
 	})
+	setupModelListControllerTestDB(t)
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
 	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
 	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
 		"zz-token-tiered-visible-model":      true,

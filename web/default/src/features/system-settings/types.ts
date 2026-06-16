@@ -39,6 +39,21 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type CodexModelGovernanceRuleTestRequest = {
+  message: string
+  patterns: string[]
+}
+
+export type CodexModelGovernanceRuleTestResponse = {
+  success: boolean
+  message: string
+  data: {
+    matched: boolean
+    model_name: string
+    matched_rule: string
+  }
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -302,6 +317,16 @@ export type OperationsSettings = {
   'monitor_setting.dingtalk_alert_webhook_url': string
   'monitor_setting.dingtalk_alert_secret': string
   'monitor_setting.dingtalk_alert_cooldown_minutes': number
+  'monitor_setting.ai_analysis_api_key': string
+  'monitor_setting.ai_analysis_base_url': string
+  'monitor_setting.ai_analysis_model': string
+  'codex_model_governance_setting.enabled': boolean
+  'codex_model_governance_setting.probe_enabled': boolean
+  'codex_model_governance_setting.probe_interval_minutes': number
+  'codex_model_governance_setting.unsupported_message_patterns': string[]
+  'codex_model_governance_setting.official_source_urls': string[]
+  'codex_model_governance_setting.official_lifecycle_terms': string[]
+  'codex_model_governance_setting.alert_cooldown_minutes': number
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

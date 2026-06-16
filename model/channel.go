@@ -30,6 +30,13 @@ func publishChannelsChanged() {
 	}
 }
 
+func refreshLocalChannelCacheAndPublishChanged() {
+	if common.MemoryCacheEnabled {
+		InitChannelCache()
+	}
+	publishChannelsChanged()
+}
+
 type Channel struct {
 	Id                 int     `json:"id"`
 	Type               int     `json:"type" gorm:"default:0"`

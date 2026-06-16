@@ -29,30 +29,26 @@ func InitChannelCache() {
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 	}
+	newGroup2model2channels := make(map[string]map[string][]int)
 	var abilities []*Ability
 	DB.Find(&abilities)
-	groups := make(map[string]bool)
 	for _, ability := range abilities {
-		groups[ability.Group] = true
-	}
-	newGroup2model2channels := make(map[string]map[string][]int)
-	for group := range groups {
-		newGroup2model2channels[group] = make(map[string][]int)
-	}
-	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue // skip disabled channels
+		if !ability.Enabled {
+			continue
 		}
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
-			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]int, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
-			}
+		channel, ok := newChannelId2channel[ability.ChannelId]
+		if !ok || channel.Status != common.ChannelStatusEnabled {
+			continue
 		}
+		group := strings.TrimSpace(ability.Group)
+		model := strings.TrimSpace(ability.Model)
+		if group == "" || model == "" {
+			continue
+		}
+		if _, ok := newGroup2model2channels[group]; !ok {
+			newGroup2model2channels[group] = make(map[string][]int)
+		}
+		newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], ability.ChannelId)
 	}
 
 	// sort by priority

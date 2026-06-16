@@ -22,12 +22,7 @@ import path from 'node:path'
 // This script is executed from the web/ package root (see package.json script).
 const LOCALES_DIR = path.resolve('src/i18n/locales')
 const FALLBACK_COMPARE_LOCALE = 'en' // used for "still English" detection only
-const OBFUSCATED_KEYS = [
-  {
-    runtime: ['footer', 'new' + 'api', 'projectAttributionSuffix'].join('.'),
-    serialized: 'footer.new\\u0061pi.projectAttributionSuffix',
-  },
-]
+const OBFUSCATED_KEYS = []
 
 const BRAND_AND_LITERAL_KEYS = new Set([
   'AI Proxy',
@@ -87,6 +82,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Submodel',
   'SunoAPI',
   'Telegram',
+  'Telegram ID',
   'Tencent',
   'TTFT P50',
   'TTFT P95',
@@ -104,6 +100,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Webhook URL:',
   'Well-Known URL',
   'Worker URL',
+  'WeChat ID',
   'Xinference',
   'Xunfei',
   'Zhipu V4',

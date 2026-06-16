@@ -157,6 +157,9 @@ func main() {
 	// Model official availability detection task
 	controller.StartModelAvailabilityDetectionTask()
 
+	// Codex subscription model governance task
+	controller.StartCodexModelGovernanceTask()
+
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()
