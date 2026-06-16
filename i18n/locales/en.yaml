@@ -109,6 +109,11 @@ quota.exceed_max: "Quota value exceeds valid range"
 quota.insufficient: "Insufficient quota"
 quota.warning_invalid: "Invalid warning type"
 quota.threshold_gt_zero: "Warning threshold must be greater than 0"
+quota.user_insufficient: "Insufficient user quota, remaining quota: {{.Quota}}"
+quota.pre_consume_failed: "Failed to pre-deduct quota, user remaining quota: {{.Remaining}}, required pre-deduct quota: {{.Required}}"
+quota.subscription_insufficient: "Insufficient subscription quota or no subscription configured: {{.Detail}}"
+quota.token_insufficient: "Token quota is not enough, token remaining quota: {{.Remain}}, required quota: {{.Required}}"
+quota.user_insufficient_need: "User quota is not enough, user quota: {{.Quota}}, required quota: {{.Required}}"
 
 # Subscription messages
 subscription.not_enabled: "Subscription plan is not enabled"

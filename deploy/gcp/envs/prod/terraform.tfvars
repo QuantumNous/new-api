@@ -37,3 +37,17 @@ alert_email = ""
 // injected on the live service on 2026-06-08, so the desired state must keep it on —
 // otherwise a future `terraform apply` would strip the env. Keep this true.
 enable_usage_recon_token = true
+
+// --- Standalone Next.js website (apex flatkey.ai + www → Node; everything else → Go) ---
+// website_domains are served through Cloudflare orange-cloud (depth ≤ 2, covered by
+// Universal SSL), so they are intentionally NOT in lb_domains: no managed-cert rotation,
+// no HTTPS downtime window. The Go console moves to console.flatkey.ai (also orange,
+// reached via the LB default backend — no lb_domains change needed for it either).
+enable_website             = true
+website_service_name       = "newapi-web"
+website_app_console_origin = "https://console.flatkey.ai"
+website_site_origin        = "https://flatkey.ai"
+// Phase C (flipped): apex + www are routed to the Next.js website backend via the
+// LB host_rule; everything else (console/router/etc.) stays on the Go app.
+// Reverting to [] and re-applying instantly rolls back (host_rule disappears).
+website_domains = ["flatkey.ai", "www.flatkey.ai"]

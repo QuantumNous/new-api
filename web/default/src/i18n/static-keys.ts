@@ -96,6 +96,7 @@ export const STATIC_I18N_KEYS = [
   'Successfully created {{count}} API Key(s)',
   'Successfully deleted {{count}} API key(s)',
   'Enter API key for this channel',
+  'Enter a valid http or https URL',
 
   // Users
   'Root',

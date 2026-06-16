@@ -140,11 +140,11 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	quota := calculateAudioQuota(quotaInfo)
 
 	if userQuota < quota {
-		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
+		return fmt.Errorf("%s", common.TranslateMessage(ctx, "quota.user_insufficient_need", map[string]any{"Quota": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(quota)}))
 	}
 
 	if !token.UnlimitedQuota && token.RemainQuota < quota {
-		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
+		return fmt.Errorf("%s", common.TranslateMessage(ctx, "quota.token_insufficient", map[string]any{"Remain": logger.FormatQuota(token.RemainQuota), "Required": logger.FormatQuota(quota)}))
 	}
 
 	err = PostConsumeQuota(relayInfo, quota, 0, false)
@@ -380,9 +380,27 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	})
 }
 
+// ErrInsufficientTokenQuota marks a genuine token-quota-exhausted condition
+// returned by PreConsumeTokenQuota. It is distinct from the DB/system errors the
+// same function may surface (GetTokenByKey / DecreaseTokenQuota failures, the
+// negative-quota invariant). Callers MUST use errors.Is to map only this case to
+// 429 + skip-retry; other errors stay 5xx and are recorded, so storage-layer
+// failures are not masked as quota exhaustion.
+var ErrInsufficientTokenQuota = errors.New("insufficient token quota")
+
+// insufficientTokenQuotaError carries the localized user-facing message while
+// still matching ErrInsufficientTokenQuota via errors.Is.
+type insufficientTokenQuotaError struct{ msg string }
+
+func (e *insufficientTokenQuotaError) Error() string { return e.msg }
+
+func (e *insufficientTokenQuotaError) Is(target error) bool {
+	return target == ErrInsufficientTokenQuota
+}
+
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New(i18n.Translate(relayInfo.UserSetting.Language, "quota.negative", nil))
 	}
 	if relayInfo.IsPlayground {
 		return nil
@@ -395,7 +413,7 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 		return err
 	}
 	if !relayInfo.TokenUnlimited && token.RemainQuota < quota {
-		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
+		return &insufficientTokenQuotaError{msg: i18n.Translate(relayInfo.UserSetting.Language, "quota.token_insufficient", map[string]any{"Remain": logger.FormatQuota(token.RemainQuota), "Required": logger.FormatQuota(quota)})}
 	}
 	err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 	if err != nil {

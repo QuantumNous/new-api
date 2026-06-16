@@ -157,6 +157,9 @@ func main() {
 	// Model official availability detection task
 	controller.StartModelAvailabilityDetectionTask()
 
+	// Codex subscription model governance task
+	controller.StartCodexModelGovernanceTask()
+
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()
@@ -203,13 +206,17 @@ func main() {
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
-	store.Options(sessions.Options{
+	sessionOptions := sessions.Options{
 		Path:     "/",
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   common.SessionCookieSecure,
 		SameSite: http.SameSiteStrictMode,
-	})
+	}
+	if common.CookieSessionDomain != "" {
+		sessionOptions.Domain = common.CookieSessionDomain
+	}
+	store.Options(sessionOptions)
 	server.Use(sessions.Sessions("session", store))
 
 	InjectUmamiAnalytics()

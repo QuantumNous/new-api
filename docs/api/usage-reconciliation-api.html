@@ -282,6 +282,7 @@
   <table>
     <tr><th>字段</th><th>类型</th><th>说明</th></tr>
     <tr><td><code>transaction_id</code></td><td>string</td><td>明细 ID，<code>"txn_" + 日志 id</code></td></tr>
+    <tr><td><code>upstream_request_id</code></td><td>string</td><td>BlockRun 上游响应顶层 ID（<code>chatcmpl-*</code> / <code>msg-*</code>），用于和 BlockRun <code>CallTransaction.id</code> 精确对账；历史或未捕获数据为空</td></tr>
     <tr><td><code>request_id</code></td><td>string</td><td>请求 ID</td></tr>
     <tr><td><code>api_key_id</code></td><td>string</td><td>API Key ID</td></tr>
     <tr><td><code>api_key_name</code></td><td>string</td><td>API Key 名称</td></tr>
@@ -315,6 +316,7 @@
   "transactions": [
     {
       "transaction_id": "txn_1062313",
+      "upstream_request_id": "chatcmpl-blockrun-abc123",
       "request_id": "20260608090006a1b2c3d4",
       "api_key_id": "41",
       "api_key_name": "prod-openai",

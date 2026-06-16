@@ -2,12 +2,15 @@
 
 ## Overview
 
-This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
+This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and a console dashboard.
+
+The public marketing/SEO website is no longer maintained inside the Go application or `web/default`. The official website lives in the standalone Next.js project under `website/`. Treat the Go application as the API proxy plus authenticated console dashboard product only.
 
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
+- **Console frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS (`web/default/`, embedded by the Go application)
+- **Official website**: Next.js 16, React 19, Tailwind CSS (`website/`, standalone Node app)
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
@@ -30,20 +33,23 @@ common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
 dto/           — Data transfer objects (request/response structs)
 constant/      — Constants (API types, channel types, context keys)
 types/         — Type definitions (relay formats, file sources, errors)
-i18n/          — Backend internationalization (go-i18n, en/zh)
+i18n/          — Backend internationalization (go-i18n; full: en/zh-CN/zh-TW/pt, email-only: es/fr/ru/ja/vi)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
 web/             — Frontend themes container
- web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
+ web/default/   — Console dashboard frontend (React 19, Rsbuild, Base UI, Tailwind; embedded by Go)
   web/classic/   — Classic frontend (React 18, Vite, Semi Design)
   web/default/src/i18n/ — Frontend internationalization (i18next, en/zh/fr/ru/ja/vi/es/pt)
+website/        — Official public website (Next.js standalone Node app; SEO/marketing/legal/pricing pages)
 ```
 
 ## Internationalization (i18n)
 
 ### Backend (`i18n/`)
 - Library: `nicksnyder/go-i18n/v2`
-- Languages: en, zh
+- Languages: **完整翻译** en、zh-CN、zh-TW、pt（`i18n/locales/*.yaml`，每个 ~290 行）；**email-only** es、fr、ru、ja、vi（仅含邮件类 key，其余 key 在 `Translate` 中回退英文）
+- 默认/兜底语言：`DefaultLang = en`（`GetLangFromContext` 解析顺序：用户语言设置 → 用户ID懒加载 → 中间件 Accept-Language → 请求头 Accept-Language → 英文）
+- 新增后端 key：写入 4 个完整翻译文件（en/zh-CN/zh-TW/pt），不要漏；带参数用 go-i18n 模板语法 `{{.Var}}`，调用方传 `map[string]any`
 
 ### Frontend (`web/default/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
@@ -57,7 +63,7 @@ web/             — Frontend themes container
 - 新 key 必须写入 `locales/` 全部 8 个语言文件，漏写会回退英文；删除/重命名 key 同步清理 8 个文件。
 - 必须真实翻译，禁止把英文原文复制为其他语言的值（es/pt 多次漏翻）；品牌词例外（`BRAND_AND_LITERAL_KEYS`）。
 - 改完在 `web/default/` 跑 `bun run i18n:sync`，提交前检查 `locales/_reports/{lang}.untranslated.json` 是否出现自己改动的 key。
-- 用户可见字符串一律走 `t()`（含 toast/placeholder/错误消息）；非 `t()` 字面量 key 登记 `src/i18n/static-keys.ts`；后端用户可见报错走 `i18n/`（go-i18n，en/zh），与前端体系独立。
+- 用户可见字符串一律走 `t()`（含 toast/placeholder/错误消息）；非 `t()` 字面量 key 登记 `src/i18n/static-keys.ts`；后端用户可见报错走 `i18n/`（go-i18n，完整翻译 en/zh-CN/zh-TW/pt，兜底英文），与前端体系独立。
 - AI review 涉及文案的 diff 时必须逐项核对以上各条（找漏 key：`grep -L "新 key" src/i18n/locales/*.json`），发现问题按缺陷处理，不得降级为"可选优化"。
 
 ## Rules
@@ -106,11 +112,17 @@ All database code MUST be fully compatible with all three databases simultaneous
 
 ### Rule 3: Frontend — Prefer Bun
 
-Use `bun` as the preferred package manager and script runner for the frontend (`web/default/` directory):
+Use `bun` as the preferred package manager and script runner for frontend projects:
 - `bun install` for dependency installation
 - `bun run dev` for development server
 - `bun run build` for production build
 - `bun run i18n:*` for i18n tooling
+
+Scope frontend work correctly:
+- `web/default/` and `web/classic/` are console/dashboard frontends served by the Go app.
+- `website/` is the only maintained official public website. Do not add or maintain public website pages in the Go app or `web/default`.
+- The Go app should focus on API proxy, billing, auth, admin/user console, relay, and dashboard behavior.
+- Website-to-console links and API proxy origins are environment-driven: `OFFICIAL_WEBSITE_ORIGIN` points console Home to the website; `APP_CONSOLE_ORIGIN` points the Next website to the Go application.
 
 ### Rule 4: New Channel StreamOptions Support
 
@@ -144,6 +156,15 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 - Reuse `taskcommon.BindSeedanceRequest` (parse + validate + synthesize `task_request` + set Action). Each channel only writes its own `build<Channel>CreateRequest` mapping function (seedance → that channel's upstream wire format), its value-domain checks (fail fast on unsupported values), and registration.
 - Whitelabel is mandatory: never leak the upstream supplier name, host, or internal model name in responses/logs/docs; results go through the `/v1/videos/{task_id}/content` proxy. Token `usage` is surfaced automatically via `task.PrivateData`.
 - Reference implementation: `relay/channel/task/kuaizi/`.
+
+### Rule 9: Official Public Website Lives Only in `website/`
+
+The public-facing official website — home/marketing, pricing, rankings, blog, legal pages, and SEO surfaces (`sitemap.xml` / `robots.txt` / `llms.txt`, canonical/hreflang) — is maintained **exclusively** in the standalone Next.js project under `website/`. Read `website/AGENTS.md` before touching it.
+
+- **Do NOT** add, restore, or maintain public website / marketing / landing / legal / pricing pages in the Go application or in `web/default`. `web/default` is the authenticated **console/dashboard SPA only**; the old in-SPA marketing pages are deprecated — extend the public site in `website/`, never in `web/default` or the Go app.
+- Production routing is **host-based** at the GCP LB: `flatkey.ai` + `www.flatkey.ai` → the Next website (Cloud Run `newapi-web`); `console.flatkey.ai` / `router.flatkey.ai` → the Go app. Do not reintroduce public pages on the Go hosts.
+- Cross-app wiring is **environment-driven** — never hardcode the peer origin: `APP_CONSOLE_ORIGIN` (website → Go console/API), `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` (website's own canonical origin), `OFFICIAL_WEBSITE_ORIGIN` (console → website).
+- CI/CD & infra: `website/` builds and deploys via `.github/workflows/gcp-deploy-website.yml` (separate Cloud Run service, container port 4000); the Go app uses `gcp-deploy.yml` (which `paths-ignore`s `website/**`). LB host-split + second Cloud Run live in `deploy/gcp/` — see `deploy/gcp/docs/WEBSITE_ROLLOUT.md`.
 
 ---
 
@@ -229,6 +250,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 - `web/AGENTS.md` — 前端容器（双主题）
 - `web/default/AGENTS.md` — 默认主题（React 19 + Rsbuild + Base UI + Tailwind，规范详尽）
 - `web/classic/AGENTS.md` — 经典主题（React 18 + Vite + Semi Design）
+- `website/AGENTS.md` — 独立官网（Next.js 16 standalone Node 应用；SEO/营销/法务/定价/博客；**新增/修改公开页必读**，→ Rule 9）
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

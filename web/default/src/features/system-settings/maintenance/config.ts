@@ -40,9 +40,9 @@ export type SidebarSectionConfig = {
 export type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 
 export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
-  home: true,
-  console: true,
-  blog: true,
+  home: false,
+  console: false,
+  blog: false,
   pricing: {
     enabled: true,
     requireAuth: false,
@@ -78,6 +78,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     enabled: true,
     channel: true,
     models: true,
+    codex_governance: true,
     redemption: true,
     user: true,
     setting: true,

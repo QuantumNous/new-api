@@ -280,6 +280,9 @@ func migrateDB() error {
 		&PerfMetric{},
 		&DingTalkAlertCooldownRecord{},
 		&ModelAvailabilityState{},
+		&CodexModelGovernanceRecord{},
+		&CodexModelGovernanceProbeState{},
+		&CodexModelGovernanceAlertCooldownRecord{},
 	)
 	if err != nil {
 		return err
@@ -297,8 +300,6 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
-
-	var wg sync.WaitGroup
 
 	migrations := []struct {
 		model interface{}
@@ -334,28 +335,15 @@ func migrateDBFast() error {
 		{&PerfMetric{}, "PerfMetric"},
 		{&DingTalkAlertCooldownRecord{}, "DingTalkAlertCooldownRecord"},
 		{&ModelAvailabilityState{}, "ModelAvailabilityState"},
+		{&CodexModelGovernanceRecord{}, "CodexModelGovernanceRecord"},
+		{&CodexModelGovernanceProbeState{}, "CodexModelGovernanceProbeState"},
+		{&CodexModelGovernanceAlertCooldownRecord{}, "CodexModelGovernanceAlertCooldownRecord"},
 	}
-	// 动态计算migration数量，确保errChan缓冲区足够大
-	errChan := make(chan error, len(migrations))
-
+	// GORM also migrates associations, so parallel AutoMigrate calls can race
+	// when related models share a table dependency.
 	for _, m := range migrations {
-		wg.Add(1)
-		go func(model interface{}, name string) {
-			defer wg.Done()
-			if err := DB.AutoMigrate(model); err != nil {
-				errChan <- fmt.Errorf("failed to migrate %s: %v", name, err)
-			}
-		}(m.model, m.name)
-	}
-
-	// Wait for all migrations to complete
-	wg.Wait()
-	close(errChan)
-
-	// Check for any errors
-	for err := range errChan {
-		if err != nil {
-			return err
+		if err := DB.AutoMigrate(m.model); err != nil {
+			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
 	if common.UsingSQLite {

@@ -110,6 +110,11 @@ quota.exceed_max: "額度值超出有效範圍"
 quota.insufficient: "額度不足"
 quota.warning_invalid: "無效的預警類型"
 quota.threshold_gt_zero: "預警閾值必須大於0"
+quota.user_insufficient: "用戶額度不足, 剩餘額度: {{.Quota}}"
+quota.pre_consume_failed: "預扣費額度失敗, 用戶剩餘額度: {{.Remaining}}, 需要預扣費額度: {{.Required}}"
+quota.subscription_insufficient: "訂閱額度不足或未配置訂閱: {{.Detail}}"
+quota.token_insufficient: "令牌額度不足, 令牌剩餘額度: {{.Remain}}, 需要額度: {{.Required}}"
+quota.user_insufficient_need: "用戶額度不足, 用戶額度: {{.Quota}}, 需要額度: {{.Required}}"
 
 # Subscription messages
 subscription.not_enabled: "訂閱方案未啟用"

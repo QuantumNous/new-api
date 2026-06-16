@@ -224,7 +224,8 @@ func TestUsageTransactions(t *testing.T) {
 
 	t1 := seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "key-a", ModelName: "claude-haiku-4-5",
 		PromptTokens: 1200, CompletionTokens: 320, Quota: 1550, UseTime: 1, RequestId: "req_abc", CreatedAt: 1100,
-		Other: `{"cache_tokens":5,"cache_creation_tokens":3,"upstream_model_name":"anthropic/claude-haiku-4.5"}`})
+		UpstreamRequestId: "chatcmpl_blockrun_1",
+		Other:             `{"cache_tokens":5,"cache_creation_tokens":3,"upstream_model_name":"anthropic/claude-haiku-4.5"}`})
 	seedUsageLog(t, &model.Log{ChannelId: 35, TokenId: 8, TokenName: "key-b", ModelName: "gpt-4o",
 		PromptTokens: 100, CompletionTokens: 50, Quota: 75, UseTime: 2, RequestId: "req_def", CreatedAt: 1200,
 		Other: `{"stream_status":{"status":"error"}}`})
@@ -249,6 +250,9 @@ func TestUsageTransactions(t *testing.T) {
 	tx0 := txns[0].(map[string]interface{})
 	if tx0["source_id"] != strconv.Itoa(t1.Id) {
 		t.Fatalf("source_id=%v, want raw log id %d", tx0["source_id"], t1.Id)
+	}
+	if tx0["upstream_request_id"] != "chatcmpl_blockrun_1" {
+		t.Fatalf("upstream_request_id=%v, want BlockRun call id", tx0["upstream_request_id"])
 	}
 	if _, ok := tx0["id"]; ok {
 		t.Fatalf("id must not be present; use source_id: %v", tx0)

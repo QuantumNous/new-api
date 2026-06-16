@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { officialWebsiteUrl } from '@/lib/origins'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useStatus } from '@/hooks/use-status'
 
@@ -61,26 +62,17 @@ export function useTopNavLinks(): TopNavLink[] {
 
   const links: TopNavLink[] = []
 
-  // Home
-  if (modules?.home !== false) {
-    links.push({ title: t('Home'), href: '/' })
-  }
-
-  // Console -> /dashboard (new console path)
-  if (modules?.console !== false) {
-    links.push({ title: t('Console'), href: '/dashboard' })
-  }
-
-  // Blog
-  if (modules?.blog !== false) {
-    links.push({ title: t('Blog'), href: '/blog' })
-  }
-
   // Pricing
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const requiresAuth = pricing.requireAuth && !isAuthed
-    links.push({ title: t('Model Pricing'), href: '/pricing', requiresAuth })
+    const href = officialWebsiteUrl('/pricing')
+    links.push({
+      title: t('Model Pricing'),
+      href,
+      requiresAuth,
+      external: href.startsWith('http'),
+    })
   }
 
   // Rankings

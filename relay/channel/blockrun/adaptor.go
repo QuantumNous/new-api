@@ -348,6 +348,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if isImageMode(info) {
 		return imageJSONResponseB64(c, resp, info)
 	}
+	// Capture the upstream response body's top-level id (chatcmpl-* / msg-*) —
+	// BlockRun's "CallTransaction.id" — into the gin context so RecordConsumeLog
+	// persists it as logs.upstream_request_id for per-call reconciliation/溯源.
+	// Structure-aware (json for non-stream, first-id sniff for SSE) so it survives
+	// tool-call bodies; native passthrough and streaming SSE are unaffected.
+	captureUpstreamID(c, resp, info)
 	if info.RelayFormat == types.RelayFormatClaude {
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	}

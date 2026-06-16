@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -12,6 +13,19 @@ import (
 )
 
 func GetGroups(c *gin.Context) {
+	// type=user returns the user identity groups (user.Group), whose authoritative
+	// source is the topup group ratio (充值分组比例). Used by the admin user-edit form.
+	// Default returns all ratio groups (model/channel pricing groups), used by
+	// channel configuration.
+	if c.Query("type") == "user" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    common.GetTopupGroupRatioKeys(),
+		})
+		return
+	}
+
 	groupNames := make([]string, 0)
 	for groupName := range ratio_setting.GetGroupRatioCopy() {
 		groupNames = append(groupNames, groupName)

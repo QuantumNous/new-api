@@ -8,6 +8,8 @@
 ## Purpose
 默认主题前端：React 19 + TypeScript + Rsbuild 2.x + Base UI + Tailwind CSS 4.x 的新版管理界面。长期演进方向，功能持续迭代。包管理器为 Bun（CLAUDE.md Rule 3）。
 
+> **范围约束（CLAUDE.md Rule 9）**：本目录**仅限已登录的控制台/后台**。公开/营销/落地/法务/定价/博客/SEO 页一律在独立官网 `website/`（Next.js）维护——**禁止在 `web/default` 新增或恢复任何公开页**；旧的 SPA 内营销页已废弃。
+
 ## Key Files
 | File | Description |
 |------|-------------|
