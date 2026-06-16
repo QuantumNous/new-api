@@ -22,6 +22,7 @@ import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
 import {
   Command,
@@ -45,7 +46,9 @@ export function CommandMenu() {
   const sidebarData = useSidebarData()
 
   // 根据当前路径从工作区注册表获取对应的侧边栏配置
-  const navGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  const rawNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  // 应用与侧边栏相同的 admin x user feature-flag 过滤，避免关闭的模块仍能被搜到
+  const navGroups = useSidebarConfig(rawNavGroups)
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {

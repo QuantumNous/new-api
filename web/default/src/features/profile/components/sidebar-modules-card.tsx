@@ -193,6 +193,23 @@ export function SidebarModulesCard() {
         },
       ],
     },
+    {
+      key: 'marketplace',
+      title: t('Marketplace Area'),
+      description: t('Skill discovery and management'),
+      modules: [
+        {
+          key: 'skills',
+          title: t('Skills'),
+          description: t('Browse the skill marketplace catalog'),
+        },
+        {
+          key: 'mySkills',
+          title: t('My Skills'),
+          description: t('Manage skills enabled for your account'),
+        },
+      ],
+    },
   ]
 
   const loadConfig = useCallback(async () => {

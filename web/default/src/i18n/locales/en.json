@@ -530,6 +530,7 @@
     "Browse and compare": "Browse and compare",
     "Browse available models and pricing": "Browse available models and pricing",
     "Browse rankings by category": "Browse rankings by category",
+    "Browse the skill marketplace catalog": "Browse the skill marketplace catalog",
     "Browse the skill marketplace catalog.": "Browse the skill marketplace catalog.",
     "Budget Tokens Ratio": "Budget Tokens Ratio",
     "Budget tokens = max tokens × ratio. Accepts a decimal between 0.002 and 1. Recommended to keep aligned with upstream billing.": "Budget tokens = max tokens × ratio. Accepts a decimal between 0.002 and 1. Recommended to keep aligned with upstream billing.",
@@ -2149,6 +2150,7 @@
     "Manage multi-key status and configuration for this channel": "Manage multi-key status and configuration for this channel",
     "Manage redemption codes for quota top-up": "Manage redemption codes for quota top-up",
     "Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.": "Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.",
+    "Manage skills enabled for your account": "Manage skills enabled for your account",
     "Manage skills enabled for your account.": "Manage skills enabled for your account.",
     "Manage subscription plan creation, pricing and status": "Manage subscription plan creation, pricing and status",
     "Manage subscription plans and pricing.": "Manage subscription plans and pricing.",
@@ -2165,6 +2167,7 @@
     "Market Share": "Market Share",
     "Marketing": "Marketing",
     "Marketplace": "Marketplace",
+    "Marketplace Area": "Marketplace Area",
     "Marketplace area": "Marketplace area",
     "Master switch — turn off to hide from /wallet": "Master switch — turn off to hide from /wallet",
     "Match All (AND)": "Match All (AND)",
@@ -3540,6 +3543,7 @@
     "Sign In": "Sign In",
     "Skill Marketplace": "Skill Marketplace",
     "Skill Marketplace is not available yet.": "Skill Marketplace is not available yet.",
+    "Skill discovery and management": "Skill discovery and management",
     "Skill discovery and management.": "Skill discovery and management.",
     "Skills": "Skills",
     "Skills you have enabled will appear here": "Skills you have enabled will appear here",
@@ -4669,6 +4673,7 @@
     "Top up once with a card first to enable auto-recharge.": "请先用银行卡手动充值一次以保存卡片,之后才能启用自动充值。",
     "When your balance runs low we automatically charge the selected amount to the card saved on your last top-up, so your service never stops. You can turn this off anytime.": "当余额不足时,我们会自动从你上次充值保存的银行卡扣取所选金额,确保服务不中断。你可以随时关闭。",
     "Auto-recharge settings saved": "自动充值设置已保存",
-    "Auto-recharge": "自动充值"
+    "Auto-recharge": "自动充值",
+    "Airwallex top-ups are one-time only. To enable auto-recharge (auto top-up when your balance is low), pay with Stripe instead.": "Airwallex 仅支持单次充值。如需开启自动充值(余额不足时自动续费),请改用 Stripe 充值。"
   }
 }
