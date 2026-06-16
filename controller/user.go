@@ -131,7 +131,7 @@ func Login(c *gin.Context) {
 }
 
 // setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context) {
+func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
@@ -144,17 +144,23 @@ func setupLogin(user *model.User, c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	data := map[string]any{
+		"id":           user.Id,
+		"username":     user.Username,
+		"display_name": user.DisplayName,
+		"role":         user.Role,
+		"status":       user.Status,
+		"group":        user.Group,
+	}
+	// Surfaced only for brand-new registrations (currently OAuth sign-up) so the frontend can
+	// trigger first-login onboarding. Omitted for normal logins (back-compat).
+	if len(isNewUser) > 0 && isNewUser[0] {
+		data["is_new_user"] = true
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
-		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
-		},
+		"data":    data,
 	})
 }
 

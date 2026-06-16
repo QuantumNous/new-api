@@ -19,30 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import { requestStripePayment } from '@/features/wallet/api'
 import type { StripePaymentResponse } from '@/features/wallet/types'
-import type {
-  ApiResponse,
-  CardBindRequest,
-  CardBindResponse,
-  CardStatusResponse,
-} from './types'
+import type { ApiResponse, CardStatusResponse } from './types'
 
 /**
  * Check if an API response indicates success.
  */
 export function isApiSuccess(response: ApiResponse): boolean {
   return response.success === true || response.message === 'success'
-}
-
-/**
- * Begin Stripe card binding: returns a hosted Checkout (setup mode) link to redirect to.
- */
-export async function beginCardBind(
-  request: CardBindRequest = {}
-): Promise<CardBindResponse> {
-  const res = await api.post('/api/user/stripe/card/bind', request, {
-    skipBusinessError: true,
-  } as Record<string, unknown>)
-  return res.data
 }
 
 /**

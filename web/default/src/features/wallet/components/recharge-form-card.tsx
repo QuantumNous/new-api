@@ -40,10 +40,8 @@ import {
 import { getInvoiceProfile, isApiSuccess } from '../api'
 import {
   formatCurrency,
-  getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
-  calculatePresetPricing,
 } from '../lib'
 import {
   EMPTY_INVOICE_PROFILE,
@@ -81,8 +79,6 @@ interface RechargeFormCardProps {
   redeeming: boolean
   topupLink?: string
   loading?: boolean
-  priceRatio?: number
-  usdExchangeRate?: number
   onOpenBilling?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
@@ -111,8 +107,6 @@ export function RechargeFormCard({
   redeeming,
   topupLink,
   loading,
-  priceRatio = 1,
-  usdExchangeRate = 1,
   onOpenBilling,
   creemProducts,
   enableCreemTopup,
@@ -131,7 +125,6 @@ export function RechargeFormCard({
   )
   const showLocalCurrencyBreakdown = false
   const formatUsdAmount = (amount: number) => `$${formatNumber(amount)} USD`
-  const showUsdPaymentBreakdown = true
 
   useEffect(() => {
     setLocalAmount(topupAmount.toString())
@@ -295,21 +288,6 @@ export function RechargeFormCard({
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset, index) => {
-                      const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
-                      const {
-                        displayValue,
-                        actualPrice,
-                        savedAmount,
-                        hasDiscount,
-                      } = calculatePresetPricing(
-                        preset.value,
-                        priceRatio,
-                        discount,
-                        usdExchangeRate
-                      )
                       return (
                         <Button
                           key={index}
@@ -326,11 +304,6 @@ export function RechargeFormCard({
                             <div className='text-base font-semibold sm:text-lg'>
                               {formatUsdAmount(preset.value)}
                             </div>
-                            {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
-                                {getDiscountLabel(discount)}
-                              </div>
-                            )}
                           </div>
                           {depositBonusUsd(preset.value) > 0 && (
                             <div className='mt-1 text-xs font-semibold text-[#FF2D78]'>
@@ -339,43 +312,6 @@ export function RechargeFormCard({
                               })}
                             </div>
                           )}
-                          {showLocalCurrencyBreakdown && (
-                            <div
-                              className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'
-                              data-display-value={displayValue}
-                            >
-                              {t('Pay {{amount}}', {
-                                amount: formatCurrency(actualPrice),
-                              })}
-                              {hasDiscount && savedAmount > 0 && (
-                                <span className='text-green-600'>
-                                  {' '}
-                                  •{' '}
-                                  {t('Save {{amount}}', {
-                                    amount: formatCurrency(savedAmount),
-                                  })}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {!showLocalCurrencyBreakdown &&
-                            showUsdPaymentBreakdown &&
-                            hasDiscount && (
-                              <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                                {t('Pay {{amount}}', {
-                                  amount: formatUsdAmount(actualPrice),
-                                })}
-                                {savedAmount > 0 && (
-                                  <span className='text-green-600'>
-                                    {' '}
-                                    •{' '}
-                                    {t('Save {{amount}}', {
-                                      amount: formatUsdAmount(savedAmount),
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                            )}
                         </Button>
                       )
                     })}

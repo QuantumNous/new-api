@@ -48,6 +48,8 @@ export interface AuthUser {
   stripe_customer?: string
   stripe_card_bound?: boolean
   new_user_bonus_given?: boolean
+  /** Set true by the backend only on a brand-new OAuth registration, to trigger onboarding. */
+  is_new_user?: boolean
   sidebar_modules?: string
   permissions?: UserPermissions
 }

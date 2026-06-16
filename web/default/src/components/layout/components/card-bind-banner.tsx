@@ -21,6 +21,7 @@ import { useTranslation, Trans } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { isCardBindEligible } from './card-bind-eligibility'
 
 /**
  * A persistent, festive promo banner shown to any signed-in user who has not yet bound a
@@ -34,8 +35,7 @@ export function CardBindBanner() {
   const user = useAuthStore((s) => s.auth.user)
   const openOnboarding = useOnboardingStore((s) => s.openOnboarding)
 
-  if (!config.enableStripeCardBind) return null
-  if (!user || user.stripe_card_bound) return null
+  if (!isCardBindEligible(user, config.enableStripeCardBind)) return null
 
   return (
     // Outer padding mirrors SectionPageLayout's content gutters (px-3 sm:px-4) so the banner's
