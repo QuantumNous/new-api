@@ -171,8 +171,15 @@ export function RechargeFormCard({
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
-  const hasStandardPaymentMethods =
-    Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+  // Frontend-only hide-list for payment methods (e.g. Paddle is not offered right now).
+  // Backend still returns them; we just don't render their buttons.
+  const HIDDEN_PAY_METHOD_TYPES = ['paddle']
+  const visiblePayMethods = Array.isArray(topupInfo?.pay_methods)
+    ? topupInfo.pay_methods.filter(
+        (method) => !HIDDEN_PAY_METHOD_TYPES.includes(method.type)
+      )
+    : []
+  const hasStandardPaymentMethods = visiblePayMethods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
@@ -536,7 +543,7 @@ export function RechargeFormCard({
                 </Label>
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
-                    {topupInfo?.pay_methods?.map((method) => {
+                    {visiblePayMethods.map((method) => {
                       const minTopup = method.min_topup || 0
                       const disabled = minTopup > topupAmount
 
