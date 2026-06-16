@@ -15,6 +15,9 @@
 
 logs/
 data/
+# embed 的默认倍率/价格表必须进构建上下文，否则 go:embed 失败（与 .gitignore 同步的例外）。
+!setting/ratio_setting/data/
+!setting/ratio_setting/data/**
 upload/
 build/
 tiktoken_cache/
