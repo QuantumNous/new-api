@@ -1,11 +1,17 @@
 package channel
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -190,4 +196,102 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+func TestDoApiRequestUsesGinRequestContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	requestReachedUpstream := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestReachedUpstream <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	baseRequest := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	requestContext, cancel := context.WithCancel(baseRequest.Context())
+	cancel()
+	ctx.Request = baseRequest.WithContext(requestContext)
+
+	resp, err := DoApiRequest(
+		requestContextAdaptor{url: server.URL},
+		ctx,
+		&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}},
+		strings.NewReader(`{"model":"gpt-5"}`),
+	)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+
+	require.Error(t, err)
+	select {
+	case <-requestReachedUpstream:
+		t.Fatal("upstream request should inherit the cancelled gin request context")
+	default:
+	}
+}
+
+type requestContextAdaptor struct {
+	url string
+}
+
+func (a requestContextAdaptor) Init(info *relaycommon.RelayInfo) {}
+
+func (a requestContextAdaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	return a.url, nil
+}
+
+func (a requestContextAdaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	return nil
+}
+
+func (a requestContextAdaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) GetModelList() []string {
+	return nil
+}
+
+func (a requestContextAdaptor) GetChannelName() string {
+	return "request-context-test"
+}
+
+func (a requestContextAdaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	return nil, nil
+}
+
+func (a requestContextAdaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	return nil, nil
 }
