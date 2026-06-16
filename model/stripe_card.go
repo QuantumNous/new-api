@@ -167,6 +167,10 @@ func HasRecentStripeAutoCharge(userId int, windowSeconds int64) (bool, error) {
 // recent charge and applies the cooldown. This stops a declined/unverifiable card from
 // triggering a charge attempt on every relay request (decline storm + log spam), and is
 // cross-instance / restart-safe. attemptKey makes the trade_no unique per attempt window.
+//
+// NOTE for revenue/top-up reporting: these rows are status=failed cooldown markers, NOT
+// revenue. Any report aggregating TopUp by payment_provider MUST filter on
+// status = success (the stripe_auto provider also carries these failed markers).
 func RecordStripeAutoChargeAttempt(userId int, amountUnits int, attemptKey string) {
 	if userId <= 0 {
 		return
