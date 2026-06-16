@@ -71,7 +71,7 @@ func TestQueryAndCountBlockRunUsageLogs(t *testing.T) {
 	mustCreateUsage(t, &Channel{Id: 99, Type: 1, Name: "plain-openai", Key: "k3"})
 
 	// in-window consume logs on blockrun channel
-	mustCreateUsage(t, &Log{Type: LogTypeConsume, ChannelId: 34, CreatedAt: 1000, ModelName: "m1", PromptTokens: 1})
+	mustCreateUsage(t, &Log{Type: LogTypeConsume, ChannelId: 34, CreatedAt: 1000, ModelName: "m1", PromptTokens: 1, UpstreamRequestId: "chatcmpl_1"})
 	mustCreateUsage(t, &Log{Type: LogTypeConsume, ChannelId: 34, CreatedAt: 1500, ModelName: "m2", PromptTokens: 2})
 	// excluded: out of window
 	mustCreateUsage(t, &Log{Type: LogTypeConsume, ChannelId: 34, CreatedAt: 5000, ModelName: "m3"})
@@ -106,6 +106,9 @@ func TestQueryAndCountBlockRunUsageLogs(t *testing.T) {
 	}
 	if len(paged) != 1 || paged[0].ModelName != "m1" {
 		t.Fatalf("paged page1 = %v", paged)
+	}
+	if paged[0].UpstreamRequestId != "chatcmpl_1" {
+		t.Fatalf("paged upstream_request_id=%q, want chatcmpl_1", paged[0].UpstreamRequestId)
 	}
 
 	after, err := QueryBlockRunUsageLogsAfterCursor(ids, 1000, 2000, 10, paged[0].CreatedAt, paged[0].Id)

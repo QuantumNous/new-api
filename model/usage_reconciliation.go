@@ -24,9 +24,9 @@ type blockRunModelChannelRow struct {
 }
 
 // usageReconLogColumns is the projection used by the reconciliation queries —
-// only the columns needed to aggregate / render, skipping content/ip/username/
-// upstream_request_id to keep transfer light on large windows.
-const usageReconLogColumns = "id, channel_id, token_id, token_name, model_name, prompt_tokens, completion_tokens, quota, use_time, is_stream, request_id, created_at, other"
+// only the columns needed to aggregate / render, skipping content/ip/username
+// and other wide diagnostic columns to keep transfer light on large windows.
+const usageReconLogColumns = "id, channel_id, token_id, token_name, model_name, prompt_tokens, completion_tokens, quota, use_time, is_stream, request_id, upstream_request_id, created_at, other"
 
 // BlockRunChannelTypes returns every channel type number whose display name in
 // constant.ChannelTypeNames starts with "blockrun" (case-insensitive): currently
