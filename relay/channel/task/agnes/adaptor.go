@@ -327,12 +327,7 @@ func extractVideoURL(raw string, resTask *responseTask) string {
 			return u
 		}
 	}
-	for _, path := range []string{"video_url", "data.video_url", "data.url"} {
-		if u := strings.TrimSpace(gjson.Get(raw, path).String()); u != "" && strings.HasPrefix(u, "http") {
-			return u
-		}
-	}
-	return ""
+	return taskcommon.ExtractVideoURLFromJSON([]byte(raw))
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {

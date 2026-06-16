@@ -3,12 +3,14 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // UnmarshalMetadata converts a map[string]any metadata to a typed struct via JSON round-trip.
@@ -64,6 +66,48 @@ func DecodeLocalTaskID(id string) (string, error) {
 // e.g., "https://your-server.com/v1/videos/task_xxxx/content"
 func BuildProxyURL(taskID string) string {
 	return fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, taskID)
+}
+
+// IsTaskProxyContentURL reports whether url points at this task's video proxy endpoint.
+func IsTaskProxyContentURL(url, taskID string) bool {
+	if strings.TrimSpace(url) == "" || strings.TrimSpace(taskID) == "" {
+		return false
+	}
+	return strings.Contains(url, "/v1/videos/"+taskID+"/content")
+}
+
+// ExtractVideoURLFromJSON scans common upstream video response fields for a direct HTTP URL.
+func ExtractVideoURLFromJSON(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	s := string(raw)
+	for _, path := range []string{
+		"video_url",
+		"data.video_url",
+		"data.url",
+		"remixed_from_video_id",
+	} {
+		if u := strings.TrimSpace(gjson.Get(s, path).String()); u != "" && strings.HasPrefix(u, "http") {
+			return u
+		}
+	}
+	return ""
+}
+
+// ResolveTaskVideoURL returns the upstream video URL for proxying, avoiding self-referencing proxy URLs.
+func ResolveTaskVideoURL(task *model.Task) string {
+	if task == nil {
+		return ""
+	}
+	url := strings.TrimSpace(task.GetResultURL())
+	if url != "" && !IsTaskProxyContentURL(url, task.TaskID) {
+		return url
+	}
+	if u := ExtractVideoURLFromJSON(task.Data); u != "" {
+		return u
+	}
+	return url
 }
 
 // Status-to-progress mapping constants for polling updates.

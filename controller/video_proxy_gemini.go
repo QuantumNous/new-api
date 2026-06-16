@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	"github.com/QuantumNous/new-api/relay"
 )
 
@@ -149,7 +150,7 @@ func getVertexVideoURL(channel *model.Channel, task *model.Task) (string, error)
 	if channel == nil || task == nil {
 		return "", fmt.Errorf("invalid channel or task")
 	}
-	if url := strings.TrimSpace(task.GetResultURL()); url != "" && !isTaskProxyContentURL(url, task.TaskID) {
+	if url := strings.TrimSpace(task.GetResultURL()); url != "" && !taskcommon.IsTaskProxyContentURL(url, task.TaskID) {
 		return url, nil
 	}
 	if url := extractVertexVideoURLFromTaskData(task); url != "" {
@@ -196,13 +197,6 @@ func getVertexVideoURL(channel *model.Channel, task *model.Task) (string, error)
 		return "", fmt.Errorf("parse task result failed: %w", parseErr)
 	}
 	return "", fmt.Errorf("vertex video url not found")
-}
-
-func isTaskProxyContentURL(url string, taskID string) bool {
-	if strings.TrimSpace(url) == "" || strings.TrimSpace(taskID) == "" {
-		return false
-	}
-	return strings.Contains(url, "/v1/videos/"+taskID+"/content")
 }
 
 func getVertexTaskKey(channel *model.Channel, task *model.Task) string {

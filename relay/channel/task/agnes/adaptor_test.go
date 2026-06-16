@@ -6,6 +6,27 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+func TestParseTaskResultCompletedWithRemixedFromVideoID(t *testing.T) {
+	raw := []byte(`{
+		"id": "task_abc",
+		"status": "completed",
+		"progress": 100,
+		"remixed_from_video_id": "https://cdn.example.com/video.mp4"
+	}`)
+
+	adaptor := &TaskAdaptor{}
+	ti, err := adaptor.ParseTaskResult(raw)
+	if err != nil {
+		t.Fatalf("ParseTaskResult failed: %v", err)
+	}
+	if ti.Status != model.TaskStatusSuccess {
+		t.Fatalf("expected success, got %s", ti.Status)
+	}
+	if ti.Url != "https://cdn.example.com/video.mp4" {
+		t.Fatalf("unexpected url: %s", ti.Url)
+	}
+}
+
 func TestParseTaskResultCompleted(t *testing.T) {
 	raw := []byte(`{
 		"id": "task_abc",

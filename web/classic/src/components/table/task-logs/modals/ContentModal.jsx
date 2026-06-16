@@ -24,6 +24,9 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
+const isSameOriginProxyPath = (url) =>
+  typeof url === 'string' && url.startsWith('/v1/videos/');
+
 const ContentModal = ({
   isModalOpen,
   setIsModalOpen,
@@ -33,13 +36,56 @@ const ContentModal = ({
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [videoSrc, setVideoSrc] = useState('');
 
   useEffect(() => {
-    if (isModalOpen && isVideo) {
+    if (!isModalOpen || !isVideo || !modalContent) {
+      setVideoSrc('');
       setVideoError(false);
-      setIsLoading(true);
+      setIsLoading(false);
+      return undefined;
     }
-  }, [isModalOpen, isVideo]);
+
+    setVideoError(false);
+    setIsLoading(true);
+
+    if (!isSameOriginProxyPath(modalContent)) {
+      setVideoSrc(modalContent);
+      return undefined;
+    }
+
+    let objectUrl = '';
+    const controller = new AbortController();
+
+    fetch(modalContent, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setVideoSrc(objectUrl);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setVideoError(true);
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [isModalOpen, isVideo, modalContent]);
 
   const handleVideoError = () => {
     setVideoError(true);
@@ -134,20 +180,22 @@ const ContentModal = ({
             <Spin size='large' />
           </div>
         )}
-        <video
-          src={modalContent}
-          controls
-          style={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-          }}
-          onError={handleVideoError}
-          onLoadedData={handleVideoLoaded}
-          onLoadStart={() => setIsLoading(true)}
-        />
+        {videoSrc ? (
+          <video
+            src={videoSrc}
+            controls
+            style={{
+              width: '100%',
+              height: '100%',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+            }}
+            onError={handleVideoError}
+            onLoadedData={handleVideoLoaded}
+            onLoadStart={() => setIsLoading(true)}
+          />
+        ) : null}
       </div>
     );
   };
