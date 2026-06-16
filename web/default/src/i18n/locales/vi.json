@@ -4982,6 +4982,10 @@
     "GPT-5 input": "Đầu vào GPT-5",
     "Cache reads": "Đọc bộ nhớ đệm",
     "Coverage": "Phạm vi hỗ trợ",
-    "50% off": "giảm 50%"
+    "50% off": "giảm 50%",
+    "New user registration bonus {{amount}}": "Thưởng đăng ký người dùng mới {{amount}}",
+    "Invitation code bonus {{amount}}": "Thưởng mã mời {{amount}}",
+    "Referral reward {{amount}}": "Thưởng giới thiệu {{amount}}",
+    "Check-in reward {{amount}}": "Thưởng điểm danh {{amount}}"
   }
 }

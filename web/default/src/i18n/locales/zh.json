@@ -4982,6 +4982,10 @@
     "GPT-5 input": "GPT-5 输入",
     "Cache reads": "缓存读取",
     "Coverage": "覆盖范围",
-    "50% off": "5 折"
+    "50% off": "5 折",
+    "New user registration bonus {{amount}}": "新用户注册赠送 {{amount}}",
+    "Invitation code bonus {{amount}}": "使用邀请码赠送 {{amount}}",
+    "Referral reward {{amount}}": "邀请用户赠送 {{amount}}",
+    "Check-in reward {{amount}}": "用户签到，获得额度 {{amount}}"
   }
 }
