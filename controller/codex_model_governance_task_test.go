@@ -142,6 +142,32 @@ func TestCodexGovernanceProbeShouldStopWhenGovernanceDisabled(t *testing.T) {
 	require.False(t, codexGovernanceProbeShouldContinue(context.Background()))
 }
 
+func TestCodexGovernanceProbeRequestContextHasBoundedDeadline(t *testing.T) {
+	startedAt := time.Now()
+	ctx, cancel := codexGovernanceProbeRequestContext(context.Background())
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	require.Greater(t, deadline.Sub(startedAt), time.Duration(0))
+	require.LessOrEqual(t, deadline.Sub(startedAt), codexGovernanceSingleProbeTimeout)
+}
+
+func TestCodexGovernanceProbeRequestContextInheritsParentCancellation(t *testing.T) {
+	parent, stopParent := context.WithCancel(context.Background())
+	ctx, cancel := codexGovernanceProbeRequestContext(parent)
+	defer cancel()
+
+	stopParent()
+
+	select {
+	case <-ctx.Done():
+		require.ErrorIs(t, ctx.Err(), context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("probe context did not inherit parent cancellation")
+	}
+}
+
 func TestCodexGovernanceTaskWaitDurationUsesFixedNextRun(t *testing.T) {
 	now := time.Unix(100, 0)
 	nextRun := now.Add(30 * time.Second)

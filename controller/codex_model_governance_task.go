@@ -20,6 +20,7 @@ const (
 	codexGovernanceProbeUnsupportedConsecutiveThreshold = 2
 	codexGovernanceDisabledPollInterval                 = time.Minute
 	codexGovernanceMinimumProbeIdle                     = time.Minute
+	codexGovernanceSingleProbeTimeout                   = time.Minute
 )
 
 var codexModelGovernanceTaskOnce sync.Once
@@ -77,6 +78,13 @@ func codexGovernanceProbeSettingEnabled(ctx context.Context, setting *operation_
 
 func codexGovernanceProbeShouldContinue(ctx context.Context) bool {
 	return codexGovernanceProbeSettingEnabled(ctx, operation_setting.GetCodexModelGovernanceSetting())
+}
+
+func codexGovernanceProbeRequestContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, codexGovernanceSingleProbeTimeout)
 }
 
 func classifyCodexGovernanceProbeError(message string, patterns []string) service.CodexUnsupportedMatch {
@@ -209,6 +217,7 @@ func runCodexModelGovernanceProbeOnceWithContext(ctx context.Context) {
 			if modelName == "" {
 				continue
 			}
+			probeCtx, cancelProbe := codexGovernanceProbeRequestContext(ctx)
 			result := testChannelWithOptions(channel, testUserID, modelName, string(constant.EndpointTypeOpenAIResponse), true, channelTestOptions{
 				Prompt:     codexGovernanceProbePrompt,
 				ExpectPong: true,
@@ -216,8 +225,9 @@ func runCodexModelGovernanceProbeOnceWithContext(ctx context.Context) {
 				LogContent: "Codex model governance probe",
 				MaxTokens:  8,
 				SkipLog:    true,
-				Context:    ctx,
+				Context:    probeCtx,
 			})
+			cancelProbe()
 			if !codexGovernanceProbeShouldContinue(ctx) {
 				return
 			}
