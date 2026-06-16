@@ -4982,6 +4982,10 @@
     "GPT-5 input": "Entrada de GPT-5",
     "Cache reads": "Lecturas de caché",
     "Coverage": "Cobertura",
-    "50% off": "50% de descuento"
+    "50% off": "50% de descuento",
+    "New user registration bonus {{amount}}": "Bono de registro de nuevo usuario {{amount}}",
+    "Invitation code bonus {{amount}}": "Bono por código de invitación {{amount}}",
+    "Referral reward {{amount}}": "Recompensa por referido {{amount}}",
+    "Check-in reward {{amount}}": "Recompensa por registro diario {{amount}}"
   }
 }

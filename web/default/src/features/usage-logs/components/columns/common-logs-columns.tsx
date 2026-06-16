@@ -45,6 +45,7 @@ import {
   getResponseTimeColor,
   getTieredBillingSummary,
   hasAnyCacheTokens,
+  localizeSystemRewardContent,
   parseLogOther,
   isViolationFeeLog,
 } from '../../lib/format'
@@ -775,6 +776,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const segments = buildDetailSegments(log, other, t)
         const primary = segments[0]
         const hasMore = segments.length > 1
+        const fallbackContent =
+          localizeSystemRewardContent(log.content, t) ?? log.content
 
         return (
           <>
@@ -802,9 +805,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     </span>
                   )}
                 </span>
-              ) : log.content ? (
+              ) : fallbackContent ? (
                 <span className='text-muted-foreground truncate group-hover:underline'>
-                  {log.content}
+                  {fallbackContent}
                 </span>
               ) : (
                 <span className='text-muted-foreground/40'>—</span>

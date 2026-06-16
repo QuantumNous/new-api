@@ -4982,6 +4982,10 @@
     "GPT-5 input": "GPT-5 入力",
     "Cache reads": "キャッシュ読み取り",
     "Coverage": "対応モデル",
-    "50% off": "50% オフ"
+    "50% off": "50% オフ",
+    "New user registration bonus {{amount}}": "新規ユーザー登録ボーナス {{amount}}",
+    "Invitation code bonus {{amount}}": "招待コードボーナス {{amount}}",
+    "Referral reward {{amount}}": "招待報酬 {{amount}}",
+    "Check-in reward {{amount}}": "チェックイン報酬 {{amount}}"
   }
 }

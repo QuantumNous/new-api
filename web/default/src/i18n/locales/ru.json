@@ -4982,6 +4982,10 @@
     "GPT-5 input": "Ввод GPT-5",
     "Cache reads": "Чтения из кэша",
     "Coverage": "Покрытие",
-    "50% off": "скидка 50%"
+    "50% off": "скидка 50%",
+    "New user registration bonus {{amount}}": "Бонус за регистрацию нового пользователя {{amount}}",
+    "Invitation code bonus {{amount}}": "Бонус за код приглашения {{amount}}",
+    "Referral reward {{amount}}": "Реферальное вознаграждение {{amount}}",
+    "Check-in reward {{amount}}": "Награда за ежедневный вход {{amount}}"
   }
 }
