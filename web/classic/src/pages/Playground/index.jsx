@@ -2,6 +2,7 @@ import React, {
   useContext,
   useEffect,
   useCallback,
+  useMemo,
   useState,
   useRef,
 } from 'react';
@@ -90,8 +91,15 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const popstateGuardActiveRef = useRef(false);
   const imageAbortControllerRef = useRef(null);
   const videoPollingRef = useRef(new Set());
+  const playgroundUserIdentity = useMemo(
+    () => ({
+      id: userState?.user?.id || null,
+      username: userState?.user?.username || 'anonymous',
+    }),
+    [userState?.user?.id, userState?.user?.username],
+  );
 
-  const state = usePlaygroundState(userState?.user?.id || null);
+  const state = usePlaygroundState(playgroundUserIdentity);
   const {
     inputs,
     parameterEnabled,

@@ -35,6 +35,12 @@ const DEFAULT_CONVERSATION_TYPE = 'chat';
 export const normalizePlaygroundConversationType = (type) =>
   ['chat', 'image', 'video'].includes(type) ? type : DEFAULT_CONVERSATION_TYPE;
 
+const getPlaygroundConversationStateKey = (userIdentity = null) => {
+  const userId = userIdentity?.id ?? 'anonymous';
+  const username = userIdentity?.username ?? 'anonymous';
+  return `${PLAYGROUND_CONVERSATION_STATE_KEY}:user-${userId}:username-${username}`;
+};
+
 const buildConversationTitle = (messages = []) => {
   const firstUserMessage = messages.find((message) => message?.role === 'user');
   const content = firstUserMessage?.content;
@@ -399,10 +405,10 @@ const runMetaTransaction = async (mode, executor) => {
   });
 };
 
-export const loadConversationStateFromIndexedDB = async () => {
+export const loadConversationStateFromIndexedDB = async (userIdentity = null) => {
   try {
     const payload = await runMetaTransaction('readonly', (store, resolve) => {
-      const request = store.get(PLAYGROUND_CONVERSATION_STATE_KEY);
+      const request = store.get(getPlaygroundConversationStateKey(userIdentity));
       request.onsuccess = () => resolve(request.result?.value || null);
       request.onerror = () => resolve(null);
     });
@@ -412,7 +418,7 @@ export const loadConversationStateFromIndexedDB = async () => {
     }
 
     if (hasPlaceholderInConversations(payload.conversations)) {
-      clearConversationStateFromIndexedDB().catch((error) => {
+      clearConversationStateFromIndexedDB(userIdentity).catch((error) => {
         console.error('清理被占位符污染的 IndexedDB 会话失败:', error);
       });
       return null;
@@ -428,11 +434,12 @@ export const loadConversationStateFromIndexedDB = async () => {
 export const saveConversationStateToIndexedDB = async (
   conversations = [],
   activeConversationId = null,
+  userIdentity = null,
 ) => {
   try {
     await runMetaTransaction('readwrite', (store, resolve, reject) => {
       const request = store.put({
-        key: PLAYGROUND_CONVERSATION_STATE_KEY,
+        key: getPlaygroundConversationStateKey(userIdentity),
         value: {
           conversations,
           activeConversationId,
@@ -447,10 +454,10 @@ export const saveConversationStateToIndexedDB = async (
   }
 };
 
-export const clearConversationStateFromIndexedDB = async () => {
+export const clearConversationStateFromIndexedDB = async (userIdentity = null) => {
   try {
     await runMetaTransaction('readwrite', (store, resolve, reject) => {
-      const request = store.delete(PLAYGROUND_CONVERSATION_STATE_KEY);
+      const request = store.delete(getPlaygroundConversationStateKey(userIdentity));
       request.onsuccess = () => resolve(true);
       request.onerror = () => reject(request.error);
     });
@@ -459,8 +466,8 @@ export const clearConversationStateFromIndexedDB = async () => {
   }
 };
 
-export const migrateConversationStateToIndexedDB = async () => {
-  const indexedState = await loadConversationStateFromIndexedDB();
+export const migrateConversationStateToIndexedDB = async (userIdentity = null) => {
+  const indexedState = await loadConversationStateFromIndexedDB(userIdentity);
   if (indexedState?.conversations?.length) {
     return indexedState;
   }
@@ -470,6 +477,7 @@ export const migrateConversationStateToIndexedDB = async () => {
     await saveConversationStateToIndexedDB(
       localState.conversations,
       localState.activeConversationId,
+      userIdentity,
     );
     return localState;
   }

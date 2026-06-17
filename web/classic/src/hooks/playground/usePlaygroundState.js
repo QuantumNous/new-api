@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getDefaultMessages,
@@ -35,12 +35,26 @@ import {
   saveConfig,
   createStoredConversation,
   normalizePlaygroundConversationType,
-  clearConversationStateFromIndexedDB,
+  loadConversationStateFromIndexedDB,
+  saveConversationStateToIndexedDB,
+  migrateConversationStateToIndexedDB,
 } from '../../components/playground/configStorage';
 import { processIncompleteThinkTags } from '../../helpers';
 
 export const usePlaygroundState = (userIdentity = null) => {
   const { t } = useTranslation();
+  const userId = userIdentity?.id ?? null;
+  const username = userIdentity?.username ?? 'anonymous';
+  const normalizedUserIdentity = useMemo(
+    () =>
+      userId || username
+        ? {
+            id: userId,
+            username,
+          }
+        : null,
+    [userId, username],
+  );
 
   const normalizeConversationTitle = useCallback(
     (conversation) => {
@@ -107,7 +121,8 @@ export const usePlaygroundState = (userIdentity = null) => {
   const [videoModels, setVideoModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState({});
-  const conversationStorageReady = true;
+  const [conversationStorageReady, setConversationStorageReady] =
+    useState(false);
   const [conversations, setConversations] = useState([initialConversation]);
   const [activeConversationId, setActiveConversationId] = useState(
     initialConversation.id,
@@ -167,8 +182,15 @@ export const usePlaygroundState = (userIdentity = null) => {
       };
 
       localConversationStateRef.current = payload;
+      saveConversationStateToIndexedDB(
+        nextConversations,
+        nextActiveConversationId,
+        normalizedUserIdentity,
+      ).catch((error) => {
+        console.error('保存 IndexedDB 会话状态失败:', error);
+      });
     },
-    [],
+    [normalizedUserIdentity],
   );
 
   const isConversationEmpty = useCallback((conversation) => {
@@ -278,6 +300,32 @@ export const usePlaygroundState = (userIdentity = null) => {
     },
     [],
   );
+
+  const mergeConversationLists = useCallback((localList = [], remoteList = []) => {
+    const mergedById = new Map();
+
+    [...localList, ...remoteList].forEach((conversation) => {
+      if (!conversation?.id) {
+        return;
+      }
+      const existingConversation = mergedById.get(conversation.id);
+      if (!existingConversation) {
+        mergedById.set(conversation.id, conversation);
+        return;
+      }
+
+      const existingUpdatedAt = Number(existingConversation.updatedAt || 0);
+      const nextUpdatedAt = Number(conversation.updatedAt || 0);
+      mergedById.set(
+        conversation.id,
+        nextUpdatedAt >= existingUpdatedAt ? conversation : existingConversation,
+      );
+    });
+
+    return Array.from(mergedById.values()).sort(
+      (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+    );
+  }, []);
 
   const persistConversationToServer = useCallback(
     async (conversation) => {
@@ -531,18 +579,57 @@ export const usePlaygroundState = (userIdentity = null) => {
   );
 
   useEffect(() => {
-    try {
-      localStorage.removeItem('playground_conversations');
-      localStorage.removeItem('playground_active_conversation');
-      localStorage.removeItem('playground_messages');
-    } catch (error) {
-      console.error('清理本地会话缓存失败:', error);
-    }
+    let isCancelled = false;
 
-    clearConversationStateFromIndexedDB().catch((error) => {
-      console.error('清理 IndexedDB 会话缓存失败:', error);
+    const hydrateIndexedConversations = async () => {
+      const migratedState =
+        await migrateConversationStateToIndexedDB(normalizedUserIdentity);
+      const indexedState =
+        (await loadConversationStateFromIndexedDB(normalizedUserIdentity)) ||
+        migratedState;
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (!indexedState?.conversations?.length) {
+        setConversationStorageReady(true);
+        return;
+      }
+
+      const { conversations: dedupedIndexedConversations } =
+        dedupeConversations(indexedState.conversations);
+      const nextActiveConversation =
+        getLatestConversationForMode(
+          dedupedIndexedConversations,
+          playgroundModeRef.current,
+        ) || dedupedIndexedConversations[0];
+      const nextActiveConversationId = nextActiveConversation?.id || null;
+
+      localConversationStateRef.current = {
+        conversations: dedupedIndexedConversations,
+        activeConversationId: nextActiveConversationId,
+      };
+      currentConversationIdRef.current = nextActiveConversationId;
+      setConversations(dedupedIndexedConversations);
+      setActiveConversationId(nextActiveConversationId);
+      setMessage(nextActiveConversation?.messages?.length ? nextActiveConversation.messages : []);
+      setConversationStorageReady(true);
+    };
+
+    hydrateIndexedConversations().catch((error) => {
+      console.error('Hydrate IndexedDB 会话失败:', error);
+      setConversationStorageReady(true);
     });
-  }, []);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    dedupeConversations,
+    getLatestConversationForMode,
+    normalizedUserIdentity,
+  ]);
 
   useEffect(() => {
     if (!conversationStorageReady) {
@@ -553,17 +640,6 @@ export const usePlaygroundState = (userIdentity = null) => {
 
     const hydrateRemoteConversations = async () => {
       try {
-        const emptyConversation = createStoredConversation(
-          [],
-          null,
-          playgroundModeRef.current,
-        );
-        setConversations([emptyConversation]);
-        currentConversationIdRef.current = emptyConversation.id;
-        setActiveConversationId(emptyConversation.id);
-        setMessage([]);
-        persistConversationState([emptyConversation], emptyConversation.id);
-
         const res = await API.get(API_ENDPOINTS.PLAYGROUND_CONVERSATIONS, {
           disableDuplicate: true,
           skipErrorHandler: true,
@@ -590,9 +666,15 @@ export const usePlaygroundState = (userIdentity = null) => {
           });
         }
 
+        const mergedConversations = mergeConversationLists(
+          localConversationStateRef.current.conversations || [],
+          normalizedRemoteConversations,
+        );
+        const { conversations: dedupedMergedConversations } =
+          dedupeConversations(mergedConversations);
         const nextConversations =
-          normalizedRemoteConversations.length > 0
-            ? normalizedRemoteConversations
+          dedupedMergedConversations.length > 0
+            ? dedupedMergedConversations
             : [createStoredConversation([], null, playgroundModeRef.current)];
         const nextActiveConversation =
           getLatestConversationForMode(
@@ -622,11 +704,12 @@ export const usePlaygroundState = (userIdentity = null) => {
     };
   }, [
     dedupeConversations,
+    mergeConversationLists,
     getLatestConversationForMode,
     normalizeConversation,
     conversationStorageReady,
     persistConversationState,
-    userIdentity,
+    normalizedUserIdentity,
   ]);
 
   useEffect(() => {
