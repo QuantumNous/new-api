@@ -116,6 +116,15 @@ func CheckSetup() {
 	}
 }
 
+// sqliteDSN appends the foreign_keys pragma to a SQLite path, using "&" when
+// the path already contains a "?" (i.e. it is already a URI with parameters).
+func sqliteDSN(path string) string {
+	if strings.Contains(path, "?") {
+		return path + "&_pragma=foreign_keys(1)"
+	}
+	return path + "?_pragma=foreign_keys(1)"
+}
+
 func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	defer func() {
 		initCol()
@@ -144,7 +153,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 			} else {
 				common.LogSqlType = common.DatabaseTypeSQLite
 			}
-			return gorm.Open(sqlite.Open(common.SQLitePath+"?_pragma=foreign_keys(1)"), &gorm.Config{
+			return gorm.Open(sqlite.Open(sqliteDSN(common.SQLitePath)), &gorm.Config{
 				PrepareStmt: true, // precompile SQL
 			})
 		}
@@ -170,7 +179,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	// Use SQLite
 	common.SysLog("SQL_DSN not set, using SQLite as database")
 	common.UsingSQLite = true
-	return gorm.Open(sqlite.Open(common.SQLitePath+"?_pragma=foreign_keys(1)"), &gorm.Config{
+	return gorm.Open(sqlite.Open(sqliteDSN(common.SQLitePath)), &gorm.Config{
 		PrepareStmt: true, // precompile SQL
 	})
 }
