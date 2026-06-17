@@ -5090,6 +5090,26 @@
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "As entradas de bônus devem usar valores de recarga inteiros positivos e valores de bônus inteiros positivos",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Mapa de crédito bônus por valor de recarga (objeto JSON). Os valores usam a mesma unidade dos valores de recarga.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configure crédito bônus para cada valor de recarga. Os valores usam a mesma unidade dos valores de recarga.",
-    "No rate-limit window was reset": "Nenhuma janela de limite de taxa foi redefinida"
+    "No rate-limit window was reset": "Nenhuma janela de limite de taxa foi redefinida",
+    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Permitir que este usuário veja e selecione grupos; o conceito de grupo fica oculto para usuários PLG",
+    "Enterprise User": "Usuário empresarial",
+    "Get ${{bonus}} free": "${{bonus}} grátis",
+    "Create an API key": "Criar uma chave de API",
+    "Credit limit (optional)": "Limite de crédito (opcional)",
+    "Leave blank for unlimited": "Deixe em branco para ilimitado",
+    "Make your first API call in under a minute.": "Faça sua primeira chamada de API em menos de um minuto.",
+    "Make your first call": "Faça sua primeira chamada",
+    "Need a key?": "Precisa de uma chave?",
+    "Please copy it now and save it somewhere safe.": "Copie agora e guarde em um lugar seguro.",
+    "Python": "Python",
+    "Quickstart": "Início rápido",
+    "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "A API é compatível com OpenAI, então qualquer SDK da OpenAI funciona apenas alterando a URL base e a chave de API.",
+    "TypeScript": "TypeScript",
+    "You can use it with OpenAI-compatible apps, or": "Você pode usá-la com aplicativos compatíveis com OpenAI, ou",
+    "You will not be able to see it again.": "Você não poderá vê-la novamente.",
+    "Your new key": "Sua nova chave",
+    "cURL": "cURL",
+    "your own code": "seu próprio código",
+    "Reset limit every...": "Redefinir limite a cada..."
   }
 }

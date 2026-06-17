@@ -64,6 +64,7 @@ interface PlaygroundInputProps {
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
+  showGroupSelector?: boolean
 }
 
 const suggestions = [
@@ -87,6 +88,7 @@ export function PlaygroundInput({
   groups,
   groupValue,
   onGroupChange,
+  showGroupSelector = true,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -191,7 +193,11 @@ export function PlaygroundInput({
               selectedGroup={groupValue}
               groups={groups}
               onGroupChange={onGroupChange}
-              disabled={isModelSelectDisabled || isGroupSelectDisabled}
+              showGroupSelector={showGroupSelector}
+              disabled={
+                isModelSelectDisabled ||
+                (showGroupSelector && isGroupSelectDisabled)
+              }
             />
 
             {isGenerating && onStop ? (

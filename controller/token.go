@@ -207,6 +207,11 @@ func AddToken(c *gin.Context) {
 		common.SysLog("failed to generate token key: " + err.Error())
 		return
 	}
+	// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
+	if uc, ucErr := model.GetUserCache(c.GetInt("id")); ucErr == nil && !uc.IsEnterprise {
+		token.Group = plgGroup
+		token.CrossGroupRetry = false
+	}
 	cleanToken := model.Token{
 		UserId:             c.GetInt("id"),
 		Name:               token.Name,
@@ -227,9 +232,16 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// Return the freshly minted key once (OpenRouter-style reveal). It is masked on every
+	// subsequent list/get, so this is the only chance for the client to surface it in full.
+	// `key` is the raw key; the frontend prepends the `sk-` prefix.
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data": gin.H{
+			"id":  cleanToken.Id,
+			"key": key,
+		},
 	})
 }
 
@@ -299,6 +311,11 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
+		if uc, ucErr := model.GetUserCache(userId); ucErr == nil && !uc.IsEnterprise {
+			cleanToken.Group = plgGroup
+			cleanToken.CrossGroupRetry = false
+		}
 	}
 	err = cleanToken.Update()
 	if err != nil {

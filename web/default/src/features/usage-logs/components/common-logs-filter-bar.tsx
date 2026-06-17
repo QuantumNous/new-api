@@ -23,6 +23,7 @@ import { type Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin } from '@/hooks/use-admin'
+import { useIsEnterprise } from '@/hooks/use-enterprise'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -71,6 +72,7 @@ export function CommonLogsFilterBar<TData>(
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const isAdmin = useIsAdmin()
+  const isEnterprise = useIsEnterprise()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
@@ -174,8 +176,11 @@ export function CommonLogsFilterBar<TData>(
     !!filters.upstreamRequestId
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
+  // PLG (non-enterprise) users don't see the group concept, so the group
+  // filter and its active-filter badge are hidden for them.
+  const hasGroupFilter = isEnterprise && !!filters.group
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
+    !!filters.model || hasGroupFilter || hasTypeFilter || hasExpandedFilters
 
   const expandedFilterCount = [
     filters.token,
@@ -242,7 +247,7 @@ export function CommonLogsFilterBar<TData>(
       />
     </LogsFilterField>
   )
-  const groupFilter = (
+  const groupFilter = isEnterprise ? (
     <LogsFilterField>
       <LogsFilterInput
         placeholder={t('Group')}
@@ -252,7 +257,7 @@ export function CommonLogsFilterBar<TData>(
         onKeyDown={handleKeyDown}
       />
     </LogsFilterField>
-  )
+  ) : null
   const typeFilter = (
     <LogsFilterField>
       <Select
@@ -353,7 +358,7 @@ export function CommonLogsFilterBar<TData>(
         </>
       }
       mobileFilterCount={
-        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
+        [filters.model, hasGroupFilter, hasTypeFilter].filter(Boolean).length +
         expandedFilterCount
       }
       hasAdvancedActiveFilters={hasExpandedFilters}

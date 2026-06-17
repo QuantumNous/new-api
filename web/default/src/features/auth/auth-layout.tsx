@@ -22,6 +22,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
 
 type AuthLayoutProps = {
   children: React.ReactNode
@@ -41,25 +42,39 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         aria-hidden
         className='pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_62%_42%_at_50%_14%,rgba(124,58,237,0.12),transparent_72%),radial-gradient(ellipse_42%_34%_at_78%_32%,rgba(217,70,239,0.08),transparent_70%),radial-gradient(ellipse_36%_28%_at_18%_72%,rgba(99,102,241,0.1),transparent_76%)] dark:bg-[radial-gradient(ellipse_62%_42%_at_50%_14%,rgba(124,58,237,0.28),transparent_72%),radial-gradient(ellipse_42%_34%_at_78%_32%,rgba(217,70,239,0.16),transparent_70%),radial-gradient(ellipse_36%_28%_at_18%_72%,rgba(99,102,241,0.18),transparent_76%)]'
       />
-      <Link
-        to='/'
-        className='absolute top-4 left-4 z-10 flex items-center rounded-full transition-opacity hover:opacity-90 sm:top-8 sm:left-8'
-      >
-        <div className='relative h-11'>
-          {loading ? (
-            <Skeleton className='absolute inset-y-1 left-0 w-32 rounded-full' />
-          ) : (
-            <FlatkeyBrandLogo alt={t('Logo')} className='h-11' />
-          )}
-        </div>
-        {loading ? (
-          <Skeleton className='h-6 w-24' />
+      {(() => {
+        const logoClassName =
+          'absolute top-4 left-4 z-10 flex items-center rounded-full transition-opacity hover:opacity-90 sm:top-8 sm:left-8'
+        const logoInner = (
+          <>
+            <div className='relative h-11'>
+              {loading ? (
+                <Skeleton className='absolute inset-y-1 left-0 w-32 rounded-full' />
+              ) : (
+                <FlatkeyBrandLogo alt={t('Logo')} className='h-11' />
+              )}
+            </div>
+            {loading ? (
+              <Skeleton className='h-6 w-24' />
+            ) : (
+              <h1 className='sr-only text-xl font-semibold tracking-normal'>
+                {systemName}
+              </h1>
+            )}
+          </>
+        )
+        // When a separate marketing site is configured, the logo links out to its home
+        // (OpenRouter-style). Otherwise fall back to the in-app root.
+        return OFFICIAL_WEBSITE_ORIGIN ? (
+          <a href={officialWebsiteUrl('/')} className={logoClassName}>
+            {logoInner}
+          </a>
         ) : (
-          <h1 className='sr-only text-xl font-semibold tracking-normal'>
-            {systemName}
-          </h1>
-        )}
-      </Link>
+          <Link to='/' className={logoClassName}>
+            {logoInner}
+          </Link>
+        )
+      })()}
       <div className='absolute top-4 right-4 z-10 sm:top-8 sm:right-8'>
         <LanguageSwitcher />
       </div>

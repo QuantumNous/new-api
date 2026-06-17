@@ -5090,6 +5090,26 @@
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Các mục thưởng phải sử dụng số tiền nạp là số nguyên dương và số tiền thưởng là số nguyên dương",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bản đồ tín dụng thưởng theo số tiền nạp (đối tượng JSON). Giá trị dùng cùng đơn vị với số tiền nạp.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Cấu hình tín dụng thưởng cho từng số tiền nạp. Giá trị dùng cùng đơn vị với số tiền nạp.",
-    "No rate-limit window was reset": "Không có cửa sổ giới hạn tốc độ nào được đặt lại"
+    "No rate-limit window was reset": "Không có cửa sổ giới hạn tốc độ nào được đặt lại",
+    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Cho phép người dùng này xem và chọn nhóm; người dùng PLG sẽ ẩn khái niệm nhóm",
+    "Enterprise User": "Người dùng doanh nghiệp",
+    "Get ${{bonus}} free": "Tặng ${{bonus}}",
+    "Create an API key": "Tạo khóa API",
+    "Credit limit (optional)": "Giới hạn tín dụng (tùy chọn)",
+    "Leave blank for unlimited": "Để trống để không giới hạn",
+    "Make your first API call in under a minute.": "Thực hiện lệnh gọi API đầu tiên trong chưa đầy một phút.",
+    "Make your first call": "Thực hiện lệnh gọi đầu tiên",
+    "Need a key?": "Cần một khóa?",
+    "Please copy it now and save it somewhere safe.": "Vui lòng sao chép ngay bây giờ và lưu ở nơi an toàn.",
+    "Python": "Python",
+    "Quickstart": "Bắt đầu nhanh",
+    "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "API tương thích với OpenAI, nên bất kỳ SDK OpenAI nào cũng hoạt động chỉ bằng cách đổi base URL và khóa API.",
+    "TypeScript": "TypeScript",
+    "You can use it with OpenAI-compatible apps, or": "Bạn có thể dùng nó với các ứng dụng tương thích OpenAI, hoặc",
+    "You will not be able to see it again.": "Bạn sẽ không thể xem lại nó.",
+    "Your new key": "Khóa mới của bạn",
+    "cURL": "cURL",
+    "your own code": "mã của riêng bạn",
+    "Reset limit every...": "Đặt lại hạn mức mỗi…"
   }
 }

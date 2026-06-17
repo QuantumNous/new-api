@@ -196,7 +196,14 @@ func InitDB() (err error) {
 		}
 		common.SysLog("database migration started")
 		err = migrateDB()
-		return err
+		if err != nil {
+			return err
+		}
+		// One-time: mark legacy users enterprise so they keep group visibility post-PLG rollout.
+		if err := backfillEnterpriseFlag(); err != nil {
+			common.SysLog("enterprise flag backfill failed: " + err.Error())
+		}
+		return nil
 	} else {
 		common.FatalLog(err)
 	}

@@ -41,7 +41,7 @@ type User struct {
 	Quota                 int            `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota             int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount          int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
-	Group                 string         `json:"group" gorm:"type:varchar(64);default:'default'"`
+	Group                 string         `json:"group" gorm:"type:varchar(64);default:'plg'"`
 	AffCode               string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount              int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
 	AffQuota              int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
@@ -57,6 +57,7 @@ type User struct {
 	StripeCustomer        string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	StripeCardBound       bool           `json:"stripe_card_bound" gorm:"default:false;column:stripe_card_bound"`
 	NewUserBonusGiven     bool           `json:"new_user_bonus_given" gorm:"default:false;column:new_user_bonus_given"`
+	IsEnterprise          bool           `json:"is_enterprise" gorm:"default:false;column:is_enterprise"` // enterprise users retain the group concept; PLG (non-enterprise) users are forced to the plg group with groups hidden
 	StripeCardFingerprint string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
 	CreatedAt             int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt           int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
@@ -64,13 +65,14 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:           user.Id,
+		Group:        user.Group,
+		Quota:        user.Quota,
+		Status:       user.Status,
+		Username:     user.Username,
+		Setting:      user.Setting,
+		Email:        user.Email,
+		IsEnterprise: user.IsEnterprise,
 	}
 	return cache
 }
@@ -396,6 +398,11 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	// New users default into the PLG group (groups hidden, forced plg). An explicit
+	// group (e.g. admin creating an enterprise user) is preserved; only empties fall back.
+	if user.Group == "" {
+		user.Group = "plg"
+	}
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -531,10 +538,11 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"username":      newUser.Username,
+		"display_name":  newUser.DisplayName,
+		"group":         newUser.Group,
+		"remark":        newUser.Remark,
+		"is_enterprise": newUser.IsEnterprise,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -547,6 +555,26 @@ func (user *User) Edit(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+// backfillEnterpriseFlag runs exactly once (gated by an option marker). It marks every
+// pre-existing user as enterprise so legacy users keep full group visibility after the PLG
+// rollout — new users (created after this runs) default to is_enterprise=false (forced plg).
+func backfillEnterpriseFlag() error {
+	const flagKey = "PlgEnterpriseBackfilled"
+	var cnt int64
+	if err := DB.Model(&Option{}).Where("key = ?", flagKey).Count(&cnt).Error; err != nil {
+		return err
+	}
+	if cnt > 0 {
+		return nil // already backfilled
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&User{}).Where("is_enterprise = ?", false).Update("is_enterprise", true).Error; err != nil {
+			return err
+		}
+		return tx.Create(&Option{Key: flagKey, Value: "true"}).Error
+	})
 }
 
 func (user *User) ClearBinding(bindingType string) error {

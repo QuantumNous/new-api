@@ -16,26 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+/**
+ * Hook for checking whether the current user is an enterprise user.
+ *
+ * Non-enterprise (PLG) users have the group concept hidden everywhere in
+ * their UI; their API keys are always forced to the `plg` group by the
+ * backend. Enterprise users (and admins, who are backfilled as enterprise)
+ * keep the full group UI.
+ */
 import { useAuthStore } from '@/stores/auth-store'
-import { SignUp } from '@/features/auth/sign-up'
 
-const searchSchema = z.object({
-  redirect: z.string().optional(),
-})
-
-export const Route = createFileRoute('/(auth)/sign-up')({
-  component: SignUp,
-  validateSearch: searchSchema,
-  beforeLoad: async ({ search }) => {
-    const { auth } = useAuthStore.getState()
-
-    // Already logged in (e.g. clicking "Get API Key" while authenticated): skip the
-    // sign-up form entirely and go straight to the intended destination (the API Keys
-    // tab via ?redirect=/keys), falling back to the dashboard. Mirrors sign-in.
-    if (auth.user) {
-      throw redirect({ to: search?.redirect || '/dashboard' })
-    }
-  },
-})
+/**
+ * Returns true when the current user is an enterprise user.
+ */
+export function useIsEnterprise(): boolean {
+  return useAuthStore((state) => !!state.auth.user?.is_enterprise)
+}

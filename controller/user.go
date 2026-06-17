@@ -145,12 +145,13 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 		return
 	}
 	data := map[string]any{
-		"id":           user.Id,
-		"username":     user.Username,
-		"display_name": user.DisplayName,
-		"role":         user.Role,
-		"status":       user.Status,
-		"group":        user.Group,
+		"id":            user.Id,
+		"username":      user.Username,
+		"display_name":  user.DisplayName,
+		"role":          user.Role,
+		"status":        user.Status,
+		"group":         user.Group,
+		"is_enterprise": user.IsEnterprise,
 	}
 	// Surfaced only for brand-new registrations (currently OAuth sign-up) so the frontend can
 	// trigger first-login onboarding. Omitted for normal logins (back-compat).
@@ -486,6 +487,7 @@ func GetSelf(c *gin.Context) {
 		"stripe_customer":      user.StripeCustomer,
 		"stripe_card_bound":    user.StripeCardBound,
 		"new_user_bonus_given": user.NewUserBonusGiven,
+		"is_enterprise":        user.IsEnterprise,
 		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":          permissions,                // 新增权限字段
 	}

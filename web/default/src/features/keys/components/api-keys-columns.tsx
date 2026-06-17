@@ -21,6 +21,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { useIsEnterprise } from '@/hooks/use-enterprise'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -47,11 +48,12 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(): Record<string, number> {
+function useGroupRatios(enabled: boolean): Record<string, number> {
   const { data } = useQuery({
     queryKey: ['user-self-groups'],
     queryFn: getUserGroups,
     staleTime: 5 * 60 * 1000,
+    enabled,
     select: (res) => {
       if (!res.success || !res.data) return {}
       const ratios: Record<string, number> = {}
@@ -69,7 +71,8 @@ function useGroupRatios(): Record<string, number> {
 
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
-  const groupRatios = useGroupRatios()
+  const isEnterprise = useIsEnterprise()
+  const groupRatios = useGroupRatios(isEnterprise)
   return [
     {
       id: 'select',
@@ -191,47 +194,54 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       },
       meta: { label: t('Quota') },
     },
-    {
-      accessorKey: 'group',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Group')} />
-      ),
-      cell: ({ row }) => {
-        const apiKey = row.original
-        const group = row.getValue('group') as string
-        const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+    // Group column is hidden for non-enterprise (PLG) users — it only ever
+    // shows `plg` for them, which leaks the group concept and is useless.
+    ...(isEnterprise
+      ? [
+          {
+            accessorKey: 'group',
+            header: ({ column }) => (
+              <DataTableColumnHeader column={column} title={t('Group')} />
+            ),
+            cell: ({ row }) => {
+              const apiKey = row.original
+              const group = row.getValue('group') as string
+              const ratio =
+                group && group !== 'auto' ? groupRatios[group] : undefined
 
-        if (group === 'auto') {
-          return (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className='inline-flex items-center gap-1.5 text-xs' />
-                }
-              >
-                <GroupBadge group='auto' />
-                {apiKey.cross_group_retry && (
-                  <StatusBadge
-                    label={t('Cross-group')}
-                    variant='info'
-                    copyable={false}
-                  />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>
-                <span className='text-xs'>
-                  {t(
-                    'Automatically selects the best available group with circuit breaker mechanism'
-                  )}
-                </span>
-              </TooltipContent>
-            </Tooltip>
-          )
-        }
-        return <GroupBadge group={group} ratio={ratio} />
-      },
-      meta: { label: t('Group'), mobileHidden: true },
-    },
+              if (group === 'auto') {
+                return (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span className='inline-flex items-center gap-1.5 text-xs' />
+                      }
+                    >
+                      <GroupBadge group='auto' />
+                      {apiKey.cross_group_retry && (
+                        <StatusBadge
+                          label={t('Cross-group')}
+                          variant='info'
+                          copyable={false}
+                        />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <span className='text-xs'>
+                        {t(
+                          'Automatically selects the best available group with circuit breaker mechanism'
+                        )}
+                      </span>
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              }
+              return <GroupBadge group={group} ratio={ratio} />
+            },
+            meta: { label: t('Group'), mobileHidden: true },
+          } as ColumnDef<ApiKey>,
+        ]
+      : []),
     {
       id: 'model_limits',
       accessorKey: 'model_limits',

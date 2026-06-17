@@ -9,7 +9,9 @@ import { localizePath } from "@/lib/locales";
 import { APP_CONSOLE_ORIGIN, consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_UP_URL = consoleUrl("/sign-up");
+// "Get API Key" lands the user straight on the console API Keys tab (OpenRouter-style):
+// already-authenticated users skip the form, new users land on /keys after signing up.
+const SIGN_UP_URL = consoleUrl("/sign-up", "?redirect=/keys");
 const API_BASE_URL = `${APP_CONSOLE_ORIGIN}/v1`;
 
 type Props = {

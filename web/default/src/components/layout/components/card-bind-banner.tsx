@@ -45,21 +45,30 @@ export function CardBindBanner() {
       <button
         type='button'
         onClick={openOnboarding}
-        className='group bg-primary/5 hover:bg-primary/10 border-primary/15 relative mb-[15px] flex h-[50px] w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl border px-4 text-sm font-medium text-foreground transition-colors'
+        className='group relative mb-[15px] flex h-[50px] w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-fuchsia-500/50 hover:brightness-110'
       >
-        {/* Limited-time pill */}
-        <span className='bg-primary text-primary-foreground flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold'>
-          <Sparkles className='size-3' aria-hidden='true' />
+        {/* Periodic sheen sweep + a brighter one on hover. */}
+        <span
+          aria-hidden='true'
+          className='animate-bonus-shine pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-white/30 blur-md'
+        />
+        {/* Limited-time pill — frosted glass on the gradient. */}
+        <span className='relative flex shrink-0 items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold ring-1 ring-white/40 ring-inset backdrop-blur-sm'>
+          <Sparkles className='size-3 animate-pulse' aria-hidden='true' />
           {t('Limited time')}
         </span>
-        <span>
+        <span className='relative'>
           <Trans
             i18nKey='First top-up <hl>50% bonus</hl> · same models at half the official price'
-            components={{ hl: <span className='text-primary font-extrabold' /> }}
+            components={{
+              hl: (
+                <span className='font-extrabold text-amber-300 drop-shadow-[0_0_6px_rgba(252,211,77,0.45)]' />
+              ),
+            }}
           />
         </span>
         <ChevronRight
-          className='text-primary size-4 shrink-0 transition-transform group-hover:translate-x-0.5'
+          className='relative size-4 shrink-0 transition-transform group-hover:translate-x-1'
           aria-hidden='true'
         />
       </button>

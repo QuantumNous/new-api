@@ -549,6 +549,8 @@ export interface ModelGroupSelectorProps {
   selectedGroup: string
   groups: GroupOption[]
   onGroupChange: (value: string) => void
+  /** Hide the group selector (e.g. for non-enterprise/PLG users). Default true. */
+  showGroupSelector?: boolean
   // Common props
   className?: string
   disabled?: boolean
@@ -565,17 +567,20 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   selectedGroup,
   groups,
   onGroupChange,
+  showGroupSelector = true,
   className,
   disabled = false,
 }) => {
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <GroupSelector
-        selectedGroup={selectedGroup}
-        groups={groups}
-        onGroupChange={onGroupChange}
-        disabled={disabled}
-      />
+      {showGroupSelector && (
+        <GroupSelector
+          selectedGroup={selectedGroup}
+          groups={groups}
+          onGroupChange={onGroupChange}
+          disabled={disabled}
+        />
+      )}
       <ModelSelector
         selectedModel={selectedModel}
         models={models}

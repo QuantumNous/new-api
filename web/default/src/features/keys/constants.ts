@@ -72,6 +72,13 @@ export const API_KEY_STATUS_OPTIONS = Object.values(API_KEY_STATUSES).map(
 
 export const DEFAULT_GROUP = '' as const
 
+/**
+ * The single group assigned to non-enterprise (PLG) users. The backend forces
+ * this group regardless of what the client sends; the frontend also forces it
+ * so the group concept stays hidden from PLG users.
+ */
+export const PLG_GROUP = 'plg' as const
+
 // ============================================================================
 // Error Messages (i18n keys: use t(ERROR_MESSAGES.xxx) when displaying)
 // ============================================================================

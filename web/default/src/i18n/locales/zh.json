@@ -5090,6 +5090,26 @@
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "充值赠送配置的充值金额和赠送额度必须为正整数",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "按充值金额配置赠送额度（JSON 对象）。数值单位与充值金额一致。",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "为每个充值金额配置赠送额度。数值单位与充值金额一致。",
-    "No rate-limit window was reset": "未重置任何限流窗口"
+    "No rate-limit window was reset": "未重置任何限流窗口",
+    "Allow this user to see and select groups; PLG users are hidden from the group concept": "允许该用户查看和选择分组；PLG 用户将隐藏分组概念",
+    "Enterprise User": "企业用户",
+    "Get ${{bonus}} free": "送 ${{bonus}}",
+    "Create an API key": "创建 API 密钥",
+    "Credit limit (optional)": "额度上限（可选）",
+    "Leave blank for unlimited": "留空表示无限",
+    "Make your first API call in under a minute.": "一分钟内完成你的第一次 API 调用。",
+    "Make your first call": "进行你的第一次调用",
+    "Need a key?": "需要密钥？",
+    "Please copy it now and save it somewhere safe.": "请立即复制并妥善保管。",
+    "Python": "Python",
+    "Quickstart": "快速开始",
+    "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "本 API 兼容 OpenAI，只需更改 base URL 和 API 密钥，任何 OpenAI SDK 即可使用。",
+    "TypeScript": "TypeScript",
+    "You can use it with OpenAI-compatible apps, or": "你可以将它用于兼容 OpenAI 的应用，或",
+    "You will not be able to see it again.": "你将无法再次查看它。",
+    "Your new key": "你的新密钥",
+    "cURL": "cURL",
+    "your own code": "你自己的代码",
+    "Reset limit every...": "重置周期…"
   }
 }

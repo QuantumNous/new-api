@@ -5090,6 +5090,26 @@
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "В записях бонусов должны использоваться положительные целые суммы пополнения и положительные целые суммы бонуса",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Карта бонусного кредита по сумме пополнения (объект JSON). Значения используют ту же единицу, что и суммы пополнения.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Настройте бонусный кредит для каждой суммы пополнения. Значения используют ту же единицу, что и суммы пополнения.",
-    "No rate-limit window was reset": "Ни одно окно ограничения скорости не было сброшено"
+    "No rate-limit window was reset": "Ни одно окно ограничения скорости не было сброшено",
+    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Разрешить этому пользователю видеть и выбирать группы; для PLG-пользователей понятие групп скрыто",
+    "Enterprise User": "Корпоративный пользователь",
+    "Get ${{bonus}} free": "Бонус ${{bonus}}",
+    "Create an API key": "Создать ключ API",
+    "Credit limit (optional)": "Лимит кредита (необязательно)",
+    "Leave blank for unlimited": "Оставьте пустым для неограниченного",
+    "Make your first API call in under a minute.": "Сделайте первый вызов API менее чем за минуту.",
+    "Make your first call": "Сделайте первый вызов",
+    "Need a key?": "Нужен ключ?",
+    "Please copy it now and save it somewhere safe.": "Скопируйте его сейчас и сохраните в надёжном месте.",
+    "Python": "Python",
+    "Quickstart": "Быстрый старт",
+    "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "API совместим с OpenAI, поэтому любой SDK OpenAI работает после изменения базового URL и ключа API.",
+    "TypeScript": "TypeScript",
+    "You can use it with OpenAI-compatible apps, or": "Вы можете использовать его в приложениях, совместимых с OpenAI, или",
+    "You will not be able to see it again.": "Вы больше не сможете его увидеть.",
+    "Your new key": "Ваш новый ключ",
+    "cURL": "cURL",
+    "your own code": "ваш собственный код",
+    "Reset limit every...": "Сбрасывать лимит каждые…"
   }
 }

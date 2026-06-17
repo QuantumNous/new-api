@@ -449,6 +449,21 @@ For commercial licensing, please contact support@quantumnous.com
     animation: appear-zoom 0.6s forwards ease-out;
   }
 
+  /* Periodic sheen sweep for the first-top-up promo banner — draws the eye to the CTA. */
+  .animate-bonus-shine {
+    animation: bonus-shine 3.4s ease-in-out infinite;
+  }
+
+  @keyframes bonus-shine {
+    0% {
+      transform: translateX(-160%) skewX(-12deg);
+    }
+    55%,
+    100% {
+      transform: translateX(720%) skewX(-12deg);
+    }
+  }
+
   .animation-delay-100 {
     animation-delay: 100ms;
   }

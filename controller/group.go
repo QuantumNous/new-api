@@ -20,6 +20,12 @@ import (
 // represent a freshly registered user's group.
 const defaultUserGroup = "default"
 
+// plgGroup is the single group assigned to every non-enterprise (PLG) user. New users
+// default into it (model.User.Group default), the group concept is hidden from them in the
+// UI, and the backend forces their tokens/requests onto it. Shared across the controller
+// package (group.go, token.go).
+const plgGroup = "plg"
+
 func GetGroups(c *gin.Context) {
 	// type=user returns the user identity groups (user.Group), whose authoritative
 	// source is the union of the system default group, the topup group ratio
@@ -72,6 +78,23 @@ func GetUserGroups(c *gin.Context) {
 	userGroup := ""
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
+
+	// PLG (non-enterprise) users never see the group concept — they only ever get the
+	// single plg group. Enterprise users (admin-flagged, plus all backfilled legacy users)
+	// fall through to the full usable-group resolution below.
+	if userCache, err := model.GetUserCache(userId); err == nil && !userCache.IsEnterprise {
+		usableGroups[plgGroup] = map[string]interface{}{
+			"ratio": service.GetUserGroupRatio(userGroup, plgGroup),
+			"desc":  setting.GetUsableGroupDescription(plgGroup),
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    usableGroups,
+		})
+		return
+	}
+
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
