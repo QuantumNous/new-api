@@ -327,6 +327,17 @@ export async function getCodexUsage(
   return res.data
 }
 
+export async function consumeCodexReset(
+  channelId: number
+): Promise<CodexUsageResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/codex/reset-credit`,
+    {},
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
 // ============================================================================
 // Multi-Key Management
 // ============================================================================
