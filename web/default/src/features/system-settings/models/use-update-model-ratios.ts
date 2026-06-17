@@ -36,13 +36,15 @@ export function useUpdateModelRatios() {
       }
 
       const getCurrentOptions = async () => {
-        const response = await api.get<{
+        const res = await api.get<{
           success: boolean
+          message?: string
           data?: Array<{ key: string; value: string }>
         }>('/api/option/')
+        const response = res.data
 
         if (!response.success) {
-          throw new Error('Failed to fetch current options')
+          throw new Error(response.message || 'Failed to fetch current options')
         }
 
         const optionsMap: Record<string, string> = {}
@@ -203,7 +205,8 @@ export function useUpdateModelRatios() {
 
       // Send all updates
       for (const update of updates) {
-        const response = await api.put('/api/option/', update)
+        const res = await api.put('/api/option/', update)
+        const response = res.data
         if (!response.success) {
           throw new Error(response.message || 'Failed to update option')
         }

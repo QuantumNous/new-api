@@ -40,11 +40,12 @@ type EnabledModel = {
 }
 
 async function fetchEnabledModels(): Promise<EnabledModel[]> {
-  const response = await api.get<{
+  const res = await api.get<{
     success: boolean
     message?: string
     data?: string[]
   }>('/api/channel/models_enabled')
+  const response = res.data
 
   if (!response.success) {
     throw new Error(response.message || 'Failed to fetch enabled models')
