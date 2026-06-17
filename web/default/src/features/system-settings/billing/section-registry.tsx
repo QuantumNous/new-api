@@ -69,6 +69,12 @@ const BILLING_SECTIONS = [
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
           },
+          payment_setting: {
+            aff_commission_enabled: settings['payment_setting.aff_commission_enabled'] ?? false,
+            aff_commission_type: settings['payment_setting.aff_commission_type'] ?? 'percentage',
+            aff_commission_rate: settings['payment_setting.aff_commission_rate'] ?? 0,
+            aff_commission_fixed_amount: settings['payment_setting.aff_commission_fixed_amount'] ?? 0,
+          },
         }}
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&

@@ -232,6 +232,10 @@ export type BillingSettings = {
   'payment_setting.compliance_confirmed_at': number
   'payment_setting.compliance_confirmed_by': number
   'payment_setting.compliance_confirmed_ip': string
+  'payment_setting.aff_commission_enabled': boolean
+  'payment_setting.aff_commission_type': string
+  'payment_setting.aff_commission_rate': number
+  'payment_setting.aff_commission_fixed_amount': number
   StripeApiSecret: string
   StripeWebhookSecret: string
   StripePriceId: string

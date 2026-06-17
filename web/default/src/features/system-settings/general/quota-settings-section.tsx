@@ -33,6 +33,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -58,6 +65,12 @@ const quotaSchema = z.object({
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
+  }),
+  payment_setting: z.object({
+    aff_commission_enabled: z.boolean(),
+    aff_commission_type: z.enum(['percentage', 'fixed']),
+    aff_commission_rate: z.coerce.number().min(0).max(100),
+    aff_commission_fixed_amount: z.coerce.number().min(0),
   }),
 })
 
@@ -283,6 +296,113 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='payment_setting.aff_commission_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Payment Commission')}</FormLabel>
+                      <FormDescription>
+                        {t('When enabled, inviters receive a commission when their invitees make a payment.')}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            {form.watch('payment_setting.aff_commission_enabled') && (
+              <>
+                <FormField
+                  control={form.control}
+                  name='payment_setting.aff_commission_type'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Commission Type')}</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='percentage'>{t('Percentage')}</SelectItem>
+                            <SelectItem value='fixed'>{t('Fixed Amount')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription>
+                        {t('Choose whether the commission is a percentage of the payment or a fixed quota amount.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch('payment_setting.aff_commission_type') === 'percentage' ? (
+                  <FormField
+                    control={form.control}
+                    name='payment_setting.aff_commission_rate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Commission Rate (%)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            max={100}
+                            step='0.01'
+                            value={field.value ?? ''}
+                            onChange={handleNumberChange(field.onChange)}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Percentage of the paid quota awarded to the inviter (0–100).')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name='payment_setting.aff_commission_fixed_amount'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Fixed Commission Amount')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            value={field.value ?? ''}
+                            onChange={handleNumberChange(field.onChange)}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Fixed quota amount credited to the inviter per payment.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </>
+            )}
           </SettingsFormGrid>
         </SettingsForm>
       </Form>
