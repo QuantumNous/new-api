@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func resetRegistryForTest() {
@@ -23,9 +25,7 @@ func TestCloseChannelClosesRegisteredConnectionsOnce(t *testing.T) {
 	Register(10, KindRealtime, func(reason string) {
 		mu.Lock()
 		defer mu.Unlock()
-		if reason != "test reason" {
-			t.Fatalf("reason = %q, want test reason", reason)
-		}
+		require.Equal(t, "test reason", reason, "close callback should receive the provided reason")
 		calls++
 	})
 	Register(10, KindResponses, func(reason string) {
@@ -34,18 +34,12 @@ func TestCloseChannelClosesRegisteredConnectionsOnce(t *testing.T) {
 		calls++
 	})
 
-	if closed := CloseChannel(10, "test reason"); closed != 2 {
-		t.Fatalf("closed = %d, want 2", closed)
-	}
-	if closed := CloseChannel(10, "test reason"); closed != 0 {
-		t.Fatalf("second close = %d, want 0", closed)
-	}
+	require.Equal(t, 2, CloseChannel(10, "test reason"), "CloseChannel should close every registered connection for the channel")
+	require.Equal(t, 0, CloseChannel(10, "test reason"), "CloseChannel should not close already removed connections")
 
 	mu.Lock()
 	defer mu.Unlock()
-	if calls != 2 {
-		t.Fatalf("calls = %d, want 2", calls)
-	}
+	assert.Equal(t, 2, calls, "all registered close callbacks should be called once")
 }
 
 func TestCloseChannelDoesNotCloseOtherChannels(t *testing.T) {
@@ -59,15 +53,9 @@ func TestCloseChannelDoesNotCloseOtherChannels(t *testing.T) {
 		calls[20]++
 	})
 
-	if closed := CloseChannel(10, "test"); closed != 1 {
-		t.Fatalf("closed = %d, want 1", closed)
-	}
-	if calls[10] != 1 {
-		t.Fatalf("channel 10 calls = %d, want 1", calls[10])
-	}
-	if calls[20] != 0 {
-		t.Fatalf("channel 20 calls = %d, want 0", calls[20])
-	}
+	require.Equal(t, 1, CloseChannel(10, "test"), "CloseChannel should only close the requested channel")
+	assert.Equal(t, 1, calls[10], "requested channel callback should run")
+	assert.Equal(t, 0, calls[20], "other channel callback should not run")
 }
 
 func TestUnregisterPreventsClose(t *testing.T) {
@@ -79,12 +67,8 @@ func TestUnregisterPreventsClose(t *testing.T) {
 	})
 	unregister()
 
-	if closed := CloseChannel(10, "test"); closed != 0 {
-		t.Fatalf("closed = %d, want 0", closed)
-	}
-	if calls != 0 {
-		t.Fatalf("calls = %d, want 0", calls)
-	}
+	require.Equal(t, 0, CloseChannel(10, "test"), "unregistered connections should not be closed")
+	assert.Equal(t, 0, calls, "unregistered close callback should not run")
 }
 
 func TestRegisteredCloseIsIdempotent(t *testing.T) {
@@ -101,15 +85,11 @@ func TestRegisteredCloseIsIdempotent(t *testing.T) {
 		registered = e
 	}
 	mu.Unlock()
-	if registered == nil {
-		t.Fatal("registered entry is nil")
-	}
+	require.NotNil(t, registered, "registered entry should exist")
 
 	registered.close("test")
 	registered.close("test")
-	if calls != 1 {
-		t.Fatalf("calls = %d, want 1", calls)
-	}
+	assert.Equal(t, 1, calls, "registered close callback should be idempotent")
 }
 
 func TestPublishCloseChannelsNoopsWhenRedisDisabled(t *testing.T) {
@@ -124,7 +104,5 @@ func TestPublishCloseChannelsNoopsWhenRedisDisabled(t *testing.T) {
 		common.RDB = oldRDB
 	}()
 
-	if err := PublishCloseChannels(context.Background(), []int{10}, "test"); err != nil {
-		t.Fatalf("PublishCloseChannels() error = %v", err)
-	}
+	require.NoError(t, PublishCloseChannels(context.Background(), []int{10}, "test"), "publishing should no-op without Redis")
 }

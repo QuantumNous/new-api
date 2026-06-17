@@ -109,12 +109,15 @@ func CloseChannelsAndBroadcast(channelIDs []int, reason string) int {
 	return count
 }
 
-func StartSubscriber() {
+func StartSubscriber(ctx context.Context) {
 	if !common.RedisEnabled || common.RDB == nil {
 		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	subscriberOnce.Do(func() {
-		go subscribe()
+		go subscribe(ctx)
 	})
 }
 
@@ -137,21 +140,29 @@ func PublishCloseChannels(ctx context.Context, channelIDs []int, reason string) 
 	return common.RDB.Publish(ctx, redisChannel, payload).Err()
 }
 
-func subscribe() {
-	pubsub := common.RDB.Subscribe(context.Background(), redisChannel)
+func subscribe(ctx context.Context) {
+	pubsub := common.RDB.Subscribe(ctx, redisChannel)
 	defer pubsub.Close()
 
 	ch := pubsub.Channel()
-	for msg := range ch {
-		var event closeEvent
-		if err := common.Unmarshal([]byte(msg.Payload), &event); err != nil {
-			common.SysLog(fmt.Sprintf("failed to unmarshal websocket close event: %v", err))
-			continue
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			var event closeEvent
+			if err := common.Unmarshal([]byte(msg.Payload), &event); err != nil {
+				common.SysLog(fmt.Sprintf("failed to unmarshal websocket close event: %v", err))
+				continue
+			}
+			if event.Origin == getOriginID() {
+				continue
+			}
+			CloseChannels(event.ChannelIDs, event.Reason)
 		}
-		if event.Origin == getOriginID() {
-			continue
-		}
-		CloseChannels(event.ChannelIDs, event.Reason)
 	}
 }
 
