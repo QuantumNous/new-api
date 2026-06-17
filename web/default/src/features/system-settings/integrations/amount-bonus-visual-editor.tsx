@@ -92,7 +92,12 @@ export function AmountBonusVisualEditor({
         bonusAmount: bonusAmountNumber,
       })
     )
-    onLimitChange?.(setAmountBonusLimit(limitValue, amountNumber, claimLimitNumber))
+    // 编辑时若改了充值金额，先清掉旧金额遗留的限次 key，避免孤儿残留。
+    let nextLimit = limitValue
+    if (editData && editData.amount !== amountNumber) {
+      nextLimit = setAmountBonusLimit(nextLimit, editData.amount, 0)
+    }
+    onLimitChange?.(setAmountBonusLimit(nextLimit, amountNumber, claimLimitNumber))
     resetDraft()
   }
 
