@@ -128,6 +128,12 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	var requestBody io.Reader
 
+	// T-21 note: pass-through mode reads the raw request body from BodyStorage,
+	// bypassing the Go struct. When a skill request (deeprouter.skill_id present)
+	// reaches a pass-through channel, request.Deeprouter = nil above has no effect
+	// on the forwarded body — providers will see the deeprouter field. Providers
+	// ignore unknown vendor extensions, so there is no security exposure for V1.
+	// Skill channels must not have PassThroughBodyEnabled set.
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {

@@ -16,13 +16,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // ── test helpers ─────────────────────────────────────────────────────────────
 
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	require.NoError(t, err)
 	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &platformmodel.User{}))
 	return database
@@ -365,4 +368,120 @@ func TestResolve_T21_UserIDFromContextOnly(t *testing.T) {
 	// UserID must match the context user, not any implicit client claim.
 	assert.Equal(t, 50, skillCtx.UserID)
 	assert.Equal(t, enums.RequiredPlanPro, skillCtx.Plan)
+}
+
+// ── exported Resolve wrapper ──────────────────────────────────────────────────
+
+// TestResolve_ExportedWrapper_NilPackageDB verifies that the exported Resolve()
+// function delegates to resolve() and correctly propagates errors through the
+// package-level db. In tests the package-level db is never set (SetDB not called),
+// so a request with a context user but no db → SKILL_INTERNAL_ERROR.
+func TestResolve_ExportedWrapper_NilPackageDB(t *testing.T) {
+	// Confirm: package-level db was never set in this test binary.
+	// (SetDB is never called in any test; db starts as nil.)
+	require.Nil(t, db, "package-level db must be nil for this test to be meaningful")
+
+	c := newTestContext(t)
+	user := enabledUser(60)
+	setContextUser(c, user) // user resolved from context; skill lookup hits nil db
+
+	ctx, code := Resolve(c, "any-skill-id")
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillInternalError, code)
+}
+
+// ── return invariant ──────────────────────────────────────────────────────────
+
+// TestResolveReturnInvariant asserts the hard contract of resolve():
+// exactly one of the following is always true for every code path:
+//
+//	(ctx == nil  AND errCode != "") — failure
+//	(ctx != nil  AND errCode == "") — success
+//
+// This mirrors the DR-72 lesson where a non-nil result was returned with a
+// misleading zero-value field. A future change that returns (nil, "") would
+// cause the caller to call skillrelay.Set(c, nil), and any downstream handler
+// doing ctx.UserID would panic.
+func TestResolveReturnInvariant(t *testing.T) {
+	database := newTestDB(t)
+	validSkill := insertSkill(t, database, defaultSkill())
+
+	type testCase struct {
+		name    string
+		setupFn func() (*gin.Context, *gorm.DB, string)
+	}
+
+	cases := []testCase{
+		{
+			name: "anonymous user",
+			setupFn: func() (*gin.Context, *gorm.DB, string) {
+				c := newTestContext(t)
+				// no userID → anonymous
+				return c, database, validSkill.ID
+			},
+		},
+		{
+			name: "nil db, no context user",
+			setupFn: func() (*gin.Context, *gorm.DB, string) {
+				c := newTestContext(t)
+				common.SetContextKey(c, constant.ContextKeyUserId, 5)
+				return c, nil, validSkill.ID
+			},
+		},
+		{
+			name: "disabled user",
+			setupFn: func() (*gin.Context, *gorm.DB, string) {
+				c := newTestContext(t)
+				u := enabledUser(70)
+				u.Status = common.UserStatusDisabled
+				setContextUser(c, u)
+				return c, database, validSkill.ID
+			},
+		},
+		{
+			name: "skill not found",
+			setupFn: func() (*gin.Context, *gorm.DB, string) {
+				c := newTestContext(t)
+				setContextUser(c, enabledUser(71))
+				return c, database, "00000000-0000-0000-0000-000000000000"
+			},
+		},
+		{
+			name: "nil db after user resolved",
+			setupFn: func() (*gin.Context, *gorm.DB, string) {
+				c := newTestContext(t)
+				setContextUser(c, enabledUser(72))
+				return c, nil, validSkill.ID
+			},
+		},
+		{
+			name: "success path",
+			setupFn: func() (*gin.Context, *gorm.DB, string) {
+				c := newTestContext(t)
+				setContextUser(c, enabledUser(73))
+				return c, database, validSkill.ID
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, db, skillID := tc.setupFn()
+			ctx, errCode := resolve(c, db, skillID)
+
+			// Invariant A: failure → ctx nil, errCode non-empty
+			// Invariant B: success → ctx non-nil, errCode empty
+			if errCode != "" {
+				assert.Nil(t, ctx,
+					"when errCode=%q, ctx MUST be nil (storing nil via Set causes downstream panic)", errCode)
+			} else {
+				assert.NotNil(t, ctx,
+					"when errCode is empty (success), ctx MUST be non-nil")
+				assert.Equal(t, errcodes.ErrorCode(""), errCode)
+			}
+			// The two outcomes must be mutually exclusive.
+			assert.Equal(t, ctx == nil, errCode != "",
+				"(ctx==nil) must equal (errCode!='') — invariant violated")
+		})
+	}
 }
