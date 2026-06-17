@@ -25,6 +25,7 @@ const tabCopy: Record<Locale, { aria: string; oneLiner: string; copy: string; co
   ru: { aria: "Команда установки по ОС", oneLiner: "one-liner", copy: "Копировать", copied: "Скопировано", srTitle: "Команды установки Flatkey" },
   ja: { aria: "OS 別インストールコマンド", oneLiner: "one-liner", copy: "コピー", copied: "コピー済み", srTitle: "Flatkey インストールコマンド" },
   vi: { aria: "Lệnh cài đặt theo hệ điều hành", oneLiner: "one-liner", copy: "Sao chép", copied: "Đã sao chép", srTitle: "Lệnh cài đặt Flatkey" },
+  de: { aria: "Installationsbefehl nach Betriebssystem", oneLiner: "one-liner", copy: "Kopieren", copied: "Kopiert", srTitle: "Flatkey Installationsbefehle" },
 };
 
 type Props = {
