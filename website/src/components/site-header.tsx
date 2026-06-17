@@ -27,6 +27,7 @@ const useCaseLabelByLocale: Record<Locale, string> = {
   ru: "Сценарии",
   ja: "ユースケース",
   vi: "Use case",
+  de: "Anwendungsfälle",
 };
 
 type Props = {

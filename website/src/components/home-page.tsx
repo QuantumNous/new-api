@@ -136,6 +136,19 @@ const homeAgentCopy: Record<
     claudeBody: "Claude Code qua Flatkey với prepaid balance, logs và kiểm soát chi phí.",
     learnMore: "Tìm hiểu thêm",
   },
+  de: {
+    cheapTitle: "Mindestens 40% günstiger als offiziell",
+    cheapBody: "Route Codex- und Claude-Code-Nutzung über Flatkey, behalte den Workflow und senke nutzungsbasierte Kosten.",
+    takeoverTitle: "Bestehenden Coding-Agent-Traffic jetzt übernehmen",
+    takeoverBody: "Ein Installer richtet Codex CLI oder Claude Code in etwa 30 Sekunden für router.flatkey.ai ein.",
+    quickTitle: "Schnellinstallation",
+    quickBody: "Ein Befehl richtet den lokalen Agent ein, fragt nach dem Tool und leitet Nutzung zu Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "OpenAI-kompatibles Codex-CLI-Routing, ein Key, sichtbare Ausgaben und niedrigere Nutzungskosten.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code über Flatkey mit Prepaid-Guthaben, Logs und Kostenkontrolle.",
+    learnMore: "Mehr erfahren",
+  },
 };
 
 function CherryStudioIcon() {
