@@ -36,7 +36,8 @@ import type { TopupInfo } from '../types'
 const HINT_LS_KEY = 'payment_hint_shown'
 const HINT_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
-const PRESET_AMOUNTS = [10, 50, 100, 500, 1000, 5000]
+const PRESET_AMOUNTS_DEFAULT  = [10, 50, 100, 500, 1000]
+const PRESET_AMOUNTS_NEW_USER = [1, 10, 50, 100, 500, 1000]
 
 interface RechargePanelProps {
   onSuccess: () => void
@@ -55,6 +56,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [promoInfo, setPromoInfo] = useState<FirstTopupPromoInfo | null>(null)
+  const [isNewUser, setIsNewUser] = useState(false)
   const [countdown, setCountdown] = useState('')
 
   const effectiveAmount = customAmount ? parseFloat(customAmount) || 0 : selectedAmount
@@ -88,6 +90,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
 
   useEffect(() => {
     getFirstTopupPromo().then((info) => {
+      if (info?.eligible) setIsNewUser(true)
       if (info?.enabled && info?.eligible) setPromoInfo(info)
     })
   }, [])
@@ -223,7 +226,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
               {t('Select Amount')}
             </div>
             <div className='grid grid-cols-3 gap-2'>
-              {PRESET_AMOUNTS.map((amount) => {
+              {(isNewUser ? PRESET_AMOUNTS_NEW_USER : PRESET_AMOUNTS_DEFAULT).map((amount) => {
                 const active = selectedAmount === amount && !customAmount
                 const isPromo = !!promoInfo && amount === promoInfo.amount
                 return (
