@@ -90,7 +90,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
 
   useEffect(() => {
     getFirstTopupPromo().then((info) => {
-      if (info?.eligible) setIsNewUser(true)
+      if (info?.never_recharged) setIsNewUser(true)
       if (info?.enabled && info?.eligible) setPromoInfo(info)
     })
   }, [])

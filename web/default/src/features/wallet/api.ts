@@ -338,6 +338,7 @@ export async function getCryptoDepositStatus(
 export interface FirstTopupPromoInfo {
   enabled: boolean
   eligible: boolean
+  never_recharged: boolean
   discount: number
   amount: number
   pay_amount: number

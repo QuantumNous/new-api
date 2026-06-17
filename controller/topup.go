@@ -194,14 +194,17 @@ func firstTopupPromoFactor(userId int, amount int64) float64 {
 func GetFirstTopupPromo(c *gin.Context) {
 	amount := common.FirstTopupPromoAmount
 	discount := common.FirstTopupPromoDiscount
+	userId := c.GetInt("id")
+	// never_recharged: 只判断是否曾经充值成功，不受时间窗口限制，用于始终展示 $1 档位
+	neverRecharged := userId == 0 || !model.HasSuccessfulTopUp(userId)
 	if !common.FirstTopupPromoEnabled {
 		common.ApiSuccess(c, gin.H{
-			"enabled":  false,
-			"eligible": false,
+			"enabled":         false,
+			"eligible":        false,
+			"never_recharged": neverRecharged,
 		})
 		return
 	}
-	userId := c.GetInt("id")
 	var eligible bool
 	var expiresAt int64
 	if userId == 0 {
@@ -212,12 +215,13 @@ func GetFirstTopupPromo(c *gin.Context) {
 		eligible, expiresAt = model.IsFirstTopupPromoEligible(userId)
 	}
 	common.ApiSuccess(c, gin.H{
-		"enabled":    true,
-		"eligible":   eligible,
-		"discount":   discount,
-		"amount":     amount,
-		"pay_amount": float64(amount) * discount,
-		"expires_at": expiresAt,
+		"enabled":         true,
+		"eligible":        eligible,
+		"never_recharged": neverRecharged,
+		"discount":        discount,
+		"amount":          amount,
+		"pay_amount":      float64(amount) * discount,
+		"expires_at":      expiresAt,
 	})
 }
 
