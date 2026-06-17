@@ -99,3 +99,30 @@ func applyTopUpBonusInTx(tx *gorm.DB, topUp *TopUp, limit int) (int64, error) {
 func topUpBonusLimitFor(tier int) int {
 	return operation_setting.GetPaymentSetting().AmountBonusLimit[tier]
 }
+
+// GetTopUpBonusRemaining 返回某用户在「配置了限次的各档位」上的剩余可领次数：map[档位金额]剩余次数。
+// 仅包含 AmountBonusLimit 里 limit>0 的档位；未配置限次的档位（不限次）不在结果中——前端将
+// 「档位不在此 map」视为不限次、始终显示赠送。剩余次数下限为 0。
+func GetTopUpBonusRemaining(userId int) (map[int]int, error) {
+	limits := operation_setting.GetPaymentSetting().AmountBonusLimit
+	remaining := make(map[int]int, len(limits))
+	if userId <= 0 || len(limits) == 0 {
+		return remaining, nil
+	}
+	for tier, limit := range limits {
+		if limit <= 0 {
+			continue // 0/负 = 不限次，不下发
+		}
+		var used int64
+		if err := DB.Model(&TopUpBonusClaim{}).
+			Where("user_id = ? AND tier = ?", userId, tier).Count(&used).Error; err != nil {
+			return nil, err
+		}
+		left := limit - int(used)
+		if left < 0 {
+			left = 0
+		}
+		remaining[tier] = left
+	}
+	return remaining, nil
+}

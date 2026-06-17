@@ -150,7 +150,16 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
 		"bonus":          operation_setting.GetPaymentSetting().AmountBonus,
-		"topup_link":     common.TopUpLink,
+		"bonus_limit":    operation_setting.GetPaymentSetting().AmountBonusLimit,
+		"bonus_remaining": func() map[int]int {
+			remaining, err := model.GetTopUpBonusRemaining(c.GetInt("id"))
+			if err != nil {
+				logger.LogError(c.Request.Context(), "获取充值赠送剩余次数失败: "+err.Error())
+				return map[int]int{}
+			}
+			return remaining
+		}(),
+		"topup_link": common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }

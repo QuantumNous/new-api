@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -139,4 +140,25 @@ func TestApplyTopUpBonusZerosOutWhenOverLimit(t *testing.T) {
 		return nil
 	}))
 	require.Equal(t, int64(0), tu2.BonusAmount)
+}
+
+func TestGetTopUpBonusRemaining(t *testing.T) {
+	setupBonusClaimTestDB(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalLimit := paymentSetting.AmountBonusLimit
+	t.Cleanup(func() { paymentSetting.AmountBonusLimit = originalLimit })
+	// 档位 20 限 2 次、档位 50 限 1 次、档位 100 不限(0)。
+	paymentSetting.AmountBonusLimit = map[int]int{20: 2, 50: 1, 100: 0}
+
+	// 用户 40 已在档位 20 领过 1 次。
+	require.NoError(t, DB.Create(&TopUpBonusClaim{
+		UserId: 40, Tier: 20, Seq: 1, BonusAmount: 5, TradeNo: "r1", CreatedTime: 1,
+	}).Error)
+
+	remaining, err := GetTopUpBonusRemaining(40)
+	require.NoError(t, err)
+	require.Equal(t, 1, remaining[20]) // 限2已用1 → 剩1
+	require.Equal(t, 1, remaining[50]) // 限1未用 → 剩1
+	_, has100 := remaining[100]
+	require.False(t, has100) // 不限次的档位不下发
 }
