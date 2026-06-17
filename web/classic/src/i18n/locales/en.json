@@ -4038,6 +4038,11 @@
     "{{count}} 个月前_other": "{{count}} months ago",
     "1 年前": "1 year ago",
     "额度预警通知": "Quota warning notification",
-    "您的额度即将用尽，当前剩余额度为 {{value}}": "Your quota is almost exhausted. Current remaining quota: {{value}}"
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "Your quota is almost exhausted. Current remaining quota: {{value}}",
+    "充值赠送配置": "Top-up bonus configuration",
+    "充值赠送配置不是合法的 JSON 对象": "Top-up bonus configuration is not a valid JSON object",
+    "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Set bonus credit for different top-up amounts. Keys are top-up amounts and values are bonus amounts, for example: {\"20\": 5, \"50\": 15}",
+    "赠送额度": "Bonus credit",
+    "到账额度": "Wallet credit"
   }
 }

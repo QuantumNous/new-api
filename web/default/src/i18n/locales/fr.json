@@ -5069,7 +5069,6 @@
     "{{usage}} more usage than the official plan": "{{usage}} d'utilisation en plus que l'offre officielle",
     "Offer ends in": "L'offre se termine dans",
     "Failed to start payment": "Échec du démarrage du paiement",
-    "Get ${{bonus}} free": "${{bonus}} offerts",
     "Limited time": "Durée limitée",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "Premier rechargement <hl>+50 % offert</hl> · mêmes modèles à moitié prix vs l'officiel",
     "Top up & get bonus credit — up to 50% OFF": "Rechargez et recevez du crédit bonus — jusqu'à 50 % de réduction",
@@ -5077,6 +5076,20 @@
     "Recharge successful 🎉": "Recharge réussie 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Votre bonus a été crédité sur votre portefeuille. Profitez-en !",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge réussie. Votre bonus est en cours de crédit — actualisez dans un instant.",
+    "e.g., 20": "par ex., 20",
+    "e.g., 5": "par ex., 5",
+    "Amount bonus": "Bonus par montant",
+    "Claim Limit": "Limite de réclamations",
+    "0 = unlimited": "0 = illimité",
+    "Bonus claim limit per user": "Limite de bonus par utilisateur",
+    "Per-user lifetime claim limit by recharge amount (JSON object). 0 or unset means unlimited.": "Limite de bonus à vie par utilisateur selon le montant de recharge (objet JSON). 0 ou non défini signifie illimité.",
+    "Bonus Credit": "Crédit bonus",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "Aucun palier de bonus configuré. Ajoutez un montant de recharge et un bonus ci-dessous.",
+    "Wallet Credit": "Crédit du portefeuille",
+    "Get {{bonus}} free": "{{bonus}} offerts",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Les entrées de bonus doivent utiliser des montants de recharge entiers positifs et des montants de bonus entiers positifs",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Carte du crédit bonus par montant de recharge (objet JSON). Les valeurs utilisent la même unité que les montants de recharge.",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configurez le crédit bonus pour chaque montant de recharge. Les valeurs utilisent la même unité que les montants de recharge.",
     "No rate-limit window was reset": "Aucune fenêtre de limite de débit n'a été réinitialisée"
   }
 }

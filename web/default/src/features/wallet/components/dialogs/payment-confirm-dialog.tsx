@@ -45,6 +45,7 @@ interface PaymentConfirmDialogProps {
   processing: boolean
   discountRate?: number
   usdExchangeRate?: number
+  bonusAmount?: number
 }
 
 function formatUsdAmount(amount: number): string {
@@ -67,8 +68,12 @@ export function PaymentConfirmDialog({
   processing,
   discountRate = DEFAULT_DISCOUNT_RATE,
   usdExchangeRate = 1,
+  bonusAmount = 0,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
+  const normalizedBonusAmount =
+    Number.isFinite(bonusAmount) && bonusAmount > 0 ? bonusAmount : 0
+  const creditAmount = topupAmount + normalizedBonusAmount
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
   const originalAmount = hasDiscount ? paymentAmount / discountRate : 0
   const discountAmount = hasDiscount ? originalAmount - paymentAmount : 0
@@ -105,6 +110,30 @@ export function PaymentConfirmDialog({
               {hiddenLocalTopupAmount}
             </span>
           </div>
+
+          {normalizedBonusAmount > 0 && (
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Bonus Credit')} <span className='text-xs'>USD</span>
+              </span>
+              <span className='text-lg font-semibold text-[#FF2D78]'>
+                +{formatUsdAmount(normalizedBonusAmount)}
+              </span>
+            </div>
+          )}
+
+          {normalizedBonusAmount > 0 && (
+            <div className='bg-muted/50 rounded-lg p-3'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>
+                  {t('Wallet Credit')}
+                </span>
+                <span className='font-semibold'>
+                  {formatUsdAmount(creditAmount)}
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>

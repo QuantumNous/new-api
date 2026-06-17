@@ -5069,7 +5069,6 @@
     "{{usage}} more usage than the official plan": "{{usage}} mais uso que o plano oficial",
     "Offer ends in": "A oferta termina em",
     "Failed to start payment": "Falha ao iniciar o pagamento",
-    "Get ${{bonus}} free": "${{bonus}} grátis",
     "Limited time": "Por tempo limitado",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "Primeira recarga <hl>+50% de bônus</hl> · mesmos modelos pela metade do preço oficial",
     "Top up & get bonus credit — up to 50% OFF": "Recarregue e ganhe crédito bônus — até 50% OFF",
@@ -5077,6 +5076,20 @@
     "Recharge successful 🎉": "Recarga concluída 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Seu bônus foi creditado na sua carteira. Aproveite!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recarga concluída. Seu bônus está sendo creditado — atualize em instantes.",
+    "e.g., 20": "por exemplo, 20",
+    "e.g., 5": "por exemplo, 5",
+    "Amount bonus": "Bônus por valor",
+    "Claim Limit": "Limite de resgates",
+    "0 = unlimited": "0 = ilimitado",
+    "Bonus claim limit per user": "Limite de bônus por usuário",
+    "Per-user lifetime claim limit by recharge amount (JSON object). 0 or unset means unlimited.": "Limite vitalício de bônus por usuário conforme o valor de recarga (objeto JSON). 0 ou não definido significa ilimitado.",
+    "Bonus Credit": "Crédito bônus",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "Nenhuma faixa de bônus configurada. Adicione abaixo um valor de recarga e um valor de bônus.",
+    "Wallet Credit": "Crédito na carteira",
+    "Get {{bonus}} free": "{{bonus}} grátis",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "As entradas de bônus devem usar valores de recarga inteiros positivos e valores de bônus inteiros positivos",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Mapa de crédito bônus por valor de recarga (objeto JSON). Os valores usam a mesma unidade dos valores de recarga.",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configure crédito bônus para cada valor de recarga. Os valores usam a mesma unidade dos valores de recarga.",
     "No rate-limit window was reset": "Nenhuma janela de limite de taxa foi redefinida"
   }
 }

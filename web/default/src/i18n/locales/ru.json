@@ -5069,7 +5069,6 @@
     "{{usage}} more usage than the official plan": "В {{usage}} больше использования, чем в официальном тарифе",
     "Offer ends in": "Предложение истекает через",
     "Failed to start payment": "Не удалось начать оплату",
-    "Get ${{bonus}} free": "Бонус ${{bonus}}",
     "Limited time": "Ограниченное время",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "Первое пополнение <hl>+50 % бонус</hl> · те же модели вдвое дешевле официальной цены",
     "Top up & get bonus credit — up to 50% OFF": "Пополните и получите бонусные кредиты — скидка до 50 %",
@@ -5077,6 +5076,20 @@
     "Recharge successful 🎉": "Пополнение успешно 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Бонус зачислен на ваш счёт. Приятного использования!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "Пополнение успешно. Бонус зачисляется — обновите через мгновение.",
+    "e.g., 20": "напр., 20",
+    "e.g., 5": "напр., 5",
+    "Amount bonus": "Бонус по сумме",
+    "Claim Limit": "Лимит получений",
+    "0 = unlimited": "0 = без ограничений",
+    "Bonus claim limit per user": "Лимит бонусов на пользователя",
+    "Per-user lifetime claim limit by recharge amount (JSON object). 0 or unset means unlimited.": "Пожизненный лимит получения бонусов на пользователя по сумме пополнения (объект JSON). 0 или не задано — без ограничений.",
+    "Bonus Credit": "Бонусный кредит",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "Бонусные уровни не настроены. Добавьте ниже сумму пополнения и размер бонуса.",
+    "Wallet Credit": "Кредит кошелька",
+    "Get {{bonus}} free": "{{bonus}} бонусом",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "В записях бонусов должны использоваться положительные целые суммы пополнения и положительные целые суммы бонуса",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Карта бонусного кредита по сумме пополнения (объект JSON). Значения используют ту же единицу, что и суммы пополнения.",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Настройте бонусный кредит для каждой суммы пополнения. Значения используют ту же единицу, что и суммы пополнения.",
     "No rate-limit window was reset": "Ни одно окно ограничения скорости не было сброшено"
   }
 }

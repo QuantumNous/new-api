@@ -38,6 +38,7 @@ export default function SettingsGeneralPayment(props) {
     TopupGroupRatio: '',
     PayMethods: '',
     AmountOptions: '',
+    AmountBonus: '',
     AmountDiscount: '',
   });
   const [originInputs, setOriginInputs] = useState({});
@@ -51,6 +52,7 @@ export default function SettingsGeneralPayment(props) {
         TopupGroupRatio: props.options.TopupGroupRatio || '',
         PayMethods: props.options.PayMethods || '',
         AmountOptions: props.options.AmountOptions || '',
+        AmountBonus: props.options.AmountBonus || '',
         AmountDiscount: props.options.AmountDiscount || '',
       };
       setInputs(currentInputs);
@@ -61,6 +63,25 @@ export default function SettingsGeneralPayment(props) {
 
   const handleFormChange = (values) => {
     setInputs(values);
+  };
+
+  const verifyAmountBonusJSON = (value) => {
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return false;
+      }
+      return Object.entries(parsed).every(([amount, bonusAmount]) => {
+        return (
+          /^[1-9]\d*$/.test(amount) &&
+          typeof bonusAmount === 'number' &&
+          Number.isInteger(bonusAmount) &&
+          bonusAmount > 0
+        );
+      });
+    } catch (e) {
+      return false;
+    }
   };
 
   const submitGeneralSettings = async () => {
@@ -98,6 +119,15 @@ export default function SettingsGeneralPayment(props) {
       return;
     }
 
+    if (
+      originInputs.AmountBonus !== inputs.AmountBonus &&
+      inputs.AmountBonus.trim() !== '' &&
+      !verifyAmountBonusJSON(inputs.AmountBonus)
+    ) {
+      showError(t('充值赠送配置不是合法的 JSON 对象'));
+      return;
+    }
+
     setLoading(true);
     try {
       const options = [
@@ -123,6 +153,12 @@ export default function SettingsGeneralPayment(props) {
         options.push({
           key: 'payment_setting.amount_options',
           value: inputs.AmountOptions,
+        });
+      }
+      if (originInputs.AmountBonus !== inputs.AmountBonus) {
+        options.push({
+          key: 'payment_setting.amount_bonus',
+          value: inputs.AmountBonus,
         });
       }
       if (originInputs.AmountDiscount !== inputs.AmountDiscount) {
@@ -223,8 +259,22 @@ export default function SettingsGeneralPayment(props) {
               />
             </Col>
           </Row>
-          <Row style={{ marginTop: 16 }}>
-            <Col span={24}>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='AmountBonus'
+                label={t('充值赠送配置')}
+                placeholder='{"20": 5, "50": 15}'
+                autosize
+                extraText={t(
+                  '设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{"20": 5, "50": 15}',
+                )}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
                 field='AmountDiscount'
                 label={t('充值金额折扣配置')}

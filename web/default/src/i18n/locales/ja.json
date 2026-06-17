@@ -5069,7 +5069,6 @@
     "{{usage}} more usage than the official plan": "公式プランの {{usage}} の利用量",
     "Offer ends in": "終了まで",
     "Failed to start payment": "支払いを開始できませんでした",
-    "Get ${{bonus}} free": "${{bonus}} 進呈",
     "Limited time": "期間限定",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "初回チャージ <hl>50%増量</hl> · 同じモデルが公式の半額",
     "Top up & get bonus credit — up to 50% OFF": "チャージでボーナスクレジット獲得 — 最大50%OFF",
@@ -5077,6 +5076,20 @@
     "Recharge successful 🎉": "チャージ完了 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "ボーナスがウォレットに反映されました。どうぞご利用ください!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "チャージ完了。ボーナスを反映中です —— 少し待ってから更新してください。",
+    "e.g., 20": "例: 20",
+    "e.g., 5": "例: 5",
+    "Amount bonus": "金額別ボーナス",
+    "Claim Limit": "受取回数上限",
+    "0 = unlimited": "0 = 無制限",
+    "Bonus claim limit per user": "ユーザーごとのボーナス受取上限",
+    "Per-user lifetime claim limit by recharge amount (JSON object). 0 or unset means unlimited.": "チャージ金額ごとのユーザー単位の累計受取回数上限（JSONオブジェクト）。0 または未設定は無制限を意味します。",
+    "Bonus Credit": "ボーナスクレジット",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "ボーナス段階が未設定です。下でチャージ額とボーナス額を追加してください。",
+    "Wallet Credit": "ウォレットクレジット",
+    "Get {{bonus}} free": "{{bonus}} 進呈",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "ボーナス設定は、正の整数のチャージ額と正の整数のボーナス額を使用する必要があります",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "チャージ額別ボーナスクレジットマップ（JSON オブジェクト）。値はチャージ額と同じ単位を使用します。",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "各チャージ額のボーナスクレジットを設定します。値はチャージ額と同じ単位を使用します。",
     "No rate-limit window was reset": "レート制限ウィンドウはリセットされませんでした"
   }
 }

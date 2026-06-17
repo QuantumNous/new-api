@@ -184,29 +184,3 @@ func TestRecordStripeAutoChargeAttemptTriggersCooldown(t *testing.T) {
 		t.Fatalf("expected a failed attempt to trigger the cooldown")
 	}
 }
-
-// TestDepositBonusQuota verifies the deposit-bonus tier table (充X送Y) and that
-// non-tier amounts get no bonus.
-func TestDepositBonusQuota(t *testing.T) {
-	u := int(common.QuotaPerUnit)
-	cases := []struct {
-		paid int64
-		want int
-	}{
-		{10, 2 * u},
-		{20, 5 * u},
-		{50, 15 * u},
-		{100, 35 * u},
-		{200, 100 * u},
-		{1000, 500 * u},
-		{33, 0},  // custom amount, no bonus
-		{0, 0},   // zero
-		{500, 0}, // not a configured tier
-		{15, 0},
-	}
-	for _, c := range cases {
-		if got := DepositBonusQuota(c.paid); got != c.want {
-			t.Errorf("DepositBonusQuota(%d) = %d, want %d", c.paid, got, c.want)
-		}
-	}
-}

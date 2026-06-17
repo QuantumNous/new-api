@@ -17,20 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { PartyPopper } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getSelf } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
+import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
+import { getSelf } from '@/lib/api'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { SectionPageLayout } from '@/components/layout'
-import { getPaddleTopUpStatus, isApiSuccess } from './api'
-import { getCardStatus } from '@/features/onboarding/api'
-import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
-import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
-import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
-import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
-import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -39,8 +34,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { PartyPopper } from 'lucide-react'
+import { SectionPageLayout } from '@/components/layout'
+import { getCardStatus } from '@/features/onboarding/api'
+import { getPaddleTopUpStatus, isApiSuccess } from './api'
+import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
+import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
+import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -66,7 +67,6 @@ import {
   isWaffoPancakePayment,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
-import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -315,7 +315,9 @@ export function Wallet(props: WalletProps) {
       // Webhook hasn't landed in time; reassure the user instead of claiming success.
       toast.dismiss(pendingToast)
       toast.info(
-        t('Recharge successful. Your bonus is being credited — refresh in a moment.')
+        t(
+          'Recharge successful. Your bonus is being credited — refresh in a moment.'
+        )
       )
       await refreshAuthUser()
       await fetchUser()
@@ -673,6 +675,20 @@ export function Wallet(props: WalletProps) {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
   }, [topupInfo, topupAmount])
 
+  const getBonusAmount = useCallback(() => {
+    const bonus = topupInfo?.bonus?.[topupAmount]
+    if (typeof bonus !== 'number' || !Number.isFinite(bonus) || bonus <= 0) {
+      return 0
+    }
+    // 该档位配置了限次且当前用户已领满（剩余为 0）→ 不再赠送。
+    // bonus_remaining 缺该档位 key = 不限次，照常赠送。
+    const left = topupInfo?.bonus_remaining?.[topupAmount]
+    if (typeof left === 'number' && left <= 0) {
+      return 0
+    }
+    return bonus
+  }, [topupInfo, topupAmount])
+
   const handleSubscriptionAvailabilityChange = useCallback(
     (available: boolean) => {
       setShowSubscriptionPanel(available)
@@ -768,6 +784,7 @@ export function Wallet(props: WalletProps) {
         processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+        bonusAmount={getBonusAmount()}
       />
 
       <TransferDialog
@@ -794,8 +811,8 @@ export function Wallet(props: WalletProps) {
       <Dialog open={cardBoundDialogOpen} onOpenChange={setCardBoundDialogOpen}>
         <DialogContent className='sm:max-w-md' showCloseButton>
           <DialogHeader className='items-center text-center'>
-            <div className='mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-primary/10'>
-              <PartyPopper className='size-7 text-primary' aria-hidden='true' />
+            <div className='bg-primary/10 mx-auto mb-2 flex size-14 items-center justify-center rounded-full'>
+              <PartyPopper className='text-primary size-7' aria-hidden='true' />
             </div>
             <DialogTitle className='text-xl'>
               {t('Recharge successful 🎉')}

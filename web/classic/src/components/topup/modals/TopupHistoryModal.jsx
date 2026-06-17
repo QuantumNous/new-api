@@ -34,7 +34,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../../helpers';
+import { API, renderQuotaWithAmount, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
@@ -196,9 +196,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             );
           }
           return (
-            <span className='flex items-center gap-1'>
-              <Coins size={16} />
-              <Text>{amount}</Text>
+            <span className='flex flex-col gap-1'>
+              <span className='flex items-center gap-1'>
+                <Coins size={16} />
+                <Text>{amount}</Text>
+              </span>
+              {record?.bonus_amount > 0 && (
+                <Text size='small' type='danger'>
+                  {t('赠送额度')}: +{renderQuotaWithAmount(record.bonus_amount)}
+                </Text>
+              )}
             </span>
           );
         },
@@ -227,14 +234,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           if (record.status === 'pending') {
             actions.push(
               <Button
-                key="complete"
+                key='complete'
                 size='small'
                 type='primary'
                 theme='outline'
                 onClick={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}
-              </Button>
+              </Button>,
             );
           }
           return actions.length > 0 ? <>{actions}</> : null;

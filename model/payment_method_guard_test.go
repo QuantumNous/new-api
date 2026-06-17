@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -176,14 +177,15 @@ func TestRechargeStripeCreditsPurchasedAmountAndIsIdempotent(t *testing.T) {
 	assert.Equal(t, "cus_guard", user.StripeCustomer)
 }
 
-func TestRechargeStripeGrantsDepositBonusOnTierAmount(t *testing.T) {
+func TestRechargeStripeCreditsStoredTotalAmountWithoutRuntimeBonus(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 118, 0)
-	// A $20 top-up is a bonus tier (20 -> +$5). Credit must be base + bonus.
+	// No configured bonus is persisted on this order, so fulfillment credits the stored total.
 	topUp := &TopUp{
 		UserId:          118,
 		Amount:          20,
+		BonusAmount:     0,
 		Money:           20,
 		TradeNo:         "stripe-bonus-tier-guard",
 		PaymentMethod:   PaymentMethodStripe,
@@ -197,19 +199,22 @@ func TestRechargeStripeGrantsDepositBonusOnTierAmount(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 
-	expected := int((20+5)*int64(common.QuotaPerUnit))
+	expected := int(20 * int64(common.QuotaPerUnit))
 	assert.Equal(t, expected, getUserQuotaForPaymentGuardTest(t, 118))
 }
 
-func TestRechargeStripeNoBonusOnCustomAmount(t *testing.T) {
+func TestRechargeStripeCreditsBasePlusBonusOnCallback(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 119, 0)
-	// $33 is not a configured tier -> no bonus, credit equals base only.
+	// New semantics: Amount is base-only, BonusAmount is the pending bonus the callback
+	// grants on top when the per-tier limit (here unconfigured = unlimited) allows it.
 	topUp := &TopUp{
 		UserId:          119,
-		Amount:          33,
-		Money:           33,
+		Amount:          20,
+		BonusAmount:     5,
+		BonusTier:       20,
+		Money:           20,
 		TradeNo:         "stripe-bonus-custom-guard",
 		PaymentMethod:   PaymentMethodStripe,
 		PaymentProvider: PaymentProviderStripe,
@@ -222,7 +227,7 @@ func TestRechargeStripeNoBonusOnCustomAmount(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 
-	assert.Equal(t, int(33*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
+	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
 }
 
 func TestTopUpPersistsSaveCardFlag(t *testing.T) {
@@ -270,19 +275,19 @@ func TestRechargeStripeBindsCardAtomicallyForSaveCardTopUp(t *testing.T) {
 	}
 	require.NoError(t, topUp.Insert())
 
-	// First fulfillment: credits quota+bonus AND marks the card bound, in one transaction.
+	// First fulfillment: credits the stored amount and marks the card bound, in one transaction.
 	recharged, err := Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, recharged)
 	assert.True(t, getUserCardBoundForTest(t, 120), "save-card top-up must set stripe_card_bound")
-	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
+	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
 	// Webhook redelivery: order already Success → no re-credit, binding unchanged (idempotent).
 	recharged, err = Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, recharged)
 	assert.True(t, getUserCardBoundForTest(t, 120))
-	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
+	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
 	var user User
 	require.NoError(t, DB.Select("stripe_customer").Where("id = ?", 120).First(&user).Error)
@@ -309,9 +314,9 @@ func TestRechargeStripeDoesNotBindForNonSaveCardTopUp(t *testing.T) {
 	recharged, err := Recharge("no-save-card-guard", "cus_plain", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, recharged)
-	// Plain wallet top-up credits quota (incl. tier bonus) but must NOT bind the card.
+	// Plain wallet top-up credits the stored amount but must NOT bind the card.
 	assert.False(t, getUserCardBoundForTest(t, 121), "non-save-card top-up must not bind the card")
-	assert.Equal(t, int((50+15)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 121))
+	assert.Equal(t, int(50*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 121))
 }
 
 func TestRechargeStripeSkipsBindWhenCustomerMissing(t *testing.T) {
@@ -336,7 +341,7 @@ func TestRechargeStripeSkipsBindWhenCustomerMissing(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 	assert.False(t, getUserCardBoundForTest(t, 122), "must not bind without a customer to charge")
-	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 122))
+	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 122))
 }
 
 func TestTopUpPersistsGAIdentifiers(t *testing.T) {
@@ -545,4 +550,76 @@ func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) 
 	order := GetSubscriptionOrderByTradeNo("sub-expire-guard")
 	require.NotNil(t, order)
 	assert.Equal(t, common.TopUpStatusPending, order.Status)
+}
+
+// TestRechargeBonusRespectsPerTierLimit 验证「每用户每档位限领次数」在真实回调入账路径上生效：
+// 配置 tier=20 限领 2 次，连续 3 笔同档充值，前 2 笔含赠送、第 3 笔仅本金。
+func TestRechargeBonusRespectsPerTierLimit(t *testing.T) {
+	truncateTables(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalLimit := paymentSetting.AmountBonusLimit
+	t.Cleanup(func() { paymentSetting.AmountBonusLimit = originalLimit })
+	paymentSetting.AmountBonusLimit = map[int]int{20: 2}
+
+	insertUserForPaymentGuardTest(t, 130, 0)
+	base := int64(common.QuotaPerUnit)
+	for i, trade := range []string{"limit-1", "limit-2", "limit-3"} {
+		topUp := &TopUp{
+			UserId:          130,
+			Amount:          20,
+			BonusAmount:     5,
+			BonusTier:       20,
+			Money:           20,
+			TradeNo:         trade,
+			PaymentMethod:   PaymentMethodStripe,
+			PaymentProvider: PaymentProviderStripe,
+			CreateTime:      time.Now().Unix(),
+			Status:          common.TopUpStatusPending,
+		}
+		require.NoError(t, topUp.Insert())
+		recharged, err := Recharge(trade, "cus_limit", "127.0.0.1")
+		require.NoError(t, err)
+		assert.True(t, recharged, "order %d should credit", i+1)
+	}
+
+	// 前两笔各 20+5，第三笔仅 20 → 总计 20+5 + 20+5 + 20 = 70
+	assert.Equal(t, int((20+5+20+5+20)*base), getUserQuotaForPaymentGuardTest(t, 130))
+
+	// 第三笔订单的 BonusAmount 应被归零（未发放）
+	var third TopUp
+	require.NoError(t, DB.Where("trade_no = ?", "limit-3").First(&third).Error)
+	assert.Equal(t, int64(0), third.BonusAmount)
+}
+
+// TestRechargeBonusUnlimitedWhenNoLimitConfigured 验证未配置 limit 的档位不限次发放。
+func TestRechargeBonusUnlimitedWhenNoLimitConfigured(t *testing.T) {
+	truncateTables(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalLimit := paymentSetting.AmountBonusLimit
+	t.Cleanup(func() { paymentSetting.AmountBonusLimit = originalLimit })
+	paymentSetting.AmountBonusLimit = map[int]int{} // 不配置即不限
+
+	insertUserForPaymentGuardTest(t, 131, 0)
+	base := int64(common.QuotaPerUnit)
+	for _, trade := range []string{"nolimit-1", "nolimit-2", "nolimit-3"} {
+		topUp := &TopUp{
+			UserId:          131,
+			Amount:          20,
+			BonusAmount:     5,
+			BonusTier:       20,
+			Money:           20,
+			TradeNo:         trade,
+			PaymentMethod:   PaymentMethodStripe,
+			PaymentProvider: PaymentProviderStripe,
+			CreateTime:      time.Now().Unix(),
+			Status:          common.TopUpStatusPending,
+		}
+		require.NoError(t, topUp.Insert())
+		recharged, err := Recharge(trade, "cus_nolimit", "127.0.0.1")
+		require.NoError(t, err)
+		assert.True(t, recharged)
+	}
+
+	// 三笔都含赠送 → 3 × (20+5) = 75
+	assert.Equal(t, int(3*(20+5)*base), getUserQuotaForPaymentGuardTest(t, 131))
 }
