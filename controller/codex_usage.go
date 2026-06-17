@@ -179,12 +179,15 @@ func fetchCodexChannelUsage(ctx context.Context, ch *model.Channel) (int, []byte
 	return statusCode, body, err
 }
 
-// fetchCodexChannelUsageRefresh fetches a single channel's usage. When the
-// channel key is refreshed it is persisted to the database and refreshed=true is
-// returned, but the global channel cache is NOT rebuilt here. This lets batch
-// callers (e.g. the limit report) collapse many concurrent refreshes into a
-// single cache rebuild instead of triggering one full rebuild per channel.
-func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int, []byte, bool, error) {
+// codexChannelUpstreamWithRefresh runs an authenticated upstream call for a
+// Codex channel, retrying once with a refreshed OAuth token on 401/403. It
+// returns refreshed=true when the channel key was rotated and persisted (the
+// caller is responsible for rebuilding the channel cache).
+func codexChannelUpstreamWithRefresh(
+	ctx context.Context,
+	ch *model.Channel,
+	do func(client *http.Client, accessToken, accountID string) (int, []byte, error),
+) (int, []byte, bool, error) {
 	if ch == nil {
 		return 0, nil, false, errors.New("channel not found")
 	}
@@ -213,10 +216,7 @@ func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int,
 		return 0, nil, false, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-
-	statusCode, body, err := service.FetchCodexWhamUsage(reqCtx, client, ch.GetBaseURL(), accessToken, accountID)
+	statusCode, body, err := do(client, accessToken, accountID)
 	if err != nil {
 		return statusCode, nil, false, err
 	}
@@ -235,17 +235,13 @@ func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int,
 			if strings.TrimSpace(oauthKey.Type) == "" {
 				oauthKey.Type = "codex"
 			}
-
 			encoded, encErr := common.Marshal(oauthKey)
 			if encErr == nil {
 				if updateErr := model.UpdateChannelKey(ch.Id, string(encoded)); updateErr == nil {
 					refreshed = true
 				}
 			}
-
-			ctx2, cancel2 := context.WithTimeout(ctx, 15*time.Second)
-			defer cancel2()
-			statusCode, body, err = service.FetchCodexWhamUsage(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
+			statusCode, body, err = do(client, oauthKey.AccessToken, accountID)
 			if err != nil {
 				return statusCode, nil, refreshed, err
 			}
@@ -253,6 +249,73 @@ func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int,
 	}
 
 	return statusCode, body, refreshed, nil
+}
+
+// fetchCodexChannelUsageRefresh fetches a single channel's usage. When the
+// channel key is refreshed it is persisted to the database and refreshed=true is
+// returned, but the global channel cache is NOT rebuilt here. This lets batch
+// callers (e.g. the limit report) collapse many concurrent refreshes into a
+// single cache rebuild instead of triggering one full rebuild per channel.
+func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int, []byte, bool, error) {
+	return codexChannelUpstreamWithRefresh(ctx, ch, func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
+		reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		return service.FetchCodexWhamUsage(reqCtx, client, ch.GetBaseURL(), accessToken, accountID)
+	})
+}
+
+// ConsumeCodexResetCredit redeems one rate-limit reset credit for a single
+// Codex channel, retrying once with a refreshed OAuth token on 401/403, and
+// returns the upstream response transparently to the admin caller.
+func ConsumeCodexResetCredit(c *gin.Context) {
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		return
+	}
+
+	ch, err := model.GetChannelById(channelId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if ch == nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+		return
+	}
+
+	statusCode, body, refreshed, err := codexChannelUpstreamWithRefresh(
+		c.Request.Context(), ch,
+		func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
+			reqCtx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+			defer cancel()
+			return service.ConsumeCodexResetCredit(reqCtx, client, ch.GetBaseURL(), accessToken, accountID)
+		},
+	)
+	if refreshed {
+		rebuildCodexChannelCache()
+	}
+	if err != nil {
+		common.SysError("failed to consume codex reset credit: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	var payload any
+	if common.Unmarshal(body, &payload) != nil {
+		payload = string(body)
+	}
+	ok := statusCode >= 200 && statusCode < 300
+	resp := gin.H{
+		"success":         ok,
+		"message":         "",
+		"upstream_status": statusCode,
+		"data":            payload,
+	}
+	if !ok {
+		resp["message"] = fmt.Sprintf("upstream status: %d", statusCode)
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // rebuildCodexChannelCache reloads the global channel cache and resets cached
