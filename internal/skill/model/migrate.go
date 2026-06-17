@@ -28,6 +28,64 @@ func MigrateSkills(db *gorm.DB) error {
 	return nil
 }
 
+// MigrateSkillVersions runs all DB migration steps for the skill_versions table.
+// Order is fixed: AutoMigrate → CHECK constraints → JSONB upgrade (PG only) → indexes → timestamp defaults.
+func MigrateSkillVersions(db *gorm.DB) error {
+	if db.Dialector.Name() == "sqlite" {
+		if err := createSkillVersionsSQLiteTable(db); err != nil {
+			return err
+		}
+	} else {
+		if err := db.AutoMigrate(&SkillVersion{}); err != nil {
+			return err
+		}
+	}
+	if err := migrateSkillVersionsConstraints(db); err != nil {
+		return err
+	}
+	if err := createSkillVersionsJSONBColumns(db); err != nil {
+		return err
+	}
+	if err := createSkillVersionsIndexes(db); err != nil {
+		return err
+	}
+	if err := migrateSkillVersionsTimestampDefaults(db); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createSkillVersionsSQLiteTable(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE TABLE IF NOT EXISTS skill_versions (
+			id char(36) NOT NULL PRIMARY KEY,
+			skill_id char(36) NOT NULL,
+			version_number integer NOT NULL,
+			status varchar(32) NOT NULL DEFAULT 'draft',
+			instruction_template text NOT NULL,
+			instruction_template_sha256 char(64) NOT NULL,
+			prompt_guard_template text,
+			output_schema text NOT NULL,
+			model_whitelist_snapshot text NOT NULL,
+			required_plan_snapshot varchar(32) NOT NULL,
+			monetization_snapshot text NOT NULL,
+			max_input_tokens_snapshot integer,
+			rollout_percentage integer NOT NULL DEFAULT 100,
+			experiment_name varchar(128),
+			created_by bigint NOT NULL,
+			created_at datetime NOT NULL,
+			activated_at datetime,
+			archived_at datetime,
+			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE CASCADE ON DELETE CASCADE,
+			CONSTRAINT chk_skill_versions_status CHECK (status IN ('draft','active','inactive','archived')),
+			CONSTRAINT chk_skill_versions_required_plan_snapshot CHECK (required_plan_snapshot IN ('free','pro','enterprise')),
+			CONSTRAINT chk_skill_versions_max_input_tokens_snapshot CHECK (max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0),
+			CONSTRAINT chk_skill_versions_rollout_percentage CHECK (rollout_percentage BETWEEN 0 AND 100),
+			CONSTRAINT uni_skill_versions_skill_version UNIQUE (skill_id, version_number)
+		)
+	`).Error
+}
+
 // migrateSkillsConstraints adds the 9 hand-written CHECK constraints to PG and MySQL >= 8.0.16.
 // MySQL < 8.0.16: no-op — named CHECK constraints are parsed but silently ignored by the engine,
 // and the ALTER TABLE ADD CONSTRAINT syntax may not be supported reliably; app-layer
@@ -114,6 +172,34 @@ func createSkillsJSONBColumns(db *gorm.DB) error {
 		for _, sql := range steps {
 			if err := db.Exec(sql).Error; err != nil {
 				return fmt.Errorf("jsonb upgrade %s: %w", col, err)
+			}
+		}
+	}
+	return nil
+}
+
+func createSkillVersionsJSONBColumns(db *gorm.DB) error {
+	if db.Dialector.Name() != "postgres" {
+		return nil
+	}
+
+	cols := []string{"output_schema", "model_whitelist_snapshot", "monetization_snapshot"}
+	for _, col := range cols {
+		already, err := isPGColumnJSONB(db, "skill_versions", col)
+		if err != nil {
+			return fmt.Errorf("check skill_versions jsonb column %s: %w", col, err)
+		}
+		if already {
+			continue
+		}
+		steps := []string{
+			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s DROP DEFAULT", col),
+			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s TYPE jsonb USING %s::jsonb", col, col),
+			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s SET DEFAULT '[]'::jsonb", col),
+		}
+		for _, sql := range steps {
+			if err := db.Exec(sql).Error; err != nil {
+				return fmt.Errorf("skill_versions jsonb upgrade %s: %w", col, err)
 			}
 		}
 	}
@@ -230,6 +316,71 @@ func migrateSkillsTimestampDefaults(db *gorm.DB) error {
 	return nil
 }
 
+func migrateSkillVersionsTimestampDefaults(db *gorm.DB) error {
+	switch db.Dialector.Name() {
+	case "postgres":
+		if err := db.Exec(
+			"ALTER TABLE skill_versions ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP",
+		).Error; err != nil {
+			return fmt.Errorf("set pg skill_versions created_at default: %w", err)
+		}
+	case "mysql":
+		var colDefault *string
+		if err := db.Raw(
+			`SELECT column_default FROM information_schema.columns
+			 WHERE table_schema = DATABASE() AND table_name = 'skill_versions' AND column_name = 'created_at'`,
+		).Scan(&colDefault).Error; err != nil {
+			return fmt.Errorf("check mysql skill_versions created_at default: %w", err)
+		}
+		if colDefault == nil {
+			if err := db.Exec(
+				"ALTER TABLE skill_versions MODIFY COLUMN created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)",
+			).Error; err != nil {
+				return fmt.Errorf("set mysql skill_versions created_at default: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func migrateSkillVersionsConstraints(db *gorm.DB) error {
+	switch db.Dialector.Name() {
+	case "postgres":
+		// proceed
+	case "mysql":
+		ok, err := isMySQLAtLeast8016DB(db)
+		if err != nil {
+			return fmt.Errorf("detect mysql version for skill_versions CHECK constraints: %w", err)
+		}
+		if !ok {
+			return nil
+		}
+	default:
+		return nil
+	}
+
+	constraints := []struct {
+		name string
+		expr string
+	}{
+		{"chk_skill_versions_status", "status IN ('draft','active','inactive','archived')"},
+		{"chk_skill_versions_required_plan_snapshot", "required_plan_snapshot IN ('free','pro','enterprise')"},
+		{"chk_skill_versions_max_input_tokens_snapshot", "max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0"},
+		{"chk_skill_versions_rollout_percentage", "rollout_percentage BETWEEN 0 AND 100"},
+	}
+
+	for _, c := range constraints {
+		if db.Migrator().HasConstraint(&SkillVersion{}, c.name) {
+			continue
+		}
+		sql := fmt.Sprintf("ALTER TABLE skill_versions ADD CONSTRAINT %s CHECK (%s)", c.name, c.expr)
+		if err := db.Exec(sql).Error; err != nil {
+			return fmt.Errorf("add skill_versions constraint %s: %w", c.name, err)
+		}
+	}
+	return nil
+}
+
 // createSkillsIndexes creates the 5 indexes for the skills table.
 // idx_skills_public_search (GIN tsvector) is PG-only; idx_skills_featured uses dialect-specific DDL.
 func createSkillsIndexes(db *gorm.DB) error {
@@ -295,5 +446,68 @@ func createSkillsIndexes(db *gorm.DB) error {
 			return fmt.Errorf("create index %s: %w", idx.name, err)
 		}
 	}
+	return nil
+}
+
+func createSkillVersionsIndexes(db *gorm.DB) error {
+	dialect := db.Dialector.Name()
+
+	indexes := []struct {
+		name string
+		ddl  string
+	}{
+		{
+			name: "idx_skill_versions_skill_version",
+			ddl:  "CREATE UNIQUE INDEX idx_skill_versions_skill_version ON skill_versions(skill_id, version_number)",
+		},
+		{
+			name: "idx_skill_versions_status",
+			ddl:  "CREATE INDEX idx_skill_versions_status ON skill_versions(status)",
+		},
+	}
+
+	for _, idx := range indexes {
+		if db.Migrator().HasIndex(&SkillVersion{}, idx.name) {
+			continue
+		}
+		if err := db.Exec(idx.ddl).Error; err != nil {
+			return fmt.Errorf("create skill_versions index %s: %w", idx.name, err)
+		}
+	}
+
+	switch dialect {
+	case "postgres":
+		if !db.Migrator().HasIndex(&SkillVersion{}, "idx_skill_versions_one_active") {
+			if err := db.Exec(
+				"CREATE UNIQUE INDEX idx_skill_versions_one_active ON skill_versions(skill_id) WHERE status = 'active'",
+			).Error; err != nil {
+				return fmt.Errorf("create skill_versions one-active index: %w", err)
+			}
+		}
+	case "sqlite":
+		if !db.Migrator().HasIndex(&SkillVersion{}, "idx_skill_versions_one_active") {
+			if err := db.Exec(
+				"CREATE UNIQUE INDEX idx_skill_versions_one_active ON skill_versions(skill_id) WHERE status = 'active'",
+			).Error; err != nil {
+				return fmt.Errorf("create sqlite skill_versions one-active index: %w", err)
+			}
+		}
+	case "mysql":
+		if !db.Migrator().HasColumn(&SkillVersion{}, "active_skill_id") {
+			if err := db.Exec(
+				"ALTER TABLE skill_versions ADD COLUMN active_skill_id CHAR(36) GENERATED ALWAYS AS (CASE WHEN status = 'active' THEN skill_id ELSE NULL END) STORED",
+			).Error; err != nil {
+				return fmt.Errorf("add mysql skill_versions active_skill_id generated column: %w", err)
+			}
+		}
+		if !db.Migrator().HasIndex(&SkillVersion{}, "idx_skill_versions_one_active") {
+			if err := db.Exec(
+				"CREATE UNIQUE INDEX idx_skill_versions_one_active ON skill_versions(active_skill_id)",
+			).Error; err != nil {
+				return fmt.Errorf("create mysql skill_versions one-active index: %w", err)
+			}
+		}
+	}
+
 	return nil
 }

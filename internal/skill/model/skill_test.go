@@ -17,6 +17,13 @@ func TestTableName(t *testing.T) {
 	}
 }
 
+func TestSkillVersionTableName(t *testing.T) {
+	v := SkillVersion{}
+	if v.TableName() != "skill_versions" {
+		t.Fatal("TableName() must return 'skill_versions'")
+	}
+}
+
 func TestBeforeCreate_UUID(t *testing.T) {
 	s := &Skill{}
 	if err := s.BeforeCreate(&gorm.DB{}); err != nil {
@@ -28,6 +35,36 @@ func TestBeforeCreate_UUID(t *testing.T) {
 	parts := strings.Split(s.ID, "-")
 	if len(parts) != 5 {
 		t.Fatalf("expected UUID with 4 hyphens, got %q", s.ID)
+	}
+}
+
+func TestSkillVersionBeforeCreate_UUID(t *testing.T) {
+	v := &SkillVersion{}
+	if err := v.BeforeCreate(&gorm.DB{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.ID) != 36 {
+		t.Fatalf("expected 36-char UUID, got %q (len=%d)", v.ID, len(v.ID))
+	}
+	parts := strings.Split(v.ID, "-")
+	if len(parts) != 5 {
+		t.Fatalf("expected UUID with 4 hyphens, got %q", v.ID)
+	}
+}
+
+func TestSkillVersionBeforeCreate_NormalizesJSONFields(t *testing.T) {
+	v := &SkillVersion{}
+	if err := v.BeforeCreate(&gorm.DB{}); err != nil {
+		t.Fatal(err)
+	}
+	for name, field := range map[string]SkillJSONB{
+		"OutputSchema":           v.OutputSchema,
+		"ModelWhitelistSnapshot": v.ModelWhitelistSnapshot,
+		"MonetizationSnapshot":   v.MonetizationSnapshot,
+	} {
+		if string(field) != "[]" {
+			t.Errorf("%s: expected '[]', got %q", name, string(field))
+		}
 	}
 }
 
@@ -196,6 +233,10 @@ func TestEnumDBValues_MatchCheckConstraints(t *testing.T) {
 		{"SkillStatusPublished", string(enums.SkillStatusPublished), "published"},
 		{"SkillStatusDeprecated", string(enums.SkillStatusDeprecated), "deprecated"},
 		{"SkillStatusArchived", string(enums.SkillStatusArchived), "archived"},
+		{"SkillVersionStatusDraft", string(enums.SkillVersionStatusDraft), "draft"},
+		{"SkillVersionStatusActive", string(enums.SkillVersionStatusActive), "active"},
+		{"SkillVersionStatusInactive", string(enums.SkillVersionStatusInactive), "inactive"},
+		{"SkillVersionStatusArchived", string(enums.SkillVersionStatusArchived), "archived"},
 		{"RequiredPlanFree", string(enums.RequiredPlanFree), "free"},
 		{"RequiredPlanPro", string(enums.RequiredPlanPro), "pro"},
 		{"RequiredPlanEnterprise", string(enums.RequiredPlanEnterprise), "enterprise"},
