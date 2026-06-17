@@ -28,11 +28,8 @@ type UnpricedModelCardProps = {
   onEdit: () => void
 }
 
-export function UnpricedModelCard({
-  modelName,
-  active = false,
-  onEdit,
-}: UnpricedModelCardProps) {
+export function UnpricedModelCard(props: UnpricedModelCardProps) {
+  const active = props.active ?? false
   const { t } = useTranslation()
 
   return (
@@ -44,20 +41,20 @@ export function UnpricedModelCard({
     >
       <CardContent
         className='flex cursor-pointer items-center justify-between gap-3 p-4'
-        onClick={onEdit}
+        onClick={props.onEdit}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return
           if (event.key !== 'Enter' && event.key !== ' ') return
 
           event.preventDefault()
-          onEdit()
+          props.onEdit()
         }}
         role='button'
         tabIndex={0}
         aria-pressed={active}
       >
         <div className='min-w-0 flex-1'>
-          <h4 className='truncate text-sm font-medium'>{modelName}</h4>
+          <h4 className='truncate text-sm font-medium'>{props.modelName}</h4>
           <p className='text-muted-foreground text-xs'>{t('Price not set')}</p>
         </div>
         <Button
@@ -65,7 +62,7 @@ export function UnpricedModelCard({
           variant='outline'
           onClick={(event) => {
             event.stopPropagation()
-            onEdit()
+            props.onEdit()
           }}
           className='shrink-0'
         >
