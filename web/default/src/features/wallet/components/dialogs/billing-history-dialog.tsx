@@ -448,7 +448,13 @@ export function BillingHistoryDialog({
                       </div>
 
                       {/* Details Grid */}
-                      <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-4 sm:gap-4'>
+                      <div
+                        className={`mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:gap-4 ${
+                          record.bonus_amount && record.bonus_amount > 0
+                            ? 'sm:grid-cols-4'
+                            : 'sm:grid-cols-3'
+                        }`}
+                      >
                         <div className='space-y-1'>
                           <Label className='text-muted-foreground text-xs'>
                             {t('Payment Method')}
