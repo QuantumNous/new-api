@@ -239,10 +239,8 @@ func configuredTopUpBonusAmount(requestAmount int64) int64 {
 func configuredTopUpAmounts(requestAmount int64) (int64, int64) {
 	amount := normalizeTopUpAmount(requestAmount)
 	bonus := configuredTopUpBonusAmount(requestAmount)
-	if bonus <= 0 {
-		return amount, 0
-	}
-	return amount + bonus, bonus
+	// Amount 只存本金；赠送是否发放推迟到支付成功回调时按档位限次裁决。
+	return amount, bonus
 }
 
 func GetEpayClient() *epay.Client {
@@ -362,6 +360,7 @@ func RequestEpay(c *gin.Context) {
 		UserId:          id,
 		Amount:          amount,
 		BonusAmount:     bonusAmount,
+		BonusTier:       int(req.Amount),
 		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,

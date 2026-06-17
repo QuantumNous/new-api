@@ -199,6 +199,7 @@ func RequestPaddlePay(c *gin.Context) {
 		UserId:          id,
 		Amount:          amount,
 		BonusAmount:     bonusAmount,
+		BonusTier:       int(req.Amount),
 		Money:           payMoney,
 		PaymentCurrency: getPaddleCurrency(),
 		TradeNo:         tradeNo,

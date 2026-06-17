@@ -144,6 +144,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		UserId:          id,
 		Amount:          normalizedAmount,
 		BonusAmount:     bonusAmount,
+		BonusTier:       int(req.Amount),
 		Money:           payMoney,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,

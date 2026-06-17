@@ -211,6 +211,7 @@ func RequestWaffoPay(c *gin.Context) {
 		UserId:          id,
 		Amount:          amount,
 		BonusAmount:     bonusAmount,
+		BonusTier:       int(req.Amount),
 		Money:           payMoney,
 		PaymentCurrency: getWaffoCurrency(),
 		TradeNo:         merchantOrderId,

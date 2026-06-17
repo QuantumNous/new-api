@@ -28,7 +28,7 @@ func TestTopUpBonusAmountUsesRequestedPreset(t *testing.T) {
 	require.Equal(t, int64(0), configuredTopUpBonusAmount(33))
 }
 
-func TestConfiguredTopUpAmountsStoresTotalAndBonusSeparately(t *testing.T) {
+func TestConfiguredTopUpAmountsReturnsBaseAndBonusSeparately(t *testing.T) {
 	paymentSetting := operation_setting.GetPaymentSetting()
 	originalDisplayType := operation_setting.GetQuotaDisplayType()
 	originalBonus := paymentSetting.AmountBonus
@@ -42,7 +42,7 @@ func TestConfiguredTopUpAmountsStoresTotalAndBonusSeparately(t *testing.T) {
 
 	amount, bonus := configuredTopUpAmounts(20)
 
-	require.Equal(t, int64(25), amount)
+	require.Equal(t, int64(20), amount) // Amount 只存本金，赠送是否发放推迟到回调判次
 	require.Equal(t, int64(5), bonus)
 }
 
