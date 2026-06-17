@@ -252,7 +252,11 @@ export function UnpricedModelsEditor(props: UnpricedModelsEditorProps) {
                 className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
                 aria-hidden
               />
+              <label htmlFor='unpriced-model-search' className='sr-only'>
+                {t('Search model name...')}
+              </label>
               <Input
+                id='unpriced-model-search'
                 type='search'
                 placeholder={t('Search model name...')}
                 value={searchQuery}
