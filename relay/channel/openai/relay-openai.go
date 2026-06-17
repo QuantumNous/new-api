@@ -727,6 +727,12 @@ func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
 	return nil
 }
 
+// isClientAsyncImageGenerationsPath reports POST /v1/images/generations/async:
+// return upstream task_id immediately without server-side polling.
+func isClientAsyncImageGenerationsPath(c *gin.Context) bool {
+	return strings.HasSuffix(c.Request.URL.Path, "/images/generations/async")
+}
+
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -735,8 +741,8 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 
-	// Detect async image task response and poll upstream until done
-	{
+	// Detect async image task response and poll upstream until done (sync API only).
+	if !isClientAsyncImageGenerationsPath(c) {
 		var asyncCheck struct {
 			Data []struct {
 				Status string `json:"status"`
