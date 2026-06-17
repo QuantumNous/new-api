@@ -52,6 +52,7 @@ import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
 import { getCodexUsage } from '../api'
+import { useCodexResetConsumer } from '../hooks/use-codex-reset-consumer'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
@@ -301,6 +302,8 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
+  const { isConsuming: codexConsuming, consume: consumeCodexResetCredit } =
+    useCodexResetConsumer()
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -436,6 +439,11 @@ function BalanceCell({ channel }: { channel: Channel }) {
           }
         }}
         isRefreshing={isUpdating}
+        onConsume={async () => {
+          const refreshed = await consumeCodexResetCredit(channel.id)
+          if (refreshed) setCodexUsageResponse(refreshed)
+        }}
+        isConsuming={codexConsuming}
       />
     </TooltipProvider>
   )

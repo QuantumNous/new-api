@@ -959,6 +959,7 @@
     "Console Area": "Область консоли",
     "Console Content": "Содержимое консоли",
     "Consume": "Расход",
+    "Consume one reset": "Использовать один сброс",
     "Consumed in the last 24 hours": "Потреблено за последние 24 часа",
     "Contact sales for higher monthly usage and greater discounts.": "Свяжитесь с отделом продаж для более высокого месячного объема и больших скидок.",
     "Container": "Контейнер",
@@ -1671,6 +1672,7 @@
     "Failed to complete order": "Не удалось завершить заказ",
     "Failed to complete Passkey login": "Не удалось завершить вход с Passkey",
     "Failed to confirm compliance": "Не удалось подтвердить соответствие",
+    "Failed to consume reset credit": "Не удалось использовать кредит сброса",
     "Failed to contact GitHub releases API": "Не удалось связаться с API GitHub Releases",
     "Failed to copy": "Не удалось скопировать",
     "Failed to copy channel": "Не удалось скопировать канал",
@@ -3541,6 +3543,7 @@
     "Relying Party Display Name": "Отображаемое имя проверяющей стороны",
     "Relying Party ID": "Идентификатор проверяющей стороны",
     "Remaining": "Остаток",
+    "Remaining Resets": "Осталось сбросов",
     "Remaining quota": "Остаток квоты",
     "Remaining Quota ({{currency}})": "Остаток квоты ({{currency}})",
     "Remaining quota units": "Остаток единиц квоты",
@@ -3652,6 +3655,8 @@
     "Reset to Default": "Сбросить по умолчанию",
     "Reset to default configuration": "Сброшено к конфигурации по умолчанию",
     "Reset Two-Factor Authentication": "Сброс 2FA",
+    "Reset rate limit now?": "Сбросить лимит сейчас?",
+    "Reset {{count}} windows": "Сброшено окон: {{count}}",
     "Resets in:": "Сброс через:",
     "Resolve Conflicts": "Разрешить конфликты",
     "Resource Configuration": "Конфигурация ресурсов",
@@ -4322,6 +4327,7 @@
     "This week": "На этой неделе",
     "This will append 2 template rules (Codex CLI and Claude CLI) to the existing rule list.": "Это добавит 2 шаблонных правила (Codex CLI и Claude CLI) к существующему списку правил.",
     "This will clear custom pricing ratios and revert to upstream defaults.": "Это очистит пользовательские ценовые коэффициенты и вернет к стандартным значениям поставщика.",
+    "This will consume 1 reset credit and immediately reset the rate limit window.": "Будет использован 1 кредит сброса и немедленно сброшено окно ограничения скорости.",
     "This will delete all": "Это удалит все",
     "This will delete all channel affinity cache entries still in memory.": "Это удалит все записи кэша привязки каналов из памяти.",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "Будут удалены временные файлы кэша, не использовавшиеся более 10 минут",
@@ -5070,6 +5076,7 @@
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}д {{hours}}ч {{minutes}}м {{seconds}}с",
     "Recharge successful 🎉": "Пополнение успешно 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Бонус зачислен на ваш счёт. Приятного использования!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Пополнение успешно. Бонус зачисляется — обновите через мгновение."
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Пополнение успешно. Бонус зачисляется — обновите через мгновение.",
+    "No rate-limit window was reset": "Ни одно окно ограничения скорости не было сброшено"
   }
 }

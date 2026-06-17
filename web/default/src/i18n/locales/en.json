@@ -959,6 +959,7 @@
     "Console Area": "Console Area",
     "Console Content": "Console Content",
     "Consume": "Consume",
+    "Consume one reset": "Consume one reset",
     "Consumed in the last 24 hours": "Consumed in the last 24 hours",
     "Contact sales for higher monthly usage and greater discounts.": "Contact sales for higher monthly usage and greater discounts.",
     "Container": "Container",
@@ -1671,6 +1672,7 @@
     "Failed to complete order": "Failed to complete order",
     "Failed to complete Passkey login": "Failed to complete Passkey login",
     "Failed to confirm compliance": "Failed to confirm compliance",
+    "Failed to consume reset credit": "Failed to consume reset credit",
     "Failed to contact GitHub releases API": "Failed to contact GitHub releases API",
     "Failed to copy": "Failed to copy",
     "Failed to copy channel": "Failed to copy channel",
@@ -3541,6 +3543,7 @@
     "Relying Party Display Name": "Relying Party Display Name",
     "Relying Party ID": "Relying Party ID",
     "Remaining": "Remaining",
+    "Remaining Resets": "Remaining Resets",
     "Remaining quota": "Remaining quota",
     "Remaining Quota ({{currency}})": "Remaining Quota ({{currency}})",
     "Remaining quota units": "Remaining quota units",
@@ -3652,6 +3655,8 @@
     "Reset to Default": "Reset to Default",
     "Reset to default configuration": "Reset to default configuration",
     "Reset Two-Factor Authentication": "Reset Two-Factor Authentication",
+    "Reset rate limit now?": "Reset rate limit now?",
+    "Reset {{count}} windows": "Reset {{count}} windows",
     "Resets in:": "Resets in:",
     "Resolve Conflicts": "Resolve Conflicts",
     "Resource Configuration": "Resource Configuration",
@@ -4322,6 +4327,7 @@
     "This week": "This week",
     "This will append 2 template rules (Codex CLI and Claude CLI) to the existing rule list.": "This will append 2 template rules (Codex CLI and Claude CLI) to the existing rule list.",
     "This will clear custom pricing ratios and revert to upstream defaults.": "This will clear custom pricing ratios and revert to upstream defaults.",
+    "This will consume 1 reset credit and immediately reset the rate limit window.": "This will consume 1 reset credit and immediately reset the rate limit window.",
     "This will delete all": "This will delete all",
     "This will delete all channel affinity cache entries still in memory.": "This will delete all channel affinity cache entries still in memory.",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "This will delete temporary cache files that have not been used for more than 10 minutes",
@@ -5070,6 +5076,7 @@
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
     "Recharge successful 🎉": "Recharge successful 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Your bonus has been credited to your wallet. Enjoy!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge successful. Your bonus is being credited — refresh in a moment."
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge successful. Your bonus is being credited — refresh in a moment.",
+    "No rate-limit window was reset": "No rate-limit window was reset"
   }
 }
