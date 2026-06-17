@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockRun — Upstream Action Items / 上游待修问题清单</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2d333b;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
+    --p0:#f85149; --p1:#d29922; --ok:#3fb950;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 28px 96px}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:-.3px}
+  .sub{color:var(--muted);margin:0 0 26px;font-size:14px}
+  h2{font-size:20px;margin:40px 0 6px}
+  .sev{display:inline-block;border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;vertical-align:middle}
+  .s-p0{background:rgba(248,81,73,.16);color:var(--p0);border:1px solid var(--p0)}
+  .s-p1{background:rgba(210,153,34,.16);color:var(--p1);border:1px solid var(--p1)}
+  .zh{color:var(--muted);font-size:13.5px;margin:2px 0 0}
+  code{background:#21262d;border:1px solid var(--border);border-radius:5px;padding:1px 6px;font:13px/1.5 "SF Mono",ui-monospace,Menlo,monospace;color:#ffa657}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin:14px 0}
+  .evidence{background:var(--panel2);border-left:3px solid var(--p0);border-radius:0 8px 8px 0;padding:10px 16px;margin:12px 0;font:12.5px/1.6 "SF Mono",ui-monospace,Menlo,monospace;color:#ff9b94;overflow-x:auto}
+  .row{display:grid;grid-template-columns:130px 1fr;gap:8px 16px;margin:10px 0;font-size:14px}
+  .row .k{color:var(--muted);font-weight:600}
+  ul{margin:8px 0;padding-left:20px}li{margin:5px 0}
+  .intro{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.3);border-radius:10px;padding:16px 20px;margin:18px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  .foot{margin-top:54px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px}
+  .ok{color:var(--ok)}
+  .scope{background:rgba(63,185,80,.07);border:1px solid rgba(63,185,80,.3);border-radius:10px;padding:14px 20px;margin:18px 0;font-size:13.5px}
+  .scope b{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>BlockRun — Upstream Action Items</h1>
+  <p class="sub">上游待修问题清单 · channel <code>blockRun-claude-0603</code> · model verdict: <span style="color:var(--p0);font-weight:700">BLOCKED</span> (2× P0)</p>
+
+  <div class="intro">
+    <p style="margin:0 0 6px"><b>Context.</b> Our gateway forwards Anthropic requests to your <code>/v1/messages</code> endpoint as a <b>native pass-through — zero conversion, zero model substitution</b> on our side. The issues below were reproduced on <code>claude-sonnet-4.5</code> and <code>claude-haiku-4.5</code> (identical results), which confirms they originate in <b>BlockRun's backend</b> and <b>cannot be resolved on the gateway side</b>.</p>
+    <p class="zh" style="margin:6px 0 0">背景：我方对 Anthropic 请求是 native 透传(零转换、零模型替换),下列问题在 sonnet-4.5 / haiku-4.5 上复现一致,确认根因在 BlockRun 后端,且<b>无法在我方网关侧解决</b>。</p>
+  </div>
+
+  <div class="scope">
+    <b>Scope note.</b> Issues that we can fully absorb at our edge (error-message sanitization, and remapping the x402 <code>402</code> to <code>401</code> for auth failures) are <b>excluded from this list</b> — we are handling those ourselves. This document contains <b>only items that require a fix inside BlockRun</b>.
+    <p class="zh" style="margin:6px 0 0">说明:我方能在边缘自行消化的问题(错误信息脱敏、x402 的 402→401 改写)<b>已从本清单剔除</b>,由我方处理。本文档只列<b>必须由 BlockRun 修复</b>的项。</p>
+  </div>
+
+  <!-- 1: functional failure -->
+  <h2>1. Standard <code>max_tokens</code> request fails internally <span class="sev s-p0">P0 · BLOCKER</span></h2>
+  <p class="zh">标准 max_tokens 请求在后端内部处理失败</p>
+  <div class="card">
+    <p>A well-formed Anthropic Messages request fails inside your backend with an internal error instead of being processed. This is a <b>functional failure</b> — the request does not succeed, and there is <b>no gateway-side workaround</b>: a valid request that the upstream rejects cannot be made to succeed by us.</p>
+    <div class="evidence">GenerateOpenAIRequest.max_tokens of type x not present in request id</div>
+    <div class="row"><span class="k">Impact</span><span>Valid client requests fail. This is the real blocker behind the BLOCKED verdict.</span></div>
+    <div class="row"><span class="k">Expected</span><span>Process a standard Anthropic Messages request containing <code>max_tokens</code> successfully; if a field is genuinely invalid, return a proper <code>400</code> validation error, not an internal backend error.</span></div>
+    <div class="row"><span class="k">中文</span><span>合法请求不应在后端内部报错;max_tokens 是标准字段,必须正确处理。我方网关无法绕过该失败。</span></div>
+  </div>
+
+  <!-- 2: proxy/validation layer mechanism (root cause of item 1) -->
+  <h2>2. Proxy/validation layer converts via an OpenAI-format struct and breaks on standard fields <span class="sev s-p0">P0 · ROOT CAUSE</span></h2>
+  <p class="zh">代理/校验层用 OpenAI 结构体中转,在标准字段上失败(第 1 项的根因)</p>
+  <div class="card">
+    <p>The internal error (<code>GenerateOpenAIRequest</code>) shows that a layer in front of the upstream model converts the inbound request into an <b>OpenAI-format struct</b> (likely for payment/validation), and that layer breaks on standard fields such as <code>max_tokens</code>. This is the <b>mechanism behind item 1</b>. (This is not a question of model authenticity — it is about the request-handling layer.)</p>
+    <div class="row"><span class="k">Expected</span><span>Fix the OpenAI-conversion / validation layer so standard request fields (e.g. <code>max_tokens</code>) are handled correctly end-to-end and never surface an internal serializer error.</span></div>
+    <div class="row"><span class="k">中文</span><span>修复代理/校验层的 OpenAI 转换逻辑,使标准字段(如 max_tokens)端到端正确处理,不再抛出内部序列化错误。这是第 1 项的根因机制,与模型真伪无关。</span></div>
+  </div>
+
+  <!-- 3: model quality -->
+  <h2>3. Model quality below expectation — verify no degradation/substitution <span class="sev s-p1">P1</span></h2>
+  <p class="zh">模型质量低于预期 — 请核实无降级/替换</p>
+  <div class="card">
+    <p>On <code>claude-sonnet-4.5</code> the served model under-performs on tasks that genuine Sonnet 4.5 handles reliably. We perform <b>zero model substitution</b> on our side, so this reflects the upstream-served model. We can only detect this, not fix it. Please verify the served model fingerprint and confirm there is no quantization, substitution, or routing to a weaker model.</p>
+    <table>
+      <thead><tr><th>Probe</th><th>Score</th><th>Symptom</th></tr></thead>
+      <tbody>
+        <tr><td>No extra text</td><td>45/100</td><td>JSON wrapped in extra prose / fences</td></tr>
+        <tr><td>Constraint following</td><td>63/100</td><td>one or more constraint cases failed</td></tr>
+        <tr><td>Arithmetic</td><td>partial</td><td>arithmetic case(s) failed</td></tr>
+        <tr><td>Code understanding</td><td>3 of 5</td><td>2 cases failed</td></tr>
+      </tbody>
+    </table>
+    <div class="row"><span class="k">中文</span><span>我方零替换,故此为上游模型实际输出;只能检测不能修。请提供/核实模型指纹,确认无量化、替换或路由到弱模型。</span></div>
+  </div>
+
+  <!-- 4: dual-backend billing inflation -->
+  <h2>4. Requests with sampling params are routed to a second backend that injects ~122 billed input tokens <span class="sev s-p0">P0 · BILLING</span></h2>
+  <p class="zh">带采样参数的请求被路由到第二后端，注入并计费 ~122 个 input token</p>
+  <div class="card">
+    <p>Any request carrying <code>temperature</code>, <code>top_p</code>, or <code>top_k</code> (or <code>context_management</code> / an invalid <code>thinking.enable</code>) is routed to a <b>different backend</b> than clean requests — identifiable by a short message-id format — and that backend adds a <b>fixed ~122 input tokens</b> to every request and bills them. Because <code>temperature</code> is set by the vast majority of real clients, this inflates input-token billing across <b>most production traffic</b>.</p>
+    <div class="evidence">Same prompt "hi": plain / valid thinking / stop_sequences  → input_tokens=8  (long message id)<br>+ temperature | top_p | top_k | context_management        → input_tokens=130 (short message id)<br>Longer prompt: plain=38  vs  +temperature=160  →  fixed delta = 122</div>
+    <div class="row"><span class="k">Impact</span><span>~122 phantom billed input tokens per request on most traffic. This second backend also skips parameter validation (item 5) and is very likely the same backend behind items 1–3 (internal-error leak, max_tokens failure, low model-quality scores).</span></div>
+    <div class="row"><span class="k">Expected</span><span>Do not inject prompt content that is billed to the customer; route all requests to a single consistent backend, or at minimum disclose and stop billing the injected tokens.</span></div>
+    <div class="row"><span class="k">中文</span><span>带采样参数的请求每条多计 ~122 个 input token，影响大部分真实流量；该后端还跳过参数校验，很可能就是第 1–3 项背后的同一后端。请勿对客户计费注入的 prompt 内容，并统一后端。</span></div>
+    <div class="row"><span class="k">Reproduce</span><span>Send the <b>same prompt</b> twice against your <code>/v1/messages</code>; the only difference is <code>temperature</code>. Compare <code>usage.input_tokens</code> and the <code>id</code> format.</span></div>
+    <div class="evidence">BASE=&lt;your /v1/messages endpoint&gt;;  KEY=&lt;your key&gt;<br>req(){ curl -s -X POST "$BASE" -H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01" \<br>&nbsp;&nbsp;-H "content-type: application/json" -d "$1" | grep -o '"id":"[^"]*"\|"input_tokens":[0-9]*'; }<br><br># A) clean<br>req '{"model":"claude-opus-4-8","max_tokens":50,"messages":[{"role":"user","content":"hi"}]}'<br># B) identical + temperature only<br>req '{"model":"claude-opus-4-8","max_tokens":50,"temperature":0.5,"messages":[{"role":"user","content":"hi"}]}'<br><br>// Observed via the channel:  A → input_tokens=8, long id   |   B → input_tokens=130, short id<br>// Longer prompt: A=38 vs B=160  →  fixed delta = 122</div>
+    <div class="row"><span class="k">Pass / fail</span><span><b>PASS</b> if B's <code>input_tokens</code> ≈ A's (no injection). <b>FAIL</b> if B ≈ A + ~122 and the <code>id</code> format differs — that confirms the second backend injects billed tokens. <span class="zh">B 与 A 的 input_tokens 相近为通过；B ≈ A+122 且 id 格式不同即确认第二后端注入计费 token。</span></span></div>
+  </div>
+
+  <!-- 5: parameter validation not enforced -->
+  <h2>5. Parameter validation not enforced — invalid requests return 200 instead of 400 <span class="sev s-p1">P1</span></h2>
+  <p class="zh">参数校验未执行 — 非法请求返回 200 而非 400</p>
+  <div class="card">
+    <p>Requests that the official Anthropic API rejects with <code>400</code> are accepted with <code>200</code>:</p>
+    <ul>
+      <li><code>top_p</code>/<code>temperature</code>/<code>top_k</code> together with extended thinking (incompatible per Anthropic) → should be <code>400</code>.</li>
+      <li><code>context_management</code> sent without the required <code>anthropic-beta</code> header → should be <code>400</code>.</li>
+    </ul>
+    <p>Our gateway forwards these fields faithfully (verified by local round-trip) and does not inject the beta header, so the missing validation is upstream.</p>
+    <div class="row"><span class="k">中文</span><span>top_p/temperature/top_k 与 thinking 同用、context_management 缺 anthropic-beta 头，官方均应 400，实际 200。我方忠实转发且不注入 beta 头（本地已验证），校验缺失在上游。</span></div>
+  </div>
+
+  <h2 style="border-bottom:1px solid var(--border);padding-bottom:10px">Priority summary / 优先级汇总</h2>
+  <table>
+    <thead><tr><th>#</th><th>Item</th><th>Severity</th><th>Gateway-side workaround?</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Fix functional failure on <code>max_tokens</code></td><td><span class="sev s-p0" style="margin:0">P0</span></td><td><span style="color:var(--p0)">None — BlockRun only</span></td></tr>
+      <tr><td>2</td><td>Fix proxy/validation layer conversion breaking on standard fields (root cause)</td><td><span class="sev s-p0" style="margin:0">P0</span></td><td><span style="color:var(--p0)">None — BlockRun only</span></td></tr>
+      <tr><td>3</td><td>Verify model fingerprint / no degradation</td><td><span class="sev s-p1" style="margin:0">P1</span></td><td>Detect only — BlockRun fix</td></tr>
+      <tr><td>4</td><td>Stop injecting ~122 billed input tokens on sampling-param requests</td><td><span class="sev s-p0" style="margin:0">P0</span></td><td><span style="color:var(--p0)">None — BlockRun only</span></td></tr>
+      <tr><td>5</td><td>Enforce parameter validation (return 400 for invalid requests)</td><td><span class="sev s-p1" style="margin:0">P1</span></td><td><span style="color:var(--p0)">None — BlockRun only</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot">
+    All five items require a fix inside BlockRun; none can be worked around at our gateway. Items 1, 2 &amp; 4 are the most severe — 1/2 caused the BLOCKED verdict, and 4 is a billing-inflation issue affecting most production traffic. Items 4 &amp; 5 were reproduced live against the channel; items 1–3 came from the model evaluation report (same customer).<br>
+    <span class="zh">五项均须 BlockRun 修复,我方网关无法绕过。第 1、2、4 项最严重——1/2 导致 BLOCKED,第 4 项是影响大部分生产流量的计费膨胀。第 4、5 项为活体实测复现,第 1–3 项来自模型评测报告(同一客户)。</span>
+  </div>
+
+</div>
+</body>
+</html>
