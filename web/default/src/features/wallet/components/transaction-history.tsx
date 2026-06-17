@@ -26,11 +26,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { parseCountry } from '@/lib/country'
 import { useBillingHistory } from '../hooks/use-billing-history'
 import { GLASS_CARD_CLS } from '../constants'
-import { getPaymentMethodName, formatTimestamp } from '../lib/billing'
+import { getPaymentMethodName, formatTimestamp, formatPaidAmount } from '../lib/billing'
 import type { TopupStatus } from '../types'
-
-// Epay methods store money in CNY; everything else is USD
-const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
 
 const STATUS_TABS = [
   { value: '', labelKey: 'All' },
@@ -42,15 +39,6 @@ const STATUS_TABS = [
 // USD dollar value. (Backend topup_crypto.go writes Amount = round(usdValue).)
 function formatRechargeAmount(amount: number): string {
   return `$${amount}`
-}
-
-// Paid column is unified to USD. CNY methods (epay) store `money` in CNY, but its
-// USD value equals the recharge `amount` (money = amount × rate at pay time), so
-// show that — dividing CNY by the current global rate would be wrong for older rows.
-function formatMoney(money: number, method: string, amount: number): string {
-  if (CNY_METHODS.has(method)) return amount > 0 ? `$${amount.toFixed(2)}` : '—'
-  if (money <= 0) return '—'
-  return `$${money.toFixed(2)}`
 }
 
 function CopyBtn({ text }: { text: string }) {
@@ -251,7 +239,7 @@ export function TransactionHistory() {
                         {formatRechargeAmount(record.amount)}
                       </td>
                       <td className='px-4 py-3 text-right font-mono font-medium'>
-                        {formatMoney(record.money, record.payment_method, record.amount)}
+                        {formatPaidAmount(record.money, record.payment_method, record.amount)}
                       </td>
                       <td className='px-4 py-3 text-center'>
                         <StatusChip status={record.status} />

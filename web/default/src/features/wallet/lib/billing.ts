@@ -64,11 +64,37 @@ export const PAYMENT_METHOD_NAMES: Record<string, string> = {
   wxpay: 'WeChat Pay',
   waffo: 'Waffo',
   waffo_pancake: 'Waffo (Pancake)',
+  platega: 'Russian SBP QR',
   creem: 'Creem',
   crypto: 'Crypto (USDT)',
   custom1: 'Custom 1',
   custom2: 'Custom 2',
   custom3: 'Custom 3',
+}
+
+/** Epay methods store `money` in CNY; display uses USD recharge amount instead. */
+const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
+
+/** Platega SBP QR stores `money` in RUB. */
+const RUB_METHODS = new Set(['platega'])
+
+/**
+ * Format the fiat amount actually charged (Amount Paid column).
+ */
+export function formatPaidAmount(
+  money: number,
+  method: string,
+  amount: number
+): string {
+  if (CNY_METHODS.has(method)) {
+    return amount > 0 ? `$${amount.toFixed(2)}` : '—'
+  }
+  if (RUB_METHODS.has(method)) {
+    if (money <= 0) return '—'
+    return `₽${money.toFixed(2)}`
+  }
+  if (money <= 0) return '—'
+  return `$${money.toFixed(2)}`
 }
 
 /**

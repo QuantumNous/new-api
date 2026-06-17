@@ -35,6 +35,7 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodPlatega      = "platega"
 )
 
 const (
@@ -44,6 +45,7 @@ const (
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	PaymentProviderPlatega      = "platega"
 )
 
 var (
@@ -69,6 +71,8 @@ func FormatPaymentMethodLabel(method string) string {
 		return "Waffo"
 	case PaymentMethodWaffoPancake:
 		return "Waffo Pancake"
+	case PaymentMethodPlatega:
+		return "Russian SBP QR"
 	case "crypto":
 		return "加密货币"
 	case "epay":
@@ -681,7 +685,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	return nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -736,7 +740,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake)
 		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
 	}
 

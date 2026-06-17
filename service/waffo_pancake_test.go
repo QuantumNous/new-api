@@ -79,6 +79,61 @@ func TestResolveWaffoPancakeTradeNo_UsesWebhookOrderIDWhenLocalOrderExists(t *te
 	require.Equal(t, "ORD_5dXBtmF2HLlHfbPNm0Wcnz", tradeNo)
 }
 
+func TestResolveWaffoPancakeTradeNo_UsesMetadataOrderId(t *testing.T) {
+	db := setupWaffoPancakeTestDB(t)
+
+	tradeNo := "WAFFO_PANCAKE-99-123456-abc123"
+	topUp := &model.TopUp{
+		UserId:        99,
+		Amount:        10,
+		Money:         29,
+		TradeNo:       tradeNo,
+		PaymentMethod: model.PaymentMethodWaffoPancake,
+		CreateTime:    time.Now().Unix(),
+		Status:        common.TopUpStatusPending,
+	}
+	require.NoError(t, db.Create(topUp).Error)
+
+	resolved, err := ResolveWaffoPancakeTradeNo(&waffoPancakeWebhookEvent{
+		Data: waffoPancakeWebhookData{
+			OrderID: "ORD_platform_generated",
+			Metadata: map[string]string{
+				"orderId": tradeNo,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, tradeNo, resolved)
+}
+
+func TestResolveWaffoPancakeTradeNo_UsesOrderMetadataOrderId(t *testing.T) {
+	db := setupWaffoPancakeTestDB(t)
+	tradeNo := "WAFFO_PANCAKE-42-order-meta"
+
+	topUp := &model.TopUp{
+		UserId:        42,
+		Amount:        1,
+		Money:         1,
+		TradeNo:       tradeNo,
+		PaymentMethod: model.PaymentMethodWaffoPancake,
+		CreateTime:    time.Now().Unix(),
+		Status:        common.TopUpStatusPending,
+	}
+	require.NoError(t, db.Create(topUp).Error)
+
+	resolved, err := ResolveWaffoPancakeTradeNo(&waffoPancakeWebhookEvent{
+		Data: waffoPancakeWebhookData{
+			OrderID: "ORD_platform_generated",
+			OrderMetadata: map[string]string{
+				"orderId": tradeNo,
+				"tradeNo": tradeNo,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, tradeNo, resolved)
+}
+
 func TestResolveWaffoPancakeTradeNo_FailsWhenWebhookOrderIDIsUnknown(t *testing.T) {
 	db := setupWaffoPancakeTestDB(t)
 

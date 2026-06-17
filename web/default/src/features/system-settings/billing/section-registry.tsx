@@ -197,6 +197,14 @@ const BILLING_SECTIONS = [
           WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
           WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
         }}
+        plategaDefaultValues={{
+          PlategaEnabled: settings.PlategaEnabled ?? false,
+          PlategaMinTopUp: settings.PlategaMinTopUp ?? 1,
+          PlategaUSDRate: settings.PlategaUSDRate ?? 90,
+          PlategaReturnURL: settings.PlategaReturnURL ?? '',
+          PlategaFailedURL: settings.PlategaFailedURL ?? '',
+          PlategaFeePercent: settings.PlategaFeePercent ?? 8.5,
+        }}
       />
     ),
   },

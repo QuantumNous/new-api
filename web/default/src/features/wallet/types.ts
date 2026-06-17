@@ -150,6 +150,12 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Platega SBP QR topup is enabled */
+  enable_platega_topup?: boolean
+  /** Minimum topup amount for Platega */
+  platega_min_topup?: number
+  /** USD to RUB rate for Platega */
+  platega_usd_rate?: number
 }
 
 /**
@@ -197,6 +203,21 @@ export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number
 }
+
+/**
+ * Platega SBP QR payment request parameters
+ */
+export interface PlategaPaymentRequest {
+  amount: number
+}
+
+export type PlategaPaymentResponse = ApiResponse<{
+  redirect_url: string
+  transaction_id: string
+  order_id: string
+  rub_amount: number
+  status: string
+}>
 
 /**
  * Amount calculation request

@@ -28,6 +28,9 @@ import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUs
 import type { FirstTopupPromoInfo } from '../api'
 import { paymentErrorMessage } from '../lib/payment'
 import { GLASS_CARD_CLS } from '../constants'
+import { useWaffoPancakePayment } from '../hooks/use-waffo-pancake-payment'
+import { usePlategaPayment } from '../hooks/use-platega-payment'
+import { WaffoPayMethodHints } from './waffo-pay-method-hints'
 import type { TopupInfo } from '../types'
 
 const HINT_LS_KEY = 'payment_hint_shown'
@@ -47,6 +50,8 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
   const [topupInfo, setTopupInfo] = useState<TopupInfo | null>(null)
   const [epayLoading, setEpayLoading] = useState<string | null>(null)
   const [paypalLoading, setPaypalLoading] = useState(false)
+  const { processing: pancakeLoading, processWaffoPancakePayment } = useWaffoPancakePayment()
+  const { processing: plategaLoading, processPlategaPayment } = usePlategaPayment()
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [promoInfo, setPromoInfo] = useState<FirstTopupPromoInfo | null>(null)
@@ -178,8 +183,30 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
     }
   }
 
+  async function handlePancakePay() {
+    const minTopup = topupInfo?.waffo_pancake_min_topup ?? 1
+    if (effectiveAmount < minTopup) {
+      toast.error(`${t('Minimum top-up')}: $${minTopup}`)
+      return
+    }
+    handleMethodSelect('waffo_pancake')
+    await processWaffoPancakePayment(Math.round(effectiveAmount))
+  }
+
+  async function handlePlategaPay() {
+    const minTopup = topupInfo?.platega_min_topup ?? 1
+    if (effectiveAmount < minTopup) {
+      toast.error(`${t('Minimum top-up')}: $${minTopup}`)
+      return
+    }
+    handleMethodSelect('platega')
+    await processPlategaPayment(Math.round(effectiveAmount))
+  }
+
   const epayEnabled = topupInfo?.enable_online_topup ?? false
   const paypalEnabled = topupInfo?.enable_paypal_topup ?? false
+  const pancakeEnabled = topupInfo?.enable_waffo_pancake_topup ?? false
+  const plategaEnabled = topupInfo?.enable_platega_topup ?? false
   const epayMethods = topupInfo?.pay_methods ?? []
   const hasAlipay = epayEnabled && epayMethods.some((m) => m.type === 'alipay')
   const hasWechat = epayEnabled && epayMethods.some((m) => m.type === 'wxpay')
@@ -207,9 +234,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                     className={cn(
                       'relative rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all',
                       isPromo
-                        ? active
-                          ? 'border-amber-400 bg-amber-50 text-amber-800'
-                          : 'border-amber-300 bg-amber-50/60 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-800'
+                        ? 'border-amber-400 bg-amber-50 text-amber-800'
                         : active
                           ? 'border-cyan-400 bg-cyan-50 font-bold text-cyan-700'
                           : 'border-border hover:border-cyan-300 hover:bg-cyan-50/50 hover:text-cyan-700'
@@ -294,6 +319,54 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                 </button>
               )}
 
+              {pancakeEnabled && (
+                <button
+                  type='button'
+                  disabled={effectiveAmount <= 0 || pancakeLoading}
+                  onClick={handlePancakePay}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
+                    selectedMethod === 'waffo_pancake'
+                      ? 'border-orange-400 bg-orange-50'
+                      : 'border-border bg-white hover:border-orange-400'
+                  )}
+                >
+                  <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #fb923c, #ea580c)' }}>
+                    {pancakeLoading
+                      ? <Loader2 className='size-4 animate-spin text-white' />
+                      : <span className='text-sm font-bold tracking-tight text-white'>W</span>}
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='truncate text-sm font-semibold text-gray-800'>{t('Waffo Pay')}</div>
+                    <WaffoPayMethodHints />
+                  </div>
+                </button>
+              )}
+
+              {plategaEnabled && (
+                <button
+                  type='button'
+                  disabled={effectiveAmount <= 0 || plategaLoading}
+                  onClick={handlePlategaPay}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
+                    selectedMethod === 'platega'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-border bg-white hover:border-blue-500'
+                  )}
+                >
+                  <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}>
+                    {plategaLoading
+                      ? <Loader2 className='size-4 animate-spin text-white' />
+                      : <span className='text-xs font-bold text-white'>₽</span>}
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='truncate text-sm font-semibold text-gray-800'>{t('Russian SBP QR')}</div>
+                    <div className='truncate text-[11px] text-gray-400'>{t('Russian SBP QR hint')}</div>
+                  </div>
+                </button>
+              )}
+
               <button
                 type='button'
                 disabled={effectiveAmount <= 0}
@@ -310,11 +383,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                 </div>
                 <div className='min-w-0'>
                   <div className='truncate text-sm font-semibold text-gray-800'>Crypto</div>
-                  <div className='truncate text-[11px] text-gray-400'>
-                    {promoInfo && effectiveAmount === promoInfo.amount
-                      ? `send $${promoInfo.pay_amount.toFixed(2)} → get $${promoInfo.amount}`
-                      : 'USDT / USDC'}
-                  </div>
+                  <div className='truncate text-[11px] text-gray-400'>USDT / USDC</div>
                 </div>
               </button>
 
@@ -391,18 +460,9 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                 ? (
                   <p className='text-muted-foreground text-xs'>
                     {t('You will pay')}:{' '}
-                    {promoInfo && effectiveAmount === promoInfo.amount
-                      ? (
-                        <>
-                          <span className='font-mono font-semibold text-amber-600'>${promoInfo.pay_amount.toFixed(2)}</span>
-                          <span className='ml-1 text-muted-foreground line-through'>${effectiveAmount.toFixed(2)}</span>
-                        </>
-                      )
-                      : (
-                        <span className='font-mono font-semibold text-cyan-600'>
-                          ${effectiveAmount.toFixed(2)}
-                        </span>
-                      )}
+                    <span className='font-mono font-semibold text-cyan-600'>
+                      ${effectiveAmount.toFixed(2)}
+                    </span>
                   </p>
                 )
                 : <span />}

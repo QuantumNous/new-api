@@ -53,6 +53,10 @@ import {
   type WaffoPancakeSettingsValues,
 } from './waffo-pancake-settings-section'
 import {
+  PlategaSettingsSection,
+  type PlategaSettingsValues,
+} from './platega-settings-section'
+import {
   WaffoSettingsSection,
   type WaffoSettingsValues,
 } from './waffo-settings-section'
@@ -134,12 +138,14 @@ type PaymentSettingsSectionProps = {
   defaultValues: PaymentFormValues
   waffoDefaultValues: WaffoSettingsValues
   waffoPancakeDefaultValues: WaffoPancakeSettingsValues
+  plategaDefaultValues: PlategaSettingsValues
 }
 
 export function PaymentSettingsSection({
   defaultValues,
   waffoDefaultValues,
   waffoPancakeDefaultValues,
+  plategaDefaultValues,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -1533,6 +1539,10 @@ export function PaymentSettingsSection({
       <Separator />
 
       <WaffoPancakeSettingsSection defaultValues={waffoPancakeDefaultValues} />
+
+      <Separator />
+
+      <PlategaSettingsSection defaultValues={plategaDefaultValues} />
       {/* eslint-enable react-hooks/refs */}
     </SettingsSection>
   )

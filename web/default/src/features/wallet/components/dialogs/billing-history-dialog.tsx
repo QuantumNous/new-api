@@ -20,7 +20,6 @@ import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
   AlertDialog,
@@ -58,6 +57,7 @@ import {
   getStatusConfig,
   getPaymentMethodName,
   formatTimestamp,
+  formatPaidAmount,
 } from '../../lib/billing'
 
 interface BillingHistoryDialogProps {
@@ -256,7 +256,7 @@ export function BillingHistoryDialog({
                               {t('Payment')}
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
-                              {formatNumber(record.money)}
+                              {formatPaidAmount(record.money, record.payment_method, record.amount)}
                             </div>
                           </div>
                         </div>

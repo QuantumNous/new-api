@@ -262,6 +262,12 @@ export type BillingSettings = {
   WaffoPancakeCurrency: string
   WaffoPancakeUnitPrice: number
   WaffoPancakeMinTopUp: number
+  PlategaEnabled: boolean
+  PlategaMinTopUp: number
+  PlategaUSDRate: number
+  PlategaReturnURL: string
+  PlategaFailedURL: string
+  PlategaFeePercent: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

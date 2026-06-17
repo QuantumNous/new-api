@@ -91,6 +91,8 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enablePlatega := isPlategaTopUpEnabled()
+
 	data := gin.H{
 		"enable_online_topup":        isEpayTopUpEnabled(),
 		"enable_stripe_topup":        isStripeTopUpEnabled(),
@@ -98,6 +100,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_creem_topup":         isCreemTopUpEnabled(),
 		"enable_waffo_topup":         enableWaffo,
 		"enable_waffo_pancake_topup": enableWaffoPancake,
+		"enable_platega_topup":       enablePlatega,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -111,6 +114,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"paypal_min_topup":        setting.PayPalMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"platega_min_topup":       setting.PlategaMinTopUp,
+		"platega_usd_rate":        setting.PlategaUSDRate,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,

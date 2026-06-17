@@ -3,6 +3,7 @@ package controller
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -93,6 +94,17 @@ func isWaffoPancakeWebhookConfigured() bool {
 
 func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
+}
+
+func isPlategaTopUpEnabled() bool {
+	if !setting.PlategaEnabled {
+		return false
+	}
+	return service.PlategaConfigured()
+}
+
+func isPlategaWebhookEnabled() bool {
+	return isPlategaTopUpEnabled()
 }
 
 func isEpayTopUpEnabled() bool {

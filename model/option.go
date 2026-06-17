@@ -123,6 +123,12 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeCurrency"] = setting.WaffoPancakeCurrency
 	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
+	common.OptionMap["PlategaEnabled"] = strconv.FormatBool(setting.PlategaEnabled)
+	common.OptionMap["PlategaMinTopUp"] = strconv.Itoa(setting.PlategaMinTopUp)
+	common.OptionMap["PlategaUSDRate"] = strconv.FormatFloat(setting.PlategaUSDRate, 'f', -1, 64)
+	common.OptionMap["PlategaReturnURL"] = setting.PlategaReturnURL
+	common.OptionMap["PlategaFailedURL"] = setting.PlategaFailedURL
+	common.OptionMap["PlategaFeePercent"] = strconv.FormatFloat(setting.PlategaFeePercent, 'f', -1, 64)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -463,6 +469,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "PlategaEnabled":
+		setting.PlategaEnabled = value == "true"
+	case "PlategaMinTopUp":
+		setting.PlategaMinTopUp, _ = strconv.Atoi(value)
+	case "PlategaUSDRate":
+		setting.PlategaUSDRate, _ = strconv.ParseFloat(value, 64)
+	case "PlategaReturnURL":
+		setting.PlategaReturnURL = value
+	case "PlategaFailedURL":
+		setting.PlategaFailedURL = value
+	case "PlategaFeePercent":
+		setting.PlategaFeePercent, _ = strconv.ParseFloat(value, 64)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

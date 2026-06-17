@@ -39,6 +39,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  PlategaPaymentRequest,
+  PlategaPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -188,6 +190,30 @@ export async function requestWaffoPancakePayment(
   request: WaffoPancakePaymentRequest
 ): Promise<WaffoPancakePaymentResponse> {
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Calculate RUB amount for Platega SBP QR payment
+ */
+export async function calculatePlategaAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/platega/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Platega SBP QR payment
+ */
+export async function requestPlategaPayment(
+  request: PlategaPaymentRequest
+): Promise<PlategaPaymentResponse> {
+  const res = await api.post('/api/user/platega/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data
