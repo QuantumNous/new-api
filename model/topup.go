@@ -17,6 +17,7 @@ type TopUp struct {
 	UserId          int     `json:"user_id" gorm:"index"`
 	Amount          int64   `json:"amount"`
 	BonusAmount     int64   `json:"bonus_amount" gorm:"default:0"`
+	BonusTier       int     `json:"bonus_tier" gorm:"default:0"` // 原始充值档位金额，回调侧反查 AmountBonusLimit
 	Money           float64 `json:"money"`
 	PaymentCurrency string  `json:"payment_currency" gorm:"type:varchar(10);default:''"`
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
