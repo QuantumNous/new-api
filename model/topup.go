@@ -218,6 +218,12 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 			return errors.New("无效的充值额度")
 		}
 
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
@@ -454,13 +460,19 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
 
-		// Amount stores the final credited amount. BonusAmount keeps the gifted portion for audit/display.
+		// Amount 只存本金；赠送在回调/补单时按档位限次另行裁决。BonusAmount 记录实际发放的赠送，供审计/展示。
 		dAmount := decimal.NewFromInt(topUp.Amount)
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
+
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
 
 		// 标记完成
 		topUp.CompleteTime = common.GetTimestamp()
@@ -602,6 +614,12 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			return errors.New("无效的充值额度")
 		}
 
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
@@ -664,6 +682,12 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
+
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
@@ -774,6 +798,12 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			}
 			return errors.New("充值订单状态错误")
 		}
+
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
 
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
 			return err

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -202,15 +203,17 @@ func TestRechargeStripeCreditsStoredTotalAmountWithoutRuntimeBonus(t *testing.T)
 	assert.Equal(t, expected, getUserQuotaForPaymentGuardTest(t, 118))
 }
 
-func TestRechargeStripeCreditsStoredTotalAmountWithBonusMetadata(t *testing.T) {
+func TestRechargeStripeCreditsBasePlusBonusOnCallback(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 119, 0)
-	// A $20 + $5 configured bonus order stores total amount plus bonus metadata.
+	// New semantics: Amount is base-only, BonusAmount is the pending bonus the callback
+	// grants on top when the per-tier limit (here unconfigured = unlimited) allows it.
 	topUp := &TopUp{
 		UserId:          119,
-		Amount:          25,
+		Amount:          20,
 		BonusAmount:     5,
+		BonusTier:       20,
 		Money:           20,
 		TradeNo:         "stripe-bonus-custom-guard",
 		PaymentMethod:   PaymentMethodStripe,
@@ -224,7 +227,7 @@ func TestRechargeStripeCreditsStoredTotalAmountWithBonusMetadata(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 
-	assert.Equal(t, int(25*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
+	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
 }
 
 func TestTopUpPersistsSaveCardFlag(t *testing.T) {
@@ -547,4 +550,76 @@ func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) 
 	order := GetSubscriptionOrderByTradeNo("sub-expire-guard")
 	require.NotNil(t, order)
 	assert.Equal(t, common.TopUpStatusPending, order.Status)
+}
+
+// TestRechargeBonusRespectsPerTierLimit 验证「每用户每档位限领次数」在真实回调入账路径上生效：
+// 配置 tier=20 限领 2 次，连续 3 笔同档充值，前 2 笔含赠送、第 3 笔仅本金。
+func TestRechargeBonusRespectsPerTierLimit(t *testing.T) {
+	truncateTables(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalLimit := paymentSetting.AmountBonusLimit
+	t.Cleanup(func() { paymentSetting.AmountBonusLimit = originalLimit })
+	paymentSetting.AmountBonusLimit = map[int]int{20: 2}
+
+	insertUserForPaymentGuardTest(t, 130, 0)
+	base := int64(common.QuotaPerUnit)
+	for i, trade := range []string{"limit-1", "limit-2", "limit-3"} {
+		topUp := &TopUp{
+			UserId:          130,
+			Amount:          20,
+			BonusAmount:     5,
+			BonusTier:       20,
+			Money:           20,
+			TradeNo:         trade,
+			PaymentMethod:   PaymentMethodStripe,
+			PaymentProvider: PaymentProviderStripe,
+			CreateTime:      time.Now().Unix(),
+			Status:          common.TopUpStatusPending,
+		}
+		require.NoError(t, topUp.Insert())
+		recharged, err := Recharge(trade, "cus_limit", "127.0.0.1")
+		require.NoError(t, err)
+		assert.True(t, recharged, "order %d should credit", i+1)
+	}
+
+	// 前两笔各 20+5，第三笔仅 20 → 总计 20+5 + 20+5 + 20 = 70
+	assert.Equal(t, int((20+5+20+5+20)*base), getUserQuotaForPaymentGuardTest(t, 130))
+
+	// 第三笔订单的 BonusAmount 应被归零（未发放）
+	var third TopUp
+	require.NoError(t, DB.Where("trade_no = ?", "limit-3").First(&third).Error)
+	assert.Equal(t, int64(0), third.BonusAmount)
+}
+
+// TestRechargeBonusUnlimitedWhenNoLimitConfigured 验证未配置 limit 的档位不限次发放。
+func TestRechargeBonusUnlimitedWhenNoLimitConfigured(t *testing.T) {
+	truncateTables(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalLimit := paymentSetting.AmountBonusLimit
+	t.Cleanup(func() { paymentSetting.AmountBonusLimit = originalLimit })
+	paymentSetting.AmountBonusLimit = map[int]int{} // 不配置即不限
+
+	insertUserForPaymentGuardTest(t, 131, 0)
+	base := int64(common.QuotaPerUnit)
+	for _, trade := range []string{"nolimit-1", "nolimit-2", "nolimit-3"} {
+		topUp := &TopUp{
+			UserId:          131,
+			Amount:          20,
+			BonusAmount:     5,
+			BonusTier:       20,
+			Money:           20,
+			TradeNo:         trade,
+			PaymentMethod:   PaymentMethodStripe,
+			PaymentProvider: PaymentProviderStripe,
+			CreateTime:      time.Now().Unix(),
+			Status:          common.TopUpStatusPending,
+		}
+		require.NoError(t, topUp.Insert())
+		recharged, err := Recharge(trade, "cus_nolimit", "127.0.0.1")
+		require.NoError(t, err)
+		assert.True(t, recharged)
+	}
+
+	// 三笔都含赠送 → 3 × (20+5) = 75
+	assert.Equal(t, int(3*(20+5)*base), getUserQuotaForPaymentGuardTest(t, 131))
 }
