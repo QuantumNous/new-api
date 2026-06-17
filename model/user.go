@@ -403,6 +403,11 @@ func (user *User) Insert(inviterId int) error {
 	if user.Group == "" {
 		user.Group = "plg"
 	}
+	// Admins/root must keep group control — never silently demote them to PLG even if the
+	// caller didn't set the flag (the PLG enforcement keys off is_enterprise, not role).
+	if user.Role >= common.RoleAdminUser {
+		user.IsEnterprise = true
+	}
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -463,6 +468,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
+	// Admins/root must keep group control — never silently demote them to PLG (see Insert).
+	if user.Role >= common.RoleAdminUser {
+		user.IsEnterprise = true
+	}
 
 	// 初始化用户设置
 	if user.Setting == "" {
