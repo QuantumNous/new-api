@@ -17,6 +17,7 @@ export type ModelConfig = {
   estFlatkey: string;
   estOfficial: string;
   examplePrompt: string;
+  priceUnit: ModelLandingKey;
   rows: ModelPriceRow[];
 };
 
@@ -33,6 +34,7 @@ export const CLAUDE_CONFIG: ModelConfig = {
   estOfficial: "$0.008",
   examplePrompt:
     "You are a senior backend engineer. In 3 sentences, explain why developers should use an LLM gateway instead of calling each official API directly.",
+  priceUnit: "/ million output tokens",
   rows: [
     { label: "Opus 4 output", flatkey: "$7.5", official: "$15" },
     { label: "Sonnet 4 output", flatkey: "$7.5", official: "$15" },
@@ -53,6 +55,7 @@ export const GPT_CONFIG: ModelConfig = {
   estOfficial: "$0.006",
   examplePrompt:
     "You are a senior backend engineer. In 3 sentences, explain why developers should use an LLM gateway instead of calling each official API directly.",
+  priceUnit: "/ million output tokens",
   rows: [
     { label: "GPT-5 output", flatkey: "$5.5", official: "$10" },
     { label: "GPT-5 mini output", flatkey: "$1.1", official: "$2" },
@@ -62,9 +65,30 @@ export const GPT_CONFIG: ModelConfig = {
   ],
 };
 
+export const SEEDANCE_CONFIG: ModelConfig = {
+  slug: "seedance-api",
+  displayName: "Seedance 2.0",
+  modelId: "seedance-2-0",
+  officialName: "fal.ai",
+  officialPrice: "$0.07",
+  flatkeyPrice: "$0.035",
+  estFlatkey: "$0.18",
+  estOfficial: "$0.35",
+  examplePrompt:
+    "A cinematic drone shot flying over a neon-lit Tokyo street at night, rain reflections, 5 seconds.",
+  priceUnit: "/ second",
+  rows: [
+    { label: "Seedance video / sec", flatkey: "$0.035", official: "$0.07" },
+    { label: "Image-to-video / sec", flatkey: "$0.04", official: "$0.08" },
+    { label: "1080p / sec", flatkey: "$0.05", official: "$0.10" },
+    { label: "Coverage", flatkey: "", value: "Seedance · Kling · Veo · Sora · GPT · Claude" },
+  ],
+};
+
 export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   [CLAUDE_CONFIG.slug]: CLAUDE_CONFIG,
   [GPT_CONFIG.slug]: GPT_CONFIG,
+  [SEEDANCE_CONFIG.slug]: SEEDANCE_CONFIG,
 };
 
 export type ModelLandingKey =
@@ -75,6 +99,7 @@ export type ModelLandingKey =
   | "{{official}} official"
   | "* Illustrative pricing — see flatkey pricing page"
   | "/ million output tokens"
+  | "/ second"
   | "# Your existing OpenAI code:"
   | "30–50% cheaper"
   | "50% bonus"
@@ -99,6 +124,9 @@ export type ModelLandingKey =
   | "GPT-5 output"
   | "GPT-5 mini output"
   | "GPT-5 input"
+  | "Seedance video / sec"
+  | "Image-to-video / sec"
+  | "1080p / sec"
   | "Cache reads"
   | "Coverage"
   | "50% off";
@@ -111,6 +139,7 @@ const en: Record<ModelLandingKey, string> = {
   "{{official}} official": "{{official}} official",
   "* Illustrative pricing — see flatkey pricing page": "* Illustrative pricing — see flatkey pricing page",
   "/ million output tokens": "/ million output tokens",
+  "/ second": "/ second",
   "# Your existing OpenAI code:": "# Your existing OpenAI code:",
   "30–50% cheaper": "30–50% cheaper",
   "50% bonus": "50% bonus",
@@ -136,6 +165,9 @@ const en: Record<ModelLandingKey, string> = {
   "GPT-5 output": "GPT-5 output",
   "GPT-5 mini output": "GPT-5 mini output",
   "GPT-5 input": "GPT-5 input",
+  "Seedance video / sec": "Seedance video / sec",
+  "Image-to-video / sec": "Image-to-video / sec",
+  "1080p / sec": "1080p / sec",
   "Cache reads": "Cache reads",
   Coverage: "Coverage",
   "50% off": "50% off",
@@ -151,6 +183,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} 官方",
     "* Illustrative pricing — see flatkey pricing page": "* 示例价格 — 详见 flatkey 定价页",
     "/ million output tokens": "/ 百万输出 token",
+    "/ second": "/ 秒",
     "# Your existing OpenAI code:": "# 你现有的 OpenAI 代码：",
     "30–50% cheaper": "便宜 30–50%",
     "50% bonus": "赠送 50%",
@@ -176,6 +209,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "GPT-5 输出",
     "GPT-5 mini output": "GPT-5 mini 输出",
     "GPT-5 input": "GPT-5 输入",
+    "Seedance video / sec": "Seedance 视频/秒",
+    "Image-to-video / sec": "图生视频/秒",
+    "1080p / sec": "1080p/秒",
     "Cache reads": "缓存读取",
     Coverage: "覆盖范围",
     "50% off": "5 折",
@@ -188,6 +224,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} oficial",
     "* Illustrative pricing — see flatkey pricing page": "* Precios ilustrativos — consulta la página de precios de flatkey",
     "/ million output tokens": "/ millón de tokens de salida",
+    "/ second": "/ segundo",
     "# Your existing OpenAI code:": "# Tu código OpenAI actual:",
     "30–50% cheaper": "30–50% más barato",
     "50% bonus": "50% de bonificación",
@@ -213,6 +250,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "Salida de GPT-5",
     "GPT-5 mini output": "Salida de GPT-5 mini",
     "GPT-5 input": "Entrada de GPT-5",
+    "Seedance video / sec": "Vídeo Seedance/seg",
+    "Image-to-video / sec": "Imagen a vídeo/seg",
+    "1080p / sec": "1080p/seg",
     "Cache reads": "Lecturas de caché",
     Coverage: "Cobertura",
     "50% off": "50% de descuento",
@@ -225,6 +265,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} officiel",
     "* Illustrative pricing — see flatkey pricing page": "* Tarifs indicatifs — voir la page tarifs de flatkey",
     "/ million output tokens": "/ million de tokens de sortie",
+    "/ second": "/ seconde",
     "# Your existing OpenAI code:": "# Votre code OpenAI actuel :",
     "30–50% cheaper": "30–50% moins cher",
     "50% bonus": "50% de bonus",
@@ -250,6 +291,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "Sortie GPT-5",
     "GPT-5 mini output": "Sortie GPT-5 mini",
     "GPT-5 input": "Entrée GPT-5",
+    "Seedance video / sec": "Vidéo Seedance/s",
+    "Image-to-video / sec": "Image vers vidéo/s",
+    "1080p / sec": "1080p/s",
     "Cache reads": "Lectures de cache",
     Coverage: "Couverture",
     "50% off": "50% de réduction",
@@ -262,6 +306,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} oficial",
     "* Illustrative pricing — see flatkey pricing page": "* Preços ilustrativos — veja a página de preços do flatkey",
     "/ million output tokens": "/ milhão de tokens de saída",
+    "/ second": "/ segundo",
     "# Your existing OpenAI code:": "# Seu código OpenAI atual:",
     "30–50% cheaper": "30–50% mais barato",
     "50% bonus": "50% de bônus",
@@ -287,6 +332,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "Saída do GPT-5",
     "GPT-5 mini output": "Saída do GPT-5 mini",
     "GPT-5 input": "Entrada do GPT-5",
+    "Seedance video / sec": "Vídeo Seedance/seg",
+    "Image-to-video / sec": "Imagem-para-vídeo/seg",
+    "1080p / sec": "1080p/seg",
     "Cache reads": "Leituras de cache",
     Coverage: "Cobertura",
     "50% off": "50% de desconto",
@@ -299,6 +347,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} официальный",
     "* Illustrative pricing — see flatkey pricing page": "* Ориентировочные цены — см. страницу тарифов flatkey",
     "/ million output tokens": "/ млн выходных токенов",
+    "/ second": "/ секунду",
     "# Your existing OpenAI code:": "# Ваш текущий код OpenAI:",
     "30–50% cheaper": "на 30–50% дешевле",
     "50% bonus": "бонус 50%",
@@ -324,6 +373,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "Вывод GPT-5",
     "GPT-5 mini output": "Вывод GPT-5 mini",
     "GPT-5 input": "Ввод GPT-5",
+    "Seedance video / sec": "Видео Seedance/сек",
+    "Image-to-video / sec": "Изображение в видео/сек",
+    "1080p / sec": "1080p/сек",
     "Cache reads": "Чтения из кэша",
     Coverage: "Покрытие",
     "50% off": "скидка 50%",
@@ -336,6 +388,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} 公式",
     "* Illustrative pricing — see flatkey pricing page": "* 参考価格 — flatkey の料金ページをご覧ください",
     "/ million output tokens": "/ 出力トークン100万あたり",
+    "/ second": "/ 秒",
     "# Your existing OpenAI code:": "# 既存の OpenAI コード:",
     "30–50% cheaper": "30〜50% 安い",
     "50% bonus": "50% ボーナス",
@@ -361,6 +414,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "GPT-5 出力",
     "GPT-5 mini output": "GPT-5 mini 出力",
     "GPT-5 input": "GPT-5 入力",
+    "Seedance video / sec": "Seedance 動画/秒",
+    "Image-to-video / sec": "画像から動画/秒",
+    "1080p / sec": "1080p/秒",
     "Cache reads": "キャッシュ読み取り",
     Coverage: "対応モデル",
     "50% off": "50% オフ",
@@ -373,6 +429,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "{{official}} official": "{{official}} chính thức",
     "* Illustrative pricing — see flatkey pricing page": "* Giá minh họa — xem trang giá của flatkey",
     "/ million output tokens": "/ triệu token đầu ra",
+    "/ second": "/ giây",
     "# Your existing OpenAI code:": "# Mã OpenAI hiện có của bạn:",
     "30–50% cheaper": "rẻ hơn 30–50%",
     "50% bonus": "thưởng 50%",
@@ -398,6 +455,9 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "GPT-5 output": "Đầu ra GPT-5",
     "GPT-5 mini output": "Đầu ra GPT-5 mini",
     "GPT-5 input": "Đầu vào GPT-5",
+    "Seedance video / sec": "Video Seedance/giây",
+    "Image-to-video / sec": "Ảnh thành video/giây",
+    "1080p / sec": "1080p/giây",
     "Cache reads": "Đọc bộ nhớ đệm",
     Coverage: "Phạm vi hỗ trợ",
     "50% off": "giảm 50%",
