@@ -20,7 +20,7 @@ import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { WorkspaceProvider } from '../context/workspace-context'
@@ -48,6 +48,9 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
                 )}
               >
+                <div className='flex items-center border-b border-sidebar-border px-2 py-1.5 md:hidden'>
+                  <SidebarTrigger />
+                </div>
                 {props.children ?? <AnimatedOutlet />}
               </SidebarInset>
             </div>
