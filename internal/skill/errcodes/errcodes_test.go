@@ -142,7 +142,7 @@ func TestRateLimitedCode(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, HTTPStatusFor(RateLimitedCode))
 }
 
-// TestErrorCodeStringValues verifies all 13 ErrorCode string values verbatim
+// TestErrorCodeStringValues verifies all 14 ErrorCode string values verbatim
 // against tasks/03 §7.2.
 func TestErrorCodeStringValues(t *testing.T) {
 	assert.Equal(t, "INVALID_REQUEST", string(ErrInvalidRequest))

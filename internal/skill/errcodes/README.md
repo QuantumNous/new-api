@@ -1,21 +1,22 @@
 # internal/skill/errcodes
 
-Stable API error codes, HTTP status mappings, and BlockReason↔ErrorCode helpers
-for the Skill Marketplace. Source of truth: `docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md §7.2`.
+Stable API error codes, HTTP status mappings, and BlockReason-to-ErrorCode helpers
+for the Skill Marketplace. Source of truth:
+`docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md §7.2`.
 
 ## Public API
 
 | Symbol | Type | Description |
 |---|---|---|
-| `ErrorCode` | `type string` | Uppercase API error code (e.g. `"SKILL_NOT_FOUND"`) |
-| `ErrAuthRequired` … `ErrSkillInternalError` | `ErrorCode` constants | 13 stable error codes |
+| `ErrorCode` | `type string` | Uppercase API error code, for example `"SKILL_NOT_FOUND"` |
+| `ErrInvalidRequest` ... `ErrSkillInternalError` | `ErrorCode` constants | 14 stable error codes |
 | `ErrorCode.Valid()` | method | Reports whether the code is catalog-registered |
 | `HTTPStatusFor(code)` | func | Returns canonical HTTP status; 500 for unknown codes |
-| `HTTPStatusCatalog()` | func | Returns a **defensive copy** of the full code→status map |
-| `AllErrorCodes()` | func | Returns a **defensive copy** of all 13 codes in declaration order |
+| `HTTPStatusCatalog()` | func | Returns a defensive copy of the full code-to-status map |
+| `AllErrorCodes()` | func | Returns a defensive copy of all 14 codes in declaration order |
 | `ErrorCodeFor(BlockReason)` | func | Translates data-model BlockReason to API ErrorCode |
 | `BlockReasonFor(ErrorCode)` | func | Reverse translation |
-| `RateLimitedCode` | const | Alias for `ErrSkillRateLimited` — the one code requiring a Retry-After header |
+| `RateLimitedCode` | const | Alias for `ErrSkillRateLimited`, the one code requiring a Retry-After header |
 
 ## Why httpStatusByCode is unexported
 
@@ -29,15 +30,15 @@ HTTP response.
 
 `tasks/01 §8` lists `"200 or 403"` for safety violations, covering two scenarios:
 
-- **Streaming output replacement** (200): the streaming layer replaces content but
+- Streaming output replacement (200): the streaming layer replaces content but
   returns HTTP 200. This is a streaming-layer behavior, not an error envelope response.
-- **Pre-injection blocking** (403): the request is blocked before or during processing
+- Pre-injection blocking (403): the request is blocked before or during processing
   and an error envelope is returned.
 
 `tasks/03 §7.2` (authoritative API contract) defines 403 for the error envelope.
 `DR-39` only defines the error envelope HTTP status, so `SKILL_SAFETY_VIOLATION = 403`.
 
-## BlockReason ↔ ErrorCode mapping
+## BlockReason to ErrorCode mapping
 
 The mapping is explicit (`blockReasonToCode` table) because string manipulation
 cannot reconstruct it reliably:
@@ -54,9 +55,9 @@ Never use `strings.ToUpper` or prefix manipulation to derive an `ErrorCode` from
 
 `TestCatalog_Exhaustiveness` asserts at test time that:
 
-- `len(allErrorCodes) == len(httpStatusByCode)` — no code is missing a status
-- `len(allBlockReasons) == len(blockReasonToCode)` — no block reason is missing a mapping
-- `len(blockReasonToCode) == len(codeToBlockReason)` — forward and reverse maps are symmetric
+- `len(allErrorCodes) == len(httpStatusByCode)`: no code is missing a status
+- `len(allBlockReasons) == len(blockReasonToCode)`: no block reason is missing a mapping
+- `len(blockReasonToCode) == len(codeToBlockReason)`: forward and reverse maps are symmetric
 - Every key in `httpStatusByCode` satisfies `Valid()`
 - Every value in `blockReasonToCode` satisfies `Valid()`
 
