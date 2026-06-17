@@ -137,6 +137,15 @@ const localizedPageCopy: Record<Locale, Record<keyof typeof generic, { title: st
     sla: { title: "Thỏa thuận mức dịch vụ", description: "Xem phạm vi sẵn sàng, xử lý sự cố, bảo trì, ngoại lệ, quy trình hỗ trợ và biện pháp khắc phục của flatkey.ai." },
     "refund-policy": { title: "Chính sách hoàn tiền", description: "Xem cách flatkey.ai xử lý điều kiện hoàn tiền, số dư chưa dùng, API đã tiêu thụ, khoản tính trùng, tranh chấp, thuế và yêu cầu hỗ trợ." },
   },
+  de: {
+    pricing: { title: "Transparente Preise für KI-Modelle", description: "Vergleiche Modellzugang, Routing und Abrechnungsoptionen für produktive KI-Workloads auf flatkey.ai." },
+    rankings: { title: "KI-Modell-Rankings und Marktsignale", description: "Erkunde Modellverfügbarkeit, Nutzungstrends und Betriebssignale für Teams, die produktive KI-Modelle auswählen." },
+    about: { title: "Über flatkey.ai", description: "flatkey.ai hilft Teams, KI-APIs mit Routing, Abrechnung, Analysen und Zugriffskontrollen in einem Gateway zu betreiben." },
+    terms: { title: "Nutzungsbedingungen", description: "Lies die Bedingungen für Konten, Prepaid-Guthaben, Modellzugang, Nutzung, Abrechnung, Rückerstattungen und Streitbeilegung bei flatkey.ai." },
+    privacy: { title: "Datenschutzrichtlinie", description: "Erfahre, wie flatkey.ai Konto-, Zahlungs-, API-Nutzungs-, Support- und Sicherheitsinformationen erhebt, nutzt, teilt, speichert und schützt." },
+    sla: { title: "Service-Level-Agreement", description: "Prüfe Verfügbarkeitsumfang, Vorfallbehandlung, Wartung, Ausnahmen, Supportprozess und Abhilfemaßnahmen von flatkey.ai." },
+    "refund-policy": { title: "Rückerstattungsrichtlinie", description: "Prüfe, wie flatkey.ai Rückerstattungsanspruch, ungenutztes Guthaben, verbrauchte API-Nutzung, Doppelbuchungen, Streitfälle, Steuern und Supportanfragen behandelt." },
+  },
 };
 
 const legalDocumentByPage: Partial<Record<keyof typeof generic, LegalDocumentKind>> = {
