@@ -12,6 +12,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Sync code to /opt/new-api
+        run: |
+          echo "[$(date)] Syncing latest code to /opt/new-api..."
+          # 使用 rsync 同步代码，排除数据目录和日志
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='data' \
+            --exclude='logs' \
+            --exclude='.custom-backup' \
+            --exclude='*.tar.gz' \
+            "${GITHUB_WORKSPACE}/" /opt/new-api/
+          echo "[$(date)] Code sync completed!"
+
       - name: Build Docker image
         run: |
           echo "[$(date)] Building Docker image..."
