@@ -124,3 +124,32 @@ func TestUpdateOptionsBulkRejectsInvalidAmountBonusConfig(t *testing.T) {
 	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "payment_setting.amount_bonus").Count(&persistedCount).Error)
 	require.Zero(t, persistedCount)
 }
+
+func TestUpdateOptionValidatesAmountBonusLimitConfig(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	// 非法：次数为负
+	err := UpdateOption("payment_setting.amount_bonus_limit", `{"20":-1}`)
+	require.Error(t, err)
+
+	var persistedCount int64
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "payment_setting.amount_bonus_limit").Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
+}
+
+func TestUpdateOptionNormalizesEmptyAmountBonusLimitToEmptyObject(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	require.NoError(t, UpdateOption("payment_setting.amount_bonus_limit", ""))
+
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "payment_setting.amount_bonus_limit").First(&option).Error)
+	require.Equal(t, "{}", option.Value)
+}
+
+func TestUpdateOptionAcceptsValidAmountBonusLimitConfig(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	require.NoError(t, UpdateOption("payment_setting.amount_bonus_limit", `{"20":2}`))
+
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "payment_setting.amount_bonus_limit").First(&option).Error)
+	require.Equal(t, `{"20":2}`, option.Value)
+}

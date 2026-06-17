@@ -318,6 +318,9 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	if key == "payment_setting.amount_bonus" {
 		return normalizeAmountBonusOptionValue(value)
 	}
+	if key == "payment_setting.amount_bonus_limit" {
+		return normalizeAmountBonusLimitOptionValue(value)
+	}
 	return value, nil
 }
 
@@ -337,6 +340,27 @@ func normalizeAmountBonusOptionValue(value string) (string, error) {
 	for amount, bonus := range bonuses {
 		if amount <= 0 || bonus <= 0 {
 			return "", errors.New("充值赠送配置的充值金额和赠送额度必须为正整数")
+		}
+	}
+	return trimmed, nil
+}
+
+func normalizeAmountBonusLimitOptionValue(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "{}", nil
+	}
+
+	var limits map[int]int
+	if err := common.UnmarshalJsonStr(trimmed, &limits); err != nil {
+		return "", errors.New("充值赠送次数限制必须是充值金额到次数的 JSON 对象")
+	}
+	if limits == nil {
+		return "", errors.New("充值赠送次数限制必须是充值金额到次数的 JSON 对象")
+	}
+	for amount, limit := range limits {
+		if amount <= 0 || limit < 0 {
+			return "", errors.New("充值赠送次数限制的充值金额必须为正、次数必须为非负整数")
 		}
 	}
 	return trimmed, nil
