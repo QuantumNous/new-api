@@ -21,14 +21,40 @@ func TestImagePollDeadlineSeconds(t *testing.T) {
 	}{
 		{name: "default", req: dto.ImageRequest{}, want: 180},
 		{name: "2k", req: dto.ImageRequest{Extra: twoKExtra}, want: 300},
-		{name: "4k", req: dto.ImageRequest{Extra: fourKExtra}, want: 600},
-		{name: "high", req: dto.ImageRequest{Quality: "high"}, want: 600},
+		{name: "4k", req: dto.ImageRequest{Extra: fourKExtra}, want: 900},
+		{name: "high", req: dto.ImageRequest{Quality: "high"}, want: 900},
+		{name: "hd", req: dto.ImageRequest{Quality: "hd"}, want: 900},
 		{name: "medium", req: dto.ImageRequest{Quality: "medium"}, want: 300},
+		{name: "size 1024", req: dto.ImageRequest{Size: "1024x1024"}, want: 180},
+		{name: "size 1792 wide", req: dto.ImageRequest{Size: "1792x1024"}, want: 300},
+		{name: "size 1792 hd", req: dto.ImageRequest{Size: "1792x1024", Quality: "hd"}, want: 900},
+		{name: "size 4k pixels", req: dto.ImageRequest{Size: "3840x2160"}, want: 900},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := imagePollDeadlineSeconds(tc.req); got != tc.want {
 				t.Fatalf("imagePollDeadlineSeconds() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestImagePollTierFromSize(t *testing.T) {
+	cases := []struct {
+		size string
+		want int
+	}{
+		{size: "", want: 0},
+		{size: "16:9", want: 0},
+		{size: "1024x1024", want: 0},
+		{size: "1792x1024", want: 1},
+		{size: "2048x2048", want: 1},
+		{size: "3840x2160", want: 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.size, func(t *testing.T) {
+			if got := imagePollTierFromSize(tc.size); got != tc.want {
+				t.Fatalf("imagePollTierFromSize(%q) = %d, want %d", tc.size, got, tc.want)
 			}
 		})
 	}
