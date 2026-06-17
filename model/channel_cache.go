@@ -253,6 +253,97 @@ func logChannelCacheMissLocked(group string, model string, retry int) {
 	))
 }
 
+func GetSatisfiedChannelCandidates(group string, model string, retry int) ([]*Channel, error) {
+	if !common.MemoryCacheEnabled {
+		return GetChannelCandidates(group, model, retry)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	model2channels := group2model2channels[group]
+	if model2channels == nil {
+		return nil, nil
+	}
+
+	channels := model2channels[model]
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		channels = model2channels[normalizedModel]
+	}
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			uniquePriorities[int(channel.GetPriority())] = true
+		} else {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
+		}
+	}
+
+	var sortedUniquePriorities []int
+	for priority := range uniquePriorities {
+		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+	if retry >= len(sortedUniquePriorities) {
+		return nil, nil
+	}
+
+	targetPriority := int64(sortedUniquePriorities[retry])
+	var targetChannels []*Channel
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			if channel.GetPriority() == targetPriority {
+				targetChannels = append(targetChannels, channel)
+			}
+		} else {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
+		}
+	}
+	if len(targetChannels) == 0 {
+		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+
+	return targetChannels, nil
+}
+
+func SelectWeightedRandomChannel(targetChannels []*Channel) (*Channel, error) {
+	if len(targetChannels) == 0 {
+		return nil, nil
+	}
+	if len(targetChannels) == 1 {
+		return targetChannels[0], nil
+	}
+
+	sumWeight := 0
+	for _, channel := range targetChannels {
+		sumWeight += channel.GetWeight()
+	}
+
+	smoothingFactor := 1
+	smoothingAdjustment := 0
+
+	if sumWeight == 0 {
+		sumWeight = len(targetChannels) * 100
+		smoothingAdjustment = 100
+	} else if sumWeight/len(targetChannels) < 10 {
+		smoothingFactor = 100
+	}
+
+	randomWeight := rand.Intn(sumWeight * smoothingFactor)
+	for _, channel := range targetChannels {
+		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		if randomWeight < 0 {
+			return channel, nil
+		}
+	}
+	return nil, errors.New("channel not found")
+}
+
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)

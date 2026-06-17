@@ -212,6 +212,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.remark?.trim() ||
     values.priority ||
     values.weight ||
+    values.max_concurrency ||
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
@@ -2550,6 +2551,31 @@ export function ChannelMutateDrawer({
                                 </FormControl>
                                 <FormDescription>
                                   {t(FIELD_DESCRIPTIONS.WEIGHT)}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='max_concurrency'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Max Concurrency')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    placeholder='0'
+                                    min={0}
+                                    {...field}
+                                    onChange={(e) =>
+                                      field.onChange(Number(e.target.value))
+                                    }
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(FIELD_DESCRIPTIONS.MAX_CONCURRENCY)}
                                 </FormDescription>
                                 <FormMessage />
                               </FormItem>

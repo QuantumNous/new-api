@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -109,6 +110,63 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	}
 
 	return channelQuery, nil
+}
+
+func GetChannelCandidates(group string, model string, retry int) ([]*Channel, error) {
+	var priorities []int
+	err := DB.Model(&Ability{}).
+		Select("DISTINCT(priority)").
+		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC").
+		Pluck("priority", &priorities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(priorities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		if normalizedModel != model {
+			return GetChannelCandidates(group, normalizedModel, retry)
+		}
+		return nil, nil
+	}
+	if retry >= len(priorities) {
+		return nil, nil
+	}
+
+	var abilities []Ability
+	err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priorities[retry]).
+		Order("weight DESC").
+		Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+
+	channelIds := make([]int, 0, len(abilities))
+	for _, ability := range abilities {
+		channelIds = append(channelIds, ability.ChannelId)
+	}
+
+	channelsByID := make(map[int]*Channel, len(channelIds))
+	var channels []*Channel
+	if err = DB.Where("id in ?", channelIds).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		channelsByID[channel.Id] = channel
+	}
+
+	orderedChannels := make([]*Channel, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, ok := channelsByID[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", ability.ChannelId)
+		}
+		orderedChannels = append(orderedChannels, channel)
+	}
+	return orderedChannels, nil
 }
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {

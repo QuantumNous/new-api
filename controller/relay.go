@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -218,6 +219,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
+			releaseChannelConcurrencyForRequest(c)
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
@@ -233,6 +235,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relayHandler(c, relayInfo)
 		}
 
+		releaseChannelConcurrencyForRequest(c)
 		if newAPIError == nil {
 			relayInfo.LastError = nil
 			return
@@ -287,6 +290,12 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	c.Set("use_channel", useChannel)
 }
 
+func releaseChannelConcurrencyForRequest(c *gin.Context) {
+	if err := service.ReleaseChannelConcurrencyForContext(c); err != nil {
+		logger.LogError(c, fmt.Sprintf("release channel concurrency lease failed: %s", err.Error()))
+	}
+}
+
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	if request == nil {
 		return &types.TokenCountMeta{}
@@ -318,23 +327,31 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
-		autoBan := c.GetBool("auto_ban")
-		autoBanInt := 1
-		if !autoBan {
-			autoBanInt = 0
+		channelId := c.GetInt("channel_id")
+		channel, err := model.CacheGetChannel(channelId)
+		if err != nil {
+			return nil, types.NewError(fmt.Errorf("获取渠道 %d 失败: %s", channelId, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		}
-		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
-			Type:    c.GetInt("channel_type"),
-			Name:    c.GetString("channel_name"),
-			AutoBan: &autoBanInt,
-		}, nil
+		if channel == nil {
+			return nil, types.NewError(fmt.Errorf("渠道 %d 不存在", channelId), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		ok, err := service.EnsureChannelConcurrencyForContext(c, channel)
+		if err != nil {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("acquire channel concurrency failed for channel %d: %s", channelId, err.Error()), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		}
+		if !ok {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("channel %d concurrency limit exceeded", channelId), types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
+		}
+		return channel, nil
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 
 	if err != nil {
+		if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("group %s model %s channel concurrency limit exceeded", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
+		}
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
@@ -343,6 +360,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
+		releaseChannelConcurrencyForRequest(c)
 		return nil, newAPIError
 	}
 	return channel, nil
@@ -382,6 +400,15 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	if shouldMarkChannelConcurrencyCooldown(err) {
+		cooldownCtx := context.Background()
+		if c != nil && c.Request != nil {
+			cooldownCtx = c.Request.Context()
+		}
+		if cooldownErr := service.MarkChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, 0, err.ErrorWithStatusCode()); cooldownErr != nil {
+			logger.LogError(c, fmt.Sprintf("mark channel concurrency cooldown failed: %s", cooldownErr.Error()))
+		}
+	}
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
@@ -425,6 +452,20 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
+}
+
+func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	if err.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "rate limit") ||
+		strings.Contains(message, "too many requests") ||
+		strings.Contains(message, "overload") ||
+		strings.Contains(message, "capacity")
 }
 
 func RelayMidjourney(c *gin.Context) {
@@ -545,8 +586,18 @@ func RelayTask(c *gin.Context) {
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
-			if retryParam.GetRetry() > 0 {
+			ok, ensureErr := service.EnsureChannelConcurrencyForContext(c, channel)
+			if ensureErr != nil {
+				taskErr = service.TaskErrorWrapperLocal(ensureErr, "acquire_channel_concurrency_failed", http.StatusServiceUnavailable)
+				break
+			}
+			if !ok {
+				taskErr = service.TaskErrorWrapperLocal(service.ErrChannelConcurrencyLimit, "channel_concurrency_limit_exceeded", http.StatusTooManyRequests)
+				break
+			}
+			if retryParam.GetRetry() > 0 || c.GetInt("channel_id") != channel.Id {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
+					releaseChannelConcurrencyForRequest(c)
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
 					break
 				}
@@ -556,7 +607,7 @@ func RelayTask(c *gin.Context) {
 			channel, channelErr = getChannel(c, relayInfo, retryParam)
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
-				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
+				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", channelErr.StatusCode)
 				break
 			}
 		}
@@ -569,11 +620,13 @@ func RelayTask(c *gin.Context) {
 			} else {
 				taskErr = service.TaskErrorWrapperLocal(bodyErr, "read_request_body_failed", http.StatusBadRequest)
 			}
+			releaseChannelConcurrencyForRequest(c)
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
+		releaseChannelConcurrencyForRequest(c)
 		if taskErr == nil {
 			break
 		}

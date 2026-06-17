@@ -135,6 +135,7 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
+					affinityConcurrencyLimited := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
 						if usingGroup == "auto" {
@@ -143,6 +144,19 @@ func Distribute() func(c *gin.Context) {
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									if service.ChannelSupportsRequestEndpoint(c, preferred, modelRequest.Model) {
+										ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
+										if acquireErr != nil {
+											if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+												abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+												return
+											}
+											abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
+											return
+										}
+										if !ok {
+											affinityConcurrencyLimited = true
+											break
+										}
 										selectGroup = g
 										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
 										channel = preferred
@@ -154,10 +168,23 @@ func Distribute() func(c *gin.Context) {
 							}
 						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) &&
 							service.ChannelSupportsRequestEndpoint(c, preferred, modelRequest.Model) {
-							channel = preferred
-							selectGroup = usingGroup
-							affinityUsable = true
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
+							if acquireErr != nil {
+								if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+									abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+									return
+								}
+								abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
+								return
+							}
+							if !ok {
+								affinityConcurrencyLimited = true
+							} else {
+								channel = preferred
+								selectGroup = usingGroup
+								affinityUsable = true
+								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							}
 						}
 					}
 					if !affinityUsable {
@@ -169,7 +196,7 @@ func Distribute() func(c *gin.Context) {
 							return
 						}
 						// 否则沿用上游行为：根据配置决定是否清除亲和粘性缓存，随后重新选路。
-						if !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+						if !affinityConcurrencyLimited && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 							service.ClearCurrentChannelAffinityCache(c)
 						}
 					}
@@ -183,6 +210,12 @@ func Distribute() func(c *gin.Context) {
 						Retry:      common.GetPointer(0),
 					})
 					if err != nil {
+						statusCode := http.StatusServiceUnavailable
+						errorCode := types.ErrorCodeModelNotFound
+						if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+							statusCode = http.StatusTooManyRequests
+							errorCode = types.ErrorCodeGetChannelFailed
+						}
 						showGroup := usingGroup
 						if usingGroup == "auto" {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
@@ -193,7 +226,7 @@ func Distribute() func(c *gin.Context) {
 						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
 						//	message = "数据库一致性已被破坏，请联系管理员"
 						//}
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+						abortWithOpenAiMessage(c, statusCode, message, errorCode)
 						return
 					}
 					if channel == nil {
@@ -204,7 +237,27 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if channel != nil {
+			ok, err := service.EnsureChannelConcurrencyWithWaitForContext(c, channel)
+			if err != nil {
+				if errors.Is(err, service.ErrChannelConcurrencyLimit) {
+					abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+					return
+				}
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", err.Error()), types.ErrorCodeGetChannelFailed)
+				return
+			}
+			if !ok {
+				abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+				return
+			}
+			if newAPIError := SetupContextForSelectedChannel(c, channel, modelRequest.Model); newAPIError != nil {
+				_ = service.ReleaseChannelConcurrencyForContext(c)
+				abortWithOpenAiMessage(c, newAPIError.StatusCode, newAPIError.Error(), newAPIError.GetErrorCode())
+				return
+			}
+			defer service.ReleaseChannelConcurrencyForContext(c)
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
