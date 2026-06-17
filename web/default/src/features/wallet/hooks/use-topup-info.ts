@@ -225,6 +225,7 @@ export function useTopupInfo() {
         amount_options: parseAmountOptions(response.data.amount_options),
         discount: parseNumberMap(response.data.discount),
         bonus: parseNumberMap(response.data.bonus),
+        bonus_remaining: parseNumberMap(response.data.bonus_remaining),
         creem_products: parseCreemProducts(response.data.creem_products),
         waffo_pay_methods: parseWaffoPayMethods(
           response.data.waffo_pay_methods
@@ -237,14 +238,16 @@ export function useTopupInfo() {
         const customPresets = mergePresetAmounts(
           processedData.amount_options,
           processedData.discount || {},
-          processedData.bonus || {}
+          processedData.bonus || {},
+          processedData.bonus_remaining || {}
         )
         setPresetAmounts(customPresets)
       } else {
         const minTopup = getMinTopupAmount(processedData)
         const defaultPresets = generatePresetAmounts(
           minTopup,
-          processedData.bonus || {}
+          processedData.bonus || {},
+          processedData.bonus_remaining || {}
         )
         setPresetAmounts(defaultPresets)
       }

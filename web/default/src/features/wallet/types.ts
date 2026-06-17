@@ -196,6 +196,8 @@ export interface TopupInfo {
   discount: Record<number, number>
   /** Bonus amounts by selected recharge amount */
   bonus: Record<number, number>
+  /** 当前用户在各档位的剩余可领赠送次数（仅含配置了限次的档位）。缺该档位 key = 不限次 */
+  bonus_remaining?: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
   /** Whether Creem topup is enabled */

@@ -352,14 +352,35 @@ function getConfiguredBonus(
     : undefined
 }
 
+/**
+ * 该档位当前用户是否还能领赠送。
+ * remaining 缺该档位 key = 不限次（始终可领）；值为 0 = 已领满（不再显示赠送）。
+ */
+function hasBonusRemaining(
+  remaining: Record<number, number> | undefined,
+  amount: number
+): boolean {
+  if (!remaining) {
+    return true
+  }
+  const left = remaining[amount]
+  if (typeof left !== 'number') {
+    return true // 未配置限次的档位：不限
+  }
+  return left > 0
+}
+
 export function generatePresetAmounts(
   minAmount: number,
-  bonuses: Record<number, number> = {}
+  bonuses: Record<number, number> = {},
+  remaining?: Record<number, number>
 ): PresetAmount[] {
   return DEFAULT_PRESET_MULTIPLIERS.map((multiplier) => {
     const value = minAmount * multiplier
     const bonus = getConfiguredBonus(bonuses, value)
-    return bonus ? { value, bonus } : { value }
+    return bonus && hasBonusRemaining(remaining, value)
+      ? { value, bonus }
+      : { value }
   })
 }
 
@@ -369,7 +390,8 @@ export function generatePresetAmounts(
 export function mergePresetAmounts(
   amountOptions: number[],
   discounts: Record<number, number>,
-  bonuses: Record<number, number> = {}
+  bonuses: Record<number, number> = {},
+  remaining?: Record<number, number>
 ): PresetAmount[] {
   if (!amountOptions || amountOptions.length === 0) {
     return []
@@ -377,10 +399,11 @@ export function mergePresetAmounts(
 
   return amountOptions.map((amount) => {
     const bonus = getConfiguredBonus(bonuses, amount)
+    const showBonus = bonus && hasBonusRemaining(remaining, amount)
     return {
       value: amount,
       discount: discounts[amount] || 1.0,
-      ...(bonus ? { bonus } : {}),
+      ...(showBonus ? { bonus } : {}),
     }
   })
 }

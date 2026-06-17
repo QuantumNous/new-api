@@ -42,4 +42,26 @@ describe('top-up bonus preset metadata', () => {
       actualPrice: 20,
     })
   })
+
+  test('suppresses bonus when the user has no remaining claims for that tier', () => {
+    // 档位 20 剩余 0 次 → 不显示赠送；档位 50 剩余 2 次 → 正常显示
+    expect(mergePresetAmounts([20, 50], {}, { 20: 5, 50: 15 }, { 20: 0, 50: 2 })).toEqual([
+      { value: 20, discount: 1 },
+      { value: 50, discount: 1, bonus: 15 },
+    ])
+  })
+
+  test('keeps bonus when a tier has no configured limit (absent from remaining map)', () => {
+    // remaining 缺档位 20 的 key = 不限次 → 照常显示赠送
+    expect(generatePresetAmounts(20, { 20: 5 }, {})[0]).toEqual({
+      value: 20,
+      bonus: 5,
+    })
+  })
+
+  test('suppresses bonus on generated presets when remaining is zero', () => {
+    expect(generatePresetAmounts(20, { 20: 5 }, { 20: 0 })[0]).toEqual({
+      value: 20,
+    })
+  })
 })

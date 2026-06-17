@@ -677,9 +677,16 @@ export function Wallet(props: WalletProps) {
 
   const getBonusAmount = useCallback(() => {
     const bonus = topupInfo?.bonus?.[topupAmount]
-    return typeof bonus === 'number' && Number.isFinite(bonus) && bonus > 0
-      ? bonus
-      : 0
+    if (typeof bonus !== 'number' || !Number.isFinite(bonus) || bonus <= 0) {
+      return 0
+    }
+    // 该档位配置了限次且当前用户已领满（剩余为 0）→ 不再赠送。
+    // bonus_remaining 缺该档位 key = 不限次，照常赠送。
+    const left = topupInfo?.bonus_remaining?.[topupAmount]
+    if (typeof left === 'number' && left <= 0) {
+      return 0
+    }
+    return bonus
   }, [topupInfo, topupAmount])
 
   const handleSubscriptionAvailabilityChange = useCallback(
