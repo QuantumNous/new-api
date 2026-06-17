@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
+	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,7 +20,28 @@ var defNext = func(c *gin.Context) {
 	c.Next()
 }
 
-func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
+type rateLimitRejector func(c *gin.Context, retryAfter int)
+
+func statusOnlyRateLimitRejector(c *gin.Context, retryAfter int) {
+	c.Status(http.StatusTooManyRequests)
+	c.Abort()
+}
+
+func skillRateLimitRejector(c *gin.Context, retryAfter int) {
+	if retryAfter < 1 {
+		retryAfter = 1
+	}
+	skillapi.ErrorWithRetryAfter(
+		c,
+		errcodes.ErrSkillRateLimited,
+		"Too many Skill API requests.",
+		"Please retry after the cooldown window.",
+		&retryAfter,
+	)
+	c.Abort()
+}
+
+func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string, reject rateLimitRejector) {
 	ctx := context.Background()
 	rdb := common.RDB
 	key := "rateLimit:" + mark + c.ClientIP()
@@ -51,10 +74,10 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		}
 		// time.Since will return negative number!
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
-		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
+		elapsed := int64(nowTime.Sub(oldTime).Seconds())
+		if elapsed < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			reject(c, int(duration-elapsed))
 			return
 		} else {
 			rdb.LPush(ctx, key, time.Now().Format(timeFormat))
@@ -64,25 +87,61 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 	}
 }
 
-func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
+func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string, reject rateLimitRejector) {
 	key := mark + c.ClientIP()
 	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
-		c.Status(http.StatusTooManyRequests)
-		c.Abort()
+		reject(c, int(duration))
 		return
 	}
 }
 
 func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
+	return rateLimitFactoryWithRejector(maxRequestNum, duration, mark, statusOnlyRateLimitRejector)
+}
+
+func rateLimitFactoryWithRejector(maxRequestNum int, duration int64, mark string, reject rateLimitRejector) func(c *gin.Context) {
 	if common.RedisEnabled {
 		return func(c *gin.Context) {
-			redisRateLimiter(c, maxRequestNum, duration, mark)
+			redisRateLimiter(c, maxRequestNum, duration, mark, reject)
 		}
 	} else {
 		// It's safe to call multi times.
 		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
 		return func(c *gin.Context) {
-			memoryRateLimiter(c, maxRequestNum, duration, mark)
+			memoryRateLimiter(c, maxRequestNum, duration, mark, reject)
+		}
+	}
+}
+
+func SkillRateLimit(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
+	return rateLimitFactoryWithRejector(maxRequestNum, duration, mark, skillRateLimitRejector)
+}
+
+func SkillUserRateLimit(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
+	if common.RedisEnabled {
+		return func(c *gin.Context) {
+			userId := c.GetInt("id")
+			if userId == 0 {
+				skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+				c.Abort()
+				return
+			}
+			key := fmt.Sprintf("rateLimit:%s:user:%d", mark, userId)
+			userRedisRateLimiterWithRejector(c, maxRequestNum, duration, key, skillRateLimitRejector)
+		}
+	}
+	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+	return func(c *gin.Context) {
+		userId := c.GetInt("id")
+		if userId == 0 {
+			skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+			c.Abort()
+			return
+		}
+		key := fmt.Sprintf("%s:user:%d", mark, userId)
+		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+			skillRateLimitRejector(c, int(duration))
+			return
 		}
 	}
 }
@@ -153,6 +212,10 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 // userRedisRateLimiter is like redisRateLimiter but accepts a pre-built key
 // (to support user-ID-based keys).
 func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key string) {
+	userRedisRateLimiterWithRejector(c, maxRequestNum, duration, key, statusOnlyRateLimitRejector)
+}
+
+func userRedisRateLimiterWithRejector(c *gin.Context, maxRequestNum int, duration int64, key string, reject rateLimitRejector) {
 	ctx := context.Background()
 	rdb := common.RDB
 	listLength, err := rdb.LLen(ctx, key).Result()
@@ -182,10 +245,10 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 			c.Abort()
 			return
 		}
-		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
+		elapsed := int64(nowTime.Sub(oldTime).Seconds())
+		if elapsed < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			reject(c, int(duration-elapsed))
 			return
 		} else {
 			rdb.LPush(ctx, key, time.Now().Format(timeFormat))

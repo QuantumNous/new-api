@@ -14,6 +14,7 @@ import (
 type ErrorCode string
 
 const (
+	ErrInvalidRequest            ErrorCode = "INVALID_REQUEST"
 	ErrAuthRequired              ErrorCode = "AUTH_REQUIRED"
 	ErrSkillNotFound             ErrorCode = "SKILL_NOT_FOUND"
 	ErrSkillNotPublished         ErrorCode = "SKILL_NOT_PUBLISHED"
@@ -41,6 +42,7 @@ const (
 // blocking (403, error envelope). tasks/03 §7.2 (authoritative API spec) defines
 // 403 for the error envelope. See PR description for sign-off.
 var httpStatusByCode = map[ErrorCode]int{
+	ErrInvalidRequest:            http.StatusBadRequest,          // 400
 	ErrAuthRequired:              http.StatusUnauthorized,        // 401
 	ErrSkillNotFound:             http.StatusNotFound,            // 404
 	ErrSkillNotPublished:         http.StatusForbidden,           // 403
@@ -60,6 +62,7 @@ var httpStatusByCode = map[ErrorCode]int{
 // Used by Valid(), AllErrorCodes(), and exhaustiveness tests.
 // Must stay in sync with the const block and httpStatusByCode above.
 var allErrorCodes = []ErrorCode{
+	ErrInvalidRequest,
 	ErrAuthRequired,
 	ErrSkillNotFound,
 	ErrSkillNotPublished,
