@@ -106,6 +106,8 @@ type GeneralOpenAIRequest struct {
 	SearchMode             json.RawMessage `json:"search_mode,omitempty"`
 	// Minimax
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
+	// DeepRouter vendor extension (tasks/03 §9). Stripped before provider forwarding (T-21).
+	Deeprouter *DeepRouterExtension `json:"deeprouter,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {

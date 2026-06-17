@@ -11,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/policy"
+	"github.com/QuantumNous/new-api/internal/skill/errcodes"
+	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -39,6 +41,24 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
+	}
+
+	// DR-64: skill relay entry point — resolve user identity and load the target Skill
+	// for requests that carry deeprouter.skill_id (tasks/05 §5.1 steps 1-6).
+	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
+	// The deeprouter field is stripped from request after extraction (T-21 security).
+	if request.Deeprouter != nil && request.Deeprouter.SkillID != "" {
+		skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+		if errCode != "" {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", errCode),
+				types.ErrorCodeAccessDenied,
+				errcodes.HTTPStatusFor(errCode),
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		skillrelay.Set(c, skillCtx)
+		request.Deeprouter = nil // T-21: strip vendor extension before provider forwarding
 	}
 
 	// Airbotix / DeepRouter policy: checked against the client-requested model

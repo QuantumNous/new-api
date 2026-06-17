@@ -94,4 +94,9 @@ const (
 	ContextKeySmartRouterFallback ContextKey = "smart_router_fallback_chain"
 	ContextKeySmartRouterReason   ContextKey = "smart_router_reason"
 	ContextKeySmartRouterStrategy ContextKey = "smart_router_strategy"
+
+	// ContextKeySkillRelayCtx stores a *skillrelay.SkillRelayContext established at
+	// relay entry (DR-64) for requests carrying deeprouter.skill_id.
+	// Read by DR-67 (entitlement check) and DR-88 (prompt injection).
+	ContextKeySkillRelayCtx ContextKey = "skill_relay_ctx"
 )

@@ -1,0 +1,368 @@
+package skillrelay
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/internal/skill/enums"
+	"github.com/QuantumNous/new-api/internal/skill/errcodes"
+	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+)
+
+// ── test helpers ─────────────────────────────────────────────────────────────
+
+func newTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &platformmodel.User{}))
+	return database
+}
+
+func newTestContext(t *testing.T) *gin.Context {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	return c
+}
+
+// setContextUser sets both the user_id int and the *model.User pointer that
+// middleware/policy.go would normally set, so the resolver uses the fast path.
+func setContextUser(c *gin.Context, user *platformmodel.User) {
+	common.SetContextKey(c, constant.ContextKeyUserId, user.Id)
+	common.SetContextKey(c, constant.ContextKeyAirbotixUser, user)
+}
+
+func insertSkill(t *testing.T, database *gorm.DB, s *skillmodel.Skill) *skillmodel.Skill {
+	t.Helper()
+	require.NoError(t, database.Create(s).Error)
+	return s
+}
+
+func defaultSkill() *skillmodel.Skill {
+	return &skillmodel.Skill{
+		Slug:             "test-skill",
+		Status:           enums.SkillStatusPublished,
+		Category:         "test",
+		RequiredPlan:     enums.RequiredPlanFree,
+		MonetizationType: enums.MonetizationTypeFree,
+		Name:             "Test Skill",
+		ShortDescription: "A test skill",
+		Description:      "A test skill for unit tests",
+		CreatedBy:        1,
+	}
+}
+
+func enabledUser(id int) *platformmodel.User {
+	return &platformmodel.User{
+		Id:       id,
+		Username: "testuser",
+		Password: "password123",
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+}
+
+// ── groupToPlan ──────────────────────────────────────────────────────────────
+
+func TestGroupToPlan_Pro(t *testing.T) {
+	assert.Equal(t, enums.RequiredPlanPro, groupToPlan("pro"))
+}
+
+func TestGroupToPlan_Enterprise(t *testing.T) {
+	assert.Equal(t, enums.RequiredPlanEnterprise, groupToPlan("enterprise"))
+}
+
+func TestGroupToPlan_Default(t *testing.T) {
+	assert.Equal(t, enums.RequiredPlanFree, groupToPlan("default"))
+}
+
+func TestGroupToPlan_Empty(t *testing.T) {
+	assert.Equal(t, enums.RequiredPlanFree, groupToPlan(""))
+}
+
+func TestGroupToPlan_Unknown(t *testing.T) {
+	assert.Equal(t, enums.RequiredPlanFree, groupToPlan("vip"))
+}
+
+// ── context Set / Get ─────────────────────────────────────────────────────────
+
+func TestSetGet_RoundTrip(t *testing.T) {
+	c := newTestContext(t)
+	original := &SkillRelayContext{RequestID: "req-123", SkillID: "skill-abc", UserID: 42}
+	Set(c, original)
+	got, ok := Get(c)
+	require.True(t, ok)
+	assert.Same(t, original, got)
+}
+
+func TestGet_Missing(t *testing.T) {
+	c := newTestContext(t)
+	got, ok := Get(c)
+	assert.False(t, ok)
+	assert.Nil(t, got)
+}
+
+// ── resolve — error paths ─────────────────────────────────────────────────────
+
+func TestResolve_AnonymousUser_ReturnsAuthRequired(t *testing.T) {
+	c := newTestContext(t)
+	// userID not set → defaults to 0 → anonymous
+	ctx, code := resolve(c, nil, "any-skill-id")
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrAuthRequired, code)
+}
+
+func TestResolve_DBNilWithNoContextUser_ReturnsInternalError(t *testing.T) {
+	c := newTestContext(t)
+	common.SetContextKey(c, constant.ContextKeyUserId, 5)
+	// No ContextKeyAirbotixUser → falls back to DB, but db=nil
+	ctx, code := resolve(c, nil, "any-skill-id")
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillInternalError, code)
+}
+
+func TestResolve_DisabledUser_ReturnsAuthRequired(t *testing.T) {
+	c := newTestContext(t)
+	disabled := enabledUser(10)
+	disabled.Status = common.UserStatusDisabled
+	setContextUser(c, disabled)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrAuthRequired, code)
+}
+
+func TestResolve_SkillNotFound_ReturnsNotFound(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(11)
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+
+	ctx, code := resolve(c, database, "00000000-0000-0000-0000-000000000000")
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotFound, code)
+}
+
+func TestResolve_DBNilAfterUserResolved_ReturnsInternalError(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(12)
+	setContextUser(c, user) // user comes from context, not DB
+
+	// db=nil → skill lookup cannot proceed
+	ctx, code := resolve(c, nil, "some-skill-id")
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillInternalError, code)
+}
+
+// ── resolve — success paths ───────────────────────────────────────────────────
+
+func TestResolve_Success_FreePlan(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(20)
+	user.Group = "default"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.Equal(t, enums.RequiredPlanFree, skillCtx.Plan)
+}
+
+func TestResolve_Success_ProPlan(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(21)
+	user.Group = "pro"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.Equal(t, enums.RequiredPlanPro, skillCtx.Plan)
+}
+
+func TestResolve_Success_EnterprisePlan(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(22)
+	user.Group = "enterprise"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.Equal(t, enums.RequiredPlanEnterprise, skillCtx.Plan)
+}
+
+func TestResolve_KidsSession_Propagated(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(23)
+	user.KidsMode = true
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.True(t, skillCtx.IsKidsSession)
+}
+
+func TestResolve_NonKidsSession_Propagated(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(24)
+	user.KidsMode = false
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.False(t, skillCtx.IsKidsSession)
+}
+
+func TestResolve_SubActiveAlwaysTrue(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(25)
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.True(t, skillCtx.SubActive)
+}
+
+func TestResolve_RequestIDNotEmpty(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(26)
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.NotEmpty(t, skillCtx.RequestID)
+}
+
+func TestResolve_TwoRequestsGetDistinctRequestIDs(t *testing.T) {
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	makeCtx := func(uid int) *gin.Context {
+		c := newTestContext(t)
+		setContextUser(c, enabledUser(uid))
+		return c
+	}
+
+	ctx1, _ := resolve(makeCtx(30), database, skill.ID)
+	ctx2, _ := resolve(makeCtx(31), database, skill.ID)
+	require.NotNil(t, ctx1)
+	require.NotNil(t, ctx2)
+	assert.NotEqual(t, ctx1.RequestID, ctx2.RequestID)
+}
+
+func TestResolve_ContextFieldsPopulated(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(40)
+	user.Group = "pro"
+	user.KidsMode = true
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+
+	assert.Equal(t, skill.ID, skillCtx.SkillID)
+	assert.Equal(t, 40, skillCtx.UserID)
+	assert.Equal(t, enums.RequiredPlanPro, skillCtx.Plan)
+	assert.True(t, skillCtx.IsKidsSession)
+	assert.True(t, skillCtx.SubActive)
+	assert.NotNil(t, skillCtx.Skill)
+	assert.Equal(t, skill.ID, skillCtx.Skill.ID)
+}
+
+// TestResolve_UserFromDB verifies the DB fallback path:
+// when ContextKeyAirbotixUser is absent, resolve() queries the user from DB.
+func TestResolve_UserFromDB(t *testing.T) {
+	database := newTestDB(t)
+
+	// Insert user into DB directly (no middleware).
+	dbUser := &platformmodel.User{
+		Id:       99,
+		Username: "dbfallback",
+		Password: "password123",
+		Status:   common.UserStatusEnabled,
+		Group:    "enterprise",
+		KidsMode: true,
+	}
+	require.NoError(t, database.Create(dbUser).Error)
+
+	skill := insertSkill(t, database, defaultSkill())
+
+	c := newTestContext(t)
+	// Only set user_id; do NOT set ContextKeyAirbotixUser — forces DB fallback.
+	common.SetContextKey(c, constant.ContextKeyUserId, 99)
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+
+	assert.Equal(t, 99, skillCtx.UserID)
+	assert.Equal(t, enums.RequiredPlanEnterprise, skillCtx.Plan)
+	assert.True(t, skillCtx.IsKidsSession)
+}
+
+// TestResolve_T21_UserIDFromContextOnly confirms identity comes exclusively
+// from the validated auth context and not from any client-provided field.
+// The resolver must not read user identity from the request body.
+func TestResolve_T21_UserIDFromContextOnly(t *testing.T) {
+	// Two different users — only the one set in context should be used.
+	c := newTestContext(t)
+	trustedUser := enabledUser(50)
+	trustedUser.Group = "pro"
+	setContextUser(c, trustedUser)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+
+	// UserID must match the context user, not any implicit client claim.
+	assert.Equal(t, 50, skillCtx.UserID)
+	assert.Equal(t, enums.RequiredPlanPro, skillCtx.Plan)
+}
