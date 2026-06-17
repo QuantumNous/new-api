@@ -143,14 +143,18 @@ func TestCodexGovernanceProbeShouldStopWhenGovernanceDisabled(t *testing.T) {
 }
 
 func TestCodexGovernanceProbeRequestContextHasBoundedDeadline(t *testing.T) {
-	startedAt := time.Now()
 	ctx, cancel := codexGovernanceProbeRequestContext(context.Background())
 	defer cancel()
 
 	deadline, ok := ctx.Deadline()
 	require.True(t, ok)
-	require.Greater(t, deadline.Sub(startedAt), time.Duration(0))
-	require.LessOrEqual(t, deadline.Sub(startedAt), codexGovernanceSingleProbeTimeout)
+	// Measure the remaining time (deadline - now), not (deadline - a timestamp taken
+	// before WithTimeout was called): the latter is always timeout+ε and would exceed the
+	// bound, making this assertion fail on every run. time.Until keeps the upper bound at
+	// the configured single-probe timeout.
+	remaining := time.Until(deadline)
+	require.Greater(t, remaining, time.Duration(0))
+	require.LessOrEqual(t, remaining, codexGovernanceSingleProbeTimeout)
 }
 
 func TestCodexGovernanceProbeRequestContextInheritsParentCancellation(t *testing.T) {
