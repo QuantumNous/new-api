@@ -778,6 +778,15 @@ func patchClaudeTopLevelIdentity(data []byte, info *relaycommon.RelayInfo) []byt
 //
 // Translation is lossless: the information in the flat aliases is preserved in
 // the nested object on message_start.
+//
+// Some upstreams (e.g. real api.anthropic.com fronted directly, or a B2B relay
+// whose upstream already speaks the official schema) do NOT emit the flat
+// aliases — they carry the official nested cache_creation{} (and/or the flat
+// total cache_creation_input_tokens) directly. When the aliases are absent we
+// fall back to the official nested ephemeral_5m/1h values, and finally to the
+// flat total normalized into 5m (matching the billing split in
+// text_quota / NormalizeCacheCreationSplit), so we never overwrite a non-zero
+// official value with 0.
 func normalizeClaudeUsageFields(data string, usagePrefix string, addCacheCreation bool) string {
 	if !model_setting.GetClaudeSettings().ResponseNormalizeEnabled || data == "" {
 		return data
@@ -788,6 +797,21 @@ func normalizeClaudeUsageFields(data string, usagePrefix string, addCacheCreatio
 
 	cache5m := int(gjson.Get(data, usagePrefix+".claude_cache_creation_5_m_tokens").Int())
 	cache1h := int(gjson.Get(data, usagePrefix+".claude_cache_creation_1_h_tokens").Int())
+
+	// Read happens at the top, the nested write below — so falling back to the
+	// official nested values here is safe (we read the pre-overwrite bytes).
+	if cache5m == 0 {
+		cache5m = int(gjson.Get(data, usagePrefix+".cache_creation.ephemeral_5m_input_tokens").Int())
+	}
+	if cache1h == 0 {
+		cache1h = int(gjson.Get(data, usagePrefix+".cache_creation.ephemeral_1h_input_tokens").Int())
+	}
+	if cache5m == 0 && cache1h == 0 {
+		total := int(gjson.Get(data, usagePrefix+".cache_creation_input_tokens").Int())
+		if total > 0 {
+			cache5m, cache1h = service.NormalizeCacheCreationSplit(total, 0, 0)
+		}
+	}
 
 	if patched, err := sjson.Delete(data, usagePrefix+".claude_cache_creation_5_m_tokens"); err == nil {
 		data = patched
