@@ -401,18 +401,22 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 |---|---|---|---|
 | FR-T10 | 每个 Adapter 有独立下载端点 | P0 | `GET /v1/skills/{skill_id}/adapters/{format}`；format 枚举：`openai-action`、`openai-tool`、`gemini-function`、`anthropic-tool`、`claude-code`、`mcp-config` |
 | FR-T11 | 下载端点需认证；仅 enabled 用户可下载 | P0 | 未 enable 或 API Key 无效返回 403 |
-| FR-T12 | 所有 Adapter 输出不得包含 `instruction_template` 或执行逻辑 | P0 | Security gate；launch 前须经安全审查确认 |
-| FR-T13 | Skill Detail 页面分平台展示安装引导 | P0 | 每个平台 Tab 包含：下载按钮 / Copy URL / CLI install command + 步骤说明 |
-| FR-T14 | Adapter 下载触发 analytics 事件 | P1 | `skill_spec_downloaded`，含 `adapter_format`、`platform`、`skill_id`、`user_id` |
+| FR-T12 | 所有 Adapter 输出不得包含 `instruction_template`、API Key 或执行逻辑 | P0 | Security gate；launch 前须经安全审查确认；API Key 须由用户在各客户端单独配置 |
+| FR-T13 | Skill Detail 页面分平台展示安装引导（5 个 Tab） | P0 | Tab：ChatGPT Custom GPT / OpenAI API / Gemini / Claude / Claude Code；每 Tab 含下载按钮 / Import URL / CLI install command + 步骤说明 |
+| FR-T13a | ChatGPT Tab 同时提供 Import URL 和 Download JSON 两种方式 | P0 | Import URL 方式：用户粘贴 URL，ChatGPT 自动拉取 schema；Skill schema 更新后用户无需重新下载 |
+| FR-T13b | ChatGPT Tab 说明认证方式：MVP 为 API Key Bearer；P1 支持 OAuth | P1 | OAuth 版：用户点击「Connect DeepRouter Account」完成 OAuth 授权，ChatGPT 自动携带 token；无需手动填 Key |
+| FR-T13c | Claude Code Tab 显示带 `--header` 的完整 MCP install command | P0 | `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <key>"`；不得省略 `--header` 参数 |
+| FR-T14 | Adapter 下载或 Import URL 复制触发 analytics 事件 | P1 | `skill_spec_downloaded`，含 `adapter_format`、`install_method`（download/import_url）、`skill_id`、`user_id` |
 
 #### Live MCP Server
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-T15 | DeepRouter 暴露 live MCP Server 端点 | P0 | `GET /mcp`（capability discovery）+ `POST /mcp`（tool call 处理）；遵循 MCP 2024-11-05 协议 |
-| FR-T16 | MCP Server 列出用户已 enabled 的所有 Skill | P0 | `GET /mcp` 返回该 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表 |
-| FR-T17 | MCP tool call 走统一执行链 | P0 | `POST /mcp` 内部路由到 `/v1/skills/execute/{skill_id}`；相同 Entitlement / Safety / Billing 检查 |
-| FR-T18 | MCP 认证使用 OAuth Bearer token 或 API Key | P0 | `Authorization: Bearer <api_key>`；同执行端点认证规则 |
+| FR-T15 | DeepRouter 暴露 live MCP Server 端点（HTTP，JSON-RPC 2.0） | P0 | `GET /mcp`（capability discovery，tools/list）+ `POST /mcp`（tool call，tools/call）；遵循 MCP 2024-11-05 Streamable HTTP 协议 |
+| FR-T16 | MCP Server 列出用户已 enabled 的所有 Skill | P0 | `GET /mcp` 返回该 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表；未 enabled 的 Skill 不出现 |
+| FR-T17 | MCP tool call 走统一执行链 | P0 | `POST /mcp` 内部路由到 `/v1/skills/execute/{skill_id}`；相同 Entitlement / Safety / Billing / Kids 检查 |
+| FR-T18 | MCP 认证 MVP 为 API Key Bearer；P1 支持 MCP OAuth flow | P0/P1 | MVP：`Authorization: Bearer <api_key>`；P1：`/mcp` 返回 401 + `WWW-Authenticate`，Claude Code 内触发 `/mcp` OAuth 登录 flow |
+| FR-T19 | MCP 响应使用 JSON-RPC 2.0 envelope；同时提供 `content` 和 `structuredContent` | P0 | `content[0].text` 为序列化 JSON（兼容旧客户端）；`structuredContent` 为结构化对象（新客户端优先）；`isError` 字段必须 |
 
 ### 4.12 API Key Binding and Copy Protection
 

@@ -800,7 +800,8 @@ Rules:
 - `Authorization: Bearer <api_key>` 必须；缺失或无效返回 401 `AUTH_REQUIRED`。
 - 用户必须对该 Skill 有 `enabled=true`；否则返回 403 `SKILL_NOT_ENABLED`。
 - Published Skill only；其他状态返回 404。
-- 所有格式输出只包含 Canonical Manifest 的 public 字段（`tool_function_name`、`tool_input_schema`、`tool_output_schema`、`description`）和 DeepRouter execute endpoint URL；绝不包含 `instruction_template` 或任何执行逻辑。
+- 所有格式输出只包含 Canonical Manifest 的 public 字段（`tool_function_name`、`tool_input_schema`、`tool_output_schema`、`description`）和 DeepRouter execute endpoint URL；绝不包含 `instruction_template`、API Key 或任何执行逻辑。
+- **API Key 不写入任何 Adapter 输出文件**。Key 须由用户在各 AI 客户端（ChatGPT Action Authentication / Claude Code `--header` / 开发者后端）单独配置，作为 HTTP `Authorization: Bearer` header 发送给 DeepRouter；Key 不出现在下载文件内，不暴露给 LLM prompt。
 - 响应 `Content-Disposition: attachment; filename="<format>.json"` 或 `.zip`（`claude-code` 格式）。
 - 触发 `skill_spec_downloaded` 事件，含 `adapter_format`、`skill_id`、`user_id`。
 
@@ -833,6 +834,34 @@ Rules:
   }
 }
 ```
+
+`openai-tool` format:
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "contract_review_analyze",
+    "description": "Analyze a contract for legal and commercial risks.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "contract_text": {
+          "type": "string",
+          "description": "Full contract text to analyze"
+        },
+        "review_focus": {
+          "type": "string",
+          "enum": ["general", "tenant_risks", "ip_ownership"]
+        }
+      },
+      "required": ["contract_text"],
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+> 注：`additionalProperties: false` 防止模型传入未声明字段，减少执行侧异常。
 
 `anthropic-tool` format:
 ```json
@@ -874,14 +903,85 @@ DeepRouter 暴露标准 MCP Server 端点，支持 Claude / Claude Code / Gemini
 
 `GET /mcp` — Capability discovery（列出用户已 enabled 的所有 Skill tools）
 
-`POST /mcp` — Tool call 处理
+`POST /mcp` — Tool call 处理（JSON-RPC 2.0）
 
 **Rules:**
-- `Authorization: Bearer <api_key>` 必须。
-- `GET /mcp` 返回该 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表（格式遵循 MCP 2024-11-05 协议）。
-- `POST /mcp` 内部路由到 `/v1/skills/execute/{skill_id}`；相同 Entitlement / Safety / Billing / Kids 检查链。
-- 响应遵循 MCP protocol tool result 格式。
+- `Authorization: Bearer <api_key>` 必须；缺失或无效返回 MCP 兼容格式错误（`{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"Unauthorized"}}`）。
+- `GET /mcp` 返回该 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表（MCP 2024-11-05 协议格式）。
+- `POST /mcp` 内部路由到 `/v1/skills/execute/{skill_id}`；相同 Auth → Entitlement → Safety → Billing / Kids 检查链。
 - 不暴露 `instruction_template` 或任何执行逻辑。
+- MCP transport：HTTP（Streamable HTTP，MCP 2024-11-05）；未来可扩展 SSE。
+
+**Wire Format — Request（JSON-RPC 2.0）：**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "contract_review_analyze",
+    "arguments": {
+      "contract_text": "...",
+      "review_focus": "tenant_risks"
+    }
+  }
+}
+```
+
+**Wire Format — Response（JSON-RPC 2.0）：**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"summary\":\"合约整体风险中等，存在 2 处高风险条款。\",\"risks\":[...]}"
+      }
+    ],
+    "structuredContent": {
+      "summary": "合约整体风险中等，存在 2 处高风险条款。",
+      "risks": [
+        {
+          "severity": "high",
+          "clause": "提前终止条款",
+          "issue": "房东可在 7 天通知后无故终止合约",
+          "suggestion": "建议将通知期延长至 30 天，并要求说明终止理由。"
+        }
+      ],
+      "key_clauses": ["付款条件", "终止", "责任上限"]
+    },
+    "isError": false
+  }
+}
+```
+
+> 说明：`content[0].text` 是序列化 JSON 字符串（兼容旧版 MCP client）；`structuredContent` 是结构化对象（新版 MCP client 优先使用）。两者同时提供以保证向前兼容性。
+
+**tools/list 响应示例（`GET /mcp`）：**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "contract_review_analyze",
+        "description": "Analyze a contract for legal and commercial risks.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "contract_text": { "type": "string" },
+            "review_focus": { "type": "string", "enum": ["general", "tenant_risks", "ip_ownership"] }
+          },
+          "required": ["contract_text"]
+        }
+      }
+    ]
+  }
+}
+```
 
 ---
 

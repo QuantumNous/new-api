@@ -274,41 +274,77 @@ Primary action: `Explore Skills`.
 
 ---
 
-**Tab 1：ChatGPT**
+**Tab 1：ChatGPT — Custom GPT Action**
 
-| 子选项 | 内容 |
-|---|---|
-| Custom GPT Action（普通用户） | 下载 `openai-action.json` + 步骤：ChatGPT → Edit GPT → Configure → Actions → Create new action → Import schema |
-| OpenAI API（开发者） | 下载 `openai-tool.json` + TypeScript / Python 代码示例 |
-| API Key 配置 | 在 Action Authentication 填入 DeepRouter API Key |
-
----
-
-**Tab 2：Gemini**
-
-| 子选项 | 内容 |
-|---|---|
-| Gemini API（开发者） | 下载 `gemini-function.json` + 代码示例；说明 functionCall → 调用 DeepRouter execute → 返回 functionResponse 流程 |
-| Gemini CLI / Coding Agent | 显示 MCP install command：`npx add-mcp "https://deeprouter.ai/mcp?skill=<skill_id>"` |
-
----
-
-**Tab 3：Claude**
-
-| 子选项 | 内容 |
-|---|---|
-| Claude API（开发者） | 下载 `anthropic-tool.json` + 代码示例 |
-| Claude MCP Connector | 下载 `mcp-config.json` 或显示 JSON block 供复制；说明直接在 Messages API 连接 `https://deeprouter.ai/mcp` |
-
----
-
-**Tab 4：Claude Code**
+> ⚠️ 重要：这是安装到某个 **Custom GPT** 的 Actions，不是全局 ChatGPT。用户需要先创建或编辑一个 Custom GPT 才能安装。
 
 | 步骤 | 内容 |
 |---|---|
-| MCP 安装（推荐） | 显示命令：`claude mcp add deeprouter https://deeprouter.ai/mcp` |
-| Skill Package 安装 | 下载 `claude-code.zip`（含 `.claude/skills/<name>/SKILL.md` + examples）+ 解压路径说明 |
-| 使用方法 | 说明 Claude Code 中触发方式（自然语言 or `/skills` 命令） |
+| 1 | 打开 ChatGPT → 点头像 → My GPTs → Create GPT（或 Edit 已有 GPT） |
+| 2 | 进入 Configure → 拉到底 → Actions → Create new action |
+| 3 | **Import from URL（推荐）**：复制下方 Import URL，粘贴到 Import schema 输入框，OpenAI 自动拉取最新 schema，Skill schema 更新后无需重新操作 |
+| 4 | 备选：[⬇ Download openai-action.json] → 上传文件（schema 变更需手动重新下载） |
+| 5 | Authentication → **API Key** → Bearer → 填入 DeepRouter API Key |
+
+认证说明：
+- MVP：Authentication → API Key → Bearer token。OpenAI 加密保存该 Key，仅用于请求 DeepRouter；Key 不写入 schema JSON，不暴露给模型 prompt。
+- 正式版（P1）：Authentication → OAuth → Connect DeepRouter Account，用户授权后 ChatGPT 自动携带 token，无需手动填 Key。
+
+[📋 Copy Import URL]　　[⬇ Download openai-action.json]
+
+---
+
+**Tab 2：OpenAI API（开发者）**
+
+| 内容 | 说明 |
+|---|---|
+| [⬇ Download openai-tool.json] | 标准 OpenAI function calling schema，`additionalProperties: false` |
+| 集成方式 | 应用后端：①传 tools 给模型 → ②收 tool_calls → ③后端调 DeepRouter execute → ④传 tool result 回模型 → ⑤模型生成最终答案 |
+| 认证 | 后端发送 `Authorization: Bearer <DEEPROUTER_API_KEY>`；Key 不写入下载的 JSON 文件，由开发者后端安全保存 |
+
+---
+
+**Tab 3：Gemini**
+
+| 子选项 | 内容 |
+|---|---|
+| Gemini API（开发者） | [⬇ Download gemini-function.json]；集成流程：functionCall → 后端调 DeepRouter execute → functionResponse 返回模型 |
+| Gemini CLI / AI Studio | MCP 安装：`npx add-mcp "https://deeprouter.ai/mcp"` + 配置 Authorization header |
+
+---
+
+**Tab 4：Claude**
+
+| 子选项 | 内容 |
+|---|---|
+| Claude API（开发者） | [⬇ Download anthropic-tool.json]；格式含 `strict: true`；集成流程同 OpenAI API |
+| Claude MCP Connector | [⬇ Download mcp-config.json] 或显示 JSON block 供复制；`type: url`，`url: https://deeprouter.ai/mcp` |
+
+---
+
+**Tab 5：Claude Code**
+
+MCP 安装（推荐）：
+
+```bash
+# API Key 版（MVP）
+claude mcp add --transport http deeprouter https://deeprouter.ai/mcp \
+  --header "Authorization: Bearer dr-xxxxxx"
+```
+
+> 说明：`--header` 将 API Key 作为 HTTP header 发送给 DeepRouter；Key 不写入下载的文件，不暴露给模型 prompt。
+
+```bash
+# OAuth 版（P1 正式版）
+claude mcp add --transport http deeprouter https://deeprouter.ai/mcp
+# 运行后 Claude Code 会在 /mcp flow 中引导完成 DeepRouter OAuth 登录
+# 登录后 token 由 Claude Code 管理，无需手动填 Key
+```
+
+Skill Package 安装（备选，适合无网络环境）：
+[⬇ Download claude-code.zip] → 解压到项目根目录：`unzip claude-code.zip -d ./`（含 `.claude/skills/<name>/SKILL.md`）
+
+使用方式：Claude Code 内自然语言描述任务，模型自动识别并调用已安装的 MCP tool。
 
 ---
 
@@ -318,7 +354,7 @@ Primary action: `Explore Skills`.
 |---|---|
 | API Key | 显示用户当前 DeepRouter API Key（脱敏），含「Copy」和「Generate New Key」快捷入口 |
 | Execute Endpoint | 一键复制 `https://deeprouter.ai/v1/skills/execute/<skill_id>` |
-| 安全提示 | "Your API Key is bound to your account. Do not share it." |
+| 安全说明 | "Your API Key is not included in the downloaded files. It must be configured separately in your AI client or app backend as an Authorization header. DeepRouter uses it to identify your account, verify entitlement, and track usage." |
 
 #### States
 
@@ -327,7 +363,7 @@ Primary action: `Explore Skills`.
 | Skill 已启用 | 「Get Tool Spec / Install」为主 CTA；所有 Tab 可用 |
 | Skill 未启用 | 先完成 Enable 流程，完成后自动打开 Install Dialog |
 | Skill deprecated | 安装可用，所有 Tab 顶部显示「此 Skill 已废弃，可能随时停止服务」警告 |
-| API Key 未生成 | Install Dialog 内提示生成 API Key，不阻断下载 |
+| API Key 未生成 | Install Dialog 内提示生成 API Key，不阻断下载/复制 URL |
 
 ---
 
