@@ -6,41 +6,43 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: self-hosted
+  build:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Sync code to /opt/new-api
-        run: |
-          echo "[$(date)] Syncing latest code to /opt/new-api..."
-          # 使用 rsync 同步代码，排除数据目录和日志
-          rsync -av --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='data' \
-            --exclude='logs' \
-            --exclude='.custom-backup' \
-            --exclude='*.tar.gz' \
-            "${GITHUB_WORKSPACE}/" /opt/new-api/
-          echo "[$(date)] Code sync completed!"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
         run: |
-          echo "[$(date)] Building Docker image..."
-          cd /opt/new-api
           docker build -t new-api:latest .
-          echo "[$(date)] Build completed!"
 
-      - name: Deploy to server
+      - name: Save Docker image
         run: |
-          echo "[$(date)] Stopping old containers..."
-          cd /opt/new-api
-          docker compose down
-          echo "[$(date)] Starting new containers..."
-          docker compose up -d
-          echo "[$(date)] Cleaning up..."
-          docker system prune -f
-          echo "[$(date)] Deploy completed!"
-          docker compose ps
+          docker save new-api:latest | gzip > new-api.tar.gz
+          ls -lh new-api.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: new-api-image
+          path: new-api.tar.gz
+          retention-days: 1
+
+  notify:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify server to deploy
+        run: |
+          echo "[$(date)] Notifying server to deploy..."
+          # 使用 webhook 通知服务器有新版本可部署
+          # 服务器上的 webhook 监听工具会收到通知后自动拉取并部署
+          curl -f -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"repository":"${{ github.repository }}","ref":"${{ github.ref }}","sha":"${{ github.sha }}","run_id":"${{ github.run_id }}","actor":"${{ github.actor }}"}' \
+            http://101.89.149.152:9000/webhook/deploy \
+            || echo "Webhook notification failed (server may be offline or webhook not running)"
+          echo "[$(date)] Notification sent!"

@@ -1,0 +1,15 @@
+[Unit]
+Description=New-API Webhook Deploy Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/new-api
+Environment=WEBHOOK_SECRET=new-api-deploy-secret
+ExecStart=/usr/bin/python3 /opt/new-api/webhook_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
