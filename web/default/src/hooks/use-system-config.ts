@@ -40,6 +40,7 @@ interface StatusApiResponse {
     footer_html?: string
     demo_site_enabled?: boolean
     display_token_stat_enabled?: boolean
+    server_address?: string
     enable_stripe_card_bind?: boolean
     stripe_new_user_bonus_amount?: number
     display_in_currency?: boolean
@@ -99,6 +100,7 @@ export function mapStatusDataToConfig(
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
+    serverAddress: data.server_address,
     enableStripeCardBind: data.enable_stripe_card_bind,
     stripeNewUserBonusAmount: data.stripe_new_user_bonus_amount,
     currency,

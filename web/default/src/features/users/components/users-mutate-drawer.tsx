@@ -54,6 +54,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   SideDrawerSection,
@@ -61,6 +62,7 @@ import {
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import {
   createUser,
@@ -475,6 +477,31 @@ export function UsersMutateDrawer({
                       </FormItem>
                       )
                     }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='is_enterprise'
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel className='text-sm'>
+                            {t('Enterprise User')}
+                          </FormLabel>
+                          <FormDescription className='text-xs'>
+                            {t(
+                              'Allow this user to see and select groups; PLG users are hidden from the group concept'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
                   />
 
                   <FormField

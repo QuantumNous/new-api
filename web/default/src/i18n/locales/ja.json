@@ -5090,6 +5090,26 @@
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "ボーナス設定は、正の整数のチャージ額と正の整数のボーナス額を使用する必要があります",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "チャージ額別ボーナスクレジットマップ（JSON オブジェクト）。値はチャージ額と同じ単位を使用します。",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "各チャージ額のボーナスクレジットを設定します。値はチャージ額と同じ単位を使用します。",
-    "No rate-limit window was reset": "レート制限ウィンドウはリセットされませんでした"
+    "No rate-limit window was reset": "レート制限ウィンドウはリセットされませんでした",
+    "Allow this user to see and select groups; PLG users are hidden from the group concept": "このユーザーがグループを表示・選択できるようにします。PLGユーザーにはグループの概念が非表示になります",
+    "Enterprise User": "エンタープライズユーザー",
+    "Get ${{bonus}} free": "${{bonus}} 進呈",
+    "Create an API key": "API キーを作成",
+    "Credit limit (optional)": "クレジット上限（任意）",
+    "Leave blank for unlimited": "無制限にするには空欄のままにします",
+    "Make your first API call in under a minute.": "1 分以内に最初の API 呼び出しを行いましょう。",
+    "Make your first call": "最初の呼び出しを行う",
+    "Need a key?": "キーが必要ですか？",
+    "Please copy it now and save it somewhere safe.": "今すぐコピーして安全な場所に保管してください。",
+    "Python": "Python",
+    "Quickstart": "クイックスタート",
+    "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "この API は OpenAI 互換なので、ベース URL と API キーを変更するだけで任意の OpenAI SDK が動作します。",
+    "TypeScript": "TypeScript",
+    "You can use it with OpenAI-compatible apps, or": "OpenAI 互換のアプリで使用するか、",
+    "You will not be able to see it again.": "二度と表示することはできません。",
+    "Your new key": "新しいキー",
+    "cURL": "cURL",
+    "your own code": "あなた自身のコード",
+    "Reset limit every...": "リセット周期…"
   }
 }

@@ -50,6 +50,11 @@ export interface AuthUser {
   new_user_bonus_given?: boolean
   /** Set true by the backend only on a brand-new OAuth registration, to trigger onboarding. */
   is_new_user?: boolean
+  /**
+   * Enterprise users can see and select groups. Non-enterprise (PLG) users
+   * have the group concept hidden everywhere in their UI.
+   */
+  is_enterprise?: boolean
   sidebar_modules?: string
   permissions?: UserPermissions
 }

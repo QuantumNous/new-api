@@ -118,10 +118,15 @@ export function useAuthRedirect() {
   }
 
   /**
-   * Redirect to login page
+   * Redirect to login page, preserving an optional post-login destination so flows
+   * like "Get API Key" (sign-up → sign-in → /keys) land on the intended tab.
    */
-  const redirectToLogin = () => {
-    navigate({ to: '/sign-in', replace: true })
+  const redirectToLogin = (redirectTo?: string) => {
+    navigate({
+      to: '/sign-in',
+      search: redirectTo ? { redirect: redirectTo } : undefined,
+      replace: true,
+    })
   }
 
   /**

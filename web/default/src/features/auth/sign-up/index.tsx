@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useEffect } from 'react'
 import { useStatus } from '@/hooks/use-status'
@@ -29,6 +29,9 @@ import { SignUpForm } from './components/sign-up-form'
 export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
+  // Preserve the post-auth destination (e.g. ?redirect=/keys from "Get API Key") through
+  // registration and the cross-link to sign-in, so the new user lands on the right tab.
+  const { redirect } = useSearch({ from: '/(auth)/sign-up' })
 
   useEffect(() => {
     ensurePixelsLoaded()
@@ -52,6 +55,7 @@ export function SignUp() {
             {t('Already have an account?')}{' '}
             <Link
               to='/sign-in'
+              search={redirect ? { redirect } : undefined}
               className='hover:text-primary font-medium underline underline-offset-4'
             >
               {t('Sign in')}
@@ -60,7 +64,7 @@ export function SignUp() {
           </p>
         </div>
 
-        <SignUpForm />
+        <SignUpForm redirectTo={redirect} />
 
         <TermsFooter status={status} className='text-center' />
       </div>

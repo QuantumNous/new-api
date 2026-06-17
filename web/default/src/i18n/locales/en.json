@@ -5090,6 +5090,26 @@
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.",
-    "No rate-limit window was reset": "No rate-limit window was reset"
+    "No rate-limit window was reset": "No rate-limit window was reset",
+    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Allow this user to see and select groups; PLG users are hidden from the group concept",
+    "Enterprise User": "Enterprise User",
+    "Get ${{bonus}} free": "Get ${{bonus}} free",
+    "Create an API key": "Create an API key",
+    "Credit limit (optional)": "Credit limit (optional)",
+    "Leave blank for unlimited": "Leave blank for unlimited",
+    "Make your first API call in under a minute.": "Make your first API call in under a minute.",
+    "Make your first call": "Make your first call",
+    "Need a key?": "Need a key?",
+    "Please copy it now and save it somewhere safe.": "Please copy it now and save it somewhere safe.",
+    "Python": "Python",
+    "Quickstart": "Quickstart",
+    "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.",
+    "TypeScript": "TypeScript",
+    "You can use it with OpenAI-compatible apps, or": "You can use it with OpenAI-compatible apps, or",
+    "You will not be able to see it again.": "You will not be able to see it again.",
+    "Your new key": "Your new key",
+    "cURL": "cURL",
+    "your own code": "your own code",
+    "Reset limit every...": "Reset limit every..."
   }
 }

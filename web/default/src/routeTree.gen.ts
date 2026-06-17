@@ -31,6 +31,7 @@ import { Route as ModelsClaudeApiRouteImport } from './routes/models/claude-api'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
+import { Route as AuthenticatedQuickstartRouteImport } from './routes/_authenticated/quickstart'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
@@ -203,6 +204,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   id: '/blog/$slug',
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedQuickstartRoute = AuthenticatedQuickstartRouteImport.update({
+  id: '/quickstart',
+  path: '/quickstart',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedChat2linkRoute = AuthenticatedChat2linkRouteImport.update({
   id: '/chat2link',
@@ -585,6 +591,7 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/quickstart': typeof AuthenticatedQuickstartRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
@@ -670,6 +677,7 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/quickstart': typeof AuthenticatedQuickstartRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
@@ -759,6 +767,7 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
+  '/_authenticated/quickstart': typeof AuthenticatedQuickstartRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
@@ -847,6 +856,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
+    | '/quickstart'
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
@@ -932,6 +942,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
+    | '/quickstart'
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
@@ -1020,6 +1031,7 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/_authenticated/chat2link'
+    | '/_authenticated/quickstart'
     | '/blog/$slug'
     | '/console/log'
     | '/console/topup'
@@ -1280,6 +1292,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/blog/$slug'
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/quickstart': {
+      id: '/_authenticated/quickstart'
+      path: '/quickstart'
+      fullPath: '/quickstart'
+      preLoaderRoute: typeof AuthenticatedQuickstartRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/chat2link': {
       id: '/_authenticated/chat2link'
@@ -1818,6 +1837,7 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedQuickstartRoute: typeof AuthenticatedQuickstartRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1841,6 +1861,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedQuickstartRoute: AuthenticatedQuickstartRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
