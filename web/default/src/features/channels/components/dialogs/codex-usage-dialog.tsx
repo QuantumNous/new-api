@@ -26,6 +26,7 @@ import {
   User,
   Mail,
   Hash,
+  Zap,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -67,6 +68,7 @@ type CodexUsagePayload = {
   account_id?: string
   rate_limit?: CodexRateLimit
   additional_rate_limits?: CodexAdditionalRateLimit[]
+  rate_limit_reset_credits?: { available_count?: number }
 }
 
 export type CodexUsageDialogData = {
@@ -84,6 +86,8 @@ type CodexUsageDialogProps = {
   response: CodexUsageDialogData | null
   onRefresh?: () => void
   isRefreshing?: boolean
+  onConsume?: () => void | Promise<void>
+  isConsuming?: boolean
 }
 
 function clampPercent(value: unknown): number {
@@ -345,6 +349,8 @@ export function CodexUsageDialog({
   response,
   onRefresh,
   isRefreshing,
+  onConsume,
+  isConsuming,
 }: CodexUsageDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
@@ -362,6 +368,12 @@ export function CodexUsageDialog({
   const additionalRateLimits = (payload?.additional_rate_limits ?? []).filter(
     (item) => item && Object.keys(item).length > 0
   )
+
+  const resetCredits = Number(
+    payload?.rate_limit_reset_credits?.available_count ?? 0
+  )
+  const canConsume = Number.isFinite(resetCredits) && resetCredits > 0
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const statusBadge = (() => {
     if (!rateLimit || Object.keys(rateLimit).length === 0) {
@@ -407,9 +419,15 @@ export function CodexUsageDialog({
   }, [response])
 
   return (
+    <>
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(v) => {
+        // The dialog stays mounted across open/close cycles; close the confirm
+        // sub-dialog on any outer close so it can't reappear stranded on reopen.
+        if (!v) setConfirmOpen(false)
+        onOpenChange(v)
+      }}
       title={t('Codex Account & Usage')}
       description={
         <>
@@ -470,6 +488,25 @@ export function CodexUsageDialog({
                 <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
                 {t('Refresh')}
               </Button>
+            )}
+            {onConsume && (
+              <>
+                <StatusBadge
+                  label={`${t('Remaining Resets')}: ${resetCredits}`}
+                  variant={canConsume ? 'info' : 'danger'}
+                  copyable={false}
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={!canConsume || Boolean(isConsuming)}
+                >
+                  <Zap className='mr-1.5 h-3.5 w-3.5' />
+                  {t('Consume one reset')}
+                </Button>
+              </>
             )}
           </div>
 
@@ -592,5 +629,50 @@ export function CodexUsageDialog({
         </div>
       </div>
     </Dialog>
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t('Reset rate limit now?')}
+        contentHeight='auto'
+        footer={
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setConfirmOpen(false)}
+              disabled={Boolean(isConsuming)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='button'
+              onClick={async () => {
+                // Keep the confirm dialog open and the button disabled until the
+                // consume resolves, so it cannot be submitted twice before the
+                // parent's isConsuming state propagates.
+                if (isConsuming) return
+                await onConsume?.()
+                setConfirmOpen(false)
+              }}
+              disabled={!canConsume || Boolean(isConsuming)}
+            >
+              {t('Consume one reset')}
+            </Button>
+          </>
+        }
+      >
+        <div className='space-y-2 text-sm'>
+          <p>
+            {t(
+              'This will consume 1 reset credit and immediately reset the rate limit window.'
+            )}
+          </p>
+          <p className='text-muted-foreground text-xs'>
+            {t('Email')}: {payload?.email || '-'} · {t('Remaining Resets')}:{' '}
+            {resetCredits}
+          </p>
+        </div>
+      </Dialog>
+    </>
   )
 }

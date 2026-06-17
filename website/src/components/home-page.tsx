@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, BarChart3, Boxes, Gauge, KeyRound, Link2, ReceiptText, Route, Server, UsersRound } from "lucide-react";
+import { ClaudeCodeInstallTabs } from "@/components/claude-code-install-tabs";
 import { HeroTerminalDemo } from "@/components/hero-terminal-demo";
 import { SiteShell } from "@/components/site-shell";
 import { getCopy } from "@/lib/copy";
@@ -13,6 +14,141 @@ const API_BASE_URL = `${APP_CONSOLE_ORIGIN}/v1`;
 
 type Props = {
   locale: Locale;
+};
+
+const homeAgentCopy: Record<
+  Locale,
+  {
+    cheapTitle: string;
+    cheapBody: string;
+    takeoverTitle: string;
+    takeoverBody: string;
+    quickTitle: string;
+    quickBody: string;
+    codexTitle: string;
+    codexBody: string;
+    claudeTitle: string;
+    claudeBody: string;
+    learnMore: string;
+  }
+> = {
+  en: {
+    cheapTitle: "At least 40% cheaper than official",
+    cheapBody: "Route Codex and Claude Code usage through Flatkey, keep the workflow, cut metered spend.",
+    takeoverTitle: "Take over existing coding-agent traffic now",
+    takeoverBody: "One installer configures Codex CLI or Claude Code to use router.flatkey.ai in about 30 seconds.",
+    quickTitle: "Quick install",
+    quickBody: "One command sets up the local agent, asks which tool to take over, and points usage to Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "OpenAI-compatible Codex CLI routing, one key, visible spend, lower usage cost.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code routed through Flatkey with prepaid balance, logs, and cost control.",
+    learnMore: "Learn more",
+  },
+  zh: {
+    cheapTitle: "至少比官方便宜 40%",
+    cheapBody: "把 Codex 和 Claude Code 用量路由到 Flatkey，工作流不变，计量成本直接下降。",
+    takeoverTitle: "立刻接管现有 coding-agent 流量",
+    takeoverBody: "一个安装器配置 Codex CLI 或 Claude Code，约 30 秒接到 router.flatkey.ai。",
+    quickTitle: "快速安装",
+    quickBody: "一条命令安装本地 agent，询问要接管哪个工具，并把用量指向 Flatkey。",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "OpenAI 兼容 Codex CLI 路由，一个 key，可见支出，更低用量成本。",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code 通过 Flatkey 路由，带预付余额、日志和成本控制。",
+    learnMore: "了解更多",
+  },
+  es: {
+    cheapTitle: "Al menos 40% más barato que oficial",
+    cheapBody: "Enruta Codex y Claude Code por Flatkey, conserva el flujo y reduce el gasto medido.",
+    takeoverTitle: "Toma el control del tráfico coding-agent ahora",
+    takeoverBody: "Un instalador configura Codex CLI o Claude Code con router.flatkey.ai en unos 30 segundos.",
+    quickTitle: "Instalación rápida",
+    quickBody: "Un comando instala el agente local, pregunta qué herramienta tomar y envía el uso a Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "Routing Codex CLI compatible con OpenAI, una key, gasto visible y menor coste.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code vía Flatkey con saldo prepago, logs y control de costes.",
+    learnMore: "Más información",
+  },
+  fr: {
+    cheapTitle: "Au moins 40 % moins cher que l'officiel",
+    cheapBody: "Routez Codex et Claude Code via Flatkey, gardez le flux et réduisez la dépense mesurée.",
+    takeoverTitle: "Reprenez le trafic coding-agent maintenant",
+    takeoverBody: "Un installateur configure Codex CLI ou Claude Code vers router.flatkey.ai en environ 30 secondes.",
+    quickTitle: "Installation rapide",
+    quickBody: "Une commande installe l'agent local, demande quel outil reprendre et envoie l'usage vers Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "Routage Codex CLI compatible OpenAI, une clé, dépense visible et coût plus bas.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code via Flatkey avec solde prépayé, logs et contrôle des coûts.",
+    learnMore: "En savoir plus",
+  },
+  pt: {
+    cheapTitle: "Pelo menos 40% mais barato que oficial",
+    cheapBody: "Roteie Codex e Claude Code pela Flatkey, mantenha o fluxo e reduza o gasto medido.",
+    takeoverTitle: "Assuma o tráfego coding-agent agora",
+    takeoverBody: "Um instalador configura Codex CLI ou Claude Code para router.flatkey.ai em cerca de 30 segundos.",
+    quickTitle: "Instalação rápida",
+    quickBody: "Um comando instala o agente local, pergunta qual ferramenta assumir e envia o uso para a Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "Roteamento Codex CLI compatível com OpenAI, uma key, gasto visível e menor custo.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code via Flatkey com saldo pré-pago, logs e controle de custos.",
+    learnMore: "Saiba mais",
+  },
+  ru: {
+    cheapTitle: "Минимум на 40% дешевле официального пути",
+    cheapBody: "Маршрутизируйте Codex и Claude Code через Flatkey, сохраняя workflow и снижая metered spend.",
+    takeoverTitle: "Перехватите coding-agent traffic сейчас",
+    takeoverBody: "Один installer настраивает Codex CLI или Claude Code на router.flatkey.ai примерно за 30 секунд.",
+    quickTitle: "Быстрая установка",
+    quickBody: "Одна команда ставит local agent, спрашивает какой tool подключить и отправляет usage в Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "OpenAI-compatible routing для Codex CLI, один key, видимый spend и ниже cost.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code через Flatkey с prepaid balance, logs и cost control.",
+    learnMore: "Подробнее",
+  },
+  ja: {
+    cheapTitle: "公式より少なくとも 40% 安価",
+    cheapBody: "Codex と Claude Code の利用を Flatkey 経由にし、ワークフローを保ったまま従量コストを下げます。",
+    takeoverTitle: "既存 coding-agent トラフィックを今すぐ接管",
+    takeoverBody: "1 つのインストーラーで Codex CLI または Claude Code を約 30 秒で router.flatkey.ai に接続します。",
+    quickTitle: "クイックインストール",
+    quickBody: "1 コマンドでローカル agent を設定し、接管するツールを選んで利用を Flatkey に向けます。",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "OpenAI 互換の Codex CLI routing、1 key、可視支出、低い利用コスト。",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code を Flatkey 経由にし、プリペイド残高、ログ、コスト制御を提供。",
+    learnMore: "詳しく見る",
+  },
+  vi: {
+    cheapTitle: "Rẻ hơn chính thức ít nhất 40%",
+    cheapBody: "Định tuyến Codex và Claude Code qua Flatkey, giữ workflow và giảm chi phí theo usage.",
+    takeoverTitle: "Tiếp quản traffic coding-agent ngay",
+    takeoverBody: "Một installer cấu hình Codex CLI hoặc Claude Code sang router.flatkey.ai trong khoảng 30 giây.",
+    quickTitle: "Cài nhanh",
+    quickBody: "Một lệnh cài agent local, hỏi tool cần tiếp quản và đưa usage về Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "Routing Codex CLI tương thích OpenAI, một key, chi phí rõ ràng và rẻ hơn.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code qua Flatkey với prepaid balance, logs và kiểm soát chi phí.",
+    learnMore: "Tìm hiểu thêm",
+  },
+  de: {
+    cheapTitle: "Mindestens 40% günstiger als offiziell",
+    cheapBody: "Route Codex- und Claude-Code-Nutzung über Flatkey, behalte den Workflow und senke nutzungsbasierte Kosten.",
+    takeoverTitle: "Bestehenden Coding-Agent-Traffic jetzt übernehmen",
+    takeoverBody: "Ein Installer richtet Codex CLI oder Claude Code in etwa 30 Sekunden für router.flatkey.ai ein.",
+    quickTitle: "Schnellinstallation",
+    quickBody: "Ein Befehl richtet den lokalen Agent ein, fragt nach dem Tool und leitet Nutzung zu Flatkey.",
+    codexTitle: "Flatkey with Codex",
+    codexBody: "OpenAI-kompatibles Codex-CLI-Routing, ein Key, sichtbare Ausgaben und niedrigere Nutzungskosten.",
+    claudeTitle: "Flatkey with Claude Code",
+    claudeBody: "Claude Code über Flatkey mit Prepaid-Guthaben, Logs und Kostenkontrolle.",
+    learnMore: "Mehr erfahren",
+  },
 };
 
 function CherryStudioIcon() {
@@ -74,6 +210,7 @@ const supportedApps = [
 
 export function HomePage(props: Props) {
   const copy = getCopy(props.locale);
+  const agentCopy = homeAgentCopy[props.locale] ?? homeAgentCopy.en;
   const features = [
     {
       title: copy.home.features.items[0].title,
@@ -151,6 +288,29 @@ export function HomePage(props: Props) {
                 {copy.home.description}
               </p>
 
+              <div className="landing-animate-fade-up mt-6 grid w-full max-w-xl gap-3 opacity-0 sm:grid-cols-2" style={{ animationDelay: "150ms" }}>
+                <Link
+                  href={localizePath("/pricing", props.locale)}
+                  className="group rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 shadow-[0_18px_52px_-38px_rgba(5,150,105,0.72)] transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/14"
+                >
+                  <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
+                    <BadgeDollarSign className="size-4" />
+                    {agentCopy.cheapTitle}
+                  </div>
+                  <p className="text-muted-foreground mt-2 text-xs leading-5">{agentCopy.cheapBody}</p>
+                </Link>
+                <a
+                  href="#quick-install"
+                  className="group rounded-xl border border-violet-500/18 bg-white/70 p-4 shadow-[0_18px_52px_-40px_rgba(91,33,182,0.72)] transition-colors hover:border-violet-500/32 hover:bg-violet-500/8 dark:bg-white/[0.04]"
+                >
+                  <div className="flex items-center gap-2 text-sm font-extrabold text-violet-700 dark:text-violet-200">
+                    <Route className="size-4" />
+                    {agentCopy.takeoverTitle}
+                  </div>
+                  <p className="text-muted-foreground mt-2 text-xs leading-5">{agentCopy.takeoverBody}</p>
+                </a>
+              </div>
+
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
                 <a
                   className="flatkey-hero-cta group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
@@ -189,6 +349,40 @@ export function HomePage(props: Props) {
 
             <div className="landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6" style={{ animationDelay: "320ms" }}>
               <HeroTerminalDemo className="mt-8 lg:mt-0" copy={copy.home.terminal} />
+            </div>
+          </div>
+        </section>
+
+        <section id="quick-install" className="relative z-10 px-6 pb-16 md:pb-20">
+          <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:items-start">
+            <div>
+              <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">{agentCopy.cheapTitle}</p>
+              <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{agentCopy.quickTitle}</h2>
+              <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-7 md:text-base">{agentCopy.quickBody}</p>
+              <div className="mt-6">
+                <ClaudeCodeInstallTabs locale={props.locale} />
+              </div>
+            </div>
+            <div className="grid gap-4">
+              {[
+                [agentCopy.codexTitle, agentCopy.codexBody, "/use-case/codex"],
+                [agentCopy.claudeTitle, agentCopy.claudeBody, "/use-case/claude-code"],
+              ].map(([title, body, href]) => (
+                <Link
+                  key={href}
+                  href={localizePath(href, props.locale)}
+                  className="group rounded-2xl border border-violet-500/16 bg-white/72 p-5 shadow-[0_24px_70px_-50px_rgba(91,33,182,0.78)] transition-colors hover:border-violet-500/30 hover:bg-white/86 dark:bg-white/[0.04]"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold tracking-tight">{title}</h3>
+                      <p className="text-muted-foreground mt-2 text-sm leading-6">{body}</p>
+                    </div>
+                    <ArrowRight className="mt-0.5 size-4 shrink-0 text-violet-600 transition-transform group-hover:translate-x-0.5 dark:text-violet-300" />
+                  </div>
+                  <span className="mt-4 inline-flex text-sm font-semibold text-violet-700 dark:text-violet-200">{agentCopy.learnMore}</span>
+                </Link>
+              ))}
             </div>
           </div>
         </section>

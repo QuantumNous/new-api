@@ -959,6 +959,7 @@
     "Console Area": "Khu vực bảng điều khiển",
     "Console Content": "Nội dung bảng điều khiển",
     "Consume": "Tiêu thụ",
+    "Consume one reset": "Dùng một lần đặt lại",
     "Consumed in the last 24 hours": "Đã tiêu thụ trong 24 giờ qua",
     "Contact sales for higher monthly usage and greater discounts.": "Liên hệ sales để có mức sử dụng hàng tháng cao hơn và chiết khấu lớn hơn.",
     "Container": "Thùng chứa",
@@ -1671,6 +1672,7 @@
     "Failed to complete order": "Không thể hoàn thành đơn hàng",
     "Failed to complete Passkey login": "Không thể hoàn tất đăng nhập Passkey",
     "Failed to confirm compliance": "Không thể xác nhận tuân thủ",
+    "Failed to consume reset credit": "Không thể dùng tín dụng đặt lại",
     "Failed to contact GitHub releases API": "Không thể kết nối API GitHub Releases",
     "Failed to copy": "Sao chép thất bại",
     "Failed to copy channel": "Không thể sao chép kênh",
@@ -3541,6 +3543,7 @@
     "Relying Party Display Name": "Tên Hiển Thị của Bên Tin Cậy",
     "Relying Party ID": "Định danh Bên phụ thuộc",
     "Remaining": "Còn lại",
+    "Remaining Resets": "Số lần đặt lại còn lại",
     "Remaining quota": "Hạn ngạch còn lại",
     "Remaining Quota ({{currency}})": "Hạn mức còn lại ({{currency}})",
     "Remaining quota units": "Đơn vị hạn ngạch còn lại",
@@ -3652,6 +3655,8 @@
     "Reset to Default": "Đặt lại mặc định",
     "Reset to default configuration": "Đã đặt lại cấu hình mặc định",
     "Reset Two-Factor Authentication": "Đặt lại Xác thực hai yếu tố",
+    "Reset rate limit now?": "Đặt lại giới hạn ngay bây giờ?",
+    "Reset {{count}} windows": "Đã đặt lại {{count}} cửa sổ",
     "Resets in:": "Đặt lại sau:",
     "Resolve Conflicts": "Giải quyết Xung đột",
     "Resource Configuration": "Cấu hình tài nguyên",
@@ -4322,6 +4327,7 @@
     "This week": "Tuần này",
     "This will append 2 template rules (Codex CLI and Claude CLI) to the existing rule list.": "Thao tác này sẽ thêm 2 quy tắc mẫu (Codex CLI và Claude CLI) vào danh sách quy tắc hiện có.",
     "This will clear custom pricing ratios and revert to upstream defaults.": "Điều này sẽ xóa các tỷ lệ giá tùy chỉnh và trở về mặc định ban đầu.",
+    "This will consume 1 reset credit and immediately reset the rate limit window.": "Thao tác này sẽ dùng 1 tín dụng đặt lại và đặt lại ngay cửa sổ giới hạn tốc độ.",
     "This will delete all": "Thao tác này sẽ xóa tất cả",
     "This will delete all channel affinity cache entries still in memory.": "Thao tác này sẽ xóa tất cả mục bộ nhớ đệm ưu tiên kênh còn trong bộ nhớ.",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "Thao tác này sẽ xóa các tệp bộ nhớ đệm tạm không được sử dụng hơn 10 phút",
@@ -5083,6 +5089,7 @@
     "Get {{bonus}} free": "Tặng {{bonus}}",
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Các mục thưởng phải sử dụng số tiền nạp là số nguyên dương và số tiền thưởng là số nguyên dương",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bản đồ tín dụng thưởng theo số tiền nạp (đối tượng JSON). Giá trị dùng cùng đơn vị với số tiền nạp.",
-    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Cấu hình tín dụng thưởng cho từng số tiền nạp. Giá trị dùng cùng đơn vị với số tiền nạp."
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Cấu hình tín dụng thưởng cho từng số tiền nạp. Giá trị dùng cùng đơn vị với số tiền nạp.",
+    "No rate-limit window was reset": "Không có cửa sổ giới hạn tốc độ nào được đặt lại"
   }
 }

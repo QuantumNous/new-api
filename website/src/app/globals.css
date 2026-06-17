@@ -320,6 +320,81 @@ a {
   color: inherit !important;
 }
 
+.flatkey-cta-primary,
+.flatkey-cta-secondary,
+.flatkey-cta-inverse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  padding-inline: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none !important;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.flatkey-cta-primary {
+  border: 1px solid rgb(124 58 237 / 0.94) !important;
+  background: linear-gradient(135deg, #7c3aed 0%, #9333ea 52%, #c026d3 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 42px -22px rgb(124 58 237 / 0.88);
+}
+
+.flatkey-cta-primary:hover {
+  background: linear-gradient(135deg, #6d28d9 0%, #7e22ce 52%, #a21caf 100%) !important;
+  color: #ffffff !important;
+}
+
+.flatkey-cta-secondary {
+  border: 1px solid rgb(124 58 237 / 0.22) !important;
+  background: rgb(255 255 255 / 0.78) !important;
+  color: #111827 !important;
+}
+
+.flatkey-cta-secondary:hover {
+  border-color: rgb(124 58 237 / 0.36) !important;
+  background: rgb(124 58 237 / 0.08) !important;
+  color: #111827 !important;
+}
+
+.dark .flatkey-cta-secondary {
+  background: rgb(255 255 255 / 0.055) !important;
+  color: #ffffff !important;
+}
+
+.dark .flatkey-cta-secondary:hover {
+  background: rgb(255 255 255 / 0.09) !important;
+  color: #ffffff !important;
+}
+
+.flatkey-cta-inverse {
+  border: 1px solid rgb(255 255 255 / 0.9) !important;
+  background: #ffffff !important;
+  color: #6d28d9 !important;
+  box-shadow: 0 18px 42px -24px rgb(255 255 255 / 0.92);
+}
+
+.flatkey-cta-inverse:hover {
+  background: #f5f3ff !important;
+  color: #581c87 !important;
+}
+
+.flatkey-cta-primary :is(svg, span),
+.flatkey-cta-secondary :is(svg, span),
+.flatkey-cta-inverse :is(svg, span) {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
 .home-landing :is(h1, h2, h3, h4) {
   font-weight: 620;
   letter-spacing: 0;

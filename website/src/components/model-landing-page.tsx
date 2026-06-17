@@ -71,7 +71,7 @@ export function ModelLandingPage({ config, locale }: Props) {
                 {config.officialPrice}
               </div>
               <div className="text-muted-foreground mt-1 text-[13px]">
-                {t("/ million output tokens")}
+                {t(config.priceUnit)}
               </div>
             </div>
             <div className="text-muted-foreground hidden items-center justify-center px-3 text-sm font-bold sm:flex">
@@ -85,7 +85,7 @@ export function ModelLandingPage({ config, locale }: Props) {
                 {config.flatkeyPrice}
               </div>
               <div className="text-muted-foreground mt-1 text-[13px]">
-                {t("/ million output tokens")}
+                {t(config.priceUnit)}
               </div>
             </div>
           </div>
