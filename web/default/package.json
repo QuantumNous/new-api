@@ -92,7 +92,6 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "knip": "^6.0.6",
-    "playwright": "^1.61.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "shadcn": "^3.7.0",
