@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import i18next from 'i18next'
 import { api } from '@/lib/api'
 import type { ModelRatioData } from './model-pricing-core'
 
@@ -44,7 +45,7 @@ export function useUpdateModelRatios() {
         const response = res.data
 
         if (!response.success) {
-          throw new Error(response.message || 'Failed to fetch current options')
+          throw new Error(response.message || i18next.t('Failed to fetch current options'))
         }
 
         const optionsMap: Record<string, string> = {}
@@ -208,7 +209,7 @@ export function useUpdateModelRatios() {
         const res = await api.put('/api/option/', update)
         const response = res.data
         if (!response.success) {
-          throw new Error(response.message || 'Failed to update option')
+          throw new Error(response.message || i18next.t('Failed to update option'))
         }
       }
 
