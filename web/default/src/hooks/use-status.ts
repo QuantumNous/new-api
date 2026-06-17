@@ -39,12 +39,13 @@ export function useStatus() {
   const { data, isFetching, isLoading, error } = useQuery({
     queryKey: ['status'],
     queryFn: async () => {
-      const status = await getStatus()
+      const status = await getStatus().catch(() => null)
+      if (!status) {
+        return getInitialStatus() ?? null
+      }
       try {
-        if (status) {
-          const { setConfig } = useSystemConfigStore.getState()
-          setConfig(mapStatusDataToConfig(status))
-        }
+        const { setConfig } = useSystemConfigStore.getState()
+        setConfig(mapStatusDataToConfig(status))
       } catch (err) {
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
@@ -56,7 +57,7 @@ export function useStatus() {
       }
       // Save to localStorage
       try {
-        if (typeof window !== 'undefined' && status) {
+        if (typeof window !== 'undefined') {
           window.localStorage.setItem('status', JSON.stringify(status))
         }
       } catch {
