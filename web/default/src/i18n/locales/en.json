@@ -5077,5 +5077,6 @@
     "Recharge successful 🎉": "Recharge successful 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Your bonus has been credited to your wallet. Enjoy!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge successful. Your bonus is being credited — refresh in a moment."
-  }
+  },
+  "No rate-limit window was reset": "No rate-limit window was reset"
 }

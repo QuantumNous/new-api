@@ -5077,5 +5077,6 @@
     "Recharge successful 🎉": "充值成功 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "奖励已同步到账,请尽情使用!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "充值成功,奖励正在同步到账 —— 请稍后刷新。"
-  }
+  },
+  "No rate-limit window was reset": "未重置任何限流窗口"
 }

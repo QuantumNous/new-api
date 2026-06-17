@@ -5077,5 +5077,6 @@
     "Recharge successful 🎉": "Recharge réussie 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Votre bonus a été crédité sur votre portefeuille. Profitez-en !",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge réussie. Votre bonus est en cours de crédit — actualisez dans un instant."
-  }
+  },
+  "No rate-limit window was reset": "Aucune fenêtre de limite de débit n'a été réinitialisée"
 }

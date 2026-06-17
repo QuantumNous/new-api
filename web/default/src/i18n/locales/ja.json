@@ -5077,5 +5077,6 @@
     "Recharge successful 🎉": "チャージ完了 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "ボーナスがウォレットに反映されました。どうぞご利用ください!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "チャージ完了。ボーナスを反映中です —— 少し待ってから更新してください。"
-  }
+  },
+  "No rate-limit window was reset": "レート制限ウィンドウはリセットされませんでした"
 }

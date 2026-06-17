@@ -5077,5 +5077,6 @@
     "Recharge successful 🎉": "Nạp tiền thành công 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Phần thưởng đã được cộng vào ví của bạn. Chúc bạn dùng vui!",
     "Recharge successful. Your bonus is being credited — refresh in a moment.": "Nạp tiền thành công. Phần thưởng đang được cộng — hãy làm mới sau giây lát."
-  }
+  },
+  "No rate-limit window was reset": "Không có cửa sổ giới hạn tốc độ nào được đặt lại"
 }
