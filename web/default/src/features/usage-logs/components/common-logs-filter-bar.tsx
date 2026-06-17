@@ -22,9 +22,10 @@ import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useIsAdmin } from '@/hooks/use-admin'
+import { useIsAdmin, useIsRoot } from '@/hooks/use-admin'
 import { useIsEnterprise } from '@/hooks/use-enterprise'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -73,6 +74,7 @@ export function CommonLogsFilterBar<TData>(
   const searchParams = route.useSearch()
   const isAdmin = useIsAdmin()
   const isEnterprise = useIsEnterprise()
+  const isRoot = useIsRoot()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
@@ -96,6 +98,7 @@ export function CommonLogsFilterBar<TData>(
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
+      nonAdmin: searchParams.nonAdmin || undefined,
     })
 
     const typeArr = searchParams.type
@@ -116,11 +119,12 @@ export function CommonLogsFilterBar<TData>(
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
+    searchParams.nonAdmin,
     searchParams.type,
   ])
 
   const handleChange = useCallback(
-    (field: keyof CommonLogFilters, value: Date | string | undefined) => {
+    (field: keyof CommonLogFilters, value: Date | string | boolean | undefined) => {
       setFilters((prev) => ({ ...prev, [field]: value }))
     },
     []
@@ -173,7 +177,8 @@ export function CommonLogsFilterBar<TData>(
     !!filters.username ||
     !!filters.channel ||
     !!filters.requestId ||
-    !!filters.upstreamRequestId
+    !!filters.upstreamRequestId ||
+    !!filters.nonAdmin
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   // PLG (non-enterprise) users don't see the group concept, so the group
@@ -188,6 +193,7 @@ export function CommonLogsFilterBar<TData>(
     isAdmin ? filters.channel : undefined,
     filters.requestId,
     filters.upstreamRequestId,
+    isRoot ? filters.nonAdmin : undefined,
   ].filter(Boolean).length
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
   const logTypeItems = useMemo(
@@ -314,6 +320,17 @@ export function CommonLogsFilterBar<TData>(
             onChange={(e) => handleChange('channel', e.target.value)}
             onKeyDown={handleKeyDown}
           />
+        </LogsFilterField>
+      )}
+      {isRoot && (
+        <LogsFilterField>
+          <label className='flex h-full cursor-pointer items-center gap-2 px-1 text-sm whitespace-nowrap select-none'>
+            <Switch
+              checked={!!filters.nonAdmin}
+              onCheckedChange={(checked) => handleChange('nonAdmin', checked)}
+            />
+            <span className='text-muted-foreground'>plg user</span>
+          </label>
         </LogsFilterField>
       )}
       <LogsFilterField>

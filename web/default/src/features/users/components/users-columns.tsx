@@ -16,10 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import { type ColumnDef } from '@tanstack/react-table'
+import { ScrollText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -241,6 +244,40 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       meta: { label: t('Quota') },
+    },
+    {
+      id: 'usage_logs',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Usage Logs')} />
+      ),
+      cell: ({ row }) => (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon'
+                className='text-muted-foreground hover:text-foreground size-7'
+                aria-label={t('Usage Logs')}
+                render={
+                  <Link
+                    to='/usage-logs/$section'
+                    params={{ section: 'common' }}
+                    search={{ username: row.original.username, page: 1 }}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              />
+            }
+          >
+            <ScrollText className='size-4' />
+          </TooltipTrigger>
+          <TooltipContent>{t('Usage Logs')}</TooltipContent>
+        </Tooltip>
+      ),
+      enableSorting: false,
+      meta: { label: t('Usage Logs'), mobileHidden: true },
     },
     {
       accessorKey: 'group',
