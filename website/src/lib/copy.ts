@@ -1202,8 +1202,119 @@ const copies: Record<Locale, BaseCopy> = {
       title: "Ein API-Gateway für AI-Teams im Produktivbetrieb",
       description:
         "flatkey.ai vereint Modellzugriff, Routing, Abrechnung, Nutzungsanalysen und Betriebssteuerung für Teams, die AI-Produkte ausliefern.",
-      primary: "Preise ansehen",
-      secondary: "Blog lesen",
+      primary: "Schlüssel holen",
+      secondary: "Preise ansehen",
+      hero: {
+        badge: "Multi-Modell-kompatibel, Enterprise-ready",
+        titleLine1: "Jedes Modell.",
+        titleLine2: "Ein Schlüssel. Pauschalpreis.",
+        toolsLabel: "Funktioniert mit deinen aktuellen Tools",
+        toolsDescription: "Unterstützt Ein-Klick-Konfiguration und passt sich perfekt an die NewAPI-Multi-Protokoll-Konfiguration an.",
+        moreApps: "Weitere Apps",
+      },
+      stats: {
+        items: [
+          { value: "200+", label: "Modelle hinter einem Schlüssel" },
+          { value: "1", label: "OpenAI-kompatible Basis-URL" },
+          { value: "24/7", label: "Einblick in Nutzung und Abrechnung" },
+          { value: "1", label: "Dashboard für Schlüssel und Routing" },
+        ],
+      },
+      features: {
+        eyebrow: "Warum flatkey",
+        titleLine1: "Ein Ort für Zugriff,",
+        titleLine2: "Preise und Kontrolle",
+        items: [
+          {
+            title: "Zugriff mit einem Klick",
+            desc: "Hol dir einen API-Schlüssel und rufe jedes verbundene AI-Modell auf, ohne dich bei jedem Anbieter einzeln zu registrieren.",
+          },
+          {
+            title: "Stabil und zuverlässig",
+            desc: "Leite mehrere Upstream-Konten intelligent weiter — mit automatischem Wechsel und Lastverteilung, um häufige Fehler zu vermeiden.",
+          },
+          {
+            title: "Bezahlen nach Verbrauch",
+            desc: "Rechne nach tatsächlicher Nutzung ab, lege Kontingentgrenzen fest und behalte den Team-Verbrauch jederzeit im Blick.",
+          },
+        ],
+      },
+      models: {
+        title: "Empfohlene AI-Modelle",
+        description: "Kuratierte Top-Modelle, ausgewählt von der flatkey-Community",
+        tag: "Text-zu-Text",
+      },
+      about: {
+        eyebrow: "Über flatkey.ai",
+        title: "Eine einheitliche API-Schicht für moderne AI-Produkte",
+        description:
+          "flatkey.ai bietet gehostete Software und ein Prepaid-Kontoguthaben für die nutzungsbasierte AI-API-Abrechnung. Die Nutzungsgebühren ergeben sich aus den Modellpreisen für Eingabe, Ausgabe und Cache-Hit multipliziert mit der Token-Nutzung.",
+        items: [
+          {
+            title: "Was flatkey.ai ist",
+            desc: "flatkey.ai ist ein einheitliches AI-API-Gateway, mit dem Teams unterstützte AI-Modelle über einen API-Schlüssel, eine Basis-URL und ein Dashboard aufrufen.",
+          },
+          {
+            title: "Welches Problem es löst",
+            desc: "Es reduziert getrennte Anbieterkonten, verstreute API-Schlüssel, uneinheitliches Routing und fragmentierte Nutzungsverfolgung für Teams, die AI-Funktionen entwickeln.",
+          },
+          {
+            title: "Wer es nutzt",
+            desc: "flatkey.ai ist für Entwickler, AI-Produktteams, Automatisierungs-Builder und Betriebsteams gebaut, die planbaren Zugriff auf mehrere Modelle brauchen.",
+          },
+        ],
+      },
+      productHighlights: {
+        eyebrow: "Produktfokus",
+        title: "Gebaut für Teams, die AI-Funktionen ausliefern",
+        description:
+          "flatkey hält Modellzugriff, Routing, Abrechnung und Nutzungsrichtlinien an einem Ort, damit Teams schneller vorankommen — ohne zusätzlichen Anbieter-Verwaltungsaufwand.",
+        items: [
+          {
+            title: "AI-Produktteams",
+            desc: "Füge deinem Produkt Modellzugriff hinzu, ohne separate Anbieterkonten, Schlüssel und SDK-Änderungen zu verwalten.",
+          },
+          {
+            title: "Betrieb und Finanzen",
+            desc: "Behalte Token-Ausgaben, Aufladungsdatensätze und Team-Nutzung in einem Dashboard im Blick.",
+          },
+          {
+            title: "Automatisierungs-Builder",
+            desc: "Leite Workflows mit hohem Volumen an passende Modelle weiter und behalte Fehler und Kosten leichter im Blick.",
+          },
+          {
+            title: "Modellbewertung und Iteration",
+            desc: "Vergleiche Anbieter, wechsle Modelle und lass bestehende OpenAI-kompatible Clients auf dieselbe Basis-URL zeigen.",
+          },
+        ],
+      },
+      howItWorks: {
+        eyebrow: "Wie alles zusammenpasst",
+        title: "Von der Startseite zu produktiven Aufrufen",
+        steps: [
+          { num: "1", title: "Einen Schlüssel holen", desc: "Erstelle ein flatkey-Konto, öffne das Dashboard und generiere einen API-Schlüssel für deine App." },
+          { num: "2", title: "Die Basis-URL ändern", desc: "Lass deinen OpenAI-kompatiblen Client auf {{apiBaseUrl}} zeigen und behalte dein vorhandenes SDK." },
+          { num: "3", title: "Überwachen und optimieren", desc: "Prüfe Nutzung, Kosten, Routing und Fehler im selben Produkt-Dashboard." },
+        ],
+      },
+      cta: {
+        titleLine1: "Bereit, das Modell-Chaos",
+        titleLine2: "durch einen Schlüssel zu ersetzen?",
+        description: "Starte auf der flatkey-Startseite, verwalte dein Produkt-Dashboard und behalte {{host}} als stabilen API-Endpunkt.",
+      },
+      terminal: {
+        request: "Anfrage",
+        response: "Antwort",
+        cost: "Kosten",
+        tokens: "Tokens",
+        ms: "ms",
+        responses: {
+          "gpt-chat": "Chat-Anfrage weitergeleitet.",
+          responses: "Antwort-Workflow bereit.",
+          claude: "Claude-Nachricht weitergeleitet.",
+          gemini: "Gemini-Anfrage bedient.",
+        },
+      },
     },
     footer: {
       tagline: "Leistungsstarke API-Management-Plattform",

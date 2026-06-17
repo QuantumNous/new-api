@@ -126,6 +126,7 @@ const BLOG_DATE_LOCALES: Record<Locale, string> = {
   ru: "ru-RU",
   ja: "ja-JP",
   vi: "vi-VN",
+  de: "de-DE",
 };
 
 export function formatBlogDate(value: string | undefined, length: "short" | "long", locale: Locale = "en"): string {
