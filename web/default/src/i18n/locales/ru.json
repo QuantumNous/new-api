@@ -5076,7 +5076,7 @@
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}д {{hours}}ч {{minutes}}м {{seconds}}с",
     "Recharge successful 🎉": "Пополнение успешно 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Бонус зачислен на ваш счёт. Приятного использования!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Пополнение успешно. Бонус зачисляется — обновите через мгновение."
-  },
-  "No rate-limit window was reset": "Ни одно окно ограничения скорости не было сброшено"
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Пополнение успешно. Бонус зачисляется — обновите через мгновение.",
+    "No rate-limit window was reset": "Ни одно окно ограничения скорости не было сброшено"
+  }
 }

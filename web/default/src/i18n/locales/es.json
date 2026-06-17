@@ -5076,7 +5076,7 @@
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}d {{hours}}h {{minutes}}min {{seconds}}s",
     "Recharge successful 🎉": "Recarga exitosa 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Tu bono se ha acreditado en tu monedero. ¡Disfrútalo!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recarga exitosa. Tu bono se está acreditando — actualiza en un momento."
-  },
-  "No rate-limit window was reset": "No se restableció ninguna ventana de límite de tasa"
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recarga exitosa. Tu bono se está acreditando — actualiza en un momento.",
+    "No rate-limit window was reset": "No se restableció ninguna ventana de límite de tasa"
+  }
 }
