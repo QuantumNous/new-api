@@ -29,6 +29,8 @@ export const DEFAULT_ADMIN_CONFIG = {
   chat: {
     enabled: true,
     playground: true,
+    'image-playground': true,
+    'video-playground': true,
     onlineExperience: true,
     chat: true,
     pricing: true,

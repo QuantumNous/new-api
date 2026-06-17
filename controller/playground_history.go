@@ -11,6 +11,7 @@ import (
 
 type playgroundConversationUpsertRequest struct {
 	ConversationID string          `json:"conversation_id"`
+	Type           string          `json:"type"`
 	Title          string          `json:"title"`
 	Messages       model.JSONValue `json:"messages"`
 	CreatedAt      int64           `json:"created_at"`
@@ -45,6 +46,7 @@ func UpsertUserPlaygroundConversation(c *gin.Context) {
 	conversation, err := model.UpsertUserPlaygroundConversation(
 		userID,
 		req.ConversationID,
+		req.Type,
 		req.Title,
 		req.Messages,
 		req.CreatedAt,

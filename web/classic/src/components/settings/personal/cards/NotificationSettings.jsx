@@ -72,6 +72,8 @@ const NotificationSettings = ({
     chat: {
       enabled: true,
       playground: true,
+      'image-playground': true,
+      'video-playground': true,
       onlineExperience: true,
       chat: true,
       pricing: true,
@@ -167,6 +169,8 @@ const NotificationSettings = ({
       chat: {
         enabled: true,
         playground: true,
+        'image-playground': true,
+        'video-playground': true,
         onlineExperience: true,
         chat: true,
         pricing: true,
@@ -271,6 +275,16 @@ const NotificationSettings = ({
           key: 'playground',
           title: t('操练场'),
           description: t('AI模型测试环境'),
+        },
+        {
+          key: 'image-playground',
+          title: t('聊天操练场'),
+          description: t('聊天操练场页面入口'),
+        },
+        {
+          key: 'video-playground',
+          title: t('聊天操练场'),
+          description: t('聊天操练场页面入口'),
         },
         {
           key: 'onlineExperience',

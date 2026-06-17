@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { InputNumber, Select, Typography } from '@douyinfe/semi-ui';
-import { Bot, Image as ImageIcon, Sparkles, Video, X } from 'lucide-react';
+import { Bot, Image as ImageIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 import { selectFilter } from '../../helpers';
@@ -33,7 +33,6 @@ const PlaygroundComposer = ({
   playgroundMode,
   customRequestMode,
   onInputChange,
-  onModeChange,
 }) => {
   const { t } = useTranslation();
   const { imageUrls, onRemoveImage, onSelectImageFile } = usePlayground();
@@ -63,92 +62,96 @@ const PlaygroundComposer = ({
         <div className='composer-input-row'>{inputNode}</div>
         <div className='composer-controls'>
           <div className='composer-left-controls'>
-            <Select
-              value={selectedModel}
-              optionList={modelOptions}
-              filter={selectFilter}
-              autoClearSearchValue={false}
-              disabled={customRequestMode}
-              onChange={(value) =>
-                onInputChange(
-                  isVideoMode
-                    ? 'videoModel'
-                    : isImageMode
-                      ? 'imageModel'
-                      : 'model',
-                  value,
-                )
-              }
-              prefix={<Bot size={16} className='mx-2' />}
-              className='composer-model-select'
-              dropdownStyle={{ maxWidth: 420 }}
-              position='top'
-            />
-            {!isImageMode && (
-              <div className='reference-images'>
-                <Typography.Text className='reference-label'>
-                  {t('参考图片')}
-                </Typography.Text>
-                <div className='reference-image-row'>
-                  <button
-                    className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (!inputs.imageEnabled) {
-                        onInputChange('imageEnabled', true);
-                      }
-                      fileInputRef.current?.click();
-                    }}
-                    type='button'
-                  >
-                    <ImageIcon size={20} />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type='file'
-                    accept='image/jpeg,image/png,image/webp'
-                    className='hidden'
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        onSelectImageFile?.(file);
-                      }
-                      event.target.value = '';
-                    }}
-                  />
-                  {inputs.imageEnabled && imageUrls.length > 0 && (
-                    <div className='reference-image-list'>
-                      {imageUrls.map((url, index) => (
-                        <div
-                          key={`${index}-${url.slice(0, 24)}`}
-                          className='reference-image-item'
+            <div className='composer-model-row'>
+              <Select
+                value={selectedModel}
+                optionList={modelOptions}
+                filter={selectFilter}
+                autoClearSearchValue={false}
+                disabled={customRequestMode}
+                onChange={(value) =>
+                  onInputChange(
+                    isVideoMode
+                      ? 'videoModel'
+                      : isImageMode
+                        ? 'imageModel'
+                        : 'model',
+                    value,
+                  )
+                }
+                prefix={<Bot size={16} className='mx-2' />}
+                className='composer-model-select'
+                dropdownStyle={{ maxWidth: 420 }}
+                position='top'
+              />
+
+              <div className='composer-send-row'>{styledSendNode}</div>
+            </div>
+
+            <div className='reference-images'>
+              <Typography.Text className='reference-label'>
+                {t('参考图片')}
+              </Typography.Text>
+              <div className='reference-image-row'>
+                <button
+                  className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!inputs.imageEnabled) {
+                      onInputChange('imageEnabled', true);
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  type='button'
+                >
+                  <ImageIcon size={20} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='image/jpeg,image/png,image/webp'
+                  className='hidden'
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      onSelectImageFile?.(file);
+                    }
+                    event.target.value = '';
+                  }}
+                />
+                {inputs.imageEnabled && imageUrls.length > 0 && (
+                  <div className='reference-image-list'>
+                    {imageUrls.map((url, index) => (
+                      <div
+                        key={`${index}-${url.slice(0, 24)}`}
+                        className='reference-image-item'
+                      >
+                        <img
+                          src={url}
+                          alt={t('图片 {{index}}', { index: index + 1 })}
+                          className='reference-image-preview'
+                        />
+                        <button
+                          type='button'
+                          className='reference-image-remove'
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRemoveImage?.(index);
+                          }}
+                          aria-label={t('删除')}
                         >
-                          <img
-                            src={url}
-                            alt={t('图片 {{index}}', { index: index + 1 })}
-                            className='reference-image-preview'
-                          />
-                          <button
-                            type='button'
-                            className='reference-image-remove'
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onRemoveImage?.(index);
-                            }}
-                            aria-label={t('删除')}
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className='reference-help-text'>
-                  {t('支持 JPEG、PNG、Webp')}
-                </span>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              <span className='reference-help-text'>
+                {t('支持 JPEG、PNG、Webp')}
+              </span>
+            </div>
+
             {isImageMode && (
               <div className='video-options'>
                 <Select
@@ -157,6 +160,12 @@ const PlaygroundComposer = ({
                     { label: '1024x1024', value: '1024x1024' },
                     { label: '1024x1536', value: '1024x1536' },
                     { label: '1536x1024', value: '1536x1024' },
+
+                    { label: '2048x2048', value: '2048x2048' },
+                    { label: '2048x1152', value: '2048x1152' },
+                    { label: '1152x1152', value: '1152x2048' },
+
+                    { label: '2160x3840', value: '2160x3840' },
                     { label: 'auto', value: 'auto' },
                   ]}
                   onChange={(value) => onInputChange('imageSize', value)}
@@ -172,6 +181,17 @@ const PlaygroundComposer = ({
                     { label: 'low', value: 'low' },
                   ]}
                   onChange={(value) => onInputChange('imageQuality', value)}
+                  className='video-option-control'
+                  position='top'
+                />
+                <Select
+                  value={inputs.outputFormat}
+                  optionList={[
+                    { label: 'png', value: 'png' },
+                    { label: 'jpeg', value: 'jpeg' },
+                    { label: 'webp', value: 'webp' },
+                  ]}
+                  onChange={(value) => onInputChange('outputFormat', value)}
                   className='video-option-control'
                   position='top'
                 />
@@ -202,45 +222,6 @@ const PlaygroundComposer = ({
                 />
               </div>
             )}
-          </div>
-
-          <div className='composer-bottom-row'>
-            <div className='mode-tabs'>
-              <button
-                className={`mode-tab ${playgroundMode === 'chat' ? 'active' : ''}`}
-                type='button'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onModeChange('chat');
-                }}
-              >
-                <Sparkles size={19} />
-                <span>{t('聊天')}</span>
-              </button>
-              <button
-                className={`mode-tab ${playgroundMode === 'image' ? 'active' : ''}`}
-                type='button'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onModeChange('image');
-                }}
-              >
-                <ImageIcon size={18} />
-                <span>{t('图片')}</span>
-              </button>
-              <button
-                className={`mode-tab ${playgroundMode === 'video' ? 'active' : ''}`}
-                type='button'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onModeChange('video');
-                }}
-              >
-                <Video size={18} />
-                <span>{t('视频')}</span>
-              </button>
-            </div>
-            {styledSendNode}
           </div>
         </div>
       </div>

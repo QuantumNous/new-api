@@ -2,6 +2,7 @@ import React, {
   useContext,
   useEffect,
   useCallback,
+  useMemo,
   useState,
   useRef,
 } from 'react';
@@ -73,7 +74,7 @@ const generateAvatarDataUrl = (username) => {
   return `data:image/svg+xml;base64,${encodeToBase64(svg)}`;
 };
 
-const Playground = () => {
+export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
   const { navigator } = useContext(NavigationContext);
@@ -90,8 +91,15 @@ const Playground = () => {
   const popstateGuardActiveRef = useRef(false);
   const imageAbortControllerRef = useRef(null);
   const videoPollingRef = useRef(new Set());
+  const playgroundUserIdentity = useMemo(
+    () => ({
+      id: userState?.user?.id || null,
+      username: userState?.user?.username || 'anonymous',
+    }),
+    [userState?.user?.id, userState?.user?.username],
+  );
 
-  const state = usePlaygroundState();
+  const state = usePlaygroundState(playgroundUserIdentity);
   const {
     inputs,
     parameterEnabled,
@@ -126,6 +134,17 @@ const Playground = () => {
     setCustomRequestBody,
     setPlaygroundMode,
   } = state;
+
+  useEffect(() => {
+    if (
+      forcedMode &&
+      (forcedMode === 'chat' ||
+        forcedMode === 'image' ||
+        forcedMode === 'video')
+    ) {
+      setPlaygroundMode(forcedMode);
+    }
+  }, [forcedMode, setPlaygroundMode]);
 
   // API 请求相关
   const { sendRequest, onStopGenerator } = useApiRequest(
@@ -341,12 +360,12 @@ const Playground = () => {
     console.log('attachment: ', attachment);
 
     if (playgroundMode === 'image') {
-      submitImageGeneration(content);
+      handleSubmitWithImageCleanup(() => submitImageGeneration(content));
       return;
     }
 
     if (playgroundMode === 'video') {
-      submitVideoGeneration(content);
+      handleSubmitWithImageCleanup(() => submitVideoGeneration(content));
       return;
     }
 
@@ -364,6 +383,7 @@ const Playground = () => {
 
           // 发送自定义请求体
           sendRequest(customPayload, customPayload.stream !== false);
+          clearSelectedImages();
 
           // 发送消息后保存，传入新消息列表
           setTimeout(() => saveMessagesImmediately(newMessages), 0);
@@ -400,13 +420,7 @@ const Playground = () => {
         parameterEnabled,
       );
       sendRequest(payload, inputs.stream);
-
-      // 禁用图片模式
-      if (inputs.imageEnabled) {
-        setTimeout(() => {
-          handleInputChange('imageEnabled', false);
-        }, 100);
-      }
+      clearSelectedImages();
 
       // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
       const messagesWithLoading = [...newMessages, loadingMessage];
@@ -525,6 +539,7 @@ const Playground = () => {
         n: Number(inputs.imageCount) || 1,
         size: inputs.imageSize || '1024x1024',
         quality: inputs.imageQuality || 'auto',
+        output_format: inputs.outputFormat || 'png',
         response_format: 'b64_json',
       };
 
@@ -533,6 +548,74 @@ const Playground = () => {
       }
 
       return payload;
+    },
+    [inputs],
+  );
+
+  const clearSelectedImages = useCallback(() => {
+    if (inputs.imageEnabled) {
+      handleInputChange('imageEnabled', false);
+    }
+    if (Array.isArray(inputs.imageUrls) && inputs.imageUrls.length > 0) {
+      handleInputChange('imageUrls', []);
+    }
+  }, [handleInputChange, inputs.imageEnabled, inputs.imageUrls]);
+
+  const handleSubmitWithImageCleanup = useCallback(
+    (submitAction) => {
+      clearSelectedImages();
+      return submitAction();
+    },
+    [clearSelectedImages],
+  );
+
+  const buildImageEditFormData = useCallback(
+    async (prompt) => {
+      const images = (inputs.imageUrls || []).filter(
+        (url) => url.trim() !== '',
+      );
+      const formData = new FormData();
+
+      formData.append('model', inputs.imageModel);
+      formData.append('prompt', prompt);
+      formData.append('n', String(Number(inputs.imageCount) || 1));
+      formData.append('size', inputs.imageSize || '1024x1024');
+      formData.append('quality', inputs.imageQuality || 'auto');
+      formData.append('output_format', inputs.outputFormat || 'png');
+      formData.append('response_format', 'b64_json');
+
+      if (inputs.group) {
+        formData.append('group', inputs.group);
+      }
+
+      const toBlob = async (url, index) => {
+        if (url.startsWith('data:')) {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const mimeType = blob.type || 'image/png';
+          const extension = mimeType.split('/')[1] || 'png';
+          return new File([blob], `reference-${index + 1}.${extension}`, {
+            type: mimeType,
+          });
+        }
+
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const mimeType = blob.type || 'image/png';
+        const extension = mimeType.split('/')[1] || 'png';
+        return new File([blob], `reference-${index + 1}.${extension}`, {
+          type: mimeType,
+        });
+      };
+
+      const files = await Promise.all(
+        images.map((url, index) => toBlob(url, index)),
+      );
+      files.forEach((file) => {
+        formData.append('image[]', file);
+      });
+
+      return formData;
     },
     [inputs],
   );
@@ -1048,6 +1131,12 @@ const Playground = () => {
         },
       );
       const payload = buildImagePayload(prompt);
+      const hasReferenceImages =
+        Array.isArray(inputs.imageUrls) &&
+        inputs.imageEnabled &&
+        inputs.imageUrls.some((url) => url.trim() !== '');
+
+      clearSelectedImages();
 
       setMessage((prevMessage) => {
         const nextMessages = [...prevMessage, userMessage, assistantMessage];
@@ -1070,22 +1159,39 @@ const Playground = () => {
         const abortController = new AbortController();
         imageAbortControllerRef.current = abortController;
 
-        const imageGenerationUrl = import.meta.env
-          .VITE_REACT_IMAGE_GENERATIONS_URL
-          ? import.meta.env.VITE_REACT_IMAGE_GENERATIONS_URL +
-            API_ENDPOINTS.IMAGE_GENERATIONS
-          : API_ENDPOINTS.IMAGE_GENERATIONS;
-
-        // 单独处理，因为访问改接口cloudflare有两分钟的超时
-        const createResponse = await fetch(imageGenerationUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
-          },
-          signal: abortController.signal,
-          body: JSON.stringify(payload),
-        });
+        let createResponse;
+        if (hasReferenceImages) {
+          const formData = await buildImageEditFormData(prompt);
+          setDebugData((prev) => ({
+            ...prev,
+            request: {
+              ...payload,
+              image: (inputs.imageUrls || []).filter(
+                (url) => url.trim() !== '',
+              ),
+              request_type: 'multipart/form-data',
+              endpoint: API_ENDPOINTS.IMAGE_EDITS,
+            },
+          }));
+          createResponse = await fetch(API_ENDPOINTS.IMAGE_EDITS, {
+            method: 'POST',
+            headers: {
+              'New-Api-User': getUserIdFromLocalStorage(),
+            },
+            signal: abortController.signal,
+            body: formData,
+          });
+        } else {
+          createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'New-Api-User': getUserIdFromLocalStorage(),
+            },
+            signal: abortController.signal,
+            body: JSON.stringify(payload),
+          });
+        }
 
         const createData = await createResponse.json();
         imageAbortControllerRef.current = null;
@@ -1138,8 +1244,12 @@ const Playground = () => {
     },
     [
       buildImageAssistantContent,
+      buildImageEditFormData,
       buildImagePayload,
+      clearSelectedImages,
       extractImageUrls,
+      inputs.imageEnabled,
+      inputs.imageUrls,
       setIsImageGenerationPending,
       setActiveDebugTab,
       setDebugData,
@@ -1637,6 +1747,7 @@ const Playground = () => {
       <div className='new-playground-page'>
         <PlaygroundSidebar
           conversations={conversations}
+          playgroundMode={playgroundMode}
           activeConversationId={activeConversationId}
           collapsed={sidebarCollapsed && !isMobile}
           isMobile={isMobile}
@@ -1688,4 +1799,6 @@ function useMemoizedCallback(callback) {
   return useCallback((...args) => callbackRef.current?.(...args), []);
 }
 
-export default Playground;
+export default function Playground() {
+  return <PlaygroundPage />;
+}

@@ -4233,6 +4233,9 @@
     "违规扣费：{{quota}} 配额": "Violation fee charged: {{quota}} quota",
     "任务退款：{{taskId}}": "Task refund: {{taskId}}",
     "任务补扣费：{{delta}} 配额": "Task settlement charge: {{delta}} quota",
-    "任务退还费用：{{delta}} 配额": "Task settlement refund: {{delta}} quota"
+    "任务退还费用：{{delta}} 配额": "Task settlement refund: {{delta}} quota",
+    "聊天助手": "Chat Assistant",
+    "图片助手": "Image Assistant",
+    "视频助手": "Video Assistant"
   }
 }
