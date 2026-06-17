@@ -352,12 +352,12 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     console.log('attachment: ', attachment);
 
     if (playgroundMode === 'image') {
-      submitImageGeneration(content);
+      handleSubmitWithImageCleanup(() => submitImageGeneration(content));
       return;
     }
 
     if (playgroundMode === 'video') {
-      submitVideoGeneration(content);
+      handleSubmitWithImageCleanup(() => submitVideoGeneration(content));
       return;
     }
 
@@ -375,6 +375,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
 
           // 发送自定义请求体
           sendRequest(customPayload, customPayload.stream !== false);
+          clearSelectedImages();
 
           // 发送消息后保存，传入新消息列表
           setTimeout(() => saveMessagesImmediately(newMessages), 0);
@@ -411,13 +412,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
         parameterEnabled,
       );
       sendRequest(payload, inputs.stream);
-
-      // 禁用图片模式
-      if (inputs.imageEnabled) {
-        setTimeout(() => {
-          handleInputChange('imageEnabled', false);
-        }, 100);
-      }
+      clearSelectedImages();
 
       // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
       const messagesWithLoading = [...newMessages, loadingMessage];
@@ -547,6 +542,23 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       return payload;
     },
     [inputs],
+  );
+
+  const clearSelectedImages = useCallback(() => {
+    if (inputs.imageEnabled) {
+      handleInputChange('imageEnabled', false);
+    }
+    if (Array.isArray(inputs.imageUrls) && inputs.imageUrls.length > 0) {
+      handleInputChange('imageUrls', []);
+    }
+  }, [handleInputChange, inputs.imageEnabled, inputs.imageUrls]);
+
+  const handleSubmitWithImageCleanup = useCallback(
+    (submitAction) => {
+      clearSelectedImages();
+      return submitAction();
+    },
+    [clearSelectedImages],
   );
 
   const buildImageEditFormData = useCallback(
@@ -1116,6 +1128,8 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
         inputs.imageEnabled &&
         inputs.imageUrls.some((url) => url.trim() !== '');
 
+      clearSelectedImages();
+
       setMessage((prevMessage) => {
         const nextMessages = [...prevMessage, userMessage, assistantMessage];
         persistMessagesSnapshot(nextMessages);
@@ -1224,6 +1238,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       buildImageAssistantContent,
       buildImageEditFormData,
       buildImagePayload,
+      clearSelectedImages,
       extractImageUrls,
       inputs.imageEnabled,
       inputs.imageUrls,
