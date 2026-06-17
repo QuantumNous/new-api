@@ -18,33 +18,55 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Edit } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
 type UnpricedModelCardProps = {
   modelName: string
+  active?: boolean
   onEdit: () => void
 }
 
 export function UnpricedModelCard({
   modelName,
+  active = false,
   onEdit,
 }: UnpricedModelCardProps) {
   const { t } = useTranslation()
 
   return (
-    <Card className='hover:border-primary/50 transition-colors'>
-      <CardContent className='flex items-center justify-between gap-3 p-4'>
+    <Card
+      className={cn(
+        'hover:border-primary/50 transition-colors',
+        active && 'border-primary/50 bg-muted/45'
+      )}
+    >
+      <CardContent
+        className='flex cursor-pointer items-center justify-between gap-3 p-4'
+        onClick={onEdit}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
+          if (event.key !== 'Enter' && event.key !== ' ') return
+
+          event.preventDefault()
+          onEdit()
+        }}
+        role='button'
+        tabIndex={0}
+        aria-pressed={active}
+      >
         <div className='min-w-0 flex-1'>
           <h4 className='truncate text-sm font-medium'>{modelName}</h4>
-          <p className='text-muted-foreground text-xs'>
-            {t('Price not set')}
-          </p>
+          <p className='text-muted-foreground text-xs'>{t('Price not set')}</p>
         </div>
         <Button
           size='sm'
           variant='outline'
-          onClick={onEdit}
+          onClick={(event) => {
+            event.stopPropagation()
+            onEdit()
+          }}
           className='shrink-0'
         >
           <Edit className='size-3.5' />

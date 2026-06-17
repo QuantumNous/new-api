@@ -18,15 +18,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMediaQuery } from '@/hooks'
+import { Edit, Info, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Info, Search } from 'lucide-react'
+import { api } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
-import { ModelPricingSheet, type ModelRatioData } from './model-pricing-sheet'
 import { hasValue } from './model-pricing-core'
+import {
+  ModelPricingEditorPanel,
+  type ModelPricingEditorPanelHandle,
+  ModelPricingSheet,
+  type ModelRatioData,
+} from './model-pricing-sheet'
 import { UnpricedModelCard } from './unpriced-model-card'
 import { useUpdateModelRatios } from './use-update-model-ratios'
 
@@ -68,16 +75,19 @@ export function UnpricedModelsEditor({
 }: UnpricedModelsEditorProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedModel, setSelectedModel] = useState<ModelRatioData | null>(
     null
   )
   const [sheetOpen, setSheetOpen] = useState(false)
-  const editorRef = useRef<{ commitDraft: () => Promise<ModelRatioData | null> }>(
-    null
-  )
+  const editorRef = useRef<ModelPricingEditorPanelHandle>(null)
 
-  const { data: enabledModels = [], isLoading, error } = useQuery({
+  const {
+    data: enabledModels = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['enabled-models'],
     queryFn: fetchEnabledModels,
     staleTime: 30_000,
@@ -139,6 +149,12 @@ export function UnpricedModelsEditor({
     )
   }, [unpricedModels, searchQuery])
 
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    setSelectedModel(null)
+    setSheetOpen(false)
+  }, [])
+
   const handleEditModel = useCallback(
     (modelName: string) => {
       const editData: ModelRatioData = {
@@ -155,15 +171,15 @@ export function UnpricedModelsEditor({
       }
 
       setSelectedModel(editData)
-      setSheetOpen(true)
+      if (isMobile) {
+        setSheetOpen(true)
+      }
     },
-    []
+    [isMobile]
   )
 
-  const {
-    mutateAsync: updateModelRatios,
-    isPending: isUpdatingModelRatios,
-  } = useUpdateModelRatios()
+  const { mutateAsync: updateModelRatios, isPending: isUpdatingModelRatios } =
+    useUpdateModelRatios()
 
   const handleSave = useCallback(async () => {
     const draft = await editorRef.current?.commitDraft()
@@ -186,11 +202,17 @@ export function UnpricedModelsEditor({
   if (isLoading) {
     return (
       <div className='space-y-4'>
-        <Skeleton className='h-10 w-full' />
-        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className='h-24 w-full' />
-          ))}
+        <Skeleton className='h-12 w-full rounded-lg' />
+        <div className='grid h-[clamp(720px,calc(100vh-12rem),900px)] min-h-0 gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'>
+          <div className='rounded-xl border p-3'>
+            <Skeleton className='mb-3 h-10 w-full' />
+            <div className='space-y-2'>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className='h-14 w-full rounded-lg' />
+              ))}
+            </div>
+          </div>
+          <Skeleton className='hidden h-full rounded-xl md:block' />
         </div>
       </div>
     )
@@ -198,7 +220,7 @@ export function UnpricedModelsEditor({
 
   return (
     <>
-      <div className='space-y-4'>
+      <div className='flex flex-col gap-4'>
         <Alert>
           <Info data-icon='inline-start' />
           <AlertDescription>
@@ -208,68 +230,111 @@ export function UnpricedModelsEditor({
           </AlertDescription>
         </Alert>
 
-        <div className='flex items-center gap-3'>
-          <div className='relative flex-1'>
-            <Search
-              className='text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2'
-              aria-hidden
-            />
-            <Input
-              type='search'
-              placeholder={t('Search model name...')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className='pl-9'
-            />
-          </div>
-        </div>
+        <div className='grid h-[clamp(720px,calc(100vh-12rem),900px)] min-h-0 gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'>
+          <aside className='flex min-h-0 min-w-0 flex-col rounded-xl border p-3'>
+            <div className='mb-3 flex items-start justify-between gap-3'>
+              <div className='min-w-0'>
+                <h3 className='text-foreground text-sm font-bold'>
+                  {t('Unpriced models')}
+                </h3>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  {searchQuery.trim()
+                    ? t('{{count}} matching models', {
+                        count: filteredModels.length,
+                      })
+                    : t('{{count}} unpriced models', {
+                        count: unpricedModels.length,
+                      })}
+                </p>
+              </div>
+            </div>
 
-        {filteredModels.length === 0 ? (
-          <div className='bg-muted/20 flex min-h-[240px] flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center'>
-            <h3 className='mb-2 text-base font-medium'>
-              {searchQuery.trim()
-                ? t('No matching models')
-                : t('No unpriced models')}
-            </h3>
-            <p className='text-muted-foreground text-sm'>
-              {searchQuery.trim()
-                ? t('Try adjusting your search query')
-                : t('All enabled models have been priced')}
-            </p>
-          </div>
-        ) : (
-          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-            {filteredModels.map((model) => (
-              <UnpricedModelCard
-                key={model.name}
-                modelName={model.name}
-                onEdit={() => handleEditModel(model.name)}
+            <div className='relative mb-3'>
+              <Search
+                className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
+                aria-hidden
               />
-            ))}
-          </div>
-        )}
+              <Input
+                type='search'
+                placeholder={t('Search model name...')}
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className='pl-9'
+              />
+            </div>
 
-        <div className='text-muted-foreground flex items-center justify-between text-sm'>
-          <span>
-            {searchQuery.trim()
-              ? t('{{count}} matching models', {
-                  count: filteredModels.length,
-                })
-              : t('{{count}} unpriced models', {
-                  count: unpricedModels.length,
-                })}
-          </span>
+            {filteredModels.length === 0 ? (
+              <div className='text-muted-foreground flex min-h-0 flex-1 flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center'>
+                <h3 className='text-foreground mb-2 text-base font-medium'>
+                  {searchQuery.trim()
+                    ? t('No matching models')
+                    : t('No unpriced models')}
+                </h3>
+                <p className='text-sm'>
+                  {searchQuery.trim()
+                    ? t('Try adjusting your search query')
+                    : t('All enabled models have been priced')}
+                </p>
+              </div>
+            ) : (
+              <div className='hover-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1'>
+                {filteredModels.map((model) => (
+                  <UnpricedModelCard
+                    key={model.name}
+                    modelName={model.name}
+                    active={selectedModel?.name === model.name}
+                    onEdit={() => handleEditModel(model.name)}
+                  />
+                ))}
+              </div>
+            )}
+          </aside>
+
+          <div className='hidden min-h-0 min-w-0 md:block'>
+            {selectedModel ? (
+              <ModelPricingEditorPanel
+                ref={editorRef}
+                editData={selectedModel}
+                onSave={handleSave}
+                isSaving={isUpdatingModelRatios}
+                className='h-full min-h-0'
+              />
+            ) : (
+              <div className='bg-card text-muted-foreground flex h-full min-h-0 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center'>
+                <div className='text-foreground text-base font-medium'>
+                  {t('Select a model to edit pricing')}
+                </div>
+                <p className='max-w-sm text-sm'>
+                  {t(
+                    "Update model configuration and click save when you're done."
+                  )}
+                </p>
+                {filteredModels.length > 0 && (
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() => handleEditModel(filteredModels[0].name)}
+                  >
+                    <Edit data-icon='inline-start' />
+                    {t('Set price')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <ModelPricingSheet
-        ref={editorRef}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        editData={selectedModel}
-        onSave={handleSave}
-        isSaving={isUpdatingModelRatios}
-      />
+      {isMobile && (
+        <ModelPricingSheet
+          ref={editorRef}
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          editData={selectedModel}
+          onSave={handleSave}
+          isSaving={isUpdatingModelRatios}
+        />
+      )}
     </>
   )
 }
