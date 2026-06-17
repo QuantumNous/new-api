@@ -485,3 +485,19 @@ func TestResolveReturnInvariant(t *testing.T) {
 		})
 	}
 }
+
+// ── SetDB wiring ──────────────────────────────────────────────────────────────
+
+// TestSetDB_Wiring confirms that SetDB stores exactly the supplied *gorm.DB in
+// the package-level var and that the var is nil before SetDB is called (ensuring
+// no earlier test accidentally initialised it).
+func TestSetDB_Wiring(t *testing.T) {
+	require.Nil(t, db, "package-level db must be nil before SetDB — earlier test must not have called SetDB")
+
+	database := newTestDB(t)
+	SetDB(database)
+	t.Cleanup(func() { db = nil }) // restore so no state leaks if tests are ever reordered
+
+	assert.NotNil(t, db, "package-level db must be non-nil after SetDB")
+	assert.Same(t, database, db, "SetDB must store exactly the supplied *gorm.DB instance")
+}
