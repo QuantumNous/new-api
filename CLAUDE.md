@@ -143,3 +143,20 @@ When creating a pull request:
 - First compare the current git user (`git config user.name` / `git config user.email`) with the repository's historical core developers (for example, the recurring top authors in `git log`). Do not change git config.
 - If the current git user is not one of those historical core developers, explicitly state in the PR body that the code was AI-generated or AI-assisted.
 - Always use the repository PR template at `.github/PULL_REQUEST_TEMPLATE.md` when drafting the PR title/body. Preserve the template structure and fill in the relevant sections instead of replacing it with an ad hoc format.
+
+### Rule 9: Backend Test Quality — No Reward-Hacking Tests
+
+Backend tests must protect real behavior, API contracts, billing/accounting invariants, data compatibility, or regression paths. Do not add tests that only improve coverage numbers, prove that code happens to run, or lock in an implementation detail without a user-visible or cross-module contract.
+
+Avoid these test shapes:
+- Fake fuzz, stress, smoke, or performance tests built from random inputs, large loop counts, sleeps, timing comparisons, or log-only assertions.
+- Duplicate tests that exercise the same branch with different names but no new invariant.
+- Tests that force an incorrect provider or protocol semantic into production code.
+- Tests that assert private constants, select-field lists, helper internals, or file layout when the observable behavior is already covered elsewhere.
+- Hand-written replacements for standard library helpers inside tests.
+
+Prefer deterministic table tests with explicit inputs and exact expected outputs. Merge overlapping tests, remove unclear or redundant cases, and keep file names aligned with the domain or module under test. When a test needs database, request context, user group, settings, or cache state, initialize that state explicitly inside the test fixture rather than relying on global leftovers from other tests.
+
+New or substantially rewritten Go backend tests MUST use `github.com/stretchr/testify/require` for setup and fatal assertions, and `github.com/stretchr/testify/assert` for non-fatal value checks. Avoid hand-written assertion helpers unless they encode a reusable project-specific invariant.
+
+When cleaning tests, preserve meaningful regression coverage. If a deleted test was covering a real contract indirectly, replace it with a smaller test that names and asserts that contract directly.
