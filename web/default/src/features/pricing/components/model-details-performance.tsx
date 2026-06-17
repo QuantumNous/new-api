@@ -31,6 +31,7 @@ import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
+  getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { type UptimeDayPoint } from '../lib/mock-stats'
@@ -43,10 +44,9 @@ function StatCard(props: {
   label: string
   value: React.ReactNode
   hint?: string
-  intent?: 'default' | 'warning' | 'success'
+  valueClassName?: string
 }) {
   const Icon = props.icon
-  const intent = props.intent ?? 'default'
   return (
     <div className='bg-background flex flex-col gap-1 rounded-lg border p-3'>
       <span className='text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase'>
@@ -56,8 +56,7 @@ function StatCard(props: {
       <span
         className={cn(
           'text-foreground font-mono text-lg font-semibold tabular-nums',
-          intent === 'warning' && 'text-amber-600 dark:text-amber-400',
-          intent === 'success' && 'text-emerald-600 dark:text-emerald-400'
+          props.valueClassName
         )}
       >
         {props.value}
@@ -217,12 +216,6 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
         successRates.length
       : 0
   const incidentCount = uptimeSeries.reduce((s, p) => s + p.incidents, 0)
-  let intent: 'default' | 'warning' | 'success' = 'warning'
-  if (successRate >= 99.9) {
-    intent = 'success'
-  } else if (successRate >= 99) {
-    intent = 'default'
-  }
 
   return (
     <div className='flex flex-col gap-4'>
@@ -249,7 +242,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
                 })
               : t('No incidents in the last 24 hours')
           }
-          intent={intent}
+          valueClassName={getSuccessRateTextClass(successRate)}
         />
       </div>
 

@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import {
   formatLatency,
   formatThroughput,
+  getSuccessRateDotClass,
 } from '@/features/performance-metrics/lib/format'
 
 export type ModelPerfBadgeData = {
@@ -49,12 +50,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
 
   const { avg_latency_ms, avg_tps, success_rate } = props.perf
 
-  let statusColor = 'bg-emerald-500'
-  if (success_rate < 99) {
-    statusColor = 'bg-red-500'
-  } else if (success_rate < 99.9) {
-    statusColor = 'bg-amber-500'
-  }
+  const statusColor = getSuccessRateDotClass(success_rate)
 
   return (
     <div

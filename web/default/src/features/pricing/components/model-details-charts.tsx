@@ -24,6 +24,7 @@ import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
+import { getSuccessRateColor } from '@/features/performance-metrics/lib/format'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 function formatHourLabel(iso: string): string {
@@ -229,11 +230,7 @@ export function UptimeTrendChart(props: {
           size: 5,
           stroke: '#ffffff',
           lineWidth: 1.5,
-          fill: (datum: { uptime: number }) => {
-            if (datum.uptime >= 99.9) return '#10b981'
-            if (datum.uptime >= 99.0) return '#f59e0b'
-            return '#ef4444'
-          },
+          fill: (datum: { uptime: number }) => getSuccessRateColor(datum.uptime),
         },
       },
       tooltip: {
