@@ -318,6 +318,29 @@ func TestSendEmailDoesNotAutoUpgradeWhenStartTLSDisabled(t *testing.T) {
 	}
 }
 
+func TestNewSMTPClientHonorsExplicitStartTLSWhenPortIs465(t *testing.T) {
+	server := newFakeSMTPServer(t)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = 465
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = true
+	SMTPInsecureSkipVerify = true
+
+	client, err := newSMTPClient(fmt.Sprintf("%s:%d", server.host, server.port))
+	require.NoError(t, err)
+	defer client.Close()
+
+	select {
+	case command := <-server.startTLSCommands:
+		require.Equal(t, "STARTTLS", command)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SMTP STARTTLS")
+	}
+}
+
 func TestSendEmailSkipsAuthWhenCredentialsAreEmpty(t *testing.T) {
 	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
 	defer server.close()
