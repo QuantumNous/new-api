@@ -75,3 +75,85 @@ func TestRunCodexLimitReportSkipsCacheRebuildWithoutRefreshes(t *testing.T) {
 		t.Fatalf("rebuildCodexChannelCache called %d times, want 0", got)
 	}
 }
+
+// The 401->refresh->retry path of codexChannelUpstreamWithRefresh exercises
+// model.UpdateChannelKey + RefreshCodexOAuthTokenWithProxy (DB + network) and is
+// covered by the byte-for-byte-preserved refactor plus manual verification. The
+// tests below lock the DB-free contract of the shared wrapper: the type/multi-key
+// guards short-circuit before any upstream call, and a 2xx response returns the
+// injected result without a retry or a key refresh.
+
+func TestCodexChannelUpstreamWithRefreshHappyPathNoRefresh(t *testing.T) {
+	ch := &model.Channel{
+		Id:   1,
+		Type: constant.ChannelTypeCodex,
+		Key:  `{"access_token":"at-123","account_id":"acct-123"}`,
+	}
+	calls := 0
+	gotToken := ""
+	gotAccount := ""
+	status, body, refreshed, err := codexChannelUpstreamWithRefresh(
+		context.Background(), ch,
+		func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
+			calls++
+			gotToken = accessToken
+			gotAccount = accountID
+			return http.StatusOK, []byte("pong"), nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != http.StatusOK || string(body) != "pong" {
+		t.Fatalf("status=%d body=%q, want 200/pong", status, body)
+	}
+	if refreshed {
+		t.Fatal("refreshed should be false on a 200 response")
+	}
+	if calls != 1 {
+		t.Fatalf("do called %d times, want 1 (no retry on 200)", calls)
+	}
+	if gotToken != "at-123" || gotAccount != "acct-123" {
+		t.Fatalf("do received token=%q account=%q, want at-123/acct-123", gotToken, gotAccount)
+	}
+}
+
+func TestCodexChannelUpstreamWithRefreshRejectsNonCodex(t *testing.T) {
+	ch := &model.Channel{Id: 1, Type: constant.ChannelTypeOpenAI}
+	called := false
+	_, _, _, err := codexChannelUpstreamWithRefresh(
+		context.Background(), ch,
+		func(*http.Client, string, string) (int, []byte, error) {
+			called = true
+			return http.StatusOK, nil, nil
+		},
+	)
+	if err == nil {
+		t.Fatal("expected error for non-Codex channel")
+	}
+	if called {
+		t.Fatal("do must not be called for a non-Codex channel")
+	}
+}
+
+func TestCodexChannelUpstreamWithRefreshRejectsMultiKey(t *testing.T) {
+	ch := &model.Channel{
+		Id:          1,
+		Type:        constant.ChannelTypeCodex,
+		ChannelInfo: model.ChannelInfo{IsMultiKey: true},
+	}
+	called := false
+	_, _, _, err := codexChannelUpstreamWithRefresh(
+		context.Background(), ch,
+		func(*http.Client, string, string) (int, []byte, error) {
+			called = true
+			return http.StatusOK, nil, nil
+		},
+	)
+	if err == nil {
+		t.Fatal("expected error for multi-key channel")
+	}
+	if called {
+		t.Fatal("do must not be called for a multi-key channel")
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const codexLimitReportRequestTimeout = 60 * time.Second
@@ -284,12 +285,16 @@ func ConsumeCodexResetCredit(c *gin.Context) {
 		return
 	}
 
+	// Generate the idempotency key ONCE so the 401/403 refresh-retry inside the
+	// wrapper reuses the same redeem_request_id and the upstream can dedupe the
+	// "debited-then-401" round-trip instead of spending a second credit.
+	redeemRequestID := uuid.NewString()
 	statusCode, body, refreshed, err := codexChannelUpstreamWithRefresh(
 		c.Request.Context(), ch,
 		func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
 			reqCtx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 			defer cancel()
-			return service.ConsumeCodexResetCredit(reqCtx, client, ch.GetBaseURL(), accessToken, accountID)
+			return service.ConsumeCodexResetCredit(reqCtx, client, ch.GetBaseURL(), accessToken, accountID, redeemRequestID)
 		},
 	)
 	if refreshed {

@@ -9,18 +9,23 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/google/uuid"
 )
 
 // ConsumeCodexResetCredit redeems one rate-limit reset credit for a Codex
 // account by calling the upstream consume endpoint. The caller owns token
 // refresh on 401/403; this function performs a single request.
+//
+// redeemRequestID is the idempotency key and MUST be a canonical hyphenated
+// UUID-v4 (8-4-4-4-12) generated ONCE by the caller, so that a token-refresh
+// retry reuses the same id and the upstream can dedupe — otherwise a
+// "debited-then-401" round-trip would spend a second credit.
 func ConsumeCodexResetCredit(
 	ctx context.Context,
 	client *http.Client,
 	baseURL string,
 	accessToken string,
 	accountID string,
+	redeemRequestID string,
 ) (statusCode int, body []byte, err error) {
 	if client == nil {
 		return 0, nil, fmt.Errorf("nil http client")
@@ -31,17 +36,18 @@ func ConsumeCodexResetCredit(
 	}
 	at := strings.TrimSpace(accessToken)
 	aid := strings.TrimSpace(accountID)
+	rid := strings.TrimSpace(redeemRequestID)
 	if at == "" {
 		return 0, nil, fmt.Errorf("empty accessToken")
 	}
 	if aid == "" {
 		return 0, nil, fmt.Errorf("empty accountID")
 	}
+	if rid == "" {
+		return 0, nil, fmt.Errorf("empty redeemRequestID")
+	}
 
-	// redeem_request_id MUST be a canonical hyphenated UUID-v4 (8-4-4-4-12), matching
-	// the sub2api reference. Do NOT use common.GetUUID(), which strips dashes and would
-	// yield a 32-char hex string the upstream may reject.
-	payload, err := common.Marshal(map[string]string{"redeem_request_id": uuid.NewString()})
+	payload, err := common.Marshal(map[string]string{"redeem_request_id": rid})
 	if err != nil {
 		return 0, nil, err
 	}

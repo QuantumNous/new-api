@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/google/uuid"
 )
 
 // uuidV4Pattern matches a canonical hyphenated UUID-v4 (8-4-4-4-12).
@@ -33,8 +34,9 @@ func TestConsumeCodexResetCreditSendsExpectedRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	redeemID := uuid.NewString()
 	status, body, err := ConsumeCodexResetCredit(
-		context.Background(), srv.Client(), srv.URL, "tok-abc", "acct-123",
+		context.Background(), srv.Client(), srv.URL, "tok-abc", "acct-123", redeemID,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -73,6 +75,9 @@ func TestConsumeCodexResetCreditSendsExpectedRequest(t *testing.T) {
 		t.Fatalf("body should have exactly one key, got %#v", gotBodyKeys)
 	}
 	id := strings.TrimSpace(gotBodyKeys["redeem_request_id"])
+	if id != redeemID {
+		t.Fatalf("redeem_request_id = %q, want the caller-supplied id %q (echoed verbatim)", id, redeemID)
+	}
 	if !uuidV4Pattern.MatchString(id) {
 		t.Fatalf("redeem_request_id = %q, want canonical hyphenated UUID-v4", id)
 	}
@@ -82,13 +87,17 @@ func TestConsumeCodexResetCreditSendsExpectedRequest(t *testing.T) {
 }
 
 func TestConsumeCodexResetCreditValidatesArgs(t *testing.T) {
-	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "", "tok", "acct"); err == nil {
+	rid := uuid.NewString()
+	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "", "tok", "acct", rid); err == nil {
 		t.Fatal("expected error for empty baseURL")
 	}
-	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "https://x", "", "acct"); err == nil {
+	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "https://x", "", "acct", rid); err == nil {
 		t.Fatal("expected error for empty accessToken")
 	}
-	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "https://x", "tok", ""); err == nil {
+	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "https://x", "tok", "", rid); err == nil {
 		t.Fatal("expected error for empty accountID")
+	}
+	if _, _, err := ConsumeCodexResetCredit(context.Background(), http.DefaultClient, "https://x", "tok", "acct", "  "); err == nil {
+		t.Fatal("expected error for empty redeemRequestID")
 	}
 }
