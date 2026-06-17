@@ -57,6 +57,74 @@ func TestNormalizeClaudeUsageFields_MessageStartZeroStillAddsCacheCreation(t *te
 	assert.EqualValues(t, 0, gjson.Get(out, "message.usage.cache_creation.ephemeral_1h_input_tokens").Int())
 }
 
+func TestNormalizeClaudeUsageFields_OfficialNestedFallbackPreserved(t *testing.T) {
+	withNormalize(t, true)
+
+	// Official schema upstream: no flat aliases, nested cache_creation carries
+	// the real 5m write. The fallback must preserve it, not clear it to 0.
+	const nestedFmt = `{"input_tokens":14,"cache_creation_input_tokens":15193,"cache_read_input_tokens":0,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":15193,"ephemeral_1h_input_tokens":0},"output_tokens":4}`
+
+	// streaming message_start prefix
+	startData := `{"type":"message_start","message":{"id":"x","model":"m","usage":` + nestedFmt + `}}`
+	startOut := normalizeClaudeUsageFields(startData, "message.usage", true)
+	assert.EqualValues(t, 15193, gjson.Get(startOut, "message.usage.cache_creation.ephemeral_5m_input_tokens").Int())
+	assert.EqualValues(t, 0, gjson.Get(startOut, "message.usage.cache_creation.ephemeral_1h_input_tokens").Int())
+
+	// non-stream top-level "usage" prefix
+	nonStreamData := `{"type":"message","id":"x","model":"m","usage":` + nestedFmt + `}`
+	nonStreamOut := normalizeClaudeUsageFields(nonStreamData, "usage", true)
+	assert.EqualValues(t, 15193, gjson.Get(nonStreamOut, "usage.cache_creation.ephemeral_5m_input_tokens").Int())
+	assert.EqualValues(t, 0, gjson.Get(nonStreamOut, "usage.cache_creation.ephemeral_1h_input_tokens").Int())
+}
+
+func TestNormalizeClaudeUsageFields_FlatTotalOnlyGoesTo5m(t *testing.T) {
+	withNormalize(t, true)
+
+	// Only the flat total is present (no aliases, no nested split): the billing
+	// split convention normalizes the remainder into 5m.
+	data := `{"type":"message_start","message":{"usage":{"input_tokens":14,` +
+		`"cache_creation_input_tokens":15193,"cache_read_input_tokens":0,"output_tokens":4}}}`
+
+	out := normalizeClaudeUsageFields(data, "message.usage", true)
+
+	assert.EqualValues(t, 15193, gjson.Get(out, "message.usage.cache_creation.ephemeral_5m_input_tokens").Int())
+	assert.EqualValues(t, 0, gjson.Get(out, "message.usage.cache_creation.ephemeral_1h_input_tokens").Int())
+}
+
+func TestNormalizeClaudeUsageFields_FlatAliasesWinOverNested(t *testing.T) {
+	withNormalize(t, true)
+
+	// nested-new-api upstream (PR#2155): flat aliases present AND nested also
+	// present. The aliases must win — proving the fallback does not change
+	// existing behavior for alias-carrying upstreams.
+	data := `{"type":"message_start","message":{"usage":{"input_tokens":1026,` +
+		`"claude_cache_creation_5_m_tokens":12,"claude_cache_creation_1_h_tokens":7,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":999,"ephemeral_1h_input_tokens":888},` +
+		`"output_tokens":1}}}`
+
+	out := normalizeClaudeUsageFields(data, "message.usage", true)
+
+	assert.False(t, gjson.Get(out, "message.usage.claude_cache_creation_5_m_tokens").Exists())
+	assert.False(t, gjson.Get(out, "message.usage.claude_cache_creation_1_h_tokens").Exists())
+	assert.EqualValues(t, 12, gjson.Get(out, "message.usage.cache_creation.ephemeral_5m_input_tokens").Int())
+	assert.EqualValues(t, 7, gjson.Get(out, "message.usage.cache_creation.ephemeral_1h_input_tokens").Int())
+}
+
+func TestNormalizeClaudeUsageFields_NonStreamZeroStillAddsCacheCreation(t *testing.T) {
+	withNormalize(t, true)
+
+	// non-stream "usage" prefix: all sources are 0 (no aliases, no nested, no
+	// total) — the official cache_creation{} must still be written as {0,0}.
+	data := `{"type":"message","usage":{"input_tokens":5,"output_tokens":1}}`
+
+	out := normalizeClaudeUsageFields(data, "usage", true)
+
+	assert.True(t, gjson.Get(out, "usage.cache_creation").Exists())
+	assert.EqualValues(t, 0, gjson.Get(out, "usage.cache_creation.ephemeral_5m_input_tokens").Int())
+	assert.EqualValues(t, 0, gjson.Get(out, "usage.cache_creation.ephemeral_1h_input_tokens").Int())
+}
+
 func TestNormalizeClaudeUsageFields_MessageDeltaStripsOnly(t *testing.T) {
 	withNormalize(t, true)
 
