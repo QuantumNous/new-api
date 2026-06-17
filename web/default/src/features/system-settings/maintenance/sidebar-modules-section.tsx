@@ -68,7 +68,7 @@ export function SidebarModulesSection({
       description: t('Wallet management and personal preferences.'),
     },
     marketplace: {
-      title: t('Marketplace area'),
+      title: t('Marketplace Area'),
       description: t('Skill discovery and management.'),
     },
     admin: {

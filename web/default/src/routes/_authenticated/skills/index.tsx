@@ -19,6 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute } from '@tanstack/react-router'
 import { Marketplace } from '@/features/marketplace'
 
-export const Route = createFileRoute('/skills/')({
+export const Route = createFileRoute('/_authenticated/skills/')({
   component: Marketplace,
 })

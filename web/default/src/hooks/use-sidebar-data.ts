@@ -106,22 +106,6 @@ export function useSidebarData(): SidebarData {
         ],
       },
       {
-        id: 'marketplace',
-        title: t('Marketplace'),
-        items: [
-          {
-            title: t('Skills'),
-            url: '/skills',
-            icon: Store,
-          },
-          {
-            title: t('My Skills'),
-            url: '/skills/my',
-            icon: Sparkles,
-          },
-        ],
-      },
-      {
         id: 'personal',
         title: t('Personal'),
         items: [
@@ -134,6 +118,22 @@ export function useSidebarData(): SidebarData {
             title: t('Profile'),
             url: '/profile',
             icon: User,
+          },
+        ],
+      },
+      {
+        id: 'marketplace',
+        title: t('Marketplace'),
+        items: [
+          {
+            title: t('Skills'),
+            url: '/skills',
+            icon: Store,
+          },
+          {
+            title: t('My Skills'),
+            url: '/skills/my',
+            icon: Sparkles,
           },
         ],
       },

@@ -18,20 +18,26 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Store } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { PublicLayout } from '@/components/layout'
+import { SectionPageLayout } from '@/components/layout'
 import { EmptyState } from '@/components/empty-state'
 
 export function Marketplace() {
   const { t } = useTranslation()
 
   return (
-    <PublicLayout>
-      <EmptyState
-        icon={Store}
-        title={t('Skill Marketplace')}
-        description={t('Skill Marketplace is not available yet.')}
-        bordered
-      />
-    </PublicLayout>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Skill Marketplace')}</SectionPageLayout.Title>
+      <SectionPageLayout.Description>
+        {t('Browse and enable skills to enhance your AI experience')}
+      </SectionPageLayout.Description>
+      <SectionPageLayout.Content>
+        <EmptyState
+          icon={Store}
+          title={t('Skill Marketplace')}
+          description={t('Skill Marketplace is not available yet.')}
+          bordered
+        />
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

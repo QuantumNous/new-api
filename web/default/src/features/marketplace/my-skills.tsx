@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Store } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { EmptyState } from '@/components/empty-state'
@@ -32,7 +32,7 @@ export function MySkills() {
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <EmptyState
-          icon={Store}
+          icon={Sparkles}
           title={t('My Skills')}
           description={t('Skill Marketplace is not available yet.')}
           bordered
