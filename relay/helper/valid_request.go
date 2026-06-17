@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 
@@ -237,6 +239,30 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	}
 	if textRequest.Model == "" {
 		return nil, errors.New("field model is required")
+	}
+
+	// thinking, when present, must carry a non-empty "type". The Anthropic API
+	// rejects a thinking object without a type (e.g. the invalid "thinking.enable")
+	// with a 400; because new-api parses into dto.Thinking and re-marshals,
+	// unknown subkeys are silently dropped, which would otherwise turn that 400
+	// into a 200. We only require type to be non-empty; the upstream still
+	// validates its value and other rules.
+	//
+	// Skip the check for effort-suffix models (e.g. claude-opus-4-8-high): the
+	// native handler synthesizes thinking.type for those later (claude_handler.go),
+	// overwriting whatever the client sent, so an empty type is valid there and
+	// rejecting it would regress a previously-working request.
+	//
+	// Use a Claude-shaped invalid_request_error and a message WITHOUT a
+	// "word.word" token, otherwise common.MaskSensitiveInfo (applied in
+	// ToClaudeError) would corrupt a "thinking.type" mention into "***.type".
+	if textRequest.Thinking != nil && textRequest.Thinking.Type == "" {
+		if _, effort, ok := reasoning.TrimEffortSuffix(textRequest.Model); !ok || effort == "" {
+			return nil, types.WithClaudeError(types.ClaudeError{
+				Type:    "invalid_request_error",
+				Message: "thinking must include a non-empty type",
+			}, http.StatusBadRequest)
+		}
 	}
 
 	//if textRequest.Stream {
