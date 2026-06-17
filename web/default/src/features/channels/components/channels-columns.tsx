@@ -51,7 +51,8 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
-import { consumeCodexReset, getCodexUsage } from '../api'
+import { getCodexUsage } from '../api'
+import { useCodexResetConsumer } from '../hooks/use-codex-reset-consumer'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
@@ -301,7 +302,8 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
-  const [codexConsuming, setCodexConsuming] = useState(false)
+  const { isConsuming: codexConsuming, consume: consumeCodexResetCredit } =
+    useCodexResetConsumer()
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -352,27 +354,6 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
     await handleUpdateChannelBalance(channel.id, queryClient)
     setIsUpdating(false)
-  }
-
-  const handleConsumeCodexReset = async (channelId: number) => {
-    setCodexConsuming(true)
-    try {
-      const res = await consumeCodexReset(channelId)
-      if (res?.success) {
-        const windows = Number(
-          (res.data as { windows_reset?: number })?.windows_reset ?? 0
-        )
-        toast.success(t('Reset {{count}} windows', { count: windows }))
-        const refreshed = await getCodexUsage(channelId)
-        setCodexUsageResponse(refreshed)
-      } else {
-        toast.error(res?.message || t('Failed to consume reset credit'))
-      }
-    } catch {
-      toast.error(t('Failed to consume reset credit'))
-    } finally {
-      setCodexConsuming(false)
-    }
   }
 
   return (
@@ -458,7 +439,10 @@ function BalanceCell({ channel }: { channel: Channel }) {
           }
         }}
         isRefreshing={isUpdating}
-        onConsume={() => handleConsumeCodexReset(channel.id)}
+        onConsume={async () => {
+          const refreshed = await consumeCodexResetCredit(channel.id)
+          if (refreshed) setCodexUsageResponse(refreshed)
+        }}
         isConsuming={codexConsuming}
       />
     </TooltipProvider>

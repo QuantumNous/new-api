@@ -422,7 +422,12 @@ export function CodexUsageDialog({
     <>
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(v) => {
+        // The dialog stays mounted across open/close cycles; close the confirm
+        // sub-dialog on any outer close so it can't reappear stranded on reopen.
+        if (!v) setConfirmOpen(false)
+        onOpenChange(v)
+      }}
       title={t('Codex Account & Usage')}
       description={
         <>

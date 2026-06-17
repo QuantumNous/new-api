@@ -25,11 +25,8 @@ import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/dialog'
-import {
-  consumeCodexReset,
-  getCodexUsage,
-  updateChannelBalance,
-} from '../../api'
+import { getCodexUsage, updateChannelBalance } from '../../api'
+import { useCodexResetConsumer } from '../../hooks/use-codex-reset-consumer'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
@@ -56,7 +53,8 @@ export function BalanceQueryDialog({
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
-  const [codexConsuming, setCodexConsuming] = useState(false)
+  const { isConsuming: codexConsuming, consume: consumeCodexResetCredit } =
+    useCodexResetConsumer()
 
   const isCodex = currentRow?.type === 57
 
@@ -76,27 +74,6 @@ export function BalanceQueryDialog({
       )
     } finally {
       setIsQuerying(false)
-    }
-  }
-
-  const handleConsumeCodexReset = async (channelId: number) => {
-    setCodexConsuming(true)
-    try {
-      const res = await consumeCodexReset(channelId)
-      if (res?.success) {
-        const windows = Number(
-          (res.data as { windows_reset?: number })?.windows_reset ?? 0
-        )
-        toast.success(t('Reset {{count}} windows', { count: windows }))
-        const refreshed = await getCodexUsage(channelId)
-        setCodexUsageResponse(refreshed)
-      } else {
-        toast.error(res?.message || t('Failed to consume reset credit'))
-      }
-    } catch {
-      toast.error(t('Failed to consume reset credit'))
-    } finally {
-      setCodexConsuming(false)
     }
   }
 
@@ -175,7 +152,10 @@ export function BalanceQueryDialog({
         response={codexUsageResponse}
         onRefresh={handleQueryCodexUsage}
         isRefreshing={isQuerying}
-        onConsume={() => handleConsumeCodexReset(currentRow.id)}
+        onConsume={async () => {
+          const refreshed = await consumeCodexResetCredit(currentRow.id)
+          if (refreshed) setCodexUsageResponse(refreshed)
+        }}
         isConsuming={codexConsuming}
       />
     )
