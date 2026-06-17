@@ -60,6 +60,32 @@ function getChartThemeTokens(resolvedTheme: string) {
   }
 }
 
+const UPTIME_AXIS_MAX = 100
+const UPTIME_FOCUSED_AXIS_MIN = 95
+const UPTIME_MINOR_OUTAGE_AXIS_MIN = 90
+
+function toUptimeChartValue(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(UPTIME_AXIS_MAX, Math.max(0, value))
+}
+
+function getUptimeAxisMin(values: number[]): number {
+  const finiteValues = values.filter((value) => Number.isFinite(value))
+  if (finiteValues.length === 0) return UPTIME_FOCUSED_AXIS_MIN
+
+  const minValue = Math.max(0, Math.min(...finiteValues))
+  if (minValue >= UPTIME_FOCUSED_AXIS_MIN) return UPTIME_FOCUSED_AXIS_MIN
+  if (minValue >= UPTIME_MINOR_OUTAGE_AXIS_MIN) {
+    return UPTIME_MINOR_OUTAGE_AXIS_MIN
+  }
+
+  return Math.max(0, Math.floor((minValue - 5) / 10) * 10)
+}
+
+function stripUptimePointSuffix(value: string): string {
+  return value.replace(/__(start|end)$/, '')
+}
+
 // ---------------------------------------------------------------------------
 // Latency trend chart (24h, multi-group point-line chart)
 // ---------------------------------------------------------------------------
@@ -173,12 +199,20 @@ export function UptimeTrendChart(props: {
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
 
-    const data = props.series.map((point) => ({
+    const rawData = props.series.map((point) => ({
       date: formatDayLabel(point.date),
-      uptime: point.uptime_pct,
+      uptime: toUptimeChartValue(point.uptime_pct),
       incidents: point.incidents,
       outage: point.outage_minutes,
     }))
+    const data =
+      rawData.length === 1
+        ? [
+            { ...rawData[0], date: `${rawData[0].date}__start` },
+            { ...rawData[0], date: `${rawData[0].date}__end` },
+          ]
+        : rawData
+    const axisMin = getUptimeAxisMin(rawData.map((point) => point.uptime))
 
     return {
       type: 'line' as const,
@@ -204,7 +238,9 @@ export function UptimeTrendChart(props: {
       },
       tooltip: {
         mark: {
-          title: { value: (d: { date: string }) => d.date },
+          title: {
+            value: (d: { date: string }) => stripUptimePointSuffix(d.date),
+          },
           content: [
             {
               key: t('Uptime'),
@@ -225,6 +261,8 @@ export function UptimeTrendChart(props: {
         {
           orient: 'bottom',
           label: {
+            formatMethod: (val: number | string) =>
+              stripUptimePointSuffix(String(val)),
             style: { fill: textColor, fontSize: 10 },
             autoLimit: true,
           },
@@ -232,8 +270,8 @@ export function UptimeTrendChart(props: {
         },
         {
           orient: 'left',
-          min: 95,
-          max: 100,
+          min: axisMin,
+          max: UPTIME_AXIS_MAX,
           label: {
             formatMethod: (val: number | string) => `${val}%`,
             style: { fill: textColor, fontSize: 10 },

@@ -27,6 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { BadgeCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
@@ -227,7 +228,11 @@ export function useUsersColumns(): ColumnDef<User>[] {
       header: t('Group'),
       cell: ({ row }) => {
         const group = row.getValue('group') as string
-        return <GroupBadge group={group} />
+        return (
+          <BadgeCell>
+            <GroupBadge group={group} />
+          </BadgeCell>
+        )
       },
       filterFn: (row, id, value) => {
         const group = String(row.getValue(id) || t('User Group')).toLowerCase()
@@ -272,7 +277,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const inviterId = user.inviter_id || 0
 
         return (
-          <div className='flex min-w-[220px] flex-wrap items-center gap-1'>
+          <div className='flex max-w-full min-w-0 flex-wrap items-center gap-1 overflow-hidden'>
             <Tooltip>
               <TooltipTrigger
                 render={

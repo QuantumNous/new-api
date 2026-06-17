@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { flexRender, type Header, type Table as TanstackTable } from '@tanstack/react-table'
+import {
+  flexRender,
+  type Header,
+  type Table as TanstackTable,
+} from '@tanstack/react-table'
 import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DataTableColumnHeader } from './column-header'
 import type { DataTableColumnClassName } from './types'

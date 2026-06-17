@@ -197,7 +197,7 @@ export function useDeploymentsColumns(opts: {
         if (!hardware)
           return <span className='text-muted-foreground text-xs'>-</span>
         return (
-          <div className='flex flex-wrap items-center gap-2'>
+          <div className='flex max-w-full min-w-0 flex-nowrap items-center gap-2 overflow-hidden'>
             <StatusBadge
               label={String(hardware)}
               variant='neutral'

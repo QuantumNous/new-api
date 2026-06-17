@@ -79,6 +79,12 @@ type PerformanceRow = {
   avg_tps: number
 }
 
+function toUptimePct(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  const clamped = Math.min(100, Math.max(0, value))
+  return Math.round(clamped * 100) / 100
+}
+
 function toLatencySeries(groups: PerformanceGroup[]) {
   const byTs = new Map<number, number[]>()
   for (const group of groups) {
@@ -107,8 +113,9 @@ function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
     for (const point of group.series) {
       const current = byTs.get(point.ts) ?? { rates: [], incidents: 0 }
       if (Number.isFinite(point.success_rate)) {
-        current.rates.push(point.success_rate)
-        if (point.success_rate < 100) current.incidents += 1
+        const successRate = toUptimePct(point.success_rate)
+        current.rates.push(successRate)
+        if (successRate < 100) current.incidents += 1
       }
       byTs.set(point.ts, current)
     }
@@ -123,7 +130,7 @@ function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
           : 0
       return {
         date: new Date(ts * 1000).toISOString(),
-        uptime_pct: Math.round(uptime * 100) / 100,
+        uptime_pct: toUptimePct(uptime),
         incidents: value.incidents,
         outage_minutes: 0,
       }
@@ -131,12 +138,15 @@ function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
 }
 
 function toGroupUptimeSeries(group: PerformanceGroup): UptimeDayPoint[] {
-  return group.series.map((point) => ({
-    date: new Date(point.ts * 1000).toISOString(),
-    uptime_pct: Math.round(point.success_rate * 100) / 100,
-    incidents: point.success_rate < 100 ? 1 : 0,
-    outage_minutes: 0,
-  }))
+  return group.series.map((point) => {
+    const successRate = toUptimePct(point.success_rate)
+    return {
+      date: new Date(point.ts * 1000).toISOString(),
+      uptime_pct: successRate,
+      incidents: successRate < 100 ? 1 : 0,
+      outage_minutes: 0,
+    }
+  })
 }
 
 function average(

@@ -162,6 +162,7 @@ func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 		"admin_id":       operatorId,
 		"admin_username": operatorName,
 		"admin_role":     operatorRole,
+		"auth_method":    auditAuthMethod(c),
 	}
 	auditInfo := map[string]interface{}{
 		"method":  method,
@@ -177,6 +178,13 @@ func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 	gopool.Go(func() {
 		model.RecordOperationAuditLog(operatorId, content, ip, action, opParams, adminInfo, auditInfo)
 	})
+}
+
+func auditAuthMethod(c *gin.Context) string {
+	if c.GetBool("use_access_token") {
+		return "access_token"
+	}
+	return "session"
 }
 
 // auditResponseSuccess 依据 HTTP 状态码与响应体推断操作是否成功。

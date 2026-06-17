@@ -68,7 +68,15 @@ func auditOperatorInfo(c *gin.Context) map[string]interface{} {
 		"admin_id":       c.GetInt("id"),
 		"admin_username": c.GetString("username"),
 		"admin_role":     c.GetInt("role"),
+		"auth_method":    auditAuthMethod(c),
 	}
+}
+
+func auditAuthMethod(c *gin.Context) string {
+	if c.GetBool("use_access_token") {
+		return "access_token"
+	}
+	return "session"
 }
 
 // markAuditLogged 标记当前请求已在 handler 内手动记录审计日志，
