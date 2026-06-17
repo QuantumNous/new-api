@@ -6,30 +6,37 @@
 
 ## 1. Product Positioning
 
-DeepRouter Skill Marketplace V1 是一个官方托管的 AI Tool 平台。用户可以从 Marketplace 浏览、启用、下载 Skill 的 **tool spec**（OpenAPI / MCP 格式），并安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端中直接使用。
+DeepRouter Skill Marketplace V1 是一个官方托管的跨平台 AI Tool 平台。DeepRouter 后端维护每个 Skill 的**唯一权威定义（Canonical Skill Manifest）**，并通过 Adapter 层自动生成各 AI 平台所需的安装格式，覆盖 ChatGPT、Gemini、Claude、Claude Code 等主流 AI 客户端和开发者工具。
 
 **核心设计原则：**
-- **Tool spec 可下载**：用户下载的 tool spec 只包含 schema 定义和 API endpoint，不含任何执行逻辑
-- **执行逻辑永不离开服务端**：Skill 的实际执行逻辑始终在 DeepRouter 服务器上运行
-- **API Key 绑定用户帐号**：每次 tool 调用都需要有效的 DeepRouter API Key，执行配额从用户帐号扣减，无法蹭用或转让
-- **护城河完整保留**：用户即使分享 tool spec，收件人没有有效 API Key 也无法使用
 
-Skill 的核心执行逻辑（`instruction_template` / `execution_handler`）不可下载、不暴露给用户、不进入客户端 API、不进入普通日志、Analytics、Billing、Support 或导出数据。
+- **Canonical Manifest 是 Source of Truth**：DeepRouter 只维护一份 Skill 内部标准定义，OpenAI / Gemini / Claude 所需格式均由 Adapter 层从 Manifest 自动生成，后端不存多份
+- **Adapter 层解决平台差异**：每个平台有独立 Adapter，生成该平台原生格式（ChatGPT Custom GPT Action JSON、Gemini Function Declaration、Claude API tool schema、Claude Code SKILL.md 等）
+- **执行逻辑永不离开服务端**：`instruction_template` / `execution_handler` 始终在 DeepRouter 服务器运行，不含于任何 Adapter 输出文件
+- **API Key 绑定帐号**：每次 tool 调用需有效 DeepRouter API Key，配额从帐号扣减，无法蹭用或转让
+- **Live MCP Server**：DeepRouter 同时暴露标准 MCP Server 端点（`/mcp`），支持 Claude / Claude Code / Gemini CLI 等 agent 工具直接 connect，无需手动下载文件
 
-V1 的产品闭环为：
+V1 产品闭环：
 
 ```text
-Super Admin 创建官方 Skill（定义 tool schema + 服务端执行逻辑）
+Admin 创建 Skill（Canonical Manifest：tool schema + 服务端执行逻辑）
+→ Admin 通过 admin_preview 端点测试 Skill
 → 发布到 Marketplace
 → 用户浏览、查看、启用 Skill
-→ 用户下载 tool spec 安装到自己的 AI 客户端（ChatGPT / Gemini / Claude）
-  或在 DeepRouter Playground 中使用
-→ 用户在 AI 客户端对话，AI 自动决定调用 Skill tool
-→ AI 客户端携带用户 API Key 调用 DeepRouter Skill API
-→ DeepRouter 验证 API Key、执行 Entitlement / Safety 检查、执行 Skill 逻辑
-→ 返回 tool result 给 AI 客户端，AI 整合进回答
+→ 用户从 Skill Detail 选择平台，下载对应 Adapter 格式
+    ChatGPT 用户       → openai-action.json（Custom GPT Action）
+    OpenAI 开发者      → openai-tool.json（API function schema）
+    Gemini API 开发者  → gemini-function.json（Function Declaration）
+    Claude API 开发者  → anthropic-tool.json（Claude tool schema）
+    Claude Code 用户   → claude-code.zip（SKILL.md package）
+    MCP-compatible 工具 → connect https://deeprouter.ai/mcp
+→ 用户在自己的 AI 客户端对话，AI 自动决定调用 Skill tool
+→ AI 客户端携带用户 API Key 调用 POST /v1/skills/execute/{skill_id}
+→ DeepRouter 验证 API Key → Entitlement / Safety 检查 → 执行 Skill 逻辑
+→ 返回统一格式 tool result（含 run_id / status / usage）
+→ AI 客户端整合进回答
 → Billing / Analytics 归因
-→ Operations 根据 Dashboard 和 Review 流程优化
+→ Operations 根据 Dashboard 优化
 ```
 
 ---

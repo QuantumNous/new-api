@@ -40,8 +40,10 @@
 - [ ] Deprecated and archived Skill behavior matches lifecycle rules.
 - [ ] P1 recommendation rails and CSV export are not required for P0 launch unless explicitly promoted.
 - [ ] Unauthenticated Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, execution logic download, and full sharing/referral are excluded from V1 P0.
-- [ ] Tool spec download (OpenAPI / MCP) is available from Skill Detail for enabled users; spec does not contain instruction_template or execution logic (verified by security review).
-- [ ] One-click install guides for ChatGPT, Gemini, and Claude are present on Skill Detail page.
+- [ ] Adapter download endpoints (`GET /v1/skills/{skill_id}/adapters/{format}`) return correct platform-specific formats for all 6 formats: `openai-action`、`openai-tool`、`gemini-function`、`anthropic-tool`、`claude-code`、`mcp-config`；所有 Adapter 输出不含 `instruction_template` 或执行逻辑（须由 Security 手动审查确认）。
+- [ ] `claude-code.zip` 解压后含合法 SKILL.md（`allowed-tools: mcp__deeprouter__<tool_function_name>`），Claude Code 可识别。
+- [ ] Live MCP Server（`GET /mcp` capability discovery、`POST /mcp` tool call）按 MCP 2024-11-05 协议响应；`GET /mcp` 只返回调用者已 enabled 的 Skill。
+- [ ] Skill Detail 页面分平台 Tab（ChatGPT / OpenAI API / Gemini / Claude / Claude Code / MCP）展示安装引导；含下载按钮、CLI 命令、API Key 配置说明。
 - [ ] External AI client can call `/v1/skills/execute/{skill_id}` with valid API Key and receive tool result; same production-equivalent entitlement, Safety, Kids safety, quota, and rate limit checks apply as any authenticated execution path.
 - [ ] External AI client call with invalid/missing API Key receives 401 `AUTH_REQUIRED`.
 - [ ] Billing event for external AI client call includes `entry_point=external_ai_client`.

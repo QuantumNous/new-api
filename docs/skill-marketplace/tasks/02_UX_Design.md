@@ -262,39 +262,72 @@ Primary action: `Explore Skills`.
 
 > 普通用户没有在 DeepRouter Playground 内执行 Skill 的 UI。Playground 保持原有的通用聊天界面，不显示 Skill Picker。用户使用 Skill 的唯一路径是从 Skill Detail / My Skills 下载 tool spec，安装到自己的 ChatGPT / Gemini / Claude 中使用。
 
-### 4.4a Tool Spec Download Flow（V1 P0）
+### 4.4a Install & Download Flow（V1 P0）
 
 #### Goal
 
-用户启用 Skill 后，引导其下载 tool spec 并安装到外部 AI 客户端。
+用户启用 Skill 后，根据自己使用的 AI 平台，获取对应的安装包或 connect 指引。
 
-#### Download Dialog
+#### Install Dialog — 平台选择 Tabs
 
-用户点击「Download Tool Spec」后弹出对话框，包含：
+用户点击「Get Tool Spec / Install」后弹出对话框，顶部显示 **平台 Tabs**，每个 Tab 展示该平台的安装方式：
+
+---
+
+**Tab 1：ChatGPT**
+
+| 子选项 | 内容 |
+|---|---|
+| Custom GPT Action（普通用户） | 下载 `openai-action.json` + 步骤：ChatGPT → Edit GPT → Configure → Actions → Create new action → Import schema |
+| OpenAI API（开发者） | 下载 `openai-tool.json` + TypeScript / Python 代码示例 |
+| API Key 配置 | 在 Action Authentication 填入 DeepRouter API Key |
+
+---
+
+**Tab 2：Gemini**
+
+| 子选项 | 内容 |
+|---|---|
+| Gemini API（开发者） | 下载 `gemini-function.json` + 代码示例；说明 functionCall → 调用 DeepRouter execute → 返回 functionResponse 流程 |
+| Gemini CLI / Coding Agent | 显示 MCP install command：`npx add-mcp "https://deeprouter.ai/mcp?skill=<skill_id>"` |
+
+---
+
+**Tab 3：Claude**
+
+| 子选项 | 内容 |
+|---|---|
+| Claude API（开发者） | 下载 `anthropic-tool.json` + 代码示例 |
+| Claude MCP Connector | 下载 `mcp-config.json` 或显示 JSON block 供复制；说明直接在 Messages API 连接 `https://deeprouter.ai/mcp` |
+
+---
+
+**Tab 4：Claude Code**
+
+| 步骤 | 内容 |
+|---|---|
+| MCP 安装（推荐） | 显示命令：`claude mcp add deeprouter https://deeprouter.ai/mcp` |
+| Skill Package 安装 | 下载 `claude-code.zip`（含 `.claude/skills/<name>/SKILL.md` + examples）+ 解压路径说明 |
+| 使用方法 | 说明 Claude Code 中触发方式（自然语言 or `/skills` 命令） |
+
+---
+
+**通用区域（所有 Tab）：**
 
 | 区域 | 内容 |
 |---|---|
-| 格式选择 | OpenAPI 3.1（适用 ChatGPT / Gemini）/ MCP（适用 Claude） |
-| 平台安装引导 | 根据选择展示对应平台的分步安装说明 |
-| API Key 提示 | 提示用户在 AI 客户端的 tool 配置中填入自己的 DeepRouter API Key |
-| 下载按钮 | 下载对应格式的 spec 文件 |
-| 复制端点 URL | 一键复制 DeepRouter Skill API endpoint |
-
-#### Platform Install Guides
-
-| 平台 | 安装方式 |
-|---|---|
-| ChatGPT | Custom Actions → Import from URL 或上传 OpenAPI JSON |
-| Gemini | Google AI Studio Function Tools → 导入 OpenAPI spec |
-| Claude | MCP config → 添加 tool spec JSON |
+| API Key | 显示用户当前 DeepRouter API Key（脱敏），含「Copy」和「Generate New Key」快捷入口 |
+| Execute Endpoint | 一键复制 `https://deeprouter.ai/v1/skills/execute/<skill_id>` |
+| 安全提示 | "Your API Key is bound to your account. Do not share it." |
 
 #### States
 
 | 状态 | UI |
 |---|---|
-| Skill 已启用 | Download Tool Spec 为主 CTA |
-| Skill 未启用 | 先完成 Enable 流程再进入下载 |
-| Skill deprecated | 下载可用，附带「此 Skill 已废弃」提示 |
+| Skill 已启用 | 「Get Tool Spec / Install」为主 CTA；所有 Tab 可用 |
+| Skill 未启用 | 先完成 Enable 流程，完成后自动打开 Install Dialog |
+| Skill deprecated | 安装可用，所有 Tab 顶部显示「此 Skill 已废弃，可能随时停止服务」警告 |
+| API Key 未生成 | Install Dialog 内提示生成 API Key，不阻断下载 |
 
 ---
 

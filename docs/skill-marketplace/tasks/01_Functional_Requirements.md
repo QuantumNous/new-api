@@ -10,24 +10,31 @@
 
 V1 仅支持 **官方 curated Skills**。终端用户不能创建、上传或复制 Skill 执行逻辑。Skill 的核心执行逻辑（`execution_handler`）必须由服务端托管，永不暴露给客户端。
 
-**V1 核心范式：Skills 是可安装的 API Tool，不是 Prompt 模板。**
+**V1 核心范式：Skills 是可安装的跨平台 API Tool，不是 Prompt 模板。**
 
-用户从 Marketplace 下载 **tool spec**（OpenAPI / MCP 格式），安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端。每次 AI 调用 Skill tool 时，请求打到 DeepRouter 服务端，需要有效 API Key，执行配额从用户帐号扣减。用户无法通过分享 tool spec 让他人蹭用。
+DeepRouter 后端维护每个 Skill 的 **Canonical Skill Manifest**（唯一内部定义：`tool_function_name` + `tool_input_schema` + `tool_output_schema` + `execution_handler`），并通过 **Adapter 层**自动生成各平台所需格式。用户只需从 Marketplace 启用 Skill，选择自己使用的 AI 平台，下载或 connect 对应的 Adapter 输出即可。每次 AI 调用 Skill 时，请求打到 DeepRouter 服务端，需要有效 API Key，执行配额从用户帐号扣减。
 
-**用户使用 Skill 只有一条路：下载 tool spec，安装到自己的 AI 客户端，在那里使用。** DeepRouter 不提供内置的 Skill 执行 Playground 给普通用户。Playground 仅供 Admin 在发布前测试 Skill（admin_preview 路径）。
+**用户使用 Skill 只有一条路：通过 Adapter（下载安装包或 connect MCP Server），在自己的 AI 客户端中调用。** DeepRouter 不提供内置 Skill 执行 Playground 给普通用户。Playground 仅供 Admin 在发布前测试 Skill（`admin_preview` 路径）。
 
 V1 必须交付以下闭环：
 
 ```text
-Admin 创建 Skill（定义 tool schema + 服务端执行逻辑）
-→ Admin 在 Preview 端点测试 Skill（admin_preview，不对用户开放）
+Admin 创建 Skill（Canonical Manifest：tool schema + 服务端执行逻辑）
+→ Admin 通过 admin_preview 端点测试 Skill（不对用户开放）
 → 发布到 Marketplace
 → 用户浏览 / 查看详情 / 启用
-→ 用户下载 tool spec（OpenAPI / MCP）安装到自己的 ChatGPT / Gemini / Claude
+→ 用户选择平台并获取 Adapter：
+    - ChatGPT 用户       → 下载 openai-action.json，安装到 Custom GPT Action
+    - OpenAI API 开发者  → 下载 openai-tool.json，集成到自己的 app
+    - Gemini API 开发者  → 下载 gemini-function.json，集成到 Gemini app
+    - Claude API 开发者  → 下载 anthropic-tool.json，集成到 Claude app
+    - Claude Code 用户   → 下载 claude-code.zip（含 SKILL.md），安装到本地 Claude Code
+    - MCP-compatible 工具 → connect https://deeprouter.ai/mcp（live MCP Server）
 → 用户在自己的 AI 客户端对话，AI 自动决定调用 Skill tool
-→ AI 客户端携带用户 API Key 调用 DeepRouter Skill API
-→ DeepRouter 验证 API Key、执行 Entitlement / Safety 检查、执行 Skill 逻辑
-→ 返回 tool result 给 AI 客户端，AI 整合进回答
+→ AI 客户端携带用户 API Key 调用 POST /v1/skills/execute/{skill_id}
+→ DeepRouter 验证 API Key → Entitlement / Safety 检查 → 执行 Skill 逻辑
+→ 返回统一格式 tool result（含 run_id / status / usage）
+→ AI 客户端整合进回答
 → Billing / Analytics 归因
 → Operations 根据数据优化
 ```
@@ -39,8 +46,13 @@ Admin 创建 Skill（定义 tool schema + 服务端执行逻辑）
 | Skill Supply | Super Admin 创建、编辑、预览、发布、归档官方 Skill | P0 |
 | Marketplace | 用户浏览、搜索、查看详情、启用、停用 Skill | P0 |
 | My Skills | 用户查看已启用 Skill 及可用/锁定状态 | P0 |
-| Tool Spec Download | 用户下载 Skill 的 tool spec（OpenAPI / MCP 格式）；spec 只含 schema + endpoint，不含执行逻辑 | P0 |
-| Multi-Platform Install | 提供 ChatGPT / Gemini / Claude 的一键安装引导 | P0 |
+| Canonical Skill Manifest | 后端维护每个 Skill 的唯一内部标准（tool schema + execution metadata）；所有 Adapter 从此生成 | P0 |
+| Adapter Layer — ChatGPT | 生成 openai-action.json（Custom GPT Action）和 openai-tool.json（API function schema） | P0 |
+| Adapter Layer — Gemini | 生成 gemini-function.json（Gemini API Function Declaration） | P0 |
+| Adapter Layer — Claude | 生成 anthropic-tool.json（Claude API tool schema）和 MCP connector config | P0 |
+| Adapter Layer — Claude Code | 生成 claude-code.zip（含 SKILL.md、allowed-tools、examples） | P0 |
+| Live MCP Server | 暴露 GET/POST /mcp 端点；支持 Claude / Claude Code / Gemini CLI 直接 connect，无需下载 | P0 |
+| Multi-Platform Install Guides | Skill Detail 页面提供各平台安装步骤（Copy URL / Download / CLI command） | P0 |
 | External API Invocation | 接收来自外部 AI 客户端的 tool call 请求；验证 API Key 并执行 Skill；这是用户使用 Skill 的唯一路径 | P0 |
 | Admin Preview | Admin 在发布前通过 admin_preview 端点测试 Skill；不对普通用户开放 | P0 |
 | Skill Execution | 服务端执行 Skill 逻辑，客户端只见 tool result，不见执行逻辑 | P0 |
@@ -63,7 +75,7 @@ Admin 创建 Skill（定义 tool schema + 服务端执行逻辑）
 | 执行逻辑下载 | 永不支持；tool spec 可下载但不含执行逻辑 | N/A |
 | 多 Skill 叠加 | 不支持；一次仅一个 active Skill | V2+ |
 | 复杂多步骤 Workflow / Agent Chain | 不支持；V1 Skill 为单次 tool call | V2 |
-| 本地 MCP Server 代码下载（用户自托管） | 不支持；V1 仅云端 tool spec | V2 |
+| 本地 MCP Server 代码下载（用户自托管服务端） | 不支持；V1 仅 DeepRouter 云端托管 MCP Server（/mcp endpoint），用户 connect 即用 | V2 |
 | 社区评分评论 | 不支持 | V2 |
 | 完整推荐算法 | 不支持；V1 仅规则推荐 | V1.1/V2 |
 | A/B Experiment UI | 不作为 V1 P0 | V1.1 |
@@ -362,19 +374,45 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-S3 | Prompt leakage incident can force archive Skill | P0 | Super Admin action with audit |
 | FR-S4 | Feature flag can disable Marketplace | P0 | Data retained |
 
-### 4.11 Tool Spec Distribution
+### 4.11 Canonical Manifest and Adapter Distribution
+
+#### Canonical Skill Manifest
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-T1 | Generate OpenAPI spec for each published Skill | P0 | Spec includes tool name, description, input/output JSON schema, and DeepRouter Skill API endpoint; never includes execution logic or `instruction_template` |
-| FR-T2 | Generate MCP-compatible tool spec for each published Skill | P0 | Follows Anthropic MCP tool definition format |
-| FR-T3 | Provide per-Skill download endpoint | P0 | Authenticated; only enabled users can download their Skill's spec |
-| FR-T4 | Provide one-click install guide for ChatGPT Custom Actions | P0 | Step-by-step UI in Skill Detail page |
-| FR-T5 | Provide one-click install guide for Gemini Function Tools | P0 | Step-by-step UI in Skill Detail page |
-| FR-T6 | Provide one-click install guide for Claude MCP tools | P0 | Step-by-step UI in Skill Detail page |
-| FR-T7 | Spec must be regenerated when tool schema changes | P0 | Changing input/output schema creates new version; old spec links remain valid but marked as outdated |
-| FR-T8 | Spec download creates analytics event | P1 | `skill_spec_downloaded` with platform hint if provided |
-| FR-T9 | Spec never exposes `instruction_template` or execution handler | P0 | Security gate; must be verified in launch security review |
+| FR-T1 | 后端维护 Canonical Skill Manifest 作为唯一 Source of Truth | P0 | Manifest 包含：`tool_function_name`、`tool_input_schema`（JSON Schema）、`tool_output_schema`（JSON Schema）、`description`、`execution.endpoint`、`execution.auth`；不包含 `instruction_template` |
+| FR-T2 | Admin 创建 Skill 时必须定义完整 Manifest 字段才能发布 | P0 | `tool_function_name` 非空、`tool_input_schema` 合法 JSON Schema；Publish Checklist 强制检查 |
+| FR-T3 | Manifest 字段变更时所有 Adapter 输出自动失效并重新生成 | P0 | 修改 `tool_input_schema` 或 `tool_function_name` 时设置 `tool_spec_invalidated_at = now()`；缓存的 Adapter 文件必须在下次请求时重新生成 |
+
+#### Platform Adapters
+
+| ID | Adapter | 生成格式 | 适用用户 | Priority |
+|---|---|---|---|---|
+| FR-T4 | ChatGPT Custom GPT Action | `openai-action.json`（OpenAPI 3.1 schema + servers + auth） | ChatGPT 普通用户，安装到 Custom GPT | P0 |
+| FR-T5 | OpenAI API Function Schema | `openai-tool.json`（OpenAI function calling JSON） | OpenAI API 开发者，集成到自己 app | P0 |
+| FR-T6 | Gemini API Function Declaration | `gemini-function.json`（Gemini functionDeclarations 格式） | Gemini API 开发者 | P0 |
+| FR-T7 | Claude API Tool Schema | `anthropic-tool.json`（Anthropic tool use format，含 `strict:true`） | Claude API 开发者 | P0 |
+| FR-T8 | Claude Code Skill Package | `claude-code.zip`（含 `.claude/skills/<name>/SKILL.md` + `allowed-tools` + examples） | Claude Code 用户 | P0 |
+| FR-T9 | MCP Connector Config | `mcp-config.json`（标准 MCP remote server config，含 `type: url`、auth 配置） | 所有支持 MCP 的工具 | P0 |
+
+#### Adapter Endpoint
+
+| ID | Requirement | Priority | Acceptance Notes |
+|---|---|---|---|
+| FR-T10 | 每个 Adapter 有独立下载端点 | P0 | `GET /v1/skills/{skill_id}/adapters/{format}`；format 枚举：`openai-action`、`openai-tool`、`gemini-function`、`anthropic-tool`、`claude-code`、`mcp-config` |
+| FR-T11 | 下载端点需认证；仅 enabled 用户可下载 | P0 | 未 enable 或 API Key 无效返回 403 |
+| FR-T12 | 所有 Adapter 输出不得包含 `instruction_template` 或执行逻辑 | P0 | Security gate；launch 前须经安全审查确认 |
+| FR-T13 | Skill Detail 页面分平台展示安装引导 | P0 | 每个平台 Tab 包含：下载按钮 / Copy URL / CLI install command + 步骤说明 |
+| FR-T14 | Adapter 下载触发 analytics 事件 | P1 | `skill_spec_downloaded`，含 `adapter_format`、`platform`、`skill_id`、`user_id` |
+
+#### Live MCP Server
+
+| ID | Requirement | Priority | Acceptance Notes |
+|---|---|---|---|
+| FR-T15 | DeepRouter 暴露 live MCP Server 端点 | P0 | `GET /mcp`（capability discovery）+ `POST /mcp`（tool call 处理）；遵循 MCP 2024-11-05 协议 |
+| FR-T16 | MCP Server 列出用户已 enabled 的所有 Skill | P0 | `GET /mcp` 返回该 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表 |
+| FR-T17 | MCP tool call 走统一执行链 | P0 | `POST /mcp` 内部路由到 `/v1/skills/execute/{skill_id}`；相同 Entitlement / Safety / Billing 检查 |
+| FR-T18 | MCP 认证使用 OAuth Bearer token 或 API Key | P0 | `Authorization: Bearer <api_key>`；同执行端点认证规则 |
 
 ### 4.12 API Key Binding and Copy Protection
 

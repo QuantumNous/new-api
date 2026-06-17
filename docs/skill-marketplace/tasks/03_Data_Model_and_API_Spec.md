@@ -779,49 +779,109 @@ Rules:
 - Updates `enabled=false`, sets `disabled_at`.
 - Emits `skill_disabled`.
 
-### 8.X Tool Spec Download
+### 8.X Adapter Download Endpoints
 
-`GET /api/v1/marketplace/skills/{skill_id}/tool-spec`
+每个 Skill 有独立的 Adapter 下载端点，每种平台格式一个 URL。
 
-Query parameters:
-- `format` (required): `openapi` or `mcp`
-- `platform` (optional): `chatgpt`, `gemini`, `claude` — returns platform-specific install instructions
+`GET /v1/skills/{skill_id}/adapters/{format}`
 
-Rules:
-- Auth required; user must have `enabled=true` for this Skill.
-- Published Skills only; draft/archived/deprecated without active version return 404.
-- Response contains `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and the DeepRouter Skill API endpoint URL only.
-- Response must never contain `instruction_template`, execution handler code, or any server-side logic.
-- `tool_spec_invalidated_at` is included in response so clients can detect stale specs.
-- Emits `skill_spec_downloaded` event with `format`, `platform` (if provided), `skill_id`, `user_id`, `entry_point=skill_detail`.
+**format 枚举（有效值）：**
 
-Response example (OpenAPI format):
+| format | 输出文件 | 适用平台 |
+|---|---|---|
+| `openai-action` | `openai-action.json` | ChatGPT Custom GPT Action |
+| `openai-tool` | `openai-tool.json` | OpenAI API function calling |
+| `gemini-function` | `gemini-function.json` | Gemini API Function Declaration |
+| `anthropic-tool` | `anthropic-tool.json` | Claude API tool use |
+| `claude-code` | `claude-code.zip` | Claude Code SKILL.md package |
+| `mcp-config` | `mcp-config.json` | 通用 MCP remote server 配置 |
+
+**Rules:**
+- `Authorization: Bearer <api_key>` 必须；缺失或无效返回 401 `AUTH_REQUIRED`。
+- 用户必须对该 Skill 有 `enabled=true`；否则返回 403 `SKILL_NOT_ENABLED`。
+- Published Skill only；其他状态返回 404。
+- 所有格式输出只包含 Canonical Manifest 的 public 字段（`tool_function_name`、`tool_input_schema`、`tool_output_schema`、`description`）和 DeepRouter execute endpoint URL；绝不包含 `instruction_template` 或任何执行逻辑。
+- 响应 `Content-Disposition: attachment; filename="<format>.json"` 或 `.zip`（`claude-code` 格式）。
+- 触发 `skill_spec_downloaded` 事件，含 `adapter_format`、`skill_id`、`user_id`。
+
+**Response examples:**
+
+`openai-action` format:
 ```json
 {
-  "format": "openapi",
-  "spec": {
-    "openapi": "3.1.0",
-    "info": { "title": "Contract Review", "version": "1.0" },
-    "paths": {
-      "/v1/skills/execute/{skill_id}": {
-        "post": {
-          "operationId": "contract_review_analyze",
-          "summary": "Analyzes a contract and returns key risks and clauses.",
-          "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Input" } } } },
-          "responses": { "200": { "description": "Tool result" } },
-          "security": [{ "bearerAuth": [] }]
-        }
+  "openapi": "3.1.0",
+  "info": { "title": "Contract Review", "version": "1.0.0" },
+  "servers": [{ "url": "https://deeprouter.ai" }],
+  "paths": {
+    "/v1/skills/execute/contract_review": {
+      "post": {
+        "operationId": "contract_review_analyze",
+        "summary": "Analyze contract risks",
+        "description": "Reviews a contract and returns structured legal and commercial risk analysis.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Input" } } }
+        },
+        "responses": { "200": { "description": "Structured contract review result" } },
+        "security": [{ "bearerAuth": [] }]
       }
-    },
-    "components": {
-      "schemas": { "Input": { "$ref": "inline_tool_input_schema" } },
-      "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "description": "Your DeepRouter API Key" } }
     }
   },
-  "install_guide_url": "https://deeprouter.ai/docs/install/chatgpt",
-  "spec_invalidated_at": null
+  "components": {
+    "schemas": { "Input": "<tool_input_schema>" },
+    "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer" } }
+  }
 }
 ```
+
+`anthropic-tool` format:
+```json
+{
+  "name": "contract_review_analyze",
+  "description": "Analyze a contract for legal and commercial risks.",
+  "input_schema": "<tool_input_schema>",
+  "strict": true
+}
+```
+
+`gemini-function` format:
+```json
+{
+  "functionDeclarations": [{
+    "name": "contract_review_analyze",
+    "description": "Analyze a contract for legal and commercial risks.",
+    "parameters": "<tool_input_schema>"
+  }]
+}
+```
+
+`mcp-config` format:
+```json
+{
+  "mcpServers": {
+    "deeprouter": {
+      "type": "url",
+      "url": "https://deeprouter.ai/mcp",
+      "headers": { "Authorization": "Bearer ${DEEPROUTER_API_KEY}" }
+    }
+  }
+}
+```
+
+### 8.Y Live MCP Server
+
+DeepRouter 暴露标准 MCP Server 端点，支持 Claude / Claude Code / Gemini CLI 等 agent 工具直接 connect，无需下载文件。
+
+`GET /mcp` — Capability discovery（列出用户已 enabled 的所有 Skill tools）
+
+`POST /mcp` — Tool call 处理
+
+**Rules:**
+- `Authorization: Bearer <api_key>` 必须。
+- `GET /mcp` 返回该 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表（格式遵循 MCP 2024-11-05 协议）。
+- `POST /mcp` 内部路由到 `/v1/skills/execute/{skill_id}`；相同 Entitlement / Safety / Billing / Kids 检查链。
+- 响应遵循 MCP protocol tool result 格式。
+- 不暴露 `instruction_template` 或任何执行逻辑。
 
 ---
 
@@ -842,13 +902,52 @@ Headers:
 Request body matches the tool's `tool_input_schema` as defined in the downloaded tool spec.
 
 Rules:
-- `Authorization` header is required; missing/invalid Key returns 401 `AUTH_REQUIRED`.
-- API Key is resolved to user account; entitlement checked against that account.
-- `skill_id` is taken from the URL path; any Skill ID in the request body is ignored.
-- Relay performs the same entitlement, lifecycle, quota, Kids safety, rate limit, and execution flow as Playground.
-- `instruction_template` is never sent to the caller; response is `tool_result` JSON only.
-- Execution/block events include `request_id`, `skill_id`, `skill_version_id`, `entry_point=external_ai_client`.
-- `deeprouter` vendor extension in request body is not applicable for this endpoint; `skill_id` comes from the URL.
+- `Authorization: Bearer <api_key>` 必须；缺失或无效返回 401 `AUTH_REQUIRED`。
+- API Key 解析到用户帐号；Entitlement 检查针对该帐号。
+- `skill_id` 从 URL path 获取；request body 中的任何 `skill_id` 字段忽略（T-24）。
+- 执行链：Auth → Entitlement → Quota → Kids Safety → Execution → Billing。
+- `instruction_template` 永不返回给调用方；响应只含 `tool_result` JSON。
+- 执行/拦截事件包含 `request_id`、`skill_id`、`skill_version_id`、`entry_point=external_ai_client`。
+
+**统一响应格式：**
+```json
+{
+  "skill_id": "contract_review",
+  "run_id": "run_abc123",
+  "status": "success",
+  "result": {
+    "summary": "合约整体风险中等，存在两处高风险条款需要谈判。",
+    "risks": [
+      {
+        "severity": "high",
+        "clause": "终止条款",
+        "issue": "单方面终止权过宽，无需说明理由",
+        "suggestion": "将终止权限制为重大违约，并增加 30 天书面通知和补救期。"
+      }
+    ],
+    "key_clauses": ["付款条件", "终止", "责任上限", "知识产权归属"]
+  },
+  "usage": {
+    "input_tokens": 12000,
+    "output_tokens": 1800,
+    "cost_usd": 0.18
+  }
+}
+```
+
+**错误响应：**
+```json
+{
+  "skill_id": "contract_review",
+  "run_id": "run_xyz789",
+  "status": "error",
+  "error": {
+    "code": "SKILL_QUOTA_EXCEEDED",
+    "message": "Monthly execution quota exceeded.",
+    "details": { "quota_reset_at": "2025-02-01T00:00:00Z" }
+  }
+}
+```
 
 ---
 

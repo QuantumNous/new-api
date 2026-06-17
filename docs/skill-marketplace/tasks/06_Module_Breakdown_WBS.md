@@ -733,6 +733,100 @@ Each module must be implemented with this contract:
 
 ---
 
+### M16. Canonical Manifest, Adapter Layer, and MCP Server
+
+| Field | Definition |
+|---|---|
+| Priority | P0 |
+| Primary Agent | Tool Spec Agent |
+| Inputs | `01_Functional_Requirements.md` §4.11, `03_Data_Model_and_API_Spec.md` §8.X/8.Y, `02_UX_Design.md` §4.4a |
+| Owns | Canonical Manifest validation, all platform Adapter generation, Adapter download endpoints, live MCP Server |
+| Does Not Own | Skill lifecycle management (M02), Relay execution (M05), API Key management (M17) |
+| Dependencies | M01 (schema/table), M02 (tool schema fields set by Admin), M05 (execution endpoint), M17 (API Key auth) |
+
+**Work Items**
+
+*Canonical Manifest:*
+- 验证 `skills` 表中 `tool_function_name`、`tool_input_schema`、`tool_output_schema` 字段完整性；Admin publish checklist 强制检查（FR-T2）。
+- `tool_function_name` 格式校验：`/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/`。
+- `tool_input_schema` / `tool_output_schema` 必须是合法 JSON Schema。
+- 任意 Manifest 字段变更时设置 `tool_spec_invalidated_at = now()`，触发所有 Adapter 缓存失效。
+
+*Platform Adapters:*
+- 实现 `GET /v1/skills/{skill_id}/adapters/{format}` 端点，format 枚举：`openai-action`、`openai-tool`、`gemini-function`、`anthropic-tool`、`claude-code`、`mcp-config`。
+- **openai-action**：生成 OpenAPI 3.1 JSON，含 `servers[deeprouter.ai]`、`paths[/v1/skills/execute/{skill_id}]`、`securitySchemes[bearerAuth]`、`operationId=tool_function_name`，input schema 来自 `tool_input_schema`。
+- **openai-tool**：生成 OpenAI function calling JSON（`type: function`、`name`、`description`、`parameters`）。
+- **gemini-function**：生成 Gemini `functionDeclarations` JSON，参数来自 `tool_input_schema`。
+- **anthropic-tool**：生成 Anthropic tool use JSON（`name`、`description`、`input_schema`、`strict: true`）。
+- **claude-code**：生成 `.zip` 包，内含 `.claude/skills/<tool_function_name>/SKILL.md`（含 `allowed-tools: mcp__deeprouter__<tool_function_name>`、使用说明、触发场景）和 `examples/` 目录。
+- **mcp-config**：生成标准 MCP remote server config JSON（`type: url`、`url: https://deeprouter.ai/mcp`、`headers.Authorization: Bearer ${DEEPROUTER_API_KEY}`）。
+- 所有 Adapter 输出不得包含 `instruction_template` 或任何执行逻辑；由单元测试和 launch security review 双重验证。
+- Adapter 下载需认证（API Key）且用户必须 `enabled=true`；否则返回 403。
+- 触发 `skill_spec_downloaded` 事件，含 `adapter_format`、`skill_id`、`user_id`。
+
+*Live MCP Server:*
+- 实现 `GET /mcp`（capability discovery）：返回调用者 API Key 对应用户所有 `enabled=true` Skill 的 tool 列表（MCP 2024-11-05 协议格式）。
+- 实现 `POST /mcp`（tool call）：解析 MCP tool call，内部路由到 `/v1/skills/execute/{skill_id}`，执行相同 Auth → Entitlement → Safety → Execution 链，响应转换为 MCP tool result 格式。
+- MCP endpoint 认证：`Authorization: Bearer <api_key>`；401 返回 MCP 兼容错误格式。
+
+**Interfaces**
+
+- `GET /v1/skills/{skill_id}/adapters/{format}` — 各平台 Adapter 下载
+- `GET /mcp` — MCP capability discovery
+- `POST /mcp` — MCP tool call（路由到 M05 执行链）
+- `skills.tool_function_name`、`skills.tool_input_schema`、`skills.tool_output_schema`、`skills.tool_spec_invalidated_at`
+- Analytics event: `skill_spec_downloaded`（`adapter_format`、`skill_id`、`user_id`）
+
+**Acceptance**
+
+- 所有 6 种 Adapter format 能从同一 Canonical Manifest 正确生成。
+- `openai-action.json` 能被 ChatGPT Custom GPT Action 导入并识别工具；ChatGPT 能发出 tool call 到 DeepRouter。
+- `anthropic-tool.json` 能被 Claude API tool use 识别；Claude 能发出 tool_use block。
+- `claude-code.zip` 解压后的 SKILL.md 能被 Claude Code 识别；Claude Code 能通过 MCP 调用工具。
+- `GET /mcp` 返回正确的用户 enabled Skill 列表。
+- `POST /mcp` 成功路由到 M05 执行链并返回 MCP 格式响应。
+- 未 enable 的 Skill 不出现在 `GET /mcp` 响应中。
+- 所有 Adapter 输出经 security review 确认不含 `instruction_template`。
+- `tool_spec_invalidated_at` 更新后下次请求重新生成 Adapter 文件。
+
+**Risks**
+
+- 各平台 Adapter 格式随平台更新可能变化（OpenAI / Anthropic / Google schema breaking changes）；需版本化 Adapter 生成逻辑。
+- Claude Code SKILL.md 格式依赖 Claude Code 版本；需随 Claude Code 官方文档跟踪。
+- MCP 协议 2024-11-05 版本可能有后续更新；需保留协议版本字段。
+
+---
+
+### M17. API Key Management and Copy Protection
+
+| Field | Definition |
+|---|---|
+| Priority | P0 |
+| Primary Agent | API Key Agent |
+| Inputs | `01_Functional_Requirements.md` §4.12, `03_Data_Model_and_API_Spec.md`, `05_Security_and_NFR.md` |
+| Owns | API Key 生成、绑定、撤销、范围限制；copy protection 执行；Key 审计日志 |
+| Does Not Own | Relay 执行链（M05）、Adapter 生成（M16）、Entitlement 决策（M06） |
+| Dependencies | M01, M05, M06, M11 |
+
+**Work Items**
+
+- 实现用户 API Key 生成（每用户可生成多个 Key）。
+- API Key 与用户帐号绑定；配额和 Entitlement 始终针对 Key owner 帐号检查。
+- API Key 可绑定 Skill ID 范围（P1：`skill_id` allowlist per Key）。
+- 实现 API Key 即时撤销：撤销后下一个请求周期内生效（一次请求内最多延迟，不跨请求）。
+- API Key 审计日志：记录创建、范围变更、撤销事件（`actor_id`、`timestamp`、`action`、`key_id`）。
+- 防蹭用：tool spec 文件本身不含 Key；分享 spec 给他人不授予任何执行权限（他人调用返回 401）。
+- Rate limiting per Key（防止一个 Key 被多人共享滥用）。
+
+**Acceptance**
+
+- 撤销 Key 后该 Key 的所有后续调用返回 401 `AUTH_REQUIRED`，在一次请求周期内生效。
+- 两个不同用户帐号的 Key 相互隔离；Key A 无法调用 Key B 的配额或 Entitlement。
+- 分享 tool spec 文件但不分享 Key 的用户无法调用 DeepRouter API。
+- API Key 审计日志在 Super Admin 界面可查。
+
+---
+
 ## 4. Cross-Module Dependencies
 
 ### 4.1 Dependency Matrix
