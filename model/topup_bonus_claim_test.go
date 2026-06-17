@@ -68,6 +68,34 @@ func TestClaimTopUpBonusConcurrentSameSeqOnlyOneWins(t *testing.T) {
 	require.Equal(t, 1, wins)
 }
 
+// TestClaimTopUpBonusFillsRemainingCapacityAfterPriorClaim 验证在已有部分占用时，
+// 后续调用会接着占用剩余名额直到发满 limit，而不会因为「已有人领过」就误判超限少发。
+// 这覆盖了 limit>1 的核心语义：容量内每一笔都应发放。
+func TestClaimTopUpBonusFillsRemainingCapacityAfterPriorClaim(t *testing.T) {
+	setupBonusClaimTestDB(t)
+	// 预置 Seq=1（来自前一笔已成功的请求）。
+	require.NoError(t, DB.Create(&TopUpBonusClaim{
+		UserId: 21, Tier: 20, Seq: 1, BonusAmount: 5, TradeNo: "seed", CreatedTime: 1,
+	}).Error)
+
+	g2, err := claimTopUpBonusInTx(DB, 21, 20, 5, 3, "second")
+	require.NoError(t, err)
+	require.True(t, g2) // 已用1 < 3 → 发，拿到 Seq=2
+
+	g3, err := claimTopUpBonusInTx(DB, 21, 20, 5, 3, "third")
+	require.NoError(t, err)
+	require.True(t, g3) // 已用2 < 3 → 发，拿到 Seq=3
+
+	g4, err := claimTopUpBonusInTx(DB, 21, 20, 5, 3, "fourth")
+	require.NoError(t, err)
+	require.False(t, g4) // 已用3 == 3 → 名额满，不发
+
+	var rows int64
+	require.NoError(t, DB.Model(&TopUpBonusClaim{}).
+		Where("user_id = ? AND tier = ?", 21, 20).Count(&rows).Error)
+	require.Equal(t, int64(3), rows)
+}
+
 func TestApplyTopUpBonusGrantsWithinLimit(t *testing.T) {
 	setupBonusClaimTestDB(t)
 	tu := &TopUp{UserId: 30, BonusAmount: 5, BonusTier: 20, TradeNo: "x1"}

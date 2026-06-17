@@ -26,29 +26,45 @@ type TopUpBonusClaim struct {
 // claimTopUpBonusInTx 尝试在事务 tx 内为 (userId, tier) 占用一次赠送名额。
 // limit<=0 表示不限次。返回 true 表示本次应发放赠送、false 表示不发。
 // 必须在调用方的入账事务内调用，与额度写入同事务保证一致性。
+//
+// 并发安全：(UserId,Tier,Seq) 唯一索引保证不超发。但 Count-then-insert 在 limit>1 时，
+// 两笔并发可能读到相同 used、算出相同 Seq 而撞索引——此时输掉竞争的一笔会重读 used 并
+// 重试下一个 Seq，只要容量仍有剩余就继续，避免把「竞争失败」误判为「超限」而少发。
 func claimTopUpBonusInTx(tx *gorm.DB, userId, tier int, bonusAmount int64, limit int, tradeNo string) (bool, error) {
-	var used int64
-	if err := tx.Model(&TopUpBonusClaim{}).
-		Where("user_id = ? AND tier = ?", userId, tier).Count(&used).Error; err != nil {
-		return false, err
+	// 最多重试 limit+1 次（每次重试至少有一个竞争者成功占用一个 Seq，limit 个名额最多被占 limit 次）。
+	// limit<=0（不限次）时给一个小的固定重试上限兜底瞬时冲突。
+	maxAttempts := limit + 1
+	if limit <= 0 {
+		maxAttempts = 8
 	}
-	if limit > 0 && used >= int64(limit) {
-		return false, nil
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		var used int64
+		if err := tx.Model(&TopUpBonusClaim{}).
+			Where("user_id = ? AND tier = ?", userId, tier).Count(&used).Error; err != nil {
+			return false, err
+		}
+		if limit > 0 && used >= int64(limit) {
+			return false, nil // 名额已满
+		}
+		claim := &TopUpBonusClaim{
+			UserId:      userId,
+			Tier:        tier,
+			Seq:         int(used) + 1,
+			TradeNo:     tradeNo,
+			BonusAmount: bonusAmount,
+			CreatedTime: common.GetTimestamp(),
+		}
+		// 唯一索引冲突（DoNothing）→ RowsAffected==0 → 本次 Seq 被别人抢先，重读 used 重试。
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(claim)
+		if res.Error != nil {
+			return false, res.Error
+		}
+		if res.RowsAffected > 0 {
+			return true, nil // 成功占用一个名额
+		}
 	}
-	claim := &TopUpBonusClaim{
-		UserId:      userId,
-		Tier:        tier,
-		Seq:         int(used) + 1,
-		TradeNo:     tradeNo,
-		BonusAmount: bonusAmount,
-		CreatedTime: common.GetTimestamp(),
-	}
-	// 唯一索引冲突（DoNothing）→ RowsAffected==0 → 本次竞争失败，不发放。
-	res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(claim)
-	if res.Error != nil {
-		return false, res.Error
-	}
-	return res.RowsAffected > 0, nil
+	// 超过重试上限仍未占到（极端高并发）：保守不发，避免超发。
+	return false, nil
 }
 
 // applyTopUpBonusInTx 在入账事务内决定是否发放该订单的赠送。
