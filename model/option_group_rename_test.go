@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -74,4 +75,52 @@ func TestUpdateGroupRatioRenameSyncsChannelGroupsAndAbilities(t *testing.T) {
 	var untouchedAbilityCount int64
 	require.NoError(t, DB.Model(&Ability{}).Where(commonGroupCol+" = ?", "oldish").Count(&untouchedAbilityCount).Error)
 	require.Equal(t, int64(1), untouchedAbilityCount)
+}
+
+func TestUpdateOptionValidatesAmountBonusConfigBeforePersisting(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalBonus := paymentSetting.AmountBonus
+	t.Cleanup(func() {
+		paymentSetting.AmountBonus = originalBonus
+	})
+	paymentSetting.AmountBonus = map[int]int64{20: 5}
+
+	err := UpdateOption("payment_setting.amount_bonus", `{"20":"5"}`)
+	require.Error(t, err)
+
+	var persistedCount int64
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "payment_setting.amount_bonus").Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
+	require.Equal(t, map[int]int64{20: 5}, paymentSetting.AmountBonus)
+}
+
+func TestUpdateOptionNormalizesEmptyAmountBonusConfigToEmptyObject(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalBonus := paymentSetting.AmountBonus
+	t.Cleanup(func() {
+		paymentSetting.AmountBonus = originalBonus
+	})
+	paymentSetting.AmountBonus = map[int]int64{20: 5}
+
+	require.NoError(t, UpdateOption("payment_setting.amount_bonus", ""))
+
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "payment_setting.amount_bonus").First(&option).Error)
+	require.Equal(t, "{}", option.Value)
+	require.Empty(t, paymentSetting.AmountBonus)
+}
+
+func TestUpdateOptionsBulkRejectsInvalidAmountBonusConfig(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+
+	err := UpdateOptionsBulk(map[string]string{
+		"payment_setting.amount_bonus": `{"20":0}`,
+	})
+	require.Error(t, err)
+
+	var persistedCount int64
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "payment_setting.amount_bonus").Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
 }

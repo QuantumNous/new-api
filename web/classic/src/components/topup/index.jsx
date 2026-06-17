@@ -127,6 +127,7 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    bonus: {},
     enable_redemption: true,
     payment_compliance_confirmed: true,
   });
@@ -601,6 +602,7 @@ const TopUp = () => {
         setTopupInfo({
           amount_options: data.amount_options || [],
           discount: data.discount || {},
+          bonus: data.bonus || {},
         });
 
         // 处理支付方式
@@ -682,6 +684,7 @@ const TopUp = () => {
           setTopUpLink(data.topup_link || '');
           setTopupInfo((prev) => ({
             ...prev,
+            bonus: data.bonus || {},
             enable_redemption: data.enable_redemption !== false,
             payment_compliance_confirmed:
               data.payment_compliance_confirmed !== false,
@@ -698,8 +701,10 @@ const TopUp = () => {
           }
 
           // 如果没有自定义充值数量选项，根据最小充值金额生成预设充值额度选项
-          if (topupInfo.amount_options.length === 0) {
-            setPresetAmounts(generatePresetAmounts(minTopUpValue));
+          if (!data.amount_options || data.amount_options.length === 0) {
+            setPresetAmounts(
+              generatePresetAmounts(minTopUpValue, data.bonus || {}),
+            );
           }
 
           // 初始化显示实付金额
@@ -712,7 +717,8 @@ const TopUp = () => {
         if (data.amount_options && data.amount_options.length > 0) {
           const customPresets = data.amount_options.map((amount) => ({
             value: amount,
-            discount: data.discount[amount] || 1.0,
+            discount: data.discount?.[amount] || 1.0,
+            bonus: data.bonus?.[amount] || 0,
           }));
           setPresetAmounts(customPresets);
         }
@@ -895,10 +901,11 @@ const TopUp = () => {
   };
 
   // 根据最小充值金额生成预设充值额度选项
-  const generatePresetAmounts = (minAmount) => {
+  const generatePresetAmounts = (minAmount, bonuses = {}) => {
     const multipliers = [1, 5, 10, 30, 50, 100, 300, 500];
     return multipliers.map((multiplier) => ({
       value: minAmount * multiplier,
+      bonus: bonuses[minAmount * multiplier] || 0,
     }));
   };
 
@@ -932,6 +939,7 @@ const TopUp = () => {
         payMethods={confirmPayMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        bonusAmount={topupInfo?.bonus?.[topUpCount] || 0}
       />
 
       {/* 充值账单模态框 */}

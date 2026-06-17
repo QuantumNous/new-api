@@ -5063,13 +5063,22 @@
     "{{usage}} more usage than the official plan": "{{usage}} más de uso que el plan oficial",
     "Offer ends in": "La oferta termina en",
     "Failed to start payment": "No se pudo iniciar el pago",
-    "Get ${{bonus}} free": "${{bonus}} gratis",
     "Limited time": "Tiempo limitado",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "Primera recarga <hl>+50 % de regalo</hl> · mismos modelos a mitad del precio oficial",
     "Top up & get bonus credit — up to 50% OFF": "Recarga y obtén crédito de regalo — hasta 50 % de descuento",
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}d {{hours}}h {{minutes}}min {{seconds}}s",
     "Recharge successful 🎉": "Recarga exitosa 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Tu bono se ha acreditado en tu monedero. ¡Disfrútalo!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recarga exitosa. Tu bono se está acreditando — actualiza en un momento."
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recarga exitosa. Tu bono se está acreditando — actualiza en un momento.",
+    "e.g., 20": "e.g., 20",
+    "e.g., 5": "e.g., 5",
+    "Amount bonus": "Bonificación por importe",
+    "Bonus Credit": "Crédito de regalo",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "No hay niveles de regalo configurados. Añade un importe de recarga y un importe de regalo abajo.",
+    "Wallet Credit": "Crédito en billetera",
+    "Get {{bonus}} free": "{{bonus}} gratis",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Las entradas de bonificación deben usar importes de recarga enteros positivos e importes de bonificación enteros positivos",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Mapa de crédito de regalo por importe de recarga (objeto JSON). Los valores usan la misma unidad que los importes de recarga.",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configura crédito de regalo para cada importe de recarga. Los valores usan la misma unidad que los importes de recarga."
   }
 }

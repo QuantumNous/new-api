@@ -62,6 +62,8 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { getAmountBonusJsonError } from './amount-bonus-utils'
+import { AmountBonusVisualEditor } from './amount-bonus-visual-editor'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
@@ -173,7 +175,7 @@ function FormLabelWithHelp(props: FormLabelWithHelpProps) {
           <TooltipContent
             side='top'
             align='start'
-            className='max-w-80 items-start whitespace-normal text-left leading-relaxed'
+            className='max-w-80 items-start text-left leading-relaxed whitespace-normal'
           >
             {props.help}
           </TooltipContent>
@@ -196,7 +198,7 @@ function FormLabelWithHelp(props: FormLabelWithHelpProps) {
             <TooltipContent
               side='top'
               align='start'
-              className='max-w-80 items-start whitespace-normal text-left leading-relaxed'
+              className='max-w-80 items-start text-left leading-relaxed whitespace-normal'
             >
               {props.error}
             </TooltipContent>
@@ -301,6 +303,15 @@ const paymentSchema = z
         (parsed) =>
           !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       )
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
+    AmountBonus: z.string().superRefine((value, ctx) => {
+      const error = getAmountBonusJsonError(value)
       if (error) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -482,6 +493,7 @@ export function PaymentSettingsSection({
   const [payMethodsVisualMode, setPayMethodsVisualMode] = React.useState(true)
   const [amountOptionsVisualMode, setAmountOptionsVisualMode] =
     React.useState(true)
+  const [amountBonusVisualMode, setAmountBonusVisualMode] = React.useState(true)
   const [amountDiscountVisualMode, setAmountDiscountVisualMode] =
     React.useState(true)
   const [creemProductsVisualMode, setCreemProductsVisualMode] =
@@ -595,6 +607,7 @@ export function PaymentSettingsSection({
       ...initialFormValues,
       PayMethods: formatJsonForEditor(initialFormValues.PayMethods),
       AmountOptions: formatJsonForEditor(initialFormValues.AmountOptions),
+      AmountBonus: formatJsonForEditor(initialFormValues.AmountBonus),
       AmountDiscount: formatJsonForEditor(initialFormValues.AmountDiscount),
       CreemProducts: formatJsonForEditor(initialFormValues.CreemProducts),
     },
@@ -648,12 +661,14 @@ export function PaymentSettingsSection({
   React.useEffect(() => {
     const parsedDefaults = JSON.parse(defaultsSignature) as PaymentFormValues
     initialRef.current = parsedDefaults
-    const effectivePaddleSandbox = getEffectivePaddleSandboxValue(parsedDefaults)
+    const effectivePaddleSandbox =
+      getEffectivePaddleSandboxValue(parsedDefaults)
     form.reset({
       ...parsedDefaults,
       PaddleSandbox: effectivePaddleSandbox,
       PayMethods: formatJsonForEditor(parsedDefaults.PayMethods),
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
+      AmountBonus: formatJsonForEditor(parsedDefaults.AmountBonus),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
     })
@@ -669,6 +684,7 @@ export function PaymentSettingsSection({
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
+      AmountBonus: values.AmountBonus.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
@@ -721,6 +737,7 @@ export function PaymentSettingsSection({
       ),
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
+      AmountBonus: initialRef.current.AmountBonus.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
@@ -808,6 +825,16 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_options',
         value: sanitized.AmountOptions,
+      })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.AmountBonus) !==
+      normalizeJsonForComparison(initial.AmountBonus)
+    ) {
+      updates.push({
+        key: 'payment_setting.amount_bonus',
+        value: sanitized.AmountBonus,
       })
     }
 
@@ -1080,7 +1107,9 @@ export function PaymentSettingsSection({
 
   const onInvalid = React.useCallback(() => {
     toast.error(
-      t('Payment settings need attention. Hover the red icons beside fields for details.')
+      t(
+        'Payment settings need attention. Hover the red icons beside fields for details.'
+      )
     )
   }, [t])
 
@@ -1341,7 +1370,7 @@ export function PaymentSettingsSection({
               )}
             />
 
-            <div className='grid gap-6 md:grid-cols-2 md:items-start'>
+            <div className='grid gap-6 md:grid-cols-3 md:items-start'>
               <FormField
                 control={form.control}
                 name='AmountOptions'
@@ -1390,6 +1419,62 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Preset recharge amounts (JSON array)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AmountBonus'
+                render={({ field }) => (
+                  <FormItem>
+                    <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                      <FormLabel>{t('Amount bonus')}</FormLabel>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() =>
+                          setAmountBonusVisualMode(!amountBonusVisualMode)
+                        }
+                        className='w-full sm:w-auto'
+                      >
+                        {amountBonusVisualMode ? (
+                          <>
+                            <Code2 className='mr-2 h-3 w-3' />
+                            {t('JSON Editor')}
+                          </>
+                        ) : (
+                          <>
+                            <Eye className='mr-2 h-3 w-3' />
+                            {t('Visual Editor')}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <FormControl>
+                      {amountBonusVisualMode ? (
+                        <AmountBonusVisualEditor
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                      ) : (
+                        <Textarea
+                          rows={4}
+                          placeholder='{"20":5,"50":15}'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      )}
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1985,7 +2070,8 @@ export function PaymentSettingsSection({
                       error={getFieldError('PaddleApiKey')}
                       help={
                         <>
-                          {paddleApiKeyDescription} {t('Leave blank unless updating.')}
+                          {paddleApiKeyDescription}{' '}
+                          {t('Leave blank unless updating.')}
                         </>
                       }
                     />

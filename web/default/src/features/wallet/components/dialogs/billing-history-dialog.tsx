@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { trackSuccessfulTopups } from '@/lib/analytics/topup-tracking'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -58,7 +59,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import type { StatusVariant } from '@/components/status-badge'
-import { trackSuccessfulTopups } from '@/lib/analytics/topup-tracking'
 import { getInvoiceProfile, isApiSuccess } from '../../api'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
@@ -448,7 +448,7 @@ export function BillingHistoryDialog({
                       </div>
 
                       {/* Details Grid */}
-                      <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
+                      <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-4 sm:gap-4'>
                         <div className='space-y-1'>
                           <Label className='text-muted-foreground text-xs'>
                             {t('Payment Method')}
@@ -477,6 +477,21 @@ export function BillingHistoryDialog({
                             {formatNumber(record.money)}
                           </div>
                         </div>
+                        {record.bonus_amount && record.bonus_amount > 0 ? (
+                          <div className='space-y-1'>
+                            <Label className='text-muted-foreground text-xs'>
+                              {t('Bonus Credit')}
+                            </Label>
+                            <div className='text-sm font-semibold text-[#FF2D78]'>
+                              +
+                              {formatCurrencyFromUSD(record.bonus_amount, {
+                                digitsLarge: 2,
+                                digitsSmall: 2,
+                                abbreviate: false,
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       {hasInvoice && (

@@ -5063,13 +5063,22 @@
     "{{usage}} more usage than the official plan": "Dùng được gấp {{usage}} so với gói chính thức",
     "Offer ends in": "Ưu đãi kết thúc sau",
     "Failed to start payment": "Không thể bắt đầu thanh toán",
-    "Get ${{bonus}} free": "Tặng ${{bonus}}",
     "Limited time": "Có hạn",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "Nạp lần đầu <hl>tặng 50%</hl> · cùng model rẻ bằng nửa giá chính thức",
     "Top up & get bonus credit — up to 50% OFF": "Nạp tiền nhận tín dụng thưởng — giảm tới 50%",
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}} ngày {{hours}} giờ {{minutes}} phút {{seconds}} giây",
     "Recharge successful 🎉": "Nạp tiền thành công 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Phần thưởng đã được cộng vào ví của bạn. Chúc bạn dùng vui!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Nạp tiền thành công. Phần thưởng đang được cộng — hãy làm mới sau giây lát."
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Nạp tiền thành công. Phần thưởng đang được cộng — hãy làm mới sau giây lát.",
+    "e.g., 20": "ví dụ: 20",
+    "e.g., 5": "ví dụ: 5",
+    "Amount bonus": "Thưởng theo số tiền",
+    "Bonus Credit": "Tín dụng thưởng",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "Chưa cấu hình mức thưởng. Thêm số tiền nạp và số tiền thưởng bên dưới.",
+    "Wallet Credit": "Tín dụng ví",
+    "Get {{bonus}} free": "Tặng {{bonus}}",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Các mục thưởng phải sử dụng số tiền nạp là số nguyên dương và số tiền thưởng là số nguyên dương",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bản đồ tín dụng thưởng theo số tiền nạp (đối tượng JSON). Giá trị dùng cùng đơn vị với số tiền nạp.",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Cấu hình tín dụng thưởng cho từng số tiền nạp. Giá trị dùng cùng đơn vị với số tiền nạp."
   }
 }

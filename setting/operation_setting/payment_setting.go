@@ -4,6 +4,7 @@ import "github.com/QuantumNous/new-api/setting/config"
 
 type PaymentSetting struct {
 	AmountOptions  []int           `json:"amount_options"`
+	AmountBonus    map[int]int64   `json:"amount_bonus"`    // Top-up amount bonus, e.g. 20:5 means pay 20 and credit 25.
 	AmountDiscount map[int]float64 `json:"amount_discount"` // 充值金额对应的折扣，例如 100 元 0.9 表示 100 元充值享受 9 折优惠
 
 	ComplianceConfirmed    bool   `json:"compliance_confirmed"`
@@ -19,6 +20,7 @@ const CurrentComplianceTermsVersion = "v1"
 var paymentSetting = PaymentSetting{
 	AmountOptions:  []int{10, 20, 50, 100, 200, 1000},
 	AmountDiscount: map[int]float64{},
+	AmountBonus:    map[int]int64{},
 }
 
 func init() {

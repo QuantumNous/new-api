@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { depositBonusUsd } from '../lib/deposit-bonus'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -38,11 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getInvoiceProfile, isApiSuccess } from '../api'
-import {
-  formatCurrency,
-  getPaymentIcon,
-  getMinTopupAmount,
-} from '../lib'
+import { formatCurrency, getPaymentIcon, getMinTopupAmount } from '../lib'
 import {
   EMPTY_INVOICE_PROFILE,
   normalizeInvoiceProfile,
@@ -305,10 +300,10 @@ export function RechargeFormCard({
                               {formatUsdAmount(preset.value)}
                             </div>
                           </div>
-                          {depositBonusUsd(preset.value) > 0 && (
+                          {preset.bonus && preset.bonus > 0 && (
                             <div className='mt-1 text-xs font-semibold text-[#FF2D78]'>
-                              {t('Get ${{bonus}} free', {
-                                bonus: depositBonusUsd(preset.value),
+                              {t('Get {{bonus}} free', {
+                                bonus: formatUsdAmount(preset.bonus),
                               })}
                             </div>
                           )}

@@ -5063,13 +5063,22 @@
     "{{usage}} more usage than the official plan": "{{usage}} more usage than the official plan",
     "Offer ends in": "Offer ends in",
     "Failed to start payment": "Failed to start payment",
-    "Get ${{bonus}} free": "Get ${{bonus}} free",
     "Limited time": "Limited time",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "First top-up <hl>50% bonus</hl> · same models at half the official price",
     "Top up & get bonus credit — up to 50% OFF": "Top up & get bonus credit — up to 50% OFF",
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
     "Recharge successful 🎉": "Recharge successful 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "Your bonus has been credited to your wallet. Enjoy!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge successful. Your bonus is being credited — refresh in a moment."
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "Recharge successful. Your bonus is being credited — refresh in a moment.",
+    "e.g., 20": "e.g., 20",
+    "e.g., 5": "e.g., 5",
+    "Amount bonus": "Amount bonus",
+    "Bonus Credit": "Bonus Credit",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "No bonus tiers configured. Add a recharge amount and bonus amount below.",
+    "Wallet Credit": "Wallet Credit",
+    "Get {{bonus}} free": "Get {{bonus}} free",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts."
   }
 }

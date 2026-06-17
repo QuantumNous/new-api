@@ -5063,13 +5063,22 @@
     "{{usage}} more usage than the official plan": "用量是官方套餐的 {{usage}}",
     "Offer ends in": "活动倒计时",
     "Failed to start payment": "发起支付失败",
-    "Get ${{bonus}} free": "送 ${{bonus}}",
     "Limited time": "限时",
     "First top-up <hl>50% bonus</hl> · same models at half the official price": "首充 <hl>50% 赠送</hl> · 同款模型比官方便宜一半",
     "Top up & get bonus credit — up to 50% OFF": "充值即享加赠额度 —— 最高 5 折",
     "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s": "{{days}}天{{hours}}小时{{minutes}}分钟{{seconds}}秒",
     "Recharge successful 🎉": "充值成功 🎉",
     "Your bonus has been credited to your wallet. Enjoy!": "奖励已同步到账,请尽情使用!",
-    "Recharge successful. Your bonus is being credited — refresh in a moment.": "充值成功,奖励正在同步到账 —— 请稍后刷新。"
+    "Recharge successful. Your bonus is being credited — refresh in a moment.": "充值成功,奖励正在同步到账 —— 请稍后刷新。",
+    "e.g., 20": "例如，20",
+    "e.g., 5": "例如，5",
+    "Amount bonus": "充值赠送",
+    "Bonus Credit": "赠送额度",
+    "No bonus tiers configured. Add a recharge amount and bonus amount below.": "暂无赠送档位。请在下方添加充值金额和赠送额度。",
+    "Wallet Credit": "到账额度",
+    "Get {{bonus}} free": "送 {{bonus}}",
+    "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "充值赠送配置的充值金额和赠送额度必须为正整数",
+    "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "按充值金额配置赠送额度（JSON 对象）。数值单位与充值金额一致。",
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "为每个充值金额配置赠送额度。数值单位与充值金额一致。"
   }
 }

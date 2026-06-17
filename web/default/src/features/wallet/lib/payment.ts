@@ -342,10 +342,25 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 /**
  * Generate preset amounts based on minimum topup
  */
-export function generatePresetAmounts(minAmount: number): PresetAmount[] {
-  return DEFAULT_PRESET_MULTIPLIERS.map((multiplier) => ({
-    value: minAmount * multiplier,
-  }))
+function getConfiguredBonus(
+  bonuses: Record<number, number> | undefined,
+  amount: number
+): number | undefined {
+  const bonus = bonuses?.[amount]
+  return typeof bonus === 'number' && Number.isFinite(bonus) && bonus > 0
+    ? bonus
+    : undefined
+}
+
+export function generatePresetAmounts(
+  minAmount: number,
+  bonuses: Record<number, number> = {}
+): PresetAmount[] {
+  return DEFAULT_PRESET_MULTIPLIERS.map((multiplier) => {
+    const value = minAmount * multiplier
+    const bonus = getConfiguredBonus(bonuses, value)
+    return bonus ? { value, bonus } : { value }
+  })
 }
 
 /**
@@ -353,14 +368,19 @@ export function generatePresetAmounts(minAmount: number): PresetAmount[] {
  */
 export function mergePresetAmounts(
   amountOptions: number[],
-  discounts: Record<number, number>
+  discounts: Record<number, number>,
+  bonuses: Record<number, number> = {}
 ): PresetAmount[] {
   if (!amountOptions || amountOptions.length === 0) {
     return []
   }
 
-  return amountOptions.map((amount) => ({
-    value: amount,
-    discount: discounts[amount] || 1.0,
-  }))
+  return amountOptions.map((amount) => {
+    const bonus = getConfiguredBonus(bonuses, amount)
+    return {
+      value: amount,
+      discount: discounts[amount] || 1.0,
+      ...(bonus ? { bonus } : {}),
+    }
+  })
 }

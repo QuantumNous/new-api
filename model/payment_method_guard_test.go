@@ -176,14 +176,15 @@ func TestRechargeStripeCreditsPurchasedAmountAndIsIdempotent(t *testing.T) {
 	assert.Equal(t, "cus_guard", user.StripeCustomer)
 }
 
-func TestRechargeStripeGrantsDepositBonusOnTierAmount(t *testing.T) {
+func TestRechargeStripeCreditsStoredTotalAmountWithoutRuntimeBonus(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 118, 0)
-	// A $20 top-up is a bonus tier (20 -> +$5). Credit must be base + bonus.
+	// No configured bonus is persisted on this order, so fulfillment credits the stored total.
 	topUp := &TopUp{
 		UserId:          118,
 		Amount:          20,
+		BonusAmount:     0,
 		Money:           20,
 		TradeNo:         "stripe-bonus-tier-guard",
 		PaymentMethod:   PaymentMethodStripe,
@@ -197,19 +198,20 @@ func TestRechargeStripeGrantsDepositBonusOnTierAmount(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 
-	expected := int((20+5)*int64(common.QuotaPerUnit))
+	expected := int(20 * int64(common.QuotaPerUnit))
 	assert.Equal(t, expected, getUserQuotaForPaymentGuardTest(t, 118))
 }
 
-func TestRechargeStripeNoBonusOnCustomAmount(t *testing.T) {
+func TestRechargeStripeCreditsStoredTotalAmountWithBonusMetadata(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 119, 0)
-	// $33 is not a configured tier -> no bonus, credit equals base only.
+	// A $20 + $5 configured bonus order stores total amount plus bonus metadata.
 	topUp := &TopUp{
 		UserId:          119,
-		Amount:          33,
-		Money:           33,
+		Amount:          25,
+		BonusAmount:     5,
+		Money:           20,
 		TradeNo:         "stripe-bonus-custom-guard",
 		PaymentMethod:   PaymentMethodStripe,
 		PaymentProvider: PaymentProviderStripe,
@@ -222,7 +224,7 @@ func TestRechargeStripeNoBonusOnCustomAmount(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 
-	assert.Equal(t, int(33*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
+	assert.Equal(t, int(25*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
 }
 
 func TestTopUpPersistsSaveCardFlag(t *testing.T) {
@@ -270,19 +272,19 @@ func TestRechargeStripeBindsCardAtomicallyForSaveCardTopUp(t *testing.T) {
 	}
 	require.NoError(t, topUp.Insert())
 
-	// First fulfillment: credits quota+bonus AND marks the card bound, in one transaction.
+	// First fulfillment: credits the stored amount and marks the card bound, in one transaction.
 	recharged, err := Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, recharged)
 	assert.True(t, getUserCardBoundForTest(t, 120), "save-card top-up must set stripe_card_bound")
-	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
+	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
 	// Webhook redelivery: order already Success → no re-credit, binding unchanged (idempotent).
 	recharged, err = Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, recharged)
 	assert.True(t, getUserCardBoundForTest(t, 120))
-	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
+	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
 	var user User
 	require.NoError(t, DB.Select("stripe_customer").Where("id = ?", 120).First(&user).Error)
@@ -309,9 +311,9 @@ func TestRechargeStripeDoesNotBindForNonSaveCardTopUp(t *testing.T) {
 	recharged, err := Recharge("no-save-card-guard", "cus_plain", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, recharged)
-	// Plain wallet top-up credits quota (incl. tier bonus) but must NOT bind the card.
+	// Plain wallet top-up credits the stored amount but must NOT bind the card.
 	assert.False(t, getUserCardBoundForTest(t, 121), "non-save-card top-up must not bind the card")
-	assert.Equal(t, int((50+15)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 121))
+	assert.Equal(t, int(50*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 121))
 }
 
 func TestRechargeStripeSkipsBindWhenCustomerMissing(t *testing.T) {
@@ -336,7 +338,7 @@ func TestRechargeStripeSkipsBindWhenCustomerMissing(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, recharged)
 	assert.False(t, getUserCardBoundForTest(t, 122), "must not bind without a customer to charge")
-	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 122))
+	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 122))
 }
 
 func TestTopUpPersistsGAIdentifiers(t *testing.T) {

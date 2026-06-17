@@ -194,6 +194,8 @@ export interface TopupInfo {
   amount_options: number[]
   /** Discount rates by amount */
   discount: Record<number, number>
+  /** Bonus amounts by selected recharge amount */
+  bonus: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
   /** Whether Creem topup is enabled */
@@ -234,6 +236,8 @@ export interface PresetAmount {
   value: number
   /** Optional discount rate (0-1) */
   discount?: number
+  /** Optional bonus amount credited in addition to value */
+  bonus?: number
 }
 
 /**
@@ -368,6 +372,8 @@ export interface TopupRecord {
   amount: number
   /** Payment amount (actual money paid) */
   money: number
+  /** Bonus amount included in amount */
+  bonus_amount?: number
   /** Trade/order number */
   trade_no: string
   /** Payment method type */

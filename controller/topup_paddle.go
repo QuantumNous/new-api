@@ -190,9 +190,15 @@ func RequestPaddlePay(c *gin.Context) {
 	}
 
 	tradeNo := fmt.Sprintf("PADDLE-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
+	amount, bonusAmount := configuredTopUpAmounts(req.Amount)
+	if amount <= 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
+		return
+	}
 	topUp := &model.TopUp{
 		UserId:          id,
-		Amount:          normalizePaddleTopUpAmount(req.Amount),
+		Amount:          amount,
+		BonusAmount:     bonusAmount,
 		Money:           payMoney,
 		PaymentCurrency: getPaddleCurrency(),
 		TradeNo:         tradeNo,
@@ -474,17 +480,7 @@ func getPaddleMinTopUp() int64 {
 }
 
 func normalizePaddleTopUpAmount(amount int64) int64 {
-	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
-		return amount
-	}
-
-	normalized := decimal.NewFromInt(amount).
-		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
-		IntPart()
-	if normalized < 1 {
-		return 1
-	}
-	return normalized
+	return normalizeTopUpAmount(amount)
 }
 
 func paddleAPIBaseURL() string {

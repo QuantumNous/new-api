@@ -24,7 +24,6 @@ import { useOnboardingStore } from '@/stores/onboarding-store'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { requestPromoTopup, isApiSuccess } from './api'
-import { depositBonusUsd } from '../wallet/lib/deposit-bonus'
 
 // Visual urgency timer: 10 days from the moment the user FIRST sees the dialog. The anchor
 // (end timestamp) is persisted in localStorage so a refresh or reopen doesn't reset it.
@@ -48,9 +47,8 @@ function getPromoDeadline(): number {
   }
 }
 
-// Two promo recharge tiers. amount = USD charged; the bonus is the single source of truth in
-// deposit-bonus.ts (depositBonusUsd), mirrored from the backend depositBonusTiers. The
-// usage/off labels are marketing copy (actual discount lives in group ratios).
+// Two promo recharge tiers. amount = USD charged; usage/off labels are
+// marketing copy (actual discount lives in group ratios).
 interface PromoTier {
   amount: number
   off: string // e.g. "40% OFF"
@@ -75,8 +73,8 @@ function breakdown(ms: number) {
 /**
  * Onboarding promo dialog. Floats over the console with a translucent, blurred backdrop.
  * Presents two recharge tiers; clicking one starts a real Stripe payment that also binds
- * the card (save_card) for later postpaid auto-charge. The bonus/discount figures shown are
- * marketing copy — the actual deposit bonus and pricing are enforced on the backend.
+ * the card (save_card) for later postpaid auto-charge. Discount figures shown
+ * are marketing copy; payment pricing is enforced on the backend.
  */
 export function Onboarding() {
   const { t } = useTranslation()
@@ -120,7 +118,10 @@ export function Onboarding() {
         if (!next) closeOnboarding()
       }}
     >
-      <DialogContent className='gap-5 sm:max-w-md' showCloseButton={!submitting}>
+      <DialogContent
+        className='gap-5 sm:max-w-md'
+        showCloseButton={!submitting}
+      >
         {/* Eyebrow */}
         <p className='text-muted-foreground text-center text-xs font-medium'>
           🎟 {t('Congrats — you’ve unlocked a new-user exclusive offer')}
@@ -135,10 +136,10 @@ export function Onboarding() {
         </div>
 
         {/* Headline */}
-        <h2 className='text-center text-2xl font-extrabold leading-tight tracking-tight'>
+        <h2 className='text-center text-2xl leading-tight font-extrabold tracking-tight'>
           <Trans
-            i18nKey='Top up & get <hl>up to 50% OFF</hl><br/>＋ bonus credit on every plan'
-            components={{ hl: <span className='text-[#FF2D78]' />, br: <br /> }}
+            i18nKey='Top up & get <hl>up to 50% OFF</hl>'
+            components={{ hl: <span className='text-[#FF2D78]' /> }}
           />
         </h2>
         <p className='text-muted-foreground text-center text-sm'>
@@ -169,9 +170,8 @@ export function Onboarding() {
               )}
               <div className='flex flex-col'>
                 <span className='text-lg font-extrabold'>
-                  {t('Top up ${{amount}} → get ${{total}}', {
+                  {t('Top up ${{amount}}', {
                     amount: tier.amount,
-                    total: tier.amount + depositBonusUsd(tier.amount),
                   })}
                 </span>
                 <span className='text-muted-foreground text-xs'>
@@ -197,7 +197,7 @@ export function Onboarding() {
         {/* Countdown */}
         <p className='text-muted-foreground text-center text-xs'>
           {t('Offer ends in')}{' '}
-          <span className='font-bold tabular-nums text-foreground'>
+          <span className='text-foreground font-bold tabular-nums'>
             {t('{{days}}d {{hours}}h {{minutes}}m {{seconds}}s', {
               days,
               hours,

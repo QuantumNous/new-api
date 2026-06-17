@@ -39,7 +39,11 @@ const PaymentConfirmModal = ({
   // 新增：用于显示折扣明细
   amountNumber,
   discountRate,
+  bonusAmount = 0,
 }) => {
+  const normalizedBonusAmount =
+    Number.isFinite(bonusAmount) && bonusAmount > 0 ? bonusAmount : 0;
+  const creditedAmount = Number(topUpCount || 0) + normalizedBonusAmount;
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
@@ -90,6 +94,26 @@ const PaymentConfirmModal = ({
                 </div>
               )}
             </div>
+            {normalizedBonusAmount > 0 && (
+              <>
+                <div className='flex justify-between items-center'>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {t('赠送额度')}：
+                  </Text>
+                  <Text className='text-rose-500'>
+                    +{renderQuotaWithAmount(normalizedBonusAmount)}
+                  </Text>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {t('到账额度')}：
+                  </Text>
+                  <Text strong className='text-slate-900 dark:text-slate-100'>
+                    {renderQuotaWithAmount(creditedAmount)}
+                  </Text>
+                </div>
+              </>
+            )}
             {hasDiscount && !amountLoading && (
               <>
                 <div className='flex justify-between items-center'>

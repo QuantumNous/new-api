@@ -4594,6 +4594,11 @@
     "{{count}} 个月前_other": "{{count}} tháng trước",
     "1 年前": "1 năm trước",
     "额度预警通知": "Thông báo cảnh báo quota",
-    "您的额度即将用尽，当前剩余额度为 {{value}}": "Quota của bạn sắp hết. Quota còn lại hiện tại: {{value}}"
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "Quota của bạn sắp hết. Quota còn lại hiện tại: {{value}}",
+    "充值赠送配置": "Cấu hình thưởng nạp tiền",
+    "充值赠送配置不是合法的 JSON 对象": "Cấu hình thưởng nạp tiền không phải là đối tượng JSON hợp lệ",
+    "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Thiết lập tín dụng thưởng cho từng số tiền nạp. Khóa là số tiền nạp, giá trị là số tiền thưởng, ví dụ: {\"20\": 5, \"50\": 15}",
+    "赠送额度": "Tín dụng thưởng",
+    "到账额度": "Tín dụng ví"
   }
 }

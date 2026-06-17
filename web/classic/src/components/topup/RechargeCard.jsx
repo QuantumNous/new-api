@@ -441,6 +441,8 @@ const RechargeCard = ({
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0;
+                      const bonus =
+                        preset.bonus || topupInfo?.bonus?.[preset.value] || 0;
                       const originalPrice = preset.value * priceRatio;
                       const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
@@ -459,6 +461,7 @@ const RechargeCard = ({
                       } catch (e) {}
 
                       let displayValue = preset.value; // 显示的数量
+                      let displayBonus = bonus;
                       let displayActualPay = actualPay;
                       let displaySave = save;
 
@@ -469,9 +472,11 @@ const RechargeCard = ({
                       } else if (type === 'CNY') {
                         // 数量转CNY，价格已是CNY
                         displayValue = preset.value * usdRate;
+                        displayBonus = bonus * usdRate;
                       } else if (type === 'CUSTOM') {
                         // 数量和价格都转自定义货币
                         displayValue = preset.value * rate;
+                        displayBonus = bonus * rate;
                         displayActualPay = (actualPay / usdRate) * rate;
                         displaySave = (save / usdRate) * rate;
                       }
@@ -516,6 +521,19 @@ const RechargeCard = ({
                                 </Tag>
                               )}
                             </Typography.Title>
+                            {bonus > 0 && (
+                              <div
+                                style={{
+                                  color: '#FF2D78',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  margin: '4px 0',
+                                }}
+                              >
+                                {t('赠送额度')}: +{symbol}
+                                {formatLargeNumber(displayBonus)}
+                              </div>
+                            )}
                             <div
                               style={{
                                 color: 'var(--semi-color-text-2)',

@@ -149,6 +149,7 @@ func GetTopUpInfo(c *gin.Context) {
 		}(),
 		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
+		"bonus":          operation_setting.GetPaymentSetting().AmountBonus,
 		"topup_link":     common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
@@ -197,6 +198,51 @@ type EpayRequest struct {
 
 type AmountRequest struct {
 	Amount int64 `json:"amount"`
+}
+
+func normalizeTopUpDisplayAmount(amount int64, minimumOne bool) int64 {
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+		return amount
+	}
+
+	normalized := decimal.NewFromInt(amount).
+		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+		IntPart()
+	if minimumOne && normalized < 1 {
+		return 1
+	}
+	return normalized
+}
+
+func normalizeTopUpAmount(amount int64) int64 {
+	return normalizeTopUpDisplayAmount(amount, true)
+}
+
+func normalizeTopUpBonusAmount(amount int64) int64 {
+	if amount <= 0 {
+		return 0
+	}
+	return normalizeTopUpDisplayAmount(amount, false)
+}
+
+func configuredTopUpBonusAmount(requestAmount int64) int64 {
+	if requestAmount <= 0 {
+		return 0
+	}
+	bonus, ok := operation_setting.GetPaymentSetting().AmountBonus[int(requestAmount)]
+	if !ok {
+		return 0
+	}
+	return normalizeTopUpBonusAmount(bonus)
+}
+
+func configuredTopUpAmounts(requestAmount int64) (int64, int64) {
+	amount := normalizeTopUpAmount(requestAmount)
+	bonus := configuredTopUpBonusAmount(requestAmount)
+	if bonus <= 0 {
+		return amount, 0
+	}
+	return amount + bonus, bonus
 }
 
 func GetEpayClient() *epay.Client {
@@ -282,6 +328,12 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
+	amount, bonusAmount := configuredTopUpAmounts(req.Amount)
+	if amount <= 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
+		return
+	}
+
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, _ := url.Parse(paymentReturnPath("/console/log"))
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
@@ -306,15 +358,10 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		dAmount := decimal.NewFromInt(int64(amount))
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		amount = dAmount.Div(dQuotaPerUnit).IntPart()
-	}
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          amount,
+		BonusAmount:     bonusAmount,
 		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,

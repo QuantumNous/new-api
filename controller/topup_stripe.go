@@ -109,7 +109,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	normalizedAmount := normalizeStripeTopUpAmount(req.Amount)
+	normalizedAmount, bonusAmount := configuredTopUpAmounts(req.Amount)
 	if normalizedAmount <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
 		return
@@ -143,6 +143,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          normalizedAmount,
+		BonusAmount:     bonusAmount,
 		Money:           payMoney,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,
@@ -1058,17 +1059,7 @@ func stripeMinorUnitAmount(amount float64, currency string) (int64, error) {
 }
 
 func normalizeStripeTopUpAmount(amount int64) int64 {
-	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
-		return amount
-	}
-
-	normalized := decimal.NewFromInt(amount).
-		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
-		IntPart()
-	if normalized < 1 {
-		return 1
-	}
-	return normalized
+	return normalizeTopUpAmount(amount)
 }
 
 func getStripePayMoney(amount float64, group string) float64 {
