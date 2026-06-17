@@ -163,6 +163,7 @@ const eyebrowByLocale: Record<Locale, string> = {
   ru: "Официальный сайт",
   ja: "公式サイト",
   vi: "Trang chính thức",
+  de: "Offizielle Website",
 };
 
 export type PublicPageKey = keyof typeof generic;
