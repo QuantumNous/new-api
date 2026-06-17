@@ -32,6 +32,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
 import { ToolPriceSettings } from './tool-price-settings'
+import { UnpricedModelsEditor } from './unpriced-models-editor'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
 import {
   formatJsonForTextarea,
@@ -128,7 +129,12 @@ const createGroupSchema = (t: Translate) =>
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
 type GroupFormValues = z.infer<ReturnType<typeof createGroupSchema>>
-type RatioTabId = 'models' | 'groups' | 'tool-prices' | 'upstream-sync'
+type RatioTabId =
+  | 'models'
+  | 'groups'
+  | 'unpriced-models'
+  | 'tool-prices'
+  | 'upstream-sync'
 
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
@@ -143,7 +149,13 @@ export function RatioSettingsCard({
   groupDefaults,
   toolPricesDefault,
   titleKey = 'Pricing Ratios',
-  visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
+  visibleTabs = [
+    'models',
+    'groups',
+    'unpriced-models',
+    'tool-prices',
+    'upstream-sync',
+  ],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -385,6 +397,7 @@ export function RatioSettingsCard({
   const tabLabels: Record<RatioTabId, string> = {
     models: 'Model prices',
     groups: 'Group ratios',
+    'unpriced-models': 'Unpriced models',
     'tool-prices': 'Tool prices',
     'upstream-sync': 'Upstream price sync',
   }
@@ -394,7 +407,8 @@ export function RatioSettingsCard({
       2: 'grid-cols-2',
       3: 'grid-cols-3',
       4: 'grid-cols-4',
-    }[visibleTabs.length] ?? 'grid-cols-4'
+      5: 'grid-cols-5',
+    }[visibleTabs.length] ?? 'grid-cols-5'
   const defaultTab = visibleTabs[0] ?? 'models'
 
   const renderTabContent = (tab: RatioTabId) => {
@@ -416,6 +430,24 @@ export function RatioSettingsCard({
           form={groupForm}
           onSave={saveGroupRatios}
           isSaving={updateOption.isPending}
+        />
+      )
+    }
+    if (tab === 'unpriced-models') {
+      return (
+        <UnpricedModelsEditor
+          modelRatios={{
+            ModelPrice: modelDefaults.ModelPrice,
+            ModelRatio: modelDefaults.ModelRatio,
+            CompletionRatio: modelDefaults.CompletionRatio,
+            CacheRatio: modelDefaults.CacheRatio,
+            CreateCacheRatio: modelDefaults.CreateCacheRatio,
+            ImageRatio: modelDefaults.ImageRatio,
+            AudioRatio: modelDefaults.AudioRatio,
+            AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
+            'billing_setting.billing_mode': modelDefaults.BillingMode,
+            'billing_setting.billing_expr': modelDefaults.BillingExpr,
+          }}
         />
       )
     }
