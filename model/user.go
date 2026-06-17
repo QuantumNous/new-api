@@ -572,7 +572,11 @@ func (user *User) Edit(updatePassword bool) error {
 func backfillEnterpriseFlag() error {
 	const flagKey = "PlgEnterpriseBackfilled"
 	var cnt int64
-	if err := DB.Model(&Option{}).Where("key = ?", flagKey).Count(&cnt).Error; err != nil {
+	// `key` is a reserved word in MySQL — must use the DB-specific quoted column
+	// (commonKeyCol, set by initCol() before InitDB runs). A raw "key = ?" parses on
+	// SQLite but is a syntax error on MySQL (Error 1064), which is why this only surfaced
+	// in prod. See CLAUDE.md Rule 2.
+	if err := DB.Model(&Option{}).Where(commonKeyCol+" = ?", flagKey).Count(&cnt).Error; err != nil {
 		return err
 	}
 	if cnt > 0 {
