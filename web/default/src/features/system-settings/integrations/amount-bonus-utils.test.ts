@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'bun:test'
 import {
   getAmountBonusJsonError,
+  getAmountBonusLimitJsonError,
   parseAmountBonusJson,
+  parseAmountBonusLimitJson,
+  setAmountBonusLimit,
   upsertAmountBonusTier,
 } from './amount-bonus-utils'
 
@@ -52,5 +55,30 @@ describe('amount bonus settings helpers', () => {
         }
       )
     ).toBe('{\n  "30": 6,\n  "50": 15\n}')
+  })
+
+  test('validates claim-limit JSON allowing zero/non-negative counts', () => {
+    expect(getAmountBonusLimitJsonError('{"20":2,"50":1}')).toBeNull()
+    expect(getAmountBonusLimitJsonError('{"20":0}')).toBeNull()
+    expect(getAmountBonusLimitJsonError('{"20":-1}')).not.toBeNull()
+    expect(getAmountBonusLimitJsonError('{"20":"2"}')).not.toBeNull()
+    expect(getAmountBonusLimitJsonError('{"20.5":2}')).not.toBeNull()
+  })
+
+  test('parses claim-limit JSON into a numeric record', () => {
+    expect(parseAmountBonusLimitJson('{"20":2,"bad":3,"50":1}')).toEqual({
+      20: 2,
+      50: 1,
+    })
+  })
+
+  test('setAmountBonusLimit upserts positive limits and removes zero', () => {
+    expect(setAmountBonusLimit('{"20":2}', 50, 1)).toBe(
+      '{\n  "20": 2,\n  "50": 1\n}'
+    )
+    // 0 表示不限 → 从配置移除
+    expect(setAmountBonusLimit('{"20":2,"50":1}', 20, 0)).toBe(
+      '{\n  "50": 1\n}'
+    )
   })
 })

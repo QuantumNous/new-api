@@ -32,7 +32,9 @@ import {
 } from '@/components/ui/table'
 import {
   parseAmountBonusJson,
+  parseAmountBonusLimitJson,
   serializeAmountBonusTiers,
+  setAmountBonusLimit,
   upsertAmountBonusTier,
   type AmountBonusTier,
 } from './amount-bonus-utils'
@@ -40,29 +42,42 @@ import {
 type AmountBonusVisualEditorProps = {
   value: string
   onChange: (value: string) => void
+  limitValue?: string
+  onLimitChange?: (value: string) => void
 }
 
 export function AmountBonusVisualEditor({
   value,
   onChange,
+  limitValue = '',
+  onLimitChange,
 }: AmountBonusVisualEditorProps) {
   const { t } = useTranslation()
   const [amount, setAmount] = useState('')
   const [bonusAmount, setBonusAmount] = useState('')
+  const [claimLimit, setClaimLimit] = useState('')
   const [editData, setEditData] = useState<AmountBonusTier | null>(null)
 
   const tiers = useMemo(() => parseAmountBonusJson(value), [value])
+  const limits = useMemo(
+    () => parseAmountBonusLimitJson(limitValue),
+    [limitValue]
+  )
   const amountNumber = Number(amount)
   const bonusAmountNumber = Number(bonusAmount)
+  const claimLimitNumber = claimLimit.trim() === '' ? 0 : Number(claimLimit)
   const canSave =
     Number.isInteger(amountNumber) &&
     amountNumber > 0 &&
     Number.isInteger(bonusAmountNumber) &&
-    bonusAmountNumber > 0
+    bonusAmountNumber > 0 &&
+    Number.isInteger(claimLimitNumber) &&
+    claimLimitNumber >= 0
 
   const resetDraft = () => {
     setAmount('')
     setBonusAmount('')
+    setClaimLimit('')
     setEditData(null)
   }
 
@@ -77,6 +92,7 @@ export function AmountBonusVisualEditor({
         bonusAmount: bonusAmountNumber,
       })
     )
+    onLimitChange?.(setAmountBonusLimit(limitValue, amountNumber, claimLimitNumber))
     resetDraft()
   }
 
@@ -86,6 +102,7 @@ export function AmountBonusVisualEditor({
         tiers.filter((item) => item.amount !== tier.amount)
       )
     )
+    onLimitChange?.(setAmountBonusLimit(limitValue, tier.amount, 0))
     if (editData?.amount === tier.amount) {
       resetDraft()
     }
@@ -95,6 +112,8 @@ export function AmountBonusVisualEditor({
     setEditData(tier)
     setAmount(String(tier.amount))
     setBonusAmount(String(tier.bonusAmount))
+    const existingLimit = limits[tier.amount]
+    setClaimLimit(existingLimit ? String(existingLimit) : '')
   }
 
   return (
@@ -119,6 +138,7 @@ export function AmountBonusVisualEditor({
                 <TableHead>{t('Recharge Amount')}</TableHead>
                 <TableHead>{t('Bonus Credit')}</TableHead>
                 <TableHead>{t('Wallet Credit')}</TableHead>
+                <TableHead>{t('Claim Limit')}</TableHead>
                 <TableHead className='text-right'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -131,6 +151,9 @@ export function AmountBonusVisualEditor({
                   </TableCell>
                   <TableCell className='font-mono'>
                     {tier.amount + tier.bonusAmount}
+                  </TableCell>
+                  <TableCell className='font-mono'>
+                    {limits[tier.amount] ? limits[tier.amount] : t('Unlimited')}
                   </TableCell>
                   <TableCell className='text-right'>
                     <div className='flex justify-end gap-2'>
@@ -167,7 +190,7 @@ export function AmountBonusVisualEditor({
         </div>
       )}
 
-      <div className='grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end'>
+      <div className='grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end'>
         <div>
           <Label htmlFor='amount-bonus-recharge' className='mb-2 block'>
             {t('Recharge Amount')}
@@ -194,6 +217,20 @@ export function AmountBonusVisualEditor({
             value={bonusAmount}
             onChange={(event) => setBonusAmount(event.target.value)}
             placeholder={t('e.g., 5')}
+          />
+        </div>
+        <div>
+          <Label htmlFor='amount-bonus-limit' className='mb-2 block'>
+            {t('Claim Limit')}
+          </Label>
+          <Input
+            id='amount-bonus-limit'
+            type='number'
+            step='1'
+            min='0'
+            value={claimLimit}
+            onChange={(event) => setClaimLimit(event.target.value)}
+            placeholder={t('0 = unlimited')}
           />
         </div>
         <Button

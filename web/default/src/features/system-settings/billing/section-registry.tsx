@@ -141,6 +141,7 @@ const BILLING_SECTIONS = [
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],
           AmountBonus: settings['payment_setting.amount_bonus'],
+          AmountBonusLimit: settings['payment_setting.amount_bonus_limit'],
           AmountDiscount: settings['payment_setting.amount_discount'],
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,

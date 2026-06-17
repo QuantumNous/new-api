@@ -5079,6 +5079,10 @@
     "Get {{bonus}} free": "送 {{bonus}}",
     "Amount bonus entries must use positive integer recharge amounts and positive integer bonus amounts": "充值赠送配置的充值金额和赠送额度必须为正整数",
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "按充值金额配置赠送额度（JSON 对象）。数值单位与充值金额一致。",
-    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "为每个充值金额配置赠送额度。数值单位与充值金额一致。"
+    "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "为每个充值金额配置赠送额度。数值单位与充值金额一致。",
+    "Claim Limit": "可享次数",
+    "0 = unlimited": "0 = 不限",
+    "Bonus claim limit per user": "每用户赠送次数限制",
+    "Per-user lifetime claim limit by recharge amount (JSON object). 0 or unset means unlimited.": "按充值金额配置每个用户的终身可享赠送次数（JSON 对象）。0 或不填表示不限。"
   }
 }

@@ -111,3 +111,71 @@ export function upsertAmountBonusTier(
 
   return serializeAmountBonusTiers([...tiers, data])
 }
+
+export const AMOUNT_BONUS_LIMIT_INTEGER_MAP_ERROR =
+  'Amount bonus limit entries must use positive integer recharge amounts and non-negative integer claim counts'
+
+function isNonNegativeInteger(value: number): boolean {
+  return Number.isInteger(value) && value >= 0
+}
+
+export function getAmountBonusLimitJsonError(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Invalid JSON'
+  }
+
+  if (!isObjectRecord(parsed)) {
+    return 'JSON structure is invalid'
+  }
+
+  const valid = Object.entries(parsed).every(([amount, limit]) => {
+    return (
+      isPositiveIntegerKey(amount) &&
+      typeof limit === 'number' &&
+      isNonNegativeInteger(limit)
+    )
+  })
+
+  return valid ? null : AMOUNT_BONUS_LIMIT_INTEGER_MAP_ERROR
+}
+
+export function parseAmountBonusLimitJson(value: string): Record<number, number> {
+  const result: Record<number, number> = {}
+  for (const [amount, limit] of Object.entries(parseAmountBonusRecord(value))) {
+    const amountNumber = Number(amount)
+    const limitNumber = Number(limit)
+    if (isPositiveInteger(amountNumber) && isNonNegativeInteger(limitNumber)) {
+      result[amountNumber] = limitNumber
+    }
+  }
+  return result
+}
+
+export function setAmountBonusLimit(
+  value: string,
+  amount: number,
+  limit: number
+): string {
+  const limits = parseAmountBonusLimitJson(value)
+  if (isPositiveInteger(amount)) {
+    if (isPositiveInteger(limit)) {
+      limits[amount] = limit
+    } else {
+      // 0 / 非正整数视为「不限」，从配置中移除以保持紧凑。
+      delete limits[amount]
+    }
+  }
+  const sortedEntries = Object.entries(limits)
+    .map(([a, l]) => [Number(a), l] as const)
+    .sort((a, b) => a[0] - b[0])
+    .map(([a, l]) => [String(a), l] as const)
+  return JSON.stringify(Object.fromEntries(sortedEntries), null, 2)
+}
