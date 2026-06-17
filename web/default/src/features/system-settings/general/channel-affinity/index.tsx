@@ -554,7 +554,9 @@ export function ChannelAffinitySection(props: Props) {
               {
                 id: 'model-regex',
                 header: t('Model Regex'),
-                cell: (rule) => <RuleBadgeList items={rule.model_regex || []} />,
+                cell: (rule) => (
+                  <RuleBadgeList items={rule.model_regex || []} />
+                ),
               },
               {
                 id: 'key-sources',

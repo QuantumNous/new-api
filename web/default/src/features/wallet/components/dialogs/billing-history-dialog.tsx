@@ -183,7 +183,7 @@ export function BillingHistoryDialog({
                   return (
                     <div
                       key={record.id}
-                      className='hover:bg-muted/50 rounded-lg border p-3 transition-colors sm:p-4'
+                      className='rounded-lg border p-3 sm:p-4'
                     >
                       {/* Header Row */}
                       <div className='flex items-start justify-between gap-2'>
