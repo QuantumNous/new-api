@@ -90,6 +90,12 @@ func applyTopUpBonusInTx(tx *gorm.DB, topUp *TopUp, limit int) (int64, error) {
 }
 
 // topUpBonusLimitFor 读取某档位的每用户可享次数（0 = 不限）。
+//
+// 限制：tier 来自下单时的 TopUp.BonusTier = int(req.Amount)。在 USD/CNY 展示模式下
+// req.Amount 即充值金额，与 AmountBonusLimit 的 key 同源，正确。但在 TOKENS 展示模式下
+// req.Amount 是 token 数（约 金额×QuotaPerUnit），与按金额配置的 key 量纲不匹配，查不到
+// 而返回 0（不限次）——TOKENS 模式下赠送本身也配不出（AmountBonus 同样按金额 key），故整体
+// 不生效。本功能仅支持 USD/CNY 展示模式。
 func topUpBonusLimitFor(tier int) int {
 	return operation_setting.GetPaymentSetting().AmountBonusLimit[tier]
 }

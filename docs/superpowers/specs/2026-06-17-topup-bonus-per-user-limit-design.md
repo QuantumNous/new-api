@@ -32,6 +32,8 @@
 - 按月 / 按日 / 按活动周期重置（仅做永久累计）
 - 充值退款扣回额度（已确认不在本次范围）
 - 跨档位共享次数（每档位独立计次）
+- **TOKENS 展示模式**：本功能（赠送 + 限次）仅支持 USD/CNY 展示模式。TOKENS 模式下 `req.Amount` 是 token 数，与按金额配置的 `AmountBonus`/`AmountBonusLimit` 的 key 量纲不匹配，赠送与限次均不生效（与既有 AmountBonus 行为一致）。
+- **Creem 渠道**：Creem 走 productId→quota 模型，不属于「充 X 送 Y 档位」体系，不参与赠送/限次。
 
 ## 核心矛盾与解法
 
