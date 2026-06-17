@@ -4674,6 +4674,10 @@
     "When your balance runs low we automatically charge the selected amount to the card saved on your last top-up, so your service never stops. You can turn this off anytime.": "当余额不足时,我们会自动从你上次充值保存的银行卡扣取所选金额,确保服务不中断。你可以随时关闭。",
     "Auto-recharge settings saved": "自动充值设置已保存",
     "Auto-recharge": "自动充值",
-    "Airwallex top-ups are one-time only. To enable auto-recharge (auto top-up when your balance is low), pay with Stripe instead.": "Airwallex 仅支持单次充值。如需开启自动充值(余额不足时自动续费),请改用 Stripe 充值。"
+    "Airwallex top-ups are one-time only. To enable auto-recharge (auto top-up when your balance is low), pay with Stripe instead.": "Airwallex 仅支持单次充值。如需开启自动充值(余额不足时自动续费),请改用 Stripe 充值。",
+    "Dismiss": "关闭",
+    "Your balance is low — top up to get started": "余额不足 — 充值即可开始使用",
+    "Add credit to start calling Claude, GPT, Gemini and more — it only takes a few seconds.": "充值后即可调用 Claude、GPT、Gemini 等模型,几秒搞定。",
+    "Top up now": "立即充值"
   }
 }
