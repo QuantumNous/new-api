@@ -104,6 +104,7 @@ func TestResolve_FreeUser_FreeSkill_QuotaExceeded(t *testing.T) {
 	assert.Equal(t, errcodes.ErrSkillQuotaExceeded, result.LockCode)
 	assert.Equal(t, CTAUpgrade, result.CTA)
 	assert.False(t, result.Executable)
+	assert.Equal(t, true, *result.Enabled, "Enabled must be true: quota exceeded only after enable check passes")
 }
 
 func TestResolve_FreeUser_FreeSkill_QuotaExceeded_Over(t *testing.T) {
@@ -120,6 +121,7 @@ func TestResolve_FreeUser_FreeSkill_QuotaExceeded_Over(t *testing.T) {
 	assert.True(t, result.Locked)
 	assert.Equal(t, errcodes.ErrSkillQuotaExceeded, result.LockCode)
 	assert.Equal(t, CTAUpgrade, result.CTA)
+	assert.Equal(t, true, *result.Enabled, "Enabled must be true: quota exceeded only after enable check passes")
 }
 
 // Row 4: Free user + Pro Skill + Active + Any → SKILL_PLAN_REQUIRED / upgrade
@@ -440,6 +442,31 @@ func TestResolve_DeprecatedSkill_EnabledUser_SubInactive(t *testing.T) {
 	assert.True(t, result.Locked)
 	assert.Equal(t, errcodes.ErrSkillSubscriptionInactive, result.LockCode)
 	assert.Equal(t, CTARenew, result.CTA)
+}
+
+// Deprecated skill + existing enabled user + quota exceeded → SKILL_QUOTA_EXCEEDED
+// Confirms that plan/sub/quota checks all still run for deprecated+enabled users;
+// the lifecycle pass-through does not skip entitlement enforcement.
+func TestResolve_DeprecatedSkill_EnabledUser_QuotaExceeded(t *testing.T) {
+	skill := SkillInfo{
+		Status:            enums.SkillStatusDeprecated,
+		RequiredPlan:      enums.RequiredPlanFree,
+		FreeQuotaPerMonth: intPtr(10),
+	}
+	user := UserInfo{
+		Plan:       enums.RequiredPlanFree,
+		SubActive:  true,
+		IsEnabled:  true,
+		WasEnabled: true,
+		QuotaUsed:  10, // exactly at limit
+	}
+
+	result := Resolve(skill, user)
+	assert.True(t, result.Locked)
+	assert.Equal(t, errcodes.ErrSkillQuotaExceeded, result.LockCode)
+	assert.Equal(t, CTAUpgrade, result.CTA)
+	assert.False(t, result.Executable)
+	assert.Equal(t, true, *result.Enabled)
 }
 
 // Kids check fires BEFORE lifecycle check. A kids-unsafe archived skill seen
