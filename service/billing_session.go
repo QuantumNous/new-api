@@ -32,7 +32,22 @@ type BillingSession struct {
 	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
 	settled          bool // Settle 全部完成（资金 + 令牌）
 	refunded         bool // Refund 已调用
+	holdRefund       bool // 异步补结算期间暂不退预扣费
 	mu               sync.Mutex
+}
+
+// HoldRefund 在后台补结算完成前阻止 Refund（用于图像同步超时后上游仍可能成功）。
+func (s *BillingSession) HoldRefund() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.holdRefund = true
+}
+
+// ReleaseHoldRefund 解除 HoldRefund；调用方随后应执行 Refund 或 Settle。
+func (s *BillingSession) ReleaseHoldRefund() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.holdRefund = false
 }
 
 // Settle 根据实际消耗额度进行结算。
@@ -130,6 +145,9 @@ func (s *BillingSession) NeedsRefund() bool {
 }
 
 func (s *BillingSession) needsRefundLocked() bool {
+	if s.holdRefund {
+		return false
+	}
 	if s.settled || s.refunded || s.fundingSettled {
 		// fundingSettled 时资金来源已提交结算，不能再退预扣费
 		return false

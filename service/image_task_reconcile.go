@@ -1,0 +1,258 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+
+	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/gin-gonic/gin"
+)
+
+const imageReconcileExtraSec = 1200 // sync 超时后继续轮询最多 20 分钟
+
+var imageReconcileClaim sync.Map // taskID -> struct{}，进程内防重复结算
+
+// ScheduleImageTaskReconcile 在同步轮询超时后继续在后台等待上游终态：
+// 成功则补记消费日志并结算预扣费；失败或彻底超时才退款并记错误日志。
+func ScheduleImageTaskReconcile(c *gin.Context, relayInfo *relaycommon.RelayInfo, taskID string) {
+	if relayInfo == nil || taskID == "" {
+		return
+	}
+	if _, loaded := imageReconcileClaim.LoadOrStore(taskID, struct{}{}); loaded {
+		return
+	}
+
+	holdImageBillingRefund(relayInfo)
+
+	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
+	apiKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+	tokenName := c.GetString("token_name")
+	logContent := imageLogContentFromRequest(relayInfo.Request)
+
+	job := imageReconcileJob{
+		relayInfo: relayInfo,
+		taskID:    taskID,
+		baseURL:   baseURL,
+		apiKey:    apiKey,
+		tokenName: tokenName,
+		logExtra:  logContent,
+		startedAt: time.Now(),
+	}
+
+	gopool.Go(func() {
+		runImageTaskReconcile(job)
+	})
+}
+
+type imageReconcileJob struct {
+	relayInfo *relaycommon.RelayInfo
+	taskID    string
+	baseURL   string
+	apiKey    string
+	tokenName string
+	logExtra  []string
+	startedAt time.Time
+}
+
+func holdImageBillingRefund(relayInfo *relaycommon.RelayInfo) {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return
+	}
+	if session, ok := relayInfo.Billing.(*BillingSession); ok {
+		session.HoldRefund()
+	}
+}
+
+func releaseImageBillingRefund(relayInfo *relaycommon.RelayInfo) {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return
+	}
+	if session, ok := relayInfo.Billing.(*BillingSession); ok {
+		session.ReleaseHoldRefund()
+	}
+}
+
+func runImageTaskReconcile(job imageReconcileJob) {
+	defer imageReconcileClaim.Delete(job.taskID)
+
+	deadline := job.startedAt.Add(time.Duration(imageReconcileExtraSec) * time.Second)
+	status, _ := pollUpstreamImageTaskStatus(job.baseURL, job.apiKey, job.taskID, deadline)
+
+	switch status {
+	case "succeeded", "success", "completed":
+		finalizeImageReconcileSuccess(job)
+	case "failed", "error", "cancelled":
+		finalizeImageReconcileFailure(job, fmt.Sprintf("upstream task %s failed", job.taskID))
+	default:
+		finalizeImageReconcileFailure(job, fmt.Sprintf("image task %s reconcile timeout after sync poll", job.taskID))
+	}
+}
+
+func pollUpstreamImageTaskStatus(baseURL, apiKey, taskID string, deadline time.Time) (string, string) {
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	pollURL := fmt.Sprintf("%s/v1/tasks/%s", strings.TrimRight(baseURL, "/"), taskID)
+	client := &http.Client{Timeout: 15 * time.Second}
+
+	for time.Now().Before(deadline) {
+		req, err := http.NewRequest(http.MethodGet, pollURL, nil)
+		if err != nil {
+			time.Sleep(4 * time.Second)
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf("image reconcile poll error task=%s: %v", taskID, err))
+			time.Sleep(4 * time.Second)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		var result struct {
+			Data struct {
+				Status string `json:"status"`
+				Result struct {
+					Images []imageTaskPollImage `json:"images"`
+				} `json:"result"`
+				URL string `json:"url"`
+			} `json:"data"`
+		}
+		if common.Unmarshal(body, &result) != nil {
+			time.Sleep(4 * time.Second)
+			continue
+		}
+
+		switch result.Data.Status {
+		case "failed", "error", "cancelled":
+			return result.Data.Status, ""
+		case "succeeded", "success", "completed":
+			if imageURL := extractImageTaskURL(result.Data.URL, result.Data.Result.Images); imageURL != "" {
+				return result.Data.Status, imageURL
+			}
+			return result.Data.Status, ""
+		}
+		time.Sleep(4 * time.Second)
+	}
+	return "timeout", ""
+}
+
+type imageTaskPollImage struct {
+	URL any `json:"url"`
+}
+
+func extractImageTaskURL(flatURL string, images []imageTaskPollImage) string {
+	if flatURL != "" {
+		return flatURL
+	}
+	if len(images) == 0 {
+		return ""
+	}
+	switch v := images[0].URL.(type) {
+	case string:
+		return v
+	case []any:
+		if len(v) > 0 {
+			if s, ok := v[0].(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func finalizeImageReconcileSuccess(job imageReconcileJob) {
+	releaseImageBillingRefund(job.relayInfo)
+
+	bg := reconcileBackgroundContext(job.tokenName)
+	usage := &dto.Usage{TotalTokens: 1, PromptTokens: 1}
+
+	logExtra := append([]string(nil), job.logExtra...)
+	logExtra = append(logExtra, fmt.Sprintf("同步轮询超时后补结算, task_id %s", job.taskID))
+
+	PostTextConsumeQuota(bg, job.relayInfo, usage, logExtra)
+
+	logger.LogInfo(context.Background(), fmt.Sprintf("image reconcile success task=%s user=%d", job.taskID, job.relayInfo.UserId))
+}
+
+func finalizeImageReconcileFailure(job imageReconcileJob, reason string) {
+	releaseImageBillingRefund(job.relayInfo)
+
+	bg := reconcileBackgroundContext(job.tokenName)
+	if job.relayInfo.Billing != nil && job.relayInfo.Billing.NeedsRefund() {
+		job.relayInfo.Billing.Refund(bg)
+	}
+
+	channelId := 0
+	channelType := 0
+	if job.relayInfo.ChannelMeta != nil {
+		channelId = job.relayInfo.ChannelMeta.ChannelId
+		channelType = job.relayInfo.ChannelMeta.ChannelType
+	}
+	other := map[string]interface{}{
+		"task_id":              job.taskID,
+		"error_code":           "image_generation_timeout",
+		"error_type":           "openai_error",
+		"status_code":          408,
+		"image_reconcile":      true,
+		"image_reconcile_fail": reason,
+		"channel_id":           channelId,
+		"channel_type":         channelType,
+	}
+
+	useTime := int(time.Since(job.relayInfo.StartTime).Seconds())
+	model.RecordErrorLog(bg, job.relayInfo.UserId, channelId,
+		job.relayInfo.OriginModelName, job.tokenName,
+		fmt.Sprintf("status_code=408, %s", reason),
+		job.relayInfo.TokenId, useTime, job.relayInfo.IsStream, job.relayInfo.UsingGroup, other)
+
+	logger.LogWarn(context.Background(), fmt.Sprintf("image reconcile failed task=%s: %s", job.taskID, reason))
+}
+
+func reconcileBackgroundContext(tokenName string) *gin.Context {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	if tokenName != "" {
+		c.Set("token_name", tokenName)
+	}
+	return c
+}
+
+func imageLogContentFromRequest(req dto.Request) []string {
+	imageReq, ok := req.(*dto.ImageRequest)
+	if !ok || imageReq == nil {
+		return nil
+	}
+	var parts []string
+	if imageReq.Size != "" {
+		parts = append(parts, fmt.Sprintf("大小 %s", imageReq.Size))
+	}
+	quality := imageReq.Quality
+	if quality == "" {
+		quality = "standard"
+	}
+	parts = append(parts, fmt.Sprintf("品质 %s", quality))
+	imageN := uint(1)
+	if imageReq.N != nil {
+		imageN = *imageReq.N
+	}
+	if imageN > 0 {
+		parts = append(parts, fmt.Sprintf("生成数量 %d", imageN))
+	}
+	return parts
+}

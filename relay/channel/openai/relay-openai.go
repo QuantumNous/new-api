@@ -827,6 +827,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 				responseBody = finalBody
 			} else {
 				c.Set(imagePollTaskIDContextKey, taskID)
+				service.ScheduleImageTaskReconcile(c, info, taskID)
 				deadlineSec := int(imagePollDeadlineFromContext(c).Seconds())
 				return nil, types.WithOpenAIError(types.OpenAIError{
 					Message: fmt.Sprintf(
@@ -835,7 +836,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 					),
 					Type: "server_error",
 					Code: "image_generation_timeout",
-				}, http.StatusRequestTimeout)
+				}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog())
 			}
 		}
 	}
