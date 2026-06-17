@@ -400,3 +400,155 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 
 	return out, nil
 }
+
+// ChatCompletionsResponseToResponsesResponse converts a non-streaming
+// Chat-Completions response (typically the result of the Anthropic adaptor
+// going through ResponseClaude2OpenAI) into a Responses-API response shape.
+//
+// It satisfies spec §6 (non-streaming): builds an `output[]` array containing
+// (optionally) a reasoning item, a message item, and function_call items —
+// in stable order. status="completed", id="resp_<resp.Id>",
+// created_at=resp.Created, model=requestModel. Usage propagates per §5.9
+// (canonical cache token decomposition).
+func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, requestModel string) (*dto.OpenAIResponsesResponse, error) {
+	if resp == nil {
+		return nil, errors.New("response is nil")
+	}
+
+	respID := strings.TrimSpace(resp.Id)
+	if respID == "" {
+		respID = "chat"
+	}
+	if !strings.HasPrefix(respID, "resp_") {
+		respID = "resp_" + respID
+	}
+
+	createdAt := 0
+	switch v := resp.Created.(type) {
+	case int64:
+		createdAt = int(v)
+	case int:
+		createdAt = v
+	case float64:
+		createdAt = int(v)
+	}
+
+	out := &dto.OpenAIResponsesResponse{
+		ID:        respID,
+		Object:    "response",
+		CreatedAt: createdAt,
+		Model:     requestModel,
+	}
+
+	statusRaw, _ := common.Marshal("completed")
+	out.Status = statusRaw
+
+	// Choose first choice (Chat-Completions guarantees at least one if non-error).
+	if len(resp.Choices) == 0 {
+		return out, nil
+	}
+	ch := resp.Choices[0]
+
+	output := make([]dto.ResponsesOutput, 0, 4)
+	idBase := ResponsesIDBase(respID)
+
+	// Reasoning item.
+	if rc := ch.Message.GetReasoningContent(); rc != "" {
+		output = append(output, dto.ResponsesOutput{
+			Type:   "reasoning",
+			ID:     "rs_" + idBase,
+			Status: "completed",
+			Content: []dto.ResponsesOutputContent{
+				{Type: "summary_text", Text: rc},
+			},
+		})
+	}
+
+	// Message item with text content.
+	text := ""
+	if ch.Message.IsStringContent() {
+		text = ch.Message.StringContent()
+	} else {
+		// Best effort: concat any text parts.
+		for _, part := range ch.Message.ParseContent() {
+			if part.Type == dto.ContentTypeText && part.Text != "" {
+				text += part.Text
+			}
+		}
+	}
+	if text != "" {
+		output = append(output, dto.ResponsesOutput{
+			Type:   "message",
+			ID:     "msg_" + idBase,
+			Status: "completed",
+			Role:   "assistant",
+			Content: []dto.ResponsesOutputContent{
+				{Type: "output_text", Text: text},
+			},
+		})
+	}
+
+	// Function call items.
+	fcAuto := 0
+	for _, tc := range ch.Message.ParseToolCalls() {
+		if strings.TrimSpace(tc.Function.Name) == "" {
+			continue
+		}
+		argsRaw, _ := common.Marshal(tc.Function.Arguments)
+		fcItemID := tc.ID
+		if strings.TrimSpace(fcItemID) == "" {
+			fcAuto++
+			fcItemID = fmt.Sprintf("%s_%d", idBase, fcAuto)
+		}
+		if !strings.HasPrefix(fcItemID, "fc_") {
+			fcItemID = "fc_" + fcItemID
+		}
+		output = append(output, dto.ResponsesOutput{
+			Type:      "function_call",
+			ID:        fcItemID,
+			Status:    "completed",
+			CallId:    tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: argsRaw,
+		})
+	}
+	out.Output = output
+
+	// Usage mapping per spec §5.9.
+	usage := &dto.Usage{}
+	usage.PromptTokens = resp.Usage.PromptTokens
+	usage.CompletionTokens = resp.Usage.CompletionTokens
+	usage.TotalTokens = resp.Usage.TotalTokens
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+	usage.InputTokens = resp.Usage.PromptTokens
+	usage.OutputTokens = resp.Usage.CompletionTokens
+	if resp.Usage.PromptTokensDetails.CachedTokens > 0 || resp.Usage.PromptTokensDetails.CachedCreationTokens > 0 {
+		usage.InputTokensDetails = &dto.InputTokenDetails{
+			CachedTokens:         resp.Usage.PromptTokensDetails.CachedTokens,
+			CachedCreationTokens: resp.Usage.PromptTokensDetails.CachedCreationTokens,
+		}
+		usage.PromptTokensDetails = resp.Usage.PromptTokensDetails
+	}
+	if resp.Usage.CompletionTokenDetails.ReasoningTokens > 0 {
+		usage.CompletionTokenDetails.ReasoningTokens = resp.Usage.CompletionTokenDetails.ReasoningTokens
+	}
+	// Canonical decomposition: input_tokens = max(0, prompt − cached − cache_creation).
+	cached := resp.Usage.PromptTokensDetails.CachedTokens
+	cacheCreation := resp.Usage.PromptTokensDetails.CachedCreationTokens
+	inputDecomp := usage.PromptTokens - cached - cacheCreation
+	if inputDecomp < 0 {
+		inputDecomp = 0
+	}
+	usage.InputTokens = inputDecomp
+	out.Usage = usage
+
+	// incomplete_details mapping per spec §6.4.
+	switch ch.FinishReason {
+	case "length":
+		out.IncompleteDetails = &dto.IncompleteDetails{Reasoning: "max_output_tokens"}
+	}
+
+	return out, nil
+}

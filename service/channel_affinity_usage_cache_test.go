@@ -12,6 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// resetChannelAffinityUsageCacheStats purges the in-memory cache shared by the
+// channel-affinity usage stats tests so that one test cannot influence another
+// when keys collide (e.g. due to the time-based fixtures running in the same
+// nanosecond). It is safe to call multiple times.
+func resetChannelAffinityUsageCacheStats(t *testing.T) {
+	t.Helper()
+	cache := getChannelAffinityUsageCacheStatsCache()
+	if cache == nil {
+		return
+	}
+	if err := cache.Purge(); err != nil {
+		t.Logf("warning: failed to purge channel affinity usage cache: %v", err)
+	}
+}
+
 func buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP string) *gin.Context {
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -26,9 +41,12 @@ func buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP string)
 }
 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) {
-	ruleName := fmt.Sprintf("rule_%d", time.Now().UnixNano())
+	resetChannelAffinityUsageCacheStats(t)
+	t.Cleanup(func() { resetChannelAffinityUsageCacheStats(t) })
+
+	ruleName := fmt.Sprintf("rule_claudemode_%d", time.Now().UnixNano())
 	usingGroup := "default"
-	keyFP := fmt.Sprintf("fp_%d", time.Now().UnixNano())
+	keyFP := fmt.Sprintf("fp_claudemode_%d", time.Now().UnixNano())
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	usage := &dto.Usage{
@@ -53,9 +71,12 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) 
 }
 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
-	ruleName := fmt.Sprintf("rule_%d", time.Now().UnixNano())
+	resetChannelAffinityUsageCacheStats(t)
+	t.Cleanup(func() { resetChannelAffinityUsageCacheStats(t) })
+
+	ruleName := fmt.Sprintf("rule_mixedmode_%d", time.Now().UnixNano())
 	usingGroup := "default"
-	keyFP := fmt.Sprintf("fp_%d", time.Now().UnixNano())
+	keyFP := fmt.Sprintf("fp_mixedmode_%d", time.Now().UnixNano())
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	openAIUsage := &dto.Usage{
@@ -83,9 +104,12 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
 }
 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty(t *testing.T) {
-	ruleName := fmt.Sprintf("rule_%d", time.Now().UnixNano())
+	resetChannelAffinityUsageCacheStats(t)
+	t.Cleanup(func() { resetChannelAffinityUsageCacheStats(t) })
+
+	ruleName := fmt.Sprintf("rule_unsupportedmode_%d", time.Now().UnixNano())
 	usingGroup := "default"
-	keyFP := fmt.Sprintf("fp_%d", time.Now().UnixNano())
+	keyFP := fmt.Sprintf("fp_unsupportedmode_%d", time.Now().UnixNano())
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	usage := &dto.Usage{
