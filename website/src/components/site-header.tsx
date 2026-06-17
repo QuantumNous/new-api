@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
@@ -13,6 +14,20 @@ import { cn } from "@/lib/utils";
 
 const SIGN_IN_URL = consoleUrl("/sign-in");
 const CONSOLE_URL = consoleUrl("/dashboard");
+const useCaseItems = [
+  { href: "/use-case/codex", label: "Codex" },
+  { href: "/use-case/claude-code", label: "Claude Code" },
+];
+const useCaseLabelByLocale: Record<Locale, string> = {
+  en: "Use Case",
+  zh: "使用场景",
+  es: "Casos de uso",
+  fr: "Cas d'usage",
+  pt: "Casos de uso",
+  ru: "Сценарии",
+  ja: "ユースケース",
+  vi: "Use case",
+};
 
 type Props = {
   locale: Locale;
@@ -21,6 +36,7 @@ type Props = {
 
 export function SiteHeader(props: Props) {
   const copy = getCopy(props.locale);
+  const useCaseLabel = useCaseLabelByLocale[props.locale] ?? useCaseLabelByLocale.en;
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = [
@@ -85,6 +101,35 @@ export function SiteHeader(props: Props) {
                   </Link>
                 );
               })}
+              <div className="group/usecase relative">
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
+                    currentPath.startsWith("/use-case") ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  aria-haspopup="menu"
+                >
+                  {useCaseLabel}
+                  <ChevronDown className="size-3.5 transition-transform group-hover/usecase:rotate-180" />
+                </button>
+                <div className="pointer-events-none absolute top-full left-0 z-50 pt-2 opacity-0 transition-opacity duration-150 group-hover/usecase:pointer-events-auto group-hover/usecase:opacity-100 group-focus-within/usecase:pointer-events-auto group-focus-within/usecase:opacity-100">
+                  <div className="min-w-44 rounded-xl border border-border/70 bg-background/96 p-1.5 shadow-[0_18px_60px_-35px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+                    {useCaseItems.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={localizePath(item.href, props.locale)}
+                        className={cn(
+                          "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          currentPath === item.href ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               <div className="mx-2 h-4 w-px bg-border/40" />
               <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
@@ -157,6 +202,28 @@ export function SiteHeader(props: Props) {
                 {item.label}
               </Link>
             ))}
+            <div
+              className={cn(
+                "pt-3 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+              )}
+              style={{ transitionDelay: mobileOpen ? `${100 + navItems.length * 50}ms` : "0ms" }}
+            >
+              <div className="text-muted-foreground pb-1 text-xs font-semibold tracking-wide uppercase">{useCaseLabel}</div>
+              {useCaseItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={localizePath(item.href, props.locale)}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "block py-2 text-base font-medium tracking-tight",
+                    currentPath === item.href ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           </nav>
 
           <div
