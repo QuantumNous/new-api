@@ -1,4 +1,4 @@
-name: DR-40 Skill Model Integration Tests
+name: DR-40 / DR-42 Skill Model Integration Tests
 
 on:
   pull_request:
@@ -25,7 +25,7 @@ jobs:
         run: go test -count=1 -v ./internal/skill/model/
 
   pg-mysql-integration:
-    name: PG + MySQL integration (DR40_PG_DSN / DR40_MYSQL_DSN)
+    name: DR-40 / DR-42 PG + MySQL integration
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,8 +61,22 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Create DR-42 dedicated test databases
+        run: |
+          # PG: dr40 is a superuser on its own cluster; CREATE DATABASE succeeds.
+          PGPASSWORD=dr40pass psql -h localhost -U dr40 -d dr40test \
+            -c "CREATE DATABASE dr42test;"
+          # MySQL: MYSQL_USER=dr40 only has privileges on MYSQL_DATABASE=dr40test,
+          # not global CREATE DATABASE. Use root to create dr42test and grant dr40.
+          mysql -h 127.0.0.1 -u root -prootpass <<'SQL'
+          CREATE DATABASE IF NOT EXISTS dr42test;
+          GRANT ALL PRIVILEGES ON dr42test.* TO 'dr40'@'%';
+          FLUSH PRIVILEGES;
+          SQL
       - name: go test (full suite — unit + SQLite + PG + MySQL)
         env:
           DR40_PG_DSN: postgres://dr40:dr40pass@localhost:5432/dr40test?sslmode=disable
           DR40_MYSQL_DSN: dr40:dr40pass@tcp(localhost:3306)/dr40test?parseTime=true&multiStatements=true
+          DR42_PG_DSN: postgres://dr40:dr40pass@localhost:5432/dr42test?sslmode=disable
+          DR42_MYSQL_DSN: dr40:dr40pass@tcp(localhost:3306)/dr42test?parseTime=true&multiStatements=true
         run: go test -count=1 -v ./internal/skill/model/
