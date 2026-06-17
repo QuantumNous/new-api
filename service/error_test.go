@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -148,6 +150,83 @@ func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	require.NotNil(t, newAPIError)
 	require.NotContains(t, logBuffer.String(), "[truncated")
 	require.Contains(t, logBuffer.String(), body)
+}
+
+func TestScrubWhitelabelError(t *testing.T) {
+	const leak = "GenerateOpenAIRequest.max_tokens of type x not present in request id"
+	const brand = "blockrun upstream connection timed out"
+	const benign = "Rate limit exceeded, please slow down"
+
+	newUpstreamErr := func(oe types.OpenAIError) *types.NewAPIError {
+		return types.WithOpenAIError(oe, http.StatusInternalServerError)
+	}
+	plain := func(msg string) *types.NewAPIError {
+		return newUpstreamErr(types.OpenAIError{Message: msg, Type: "server_error", Code: "server_error"})
+	}
+
+	t.Run("blockrun message leak scrubbed on both render paths", func(t *testing.T) {
+		for _, msg := range []string{leak, brand} {
+			e := plain(msg)
+			ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeBlockRun)
+			require.Equal(t, whitelabelGenericErrorMessage, e.ToClaudeError().Message)
+			require.Equal(t, whitelabelGenericErrorMessage, e.ToOpenAIError().Message)
+			require.NotContains(t, e.ToOpenAIError().Message, "blockrun")
+		}
+	})
+
+	t.Run("benign message passes through unchanged", func(t *testing.T) {
+		e := plain(benign)
+		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeBlockRun)
+		require.Equal(t, benign, e.ToOpenAIError().Message)
+	})
+
+	t.Run("non-whitelabel channel never scrubbed", func(t *testing.T) {
+		e := plain(leak)
+		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeOpenAI)
+		require.Equal(t, leak, e.ToOpenAIError().Message)
+	})
+
+	t.Run("async video/seedance channels are out of sync scope", func(t *testing.T) {
+		for _, ct := range []int{constant.ChannelTypeBlockRunVideo, constant.ChannelTypeBlockRunSeedance} {
+			e := plain(leak)
+			ScrubWhitelabelError(context.Background(), e, ct)
+			require.Equal(t, leak, e.ToOpenAIError().Message)
+		}
+	})
+
+	t.Run("leak only in Param (clean message) is detected via surface and envelope cleared", func(t *testing.T) {
+		e := newUpstreamErr(types.OpenAIError{
+			Message: "Internal error", // clean — no brand/internal pattern
+			Type:    "server_error",
+			Param:   "GenerateOpenAIRequest.max_tokens", // leak lives only here
+			Code:    "server_error",
+		})
+		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeBlockRun)
+		oe := e.ToOpenAIError()
+		require.Equal(t, whitelabelGenericErrorMessage, oe.Message)
+		require.Empty(t, oe.Param)
+		require.NotContains(t, oe.Param, "GenerateOpenAIRequest")
+	})
+
+	t.Run("leak in Metadata is cleared from the rendered envelope", func(t *testing.T) {
+		e := newUpstreamErr(types.OpenAIError{
+			Message:  "boom",
+			Type:     "server_error",
+			Code:     "server_error",
+			Metadata: json.RawMessage(`{"provider":"blockrun"}`),
+		})
+		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeBlockRun)
+		oe := e.ToOpenAIError()
+		require.Equal(t, whitelabelGenericErrorMessage, oe.Message)
+		require.Empty(t, string(oe.Metadata))
+		require.NotContains(t, string(oe.Metadata), "blockrun")
+	})
+
+	t.Run("nil-safe", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			ScrubWhitelabelError(context.Background(), nil, constant.ChannelTypeBlockRun)
+		})
+	})
 }
 
 func withDebugEnabled(t *testing.T, enabled bool) {

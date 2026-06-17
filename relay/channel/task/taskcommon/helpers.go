@@ -56,6 +56,23 @@ var brandKeywords = []string{
 	"blockrun", "flatkey",
 }
 
+// ContainsBrandKeyword reports whether s contains any provider-identifying
+// brand keyword (case-insensitive). Exported so synchronous relay paths
+// (chat/messages/responses) can reuse the same single source of brand keywords
+// when scrubbing upstream error text on whitelabel channels.
+func ContainsBrandKeyword(s string) bool {
+	if s == "" {
+		return false
+	}
+	lower := strings.ToLower(s)
+	for _, kw := range brandKeywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // ScrubBrandedText returns the input unchanged when it contains none of the
 // known brand keywords, otherwise returns a generic failure message. Used on
 // whitelabel channels for free-form fields (e.g. fail_reason) where upstream
@@ -65,11 +82,8 @@ func ScrubBrandedText(s string) string {
 	if s == "" {
 		return ""
 	}
-	lower := strings.ToLower(s)
-	for _, kw := range brandKeywords {
-		if strings.Contains(lower, kw) {
-			return "task failed at upstream provider"
-		}
+	if ContainsBrandKeyword(s) {
+		return "task failed at upstream provider"
 	}
 	return s
 }
