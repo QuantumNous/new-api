@@ -19,17 +19,20 @@
 
 ### 1.1 Product Baseline
 
-V1 是官方托管的 Skill Marketplace，不是 Prompt 下载市场。用户不能创建、上传、下载、复制或查看 Skill 内部配置。`instruction_template` 只能由服务端存储，并且只在 Relay / Gateway 执行链路中注入。
+V1 是官方托管的 AI Tool 平台。**V1 核心范式：Skills 是可安装的 API Tool，不是 Prompt 模板。** 用户可以下载 Skill 的 tool spec（OpenAPI / MCP 格式）并安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端中直接调用。执行逻辑永不离开服务端，API Key 绑定用户帐号。
 
 V1 P0 闭环：
 
 ```text
-Super Admin creates official Skill
+Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑）
 → Skill is published to Marketplace
 → User browses detail and enables Skill
-→ User selects one enabled Skill in Playground
-→ Relay validates use-time entitlement and safety
-→ Relay injects instruction_template server-side
+→ User downloads tool spec (OpenAPI / MCP) and installs into their AI client
+  OR selects one enabled Skill in Playground
+→ External AI client calls DeepRouter Skill API with user's API Key
+  OR Playground passes skill_id to Relay
+→ Relay authenticates API Key, validates use-time entitlement and safety
+→ Relay executes Skill logic server-side; returns tool_result
 → Execution emits usage, billing attribution, analytics, audit where applicable
 → Operations monitors adoption, blocked usage, revenue, and safety
 ```
@@ -39,11 +42,14 @@ Super Admin creates official Skill
 | Area | Decision |
 |---|---|
 | Skill supply | Official curated Skills only |
-| Public Skill API | Out of scope for V1; Playground execution only |
+| Tool spec download | P0 — 下载 tool spec 是用户使用 Skill 的唯一路径；spec 只含 schema + endpoint，不含执行逻辑 |
+| External AI client invocation | P0 — DeepRouter Skill API 接受来自 ChatGPT / Gemini / Claude 的 tool call，携带用户 API Key |
+| User Playground Skill execution | **移除** — 普通用户没有 Playground Skill 执行路径；Playground 保持通用聊天界面 |
+| Execution logic download | Never — `instruction_template` and execution handlers are never exportable |
 | Multi-Skill stacking | Out of scope; zero or one active Skill per request |
 | User-created Skills | Out of scope |
 | Creator marketplace/revenue share | Out of scope |
-| Prompt download/export | Not supported |
+| Local MCP server code download | V2 — V1 only supports cloud-hosted tool spec |
 | Recommendation rails | P1; P0 Marketplace can launch with All Skills list and optional Featured only |
 | Review workflow | P1; P0 Ops Dashboard can launch without full assign/resolve workflow |
 | CSV export | P1 aggregate-only; hidden in P0 unless approved |
@@ -75,7 +81,7 @@ Super Admin creates official Skill
 | M01 | Data Model, Migration, and API Foundation | P0 | Data/API Agent | Sprint 1a |
 | M02 | Admin Skill Management and Lifecycle | P0 | Admin Supply Agent | Sprint 1a-2 |
 | M03 | Marketplace and My Skills Experience | P0 | Marketplace UX/API Agent | Sprint 2 |
-| M04 | Playground Skill Picker | P0 | Playground Agent | Sprint 2 |
+| M04 | ~~Playground Skill Picker~~ — V1 移除 | N/A | N/A | N/A |
 | M05 | Relay Execution Core | P0 | Gateway/Relay Agent | Sprint 1b-2 |
 | M06 | Entitlement, Membership, and Quota | P0 | Entitlement Agent | Sprint 1b |
 | M07 | Billing Attribution and Finance Controls | P0 | Billing Agent | Sprint 1b-2 |
@@ -87,6 +93,8 @@ Super Admin creates official Skill
 | M13 | Discovery Rails and Growth Surfaces | P1 | Growth Agent | Sprint 4 |
 | M14 | i18n, Content Operations, and Launch Skills | P1/P0 content | Content Ops Agent | Sprint 3-4 |
 | M15 | Release, QA, Rollout, and Runbook | P0 | Release Agent | Sprint 4 |
+| M16 | Tool Spec Generation and Distribution | P0 | Tool Spec Agent | Sprint 2-3 |
+| M17 | API Key Management and Copy Protection | P0 | API Key Agent | Sprint 1b-2 |
 
 ### 2.2 Agent Contract Template
 

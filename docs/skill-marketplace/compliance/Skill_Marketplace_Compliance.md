@@ -65,10 +65,13 @@ If a compliance statement conflicts with `tasks/01-07`, the owning PRD must be f
 | M13 Growth | P1 Hold | Must not block P0 launch; rails require analytics and privacy controls if enabled. |
 | M14 Content Ops | Sprint Ready with D-08 dependency | Launch catalog/content QA and output/IP/copyright terms review required before release. |
 | M15 Release | Not GA Ready | Requires all enabled P0 module gates and sign-offs. |
+| M16 Tool Spec Generation | Sprint Ready with M01/M02 dependency | tool spec fields in `skills` table required; spec must never contain instruction_template; security review gate before launch. |
+| M17 API Key Management | Sprint Ready with M05/M06 dependency | API Key binding and revocation required before external AI client launch; per-Key rate limits and scope restriction P1. |
 
 ## 6. Non-Negotiable Controls
 
-- `instruction_template` is never returned by public, user, ops, support, analytics, billing, audit export, or error APIs.
+- `instruction_template` is never returned by public, user, ops, support, analytics, billing, audit export, or error APIs — including the tool spec download endpoint.
+- Tool spec download (OpenAPI / MCP) contains only `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and the DeepRouter API endpoint URL. It must pass a security review confirming no execution logic leakage before launch.
 - Public/user/ops/support logs must not contain raw prompt text, raw full user input, provider raw payload, raw Kids input/output, or full model output.
 - `skill_audit_log` is the system-of-record for sensitive admin changes, including Kids approval, rejection, revocation, and emergency override.
 - Emergency Kids override must use `kids_approval_status='emergency_approved'`, never normal `approved`, and must include reason, incident reference, expiry/time-bound scope, and audit record.

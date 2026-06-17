@@ -36,10 +36,15 @@
 - [ ] Marketplace list, search, filter, detail, enable, disable, and lock states match Functional and UX PRDs.
 - [ ] My Skills state reflects lifecycle, entitlement, and user enablement.
 - [ ] Playground Skill Picker supports enabled Skill selection, clearing, empty state, and blocked states.
-- [ ] Relay accepts Skill execution only from authenticated supported entry points.
+- [ ] Relay accepts Skill execution only from authenticated supported entry points (Playground and external AI clients with valid API Key).
 - [ ] Deprecated and archived Skill behavior matches lifecycle rules.
 - [ ] P1 recommendation rails and CSV export are not required for P0 launch unless explicitly promoted.
-- [ ] Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, prompt download, and full sharing/referral are excluded from V1 P0.
+- [ ] Unauthenticated Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, execution logic download, and full sharing/referral are excluded from V1 P0.
+- [ ] Tool spec download (OpenAPI / MCP) is available from Skill Detail for enabled users; spec does not contain instruction_template or execution logic (verified by security review).
+- [ ] One-click install guides for ChatGPT, Gemini, and Claude are present on Skill Detail page.
+- [ ] External AI client can call `/v1/skills/execute/{skill_id}` with valid API Key and receive tool result; same entitlement and Kids safety checks apply as Playground path.
+- [ ] External AI client call with invalid/missing API Key receives 401 `AUTH_REQUIRED`.
+- [ ] Billing event for external AI client call includes `entry_point=external_ai_client`.
 
 ## 5. Data and API Readiness
 
@@ -58,8 +63,11 @@
 
 ## 6. Security and Privacy Readiness
 
-- [ ] `instruction_template` never appears in public, user, ops, support, analytics, billing, audit export, or error APIs.
+- [ ] `instruction_template` never appears in public, user, ops, support, analytics, billing, audit export, error APIs, or tool spec download responses.
+- [ ] Tool spec download response is manually reviewed by Security before launch to confirm it contains only schema + endpoint and no execution logic.
 - [ ] Playground frontend never receives raw template text.
+- [ ] External AI client `skill_id` is read from URL path only; any `skill_id` in request body is discarded (T-24 test required).
+- [ ] API Key revocation takes effect within one request cycle; revoked Key returns 401 on all subsequent calls (T-25 test required).
 - [ ] Logs, errors, analytics, billing, audit diffs, support diagnostics, and exports contain no raw prompt, full user input, provider raw payload, raw Kids data, or full model output.
 - [ ] D-05 provider/model allowlist is approved.
 - [ ] Provider DPA, data retention, logging/ZDR, region, subprocessors, and security terms are approved before production provider traffic.
