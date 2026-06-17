@@ -16,6 +16,7 @@ func TestHTTPStatus_AllCodes(t *testing.T) {
 		code   ErrorCode
 		status int
 	}{
+		{ErrInvalidRequest, 400},
 		{ErrAuthRequired, 401},
 		{ErrSkillNotFound, 404},
 		{ErrSkillNotPublished, 403},
@@ -53,7 +54,7 @@ func TestAllErrorCodes_DefensiveCopy(t *testing.T) {
 	codes := AllErrorCodes()
 	codes[0] = "MUTATED"
 	fresh := AllErrorCodes()
-	assert.Equal(t, ErrAuthRequired, fresh[0], "AllErrorCodes must return a copy, not the internal slice")
+	assert.Equal(t, ErrInvalidRequest, fresh[0], "AllErrorCodes must return a copy, not the internal slice")
 }
 
 // TestHTTPStatusCatalog_DefensiveCopy confirms that mutating the map returned by
@@ -141,9 +142,10 @@ func TestRateLimitedCode(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, HTTPStatusFor(RateLimitedCode))
 }
 
-// TestErrorCodeStringValues verifies all 13 ErrorCode string values verbatim
+// TestErrorCodeStringValues verifies all 14 ErrorCode string values verbatim
 // against tasks/03 §7.2.
 func TestErrorCodeStringValues(t *testing.T) {
+	assert.Equal(t, "INVALID_REQUEST", string(ErrInvalidRequest))
 	assert.Equal(t, "AUTH_REQUIRED", string(ErrAuthRequired))
 	assert.Equal(t, "SKILL_NOT_FOUND", string(ErrSkillNotFound))
 	assert.Equal(t, "SKILL_NOT_PUBLISHED", string(ErrSkillNotPublished))

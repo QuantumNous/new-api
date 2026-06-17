@@ -585,6 +585,7 @@ Error:
 
 | Code | HTTP | Notes |
 |---|---:|---|
+| `INVALID_REQUEST` | 400 | Invalid pagination, sorting, filtering, or malformed request parameters |
 | `AUTH_REQUIRED` | 401 | Login required |
 | `SKILL_NOT_FOUND` | 404 | Unknown Skill |
 | `SKILL_NOT_PUBLISHED` | 403 | Draft, archived, or unavailable deprecated Skill |
@@ -606,6 +607,7 @@ Error:
 - `sort`: server-defined enum; reject unknown sort keys.
 - `locale`: optional; defaults to `Accept-Language`.
 - Filters with unsupported values return 400.
+- Unsupported or invalid pagination, sort, and filter inputs return the standard error envelope with code `INVALID_REQUEST`.
 
 ### 7.4 Auth and RBAC
 
