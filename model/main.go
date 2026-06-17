@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
@@ -293,6 +294,9 @@ func migrateDB() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := skillmodel.MigrateSkills(DB); err != nil {
+		return err
 	}
 	return nil
 }
