@@ -204,14 +204,16 @@ func TestResolve_ProUser_EnterpriseSkill(t *testing.T) {
 	assert.Equal(t, CTAContactSales, result.CTA)
 }
 
-// Row 9: Any logged-in + Published + Active + Not Enabled → enable CTA (not locked)
+// Row 9: Any logged-in + Published + Active + Not Enabled → enable CTA; execution blocked
+// PRD §6: "Block execution; allow enable if entitled" — Locked=true, ErrSkillNotEnabled.
 func TestResolve_LoggedIn_Published_NotEnabled(t *testing.T) {
 	user := freeUserActive()
 	user.IsEnabled = false
 	user.WasEnabled = false
 
 	result := Resolve(publishedFreeSkill(), user)
-	assert.False(t, result.Locked, "entitled user who hasn't enabled should NOT be locked")
+	assert.True(t, result.Locked, "execution must be blocked for not-yet-enabled user")
+	assert.Equal(t, errcodes.ErrSkillNotEnabled, result.LockCode)
 	assert.Equal(t, CTAEnable, result.CTA)
 	assert.False(t, result.Executable)
 	assert.Equal(t, false, *result.Enabled)
@@ -222,7 +224,8 @@ func TestResolve_ProUser_ProSkill_NotEnabled(t *testing.T) {
 	user.IsEnabled = false
 
 	result := Resolve(publishedProSkill(), user)
-	assert.False(t, result.Locked)
+	assert.True(t, result.Locked)
+	assert.Equal(t, errcodes.ErrSkillNotEnabled, result.LockCode)
 	assert.Equal(t, CTAEnable, result.CTA)
 	assert.False(t, result.Executable)
 }
@@ -357,13 +360,14 @@ func TestResolve_NormalSession_KidsExclusiveSkill(t *testing.T) {
 
 // ── Additional edge-case and invariant tests ────────────────────────────────
 
-// Enterprise user + Enterprise Skill + Active + Not Enabled → enable CTA
+// Enterprise user + Enterprise Skill + Active + Not Enabled → enable CTA; execution blocked
 func TestResolve_EnterpriseUser_EnterpriseSkill_NotEnabled(t *testing.T) {
 	user := enterpriseUserActive()
 	user.IsEnabled = false
 
 	result := Resolve(publishedEnterpriseSkill(), user)
-	assert.False(t, result.Locked)
+	assert.True(t, result.Locked)
+	assert.Equal(t, errcodes.ErrSkillNotEnabled, result.LockCode)
 	assert.Equal(t, CTAEnable, result.CTA)
 	assert.False(t, result.Executable)
 	assert.Equal(t, false, *result.Enabled)
@@ -492,6 +496,11 @@ func TestResolve_ExecutableIsFalseWhenLocked(t *testing.T) {
 				return u
 			}(),
 		},
+		{
+			name:  "not enabled",
+			skill: publishedFreeSkill(),
+			user:  freeUserActive(), // IsEnabled defaults to false
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -521,12 +530,7 @@ func TestResolve_LockCodeEmptyWhenNotLocked(t *testing.T) {
 		user  UserInfo
 	}{
 		{
-			name:  "entitled not enabled",
-			skill: publishedFreeSkill(),
-			user:  freeUserActive(),
-		},
-		{
-			name: "entitled and enabled",
+			name:  "entitled and enabled",
 			skill: publishedFreeSkill(),
 			user: func() UserInfo {
 				u := freeUserActive()
@@ -630,9 +634,13 @@ func TestResolve_NotEnabled_QuotaExceeded_SeesEnableCTA(t *testing.T) {
 	user.QuotaUsed = 999 // heavily exceeded
 
 	r := Resolve(skill, user)
-	assert.False(t, r.Locked, "not-enabled entitled user must not be locked")
-	assert.Equal(t, CTAEnable, r.CTA, "must see enable, not quota_exceeded")
+	// Execution must be blocked, but the reason is SKILL_NOT_ENABLED, not QUOTA_EXCEEDED.
+	// Quota is an execution limit that only applies to enabled users (tasks/01 §6 rows 2-3).
+	assert.True(t, r.Locked)
+	assert.Equal(t, errcodes.ErrSkillNotEnabled, r.LockCode, "must see SKILL_NOT_ENABLED, not QUOTA_EXCEEDED")
 	assert.NotEqual(t, errcodes.ErrSkillQuotaExceeded, r.LockCode)
+	assert.Equal(t, CTAEnable, r.CTA)
+	assert.False(t, r.Executable)
 }
 
 func TestResolve_NotEnabled_ZeroQuota_SeesEnableCTA(t *testing.T) {
@@ -647,7 +655,9 @@ func TestResolve_NotEnabled_ZeroQuota_SeesEnableCTA(t *testing.T) {
 
 	r := Resolve(skill, user)
 	assert.Equal(t, CTAEnable, r.CTA, "zero-quota skill: not-enabled user still sees enable")
-	assert.False(t, r.Locked)
+	assert.True(t, r.Locked)
+	assert.Equal(t, errcodes.ErrSkillNotEnabled, r.LockCode, "must see SKILL_NOT_ENABLED, not QUOTA_EXCEEDED")
+	assert.False(t, r.Executable)
 }
 
 // ── T3: Kids Session + KidsExclusive+KidsSafe → allowed ──────────────────

@@ -124,7 +124,7 @@ type UserInfo struct {
 //  3. Lifecycle: archived, draft → unavailable; deprecated → existing-enabled-only
 //  4. Plan hierarchy: enterprise or pro required
 //  5. Subscription active (non-free skills only)
-//  6. Enable state: entitled but not enabled → enable CTA
+//  6. Enable state: entitled but not enabled → Locked=true, ErrSkillNotEnabled, CTAEnable (UI may enable; execution blocked)
 //  7. Free quota cap (only relevant for enabled users; quota is an execution limit,
 //     not an enablement limit — tasks/01 §6 rows 2/3 both require Enabled=true)
 //  8. Entitled and enabled → use / executable
@@ -215,15 +215,18 @@ func Resolve(skill SkillInfo, user UserInfo) Result {
 		}
 	}
 
-	// 6. Entitled but not yet enabled (published skill only; deprecated already
-	//    guarded to IsEnabled==true above, so this branch only fires for published).
-	//    Quota is an execution limit, not an enablement limit: a user who hasn't
-	//    enabled a skill should see the enable CTA regardless of quota state.
+	// 6. Entitled but not yet enabled.
+	//    PRD §6: "Block execution; allow enable if entitled" — Locked=true prevents
+	//    Relay execution gate from proceeding. CTAEnable signals the UI to offer the
+	//    enable action; it does NOT mean the skill is executable or unlocked.
+	//    Quota must not be evaluated before this: quota is an execution limit, not
+	//    an enablement limit (tasks/01 §6 rows 2-3 require Enabled=true for quota).
 	if !user.IsEnabled {
 		return Result{
-			Enabled: boolPtr(false),
-			Locked:  false,
-			CTA:     CTAEnable,
+			Enabled:  boolPtr(false),
+			Locked:   true,
+			LockCode: errcodes.ErrSkillNotEnabled,
+			CTA:      CTAEnable,
 		}
 	}
 
