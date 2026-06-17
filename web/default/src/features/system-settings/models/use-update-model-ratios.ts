@@ -83,7 +83,7 @@ export function useUpdateModelRatios() {
       const hasValue = (value: unknown) =>
         value !== '' && value !== null && value !== undefined && value !== false
 
-      const toNumberOrString = (value: string) => {
+      const toNumberOrString = (value?: string) => {
         if (!hasValue(value)) return null
         const num = Number(value)
         return Number.isFinite(num) ? num : null

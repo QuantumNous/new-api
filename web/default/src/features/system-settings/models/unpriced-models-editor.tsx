@@ -20,9 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Info, Plus, Search } from 'lucide-react'
+import { Info, Search } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
@@ -161,7 +160,10 @@ export function UnpricedModelsEditor({
     []
   )
 
-  const updateModelRatios = useUpdateModelRatios()
+  const {
+    mutateAsync: updateModelRatios,
+    isPending: isUpdatingModelRatios,
+  } = useUpdateModelRatios()
 
   const handleSave = useCallback(async () => {
     const draft = await editorRef.current?.commitDraft()
@@ -266,7 +268,7 @@ export function UnpricedModelsEditor({
         onOpenChange={setSheetOpen}
         editData={selectedModel}
         onSave={handleSave}
-        isSaving={updateModelRatios.isPending}
+        isSaving={isUpdatingModelRatios}
       />
     </>
   )
