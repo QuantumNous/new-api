@@ -53,7 +53,7 @@ If a compliance statement conflicts with `tasks/01-07`, the owning PRD must be f
 | M01 Data/API | Sprint Ready | D-06 before production data; schema must keep restricted data out of public/user/ops paths. |
 | M02 Admin | Sprint Ready with audit dependency | M11 audit/redaction baseline before prompt access; D-03 only if Kids paths are enabled. |
 | M03 Marketplace | Sprint Ready with D-01 dependency | Lock states and plan copy must match final plan/quota decision before affected UI implementation. |
-| M04 Playground | Sprint Ready | Sends only `deeprouter.skill_id`; Relay remains source of truth for auth, entitlement, and Kids. |
+| M04 Playground Skill Picker | **V1 移除 — N/A** | 本模块已从 V1 移除；普通用户无 Playground Skill 执行路径。替代：M16 Tool Spec Distribution、M17 API Key Management；Admin 测试使用 M02 admin_preview 端点。 |
 | M05 Relay | Sprint Ready with gated implementation | D-05 plus provider DPA/security terms before production provider integration; D-03 if Kids enabled; D-04 if streaming promoted. |
 | M06 Entitlement | Sprint Ready with D-01 dependency | Use-time checks required; enablement is not permanent authorization. |
 | M07 Billing | Sprint Ready with D-07 dependency | No charge for blocked/failed/no-output-timeout/safety/preview paths; usable partial streaming timeout settles by actual tokens if streaming is enabled. |

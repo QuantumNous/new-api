@@ -147,7 +147,8 @@ Reject or quarantine telemetry containing restricted keys such as `instruction_t
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Public Marketplace list/detail | Yes, public fields | Yes | Yes | Yes | Yes | Yes | Yes |
 | Enable/disable Skill | No | Own user only | No | No | No | Assisted status only | Audited support action only |
-| Playground Skill execution | No | Own user only | No | No | Preview only if allowed | No | Preview/test only |
+| External AI client Skill execution (`POST /v1/skills/execute/{skill_id}`) | No | API Key bearer only | No | No | No | No | No |
+| Admin Skill preview (`/admin/skills/{id}/preview`) | No | No | No | No | No | No | Yes (audit required) |
 | Ops aggregate dashboard | No | No | Yes | Yes | Safety subset | Limited diagnostics | Yes |
 | CSV export | No | No | P1 aggregate only | P1 aggregate only | No by default | No | Yes |
 | Create/edit Skill metadata | No | No | No | No | No | No | Yes |
@@ -192,10 +193,10 @@ Relay must discard and overwrite any client-provided identity fields with the au
 
 Skill execution must follow this order:
 
-1. Client (Playground or external AI client) provides `skill_id`.
-   - Playground: `deeprouter.skill_id` in request body.
-   - External AI client: `skill_id` from URL path (`/v1/skills/execute/{skill_id}`); API Key in `Authorization: Bearer` header.
-   - External client request body fields may not override the URL `skill_id`.
+1. Client provides `skill_id` via one of two authorized paths:
+   - External AI client (normal user): `skill_id` from URL path only (`/v1/skills/execute/{skill_id}`); API Key in `Authorization: Bearer` header. Request body `skill_id` fields are discarded (T-24). This is the ONLY user-facing Skill execution path.
+   - Admin preview (Super Admin only): `/api/v1/admin/skills/{skill_id}/preview`; Super Admin session token required; `entry_point=admin_preview`.
+   - The old `deeprouter.skill_id` Playground request body contract is removed from V1; any such field received from a Playground client must be discarded.
 2. Gateway assigns `request_id`.
 3. Auth resolver validates API Key or session token; establishes logged-in user identity.
 4. Tenant resolver establishes tenant scope.

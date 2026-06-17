@@ -140,14 +140,14 @@ Help users discover official Skills and understand whether each Skill is usable 
 | Anonymous + Free Skill | Public card, no enabled state | Log in to enable |
 | Anonymous + Pro Skill | Public card with Pro badge | Log in to continue |
 | Logged-in + Free + not enabled | Available | Enable |
-| Logged-in + Free + enabled | Enabled badge | Use in Playground |
+| Logged-in + Free + enabled | Enabled badge | Download Tool Spec |
 | Logged-in + Pro + Free user | Locked with Pro badge | Upgrade |
-| Logged-in + Pro + Pro user | Available | Enable or Use |
+| Logged-in + Pro + Pro user | Available | Enable or Get Tool Spec |
 | Subscription expired | Locked with renewal reason | Renew |
 | Enterprise Skill + non-enterprise | Enterprise badge | Contact sales |
 | Quota exceeded | Locked state with quota message and reset time when available | Upgrade |
 | Deprecated + not enabled | Hidden from Marketplace | None |
-| Deprecated + enabled | Not in Marketplace; visible in My Skills | Use with warning |
+| Deprecated + enabled | Not in Marketplace; visible in My Skills | Get Tool Spec (deprecated) |
 | Archived | Hidden from Marketplace | None |
 | Kids Session + unsafe Skill | Hidden from discovery; direct access shows Kids blocked state | None |
 
@@ -202,7 +202,7 @@ Help users understand what the Skill does, what input it needs, what output to e
 | Expired subscription | Renew membership | Back | Skill remains in My Skills |
 | Enterprise Skill + not entitled | Contact sales | Back | No fake enable state |
 | Quota exceeded | Upgrade | Back | Show quota reset if available; may preview Pro value without implying entitlement |
-| Deprecated + enabled | Use with warning | Disable | Show deprecation notice |
+| Deprecated + enabled | Get Tool Spec (deprecated) | Disable | Show deprecation notice; warn that Skill may be removed |
 | Deprecated + not enabled | Unavailable | Back | No enable CTA |
 | Archived | Unavailable | Back | No execution CTA |
 | Kids blocked | Not available in Kids Mode | Back | No switch-mode CTA in V1 |
@@ -243,7 +243,7 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 | Enabled + executable | Normal row | Get Tool Spec, Disable |
 | Enabled + plan locked | Locked badge and reason | Upgrade/Renew, Disable |
 | Enabled + quota exceeded | Quota badge with reset time if available | Upgrade, Disable |
-| Deprecated enabled | Warning badge | Use with warning, Get Tool Spec, Disable |
+| Deprecated enabled | Warning badge | Get Tool Spec (deprecated), Disable |
 | Archived | Unavailable badge | Remove/Disable |
 | Kids blocked | Kids unavailable badge | Disable |
 

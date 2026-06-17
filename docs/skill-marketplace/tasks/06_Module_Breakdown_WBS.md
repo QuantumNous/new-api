@@ -127,7 +127,7 @@ Each module must be implemented with this contract:
 
 **Work Items**
 
-- Freeze V1 as Playground-only execution.
+- Freeze V1 execution model: downloadable tool spec + external AI client invocation (`POST /v1/skills/execute/{skill_id}` with API Key) is the only user-facing Skill execution path; Admin preview endpoint is the only server-side Skill test path for Super Admins.
 - Freeze plan matrix, free quota, monetization defaults, and Enterprise contact-sales semantics.
 - Decide Kids mode GA vs closed beta vs disabled.
 - Decide streaming launch scope.
@@ -299,45 +299,15 @@ Each module must be implemented with this contract:
 
 ---
 
-### M04. Playground Skill Picker
+### M04. ~~Playground Skill Picker~~ — V1 移除
 
-| Field | Definition |
-|---|---|
-| Priority | P0 |
-| Primary Agent | Playground Agent |
-| Inputs | `01_Functional_Requirements.md`, `02_UX_Design.md`, `03_Data_Model_and_API_Spec.md` |
-| Owns | Skill Picker UX, selected Skill state, client request metadata |
-| Does Not Own | Relay authorization, prompt injection, billing |
-| Dependencies | M03, M05, M06 |
-
-**Work Items**
-
-- Add Skill Picker to Playground.
-- Allow zero or one selected Skill.
-- Preselect Skill from Detail only after enable flow succeeds.
-- Clear selected Skill.
-- Display locked/error states from stable error codes.
-- Send only `deeprouter.skill_id`; do not send prompt or trusted Kids state.
-- Preserve non-Skill Playground behavior.
-
-**Request Contract**
-
-```json
-{
-  "model": "model_id",
-  "messages": [{"role": "user", "content": "..."}],
-  "deeprouter": {
-    "skill_id": "6e3f..."
-  }
-}
-```
-
-**Acceptance**
-
-- User can submit normal non-Skill requests with no Skill selected.
-- User can execute exactly one enabled and executable Skill.
-- Locked, disabled, unauthorized, archived, quota, and Kids states block submission or receive Relay block response.
-- Client-provided `is_kids_session` is not sent as trusted state and is ignored if present.
+> **本模块已从 V1 移除。**
+>
+> 原决策：普通用户在 DeepRouter Playground 内选择并执行 Skill（通过 `deeprouter.skill_id` request body 注入）。
+>
+> **变更原因**：V1 Skills 重新定义为可安装的 API Tool。用户使用 Skill 的唯一路径是：下载 tool spec（OpenAPI / MCP 格式）→ 安装到外部 AI 客户端（ChatGPT / Gemini / Claude）→ 在外部客户端中调用，DeepRouter 作为后端 API 执行。Playground 保持通用聊天界面，不暴露 Skill Picker 或 Skill 执行入口给普通用户。
+>
+> **替代模块**：M16（Tool Spec Generation and Distribution）、M17（API Key Management and Copy Protection）。Admin 测试 Skill 使用 M02 的 `/api/v1/admin/skills/{skill_id}/preview` 端点（`entry_point=admin_preview`）。
 
 ---
 
@@ -354,7 +324,9 @@ Each module must be implemented with this contract:
 
 **Work Items**
 
-- Accept `deeprouter.skill_id` only for Playground execution in V1.
+- Accept Skill execution requests from external AI clients via `POST /v1/skills/execute/{skill_id}` with `Authorization: Bearer <api_key>`; `skill_id` must come from URL path only — request body `skill_id` fields are discarded (T-24).
+- Accept Admin preview requests via `/api/v1/admin/skills/{skill_id}/preview`; Super Admin session token required; `entry_point=admin_preview`.
+- Do NOT accept `deeprouter.skill_id` from Playground request body as a user execution path — this contract is removed in V1.
 - Resolve authenticated user, tenant, session, subscription, plan, and server-derived Kids state.
 - Apply feature flag and kill switch checks.
 - Validate lifecycle, enabled state, entitlement, quota, rate limit, Kids policy, model whitelist, provider capability, context size, and timeout before provider call.
@@ -770,14 +742,14 @@ Each module must be implemented with this contract:
 | M00 | None | All modules |
 | M01 | M00 | M02-M12 |
 | M02 | M01, M11 | M03, M05, M10, M14 |
-| M03 | M01, M06, M08 | M04, M13 |
-| M04 | M03, M05, M06 | M05, M08 |
+| M03 | M01, M06, M08 | M13 |
+| M04 | V1 移除 — N/A | N/A |
 | M05 | M01, M06, M11, M12 | M07, M08, M10 |
-| M06 | M00, M01, M05 | M03, M04, M05, M08 |
+| M06 | M00, M01, M05 | M03, M05, M08 |
 | M07 | M01, M05, M06 | M09, M15 |
 | M08 | M01, M03, M05, M06, M07, M11 | M09, M13, M15 |
 | M09 | M07, M08, M11 | M15 |
-| M10 | M00, M02, M05, M06, M11, M12 | M03, M04, M08, M15 |
+| M10 | M00, M02, M05, M06, M11, M12 | M03, M08, M15 |
 | M11 | M01, M02, M05, M08, M09 | All modules touching sensitive data |
 | M12 | M05, M06, M07, M08, M11 | M15 |
 | M13 | M03, M08, M09 | M15 |
@@ -793,9 +765,8 @@ M00
 M01 ---------------------> M08 -----> M09 ----+
  |                         ^         ^        |
  |                         |         |        |
- +-> M02 -----> M03 -----> M04       |        |
- |     |          |         |         |        |
- |     |          +-------> M13 ------+        |
+ +-> M02 -----> M03 -----> M13 ------+        |
+ |     |          |                            |
  |     |                                      |
  |     +-------> M10 <----------------+       |
  |                ^                   |       |
@@ -818,7 +789,7 @@ All enabled P0 modules -> M15 -> Launch
 |---|---|---|
 | Epic A. Foundation and Data | M00, M01 | Sprint 0 decisions and schema/API foundation |
 | Epic B. Admin Supply | M02, M14 | Official Skill creation and launch content |
-| Epic C. User Marketplace | M03, M04 | Browse, enable, My Skills, Playground Picker |
+| Epic C. User Marketplace | M03, M16 | Browse, enable, My Skills, Tool Spec Download |
 | Epic D. Gateway Execution | M05, M06 | Relay, entitlement, quota, provider boundary |
 | Epic E. Billing and Business Loop | M07, M08, M09 | Billing attribution, events, dashboards |
 | Epic F. Safety and Trust | M10, M11 | Kids safety, prompt protection, RBAC, audit |
@@ -834,7 +805,7 @@ All enabled P0 modules -> M15 -> Launch
 | Sprint 0 | Scope and architecture freeze | M00 |
 | Sprint 1a | Data/API and admin foundation | M01, M02 skeleton, M11 prompt/audit baseline |
 | Sprint 1b | Execution and authorization core | M05, M06, M07 baseline, M12 timeout/rate/context |
-| Sprint 2 | User flow closure | M03, M04, M02 publish/preview completion, M08 event instrumentation |
+| Sprint 2 | User flow closure | M03, M16, M02 publish/preview completion, M08 event instrumentation |
 | Sprint 3 | Ops, safety, and data quality | M08 data quality, M09 P0 dashboards, M10 if enabled, M14 launch content |
 | Sprint 4 | Hardening and launch | M12 load/alerts/cache, M15, M13 only if P0 is stable |
 
@@ -848,7 +819,7 @@ If scope must be compressed, retain only this P0 loop:
 2. Public/user APIs expose only public Skill metadata.
 3. User browses Marketplace, views Detail, enables/disables allowed Skill.
 4. My Skills shows executable, locked, deprecated, and unavailable states.
-5. Playground selects zero or one enabled Skill.
+5. User downloads tool spec (OpenAPI / MCP) from Skill Detail and installs into external AI client (ChatGPT / Gemini / Claude); external AI client calls `POST /v1/skills/execute/{skill_id}` with user's API Key.
 6. Relay validates auth, tenant, lifecycle, enabled state, entitlement, quota, Kids state if enabled, model whitelist, rate limit, timeout, and context before prompt injection.
 7. Relay injects `instruction_template` server-side only.
 8. Billing attribution is recorded for successful billable executions only.

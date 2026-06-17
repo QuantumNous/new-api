@@ -35,8 +35,8 @@
 
 - [ ] Marketplace list, search, filter, detail, enable, disable, and lock states match Functional and UX PRDs.
 - [ ] My Skills state reflects lifecycle, entitlement, and user enablement.
-- [ ] Playground Skill Picker supports enabled Skill selection, clearing, empty state, and blocked states.
-- [ ] Relay accepts Skill execution only from authenticated supported entry points (Playground and external AI clients with valid API Key).
+- [ ] Playground Skill Picker is NOT exposed to normal users; Playground UI remains general chat only with no Skill selection UI.
+- [ ] Relay accepts Skill execution only from authenticated supported entry points: external AI clients with valid API Key via `POST /v1/skills/execute/{skill_id}`, and `admin_preview` endpoint for Super Admin only; normal user Playground Skill execution is not a supported entry point.
 - [ ] Deprecated and archived Skill behavior matches lifecycle rules.
 - [ ] P1 recommendation rails and CSV export are not required for P0 launch unless explicitly promoted.
 - [ ] Unauthenticated Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, execution logic download, and full sharing/referral are excluded from V1 P0.

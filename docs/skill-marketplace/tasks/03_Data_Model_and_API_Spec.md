@@ -633,7 +633,8 @@ Error:
 | `/api/v1/marketplace/skills/{id}/enable` | Logged-in user |
 | `/api/v1/admin/*` | Super Admin unless route explicitly read-only |
 | `/api/v1/ops/*` | Operation/Product aggregate views |
-| Playground Skill execution | Logged-in user only |
+| `/v1/skills/execute/{skill_id}` (external AI client) | API Key bearer token (active logged-in user) |
+| `/api/v1/admin/skills/{skill_id}/preview` | Super Admin only |
 
 ---
 
@@ -1009,6 +1010,6 @@ CSV export is P1 aggregate-only and must be separately permissioned.
 8. Admin PATCH rejects `tool_function_name` values that do not match `/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/`.
 9. Publish checklist API returns a blocking error if `tool_function_name` is null or empty.
 10. External client execution endpoint (`POST /v1/skills/execute/{skill_id}`) returns 401 for missing/invalid API Key before any Skill state is loaded.
-7. Kids approval APIs exist if Kids flag can be enabled.
-8. Relay contract explicitly ignores client-provided Kids Session fields.
-9. All response examples exclude `instruction_template`.
+11. Kids approval APIs exist if Kids flag can be enabled.
+12. Relay contract explicitly ignores client-provided Kids Session fields.
+13. All response examples exclude `instruction_template`.

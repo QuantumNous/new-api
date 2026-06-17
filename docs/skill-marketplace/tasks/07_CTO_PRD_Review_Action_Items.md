@@ -61,7 +61,7 @@ No module may be marked Sprint Ready unless:
 
 | Topic | Required Unified Decision | Current Status | Owner | Source |
 |---|---|---|---|---|
-| V1 execution surface | Playground + external AI clients (ChatGPT / Gemini / Claude via tool call with API Key); tool spec download P0; unauthenticated public Skill API not supported | **Updated — needs re-alignment across UX, Data/API, Security, WBS** | Product + Backend | FRD, UX, Data/API, WBS |
+| V1 execution surface | External AI clients only (ChatGPT / Gemini / Claude via tool call with API Key); tool spec download P0; normal user Playground Skill execution **移除**; Admin 仅可用 `admin_preview` 端点测试; unauthenticated public Skill API not supported | **Aligned** | Product + Backend | FRD, UX, Data/API, Security, WBS |
 | Skill supply | Official curated Skills only | Aligned | Product | FRD, WBS |
 | Prompt protection | `instruction_template` server-side only; never in user/ops/log/analytics/billing/export | Aligned | Security + Backend | FRD, Data/API, Security |
 | Lifecycle status | `draft`, `published`, `deprecated`, `archived`; `featured` is a flag | Aligned | Backend + Product | FRD, Data/API |
