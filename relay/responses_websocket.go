@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -58,9 +59,11 @@ type responsesWSSession struct {
 	c              *gin.Context
 	client         *websocket.Conn
 	target         *websocket.Conn
+	unregister     func()
 	lockedModel    string
 	lockedChannel  *appmodel.Channel
 	nextEventIndex int
+	closeOnce      sync.Once
 
 	clientWriteMu sync.Mutex
 	targetWriteMu sync.Mutex
@@ -350,6 +353,7 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 
 		s.lockedModel = req.Model
 		s.lockedChannel = channel
+		s.registerChannelClose(channel.Id)
 		service.RecordChannelAffinity(s.c, channel.Id)
 		s.startTargetReader()
 		return nil
@@ -772,12 +776,46 @@ func buildResponsesWSErrorPayload(eventID string, apiErr *types.NewAPIError) ([]
 }
 
 func (s *responsesWSSession) closeTarget() {
+	var target *websocket.Conn
+	var unregister func()
 	s.targetWriteMu.Lock()
-	defer s.targetWriteMu.Unlock()
-	if s.target != nil {
-		_ = s.target.Close()
-		s.target = nil
+	target = s.target
+	s.target = nil
+	unregister = s.unregister
+	s.unregister = nil
+	s.targetWriteMu.Unlock()
+	if unregister != nil {
+		unregister()
 	}
+	if target != nil {
+		_ = target.Close()
+	}
+}
+
+func (s *responsesWSSession) registerChannelClose(channelID int) {
+	unregister := wsmanager.Register(channelID, wsmanager.KindResponses, func(reason string) {
+		s.closeForPolicy(reason)
+	})
+	s.targetWriteMu.Lock()
+	if s.unregister != nil {
+		s.unregister()
+	}
+	s.unregister = unregister
+	s.targetWriteMu.Unlock()
+}
+
+func (s *responsesWSSession) closeForPolicy(reason string) {
+	s.closeOnce.Do(func() {
+		s.failCurrent()
+		deadline := time.Now().Add(time.Second)
+		closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
+		_ = s.client.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+		if target := s.getTarget(); target != nil {
+			_ = target.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+		}
+		s.closeTarget()
+		_ = s.client.Close()
+	})
 }
 
 func checkResponsesWSModelAccess(c *gin.Context, modelName string) *types.NewAPIError {
