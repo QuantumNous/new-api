@@ -47,6 +47,7 @@ const usageLogsSearchSchema = z.object({
   username: z.string().optional().catch(''),
   requestId: z.string().optional().catch(''),
   upstreamRequestId: z.string().optional().catch(''),
+  nonAdmin: z.boolean().optional().catch(false),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
 })

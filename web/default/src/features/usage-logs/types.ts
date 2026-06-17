@@ -53,6 +53,8 @@ export interface CommonLogFilters extends CommonFilters {
   username?: string
   requestId?: string
   upstreamRequestId?: string
+  // Admin only: when true, exclude the current admin's own logs (show only regular users)
+  nonAdmin?: boolean
 }
 
 /**
@@ -269,6 +271,7 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  non_admin?: boolean
 }
 
 export interface GetLogsResponse {
@@ -293,6 +296,7 @@ export interface GetLogStatsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  non_admin?: boolean
 }
 
 export interface GetLogStatsResponse {

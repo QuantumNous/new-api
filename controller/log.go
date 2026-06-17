@@ -10,6 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// excludeUserIdForNonAdmin returns the current user's id (to exclude their own
+// records) when the non_admin (普通用户) filter is requested. The filter is
+// restricted to the root user only; for any other role it is a no-op (returns 0).
+func excludeUserIdForNonAdmin(c *gin.Context) int {
+	if c.Query("non_admin") == "true" && c.GetInt("role") >= common.RoleRootUser {
+		return c.GetInt("id")
+	}
+	return 0
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -22,7 +32,9 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	// non_admin=true（仅 root 可用）：仅查看普通用户日志，排除 root 自己的记录
+	excludeUserId := excludeUserIdForNonAdmin(c)
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, excludeUserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -104,7 +116,8 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	excludeUserId := excludeUserIdForNonAdmin(c)
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, excludeUserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -131,7 +144,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, 0)
 	if err != nil {
 		common.ApiError(c, err)
 		return
