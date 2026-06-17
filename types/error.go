@@ -178,6 +178,64 @@ func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
 }
 
+// OverrideMessage replaces the client-facing error text across every rendering
+// path. SetMessage only rewrites the underlying error (Err); for upstream errors
+// ToOpenAIError/ToClaudeError read from the typed RelayError envelope, and that
+// envelope carries sibling fields (Type/Param/Code/Metadata) that are serialized
+// verbatim — a leak left in any of them would still reach the client. So this
+// rewrites Err AND blanks every upstream-controlled field on the envelope:
+// Message → generic, Param/Metadata cleared, Type/Code reset to a generic code.
+func (e *NewAPIError) OverrideMessage(message string) {
+	if e == nil {
+		return
+	}
+	e.Err = errors.New(message)
+	e.Metadata = nil
+	const genericType = string(ErrorTypeUpstreamError)
+	switch re := e.RelayError.(type) {
+	case OpenAIError:
+		re.Message = message
+		re.Param = ""
+		re.Metadata = nil
+		re.Type = genericType
+		re.Code = genericType
+		e.RelayError = re
+	case ClaudeError:
+		re.Message = message
+		re.Type = genericType
+		e.RelayError = re
+	}
+}
+
+// SanitizationSurface returns all upstream-controlled text that could carry a
+// leak — the message plus the typed envelope's Type/Param/Code/Metadata — so a
+// sanitizer can decide whether to scrub based on the full surface, not just the
+// message field (a leak confined to e.g. Param would otherwise go undetected).
+func (e *NewAPIError) SanitizationSurface() string {
+	if e == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(e.Error())
+	switch re := e.RelayError.(type) {
+	case OpenAIError:
+		b.WriteString(" ")
+		b.WriteString(re.Type)
+		b.WriteString(" ")
+		b.WriteString(re.Param)
+		b.WriteString(" ")
+		b.WriteString(string(re.Metadata))
+		if re.Code != nil {
+			b.WriteString(" ")
+			b.WriteString(fmt.Sprintf("%v", re.Code))
+		}
+	case ClaudeError:
+		b.WriteString(" ")
+		b.WriteString(re.Type)
+	}
+	return b.String()
+}
+
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	var result OpenAIError
 	switch e.errorType {

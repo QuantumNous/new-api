@@ -89,6 +89,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			// Whitelabel channels: sanitize upstream error text that leaks the
+			// provider identity or internal implementation details before it
+			// reaches the client. No-op for non-whitelabel channels and for
+			// ordinary upstream errors. Runs after the log above so operators
+			// still see the original text server-side.
+			service.ScrubWhitelabelError(c, newAPIError, common.GetContextKeyInt(c, constant.ContextKeyChannelType))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:

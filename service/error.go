@@ -8,14 +8,90 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	"github.com/QuantumNous/new-api/types"
 )
+
+// whitelabelSyncChannels are channel types whose synchronous (chat / messages /
+// responses) upstream error text must never reach customers verbatim: it may
+// leak the upstream provider identity or internal implementation details. The
+// backend is a full-passthrough whitelabel proxy that may return its own
+// internal error envelope, so we sanitize the client-facing error.
+//
+// Scope: synchronous relay only. The async video/task channels
+// (BlockRunVideo/BlockRunSeedance) render errors through respondTaskError, NOT
+// controller.Relay()'s defer, so they are intentionally NOT listed here —
+// adding them would be dead config implying coverage that does not exist.
+var whitelabelSyncChannels = map[int]struct{}{
+	constant.ChannelTypeBlockRun: {},
+}
+
+// internalSymbolPattern matches upstream error text that exposes internal
+// implementation symbols: a CamelCase Go type name ending in Request/Response
+// with field/method access (e.g. GenerateOpenAIRequest.max_tokens), or a
+// file:line stack frame (e.g. handler.go:123).
+var internalSymbolPattern = regexp.MustCompile(`[A-Z][A-Za-z0-9]*(?:Request|Response)\.[A-Za-z_]|[A-Za-z0-9_]+\.go:\d+`)
+
+// internalLeakMarkers are case-insensitive substrings that only appear in
+// internal/serializer errors, never in legitimate provider-facing messages
+// (rate limit, content policy, invalid api key, etc.).
+var internalLeakMarkers = []string{
+	"not present in request",
+	"goroutine ",
+	"panic:",
+	"runtime error",
+}
+
+// whitelabelGenericErrorMessage is the sanitized client-facing replacement.
+const whitelabelGenericErrorMessage = "The upstream provider returned an error. Please retry; if it persists, contact support with your request id."
+
+func looksLikeInternalLeak(msg string) bool {
+	if internalSymbolPattern.MatchString(msg) {
+		return true
+	}
+	lower := strings.ToLower(msg)
+	for _, marker := range internalLeakMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// ScrubWhitelabelError replaces the client-facing message of an upstream error
+// on a whitelabel channel when that message leaks provider branding or internal
+// implementation details. The full original text is logged server-side so
+// operators retain debuggability. It is a no-op for non-whitelabel channels and
+// for messages that look like ordinary upstream errors (rate limit, content
+// policy, etc.), so legitimate error reasons still reach the client unchanged.
+func ScrubWhitelabelError(ctx context.Context, newApiErr *types.NewAPIError, channelType int) {
+	if newApiErr == nil {
+		return
+	}
+	if _, ok := whitelabelSyncChannels[channelType]; !ok {
+		return
+	}
+	// Inspect the full upstream-controlled surface (message + Type/Param/Code/
+	// Metadata), not just the message: a leak confined to a sibling field would
+	// otherwise evade detection.
+	surface := newApiErr.SanitizationSurface()
+	if surface == "" {
+		return
+	}
+	if !taskcommon.ContainsBrandKeyword(surface) && !looksLikeInternalLeak(surface) {
+		return
+	}
+	logger.LogError(ctx, fmt.Sprintf("whitelabel error scrub (channel_type=%d): %s", channelType, common.LocalLogPreview(surface)))
+	newApiErr.OverrideMessage(whitelabelGenericErrorMessage)
+}
 
 func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {
 	return &dto.MidjourneyResponse{
