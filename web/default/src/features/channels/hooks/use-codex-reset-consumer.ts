@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { consumeCodexReset, getCodexUsage } from '../api'
@@ -41,12 +41,18 @@ import type { CodexUsageDialogData } from '../components/dialogs/codex-usage-dia
 export function useCodexResetConsumer() {
   const { t } = useTranslation()
   const [isConsuming, setIsConsuming] = useState(false)
+  // Synchronous in-flight guard: React state is not a concurrency barrier, so a
+  // rapid double-click (or two entry points / a caller that forgot to disable)
+  // could otherwise fire two consume requests and spend two credits.
+  const consumingRef = useRef(false)
 
   // Returns the refreshed usage to store, or null when there is nothing safe to
-  // store (consume failed, or the follow-up refetch failed / returned !success).
+  // store (already in flight, consume failed, or the refetch failed / !success).
   const consume = async (
     channelId: number
   ): Promise<CodexUsageDialogData | null> => {
+    if (consumingRef.current) return null
+    consumingRef.current = true
     setIsConsuming(true)
     try {
       const res = await consumeCodexReset(channelId)
@@ -64,20 +70,21 @@ export function useCodexResetConsumer() {
         // credit was already spent/expired, or there was no active limit window.
         toast.error(t('No rate-limit window was reset'))
       }
+      // Isolated refetch: a failure here must NOT report the (successful) consume
+      // as failed, and a !success body must NOT overwrite the last-good state.
+      try {
+        const refreshed = await getCodexUsage(channelId)
+        return refreshed?.success ? refreshed : null
+      } catch {
+        return null
+      }
     } catch {
       toast.error(t('Failed to consume reset credit'))
-      setIsConsuming(false)
-      return null
-    }
-
-    // Isolated refetch: a failure here must NOT report the (successful) consume
-    // as failed, and a !success body must NOT overwrite the last-good state.
-    try {
-      const refreshed = await getCodexUsage(channelId)
-      return refreshed?.success ? refreshed : null
-    } catch {
       return null
     } finally {
+      // Single release point: every exit path (consume failure, exception,
+      // refetch failure, success) unlocks the guard and clears the state.
+      consumingRef.current = false
       setIsConsuming(false)
     }
   }

@@ -86,7 +86,7 @@ type CodexUsageDialogProps = {
   response: CodexUsageDialogData | null
   onRefresh?: () => void
   isRefreshing?: boolean
-  onConsume?: () => void
+  onConsume?: () => void | Promise<void>
   isConsuming?: boolean
 }
 
@@ -646,9 +646,13 @@ export function CodexUsageDialog({
             </Button>
             <Button
               type='button'
-              onClick={() => {
+              onClick={async () => {
+                // Keep the confirm dialog open and the button disabled until the
+                // consume resolves, so it cannot be submitted twice before the
+                // parent's isConsuming state propagates.
+                if (isConsuming) return
+                await onConsume?.()
                 setConfirmOpen(false)
-                onConsume?.()
               }}
               disabled={!canConsume || Boolean(isConsuming)}
             >
