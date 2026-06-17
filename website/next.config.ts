@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   typedRoutes: false,
+  async redirects() {
+    return [
+      {
+        source: "/keys",
+        destination: "/",
+        statusCode: 301,
+      },
+    ];
+  },
   env: {
     NEXT_PUBLIC_APP_CONSOLE_ORIGIN: appConsoleOrigin,
     NEXT_PUBLIC_SITE_ORIGIN: siteOrigin,
