@@ -1,4 +1,4 @@
-name: Build and Deploy to Server
+name: Build and Deploy
 
 on:
   push:
@@ -6,68 +6,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  deploy:
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build Docker image
         run: |
+          echo "[$(date)] Building Docker image..."
+          cd /opt/new-api
           docker build -t new-api:latest .
+          echo "[$(date)] Build completed!"
 
-      - name: Save Docker image
+      - name: Deploy to server
         run: |
-          docker save new-api:latest | gzip > new-api.tar.gz
-          ls -lh new-api.tar.gz
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: new-api-image
-          path: new-api.tar.gz
-          retention-days: 1
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: new-api-image
-
-      - name: Copy image to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: "new-api.tar.gz"
-          target: "/opt/new-api/"
-          overwrite: true
-
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            cd /opt/new-api
-            echo "[$(date)] Loading new image..."
-            docker load < new-api.tar.gz
-            echo "[$(date)] Stopping old containers..."
-            docker compose down
-            echo "[$(date)] Starting new containers..."
-            docker compose up -d
-            echo "[$(date)] Cleaning up..."
-            rm -f new-api.tar.gz
-            docker system prune -f
-            echo "[$(date)] Deploy completed!"
-            docker compose ps
+          echo "[$(date)] Stopping old containers..."
+          cd /opt/new-api
+          docker compose down
+          echo "[$(date)] Starting new containers..."
+          docker compose up -d
+          echo "[$(date)] Cleaning up..."
+          docker system prune -f
+          echo "[$(date)] Deploy completed!"
+          docker compose ps
