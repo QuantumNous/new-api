@@ -233,7 +233,7 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 |---|---|
 | Header | Title, count of enabled Skills |
 | Filters | All, Available, Locked, Deprecated |
-| List/Table | Skill, status, required plan, last used, enabled date, actions（Use / Get Tool Spec / Disable）|
+| List/Table | Skill, status, required plan, last used, enabled date, actions（Get Tool Spec / Disable）— 按行状态详见 §4.3.3 |
 | Empty State | Prompt user to explore Marketplace |
 
 #### 4.3.3 Row States
