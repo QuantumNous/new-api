@@ -303,25 +303,36 @@ func RedisHSetField(key, field string, value interface{}) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis HSET field: key=%s, field=%s, value=%v", key, field, value))
 	}
-	ttlCmd := RDB.TTL(context.Background(), key)
-	ttl, err := ttlCmd.Result()
+	ctx := context.Background()
+
+	// Never create a partial hash: only update the field when the hash already
+	// exists. A missing key is left untouched so GetUserCache lazily rebuilds the
+	// full entry from the DB on the next read.
+	exists, err := RDB.Exists(ctx, key).Result()
+	if err != nil {
+		return fmt.Errorf("failed to check key existence: %w", err)
+	}
+	if exists == 0 {
+		return nil
+	}
+
+	ttl, err := RDB.TTL(ctx, key).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return fmt.Errorf("failed to get TTL: %w", err)
 	}
 
 	if ttl > 0 {
-		ctx := context.Background()
+		// Update the field while preserving the existing finite TTL.
 		txn := RDB.TxPipeline()
-
-		hsetCmd := txn.HSet(ctx, key, field, value)
-		if err := hsetCmd.Err(); err != nil {
-			return err
-		}
-
+		txn.HSet(ctx, key, field, value)
 		txn.Expire(ctx, key, ttl)
-
 		_, err = txn.Exec(ctx)
 		return err
 	}
-	return nil
+
+	// Key exists without an expiry (persistent cache, e.g. SYNC_FREQUENCY=0).
+	// Previously this returned nil and silently dropped the update, leaving stale
+	// fields — most importantly the user Group after a subscription-expiry revert.
+	// Update the field in place without setting a TTL.
+	return RDB.HSet(ctx, key, field, value).Err()
 }
