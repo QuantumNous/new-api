@@ -457,14 +457,15 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	nowUnix := GetDBTimestamp()
-	var lockedUser User
+	// Serialize subscription creation per user to close the duplicate check-then-insert race.
+	var lockUser User
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").
 		Select("id").
 		Where("id = ?", userId).
-		First(&lockedUser).Error; err != nil {
+		First(&lockUser).Error; err != nil {
 		return nil, err
 	}
+	nowUnix := GetDBTimestamp()
 	var activeCount int64
 	if err := tx.Model(&UserSubscription{}).
 		Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", userId, plan.Id, "active", nowUnix).
