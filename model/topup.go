@@ -537,22 +537,6 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		// Creem 直接使用 Amount 作为充值额度（整数）
 		quota = topUp.Amount
 
-		// 赠送按档位限次裁决。Creem 以 Amount 单位入账，赠送同单位（不乘 QuotaPerUnit）。
-		if topUp.BonusAmount > 0 {
-			granted, claimErr := claimTopUpBonusInTx(tx, topUp.UserId, topUp.BonusTier, topUp.BonusAmount, topUpBonusLimitFor(topUp.BonusTier), topUp.TradeNo)
-			if claimErr != nil {
-				return claimErr
-			}
-			if granted {
-				quota += topUp.BonusAmount
-			} else {
-				topUp.BonusAmount = 0
-				if zErr := tx.Model(&TopUp{}).Where("id = ?", topUp.Id).Update("bonus_amount", 0).Error; zErr != nil {
-					return zErr
-				}
-			}
-		}
-
 		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
 		updateFields := map[string]interface{}{
 			"quota": gorm.Expr("quota + ?", quota),
