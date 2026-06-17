@@ -574,6 +574,188 @@ func TestCTA_StringValues(t *testing.T) {
 	assert.Equal(t, "unavailable", string(CTAUnavailable))
 }
 
+// ── T1: Anonymous always wins regardless of skill state ──────────────────
+//
+// Anonymous check fires before lifecycle, plan, kids, and quota. Verify that
+// the resolver never leaks skill status or plan requirement to an unauthenticated
+// caller — AUTH_REQUIRED is always the first and only response.
+
+func TestResolve_Anonymous_DraftSkill(t *testing.T) {
+	skill := SkillInfo{Status: enums.SkillStatusDraft, RequiredPlan: enums.RequiredPlanFree}
+	r := Resolve(skill, UserInfo{IsAnonymous: true})
+	assert.Equal(t, errcodes.ErrAuthRequired, r.LockCode, "anonymous must not see SKILL_NOT_PUBLISHED")
+	assert.Equal(t, CTALogin, r.CTA)
+	assert.Nil(t, r.Enabled)
+}
+
+func TestResolve_Anonymous_ArchivedSkill(t *testing.T) {
+	skill := SkillInfo{Status: enums.SkillStatusArchived, RequiredPlan: enums.RequiredPlanFree}
+	r := Resolve(skill, UserInfo{IsAnonymous: true})
+	assert.Equal(t, errcodes.ErrAuthRequired, r.LockCode, "anonymous must not see SKILL_NOT_PUBLISHED")
+	assert.Equal(t, CTALogin, r.CTA)
+}
+
+func TestResolve_Anonymous_ProSkill(t *testing.T) {
+	r := Resolve(publishedProSkill(), UserInfo{IsAnonymous: true})
+	assert.Equal(t, errcodes.ErrAuthRequired, r.LockCode, "anonymous must not see SKILL_PLAN_REQUIRED")
+	assert.Equal(t, CTALogin, r.CTA)
+}
+
+func TestResolve_Anonymous_KidsExclusiveSkill(t *testing.T) {
+	skill := SkillInfo{
+		Status:          enums.SkillStatusPublished,
+		RequiredPlan:    enums.RequiredPlanFree,
+		IsKidsSafe:      true,
+		IsKidsExclusive: true,
+	}
+	r := Resolve(skill, UserInfo{IsAnonymous: true})
+	assert.Equal(t, errcodes.ErrAuthRequired, r.LockCode, "anonymous must not see SKILL_KIDS_MODE_BLOCKED")
+	assert.Equal(t, CTALogin, r.CTA)
+}
+
+// ── T2: Not-enabled user + quota exceeded → enable CTA (not quota exceeded) ──
+//
+// Quota is an execution limit, not an enablement limit. A user who hasn't
+// enabled a skill yet must see "enable", never "quota exceeded".
+// (tasks/01 §6 rows 2-3 both require Enabled=true for quota to apply.)
+
+func TestResolve_NotEnabled_QuotaExceeded_SeesEnableCTA(t *testing.T) {
+	skill := SkillInfo{
+		Status:            enums.SkillStatusPublished,
+		RequiredPlan:      enums.RequiredPlanFree,
+		FreeQuotaPerMonth: intPtr(5),
+	}
+	user := freeUserActive()
+	user.IsEnabled = false
+	user.QuotaUsed = 999 // heavily exceeded
+
+	r := Resolve(skill, user)
+	assert.False(t, r.Locked, "not-enabled entitled user must not be locked")
+	assert.Equal(t, CTAEnable, r.CTA, "must see enable, not quota_exceeded")
+	assert.NotEqual(t, errcodes.ErrSkillQuotaExceeded, r.LockCode)
+}
+
+func TestResolve_NotEnabled_ZeroQuota_SeesEnableCTA(t *testing.T) {
+	skill := SkillInfo{
+		Status:            enums.SkillStatusPublished,
+		RequiredPlan:      enums.RequiredPlanFree,
+		FreeQuotaPerMonth: intPtr(0), // zero quota limit
+	}
+	user := freeUserActive()
+	user.IsEnabled = false
+	user.QuotaUsed = 0
+
+	r := Resolve(skill, user)
+	assert.Equal(t, CTAEnable, r.CTA, "zero-quota skill: not-enabled user still sees enable")
+	assert.False(t, r.Locked)
+}
+
+// ── T3: Kids Session + KidsExclusive+KidsSafe → allowed ──────────────────
+//
+// A kids-exclusive skill IS allowed in a Kids Session (exclusive means only
+// kids sessions may use it, not that it is blocked for kids). The two kids
+// checks are: (a) kids session + not kids-safe → blocked, (b) normal session
+// + kids-exclusive → blocked. Kids session + kids-exclusive + kids-safe must pass.
+
+func TestResolve_KidsSession_KidsExclusiveAndSafe_Allowed(t *testing.T) {
+	skill := SkillInfo{
+		Status:          enums.SkillStatusPublished,
+		RequiredPlan:    enums.RequiredPlanFree,
+		IsKidsSafe:      true,
+		IsKidsExclusive: true,
+	}
+	user := freeUserActive()
+	user.IsKidsSession = true
+	user.IsEnabled = true
+	user.WasEnabled = true
+
+	r := Resolve(skill, user)
+	assert.False(t, r.Locked, "kids-exclusive+safe skill must be allowed in Kids Session")
+	assert.True(t, r.Executable)
+	assert.Equal(t, CTAUse, r.CTA)
+}
+
+// ── T4: FreeQuotaPerMonth=0 (zero-limit skill) ───────────────────────────
+//
+// A skill with free_quota_per_month=0 is immediately quota-exceeded the moment
+// an enabled user tries to execute. DB allows the value (CHECK free_quota >= 0).
+
+func TestResolve_ZeroQuotaPerMonth_EnabledUser_Exceeded(t *testing.T) {
+	skill := SkillInfo{
+		Status:            enums.SkillStatusPublished,
+		RequiredPlan:      enums.RequiredPlanFree,
+		FreeQuotaPerMonth: intPtr(0),
+	}
+	user := freeUserActive()
+	user.IsEnabled = true
+	user.QuotaUsed = 0 // 0 >= 0 → exceeded
+
+	r := Resolve(skill, user)
+	assert.True(t, r.Locked)
+	assert.Equal(t, errcodes.ErrSkillQuotaExceeded, r.LockCode)
+	assert.Equal(t, CTAUpgrade, r.CTA)
+}
+
+// ── T5: WasEnabled=true vs false both produce unavailable for deprecated+disabled ──
+//
+// Row 12 (new user: WasEnabled=false, IsEnabled=false) and row 14 (existing
+// disabled user: WasEnabled=true, IsEnabled=false) must both produce the same
+// lock result. Only IsEnabled=true grants continued access to deprecated skills.
+
+func TestResolve_DeprecatedSkill_DisabledUser_WasEnabledDoesNotMatter(t *testing.T) {
+	skill := SkillInfo{
+		Status:       enums.SkillStatusDeprecated,
+		RequiredPlan: enums.RequiredPlanFree,
+	}
+
+	neverEnabled := freeUserActive()
+	neverEnabled.IsEnabled = false
+	neverEnabled.WasEnabled = false
+
+	previouslyEnabled := freeUserActive()
+	previouslyEnabled.IsEnabled = false
+	previouslyEnabled.WasEnabled = true
+
+	rNever := Resolve(skill, neverEnabled)
+	rPrev := Resolve(skill, previouslyEnabled)
+
+	// Both must return identical lock state.
+	assert.Equal(t, rNever.Locked, rPrev.Locked, "lock state must be identical")
+	assert.Equal(t, rNever.LockCode, rPrev.LockCode, "lock code must be identical")
+	assert.Equal(t, rNever.CTA, rPrev.CTA, "CTA must be identical")
+
+	// Both must be unavailable.
+	assert.True(t, rNever.Locked)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, rNever.LockCode)
+	assert.Equal(t, CTAUnavailable, rNever.CTA)
+}
+
+// ── T6: Deprecated + enabled + plan downgraded → SKILL_PLAN_REQUIRED ─────
+//
+// After a deprecated skill's required_plan is raised (or user downgrades),
+// an existing enabled user who now has insufficient plan must still be blocked
+// by entitlement checks. The deprecated+IsEnabled=true pass-through only skips
+// the lifecycle block — plan/sub/quota checks still fire.
+
+func TestResolve_DeprecatedSkill_EnabledUser_PlanDowngraded(t *testing.T) {
+	skill := SkillInfo{
+		Status:       enums.SkillStatusDeprecated,
+		RequiredPlan: enums.RequiredPlanPro, // pro required
+	}
+	user := UserInfo{
+		Plan:       enums.RequiredPlanFree, // user is now free
+		SubActive:  true,
+		IsEnabled:  true,
+		WasEnabled: true,
+	}
+
+	r := Resolve(skill, user)
+	assert.True(t, r.Locked)
+	assert.Equal(t, errcodes.ErrSkillPlanRequired, r.LockCode)
+	assert.Equal(t, CTAUpgrade, r.CTA)
+	assert.False(t, r.Executable)
+}
+
 // ── planSatisfied helper ─────────────────────────────────────────────────
 
 func TestPlanSatisfied(t *testing.T) {

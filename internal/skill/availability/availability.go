@@ -124,8 +124,9 @@ type UserInfo struct {
 //  3. Lifecycle: archived, draft → unavailable; deprecated → existing-enabled-only
 //  4. Plan hierarchy: enterprise or pro required
 //  5. Subscription active (non-free skills only)
-//  6. Free quota cap
-//  7. Enable state: entitled but not enabled → enable CTA
+//  6. Enable state: entitled but not enabled → enable CTA
+//  7. Free quota cap (only relevant for enabled users; quota is an execution limit,
+//     not an enablement limit — tasks/01 §6 rows 2/3 both require Enabled=true)
 //  8. Entitled and enabled → use / executable
 func Resolve(skill SkillInfo, user UserInfo) Result {
 	// 1. Anonymous visitor: cannot enable or execute; show login CTA.
@@ -214,23 +215,25 @@ func Resolve(skill SkillInfo, user UserInfo) Result {
 		}
 	}
 
-	// 6. Free quota cap.
+	// 6. Entitled but not yet enabled (published skill only; deprecated already
+	//    guarded to IsEnabled==true above, so this branch only fires for published).
+	//    Quota is an execution limit, not an enablement limit: a user who hasn't
+	//    enabled a skill should see the enable CTA regardless of quota state.
+	if !user.IsEnabled {
+		return Result{
+			Enabled: boolPtr(false),
+			Locked:  false,
+			CTA:     CTAEnable,
+		}
+	}
+
+	// 7. Free quota cap (enabled users only; tasks/01 §6 rows 2-3 require Enabled=true).
 	if skill.FreeQuotaPerMonth != nil && user.QuotaUsed >= *skill.FreeQuotaPerMonth {
 		return Result{
 			Enabled:  enabled,
 			Locked:   true,
 			LockCode: errcodes.ErrSkillQuotaExceeded,
 			CTA:      CTAUpgrade,
-		}
-	}
-
-	// 7. Entitled but not yet enabled (published skill only; deprecated already
-	//    guarded to IsEnabled==true above, so this branch only fires for published).
-	if !user.IsEnabled {
-		return Result{
-			Enabled: boolPtr(false),
-			Locked:  false,
-			CTA:     CTAEnable,
 		}
 	}
 
