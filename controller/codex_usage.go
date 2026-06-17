@@ -236,11 +236,17 @@ func codexChannelUpstreamWithRefresh(
 			if strings.TrimSpace(oauthKey.Type) == "" {
 				oauthKey.Type = "codex"
 			}
+			// Persistence failure is non-fatal: the request still proceeds with the
+			// refreshed in-memory token (favoring request success). But surface the
+			// failure in logs — otherwise the DB/cache keeps the stale key and every
+			// later request keeps 401/refresh churning silently.
 			encoded, encErr := common.Marshal(oauthKey)
-			if encErr == nil {
-				if updateErr := model.UpdateChannelKey(ch.Id, string(encoded)); updateErr == nil {
-					refreshed = true
-				}
+			if encErr != nil {
+				common.SysError("codex channel " + strconv.Itoa(ch.Id) + ": failed to marshal refreshed key: " + encErr.Error())
+			} else if updateErr := model.UpdateChannelKey(ch.Id, string(encoded)); updateErr != nil {
+				common.SysError("codex channel " + strconv.Itoa(ch.Id) + ": failed to persist refreshed key: " + updateErr.Error())
+			} else {
+				refreshed = true
 			}
 			statusCode, body, err = do(client, oauthKey.AccessToken, accountID)
 			if err != nil {

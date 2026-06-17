@@ -77,9 +77,15 @@ func ConsumeCodexResetCredit(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	// Bound the response read so a misbehaving upstream/proxy returning a huge
+	// body cannot exhaust memory. The consume payload is a small JSON object.
+	const maxResetCreditResponseBytes int64 = 1 << 20 // 1 MiB
+	body, err = io.ReadAll(io.LimitReader(resp.Body, maxResetCreditResponseBytes+1))
 	if err != nil {
 		return resp.StatusCode, nil, err
+	}
+	if int64(len(body)) > maxResetCreditResponseBytes {
+		return resp.StatusCode, nil, fmt.Errorf("codex reset credit response body too large")
 	}
 	return resp.StatusCode, body, nil
 }
