@@ -16,7 +16,10 @@ version: '3.4' # For compatibility with older Docker versions
 
 services:
   new-api:
-    build: .
+    # 生产环境使用镜像仓库的镜像，CI/CD 自动部署
+    image: registry.cn-hangzhou.aliyuncs.com/dfd_public/new-api:latest
+    # 本地开发时使用 build: . 从源码构建
+    # build: .
     container_name: new-api
     restart: always
     command: --log-dir /app/logs

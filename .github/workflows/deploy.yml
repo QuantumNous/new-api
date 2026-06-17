@@ -1,12 +1,14 @@
-name: Build and Deploy
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build:
+  # Job 1: 构建 + 打包 Docker 镜像 → 推送到阿里云 ACR
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -15,34 +17,49 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
-        run: |
-          docker build -t new-api:latest .
-
-      - name: Save Docker image
-        run: |
-          docker save new-api:latest | gzip > new-api.tar.gz
-          ls -lh new-api.tar.gz
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Login to Alibaba Cloud Container Registry
+        uses: docker/login-action@v3
         with:
-          name: new-api-image
-          path: new-api.tar.gz
-          retention-days: 1
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-  notify:
-    needs: build
-    runs-on: ubuntu-latest
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: registry.cn-hangzhou.aliyuncs.com/dfd_public/new-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 2: 服务端自动部署镜像
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
     steps:
-      - name: Notify server to deploy
+      - name: Login to Alibaba Cloud Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Pull latest image
+        run: docker pull registry.cn-hangzhou.aliyuncs.com/dfd_public/new-api:latest
+
+      - name: Deploy with docker compose
         run: |
-          echo "[$(date)] Notifying server to deploy..."
-          # 使用 webhook 通知服务器有新版本可部署
-          # 服务器上的 webhook 监听工具会收到通知后自动拉取并部署
-          curl -f -X POST \
-            -H "Content-Type: application/json" \
-            -d '{"repository":"${{ github.repository }}","ref":"${{ github.ref }}","sha":"${{ github.sha }}","run_id":"${{ github.run_id }}","actor":"${{ github.actor }}"}' \
-            http://101.89.149.152:9000/webhook/deploy \
-            || echo "Webhook notification failed (server may be offline or webhook not running)"
-          echo "[$(date)] Notification sent!"
+          echo "[$(date)] Starting deployment..."
+          cd /opt/new-api
+          echo "[$(date)] Pulling latest image..."
+          docker compose pull
+          echo "[$(date)] Stopping old containers..."
+          docker compose down
+          echo "[$(date)] Starting new containers..."
+          docker compose up -d
+          echo "[$(date)] Cleaning up..."
+          docker system prune -f
+          echo "[$(date)] Deploy completed!"
+          docker compose ps
