@@ -112,6 +112,7 @@
     "Changing batch type to:": "Изменение типа пакета на:",
     "ChatCompletions→Responses 兼容配置": "Настройка совместимости ChatCompletions→Responses",
     "ChatCompletions→Responses 兼容配置（Beta）": "Совместимость ChatCompletions→Responses (бета)",
+    "Responses→ChatCompletions 兼容配置": "Совместимость Responses→ChatCompletions",
     "Claude 强制 beta=true": "Claude принудительно beta=true",
     "Claude会在原有请求头基础上追加这些值，不会覆盖已有同名请求头；重复值会自动忽略。": "Claude добавляет эти значения поверх существующих заголовков запроса. Уже существующие заголовки не перезаписываются, а дублирующиеся значения автоматически игнорируются.",
     "Claude思考适配 BudgetTokens = MaxTokens * BudgetTokens 百分比": "Адаптация мышления Claude BudgetTokens = MaxTokens * процент BudgetTokens",

@@ -102,6 +102,7 @@
     "Changing batch type to:": "Đang thay đổi loại hàng loạt thành:",
     "ChatCompletions→Responses 兼容配置": "Cấu hình tương thích ChatCompletions→Responses",
     "ChatCompletions→Responses 兼容配置（Beta）": "Tương thích ChatCompletions→Responses (Beta)",
+    "Responses→ChatCompletions 兼容配置": "Tương thích Responses→ChatCompletions",
     "Claude 强制 beta=true": "Claude buộc beta=true",
     "Claude会在原有请求头基础上追加这些值，不会覆盖已有同名请求头；重复值会自动忽略。": "Claude sẽ thêm các giá trị này vào các tiêu đề yêu cầu hiện có. Các tiêu đề cùng tên sẽ không bị ghi đè và các giá trị trùng lặp sẽ tự động bị bỏ qua.",
     "Claude思考适配 BudgetTokens = MaxTokens * BudgetTokens 百分比": "Thích ứng tư duy Claude BudgetTokens = MaxTokens * Tỷ lệ phần trăm BudgetTokens",
