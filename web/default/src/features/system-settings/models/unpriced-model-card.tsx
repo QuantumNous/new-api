@@ -28,7 +28,7 @@ type UnpricedModelCardProps = {
   onEdit: () => void
 }
 
-export function UnpricedModelCard(props: UnpricedModelCardProps) {
+export function UnpricedModelCard(props: UnpricedModelCardProps): JSX.Element {
   const active = props.active ?? false
   const { t } = useTranslation()
 
