@@ -237,7 +237,7 @@ The following earlier review findings have been resolved or absorbed into the mo
 | M01 Data/API | Sprint Planning Ready | D-06 encryption sign-off before production data |
 | M02 Admin | Sprint Planning Ready | D-03 only if Kids paths enabled; M11 audit baseline before sensitive prompt access |
 | M03 Marketplace | Sprint Planning Ready with D-01 dependency | Plan/quota copy and lock states finalize before affected UI implementation |
-| M04 Playground | Sprint Planning Ready | M05/M06 contracts must land before full execution QA |
+| M04 Playground Skill Picker | **V1 移除 — N/A** | 本模块已从 V1 移除；无需执行 QA；替代：M16 Tool Spec, M17 API Key, M02 admin_preview |
 | M05 Relay | Sprint Planning Ready with gated implementation | D-05 provider allowlist before provider integration; provider DPA/security terms before production provider traffic; D-03 if Kids; D-04 if streaming |
 | M06 Entitlement | Sprint Planning Ready with D-01 dependency | Plan/quota finalization before quota/lock implementation |
 | M07 Billing | Sprint Planning Ready with D-01/D-07 dependency | Finance sign-off before charging/revenue launch; D-04 if streaming |

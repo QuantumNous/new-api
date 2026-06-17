@@ -42,7 +42,7 @@
 - [ ] Unauthenticated Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, execution logic download, and full sharing/referral are excluded from V1 P0.
 - [ ] Tool spec download (OpenAPI / MCP) is available from Skill Detail for enabled users; spec does not contain instruction_template or execution logic (verified by security review).
 - [ ] One-click install guides for ChatGPT, Gemini, and Claude are present on Skill Detail page.
-- [ ] External AI client can call `/v1/skills/execute/{skill_id}` with valid API Key and receive tool result; same entitlement and Kids safety checks apply as Playground path.
+- [ ] External AI client can call `/v1/skills/execute/{skill_id}` with valid API Key and receive tool result; same production-equivalent entitlement, Safety, Kids safety, quota, and rate limit checks apply as any authenticated execution path.
 - [ ] External AI client call with invalid/missing API Key receives 401 `AUTH_REQUIRED`.
 - [ ] Billing event for external AI client call includes `entry_point=external_ai_client`.
 

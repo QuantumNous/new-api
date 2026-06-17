@@ -51,7 +51,7 @@
 |---|---|---|---|
 | Skills / Marketplace | `/skills` | Anonymous, User, Admin, Ops | Browse and discover Skills |
 | My Skills | `/skills/my` | Logged-in users | Manage enabled Skills |
-| Playground | `/playground` | Logged-in users | Execute Skills |
+| Playground | `/playground` | Logged-in users | General chat only — no Skill execution for normal users; Admin uses admin_preview endpoint separately |
 | Admin Skills | `/admin/skills` | Super Admin | Create and operate official Skills |
 | Skill Analytics | `/admin/skill-analytics` or `/ops/skills` | Operation, Product/Growth, Super Admin | Monitor usage and revenue |
 | Skill Reviews | `/ops/skill-reviews` | Operation, Super Admin | Review quality, safety, blocked issues |
@@ -558,7 +558,7 @@ Quota-exceeded copy may add a reset date/time and a Pro upgrade CTA only when th
 | Marketplace Card | `skill_impression`, `entry_point=marketplace_card` |
 | Marketplace CTA | `skill_detail_view` or `skill_enabled` with source |
 | Skill Detail CTA | Existing events only: `skill_enabled`, `skill_blocked`; upgrade clicks use billing/growth event only if already defined |
-| My Skills Use | `skill_used` with `entry_point=my_skills` after execution |
+| My Skills Tool Spec Download | `skill_spec_downloaded` with `entry_point=my_skills`（普通用户从 My Skills 下载 tool spec；实际执行在外部 AI 客户端，触发 `entry_point=external_ai_client`）|
 | Tool Spec Download | `skill_spec_downloaded` with `format`（openapi/mcp）和 `platform` hint（P1）|
 | External AI Client Execution | `skill_used` / `skill_blocked` with `entry_point=external_ai_client`（P0）|
 | Locked CTA | `skill_blocked` and upgrade/contact-sales click |
