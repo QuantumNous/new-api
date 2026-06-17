@@ -61,7 +61,7 @@ No module may be marked Sprint Ready unless:
 
 | Topic | Required Unified Decision | Current Status | Owner | Source |
 |---|---|---|---|---|
-| V1 execution surface | Playground only; no Public Skill API | Aligned | Product + Backend | FRD, UX, Data/API, WBS |
+| V1 execution surface | External AI clients only (ChatGPT / Gemini / Claude via tool call with API Key); tool spec download P0; normal user Playground Skill execution **移除**; Admin 仅可用 `admin_preview` 端点测试; unauthenticated public Skill API not supported | **Aligned** | Product + Backend | FRD, UX, Data/API, Security, WBS |
 | Skill supply | Official curated Skills only | Aligned | Product | FRD, WBS |
 | Prompt protection | `instruction_template` server-side only; never in user/ops/log/analytics/billing/export | Aligned | Security + Backend | FRD, Data/API, Security |
 | Lifecycle status | `draft`, `published`, `deprecated`, `archived`; `featured` is a flag | Aligned | Backend + Product | FRD, Data/API |
@@ -78,7 +78,7 @@ No module may be marked Sprint Ready unless:
 | Rate limit vs quota | Business quota may be compensated; rate-limit buckets, concurrency tokens, and abuse counters are never refunded | Aligned | SRE + Security + Backend | Security, WBS, Compliance |
 | Error codes | Stable `SKILL_*` codes plus `AUTH_REQUIRED` | Aligned | Backend + Frontend | FRD, Data/API, UX |
 | Block reasons | Lowercase enum in data model; API exposes stable error code | Aligned with implementation note | Backend + Data | FRD, Data/API |
-| Entry points | `marketplace_card`, `skill_detail`, `my_skills`, `playground_picker`, `featured`, `popular`, `new`, `recommended`, `admin_preview` | Aligned | Data + Frontend | Data/API, Analytics, UX |
+| Entry points | `marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `external_ai_client`, `api_direct`（`playground_picker` 已移除，用户无 Playground Skill 执行路径） | **Updated** | Data + Frontend | Data/API, Analytics, UX |
 | Analytics timestamp | Event `timestamp` maps to DB `occurred_at` | Aligned | Data | Data/API, Analytics, WBS |
 | Metadata privacy | `metadata` allowlist; reject restricted keys | Aligned | Data + Security | Analytics, Security |
 | RBAC | `/admin/*` Super Admin; `/ops/*` aggregate Ops/Product views | Aligned | Security + Backend | FRD, Data/API, Security |
@@ -99,6 +99,8 @@ No module may be marked Sprint Ready unless:
 | Analytics extended fields | `source_entry_point` and `repeat_index` stored in allowlisted metadata | Aligned | Data | Data/API, Analytics |
 | Kids approval event | `skill_audit_log` is system-of-record; analytics event is derived | Aligned | Data + Safety | Data/API, Analytics, Security |
 | Upgrade intent | `upgrade_clicked` and Upgrade Intent Rate are P1 | Aligned | Product + Data | Analytics |
+| Tool spec distribution | Tool spec (OpenAPI / MCP) is downloadable; contains schema + endpoint only; never contains instruction_template or execution logic; download requires enabled state; spec fields added to `skills` table | **New V1 P0 decision — aligned in FRD, Data/API, WBS (M16); UX, Analytics, Security, Release Checklist updated** | Product + Security + Backend | FRD §4.11, Data/API §8.X + skills DDL, WBS M16, Security T-23/T-24/T-25 |
+| API Key binding for external clients | API Key is account-bound; external AI clients must include valid API Key in Authorization header; entitlement checked against Key owner; Key revocable immediately; Key scope restriction P1 | **New V1 P0 decision — aligned in FRD, Data/API, WBS (M17); Security updated** | Product + Security + Backend | FRD §4.12, Data/API §9.2, WBS M17, Security T-23/T-25 |
 | Stateless single-turn execution | V1 Relay strips prior-turn conversation history before every provider call; each request is independent; token billing reflects single-turn cost only (FR-G19) | Aligned | Backend + Security | FRD FR-G19, Security T-22 + §4.3, WBS M05, Release Checklist §6 |
 | Model alias requirement | `skills.model_whitelist` and `skill_versions.model_whitelist_snapshot` must contain only platform-registered alias names (e.g., `"smart-tier"`); hardcoded versioned IDs (e.g., `"gpt-4-0613"`) are prohibited; Admin API rejects unregistered values | Aligned | Security + Product | Data/API DDL Note, Security NFR §5.4, WBS M05, Release Checklist §5 |
 | Tenant identity immutability | `user_id` and `tenant_id` extracted exclusively from validated JWT/Auth token claims; client-supplied values in request body, headers, or query extensions are discarded before analytics, billing, quota, and audit processing | Aligned | Backend + Security | Security NFR §4.3 + T-21, WBS M05, Release Checklist §6 |
@@ -149,7 +151,7 @@ The following earlier review findings have been resolved or absorbed into the mo
 | Earlier Issue | Resolution | Source |
 |---|---|---|
 | P0/P1 scope overload | WBS now separates P0, P1, Conditional P0 | `06_Module_Breakdown_WBS.md` |
-| Public Skill API ambiguity | V1 is Playground-only | FRD, UX, Data/API, WBS |
+| Skill 执行路径 | V1 唯一用户路径为下载 tool spec 安装到外部 AI 客户端；Playground Skill Picker 已移除；Admin 使用 admin_preview 端点测试 | FRD §1.1, UX §0, Data/API §9, WBS |
 | `featured` as lifecycle status | Resolved as `featured_flag`/`featured_rank` | FRD, Data/API |
 | Prompt leakage scope too narrow | Expanded across API/logs/events/billing/audit/export/provider/streaming | Security/NFR |
 | Kids absolute safety promise risk | Reframed as conditional P0 / closed beta unless controls pass | FRD, UX, Security, WBS |
@@ -235,7 +237,7 @@ The following earlier review findings have been resolved or absorbed into the mo
 | M01 Data/API | Sprint Planning Ready | D-06 encryption sign-off before production data |
 | M02 Admin | Sprint Planning Ready | D-03 only if Kids paths enabled; M11 audit baseline before sensitive prompt access |
 | M03 Marketplace | Sprint Planning Ready with D-01 dependency | Plan/quota copy and lock states finalize before affected UI implementation |
-| M04 Playground | Sprint Planning Ready | M05/M06 contracts must land before full execution QA |
+| M04 Playground Skill Picker | **V1 移除 — N/A** | 本模块已从 V1 移除；无需执行 QA；替代：M16 Tool Spec, M17 API Key, M02 admin_preview |
 | M05 Relay | Sprint Planning Ready with gated implementation | D-05 provider allowlist before provider integration; provider DPA/security terms before production provider traffic; D-03 if Kids; D-04 if streaming |
 | M06 Entitlement | Sprint Planning Ready with D-01 dependency | Plan/quota finalization before quota/lock implementation |
 | M07 Billing | Sprint Planning Ready with D-01/D-07 dependency | Finance sign-off before charging/revenue launch; D-04 if streaming |

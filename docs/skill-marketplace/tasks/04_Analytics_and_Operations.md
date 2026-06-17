@@ -22,7 +22,8 @@ V1 analytics must answer:
 
 | Item | Decision |
 |---|---|
-| Public Skill API analytics | Not in V1; no `api` entry point |
+| Unauthenticated Public Skill API analytics | Not in V1; unauthenticated `api_direct` entry point is not used |
+| External AI client analytics | **In V1 P0** — `external_ai_client` entry point is required; skill_used / skill_blocked events from external AI clients must be captured with this entry point |
 | Full referral attribution | V1.1 |
 | Community rating/review analytics | V2 |
 | A/B experiment dashboard | P1/V1.1 |
@@ -72,6 +73,7 @@ Analytics dashboards must not read or expose `instruction_template`, `prompt_gua
 
 | Event | Trigger | Notes |
 |---|---|---|
+| `skill_spec_downloaded` | User downloads tool spec (OpenAPI / MCP) from Skill Detail | Includes `format` (openapi/mcp), `platform` hint if provided, `skill_id`, `user_id`; P1 but recommended before launch |
 | `skill_version_created` | New execution version created | Audit source, analytics derived if needed |
 | `skill_feedback_submitted` | User submits output feedback | No raw full output by default |
 | `skill_review_action` | Ops assign/resolve/escalate | Review workflow P1 |
@@ -173,16 +175,17 @@ Use the same enum as Data/API Spec.
 | Entry Point | Meaning |
 |---|---|
 | `marketplace_card` | Card impression or action from Marketplace |
-| `skill_detail` | Detail page CTA |
-| `my_skills` | My Skills page |
-| `playground_picker` | Playground Skill Picker |
+| `skill_detail` | Detail page CTA（含 tool spec download）|
+| `my_skills` | My Skills page（含 Get Tool Spec）|
 | `featured` | Featured rail |
 | `popular` | Popular rail |
 | `new` | New rail |
 | `recommended` | Recommended Lite rail |
 | `admin_preview` | Admin preview/test execution |
+| `external_ai_client` | Skill execution triggered by an external AI client (ChatGPT / Gemini / Claude) via tool call with user API Key |
+| `api_direct` | Reserved for future authenticated direct API calls; not used in V1 |
 
-V1 must not use `api` as an entry point because Public Skill API is out of scope.
+`external_ai_client` is a P0 V1 entry point. All skill execution events from external AI clients must use this value. Unauthenticated API calls are not permitted in V1 and do not have an entry point value.
 
 ---
 
@@ -560,7 +563,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_789",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": "66666666-6666-4666-8666-666666666666",
-  "entry_point": "playground_picker",
+  "entry_point": "external_ai_client",
   "plan": "pro",
   "subscription_status": "active",
   "persona": "developer",
@@ -596,7 +599,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_blocked_123",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": null,
-  "entry_point": "playground_picker",
+  "entry_point": "external_ai_client",
   "plan": "free",
   "subscription_status": "active",
   "is_kids_session": false,

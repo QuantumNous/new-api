@@ -6,17 +6,29 @@
 
 ## 1. Product Positioning
 
-DeepRouter Skill Marketplace V1 是一个官方托管的 AI Skill 平台。用户可以在 Marketplace 浏览、启用并在 Playground 中调用官方 curated Skills。Skill 的核心 `instruction_template` 不提供下载、不暴露给用户、不进入客户端 API、不进入普通日志、Analytics、Billing、Support 或导出数据。
+DeepRouter Skill Marketplace V1 是一个官方托管的 AI Tool 平台。用户可以从 Marketplace 浏览、启用、下载 Skill 的 **tool spec**（OpenAPI / MCP 格式），并安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端中直接使用。
+
+**核心设计原则：**
+- **Tool spec 可下载**：用户下载的 tool spec 只包含 schema 定义和 API endpoint，不含任何执行逻辑
+- **执行逻辑永不离开服务端**：Skill 的实际执行逻辑始终在 DeepRouter 服务器上运行
+- **API Key 绑定用户帐号**：每次 tool 调用都需要有效的 DeepRouter API Key，执行配额从用户帐号扣减，无法蹭用或转让
+- **护城河完整保留**：用户即使分享 tool spec，收件人没有有效 API Key 也无法使用
+
+Skill 的核心执行逻辑（`instruction_template` / `execution_handler`）不可下载、不暴露给用户、不进入客户端 API、不进入普通日志、Analytics、Billing、Support 或导出数据。
 
 V1 的产品闭环为：
 
 ```text
-Super Admin 创建官方 Skill
+Super Admin 创建官方 Skill（定义 tool schema + 服务端执行逻辑）
 → 发布到 Marketplace
-→ 用户浏览、查看、启用
-→ Playground 选择一个已启用 Skill
-→ Relay 服务端注入 instruction_template 并执行
-→ Entitlement / Safety / Billing / Analytics 归因
+→ 用户浏览、查看、启用 Skill
+→ 用户下载 tool spec 安装到自己的 AI 客户端（ChatGPT / Gemini / Claude）
+  或在 DeepRouter Playground 中使用
+→ 用户在 AI 客户端对话，AI 自动决定调用 Skill tool
+→ AI 客户端携带用户 API Key 调用 DeepRouter Skill API
+→ DeepRouter 验证 API Key、执行 Entitlement / Safety 检查、执行 Skill 逻辑
+→ 返回 tool result 给 AI 客户端，AI 整合进回答
+→ Billing / Analytics 归因
 → Operations 根据 Dashboard 和 Review 流程优化
 ```
 

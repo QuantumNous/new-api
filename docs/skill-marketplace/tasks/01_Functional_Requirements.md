@@ -8,17 +8,26 @@
 
 ### 1.1 V1 Product Scope
 
-V1 仅支持 **官方 curated Skills**。终端用户不能创建、上传、下载或复制 Skill 内部配置。Skill 的核心 `instruction_template` 必须由服务端托管，并且只在 Relay / Gateway 执行链路中注入。
+V1 仅支持 **官方 curated Skills**。终端用户不能创建、上传或复制 Skill 执行逻辑。Skill 的核心执行逻辑（`execution_handler`）必须由服务端托管，永不暴露给客户端。
+
+**V1 核心范式：Skills 是可安装的 API Tool，不是 Prompt 模板。**
+
+用户从 Marketplace 下载 **tool spec**（OpenAPI / MCP 格式），安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端。每次 AI 调用 Skill tool 时，请求打到 DeepRouter 服务端，需要有效 API Key，执行配额从用户帐号扣减。用户无法通过分享 tool spec 让他人蹭用。
+
+**用户使用 Skill 只有一条路：下载 tool spec，安装到自己的 AI 客户端，在那里使用。** DeepRouter 不提供内置的 Skill 执行 Playground 给普通用户。Playground 仅供 Admin 在发布前测试 Skill（admin_preview 路径）。
 
 V1 必须交付以下闭环：
 
 ```text
-Admin 创建 Skill
+Admin 创建 Skill（定义 tool schema + 服务端执行逻辑）
+→ Admin 在 Preview 端点测试 Skill（admin_preview，不对用户开放）
 → 发布到 Marketplace
 → 用户浏览 / 查看详情 / 启用
-→ Playground 选择 Skill
-→ Relay 服务端注入并执行
-→ Entitlement 使用时校验
+→ 用户下载 tool spec（OpenAPI / MCP）安装到自己的 ChatGPT / Gemini / Claude
+→ 用户在自己的 AI 客户端对话，AI 自动决定调用 Skill tool
+→ AI 客户端携带用户 API Key 调用 DeepRouter Skill API
+→ DeepRouter 验证 API Key、执行 Entitlement / Safety 检查、执行 Skill 逻辑
+→ 返回 tool result 给 AI 客户端，AI 整合进回答
 → Billing / Analytics 归因
 → Operations 根据数据优化
 ```
@@ -30,11 +39,14 @@ Admin 创建 Skill
 | Skill Supply | Super Admin 创建、编辑、预览、发布、归档官方 Skill | P0 |
 | Marketplace | 用户浏览、搜索、查看详情、启用、停用 Skill | P0 |
 | My Skills | 用户查看已启用 Skill 及可用/锁定状态 | P0 |
-| Playground | 用户选择一个已启用 Skill 并执行 | P0 |
-| Skill Execution Mode | V1 Skills 强制为**无状态单轮 (Stateless / Single-Turn)**：每次 Playground 提交都是独立请求，Relay 不维护跨请求的对话历史。`instruction_template` 每次注入成本固定、可预测。V2 如需多轮，须重新定义计费模型和上下文消耗警告。 | P0 |
-| Relay Execution | 服务端注入 `instruction_template`，客户端不可见 | P0 |
-| Entitlement | 每次使用前检查订阅、计划、quota、Skill 状态 | P0 |
-| Billing Attribution | Skill 执行事件可归因到 Skill、版本、用户、计划、入口 | P0 |
+| Tool Spec Download | 用户下载 Skill 的 tool spec（OpenAPI / MCP 格式）；spec 只含 schema + endpoint，不含执行逻辑 | P0 |
+| Multi-Platform Install | 提供 ChatGPT / Gemini / Claude 的一键安装引导 | P0 |
+| External API Invocation | 接收来自外部 AI 客户端的 tool call 请求；验证 API Key 并执行 Skill；这是用户使用 Skill 的唯一路径 | P0 |
+| Admin Preview | Admin 在发布前通过 admin_preview 端点测试 Skill；不对普通用户开放 | P0 |
+| Skill Execution | 服务端执行 Skill 逻辑，客户端只见 tool result，不见执行逻辑 | P0 |
+| API Key Binding | tool spec 配合用户 API Key 使用；无有效 Key 则 tool 调用失败；API Key 可绑定 Skill 范围 | P0 |
+| Entitlement | 每次 tool 调用前检查订阅、计划、quota、Skill 状态 | P0 |
+| Billing Attribution | Skill 执行事件可归因到 Skill、版本、用户、计划、入口（external_ai_client / admin_preview） | P0 |
 | Analytics | 关键生命周期事件和 Data Entry Point | P0 |
 | Operations | 最小运营 Dashboard：Top、Blocked、Funnel、Revenue | P0 |
 | Kids Safety | 服务端 Kids Session 判断、Kids Safe 拦截、审批要求 | P0 if Kids enabled |
@@ -45,12 +57,13 @@ Admin 创建 Skill
 
 | Item | V1 Decision | Target |
 |---|---|---|
+| 用户 Playground 内执行 Skill | 不支持；用户只能通过下载 tool spec 安装到外部 AI 客户端使用；Playground 仅供 Admin 测试 | V2 可评估 |
 | 用户自建 Skill | 不支持 | V2 |
 | Creator Marketplace / 分成 | 不支持 | V2 |
-| Prompt 下载 | 永不作为 V1 形态 | N/A |
-| Public Skill API Trigger | V1 不做；仅 Playground 使用 | V1.1 |
+| 执行逻辑下载 | 永不支持；tool spec 可下载但不含执行逻辑 | N/A |
 | 多 Skill 叠加 | 不支持；一次仅一个 active Skill | V2+ |
-| Tool Calling / Workflow / Agent Runtime | 不支持 | V3/V4 |
+| 复杂多步骤 Workflow / Agent Chain | 不支持；V1 Skill 为单次 tool call | V2 |
+| 本地 MCP Server 代码下载（用户自托管） | 不支持；V1 仅云端 tool spec | V2 |
 | 社区评分评论 | 不支持 | V2 |
 | 完整推荐算法 | 不支持；V1 仅规则推荐 | V1.1/V2 |
 | A/B Experiment UI | 不作为 V1 P0 | V1.1 |
@@ -144,23 +157,38 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 8. System creates or updates `user_enabled_skills`.
 9. System emits `skill_enabled`.
 
-### 3.3 User Executes Skill in Playground
+### 3.3 Admin Previews Skill Before Publish
 
-1. User opens Playground.
-2. User selects one enabled Skill from Skill Picker.
-3. User submits input.
-4. Client sends `skill_id` in internal metadata. **Client must not send conversation history from previous Skill turns; V1 execution is stateless.**
-5. Relay resolves authenticated user, tenant, session, and Kids Session server-side.
-6. Relay loads immutable Skill execution context.
-7. Relay performs status, enabled, entitlement, quota, Kids, model whitelist, token, and rate checks.
-8. Relay injects `instruction_template` server-side. **Relay does not concatenate prior-turn messages into the provider request; each request is a self-contained single-turn call.**
-9. Relay calls model provider.
-10. Result is returned with AI-generated disclosure.
-11. System emits usage, analytics, and billing attribution events.
+> 此路径仅供 Super Admin 测试，不对普通用户开放。普通用户没有在 DeepRouter 内执行 Skill 的路径。
 
-> **Stateless enforcement**: V1 Relay must not receive, store, or forward conversation history to the provider as part of Skill execution. `input_tokens` billed per request equals `instruction_template tokens + single user input tokens + output schema tokens` only. If the Playground client accumulates a visible conversation UI, each submission to Relay must be treated as a fresh, independent request with the same fixed Skill context cost.
+1. Super Admin 创建 Skill draft 并填写 `tool_function_name`、`tool_input_schema`、`instruction_template`。
+2. Super Admin 调用 Admin Preview 端点（`POST /api/v1/admin/skills/{skill_id}/preview`）测试 Skill。
+3. Relay 执行 Skill 逻辑服务端，返回 tool result 供 Admin 验证。
+4. 确认输出正确后，Admin 通过 Publish Checklist 发布 Skill。
+5. 系统记录 `skill_admin_action`，`entry_point=admin_preview`。
 
-### 3.4 User Membership Expires
+### 3.4 User Downloads Tool Spec and Executes Skill via External AI Client
+
+1. User enables a Skill in Marketplace.
+2. User visits Skill Detail page and clicks "Download / Install".
+3. System generates the Skill's tool spec in OpenAPI or MCP format.
+   - Spec contains: tool name, description, input/output JSON schema, and the DeepRouter Skill API endpoint URL.
+   - Spec does **not** contain: execution logic, `instruction_template`, or any server-side implementation.
+4. User installs the tool spec into their AI client (ChatGPT Custom Action, Gemini Function Tool, Claude MCP, etc.).
+   - DeepRouter provides one-click install guides for each platform.
+5. User adds their DeepRouter API Key to the AI client's tool authentication config.
+6. User starts a conversation in their AI client.
+7. AI client decides to call the Skill tool (based on the tool description and user's message).
+8. AI client sends HTTP request to DeepRouter Skill API endpoint, carrying the user's API Key in the `Authorization` header.
+9. DeepRouter Relay authenticates the API Key, resolves user identity and entitlement.
+10. DeepRouter executes Skill logic server-side.
+11. DeepRouter returns `tool_result` JSON to the AI client.
+12. AI client integrates the tool result into its response to the user.
+13. Billing and analytics events are emitted with `entry_point=external_ai_client`.
+
+> **Copy protection**: The tool spec points to DeepRouter's API endpoint and requires a valid, account-bound API Key. Sharing the tool spec file gives recipients only the schema — they cannot call DeepRouter's API without a valid Key. Sharing the API Key itself violates Terms of Service and Keys can be revoked per-user.
+
+### 3.5 User Membership Expires
 
 1. Skill remains visible in My Skills.
 2. Skill may show locked/renewal state.
@@ -171,7 +199,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 7. System emits `skill_blocked`.
 8. No charge is created.
 
-### 3.5 Kids Session Attempts Unsafe Skill
+### 3.6 Kids Session Attempts Unsafe Skill
 
 1. User is in server-resolved Kids Session.
 2. User views Marketplace or Playground.
@@ -190,6 +218,8 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 |---|---|---|---|
 | FR-A1 | Create Skill draft | P0 | Draft is not visible to end users |
 | FR-A2 | Edit Skill metadata | P0 | Includes name, category, tags, descriptions, input hints, examples |
+| FR-A2a | Define tool function schema | P0 | Super Admin sets `tool_function_name`（JSON-safe identifier，e.g. `contract_review_analyze`）、`tool_input_schema`（JSON Schema）、`tool_output_schema`（JSON Schema）；这三个字段是生成 OpenAPI / MCP tool spec 的唯一来源；`tool_function_name` 不得含空格或特殊字符；Admin UI 必须提供字段校验和实时预览 tool spec 片段 |
+| FR-A2b | Preview tool spec before publish | P0 | Admin 可在发布前预览该 Skill 将生成的 OpenAPI / MCP spec 内容，确认 schema 正确；preview 不触发下载计数 |
 | FR-A3 | Edit `instruction_template` | P0 | Super Admin only; creates new version when changed |
 | FR-A4 | Preview Skill | P0 | Preview executes against draft/version without public visibility |
 | FR-A5 | Publish Skill | P0 | Requires mandatory fields and safety checks |
@@ -204,7 +234,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-A13 | Mark Kids Exclusive | P0 if Kids enabled | Requires Safety Reviewer approval |
 | FR-A14 | View version history | P1 | Version metadata visible; template visible only to Super Admin |
 | FR-A15 | View audit log | P0 | All writes show actor, timestamp, action, changed fields, reason |
-| FR-A16 | Manage publish checklist | P0 | Blocks publish if required checklist items fail |
+| FR-A16 | Manage publish checklist | P0 | Blocks publish if required checklist items fail；checklist 必须包含：`tool_function_name` 非空、`tool_input_schema` 合法 JSON Schema、`instruction_template` 非空、`active_version_id` 存在 |
 | FR-A17 | Run jailbreak / leakage tests | P1; P0 if Kids enabled or Security requires launch gate | Required before Kids publish; Security/NFR owns mandatory launch test suite |
 | FR-A18 | Manage beta whitelist | P1 | Used for rollout stages |
 
@@ -218,7 +248,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-U4 | Disable Skill | P0 | Existing usage history remains |
 | FR-U5 | View My Skills | P0 | Shows enabled Skills, status, lock reason, last used |
 | FR-U6 | See locked Skill state | P0 | Shows upgrade/renew/contact-sales CTA |
-| FR-U7 | Launch Playground from Detail | P0 | Skill preselected if enabled and executable |
+| FR-U7 | Download Tool Spec from Detail | P0 | 启用后在 Skill Detail 显示 Download Tool Spec CTA，提供 OpenAPI / MCP 格式及平台安装引导 |
 | FR-U8 | Search Skill name/description | P1 | Does not search hidden prompt |
 | FR-U9 | Filter by category | P1 | Category list excludes empty unpublished categories |
 | FR-U10 | Anonymous public browsing | P1 | Anonymous cannot see enabled state; CTA routes to login |
@@ -226,25 +256,15 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-U12 | View Kids-compatible Skills | P0 if Kids enabled | Kids Session only sees safe or exclusive allowed Skills |
 | FR-U13 | Handle unavailable Skill | P0 | Shows friendly unavailable message for archived/deprecated cases |
 
-### 4.3 Playground Skill Picker
+### 4.3 ~~Playground Skill Picker~~ — 已从 V1 移除
 
-| ID | Requirement | Priority | Acceptance Notes |
-|---|---|---|---|
-| FR-P1 | Display Skill Picker | P0 | Visible in Playground when feature flag enabled |
-| FR-P2 | Select exactly zero or one active Skill | P0 | Multi-Skill stacking is blocked |
-| FR-P3 | Pass `skill_id` to Relay | P0 | Internal metadata only; no template client exposure |
-| FR-P4 | Block disabled / unauthorized Skill | P0 | UI prevents where possible; Relay remains source of truth |
-| FR-P5 | Clear selected Skill | P0 | Returns Playground to normal non-Skill mode |
-| FR-P6 | Preselect from Skill Detail | P0 | Only if Skill is enabled or enable flow completes |
-| FR-P7 | Show lock and block reasons | P0 | Maps standard error codes to friendly messages |
-| FR-P8 | Empty state recommends Skills | P1 | Must include data entry point |
-| FR-P9 | Ignore client-provided Kids flags | P0 | Client cannot set or override `is_kids_session` |
+> 普通用户没有在 DeepRouter Playground 内执行 Skill 的路径。Playground Skill Picker 不在 V1 范围内。Playground 仅用于 Admin 发布前的 Preview 测试（admin_preview 路径），不是用户功能。
 
 ### 4.4 Relay / Gateway Execution
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-G1 | Accept active `skill_id` | P0 | Only supported from Playground in V1 |
+| FR-G1 | Accept active `skill_id` from external AI clients | P0 | `skill_id` 来自 URL path（`/v1/skills/execute/{skill_id}`）；Playground Skill Picker 不在用户路径内；admin_preview 端点独立 |
 | FR-G2 | Resolve authenticated user, tenant, session | P0 | Anonymous execution is not allowed |
 | FR-G3 | Resolve Kids Session server-side | P0 if Kids enabled | Client field ignored |
 | FR-G4 | Load immutable execution context | P0 | Snapshot includes skill, version, plan, model whitelist, `max_input_tokens`, monetization, template |
@@ -274,7 +294,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-E4 | Support Free Skill monthly quota | P0 if free quota is adopted | Quota exceeded returns 429 with reset time when available |
 | FR-E4a | Enforce free-path input token cap | P0 if free quota is adopted | Free Skill/free-quota requests must respect the active version `max_input_tokens` snapshot before provider call |
 | FR-E5 | Return standard block reason | P0 | See Section 8 |
-| FR-E6 | UI receives lock state | P0 | Marketplace, Detail, My Skills, Playground; quota locks include reset guidance and upgrade CTA where Product approved |
+| FR-E6 | UI receives lock state | P0 | Marketplace, Detail, My Skills; quota locks include reset guidance and upgrade CTA where Product approved |
 | FR-E7 | Admin can change entitlement config | P0 | Change is audited; existing enabled users are checked at use time |
 | FR-E8 | Support Enterprise contact-sales state | P1 | CTA does not imply entitlement |
 
@@ -304,7 +324,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-D7 | Emit `skill_blocked` | P0 | Includes standard block reason |
 | FR-D8 | Emit admin actions | P0 | Skill create/update/publish/archive/kids approval |
 | FR-D9 | Emit safety events | P0 if Kids enabled | `skill_safety_violation` with stage |
-| FR-D10 | Every entry point has `entry_point` | P0 | No null / unknown for launch paths |
+| FR-D10 | Every entry point has `entry_point` | P0 | No null / unknown for launch paths; valid values: `external_ai_client`（用户唯一执行路径）、`admin_preview`（Admin 测试）、`api_direct`（保留） |
 | FR-D11 | Sensitive content not persisted | P0 | No prompt, no Kids sensitive input |
 | FR-D12 | Aggregation API supports dashboard | P0 | Overview, funnel, skill table |
 
@@ -341,6 +361,32 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-S2 | Support can see error code and request id | P1 | No raw provider payload |
 | FR-S3 | Prompt leakage incident can force archive Skill | P0 | Super Admin action with audit |
 | FR-S4 | Feature flag can disable Marketplace | P0 | Data retained |
+
+### 4.11 Tool Spec Distribution
+
+| ID | Requirement | Priority | Acceptance Notes |
+|---|---|---|---|
+| FR-T1 | Generate OpenAPI spec for each published Skill | P0 | Spec includes tool name, description, input/output JSON schema, and DeepRouter Skill API endpoint; never includes execution logic or `instruction_template` |
+| FR-T2 | Generate MCP-compatible tool spec for each published Skill | P0 | Follows Anthropic MCP tool definition format |
+| FR-T3 | Provide per-Skill download endpoint | P0 | Authenticated; only enabled users can download their Skill's spec |
+| FR-T4 | Provide one-click install guide for ChatGPT Custom Actions | P0 | Step-by-step UI in Skill Detail page |
+| FR-T5 | Provide one-click install guide for Gemini Function Tools | P0 | Step-by-step UI in Skill Detail page |
+| FR-T6 | Provide one-click install guide for Claude MCP tools | P0 | Step-by-step UI in Skill Detail page |
+| FR-T7 | Spec must be regenerated when tool schema changes | P0 | Changing input/output schema creates new version; old spec links remain valid but marked as outdated |
+| FR-T8 | Spec download creates analytics event | P1 | `skill_spec_downloaded` with platform hint if provided |
+| FR-T9 | Spec never exposes `instruction_template` or execution handler | P0 | Security gate; must be verified in launch security review |
+
+### 4.12 API Key Binding and Copy Protection
+
+| ID | Requirement | Priority | Acceptance Notes |
+|---|---|---|---|
+| FR-K1 | Tool spec API endpoint requires `Authorization: Bearer <api_key>` | P0 | Anonymous calls return 401 `AUTH_REQUIRED` |
+| FR-K2 | API Key is bound to user account | P0 | Key cannot be transferred; quota and entitlement always checked against the Key owner |
+| FR-K3 | API Key can be scoped to specific Skills | P1 | Admin or user can restrict a Key to a Skill ID allowlist |
+| FR-K4 | API Key can be revoked immediately | P0 | Revoked Key returns 401 on all subsequent calls |
+| FR-K5 | Tool spec sharing does not grant access | P0 | Spec file alone is useless without a valid Key; recipients get 401 if they call the endpoint |
+| FR-K6 | API Key rate limiting is per-Key | P0 | Prevent one shared Key from exceeding quota for the account |
+| FR-K7 | API Key audit log records creation, scope change, and revocation | P0 | Super Admin can view Key events for a user |
 
 ---
 
@@ -478,6 +524,7 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 | `skill_blocked` | Execution blocked by entitlement/status/safety | P0 |
 | `skill_timeout_error` | Timeout occurs | P0 |
 | `skill_admin_action` | Admin write action | P0 |
+| `skill_spec_downloaded` | User downloads tool spec (OpenAPI / MCP) | P1 |
 | `skill_version_created` | New execution version created | P1 |
 | `skill_safety_violation` | Safety issue detected | P0 if Kids enabled |
 | `skill_kids_approved` | Kids approval granted | P0 if Kids enabled |
@@ -520,9 +567,9 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 1. Super Admin can create draft Skill and publish it after checklist passes.
 2. Published Skill appears in Marketplace; draft and archived Skills do not.
 3. Normal User can view detail, enable, disable, and see Skill in My Skills.
-4. Playground can select exactly one enabled Skill.
+4. Playground Skill Picker is not exposed to normal users; Playground remains a general chat interface without Skill selection.
 5. Relay injects `instruction_template` server-side only.
-6. `instruction_template` is absent from client API, UI, logs, errors, billing, and analytics.
+6. `instruction_template` is absent from client API, UI, logs, errors, billing, analytics, and tool spec download response.
 7. Execution performs use-time entitlement check.
 8. Expired or insufficient-plan users are blocked with standard error code.
 9. Billing attribution includes `skill_id` and `skill_version_id` for successful execution.
@@ -536,6 +583,13 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 17. Deprecated Skill safety patch versions activate for existing enabled entitled users without reopening enablement.
 18. Existing non-Skill API calls remain unchanged.
 19. Feature flag can disable Marketplace entry without deleting data.
+20. Published Skill has a downloadable tool spec (OpenAPI format) accessible to enabled users; spec does not contain `instruction_template` or any execution logic.
+21. MCP-format tool spec is available for Claude integration.
+22. Skill Detail page provides one-click install guides for ChatGPT, Gemini, and Claude.
+23. External AI client can call the Skill API endpoint with a valid API Key; DeepRouter authenticates, runs entitlement check, executes Skill logic, and returns tool result.
+24. External AI client call with invalid or missing API Key receives 401 `AUTH_REQUIRED`.
+25. Billing event for external AI client call includes `entry_point=external_ai_client`; quota is deducted from the API Key owner's account.
+26. API Key revocation takes effect immediately; previously issued tool specs are rendered non-functional within one request cycle.
 
 ### 10.2 P1 Acceptance
 

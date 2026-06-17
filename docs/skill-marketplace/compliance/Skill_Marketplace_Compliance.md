@@ -53,7 +53,7 @@ If a compliance statement conflicts with `tasks/01-07`, the owning PRD must be f
 | M01 Data/API | Sprint Ready | D-06 before production data; schema must keep restricted data out of public/user/ops paths. |
 | M02 Admin | Sprint Ready with audit dependency | M11 audit/redaction baseline before prompt access; D-03 only if Kids paths are enabled. |
 | M03 Marketplace | Sprint Ready with D-01 dependency | Lock states and plan copy must match final plan/quota decision before affected UI implementation. |
-| M04 Playground | Sprint Ready | Sends only `deeprouter.skill_id`; Relay remains source of truth for auth, entitlement, and Kids. |
+| M04 Playground Skill Picker | **V1 移除 — N/A** | 本模块已从 V1 移除；普通用户无 Playground Skill 执行路径。替代：M16 Tool Spec Distribution、M17 API Key Management；Admin 测试使用 M02 admin_preview 端点。 |
 | M05 Relay | Sprint Ready with gated implementation | D-05 plus provider DPA/security terms before production provider integration; D-03 if Kids enabled; D-04 if streaming promoted. |
 | M06 Entitlement | Sprint Ready with D-01 dependency | Use-time checks required; enablement is not permanent authorization. |
 | M07 Billing | Sprint Ready with D-07 dependency | No charge for blocked/failed/no-output-timeout/safety/preview paths; usable partial streaming timeout settles by actual tokens if streaming is enabled. |
@@ -65,10 +65,13 @@ If a compliance statement conflicts with `tasks/01-07`, the owning PRD must be f
 | M13 Growth | P1 Hold | Must not block P0 launch; rails require analytics and privacy controls if enabled. |
 | M14 Content Ops | Sprint Ready with D-08 dependency | Launch catalog/content QA and output/IP/copyright terms review required before release. |
 | M15 Release | Not GA Ready | Requires all enabled P0 module gates and sign-offs. |
+| M16 Tool Spec Generation | Sprint Ready with M01/M02 dependency | tool spec fields in `skills` table required; spec must never contain instruction_template; security review gate before launch. |
+| M17 API Key Management | Sprint Ready with M05/M06 dependency | API Key binding and revocation required before external AI client launch; per-Key rate limits and scope restriction P1. |
 
 ## 6. Non-Negotiable Controls
 
-- `instruction_template` is never returned by public, user, ops, support, analytics, billing, audit export, or error APIs.
+- `instruction_template` is never returned by public, user, ops, support, analytics, billing, audit export, or error APIs — including the tool spec download endpoint.
+- Tool spec download (OpenAPI / MCP) contains only `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and the DeepRouter API endpoint URL. It must pass a security review confirming no execution logic leakage before launch.
 - Public/user/ops/support logs must not contain raw prompt text, raw full user input, provider raw payload, raw Kids input/output, or full model output.
 - `skill_audit_log` is the system-of-record for sensitive admin changes, including Kids approval, rejection, revocation, and emergency override.
 - Emergency Kids override must use `kids_approval_status='emergency_approved'`, never normal `approved`, and must include reason, incident reference, expiry/time-bound scope, and audit record.

@@ -51,7 +51,7 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `review_status` | `open`, `assigned`, `escalated`, `resolved`, `reopened` |
 | `kids_approval_status` | `not_required`, `pending`, `approved`, `emergency_approved`, `rejected`, `revoked` |
 | `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `skill_not_enabled`, `plan_required`, `subscription_inactive`, `quota_exceeded`, `kids_mode_blocked`, `context_too_long`, `rate_limited`, `timeout`, `safety_violation`, `internal_error` |
-| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `playground_picker`, `featured`, `popular`, `new`, `recommended`, `admin_preview` |
+| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `external_ai_client`, `api_direct` |
 
 ---
 
@@ -106,6 +106,21 @@ CREATE TABLE skills (
 
   featured_flag BOOLEAN NOT NULL DEFAULT false,
   featured_rank INTEGER NULL CHECK (featured_rank IS NULL OR featured_rank >= 0),
+
+  -- Tool spec distribution fields (V1: external AI client invocation)
+  tool_function_name VARCHAR(64) NULL,
+  -- Function name used in OpenAPI/MCP spec (e.g. "contract_review_analyze").
+  -- Must be a valid JSON identifier: [a-zA-Z_][a-zA-Z0-9_]*; max 64 chars.
+  -- Required before publish if Skill supports external AI client invocation.
+  tool_input_schema JSONB NULL,
+  -- JSON Schema object for the tool's input parameters.
+  -- Must not contain any reference to instruction_template or execution details.
+  tool_output_schema JSONB NULL,
+  -- JSON Schema object for the tool's output / tool_result format.
+  tool_spec_openapi_version VARCHAR(16) NOT NULL DEFAULT '3.1.0',
+  tool_spec_mcp_version VARCHAR(16) NOT NULL DEFAULT '2024-11-05',
+  tool_spec_invalidated_at TIMESTAMPTZ NULL,
+  -- Set when tool_function_name, tool_input_schema, or tool_output_schema changes to trigger spec regeneration.
 
   active_version_id UUID NULL,
   created_by UUID NOT NULL,
@@ -618,7 +633,8 @@ Error:
 | `/api/v1/marketplace/skills/{id}/enable` | Logged-in user |
 | `/api/v1/admin/*` | Super Admin unless route explicitly read-only |
 | `/api/v1/ops/*` | Operation/Product aggregate views |
-| Playground Skill execution | Logged-in user only |
+| `/v1/skills/execute/{skill_id}` (external AI client) | API Key bearer token (active logged-in user) |
+| `/api/v1/admin/skills/{skill_id}/preview` | Super Admin only |
 
 ---
 
@@ -763,31 +779,76 @@ Rules:
 - Updates `enabled=false`, sets `disabled_at`.
 - Emits `skill_disabled`.
 
----
+### 8.X Tool Spec Download
 
-## 9. Playground / Relay Contract
+`GET /api/v1/marketplace/skills/{skill_id}/tool-spec`
 
-V1 supports Skill execution only through Playground.
+Query parameters:
+- `format` (required): `openapi` or `mcp`
+- `platform` (optional): `chatgpt`, `gemini`, `claude` — returns platform-specific install instructions
 
-Request metadata:
+Rules:
+- Auth required; user must have `enabled=true` for this Skill.
+- Published Skills only; draft/archived/deprecated without active version return 404.
+- Response contains `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and the DeepRouter Skill API endpoint URL only.
+- Response must never contain `instruction_template`, execution handler code, or any server-side logic.
+- `tool_spec_invalidated_at` is included in response so clients can detect stale specs.
+- Emits `skill_spec_downloaded` event with `format`, `platform` (if provided), `skill_id`, `user_id`, `entry_point=skill_detail`.
 
+Response example (OpenAPI format):
 ```json
 {
-  "model": "gpt-4.1-mini",
-  "messages": [{"role": "user", "content": "..."}],
-  "deeprouter": {
-    "skill_id": "6e3f..."
-  }
+  "format": "openapi",
+  "spec": {
+    "openapi": "3.1.0",
+    "info": { "title": "Contract Review", "version": "1.0" },
+    "paths": {
+      "/v1/skills/execute/{skill_id}": {
+        "post": {
+          "operationId": "contract_review_analyze",
+          "summary": "Analyzes a contract and returns key risks and clauses.",
+          "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Input" } } } },
+          "responses": { "200": { "description": "Tool result" } },
+          "security": [{ "bearerAuth": [] }]
+        }
+      }
+    },
+    "components": {
+      "schemas": { "Input": { "$ref": "inline_tool_input_schema" } },
+      "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "description": "Your DeepRouter API Key" } }
+    }
+  },
+  "install_guide_url": "https://deeprouter.ai/docs/install/chatgpt",
+  "spec_invalidated_at": null
 }
 ```
 
+---
+
+## 9. Relay / Execution Contract
+
+V1 用户使用 Skill 只有一条路：通过外部 AI 客户端（ChatGPT / Gemini / Claude）调用 DeepRouter Skill API。Playground 不提供用户级 Skill 执行；Admin Preview 使用独立的 `/api/v1/admin/skills/{skill_id}/preview` 端点。
+
+### 9.1 External AI Client (Tool Call) Request
+
+External AI clients (ChatGPT, Gemini, Claude) call the Skill execute endpoint directly.
+
+`POST /v1/skills/execute/{skill_id}`
+
+Headers:
+- `Authorization: Bearer <user_api_key>` (required)
+- `Content-Type: application/json`
+
+Request body matches the tool's `tool_input_schema` as defined in the downloaded tool spec.
+
 Rules:
-- Client-provided `is_kids_session` is ignored.
-- Relay resolves user, tenant, session, subscription, Kids Session server-side.
-- Relay loads immutable execution context at request entry.
-- Relay enforces enabled state, lifecycle, entitlement, quota, Kids safety, model whitelist, rate limit, timeout, and context size before provider call.
-- Relay injects `instruction_template` server-side only.
-- Execution/block events include `request_id`, `skill_id`, `skill_version_id`, `entry_point=playground_picker`.
+- `Authorization` header is required; missing/invalid Key returns 401 `AUTH_REQUIRED`.
+- API Key is resolved to user account; entitlement checked against that account.
+- `skill_id` is taken from the URL path; any Skill ID in the request body is ignored.
+- Relay performs the same entitlement, lifecycle, quota, Kids safety, rate limit, and execution flow as Playground.
+- `instruction_template` is never sent to the caller; response is `tool_result` JSON only.
+- Execution/block events include `request_id`, `skill_id`, `skill_version_id`, `entry_point=external_ai_client`.
+- `deeprouter` vendor extension in request body is not applicable for this endpoint; `skill_id` comes from the URL.
 
 ---
 
@@ -809,11 +870,21 @@ Response must redact `instruction_template`.
 
 Creates draft Skill. Required fields: `slug`, `name`, `short_description`, `description`, `category`, `required_plan`, `monetization_type`. `max_input_tokens` is required when `required_plan='free'`, `monetization_type='free'`, or `free_quota_per_month` is set.
 
+Tool spec fields (`tool_function_name`, `tool_input_schema`, `tool_output_schema`) are optional at draft creation but required before publish. They can be set at creation or via PATCH.
+
 ### 10.3 Patch Skill
 
 `PATCH /api/v1/admin/skills/{skill_id}`
 
-Can update public metadata, entitlement, promotion, safety flags, execution settings excluding template. Template changes use version endpoint. Patch must reject Free/free-quota configurations that omit `max_input_tokens`.
+Can update public metadata, entitlement, promotion, safety flags, execution settings excluding template, and tool spec schema fields. Template changes use version endpoint.
+
+Patchable tool spec fields: `tool_function_name`, `tool_input_schema`, `tool_output_schema`.
+
+Rules:
+- `tool_function_name` must match `/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/`; API returns 400 on invalid value.
+- `tool_input_schema` and `tool_output_schema` must be valid JSON Schema objects; API returns 400 if parse fails.
+- Any change to these three fields sets `tool_spec_invalidated_at = now()` to mark previously-downloaded specs as stale.
+- Patch must reject Free/free-quota configurations that omit `max_input_tokens`.
 
 ### 10.4 Version APIs
 
@@ -892,17 +963,17 @@ CSV export is P1 aggregate-only and must be separately permissioned.
 ### 12.1 Order
 
 1. Create enums/check-compatible tables without foreign-key cycles.
-2. Create `skills`.
+2. Create `skills` — including tool spec columns: `tool_function_name`, `tool_input_schema`, `tool_output_schema`, `tool_spec_openapi_version`, `tool_spec_mcp_version`, `tool_spec_invalidated_at`. All nullable at creation; required before publish for external-client-capable Skills.
 3. Create `skill_versions`.
 4. Add `skills.active_version_id` FK if DB ownership allows.
 5. Create `skills_i18n`.
 6. Create `user_enabled_skills`.
-7. Create `skill_usage_events`.
+7. Create `skill_usage_events` — `entry_point` enum must include `external_ai_client` and `api_direct`.
 8. Create `skill_billing_events`.
 9. Create `skill_reviews`.
 10. Create `skill_audit_log`.
 11. Add indexes.
-12. Seed initial official Skills as drafts only.
+12. Seed initial official Skills as drafts only — populate `tool_function_name` and `tool_input_schema` for each seed Skill before publish.
 
 ### 12.2 Rollback
 
@@ -935,6 +1006,10 @@ CSV export is P1 aggregate-only and must be separately permissioned.
 4. Anonymous list/detail responses do not expose user-specific enabled state.
 5. Enable/disable endpoints are idempotent where specified.
 6. Admin and Ops routes are separated by permission model.
-7. Kids approval APIs exist if Kids flag can be enabled.
-8. Relay contract explicitly ignores client-provided Kids Session fields.
-9. All response examples exclude `instruction_template`.
+7. Tool spec download endpoint returns spec containing only `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and API endpoint URL; `instruction_template` is never present in the response.
+8. Admin PATCH rejects `tool_function_name` values that do not match `/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/`.
+9. Publish checklist API returns a blocking error if `tool_function_name` is null or empty.
+10. External client execution endpoint (`POST /v1/skills/execute/{skill_id}`) returns 401 for missing/invalid API Key before any Skill state is loaded.
+11. Kids approval APIs exist if Kids flag can be enabled.
+12. Relay contract explicitly ignores client-provided Kids Session fields.
+13. All response examples exclude `instruction_template`.

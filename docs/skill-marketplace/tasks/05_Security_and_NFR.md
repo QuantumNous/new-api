@@ -25,8 +25,8 @@
 | Item | Decision |
 |---|---|
 | User-created Skills | Not supported in V1 |
-| Public Skill API trigger | Not supported in V1 |
-| Public prompt export | Not supported |
+| Unauthenticated Public Skill API | Not supported in V1; all Skill API calls require a valid API Key bound to a user account |
+| Execution logic export | Not supported; tool spec (schema + endpoint) is downloadable, but instruction_template and execution handlers are never exposed |
 | Client-side DRM | Not trusted as a security control |
 | Full DLP for all user conversations | Existing platform scope; this file covers Skill Marketplace-specific data paths |
 
@@ -73,6 +73,9 @@
 | T-20 | Billing ledger mutation hides refunds/voids | Append-only billing event ledger with compensating rows for refund/void | P0 if charging enabled |
 | T-21 | Malicious tenant injects competitor `tenant_id` in payload to poison their analytics/billing/quota | Relay must extract `user_id` and `tenant_id` exclusively from validated auth token claims; any client-supplied tenant/user identifiers in request body, headers, or extensions must be stripped and discarded before use in any event, billing, quota, or audit path | P0 |
 | T-22 | Multi-turn context accumulation converts free single-turn quota into unbounded provider cost | V1 Relay enforces stateless single-turn: prior-turn messages are stripped at entry; per-request provider cost = instruction_template tokens + current user input tokens | P0 |
+| T-23 | User shares tool spec file with non-entitled third party to bypass entitlement | Tool spec points to DeepRouter API endpoint and requires a valid account-bound API Key; recipients who lack a Key receive 401 `AUTH_REQUIRED`; spec sharing has no security consequence | P0 |
+| T-24 | External AI client provides crafted `skill_id` in request body to override URL path skill_id | Relay reads `skill_id` from URL path only for the external client endpoint; any `skill_id` in request body is discarded | P0 |
+| T-25 | API Key leaked or stolen, allowing unauthorized Skill executions | API Key can be revoked immediately; per-Key rate limits and quota caps limit blast radius; keys can be scoped to specific Skill IDs; revocation takes effect within one request cycle | P0 |
 
 ---
 
@@ -144,7 +147,8 @@ Reject or quarantine telemetry containing restricted keys such as `instruction_t
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Public Marketplace list/detail | Yes, public fields | Yes | Yes | Yes | Yes | Yes | Yes |
 | Enable/disable Skill | No | Own user only | No | No | No | Assisted status only | Audited support action only |
-| Playground Skill execution | No | Own user only | No | No | Preview only if allowed | No | Preview/test only |
+| External AI client Skill execution (`POST /v1/skills/execute/{skill_id}`) | No | API Key bearer only | No | No | No | No | No |
+| Admin Skill preview (`/admin/skills/{id}/preview`) | No | No | No | No | No | No | Yes (audit required) |
 | Ops aggregate dashboard | No | No | Yes | Yes | Safety subset | Limited diagnostics | Yes |
 | CSV export | No | No | P1 aggregate only | P1 aggregate only | No by default | No | Yes |
 | Create/edit Skill metadata | No | No | No | No | No | No | Yes |
@@ -189,9 +193,12 @@ Relay must discard and overwrite any client-provided identity fields with the au
 
 Skill execution must follow this order:
 
-1. Client / Playground sends `deeprouter.skill_id`.
+1. Client provides `skill_id` via one of two authorized paths:
+   - External AI client (normal user): `skill_id` from URL path only (`/v1/skills/execute/{skill_id}`); API Key in `Authorization: Bearer` header. Request body `skill_id` fields are discarded (T-24). This is the ONLY user-facing Skill execution path.
+   - Admin preview (Super Admin only): `/api/v1/admin/skills/{skill_id}/preview`; Super Admin session token required; `entry_point=admin_preview`.
+   - The old `deeprouter.skill_id` Playground request body contract is removed from V1; any such field received from a Playground client must be discarded.
 2. Gateway assigns `request_id`.
-3. Auth resolver validates logged-in user.
+3. Auth resolver validates API Key or session token; establishes logged-in user identity.
 4. Tenant resolver establishes tenant scope.
 5. Session resolver derives Kids state server-side.
 6. Subscription and plan resolver loads active entitlement.
