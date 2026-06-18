@@ -88,4 +88,5 @@ func TestRouteAutoGroupForRequestPathKeepsResponsesRetryAuto(t *testing.T) {
 	assert.Equal(t, "auto", routedGroup)
 	assert.Equal(t, "auto", common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
 	assert.Equal(t, "auto", common.GetContextKeyString(c, constant.ContextKeyTokenGroup))
+	assert.Equal(t, []string{"codex", "codex-pro"}, common.GetContextKeyStringSlice(c, constant.ContextKeyRouteAutoGroups))
 }

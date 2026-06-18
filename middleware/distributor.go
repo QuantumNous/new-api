@@ -109,7 +109,7 @@ func Distribute() func(c *gin.Context) {
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
+							autoGroups := service.GetRequestAutoGroup(c, userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									selectGroup = g
@@ -170,23 +170,40 @@ func Distribute() func(c *gin.Context) {
 }
 
 func routeAutoGroupForRequestPath(c *gin.Context, usingGroup string) string {
-	routedGroup, ok := autoGroupForRequestPath(usingGroup, c.Request.URL.Path)
-	if !ok {
+	if usingGroup != "auto" {
 		return usingGroup
 	}
-	common.SetContextKey(c, constant.ContextKeyUsingGroup, routedGroup)
-	common.SetContextKey(c, constant.ContextKeyTokenGroup, routedGroup)
-	return routedGroup
+
+	requestPath := c.Request.URL.Path
+	if isChatCompletionsPath(requestPath) {
+		const routedGroup = "codex-completions"
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, routedGroup)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, routedGroup)
+		return routedGroup
+	}
+
+	if isResponsesPath(requestPath) {
+		common.SetContextKey(c, constant.ContextKeyRouteAutoGroups, []string{"codex", "codex-pro"})
+	}
+	return usingGroup
 }
 
 func autoGroupForRequestPath(usingGroup string, requestPath string) (string, bool) {
 	if usingGroup != "auto" {
 		return usingGroup, false
 	}
-	if requestPath == "/v1/chat/completions" || strings.HasPrefix(requestPath, "/v1/chat/completions/") {
+	if isChatCompletionsPath(requestPath) {
 		return "codex-completions", true
 	}
 	return usingGroup, false
+}
+
+func isChatCompletionsPath(requestPath string) bool {
+	return requestPath == "/v1/chat/completions" || strings.HasPrefix(requestPath, "/v1/chat/completions/")
+}
+
+func isResponsesPath(requestPath string) bool {
+	return requestPath == "/v1/responses" || strings.HasPrefix(requestPath, "/v1/responses/")
 }
 
 // getModelFromRequest 从请求中读取模型信息

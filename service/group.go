@@ -3,8 +3,11 @@ package service
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/gin-gonic/gin"
 )
 
 func GetUserUsableGroups(userGroup string) map[string]string {
@@ -51,6 +54,31 @@ func GetUserAutoGroup(userGroup string) []string {
 		}
 	}
 	return autoGroups
+}
+
+func GetRequestAutoGroup(c *gin.Context, userGroup string) []string {
+	autoGroups := GetUserAutoGroup(userGroup)
+	routeGroups := common.GetContextKeyStringSlice(c, constant.ContextKeyRouteAutoGroups)
+	if len(routeGroups) == 0 {
+		return autoGroups
+	}
+
+	filteredGroups := make([]string, 0, len(routeGroups))
+	for _, group := range autoGroups {
+		if containsGroup(routeGroups, group) {
+			filteredGroups = append(filteredGroups, group)
+		}
+	}
+	return filteredGroups
+}
+
+func containsGroup(groups []string, group string) bool {
+	for _, item := range groups {
+		if item == group {
+			return true
+		}
+	}
+	return false
 }
 
 // GetUserGroupRatio 获取用户使用某个分组的倍率
