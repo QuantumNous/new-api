@@ -793,23 +793,30 @@ Rules:
 
 **format 枚举（有效值）：**
 
-| format | 输出文件 | 适用平台 |
-|---|---|---|
-| `openai-action` | `openai-action.json` | ChatGPT Custom GPT Action |
-| `openai-tool` | `openai-tool.json` | OpenAI API function calling |
-| `gemini-function` | `gemini-function.json` | Gemini API Function Declaration |
-| `anthropic-tool` | `anthropic-tool.json` | Claude API tool use |
-| `claude-code` | `claude-code.zip` | Claude Code SKILL.md package |
-| `mcp-config` | `mcp-config.json` | 通用 MCP remote server 配置 |
+| format | 输出文件 | 适用平台 | 优先级 | 备注 |
+|---|---|---|---|---|
+| `openai-action` | `openai-action.json` | ChatGPT Custom GPT Action | P0 | 经验证的外部客户端演示路径；OpenAPI 3.1 + Bearer auth |
+| `openai-tool` | `openai-tool.json` | OpenAI API function calling | P1 | 面向开发者；含 `additionalProperties: false`；复用 ChatGPT Action schema |
+| `gemini-spark` | `gemini-spark-skill.zip` | Gemini Spark Skills | **Future / Later** | ⚠️ Instruction-only；不等同于 ChatGPT Actions；不触发 DeepRouter 保护 Runtime；不阻塞 MVP |
+| `claude-code` | `claude-code.zip` | Claude Code MCP | **Future / Later** | 含 SKILL.md + allowed-tools + examples；不阻塞 MVP |
+| `mcp-config` | `mcp-config.json` | 通用 MCP remote server（Claude Code / Gemini CLI） | **Future / Later** | 不阻塞 MVP |
+| `gemini-function` | `gemini-function.json` | Gemini API Function Declaration | **Future / Later** | 面向开发者；触发 DeepRouter 保护 Runtime 执行；不阻塞 MVP |
+| `anthropic-tool` | `anthropic-tool.json` | Claude API tool use | **Future / Later** | 面向开发者；含 `strict: true`；不阻塞 MVP |
 
-**Rules:**
+**Rules（适用所有 format）：**
 - `Authorization: Bearer <api_key>` 必须；缺失或无效返回 401 `AUTH_REQUIRED`。
 - 用户必须对该 Skill 有 `enabled=true`；否则返回 403 `SKILL_NOT_ENABLED`。
 - Published Skill only；其他状态返回 404。
-- 所有格式输出只包含 Canonical Manifest 的 public 字段（`tool_function_name`、`tool_input_schema`、`tool_output_schema`、`description`）和 DeepRouter execute endpoint URL；绝不包含 `instruction_template`、API Key 或任何执行逻辑。
-- **API Key 不写入任何 Adapter 输出文件**。Key 须由用户在各 AI 客户端（ChatGPT Action Authentication / Claude Code `--header` / 开发者后端）单独配置，作为 HTTP `Authorization: Bearer` header 发送给 DeepRouter；Key 不出现在下载文件内，不暴露给 LLM prompt。
-- 响应 `Content-Disposition: attachment; filename="<format>.json"` 或 `.zip`（`claude-code` 格式）。
+- 所有格式输出只包含 Canonical Manifest 的 public 字段（`tool_function_name`、`tool_input_schema`、`tool_output_schema`、`description`）和 DeepRouter execute endpoint URL；绝不包含 `instruction_template`、Connection Key 或任何私有执行逻辑。
+- **Connection Key 不写入任何 Adapter 输出文件**。Key 须由用户在各 AI 客户端（ChatGPT Action Authentication / Claude Code `--header` / 开发者后端）单独配置，作为 HTTP `Authorization: Bearer` header 发送给 DeepRouter；Key 不出现在下载文件内，不暴露给 LLM prompt。
+- 响应 `Content-Disposition: attachment; filename="<format>.json"` 或 `.zip`（`claude-code` / `gemini-spark` 格式）。
 - 触发 `skill_spec_downloaded` 事件，含 `adapter_format`、`skill_id`、`user_id`。
+
+**额外规则 — `gemini-spark` format：**
+- `gemini-spark-skill.zip` 包含：`SKILL.md`（公开的使用说明和 workflow 引导）、可选 examples、可选 templates、setup guide。
+- 包内只允许公开的 Skill 使用说明；严禁包含 DeepRouter `instruction_template`、私有 prompt 逻辑、风险评分规则、内部评估规则、模型路由逻辑、配额逻辑、计费逻辑或用户密钥。
+- 此 artifact 面向 Gemini Spark Skills（instruction/context 型）；不依赖 Gemini 对外部 API 的调用能力；不触发 DeepRouter 保护 Runtime 执行。
+- `gemini-spark` format 下的 `skill_spec_downloaded` 事件须含 `"moat_mode": "instruction_only"` 字段，供 Analytics 区分此路径与保护执行路径。
 
 **Response examples:**
 

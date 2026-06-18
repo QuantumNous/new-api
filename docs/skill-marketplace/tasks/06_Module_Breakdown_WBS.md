@@ -73,6 +73,7 @@ User can run an enabled Skill directly in DeepRouter through Skill Run Page, or 
 | CSV export | P1 aggregate-only; hidden in P0 unless approved |
 | Streaming safety/billing | P1 unless Product declares streaming launch P0 in Sprint 0 |
 | Kids mode | Conditional P0 if enabled; otherwise closed beta/feature-flagged off by default |
+| **Gemini / Claude / Claude Code / MCP adapters** | **Future / Later** — not required for MVP; must NOT block P0-A (Skill Run Page) or P0-B (ChatGPT install); planned for future Sprints pending platform readiness confirmation |
 
 ### 1.3 Sprint 0 Decision Defaults and Implementation Gates
 

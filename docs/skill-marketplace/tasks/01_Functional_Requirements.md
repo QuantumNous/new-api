@@ -71,12 +71,14 @@ Admin 通过 /api/v1/admin/skills/:id/preview 端点测试 Skill（entry_point=a
 | Kids Safety | 服务端 Kids Session 判断、Kids Safe 拦截、审批要求 | P0 if Kids enabled |
 | Audit | Admin 关键写操作进入 audit log | P0 |
 | Feature Flag | Marketplace 和 Skill Run Page 可灰度开启和快速关闭 | P0 |
-| Adapter Layer — OpenAI API / Claude Code | openai-tool.json / claude-code.zip（SKILL.md） | P1 |
-| Live MCP Server（/mcp） | 暴露 GET/POST /mcp；Claude Code 等 MCP-compatible 工具直接 connect | P1 |
-| Claude Code Install Path | claude mcp add 命令 + claude-code-skill.zip | P1 |
-| Adapter Layer — Gemini / Claude API | gemini-function.json / anthropic-tool.json | P2 |
-| Consumer Gemini Direct Install | 依赖平台支持，目前标记为 Future | P2 / Future |
-| Multi-Platform Install Guides（全平台） | 所有平台完整引导 | P1 |
+| Adapter Layer — OpenAI API | openai-tool.json；复用 ChatGPT Action schema；面向开发者 | P1 |
+| Live MCP Server（/mcp） | 暴露 GET/POST /mcp；Claude Code 等 MCP-compatible 工具直接 connect | Future / Later |
+| Claude Code Install Path | claude mcp add 命令 + claude-code-skill.zip | Future / Later |
+| Gemini Spark Skill Package | gemini-spark-skill.zip；instruction-only；不触发 DeepRouter 保护 Runtime | Future / Later |
+| Gemini API / MCP Runtime Connector | gemini-function.json；面向开发者 | Future / Later |
+| Claude Remote MCP Connector | mcp-config.json / Claude connector URL | Future / Later |
+| Consumer Gemini External Action | pending platform support | Future / Later |
+| Multi-Platform Install Guides（Gemini / Claude / Claude Code） | 所有非 ChatGPT 平台完整引导 | Future / Later |
 
 ### 1.3 Out of Scope
 
@@ -226,31 +228,28 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 
 > `chatgpt-install.json` 不含 Connection Key、不含 `instruction_template`、不含执行逻辑。安装文件只告诉 ChatGPT 如何调用 DeepRouter。
 
-### 3.4c P1 Claude Code — MCP Install
+### 3.4c Future — Claude Code MCP Install
 
-> **P1 优先级。**
+> **Future / Later。不在 MVP 范围内。不得阻塞 P0-A 或 P0-B 的交付。**
 
-1. 用户在 Marketplace 启用 Skill。
-2. 用户进入 Skill Detail → 「Use in Claude Code」→ 复制安装命令。
-3. 在终端运行：`claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"`
-4. 备选：下载 `claude-code-skill.zip`，解压到项目根目录。
-5. 在 Claude Code 中自然对话；Claude Code 调用 DeepRouter MCP tool → 执行 → 结果返回（`entry_point=external_ai_client`）。
+计划路径：用户运行 `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` 接入 DeepRouter；或下载 `claude-code-skill.zip` 备选安装。暂不交付；详细设计留待后续 Sprint 确认。
 
-### 3.4d P2 Gemini API Developer
+### 3.4d Future — Gemini（所有路径）
 
-> **P2 优先级。消费级 Gemini 直接安装为 Future / pending platform support。**
+> **Future / Later。所有 Gemini 路径不在 MVP 范围内，不得阻塞 P0-A 或 P0-B 的交付。**
 
-1. 用户启用 Skill → 下载 `gemini-function.json`。
-2. 导入到 Gemini API 应用后端；Connection Key 存为环境变量。
-3. Gemini 发出 function call → 开发者后端调用 `POST /v1/skills/execute/{skill_id}` → 返回 functionResponse（`entry_point=external_ai_client`）。
+**产品诚信说明（须在 UI 中展示）：** ChatGPT 是经验证的 P0 外部客户端演示路径。Gemini 集成为 Future 项目，包含三种潜在模式：
+- Gemini Spark Skill Package（instruction-only，不等同于 ChatGPT Actions）
+- Gemini API / MCP Runtime Connector（开发者路径，触发 DeepRouter 保护 Runtime）
+- Consumer Gemini External Action（依赖 Google 开放外部 Action 支持，pending platform support）
 
-### 3.4e P2 Claude API / Remote MCP Connector
+所有 Gemini 路径设计保留在 §4.11 作为参考，但不作为 MVP 必要交付项。
 
-> **P2 优先级。**
+### 3.4e Future — Claude API / Remote MCP Connector
 
-1. 用户启用 Skill → 复制 `https://deeprouter.ai/mcp`。
-2. 添加为 Claude connector，使用 Connection Key / OAuth 认证。
-3. Claude 自动发现已 enabled Skills → 自然对话调用（`entry_point=external_ai_client`）。
+> **Future / Later。不在 MVP 范围内，不得阻塞 P0-A 或 P0-B 的交付。**
+
+计划路径：用户复制 `https://deeprouter.ai/mcp`，添加为 Claude connector，使用 Connection Key / OAuth 认证，Claude 自动发现已 enabled Skills。暂不交付；详细设计留待后续 Sprint 确认。
 
 ### 3.5 User Membership Expires
 
@@ -452,27 +451,29 @@ P0-A 是 V1 的主要用户执行路径。用户在 DeepRouter 内直接运行 S
 
 #### Platform Adapters
 
-| ID | Adapter | 生成格式 | 适用用户 | Priority |
-|---|---|---|---|---|
-| FR-T4 | ChatGPT Custom GPT Action | `openai-action.json`（OpenAPI 3.1 schema + servers + auth） | ChatGPT 普通用户，安装到 Custom GPT | P0 |
-| FR-T5 | OpenAI API Function Schema | `openai-tool.json`（OpenAI function calling JSON） | OpenAI API 开发者，集成到自己 app | P0 |
-| FR-T6 | Gemini API Function Declaration | `gemini-function.json`（Gemini functionDeclarations 格式） | Gemini API 开发者 | P0 |
-| FR-T7 | Claude API Tool Schema | `anthropic-tool.json`（Anthropic tool use format，含 `strict:true`） | Claude API 开发者 | P0 |
-| FR-T8 | Claude Code Skill Package | `claude-code.zip`（含 `.claude/skills/<name>/SKILL.md` + `allowed-tools` + examples） | Claude Code 用户 | P0 |
-| FR-T9 | MCP Connector Config | `mcp-config.json`（标准 MCP remote server config，含 `type: url`、auth 配置） | 所有支持 MCP 的工具 | P0 |
+| ID | Adapter | 生成格式 | 适用用户 | Priority | 备注 |
+|---|---|---|---|---|---|
+| FR-T4 | ChatGPT Custom GPT Action | `openai-action.json`（OpenAPI 3.1 schema + servers + auth） | ChatGPT 普通用户，安装到 Custom GPT | **P0** | 经验证的外部客户端演示路径；MVP 必须交付 |
+| FR-T5 | OpenAI API Function Schema | `openai-tool.json`（OpenAI function calling JSON，含 `additionalProperties: false`） | OpenAI API 开发者 | P1 | 复用 ChatGPT Action schema；面向开发者；仅在不影响 MVP 进度时交付 |
+| FR-T6 | Gemini Spark Skill Package | `gemini-spark-skill.zip`（SKILL.md + 公开使用说明） | Gemini Spark 用户 | **Future / Later** | Instruction-only；不等同于 ChatGPT Actions；不阻塞 MVP |
+| FR-T7 | Claude Code Skill Package | `claude-code.zip`（含 SKILL.md + allowed-tools） | Claude Code 用户 | **Future / Later** | MCP 路径；不阻塞 MVP |
+| FR-T8 | Gemini API Function Declaration | `gemini-function.json` | Gemini API 开发者 | **Future / Later** | 不阻塞 MVP |
+| FR-T9 | Claude API Tool Schema | `anthropic-tool.json`（含 `strict:true`） | Claude API 开发者 | **Future / Later** | 不阻塞 MVP |
+| FR-T10 | MCP Connector Config | `mcp-config.json` | MCP 兼容工具 | **Future / Later** | 不阻塞 MVP |
+| FR-T10a | Consumer Gemini External Action | `gemini-action-connector`（待定） | 消费级 Gemini | **Future / Later** | 依赖 Google 开放；pending platform support |
 
 #### Adapter Endpoint
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-T10 | 每个 Adapter 有独立下载端点 | P0 | `GET /v1/skills/{skill_id}/adapters/{format}`；format 枚举：`openai-action`、`openai-tool`、`gemini-function`、`anthropic-tool`、`claude-code`、`mcp-config` |
-| FR-T11 | 下载端点需认证；仅 enabled 用户可下载 | P0 | 未 enable 或 API Key 无效返回 403 |
-| FR-T12 | 所有 Adapter 输出不得包含 `instruction_template`、API Key 或执行逻辑 | P0 | Security gate；launch 前须经安全审查确认；API Key 须由用户在各客户端单独配置 |
-| FR-T13 | Skill Detail 页面分平台展示安装引导（5 个 Tab） | P0 | Tab：ChatGPT Custom GPT / OpenAI API / Gemini / Claude / Claude Code；每 Tab 含下载按钮 / Import URL / CLI install command + 步骤说明 |
+| FR-T11 | 每个 Adapter 有独立下载端点 | P0 | `GET /v1/skills/{skill_id}/adapters/{format}`；**MVP format：`openai-action`（P0）、`openai-tool`（P1）**；Future format：`gemini-spark`、`claude-code`、`mcp-config`、`gemini-function`、`anthropic-tool`（均为 Future / Later，不阻塞 MVP） |
+| FR-T12 | 下载端点需认证；仅 enabled 用户可下载 | P0 | 未 enable 或 API Key 无效返回 403 |
+| FR-T13 | 所有 Adapter 输出不得包含 `instruction_template`、Connection Key 或私有执行逻辑 | P0 | Security gate；launch 前须经安全审查确认；Connection Key 须由用户在各客户端单独配置 |
+| FR-T14 | Skill Detail 页面展示安装引导（Tab 结构） | P0 | **MVP Tab 结构：ChatGPT（P0，详细步骤）/ OpenAI API（P1）/ 其他平台标注「Coming Later」**；ChatGPT Tab 含 Import URL + Download JSON + 5 步安装指引 + Authentication → API Key Bearer + Connection Key 填写说明 |
 | FR-T13a | ChatGPT Tab 同时提供 Import URL 和 Download JSON 两种方式 | P0 | Import URL 方式：用户粘贴 URL，ChatGPT 自动拉取 schema；Skill schema 更新后用户无需重新下载 |
 | FR-T13b | ChatGPT Tab 说明认证方式：MVP 为 API Key Bearer；P1 支持 OAuth | P1 | OAuth 版：用户点击「Connect DeepRouter Account」完成 OAuth 授权，ChatGPT 自动携带 token；无需手动填 Key |
-| FR-T13c | Claude Code Tab 显示带 `--header` 的完整 MCP install command | P0 | `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <key>"`；不得省略 `--header` 参数 |
-| FR-T14 | Adapter 下载或 Import URL 复制触发 analytics 事件 | P1 | `skill_spec_downloaded`，含 `adapter_format`、`install_method`（download/import_url）、`skill_id`、`user_id` |
+| FR-T13c | Claude Code / Gemini / Claude / MCP Tab — Future / Later | Future | 不在 MVP 范围内；UI 中这些平台标注「Coming Later」，不实现安装引导 |
+| FR-T15 | Adapter 下载或 Import URL 复制触发 analytics 事件 | P1 | `skill_spec_downloaded`，含 `adapter_format`、`install_method`（download/import_url）、`skill_id`、`user_id` |
 
 #### Live MCP Server
 
@@ -694,17 +695,18 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 18. Existing non-Skill API calls remain unchanged.
 19. Feature flag can disable Marketplace entry without deleting data.
 20. ChatGPT install path is complete: user can download `chatgpt-install.json` or copy Import URL from Skill Detail, import into Custom GPT Actions, set Authentication to API Key / Bearer, paste Connection Key, and use the Skill naturally in that Custom GPT.
-21. Gemini API developer path is complete: user can download `gemini-function.json`, integrate into Gemini API app, and call DeepRouter execute endpoint from their backend.
-22. Consumer Gemini direct install is correctly labeled **Future / pending platform support** if not supported at launch.
-23. Claude path is complete: user can copy the Remote MCP Connector URL (`https://deeprouter.ai/mcp`), add it as a Claude connector, authenticate, and Claude discovers all user-enabled Skills as tools.
-24. Claude Code path is complete: user can run `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` or download `claude-code-skill.zip` and use the Skill naturally in Claude Code.
-25. All install artifacts (chatgpt-install.json / gemini-function.json / anthropic-tool.json / mcp-config.json / claude-code-skill.zip) are confirmed by Security review to not contain `instruction_template`, Connection Key, or any execution logic.
+21. **[Future / Later]** Gemini Spark Skill Package path: user can download `gemini-spark-skill.zip`, upload to Gemini Spark Skills. Package must not contain `instruction_template`, private prompt logic, or execution code; it contains only public workflow instructions. UI clearly labels this as instruction-only, distinct from ChatGPT Actions. **Not required for MVP.**
+21a. **[Future / Later]** Gemini API / MCP Runtime Connector path: developer can download `gemini-function.json`, integrate into Gemini API app, call `POST /v1/skills/execute/{skill_id}` with Connection Key, and receive full DeepRouter Protected Runtime execution. **Not required for MVP.**
+22. **[Future / Later]** Consumer Gemini external action: labeled **Future / pending platform support**; a `gemini-action-connector` adapter is reserved for future addition once Google enables consumer Gemini external API calls. Must not be marketed as available until verified. **Not required for MVP.**
+23. **[Future / Later]** Claude Remote MCP Connector path: user can copy `https://deeprouter.ai/mcp`, add it as a Claude connector, authenticate, and Claude discovers all user-enabled Skills as tools. **Not required for MVP.**
+24. **[Future / Later]** Claude Code path: user can run `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` or download `claude-code-skill.zip`. **Not required for MVP.**
+25. All MVP install artifacts (`chatgpt-install.json`) are confirmed by Security review to not contain `instruction_template`, Connection Key, or any execution logic. Future artifacts (gemini-function.json / anthropic-tool.json / mcp-config.json / claude-code-skill.zip) require the same Security review before launching.
 26. All adapter artifacts pass automated scan: no `instruction_template`, `execution_handler`, or user credentials in any downloadable file.
 27. External AI client can call the Skill execute endpoint with a valid Connection Key; DeepRouter authenticates, runs entitlement check, executes Skill logic, and returns tool result.
 28. External AI client call with invalid or missing Connection Key receives 401 `AUTH_REQUIRED`.
-29. MCP live server `GET /mcp` returns only the calling user's enabled Skills; `POST /mcp` routes to the same execution chain as direct API calls.
-30. Billing event for external AI client or MCP call includes `execution_entry_point=external_ai_client`; quota is deducted from the Connection Key owner's account. Billing event for Skill Run Page execution includes `execution_entry_point=native_deeprouter`; quota is deducted from the logged-in user's account.
-31. Connection Key revocation takes effect within one request cycle; all platforms (ChatGPT / Claude / Claude Code / Gemini) that use the revoked Key receive 401 on subsequent calls.
+29. **[Future / Later]** MCP live server `GET /mcp` returns only the calling user's enabled Skills; `POST /mcp` routes to the same execution chain as direct API calls. **Not required for MVP.**
+30. Billing event for external AI client call includes `execution_entry_point=external_ai_client`; quota is deducted from the Connection Key owner's account. Billing event for Skill Run Page execution includes `execution_entry_point=native_deeprouter`; quota is deducted from the logged-in user's account.
+31. Connection Key revocation takes effect within one request cycle; any platform using the revoked Key receives 401 on subsequent calls.
 32. Skill Detail Install Dialog has 5 platform tabs (ChatGPT / OpenAI API / Gemini / Claude / Claude Code), each with step-by-step guide, copy/download buttons, and Connection Key copy area.
 33. Non-technical UI does not expose terms "OpenAPI", "MCP", "Bearer", "JSON-RPC", or "API Key" in default (non-Advanced) view; "Connection Key" is used throughout.
 34. Connection Test UX: My Skills dashboard shows Last activity timestamp; failed-install checklist is displayed if no activity within 10 minutes of install.

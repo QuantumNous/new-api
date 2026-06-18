@@ -14,8 +14,8 @@
 |---|---|
 | **P0-A Skill 使用路径（主路径）** | **Skill Run Page**（`/skills/:id/run`）：用户从 Marketplace 启用 Skill，进入 Skill Run Page，填写表单，点击 Run，在 DeepRouter 内直接获得结构化输出。最快路径，无需安装任何外部工具。 |
 | **P0-B Skill 安装路径（互操作路径）** | ChatGPT Custom GPT Action：用户下载 `chatgpt-install.json` 或复制 Import URL，安装到自己的 Custom GPT，证明 DeepRouter Skill 可在外部 AI 客户端运行。 |
-| P1 外部平台路径 | Claude Code MCP Install（`claude mcp add --transport http ...`） |
-| P2 外部平台路径 | Gemini API / Claude API / Consumer Gemini（Future）|
+| P1 外部平台路径 | OpenAI API Tool Schema（复用 ChatGPT Action schema；面向开发者；仅在不影响 MVP 进度时实现） |
+| Future / Later 平台路径 | Gemini（所有模式）/ Claude Code / Claude API / MCP / Claude Remote MCP — 不在 MVP 范围内，UI 标注「Coming Later」 |
 | 用户身份标识 | 用户界面统一称 **Connection Key**；技术文档 / Advanced 区域保留 API Key 称谓 |
 | Playground Skill Picker | 不对用户暴露；Playground 保持通用聊天界面；Skill 执行通过 Skill Run Page（P0-A），不通过 Playground |
 | Unauthenticated Public Skill API | 不支持；所有 Skill API 调用需要有效 Connection Key |
@@ -145,14 +145,14 @@ Help users discover official Skills and understand whether each Skill is usable 
 | Anonymous + Free Skill | Public card, no enabled state | Log in to enable |
 | Anonymous + Pro Skill | Public card with Pro badge | Log in to continue |
 | Logged-in + Free + not enabled | Available | Enable |
-| Logged-in + Free + enabled | Enabled badge | **Run**（Skill Run Page）/ Use in my ChatGPT（secondary）/ Install in other AI tools（advanced） |
+| Logged-in + Free + enabled | Enabled badge | **Run in DeepRouter**（Skill Run Page，primary）/ Use in my ChatGPT（secondary）/ Developer options（advanced，Coming Later 平台标注） |
 | Logged-in + Pro + Free user | Locked with Pro badge | Upgrade |
 | Logged-in + Pro + Pro user | Available | Enable or Use Skill |
 | Subscription expired | Locked with renewal reason | Renew |
 | Enterprise Skill + non-enterprise | Enterprise badge | Contact sales |
 | Quota exceeded | Locked state with quota message and reset time when available | Upgrade |
 | Deprecated + not enabled | Hidden from Marketplace | None |
-| Deprecated + enabled | Not in Marketplace; visible in My Skills | Run（deprecated warning）/ Install in other AI tools（advanced） |
+| Deprecated + enabled | Not in Marketplace; visible in My Skills | Run in DeepRouter（deprecated warning）/ Use in my ChatGPT（secondary） |
 | Archived | Hidden from Marketplace | None |
 | Kids Session + unsafe Skill | Hidden from discovery; direct access shows Kids blocked state | None |
 
@@ -191,7 +191,7 @@ Help users understand what the Skill does, what input it needs, what output to e
 | Example Input / Output | At least one representative example |
 | Pricing / Entitlement | Free/Pro/Enterprise, quota message when quota is enabled |
 | Safety & Privacy | Hosted execution statement, AI-generated disclosure, data note |
-| Connect to AI tools |「Use in my ChatGPT」primary button + 「Install in other AI tools」advanced link; visible only to enabled users; opens Install Dialog scoped to each platform; default view shows ChatGPT tab; technical file formats (install file, API schema) shown in Advanced section only |
+| Connect to AI tools |「Use in my ChatGPT」secondary button（opens Install Dialog → ChatGPT tab）+ 「Developer options」advanced link（OpenAI API P1；Gemini / Claude Code → Coming Later）; visible only to enabled users; default view shows ChatGPT tab |
 | Kids Mode | Kids Safe / Kids Exclusive explanation when Kids feature flag is enabled |
 | CTA Bar | Primary and secondary actions based on CTA decision table |
 | Related Skills | P1; excludes archived/deprecated |
@@ -202,12 +202,12 @@ Help users understand what the Skill does, what input it needs, what output to e
 |---|---|---|---|
 | Anonymous | Log in to enable | Back to Marketplace | Preserve return URL |
 | Logged-in + not enabled + allowed | Enable Skill | Back | After enable, show Run CTA and Use in my ChatGPT CTA immediately |
-| Enabled + executable | **Run**（Skill Run Page） | Use in my ChatGPT / Install in other AI tools | Primary: opens `/skills/:id/run`; Secondary: opens Install Dialog with ChatGPT tab; Advanced: shows full platform install options |
+| Enabled + executable | **Run in DeepRouter**（Skill Run Page） | Use in my ChatGPT | Primary: opens `/skills/:id/run`; Secondary: opens Install Dialog — ChatGPT Tab; Advanced / collapsed: Developer options（OpenAI API schema P1；Gemini / Claude Code / MCP → Coming Later） |
 | Free user + Pro Skill | Upgrade to Pro | Back | Do not enable automatically unless Product decides |
 | Expired subscription | Renew membership | Back | Skill remains in My Skills |
 | Enterprise Skill + not entitled | Contact sales | Back | No fake enable state |
 | Quota exceeded | Upgrade | Back | Show quota reset if available; may preview Pro value without implying entitlement |
-| Deprecated + enabled | Run（deprecated warning） | Disable / Install in other AI tools | Show deprecation notice; warn that Skill may be removed; Run still available for already-enabled users |
+| Deprecated + enabled | Run in DeepRouter（deprecated warning） | Use in my ChatGPT / Disable | Show deprecation notice; warn that Skill may be removed; Run still available for already-enabled users |
 | Deprecated + not enabled | Unavailable | Back | No enable CTA |
 | Archived | Unavailable | Back | No execution CTA |
 | Kids blocked | Not available in Kids Mode | Back | No switch-mode CTA in V1 |
@@ -219,7 +219,7 @@ Use concise user-facing copy:
 ```text
 This Skill is hosted by DeepRouter. Its execution instructions are not visible or downloadable.
 The tool schema (input/output format) is available as a downloadable spec file for installation
-into ChatGPT, Gemini, or Claude. Generated results are AI-assisted and should be reviewed before use.
+into ChatGPT or other AI clients. Generated results are AI-assisted and should be reviewed before use.
 ```
 
 For China-facing surfaces, include required AI-generated content disclosure as product UI text, not model output.
@@ -245,10 +245,10 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 
 | State | UX | Actions |
 |---|---|---|
-| Enabled + executable | Normal row | **Run**（primary）, Use in my ChatGPT（secondary）, Install in other AI tools（advanced）, Disable |
+| Enabled + executable | Normal row | **Run in DeepRouter**（primary）, Use in my ChatGPT（secondary）, Developer options（advanced / Coming Later 平台）, Disable |
 | Enabled + plan locked | Locked badge and reason | Upgrade/Renew, Disable |
 | Enabled + quota exceeded | Quota badge with reset time if available | Upgrade, Disable |
-| Deprecated enabled | Warning badge | Run（deprecated warning）, Install in other AI tools（advanced）, Disable |
+| Deprecated enabled | Warning badge | Run in DeepRouter（deprecated warning）, Use in my ChatGPT（secondary）, Disable |
 | Archived | Unavailable badge | Remove/Disable |
 | Kids blocked | Kids unavailable badge | Disable |
 
@@ -374,7 +374,9 @@ Skill Run Page 底部固定显示：
 
 ---
 
-**Tab 2：OpenAI API（开发者）**
+**Tab 2：OpenAI API（开发者）— P1**
+
+> P1 — 复用 ChatGPT Action schema；仅在不影响 MVP 进度时实现。
 
 | 内容 | 说明 |
 |---|---|
@@ -384,47 +386,21 @@ Skill Run Page 底部固定显示：
 
 ---
 
-**Tab 3：Gemini**
+**Tab 3：Gemini — Coming Later**
 
-| 子选项 | 内容 |
-|---|---|
-| Gemini API（开发者） | [⬇ Download gemini-function.json]；集成流程：functionCall → 后端调 DeepRouter execute → functionResponse 返回模型 |
-| Gemini CLI / AI Studio | MCP 安装：`npx add-mcp "https://deeprouter.ai/mcp"` + 配置 Authorization header |
+> ⏳ **Coming Later** — Gemini 集成正在规划中。发布后此处将显示 Gemini Spark Skill Package（基础引导版）和 Gemini API 开发者连接方式。
 
 ---
 
-**Tab 4：Claude**
+**Tab 4：Claude — Coming Later**
 
-| 子选项 | 内容 |
-|---|---|
-| Claude API（开发者） | [⬇ Download anthropic-tool.json]；格式含 `strict: true`；集成流程同 OpenAI API |
-| Claude MCP Connector | [⬇ Download mcp-config.json] 或显示 JSON block 供复制；`type: url`，`url: https://deeprouter.ai/mcp` |
+> ⏳ **Coming Later** — Claude / Claude API / Claude Remote MCP Connector 集成正在规划中。
 
 ---
 
-**Tab 5：Claude Code**
+**Tab 5：Claude Code — Coming Later**
 
-MCP 安装（推荐）：
-
-```bash
-# API Key 版（MVP）
-claude mcp add --transport http deeprouter https://deeprouter.ai/mcp \
-  --header "Authorization: Bearer dr-xxxxxx"
-```
-
-> 说明：`--header` 将 API Key 作为 HTTP header 发送给 DeepRouter；Key 不写入下载的文件，不暴露给模型 prompt。
-
-```bash
-# OAuth 版（P1 正式版）
-claude mcp add --transport http deeprouter https://deeprouter.ai/mcp
-# 运行后 Claude Code 会在 /mcp flow 中引导完成 DeepRouter OAuth 登录
-# 登录后 token 由 Claude Code 管理，无需手动填 Key
-```
-
-Skill Package 安装（备选，适合无网络环境）：
-[⬇ Download claude-code.zip] → 解压到项目根目录：`unzip claude-code.zip -d ./`（含 `.claude/skills/<name>/SKILL.md`）
-
-使用方式：Claude Code 内自然语言描述任务，模型自动识别并调用已安装的 MCP tool。
+> ⏳ **Coming Later** — Claude Code MCP 安装引导正在规划中。计划提供一键 MCP install 命令。
 
 ---
 
@@ -552,95 +528,87 @@ Protected server-side Skill Runtime（始终保留在 DeepRouter 服务端）包
 
 ---
 
-#### B. Gemini — 两条安装路径
+#### B. Gemini — Future / Later
 
-**重要：消费级 Gemini（chat.google.com）目前不支持用户直接导入外部 tool spec。Gemini 的两条路径面向不同用户群体。**
+> ⏳ **Future / Later — Gemini 集成不在 MVP 范围内，不得阻塞 ChatGPT P0 演示路径。**
+>
+> **Platform Honesty Note：** DeepRouter can provide a Gemini downloadable Skill package in future, but current Gemini Spark Skills are not the same as ChatGPT Actions. The package can help Gemini follow public workflow instructions, but protected DeepRouter Runtime execution requires Gemini API function calling or MCP. ChatGPT remains the confirmed P0 external-client demo.
 
-**Track 1 — Gemini API 开发者**
-
-适用：开发者在自己的 app 或脚本中使用 Gemini API。
-
-| 步骤 | 用户操作 |
-|---|---|
-| 1 | 在 Marketplace 启用 Skill |
-| 2 | 点击「Use in my Gemini App」→ 下载 `gemini-function.json` |
-| 3 | 在后端代码导入 function declaration |
-| 4 | 后端存储 DeepRouter Connection Key（作为环境变量，不放入代码） |
-| 5 | Gemini 模型根据用户输入发出 function call |
-| 6 | 开发者后端调用 `POST /v1/skills/execute/{skill_id}`，携带 Connection Key |
-| 7 | DeepRouter 执行并返回结构化结果 |
-| 8 | Gemini 将结果整合为用户可读的答案 |
-
-**Track 2 — Gemini CLI / AI Agent 环境（if supported）**
-
-适用：使用 Gemini CLI 或支持 MCP 的 agent 框架。
-
-| 步骤 | 用户操作 |
-|---|---|
-| 1 | 在 Marketplace 启用 Skill |
-| 2 | 复制 MCP server config 或下载 Gemini agent 安装包 |
-| 3 | 在 Gemini CLI / agent 环境添加 DeepRouter MCP server 配置 |
-| 4 | 使用 Connection Key 或 OAuth 认证 |
-| 5 | 自然语言使用 Skill |
-
-> **产品诚信说明（必须在 UI 中展示）**：消费级 Gemini（chat.google.com）暂不支持导入外部 tool spec。Track 1 适合开发者；Track 2 需要 Gemini CLI 或兼容 MCP 的 agent 环境。不支持在普通 Gemini 对话中"一键安装"，此路径标记为 **Future / pending platform support**。
+下方设计规格供后续 Sprint 参考，MVP 不实现：
 
 ---
 
-#### C. Claude — Remote MCP Connector
+**Mode 1 — Gemini Spark Skill Package（P1，非技术用户，instruction-only）**
 
-适用：使用 Claude.ai 或 Anthropic Claude API，且支持 Remote MCP Connector 的环境。
+适用：使用 Gemini Spark Skills 的非技术用户。
+
+> ⚠️ **限制说明（必须在 UI 中展示）：** 此模式是 instruction/context 型 Skill，不等同于 ChatGPT Actions。Gemini Spark Skills 不支持对外部 API 的 HTTP 调用（除非 Google 未来开放 External Actions）。DeepRouter 的计费、配额、hidden instruction_template 等保护机制在此模式下不适用。安装包只含公开的使用说明。
 
 **用户流程：**
 
-| 步骤 | 用户操作 | 界面文案（非技术） |
+| 步骤 | 用户操作 | 界面文案 |
 |---|---|---|
-| 1 | 在 Marketplace 启用 Skill | 点击「Enable Skill」|
-| 2 | 点击「Connect to Claude」| 弹出 Install Dialog |
-| 3 | 复制 DeepRouter MCP URL | [📋 Copy Connector URL] — `https://deeprouter.ai/mcp` |
-| 4 | 打开 Claude → Settings → Connections → Add custom connector | — |
-| 5 | 粘贴 Connector URL | — |
-| 6 | 使用 Connection Key 或 OAuth 认证 | [Copy Connection Key] |
-| 7 | Claude 自动发现用户已 enabled 的所有 Skill | — |
-| 8 | 自然语言使用："帮我审查这份合约的租户风险" | Claude 自动调用 DeepRouter MCP tool |
+| 1 | 在 DeepRouter Marketplace 启用 Skill | 点击「Enable Skill」|
+| 2 | 点击「Use in Gemini」→ 选择「Gemini Spark Skill（Basic）」| 弹出 Install Dialog，Gemini Tab，Spark 子 Tab |
+| 3 | 下载 `gemini-spark-skill.zip` | [⬇ Download Gemini Skill Package] |
+| 4 | 打开 Gemini Spark Skills | 在 Gemini 界面进入 Spark Skills 管理页 |
+| 5 | 上传 zip 包或 SKILL.md 文件 | — |
+| 6 | 保存 Skill | — |
+| 7 | 在 Gemini Spark 中自然使用 | 基于包内公开引导指令工作 |
 
-**Clarify（产品原则）：**
-- 这是 connector 连接，不是下载 prompt 逻辑。
-- Connector 只暴露 tool definition（名称 + 参数 schema）。
-- instruction template 始终保留在 DeepRouter 服务端。
-- Connection Key 仅用于身份认证、quota 检查和 billing 归因，不暴露给 Claude 模型。
-- 此路径依赖 Claude.ai 对 Remote MCP Connector 的支持程度；如目标版本不支持，标记为 **pending platform support**。
+**Gemini Spark Skill Package 安全规则：**
+- 包内只含公开的使用说明和 workflow 引导（`SKILL.md`）。
+- 严禁包含 DeepRouter `instruction_template`、私有 prompt 逻辑、风险评分规则或任何专有 Skill 逻辑。
+- 此模式不触发 DeepRouter Relay 执行，不记入 DeepRouter billing / quota / audit。
+- UI 必须明确标注：「基础使用说明版本 — 完整 AI 执行保护需通过 ChatGPT 或 Gemini API」。
 
 ---
 
-#### D. Claude Code — MCP Install or Skill Package
+**Mode 2 — Gemini API / MCP Runtime Connector（P2，开发者，完整保护执行）**
 
-适用：在本地或 IDE 中使用 Claude Code 的开发者。
+适用：开发者在自己的 app 或 MCP 兼容环境中使用 Gemini API。
 
-**用户流程（命令行方式，推荐）：**
+> 此模式触发真正的 DeepRouter 保护 Runtime 执行，适合需要 billing / quota / hidden prompt 保护的开发者集成。
 
-| 步骤 | 用户操作 | 界面文案 |
-|---|---|---|
-| 1 | 在 Marketplace 启用 Skill | 点击「Enable Skill」|
-| 2 | 点击「Use in Claude Code」| 弹出 Install Dialog |
-| 3 | 复制安装命令 | [📋 Copy install command] |
-| 4 | 在终端粘贴运行 | `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` |
-| 5 | Claude Code 中自然提问 | "Review contracts/vendor-api.md for legal risk." |
-| 6 | Claude Code 自动识别 MCP tool 并调用 DeepRouter | — |
-
-**备选：Skill Package（zip 安装）**
+**开发者流程：**
 
 | 步骤 | 用户操作 |
 |---|---|
-| 1 | 点击「Download Skill Package」→ 下载 `claude-code-skill.zip` |
-| 2 | 解压到项目根目录：`unzip claude-code-skill.zip -d ./` |
-| 3 | zip 内包含：`.claude/skills/<skill-name>/SKILL.md`、可选 examples、可选 `.mcp.json` 模板、安装说明 |
-| 4 | Claude Code 自动读取 SKILL.md，识别 MCP tool |
+| 1 | 在 Marketplace 启用 Skill |
+| 2 | 点击「Use in Gemini」→ 选择「Gemini API / Developer」子 Tab |
+| 3 | 下载 `gemini-function.json`（Gemini functionDeclarations 格式）或复制 MCP config |
+| 4 | 在后端代码导入 function declaration；Connection Key 存为环境变量（不放入代码） |
+| 5 | Gemini 模型根据用户输入发出 function call |
+| 6 | 开发者后端调用 `POST /v1/skills/execute/{skill_id}`，携带 Connection Key |
+| 7 | DeepRouter 执行保护 Skill Runtime（Auth → Entitlement → Quota → instruction_template 注入 → 执行 → 输出验证） |
+| 8 | 返回结构化结果；Gemini 整合为用户可读答案 |
 
 **Clarify（产品原则）：**
-- Claude Code 用户比 ChatGPT 用户更偏技术，但同样适用"安装包 + Connection Key + 自然语言使用"的产品心智。
-- Connection Key 不写入可分享的 zip 文件。如生成个人专属配置文件，必须明确标注"此文件含您的 Connection Key，请勿分享"。
-- UI 标签统一用「Connection Key」；install command 里的 `Bearer <CONNECTION_KEY>` 在 Advanced 折叠区展示。
+- Connection Key 不写入 `gemini-function.json`；由开发者后端安全存储。
+- 此模式是 P2，不是 P0 演示路径。
+- 如果开发者使用 MCP 兼容环境（Gemini CLI / agent 框架），可复制 `mcp-config.json` 替代 function declaration 路径。
+
+---
+
+**Mode 3 — Consumer Gemini External Action（P3 / Future）**
+
+> 消费级 Gemini（chat.google.com）目前不支持导入外部 API Action。若 Google 未来开放 External Actions，将新增 `gemini-action-connector` 适配器，但不在 V1 P0–P2 交付范围内。UI 中此路径标记为 **Future / pending platform support**，不显示下载按钮。
+
+---
+
+#### C. Claude — Future / Later
+
+> ⏳ **Future / Later — Claude Remote MCP Connector 不在 MVP 范围内，不得阻塞 ChatGPT P0 演示路径。**
+
+计划路径：用户复制 `https://deeprouter.ai/mcp`，添加为 Claude connector，使用 Connection Key / OAuth 认证，Claude 自动发现已 enabled Skills 并作为 MCP tool 调用。详细 UX 设计留待后续 Sprint 确认。
+
+---
+
+#### D. Claude Code — Future / Later
+
+> ⏳ **Future / Later — Claude Code MCP Install 不在 MVP 范围内，不得阻塞 ChatGPT P0 演示路径。**
+
+计划路径：用户运行 `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` 接入 DeepRouter。详细 UX 设计留待后续 Sprint 确认。
 
 ---
 
@@ -650,23 +618,22 @@ Protected server-side Skill Runtime（始终保留在 DeepRouter 服务端）包
 
 | 平台 | Artifact | 文件 / 内容 | 优先级 |
 |---|---|---|---|
-| ChatGPT Custom GPT | ChatGPT install file | `chatgpt-install.json`（OpenAPI schema + endpoint + auth scheme） | P0 |
-| ChatGPT Custom GPT | ChatGPT Import URL | `https://deeprouter.ai/v1/skills/<id>/adapters/openai-action`（直接 import） | P0 |
-| ChatGPT Custom GPT | Visual setup guide | 步骤截图 / 动图 | P0 |
-| ChatGPT Custom GPT | Sample test prompt | 一个测试对话示例 | P0 |
-| OpenAI API | OpenAI API tool schema | `openai-tool.json`（function calling，含 `additionalProperties: false`） | P0 |
-| OpenAI API | Python 代码示例 | 3 轮对话 + tool call 示例 | P0 |
+| **ChatGPT Custom GPT** | ChatGPT install file | `chatgpt-install.json`（OpenAPI schema + endpoint + auth scheme） | **P0** |
+| **ChatGPT Custom GPT** | ChatGPT Import URL | `https://deeprouter.ai/v1/skills/<id>/adapters/openai-action`（直接 import） | **P0** |
+| **ChatGPT Custom GPT** | Visual setup guide | 步骤截图 / 动图 | **P0** |
+| **ChatGPT Custom GPT** | Sample test prompt | 一个测试对话示例 | **P0** |
+| OpenAI API | OpenAI API tool schema | `openai-tool.json`（function calling，含 `additionalProperties: false`） | P1 |
+| OpenAI API | Python 代码示例 | 3 轮对话 + tool call 示例 | P1 |
 | OpenAI API | TypeScript 代码示例 | 同上 | P1 |
-| Gemini API | Gemini function declaration | `gemini-function.json` | P0 |
-| Gemini API | Python 代码示例 | function call → DeepRouter execute → functionResponse 示例 | P0 |
-| Gemini CLI / Agent | MCP config | `mcp-config.json`（MCP remote server 配置） | P1 |
-| Gemini 消费级 | 暂不支持 | — | Future / pending platform support |
-| Claude | Remote MCP Connector URL | `https://deeprouter.ai/mcp` | P0 |
-| Claude | Connector setup guide | Claude Settings → Connections 步骤说明 | P0 |
-| Claude | OAuth / Connection Key 说明 | 认证方式选择指引 | P0 |
-| Claude Code | MCP install command | `claude mcp add --transport http ...` | P0 |
-| Claude Code | Skill Package | `claude-code-skill.zip`（含 SKILL.md + examples + `.mcp.json` template） | P0 |
-| Claude Code | `.mcp.json` template | 可选，供需要手动配置的场景使用 | P1 |
+| Gemini Spark（非技术用户） | Gemini Spark Skill Package | `gemini-spark-skill.zip`（SKILL.md + 公开使用说明）⚠️ 非等同于 ChatGPT Actions；不触发 DeepRouter 保护 Runtime | **Future / Later** |
+| Gemini API（开发者） | Gemini function declaration | `gemini-function.json`（functionDeclarations 格式） | **Future / Later** |
+| Gemini API（开发者） | Python 代码示例 | function call → DeepRouter execute → functionResponse 示例 | **Future / Later** |
+| Gemini CLI / Agent | MCP config | `mcp-config.json`（MCP remote server 配置） | **Future / Later** |
+| Gemini 消费级 External Action | 暂不支持 | — | **Future / Later / pending platform support** |
+| Claude | Remote MCP Connector URL | `https://deeprouter.ai/mcp` | **Future / Later** |
+| Claude | Connector setup guide | Claude Settings → Connections 步骤说明 | **Future / Later** |
+| Claude Code | MCP install command | `claude mcp add --transport http ...` | **Future / Later** |
+| Claude Code | Skill Package | `claude-code-skill.zip`（含 SKILL.md + examples） | **Future / Later** |
 
 **Artifact 安全规则（适用所有 artifact）：**
 - 安装包不含 instruction template。

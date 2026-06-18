@@ -54,14 +54,25 @@ Admin 创建并发布 Skill
 → Billing / Analytics 归因
 ```
 
-**V1 P1/P2 路径（非 P0）：**
+**MVP 范围（P0 + P1）：**
 
-| 路径 | 平台 | 优先级 |
+| 路径 | 平台 | 优先级 | 备注 |
+|---|---|---|---|
+| Native DeepRouter Skill Run | DeepRouter Skill Run Page | **P0** | 最快路径；无需外部工具；session token 认证 |
+| ChatGPT Custom GPT Action | ChatGPT | **P0** | 经验证的外部客户端演示路径；`chatgpt-install.json` + Connection Key |
+| OpenAI API Tool Schema | OpenAI API function calling | P1 | 复用 ChatGPT Action schema；面向开发者 |
+
+**Future / Later（不阻塞 MVP）：**
+
+| 路径 | 平台 | 备注 |
 |---|---|---|
-| Claude Code MCP Install | Claude Code + MCP | P1 |
-| Gemini API Developer | Gemini API function calling | P2 |
-| Claude API / MCP Connector | Claude API / Claude.ai | P2 |
-| OpenAI API Developer | OpenAI function calling | P2 |
+| Gemini Spark Skill Package（instruction-only） | Gemini Spark | 非等同于 ChatGPT Actions；不触发 DeepRouter 保护 Runtime |
+| Gemini API / MCP Runtime Connector | Gemini API / Gemini CLI | 面向开发者；P2 after MVP |
+| Consumer Gemini External Action | Gemini chat.google.com | pending platform support（Google 未开放） |
+| Claude Code MCP Install | Claude Code + MCP | P1 after MVP |
+| Claude Remote MCP Connector | Claude.ai / Claude API | P2 after MVP |
+
+> **Platform Honesty Note：** ChatGPT is the confirmed P0 external-client demo for MVP. Gemini, Claude, and Claude Code integrations are Future / Later items and must not block the ChatGPT demo. DeepRouter can provide Gemini Spark packages in future, but they are instruction-only and not equivalent to ChatGPT Actions.
 
 ---
 
