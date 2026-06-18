@@ -99,10 +99,7 @@ export function ApiKeyRevealDialog({
           </div>
 
           <p className='text-muted-foreground text-sm'>
-            {t('Please copy it now and save it somewhere safe.')}{' '}
-            <span className='text-foreground font-semibold'>
-              {t('You will not be able to see it again.')}
-            </span>
+            {t('Please copy it now and save it somewhere safe.')}
           </p>
 
           <p className='text-muted-foreground text-sm'>
