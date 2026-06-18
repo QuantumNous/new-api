@@ -12,11 +12,12 @@
 
 | Decision | V1 UX Baseline |
 |---|---|
-| Skill 使用路径 | 安装优先（Install-First）：用户从 Marketplace 启用 Skill，下载或复制平台专属安装包，导入到自己的 AI 客户端，然后自然使用；普通用户没有 Playground Skill 执行入口 |
-| 安装包（Install Artifact）| P0 — Skill Detail 提供每个平台的安装包：ChatGPT install file / Gemini function JSON / Claude MCP connector URL / Claude Code install command 或 zip |
+| **P0-A Skill 使用路径（主路径）** | **Skill Run Page**（`/skills/:id/run`）：用户从 Marketplace 启用 Skill，进入 Skill Run Page，填写表单，点击 Run，在 DeepRouter 内直接获得结构化输出。最快路径，无需安装任何外部工具。 |
+| **P0-B Skill 安装路径（互操作路径）** | ChatGPT Custom GPT Action：用户下载 `chatgpt-install.json` 或复制 Import URL，安装到自己的 Custom GPT，证明 DeepRouter Skill 可在外部 AI 客户端运行。 |
+| P1 外部平台路径 | Claude Code MCP Install（`claude mcp add --transport http ...`） |
+| P2 外部平台路径 | Gemini API / Claude API / Consumer Gemini（Future）|
 | 用户身份标识 | 用户界面统一称 **Connection Key**；技术文档 / Advanced 区域保留 API Key 称谓 |
-| External AI Client Invocation | P0 — 外部 AI 客户端携带 Connection Key（作为 Authorization Bearer）调用 DeepRouter Skill API |
-| Playground Skill Picker | 不对用户暴露；Playground 保持通用聊天界面 |
+| Playground Skill Picker | 不对用户暴露；Playground 保持通用聊天界面；Skill 执行通过 Skill Run Page（P0-A），不通过 Playground |
 | Unauthenticated Public Skill API | 不支持；所有 Skill API 调用需要有效 Connection Key |
 | Kids Mode | Closed beta / feature-flagged by default until Product + Safety declare GA |
 | Kids UI when flag off | Hide Kids filters and Kids-exclusive browsing entry from normal users |
@@ -53,7 +54,8 @@
 | Nav Item | Route Example | Visibility | Purpose |
 |---|---|---|---|
 | Skills / Marketplace | `/skills` | Anonymous, User, Admin, Ops | Browse and discover Skills |
-| My Skills | `/skills/my` | Logged-in users | Manage enabled Skills |
+| My Skills | `/skills/my` | Logged-in users | Manage enabled Skills；显示「Run」CTA |
+| **Skill Run Page** | `/skills/:id/run` | Logged-in + enabled users | **P0-A 主执行入口**：填写参数、运行 Skill、查看结构化输出；提供「Connect to ChatGPT」跳转 |
 | Playground | `/playground` | Logged-in users | General chat only — no Skill execution for normal users; Admin uses admin_preview endpoint separately |
 | Admin Skills | `/admin/skills` | Super Admin | Create and operate official Skills |
 | Skill Analytics | `/admin/skill-analytics` or `/ops/skills` | Operation, Product/Growth, Super Admin | Monitor usage and revenue |
@@ -261,11 +263,86 @@ Primary action: `Explore Skills`.
 
 ---
 
-### 4.4 ~~Playground Skill Picker~~ — V1 不适用
+### 4.4 Skill Run Page（P0-A — 主执行入口）
 
-> 普通用户没有在 DeepRouter Playground 内执行 Skill 的 UI。Playground 保持原有的通用聊天界面，不显示 Skill Picker。用户使用 Skill 的唯一路径是从 Skill Detail / My Skills 下载 tool spec，安装到自己的 ChatGPT / Gemini / Claude 中使用。
+**路由：`/skills/:id/run`**
 
-### 4.4a Install & Download Flow（V1 P0）
+#### Goal
+
+P0-A 是 V1 最快的 Skill 使用路径。用户在 DeepRouter 内直接执行 Skill，无需配置 ChatGPT、MCP 或任何外部工具。适合所有用户群体（包括非技术用户）。
+
+#### Page Layout
+
+```
+┌─ Skill Run Page ──────────────────────────────────────────────┐
+│  [Skill name]  [Short description]  [Category badge]          │
+│  Status: ✅ Enabled                                           │
+├───────────────────────────────────────────────────────────────┤
+│  INPUT                                                        │
+│  [按 tool_input_schema 动态渲染的表单]                         │
+│  Contract Text*   [大文本框]                                  │
+│  Review Focus     [下拉: general / tenant_risks / ip_ownership]│
+│                                                               │
+│                              [Run ▶]                         │
+├───────────────────────────────────────────────────────────────┤
+│  RESULT                                                       │
+│  Summary: 合约整体风险中等，存在 2 处高风险条款。              │
+│  Risks:                                                       │
+│    🔴 High  提前终止条款  — 建议延长通知期至 30 天            │
+│    🟡 Med   SLA 条款     — 缺少补偿机制                       │
+│                                                               │
+│  run_id: run_abc123  |  time: 4.2s  |  cost: $0.09          │
+├───────────────────────────────────────────────────────────────┤
+│  💡 Also use this Skill in ChatGPT →  [Connect to ChatGPT]  │
+└───────────────────────────────────────────────────────────────┘
+```
+
+#### Input Form Rules
+
+| 字段类型 | `tool_input_schema` 对应 | UI 组件 |
+|---|---|---|
+| 短文本 | `type: string`，无 `format` | 单行 text input |
+| 长文本 | `type: string`，`format: textarea` 或 `maxLength > 500` | 多行 textarea |
+| 枚举 | `type: string`，有 `enum` 数组 | Select 下拉 |
+| 数字 | `type: number` / `integer` | 数字 input |
+| 布尔 | `type: boolean` | Toggle / Checkbox |
+| `required` 字段 | `required` 数组中的字段 | 标注 * 且强制验证 |
+
+#### Result Display Rules
+
+| 输出类型 | 渲染方式 |
+|---|---|
+| `type: string` | 文本展示，支持 Markdown |
+| `type: object` | 展开式 key-value 面板；嵌套对象可折叠 |
+| `type: array` | 列表展示；每项可展开 |
+| `severity: high/medium/low` | 彩色徽章（🔴🟡🟢） |
+
+**永不展示：** `instruction_template`、provider 原始响应、内部 `skill_version_id`
+
+#### States
+
+| 状态 | UI 行为 |
+|---|---|
+| 未登录 | 重定向登录页，登录后返回 |
+| 已登录但未 Enable | 显示 Enable CTA；不显示输入表单 |
+| 已 Enable，表单空 | 显示输入表单；Run 按钮灰色（必填未填） |
+| 执行中 | Run 按钮 loading；显示进度提示 |
+| 执行成功 | 展示格式化结果 + 元数据；Run 恢复可用 |
+| Quota 超限 | 显示升级 CTA；不显示结果区 |
+| Safety 拦截 | 显示安全提示；不暴露拦截细节 |
+| 执行超时 | 显示「执行超时，请稍后重试」；不扣费 |
+| Skill deprecated | 输入表单可用，顶部显示「此 Skill 已废弃」警告 |
+
+#### Navigation to P0-B
+
+Skill Run Page 底部固定显示：
+> **💡 Use this Skill in ChatGPT** → [Connect to ChatGPT]（跳转至 Install Dialog → ChatGPT Tab）
+
+> 注：~~Playground Skill Picker~~ 不复活。Playground 保持通用聊天界面。P0-A 的执行入口是独立 Skill Run Page，不经过 Playground。
+
+---
+
+### 4.4a Install & Download Flow — P0-B ChatGPT + P1/P2 其他平台
 
 #### Goal
 

@@ -34,19 +34,22 @@
 ## 4. Product and Functional Readiness
 
 - [ ] Marketplace list, search, filter, detail, enable, disable, and lock states match Functional and UX PRDs.
-- [ ] My Skills state reflects lifecycle, entitlement, and user enablement.
+- [ ] My Skills state reflects lifecycle, entitlement, and user enablement; My Skills 显示「Run」CTA，点击进入 Skill Run Page。
 - [ ] Playground Skill Picker is NOT exposed to normal users; Playground UI remains general chat only with no Skill selection UI.
-- [ ] Relay accepts Skill execution only from authenticated supported entry points: external AI clients with valid API Key via `POST /v1/skills/execute/{skill_id}`, and `admin_preview` endpoint for Super Admin only; normal user Playground Skill execution is not a supported entry point.
+- [ ] **P0-A: Skill Run Page（`/skills/:id/run`）正常工作**：已登录且已 Enable 的用户可访问；未 Enable 用户看到 Enable CTA；输入表单按 `tool_input_schema` 动态渲染；执行成功后结果按 `tool_output_schema` 格式化展示；`entry_point=native_deeprouter` 正确记录在 billing 和 analytics 事件中。
+- [ ] Skill Run Page 执行链包含：Auth → Entitlement → Quota → Kids Safety → 服务端注入 instruction_template → 执行 → 输出验证；`instruction_template` 不出现在任何响应字段、错误消息或日志中。
+- [ ] Skill Run Page 展示 `run_id`、执行时间、`input_tokens`、`output_tokens`、`cost_usd`；不展示 `instruction_template` 或内部 `skill_version_id`。
+- [ ] Skill Run Page 底部有「Connect to ChatGPT」入口，跳转至 Install Dialog ChatGPT Tab。
+- [ ] Relay accepts Skill execution only from authenticated supported entry points: Skill Run Page（`native_deeprouter`）, external AI clients with valid Connection Key via `POST /v1/skills/execute/{skill_id}`（`external_ai_client`）, and `admin_preview` endpoint for Super Admin only; Playground Skill execution is not a supported entry point.
+- [ ] **P0-B: ChatGPT Custom GPT Action 安装路径正常工作**：用户可从 Skill Detail 下载 `chatgpt-install.json` 或复制 Import URL；导入后 ChatGPT 可识别 Skill tool schema；Authentication 配置 Bearer token；Custom GPT 可成功调用 DeepRouter execute endpoint；`entry_point=external_ai_client` 正确记录。
+- [ ] `chatgpt-install.json` 不含 Connection Key、不含 `instruction_template`、不含执行逻辑（Security 手动审查确认）。
 - [ ] Deprecated and archived Skill behavior matches lifecycle rules.
-- [ ] P1 recommendation rails and CSV export are not required for P0 launch unless explicitly promoted.
+- [ ] P1 recommendation rails, CSV export, Claude Code MCP path are not required for P0 launch unless explicitly promoted.
 - [ ] Unauthenticated Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, execution logic download, and full sharing/referral are excluded from V1 P0.
-- [ ] Adapter download endpoints (`GET /v1/skills/{skill_id}/adapters/{format}`) return correct platform-specific formats for all 6 formats: `openai-action`、`openai-tool`、`gemini-function`、`anthropic-tool`、`claude-code`、`mcp-config`；所有 Adapter 输出不含 `instruction_template` 或执行逻辑（须由 Security 手动审查确认）。
-- [ ] `claude-code.zip` 解压后含合法 SKILL.md（`allowed-tools: mcp__deeprouter__<tool_function_name>`），Claude Code 可识别。
-- [ ] Live MCP Server（`GET /mcp` capability discovery、`POST /mcp` tool call）按 MCP 2024-11-05 协议响应；`GET /mcp` 只返回调用者已 enabled 的 Skill。
-- [ ] Skill Detail 页面分平台 Tab（ChatGPT / OpenAI API / Gemini / Claude / Claude Code / MCP）展示安装引导；含下载按钮、CLI 命令、API Key 配置说明。
-- [ ] External AI client can call `/v1/skills/execute/{skill_id}` with valid API Key and receive tool result; same production-equivalent entitlement, Safety, Kids safety, quota, and rate limit checks apply as any authenticated execution path.
-- [ ] External AI client call with invalid/missing API Key receives 401 `AUTH_REQUIRED`.
-- [ ] Billing event for external AI client call includes `entry_point=external_ai_client`.
+- [ ] ChatGPT Adapter download endpoint (`GET /v1/skills/{skill_id}/adapters/openai-action`) returns valid `openai-action.json`；输出不含 `instruction_template` 或执行逻辑（Security 手动审查）。
+- [ ] External AI client call with valid Connection Key receives correct tool result; same entitlement, Safety, Kids, quota, and rate limit checks as native_deeprouter path.
+- [ ] External AI client call with invalid/missing Connection Key receives 401 `AUTH_REQUIRED`.
+- [ ] Billing event for native_deeprouter call includes `entry_point=native_deeprouter`；billing event for external AI client call includes `entry_point=external_ai_client`.
 
 ## 5. Data and API Readiness
 

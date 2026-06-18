@@ -10,33 +10,44 @@
 
 V1 仅支持 **官方 curated Skills**。终端用户不能创建、上传或复制 Skill 执行逻辑。Skill 的核心执行逻辑（`execution_handler`）必须由服务端托管，永不暴露给客户端。
 
-**V1 核心范式：Skills 是可安装的跨平台 API Tool，不是 Prompt 模板。**
+**V1 核心范式：DeepRouter 是跨平台 AI Skill 平台，提供两条 P0 用户路径。**
 
-DeepRouter 后端维护每个 Skill 的 **Canonical Skill Manifest**（唯一内部定义：`tool_function_name` + `tool_input_schema` + `tool_output_schema` + `execution_handler`），并通过 **Adapter 层**自动生成各平台所需格式。用户只需从 Marketplace 启用 Skill，选择自己使用的 AI 平台，下载或 connect 对应的 Adapter 输出即可。每次 AI 调用 Skill 时，请求打到 DeepRouter 服务端，需要有效 API Key，执行配额从用户帐号扣减。
+DeepRouter 后端维护每个 Skill 的 **Canonical Skill Manifest**（唯一内部定义：`tool_function_name` + `tool_input_schema` + `tool_output_schema` + `execution_handler`）。
 
-**用户使用 Skill 只有一条路：通过 Adapter（下载安装包或 connect MCP Server），在自己的 AI 客户端中调用。** DeepRouter 不提供内置 Skill 执行 Playground 给普通用户。Playground 仅供 Admin 在发布前测试 Skill（`admin_preview` 路径）。
+**V1 两条 P0 执行路径：**
 
-V1 必须交付以下闭环：
+| 路径 | 入口 | entry_point | 适用用户 |
+|---|---|---|---|
+| **P0-A** Native DeepRouter Use | Skill Run Page（`/skills/:id/run`） | `native_deeprouter` | 所有登录用户，非技术友好，最快上手 |
+| **P0-B** ChatGPT Install Path | Custom GPT Action → DeepRouter API | `external_ai_client` | ChatGPT 用户，证明跨平台互操作性 |
 
+**P0-A：Native DeepRouter Use 闭环（主路径）**
 ```text
-Admin 创建 Skill（Canonical Manifest：tool schema + 服务端执行逻辑）
-→ Admin 通过 admin_preview 端点测试 Skill（不对用户开放）
-→ 发布到 Marketplace
-→ 用户浏览 / 查看详情 / 启用
-→ 用户选择平台并获取 Adapter：
-    - ChatGPT 用户       → 下载 openai-action.json，安装到 Custom GPT Action
-    - OpenAI API 开发者  → 下载 openai-tool.json，集成到自己的 app
-    - Gemini API 开发者  → 下载 gemini-function.json，集成到 Gemini app
-    - Claude API 开发者  → 下载 anthropic-tool.json，集成到 Claude app
-    - Claude Code 用户   → 下载 claude-code.zip（含 SKILL.md），安装到本地 Claude Code
-    - MCP-compatible 工具 → connect https://deeprouter.ai/mcp（live MCP Server）
-→ 用户在自己的 AI 客户端对话，AI 自动决定调用 Skill tool
-→ AI 客户端携带用户 API Key 调用 POST /v1/skills/execute/{skill_id}
-→ DeepRouter 验证 API Key → Entitlement / Safety 检查 → 执行 Skill 逻辑
-→ 返回统一格式 tool result（含 run_id / status / usage）
-→ AI 客户端整合进回答
+Admin 创建 Skill → 发布
+→ 用户启用 Skill
+→ 用户进入 Skill Run Page（/skills/:id/run）
+→ 填写参数（按 tool_input_schema 生成的表单）→ 点击 [Run]
+→ DeepRouter 验证 Connection Key → Entitlement / Safety → 执行
+→ 返回结构化结果（entry_point=native_deeprouter）
+→ Skill Run Page 展示格式化输出
 → Billing / Analytics 归因
-→ Operations 根据数据优化
+```
+
+**P0-B：ChatGPT Install Path 闭环（互操作性演示）**
+```text
+Admin 创建 Skill → 发布
+→ 用户启用 Skill
+→ 用户从 Skill Detail 获取 ChatGPT install file / Import URL
+→ 安装到 Custom GPT Action → 粘贴 Connection Key → 保存
+→ 用户在 Custom GPT 自然对话 → ChatGPT 自动调用 DeepRouter
+→ DeepRouter 验证 → 执行 → 返回（entry_point=external_ai_client）
+→ Billing / Analytics 归因
+```
+
+**Admin Preview 路径（内部测试，非用户路径）**
+```text
+Admin 通过 /api/v1/admin/skills/:id/preview 端点测试 Skill（entry_point=admin_preview）
+→ 不对普通用户开放；不计入业务 analytics；记入安全审计
 ```
 
 ### 1.2 In Scope
@@ -46,30 +57,32 @@ Admin 创建 Skill（Canonical Manifest：tool schema + 服务端执行逻辑）
 | Skill Supply | Super Admin 创建、编辑、预览、发布、归档官方 Skill | P0 |
 | Marketplace | 用户浏览、搜索、查看详情、启用、停用 Skill | P0 |
 | My Skills | 用户查看已启用 Skill 及可用/锁定状态 | P0 |
-| Canonical Skill Manifest | 后端维护每个 Skill 的唯一内部标准（tool schema + execution metadata）；所有 Adapter 从此生成 | P0 |
-| Adapter Layer — ChatGPT | 生成 openai-action.json（Custom GPT Action）和 openai-tool.json（API function schema） | P0 |
-| Adapter Layer — Gemini | 生成 gemini-function.json（Gemini API Function Declaration） | P0 |
-| Adapter Layer — Claude | 生成 anthropic-tool.json（Claude API tool schema）和 MCP connector config | P0 |
-| Adapter Layer — Claude Code | 生成 claude-code.zip（含 SKILL.md、allowed-tools、examples） | P0 |
-| Live MCP Server | 暴露 GET/POST /mcp 端点；支持 Claude / Claude Code / Gemini CLI 直接 connect，无需下载 | P0 |
-| Multi-Platform Install Guides | Skill Detail 页面提供各平台安装步骤（Copy URL / Download / CLI command） | P0 |
-| External API Invocation | 接收来自外部 AI 客户端的 tool call 请求；验证 API Key 并执行 Skill；这是用户使用 Skill 的唯一路径 | P0 |
+| **Skill Run Page（P0-A）** | `/skills/:id/run`：按 tool_input_schema 生成输入表单；用户填参数、点 Run；展示结构化输出；entry_point=native_deeprouter | P0 |
+| Canonical Skill Manifest | 后端维护每个 Skill 的唯一内部标准（tool schema + execution metadata）；P0-A 和 P0-B 均从此执行 | P0 |
+| **ChatGPT Adapter（P0-B）** | 生成 `chatgpt-install.json`（OpenAPI schema）和 Import URL；提供 Custom GPT 安装引导 | P0 |
+| External API Invocation（P0-B） | 接收来自外部 AI 客户端（ChatGPT）的 tool call 请求；验证 Connection Key 并执行 | P0 |
 | Admin Preview | Admin 在发布前通过 admin_preview 端点测试 Skill；不对普通用户开放 | P0 |
-| Skill Execution | 服务端执行 Skill 逻辑，客户端只见 tool result，不见执行逻辑 | P0 |
-| API Key Binding | tool spec 配合用户 API Key 使用；无有效 Key 则 tool 调用失败；API Key 可绑定 Skill 范围 | P0 |
-| Entitlement | 每次 tool 调用前检查订阅、计划、quota、Skill 状态 | P0 |
-| Billing Attribution | Skill 执行事件可归因到 Skill、版本、用户、计划、入口（external_ai_client / admin_preview） | P0 |
+| Skill Execution Runtime | 服务端执行 Skill 逻辑；客户端只见 tool result，不见执行逻辑；所有 entry_point 共用同一执行链 | P0 |
+| Connection Key Binding | Connection Key 绑定用户帐号；无有效 Key 则执行失败；Key 可被吊销 | P0 |
+| Entitlement | 每次执行前检查订阅、计划、quota、Skill 状态 | P0 |
+| Billing Attribution | 执行事件归因到 Skill、版本、用户、计划、entry_point（native_deeprouter / external_ai_client / admin_preview） | P0 |
 | Analytics | 关键生命周期事件和 Data Entry Point | P0 |
 | Operations | 最小运营 Dashboard：Top、Blocked、Funnel、Revenue | P0 |
 | Kids Safety | 服务端 Kids Session 判断、Kids Safe 拦截、审批要求 | P0 if Kids enabled |
 | Audit | Admin 关键写操作进入 audit log | P0 |
-| Feature Flag | Marketplace 可灰度开启和快速关闭 | P0 |
+| Feature Flag | Marketplace 和 Skill Run Page 可灰度开启和快速关闭 | P0 |
+| Adapter Layer — OpenAI API / Claude Code | openai-tool.json / claude-code.zip（SKILL.md） | P1 |
+| Live MCP Server（/mcp） | 暴露 GET/POST /mcp；Claude Code 等 MCP-compatible 工具直接 connect | P1 |
+| Claude Code Install Path | claude mcp add 命令 + claude-code-skill.zip | P1 |
+| Adapter Layer — Gemini / Claude API | gemini-function.json / anthropic-tool.json | P2 |
+| Consumer Gemini Direct Install | 依赖平台支持，目前标记为 Future | P2 / Future |
+| Multi-Platform Install Guides（全平台） | 所有平台完整引导 | P1 |
 
 ### 1.3 Out of Scope
 
 | Item | V1 Decision | Target |
 |---|---|---|
-| 用户 Playground 内执行 Skill | 不支持；用户只能通过下载 tool spec 安装到外部 AI 客户端使用；Playground 仅供 Admin 测试 | V2 可评估 |
+| 用户 Playground 内执行 Skill（旧 M04） | 不支持；Playground 保持通用聊天；Skill 执行通过 Skill Run Page（P0-A）或 ChatGPT Install（P0-B） | 已被 P0-A 替代 |
 | 用户自建 Skill | 不支持 | V2 |
 | Creator Marketplace / 分成 | 不支持 | V2 |
 | 执行逻辑下载 | 永不支持；tool spec 可下载但不含执行逻辑 | N/A |
@@ -179,63 +192,65 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 4. 确认输出正确后，Admin 通过 Publish Checklist 发布 Skill。
 5. 系统记录 `skill_admin_action`，`entry_point=admin_preview`。
 
-### 3.4 User Installs Skill into AI Client and Uses Naturally
+### 3.4 P0-A User Executes Skill — Native DeepRouter（主路径）
 
-所有平台路径遵循同一产品心智：**Enable → 获取安装包 → 导入/添加到 AI 客户端 → 粘贴 Connection Key → 自然对话使用**
+> **P0 优先级。适用所有登录用户。最快路径，无需任何外部工具。**
 
-#### 3.4a ChatGPT — Custom GPT Action
+1. 用户在 Marketplace 启用 Skill。
+2. 系统在 My Skills 列表和 Skill Detail 页面显示「[Run]」CTA。
+3. 用户点击「Run」，进入 Skill Run Page（`/skills/:id/run`）。
+4. Skill Run Page 根据 `tool_input_schema` 动态渲染输入表单（text / textarea / select / number 等字段类型）。
+5. 用户填写参数，点击「[Run]」。
+6. DeepRouter 执行链：验证 Connection Key → Entitlement → Quota → Kids Safety → 服务端注入 `instruction_template` → 执行 → 结构化输出验证。
+7. Skill Run Page 展示格式化输出（按 `tool_output_schema` 渲染）。
+8. 系统记录 `skill_used`，`entry_point=native_deeprouter`，`run_id`，`usage`，`cost_usd`。
+9. Billing 归因：配额从用户账号扣减。
 
-1. User 在 Marketplace 启用 Skill。
-2. User 进入 Skill Detail → 点击「Use in my ChatGPT」。
+> `instruction_template` 始终在服务端注入，不暴露给用户，不出现在任何响应字段。
+
+### 3.4b P0-B User Installs Skill — ChatGPT Custom GPT Action（互操作性路径）
+
+> **P0 优先级。适用 ChatGPT 用户，证明 DeepRouter Skill 可在外部 AI 客户端运行，执行逻辑仍在服务端保护。**
+
+1. 用户在 Marketplace 启用 Skill。
+2. 用户进入 Skill Detail → 点击「Use in my ChatGPT」。
 3. 复制 ChatGPT Import URL（推荐）或下载 `chatgpt-install.json`。
 4. 打开 ChatGPT → My GPTs → Create/Edit Custom GPT → Configure → Actions → Create new action。
 5. 粘贴 Import URL 或上传 install file；ChatGPT 自动识别 Skill 配置。
-6. 设置 Authentication → API Key → Bearer → 粘贴 DeepRouter Connection Key（在 Install Dialog 中复制）。
+6. Authentication → API Key → Bearer → 粘贴 DeepRouter Connection Key（Install Dialog 内复制）。
 7. 保存 Custom GPT。
-8. 在 Custom GPT 中自然对话；ChatGPT 自动决定何时调用 DeepRouter Skill tool。
+8. 在 Custom GPT 中自然对话；ChatGPT 自动决定调用 DeepRouter Skill tool。
 9. ChatGPT 携带 Connection Key 调用 `POST /v1/skills/execute/{skill_id}`。
-10. DeepRouter 验证 Key、检查 Enable 状态、注入 instruction_template、执行、返回结构化结果。
-11. ChatGPT 整合结果并回复用户。
-12. 系统记录 usage / billing，`entry_point=external_ai_client`。
+10. DeepRouter 验证 → 执行 → 返回结构化结果（`entry_point=external_ai_client`）。
+11. ChatGPT 整合结果并回复用户。Billing 归因。
 
-> **产品原则**：`chatgpt-install.json` 不含 Connection Key、不含 instruction_template、不含执行逻辑。安装文件只告诉 ChatGPT 如何调用 DeepRouter；真正的 Skill 逻辑在 DeepRouter 服务端运行。
+> `chatgpt-install.json` 不含 Connection Key、不含 `instruction_template`、不含执行逻辑。安装文件只告诉 ChatGPT 如何调用 DeepRouter。
 
-#### 3.4b Gemini API 开发者
+### 3.4c P1 Claude Code — MCP Install
 
-1. User 在 Marketplace 启用 Skill。
-2. User 进入 Skill Detail → 「Use in my Gemini App」→ 下载 `gemini-function.json`。
-3. 开发者将 function declaration 导入 Gemini API 应用后端；Connection Key 存为环境变量。
-4. 用户与 Gemini 对话；Gemini 根据 function declaration 决定发出 function call。
-5. 开发者后端收到 function call → 调用 `POST /v1/skills/execute/{skill_id}`，携带 Connection Key。
-6. DeepRouter 执行并返回结构化结果。
-7. 开发者后端将结果作为 functionResponse 返回 Gemini；Gemini 整合为最终答案。
+> **P1 优先级。**
 
-> **重要说明**：消费级 Gemini（chat.google.com）暂不支持导入外部 function spec。此 Track 面向 Gemini API 开发者。消费级 Gemini 直接安装路径标记为 **Future / pending platform support**。
-
-#### 3.4c Claude — Remote MCP Connector
-
-1. User 在 Marketplace 启用 Skill。
-2. User 进入 Skill Detail → 「Connect to Claude」。
-3. 复制 DeepRouter Remote MCP Connector URL：`https://deeprouter.ai/mcp`。
-4. 打开 Claude → Settings → Connections → Add custom connector → 粘贴 URL。
-5. 使用 Connection Key 或 OAuth 认证。
-6. Claude 自动发现该用户已 enabled 的所有 Skill（通过 `GET /mcp`）。
-7. 用户自然对话；Claude 自动调用 DeepRouter MCP tool。
-8. DeepRouter 执行并返回结构化结果；Claude 整合为最终答案。
-
-> **产品原则**：Connector 只暴露 tool definition（名称 + 参数 schema），不含 instruction_template；Connection Key 仅用于认证，不暴露给 Claude 模型。
-
-#### 3.4d Claude Code — MCP Install
-
-1. User 在 Marketplace 启用 Skill。
-2. User 进入 Skill Detail → 「Use in Claude Code」→ 复制安装命令。
-3. 在终端运行：
-   `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"`
+1. 用户在 Marketplace 启用 Skill。
+2. 用户进入 Skill Detail → 「Use in Claude Code」→ 复制安装命令。
+3. 在终端运行：`claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"`
 4. 备选：下载 `claude-code-skill.zip`，解压到项目根目录。
-5. 在 Claude Code 中自然对话：「Review contracts/vendor-api.md for legal risk.」
-6. Claude Code 调用 DeepRouter MCP tool → DeepRouter 执行 → 结果返回。
+5. 在 Claude Code 中自然对话；Claude Code 调用 DeepRouter MCP tool → 执行 → 结果返回（`entry_point=external_ai_client`）。
 
-> **产品原则**：Connection Key 不写入 zip 文件；install command 中的 Key 只存在于用户终端，不写入代码仓库。
+### 3.4d P2 Gemini API Developer
+
+> **P2 优先级。消费级 Gemini 直接安装为 Future / pending platform support。**
+
+1. 用户启用 Skill → 下载 `gemini-function.json`。
+2. 导入到 Gemini API 应用后端；Connection Key 存为环境变量。
+3. Gemini 发出 function call → 开发者后端调用 `POST /v1/skills/execute/{skill_id}` → 返回 functionResponse（`entry_point=external_ai_client`）。
+
+### 3.4e P2 Claude API / Remote MCP Connector
+
+> **P2 优先级。**
+
+1. 用户启用 Skill → 复制 `https://deeprouter.ai/mcp`。
+2. 添加为 Claude connector，使用 Connection Key / OAuth 认证。
+3. Claude 自动发现已 enabled Skills → 自然对话调用（`entry_point=external_ai_client`）。
 
 ### 3.5 User Membership Expires
 
@@ -305,15 +320,29 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-U12 | View Kids-compatible Skills | P0 if Kids enabled | Kids Session only sees safe or exclusive allowed Skills |
 | FR-U13 | Handle unavailable Skill | P0 | Shows friendly unavailable message for archived/deprecated cases |
 
-### 4.3 ~~Playground Skill Picker~~ — 已从 V1 移除
+### 4.3 Skill Run Page（P0-A: Native DeepRouter Use）
 
-> 普通用户没有在 DeepRouter Playground 内执行 Skill 的路径。Playground Skill Picker 不在 V1 范围内。Playground 仅用于 Admin 发布前的 Preview 测试（admin_preview 路径），不是用户功能。
+P0-A 是 V1 的主要用户执行路径。用户在 DeepRouter 内直接运行 Skill，无需安装外部工具。
+
+| ID | Requirement | Priority | Acceptance Notes |
+|---|---|---|---|
+| FR-SRP1 | Skill Run Page 路由：`/skills/:id/run` | P0 | 登录用户且已 Enable 该 Skill 才能访问；未 Enable 则引导 Enable 流程 |
+| FR-SRP2 | 输入表单根据 `tool_input_schema` 动态渲染 | P0 | 支持 string（text/textarea）、number、boolean（checkbox）、enum（select）字段类型；`required` 字段标注必填 |
+| FR-SRP3 | 点击「Run」触发 `/v1/skills/execute/{skill_id}` | P0 | 携带 Connection Key（服务端从 session token 解析，不需要用户手动输入）；`entry_point=native_deeprouter` |
+| FR-SRP4 | 执行链：Auth → Entitlement → Quota → Kids → 注入 template → 执行 → 输出验证 | P0 | 与 P0-B 使用同一执行链；`instruction_template` 在服务端注入，不返回给前端 |
+| FR-SRP5 | 结果展示区按 `tool_output_schema` 格式化渲染 | P0 | 支持 string、number、array、object 类型展示；JSON 折叠展示；不暴露 `instruction_template` |
+| FR-SRP6 | 展示执行元数据 | P0 | 显示 `run_id`、执行时间（ms）、`input_tokens`、`output_tokens`、`cost_usd` |
+| FR-SRP7 | 执行历史（可选） | P1 | My Skills → 该 Skill → 历史记录，显示最近 N 次 native_deeprouter 执行记录 |
+| FR-SRP8 | 错误状态展示 | P0 | 按错误码展示用户可读信息（quota exceeded / not enabled / safety blocked 等）；不暴露内部错误 |
+| FR-SRP9 | 提供「Connect to ChatGPT」入口 | P0 | Skill Run Page 侧边栏或底部提供 P0-B 安装入口，引导用户将 Skill 连接到 ChatGPT |
+
+> ~~Playground Skill Picker~~：旧 M04 不复活。Playground 保持通用聊天界面。P0-A 的原生执行入口是独立的 Skill Run Page，不是 Playground。
 
 ### 4.4 Relay / Gateway Execution
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-G1 | Accept active `skill_id` from external AI clients | P0 | `skill_id` 来自 URL path（`/v1/skills/execute/{skill_id}`）；Playground Skill Picker 不在用户路径内；admin_preview 端点独立 |
+| FR-G1 | 支持来自所有 entry_point 的执行请求 | P0 | `skill_id` 来自 URL path；entry_point 枚举：`native_deeprouter`（P0-A Skill Run Page）、`external_ai_client`（P0-B ChatGPT 等）、`admin_preview`（Admin 测试）；同一执行链处理所有入口 |
 | FR-G2 | Resolve authenticated user, tenant, session | P0 | Anonymous execution is not allowed |
 | FR-G3 | Resolve Kids Session server-side | P0 if Kids enabled | Client field ignored |
 | FR-G4 | Load immutable execution context | P0 | Snapshot includes skill, version, plan, model whitelist, `max_input_tokens`, monetization, template |

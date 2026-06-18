@@ -6,38 +6,62 @@
 
 ## 1. Product Positioning
 
-DeepRouter Skill Marketplace V1 是一个官方托管的跨平台 AI Tool 平台。DeepRouter 后端维护每个 Skill 的**唯一权威定义（Canonical Skill Manifest）**，并通过 Adapter 层自动生成各 AI 平台所需的安装格式，覆盖 ChatGPT、Gemini、Claude、Claude Code 等主流 AI 客户端和开发者工具。
+DeepRouter Skill Marketplace V1 是一个官方托管的跨平台 AI Skill 平台。V1 交付两条 P0 用户闭环，覆盖不同技术程度的用户群体。
+
+**V1 两条 P0 路径：**
+
+| 路径 | 名称 | 适用用户 | 核心价值 |
+|---|---|---|---|
+| **P0-A** | Native DeepRouter Use | 所有用户（非技术友好） | 最快路径：在 DeepRouter 内直接运行 Skill，无需安装任何外部工具 |
+| **P0-B** | ChatGPT Install Path | ChatGPT 用户 | 互操作性演示：将 Skill 安装到自己的 Custom GPT，在 ChatGPT 中自然使用；证明 DeepRouter Skill 可在外部 AI 客户端运行，执行逻辑仍在服务端保护 |
 
 **核心设计原则：**
 
-- **Canonical Manifest 是 Source of Truth**：DeepRouter 只维护一份 Skill 内部标准定义，OpenAI / Gemini / Claude 所需格式均由 Adapter 层从 Manifest 自动生成，后端不存多份
-- **Adapter 层解决平台差异**：每个平台有独立 Adapter，生成该平台原生格式（ChatGPT Custom GPT Action JSON、Gemini Function Declaration、Claude API tool schema、Claude Code SKILL.md 等）
-- **执行逻辑永不离开服务端**：`instruction_template` / `execution_handler` 始终在 DeepRouter 服务器运行，不含于任何 Adapter 输出文件
-- **API Key 绑定帐号**：每次 tool 调用需有效 DeepRouter API Key，配额从帐号扣减，无法蹭用或转让
-- **Live MCP Server**：DeepRouter 同时暴露标准 MCP Server 端点（`/mcp`），支持 Claude / Claude Code / Gemini CLI 等 agent 工具直接 connect，无需手动下载文件
+- **Canonical Manifest 是 Source of Truth**：DeepRouter 只维护一份 Skill 内部标准定义（tool schema + execution_handler + instruction_template），所有执行路径均从 Canonical Manifest 运行
+- **执行逻辑永不离开服务端**：`instruction_template` / `execution_handler` 始终在 DeepRouter 服务器运行；不含于任何 Adapter 输出文件；不暴露给任何 AI 客户端
+- **Connection Key 绑定帐号**：每次 Skill 执行需有效 DeepRouter Connection Key，配额从帐号扣减，无法蹭用或转让
+- **Adapter 层解决平台差异**（P0-B 及未来）：通过 Adapter 层自动生成各平台所需安装格式（ChatGPT install file / openai-tool.json 等），后端不存多份
+- **Live MCP Server**（P1）：暴露 `/mcp` 端点，支持 Claude Code 等 MCP-compatible 工具直接 connect
 
-V1 产品闭环：
+**V1 P0-A 产品闭环（Native DeepRouter Use）：**
 
 ```text
 Admin 创建 Skill（Canonical Manifest：tool schema + 服务端执行逻辑）
 → Admin 通过 admin_preview 端点测试 Skill
 → 发布到 Marketplace
 → 用户浏览、查看、启用 Skill
-→ 用户从 Skill Detail 选择平台，下载对应 Adapter 格式
-    ChatGPT 用户       → openai-action.json（Custom GPT Action）
-    OpenAI 开发者      → openai-tool.json（API function schema）
-    Gemini API 开发者  → gemini-function.json（Function Declaration）
-    Claude API 开发者  → anthropic-tool.json（Claude tool schema）
-    Claude Code 用户   → claude-code.zip（SKILL.md package）
-    MCP-compatible 工具 → connect https://deeprouter.ai/mcp
-→ 用户在自己的 AI 客户端对话，AI 自动决定调用 Skill tool
-→ AI 客户端携带用户 API Key 调用 POST /v1/skills/execute/{skill_id}
-→ DeepRouter 验证 API Key → Entitlement / Safety 检查 → 执行 Skill 逻辑
-→ 返回统一格式 tool result（含 run_id / status / usage）
-→ AI 客户端整合进回答
+→ 用户进入 Skill Run Page（/skills/:id/run）
+→ 用户填写输入参数（按 tool_input_schema 生成的表单）
+→ 点击 [Run]
+→ DeepRouter 验证 Connection Key → Entitlement / Safety 检查 → 执行 Skill 逻辑
+→ 返回结构化结果（entry_point=native_deeprouter）
+→ Skill Run Page 展示格式化输出
 → Billing / Analytics 归因
-→ Operations 根据 Dashboard 优化
 ```
+
+**V1 P0-B 产品闭环（ChatGPT Install Path）：**
+
+```text
+Admin 创建并发布 Skill
+→ 用户启用 Skill
+→ 用户从 Skill Detail 获取 ChatGPT install file 或 Import URL
+→ 用户在 ChatGPT Custom GPT Builder 中导入 → 配置 Authentication → 粘贴 Connection Key → 保存
+→ 用户在 Custom GPT 自然对话，ChatGPT 自动调用 DeepRouter Skill tool
+→ ChatGPT 携带 Connection Key 调用 POST /v1/skills/execute/{skill_id}
+→ DeepRouter 验证 → Entitlement / Safety → 执行
+→ 返回统一格式 tool result（entry_point=external_ai_client）
+→ ChatGPT 整合进回答
+→ Billing / Analytics 归因
+```
+
+**V1 P1/P2 路径（非 P0）：**
+
+| 路径 | 平台 | 优先级 |
+|---|---|---|
+| Claude Code MCP Install | Claude Code + MCP | P1 |
+| Gemini API Developer | Gemini API function calling | P2 |
+| Claude API / MCP Connector | Claude API / Claude.ai | P2 |
+| OpenAI API Developer | OpenAI function calling | P2 |
 
 ---
 

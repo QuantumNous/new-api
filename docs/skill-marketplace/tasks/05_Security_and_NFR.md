@@ -193,9 +193,10 @@ Relay must discard and overwrite any client-provided identity fields with the au
 
 Skill execution must follow this order:
 
-1. Client provides `skill_id` via one of two authorized paths:
-   - External AI client (normal user): `skill_id` from URL path only (`/v1/skills/execute/{skill_id}`); API Key in `Authorization: Bearer` header. Request body `skill_id` fields are discarded (T-24). This is the ONLY user-facing Skill execution path.
-   - Admin preview (Super Admin only): `/api/v1/admin/skills/{skill_id}/preview`; Super Admin session token required; `entry_point=admin_preview`.
+1. Client provides `skill_id` via one of three authorized paths:
+   - **P0-A Native DeepRouter（Skill Run Page）**: `skill_id` from URL path only (`/v1/skills/execute/{skill_id}`); user session token in `Authorization` header（Skill Run Page 代表用户发起，不需要用户手动提供 Connection Key）; `entry_point=native_deeprouter`.
+   - **P0-B External AI client（ChatGPT 等）**: `skill_id` from URL path only (`/v1/skills/execute/{skill_id}`); Connection Key in `Authorization: Bearer` header; request body `skill_id` fields are discarded (T-24); `entry_point=external_ai_client`.
+   - **Admin preview（Super Admin only）**: `/api/v1/admin/skills/{skill_id}/preview`; Super Admin session token required; `entry_point=admin_preview`.
    - The old `deeprouter.skill_id` Playground request body contract is removed from V1; any such field received from a Playground client must be discarded.
 2. Gateway assigns `request_id`.
 3. Auth resolver validates API Key or session token; establishes logged-in user identity.
