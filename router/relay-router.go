@@ -88,6 +88,19 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/messages", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
 		})
+	}
+	{
+		claudeCountTokensRouter := relayV1Router.Group("")
+		claudeCountTokensRouter.Use(middleware.LimitChannelTypes(constant.ChannelTypeAws))
+		claudeCountTokensRouter.Use(middleware.Distribute())
+		claudeCountTokensRouter.POST("/messages/count_tokens", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatClaude)
+		})
+	}
+	{
+		//http router
+		httpRouter := relayV1Router.Group("")
+		httpRouter.Use(middleware.Distribute())
 
 		// chat related routes
 		httpRouter.POST("/completions", func(c *gin.Context) {
