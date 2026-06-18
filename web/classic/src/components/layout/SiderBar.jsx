@@ -50,6 +50,7 @@ const routerMap = {
   task: '/console/task',
   models: '/console/models',
   deployment: '/console/deployment',
+  skillHub: '/console/skill-hub',
   playground: '/console/playground',
   onlineExperience: '/console/online-experience',
   personal: '/console/personal',
@@ -191,6 +192,12 @@ const SiderBar = ({
         text: t('模型部署'),
         itemKey: 'deployment',
         to: '/deployment',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: 'Skill Hub',
+        itemKey: 'skillHub',
+        to: '/console/skill-hub',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

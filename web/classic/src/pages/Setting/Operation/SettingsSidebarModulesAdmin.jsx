@@ -30,7 +30,10 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
-import { normalizeSidebarConfig } from '../../../hooks/common/useSidebar';
+import {
+  mergeAdminConfig,
+  normalizeSidebarConfig,
+} from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
@@ -68,6 +71,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       channel: true,
       models: true,
       deployment: true,
+      skillHub: true,
       redemption: true,
       user: true,
       subscription: true,
@@ -133,6 +137,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         channel: true,
         models: true,
         deployment: true,
+        skillHub: true,
         redemption: true,
         user: true,
         subscription: true,
@@ -182,8 +187,8 @@ export default function SettingsSidebarModulesAdmin(props) {
     // 从 props.options 中获取配置
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
-        const modules = normalizeSidebarConfig(
-          JSON.parse(props.options.SidebarModulesAdmin),
+        const modules = mergeAdminConfig(
+          normalizeSidebarConfig(JSON.parse(props.options.SidebarModulesAdmin)),
         );
         setSidebarModulesAdmin(modules);
       } catch (error) {
@@ -216,6 +221,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             channel: true,
             models: true,
             deployment: true,
+            skillHub: true,
             redemption: true,
             user: true,
             subscription: true,
@@ -298,6 +304,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'subscription',
           title: t('订阅管理'),
           description: t('订阅套餐管理'),
+        },
+        {
+          key: 'skillHub',
+          title: 'Skill Hub',
+          description: t('Skill 包管理'),
         },
         {
           key: 'redemption',

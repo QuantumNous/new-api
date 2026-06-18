@@ -31,6 +31,12 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
+		skillHubRoute := apiRouter.Group("/skill-hub")
+		{
+			skillHubRoute.GET("/skills", controller.ListSkillHubSkills)
+			skillHubRoute.GET("/skills/:id/download", controller.DownloadSkillHubSkill)
+			skillHubRoute.GET("/skills/:id", controller.GetSkillHubSkill)
+		}
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.TryUserAuth())
 		{
@@ -200,6 +206,18 @@ func SetApiRouter(router *gin.Engine) {
 			customOAuthRoute.POST("/", controller.CreateCustomOAuthProvider)
 			customOAuthRoute.PUT("/:id", controller.UpdateCustomOAuthProvider)
 			customOAuthRoute.DELETE("/:id", controller.DeleteCustomOAuthProvider)
+		}
+		adminSkillHubRoute := apiRouter.Group("/admin/skill-hub")
+		adminSkillHubRoute.Use(middleware.AdminAuth())
+		{
+			adminSkillHubRoute.POST("/upload", controller.AdminUploadSkillHubZip)
+			adminSkillHubRoute.GET("/skills", controller.AdminListSkillHubSkills)
+			adminSkillHubRoute.POST("/skills", controller.AdminCreateSkillHubSkill)
+			adminSkillHubRoute.GET("/skills/:id", controller.AdminGetSkillHubSkill)
+			adminSkillHubRoute.PUT("/skills/:id", controller.AdminUpdateSkillHubSkill)
+			adminSkillHubRoute.DELETE("/skills/:id", controller.AdminDeleteSkillHubSkill)
+			adminSkillHubRoute.POST("/skills/:id/publish", controller.AdminPublishSkillHubSkill)
+			adminSkillHubRoute.POST("/skills/:id/unpublish", controller.AdminUnpublishSkillHubSkill)
 		}
 		performanceRoute := apiRouter.Group("/performance")
 		performanceRoute.Use(middleware.RootAuth())

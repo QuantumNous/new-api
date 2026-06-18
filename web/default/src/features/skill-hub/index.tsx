@@ -1,0 +1,662 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  Check,
+  FileArchive,
+  MessageCircle,
+  Plus,
+  RefreshCw,
+  Save,
+  Terminal,
+  Trash2,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { SectionPageLayout } from '@/components/layout'
+import {
+  createSkillHubSkill,
+  deleteSkillHubSkill,
+  listAdminSkillHubSkills,
+  setSkillHubSkillPublished,
+  skillToForm,
+  updateSkillHubSkill,
+  uploadSkillHubZip,
+} from './api'
+import type { SkillHubForm, SkillHubSkill } from './types'
+
+export function SkillHub() {
+  const { t } = useTranslation()
+  const [skills, setSkills] = useState<SkillHubSkill[]>([])
+  const [selectedId, setSelectedId] = useState('')
+  const [form, setForm] = useState<SkillHubForm>(() => skillToForm())
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  const zipInputRef = useRef<HTMLInputElement | null>(null)
+
+  const selected = useMemo(
+    () => skills.find((skill) => skill.id === selectedId),
+    [selectedId, skills]
+  )
+
+  async function loadSkills() {
+    setLoading(true)
+    try {
+      const payload = await listAdminSkillHubSkills({
+        keyword: keyword.trim(),
+        page_size: 100,
+      })
+      if (!payload.success) {
+        throw new Error(payload.message || t('Failed to load Skill Hub'))
+      }
+      setSkills(payload.data?.items || [])
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to load Skill Hub')
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadSkills()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function selectSkill(skill: SkillHubSkill) {
+    setSelectedId(skill.id)
+    setForm(skillToForm(skill))
+  }
+
+  function createDraft() {
+    setSelectedId('')
+    setForm(skillToForm())
+  }
+
+  async function saveSkill() {
+    if (!isAllowedZipUrl(form.sourceUrl)) {
+      toast.error(t('Zip URL must use HTTPS, except localhost during development'))
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = selected
+        ? await updateSkillHubSkill(selected.id, form)
+        : await createSkillHubSkill(form)
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.message || t('Failed to save skill'))
+      }
+      toast.success(t('Skill saved'))
+      setSelectedId(payload.data.id)
+      setForm(skillToForm(payload.data))
+      await loadSkills()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to save skill')
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function uploadZip(file?: File) {
+    if (!file) return
+    if (!form.id.trim()) {
+      toast.error(t('Please enter Skill ID before uploading'))
+      return
+    }
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      toast.error(t('Please upload a zip file'))
+      return
+    }
+    setUploading(true)
+    try {
+      const payload = await uploadSkillHubZip(file, form)
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.message || t('Failed to upload zip'))
+      }
+      update('sourceUrl', payload.data.url)
+      update('sourceRef', payload.data.object)
+      update('sourceChecksum', payload.data.checksum)
+      toast.success(t('Zip uploaded'))
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to upload zip')
+      )
+    } finally {
+      setUploading(false)
+      if (zipInputRef.current) {
+        zipInputRef.current.value = ''
+      }
+    }
+  }
+
+  async function removeSkill(skill: SkillHubSkill) {
+    if (!window.confirm(t('Delete this skill?'))) return
+    setSaving(true)
+    try {
+      const payload = await deleteSkillHubSkill(skill.id)
+      if (!payload.success) {
+        throw new Error(payload.message || t('Failed to delete skill'))
+      }
+      toast.success(t('Skill deleted'))
+      if (selectedId === skill.id) createDraft()
+      await loadSkills()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to delete skill')
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function togglePublish(skill: SkillHubSkill) {
+    setSaving(true)
+    try {
+      const next = !(skill.published || skill.status === 1)
+      const payload = await setSkillHubSkillPublished(skill.id, next)
+      if (!payload.success) {
+        throw new Error(payload.message || t('Failed to update publish state'))
+      }
+      toast.success(next ? t('Skill published') : t('Skill unpublished'))
+      await loadSkills()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to update publish state')
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function update<K extends keyof SkillHubForm>(key: K, value: SkillHubForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  return (
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Skill Hub')}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <Button variant='outline' disabled={loading} onClick={loadSkills}>
+          <RefreshCw className='h-4 w-4' />
+          {loading ? t('Refreshing') : t('Refresh')}
+        </Button>
+        <Button onClick={createDraft}>
+          <Plus className='h-4 w-4' />
+          {t('New skill')}
+        </Button>
+      </SectionPageLayout.Actions>
+      <SectionPageLayout.Content>
+        <div className='grid gap-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]'>
+          <Card className='min-h-[520px]'>
+            <CardHeader>
+              <CardTitle>{t('Catalog')}</CardTitle>
+              <CardDescription>
+                {t('Skills returned to local connectors.')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <div className='flex gap-2'>
+                <Input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder={t('Search skills')}
+                />
+                <Button variant='outline' onClick={loadSkills}>
+                  {t('Search')}
+                </Button>
+              </div>
+              <div className='space-y-2'>
+                {skills.map((skill) => {
+                  const published = skill.published || skill.status === 1
+                  return (
+                    <button
+                      key={skill.id}
+                      type='button'
+                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                        selectedId === skill.id
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:bg-muted/50'
+                      }`}
+                      onClick={() => selectSkill(skill)}
+                    >
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <div className='truncate font-medium'>
+                            {skill.name}
+                          </div>
+                          <div className='text-muted-foreground truncate text-xs'>
+                            {skill.id} · {skill.version}
+                          </div>
+                        </div>
+                        <Badge variant={published ? 'default' : 'outline'}>
+                          {published ? t('Published') : t('Draft')}
+                        </Badge>
+                      </div>
+                    </button>
+                  )
+                })}
+                {!skills.length && (
+                  <div className='text-muted-foreground rounded-lg border p-4 text-sm'>
+                    {loading ? t('Loading...') : t('No skills configured')}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {selected ? t('Edit skill') : t('Create skill')}
+              </CardTitle>
+              <CardDescription>
+                {t('Configure the catalog card, install method, and publish state separately.')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className='grid gap-4'>
+                <FormSection
+                  title={t('Basic info')}
+                  description={t('Controls the skill card shown in the catalog.')}
+                >
+                  <div className='grid gap-3 md:grid-cols-3'>
+                    <Field label={t('Skill ID')}>
+                      <Input
+                        value={form.id}
+                        onChange={(event) => update('id', event.target.value)}
+                      />
+                    </Field>
+                    <Field label={t('Name')}>
+                      <Input
+                        value={form.name}
+                        onChange={(event) => update('name', event.target.value)}
+                      />
+                    </Field>
+                    <Field label={t('Version')}>
+                      <Input
+                        value={form.version}
+                        onChange={(event) =>
+                          update('version', event.target.value)
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <Field label={t('Description')}>
+                    <Textarea
+                      value={form.description}
+                      onChange={(event) =>
+                        update('description', event.target.value)
+                      }
+                    />
+                  </Field>
+                  <div className='grid gap-3 md:grid-cols-4'>
+                    <Field label={t('Author')}>
+                      <Input
+                        value={form.author}
+                        onChange={(event) =>
+                          update('author', event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label={t('Icon URL')}>
+                      <Input
+                        value={form.icon}
+                        onChange={(event) => update('icon', event.target.value)}
+                      />
+                    </Field>
+                    <Field label={t('Tags')}>
+                      <Input
+                        value={form.tags}
+                        onChange={(event) => update('tags', event.target.value)}
+                        placeholder='agent, code'
+                      />
+                    </Field>
+                    <Field label={t('Sort')}>
+                      <Input
+                        type='number'
+                        value={form.sort}
+                        onChange={(event) =>
+                          update('sort', Number(event.target.value))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </FormSection>
+
+                <FormSection
+                  title={t('Install method')}
+                  description={t('Only Zip package install can be saved for now. Other methods are reserved.')}
+                >
+                  <div className='grid gap-3 md:grid-cols-3'>
+                    <InstallMethodOption
+                      title={t('Conversation install')}
+                      description={t('Reserved for prompt-based installation.')}
+                      icon={<MessageCircle className='h-4 w-4' />}
+                      disabled
+                    />
+                    <InstallMethodOption
+                      title={t('Command line install')}
+                      description={t('Reserved; commands are not returned to connectors.')}
+                      icon={<Terminal className='h-4 w-4' />}
+                      disabled
+                    />
+                    <InstallMethodOption
+                      title={t('Zip package install')}
+                      description={t('Connector downloads and verifies a zip package.')}
+                      icon={<FileArchive className='h-4 w-4' />}
+                      selected
+                    />
+                  </div>
+                </FormSection>
+
+                <FormSection
+                  title={t('Zip package')}
+                  description={t('Upload a zip package to private OSS. New API will serve a signed download URL.')}
+                >
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <input
+                      ref={zipInputRef}
+                      type='file'
+                      accept='.zip,application/zip'
+                      className='hidden'
+                      onChange={(event) =>
+                        void uploadZip(event.target.files?.[0])
+                      }
+                    />
+                    <Button
+                      type='button'
+                      variant='outline'
+                      disabled={uploading}
+                      onClick={() => zipInputRef.current?.click()}
+                    >
+                      <FileArchive className='h-4 w-4' />
+                      {uploading ? t('Uploading') : t('Upload zip to OSS')}
+                    </Button>
+                    <span className='text-muted-foreground text-xs'>
+                      {t('Max 50 MB. URL, OSS object, and SHA256 will be filled automatically.')}
+                    </span>
+                  </div>
+                  <div className='grid gap-3 md:grid-cols-2'>
+                    <Field label={t('Zip URL')}>
+                      <Input
+                        value={form.sourceUrl}
+                        onChange={(event) =>
+                          update('sourceUrl', event.target.value)
+                        }
+                        placeholder='https://example.com/skill.zip'
+                      />
+                    </Field>
+                    <Field label={t('SHA256 checksum')}>
+                      <Input
+                        value={form.sourceChecksum}
+                        onChange={(event) =>
+                          update('sourceChecksum', event.target.value)
+                        }
+                        placeholder='sha256:...'
+                      />
+                    </Field>
+                  </div>
+                  <div className='grid gap-3 md:grid-cols-3'>
+                    <Field label={t('OSS object')}>
+                      <Input
+                        value={form.sourceRef}
+                        onChange={(event) =>
+                          update('sourceRef', event.target.value)
+                        }
+                        placeholder='skill-hub/skills/...'
+                      />
+                    </Field>
+                    <Field label={t('Manifest entry')}>
+                      <Input
+                        value={form.manifestEntry}
+                        onChange={(event) =>
+                          update('manifestEntry', event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label={t('Manifest tools')}>
+                      <Input
+                        value={form.manifestTools}
+                        onChange={(event) =>
+                          update('manifestTools', event.target.value)
+                        }
+                      />
+                    </Field>
+                  </div>
+                </FormSection>
+
+                <FormSection
+                  title={t('Runtime and compatibility')}
+                  description={t('These fields are surfaced to the local connector before install.')}
+                >
+                  <div className='grid gap-3 md:grid-cols-3'>
+                    <Field label={t('Platforms')}>
+                      <Input
+                        value={form.platforms}
+                        onChange={(event) =>
+                          update('platforms', event.target.value)
+                        }
+                        placeholder='windows, linux, darwin'
+                      />
+                    </Field>
+                    <Field label={t('Connector min version')}>
+                      <Input
+                        value={form.connectorMinVersion}
+                        onChange={(event) =>
+                          update('connectorMinVersion', event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label={t('Permissions')}>
+                      <Input
+                        value={form.permissions}
+                        onChange={(event) =>
+                          update('permissions', event.target.value)
+                        }
+                        placeholder='network, filesystem-read'
+                      />
+                    </Field>
+                  </div>
+                  <Field label={t('Manifest permissions')}>
+                    <Input
+                      value={form.manifestPermissions}
+                      onChange={(event) =>
+                        update('manifestPermissions', event.target.value)
+                      }
+                      placeholder='network, filesystem-read'
+                    />
+                  </Field>
+                </FormSection>
+
+                <FormSection
+                  title={t('Publishing')}
+                  description={t('Control catalog visibility and trust badges.')}
+                >
+                  <div className='flex flex-wrap gap-4'>
+                    <CheckboxField
+                      label={t('Published')}
+                      checked={form.published}
+                      onChange={(checked) => update('published', checked)}
+                    />
+                    <CheckboxField
+                      label={t('Verified')}
+                      checked={form.verified}
+                      onChange={(checked) => update('verified', checked)}
+                    />
+                    <CheckboxField
+                      label={t('Recommended')}
+                      checked={form.recommended}
+                      onChange={(checked) => update('recommended', checked)}
+                    />
+                  </div>
+                  <Field label={t('Changelog')}>
+                    <Textarea
+                      value={form.changelog}
+                      onChange={(event) =>
+                        update('changelog', event.target.value)
+                      }
+                    />
+                  </Field>
+                </FormSection>
+
+                <div className='flex flex-wrap justify-between gap-2'>
+                  <div className='flex gap-2'>
+                    {selected && (
+                      <>
+                        <Button
+                          variant='outline'
+                          disabled={saving}
+                          onClick={() => togglePublish(selected)}
+                        >
+                          <Check className='h-4 w-4' />
+                          {selected.published || selected.status === 1
+                            ? t('Unpublish')
+                            : t('Publish')}
+                        </Button>
+                        <Button
+                          variant='destructive'
+                          disabled={saving}
+                          onClick={() => removeSkill(selected)}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                          {t('Delete')}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <Button disabled={saving || uploading} onClick={saveSkill}>
+                    <Save className='h-4 w-4' />
+                    {saving ? t('Saving') : t('Save skill')}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
+  )
+}
+
+function isAllowedZipUrl(value: string) {
+  try {
+    const url = new URL(value.trim())
+    if (url.protocol === 'https:') return true
+    if (url.protocol !== 'http:') return false
+    return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+function Field(props: { label: string; children: ReactNode }) {
+  return (
+    <label className='grid gap-1.5 text-sm font-medium'>
+      <span>{props.label}</span>
+      {props.children}
+    </label>
+  )
+}
+
+function FormSection(props: {
+  title: string
+  description: string
+  children: ReactNode
+}) {
+  return (
+    <section className='rounded-lg border p-4'>
+      <div className='mb-4'>
+        <h3 className='text-sm font-semibold'>{props.title}</h3>
+        <p className='text-muted-foreground mt-1 text-xs'>
+          {props.description}
+        </p>
+      </div>
+      <div className='grid gap-3'>{props.children}</div>
+    </section>
+  )
+}
+
+function InstallMethodOption(props: {
+  title: string
+  description: string
+  icon: ReactNode
+  selected?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type='button'
+      disabled={props.disabled}
+      className={`rounded-lg border p-3 text-left transition-colors ${
+        props.selected
+          ? 'border-primary bg-primary/5'
+          : 'border-border bg-muted/20'
+      } ${props.disabled ? 'cursor-not-allowed opacity-55' : 'hover:bg-muted/50'}`}
+    >
+      <div className='flex items-center gap-2 text-sm font-semibold'>
+        {props.icon}
+        <span>{props.title}</span>
+        {props.disabled && (
+          <Badge variant='outline' className='ml-auto'>
+            Soon
+          </Badge>
+        )}
+      </div>
+      <p className='text-muted-foreground mt-2 text-xs'>
+        {props.description}
+      </p>
+    </button>
+  )
+}
+
+function CheckboxField(props: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className='flex items-center gap-2 text-sm font-medium'>
+      <input
+        type='checkbox'
+        className='h-4 w-4'
+        checked={props.checked}
+        onChange={(event) => props.onChange(event.target.checked)}
+      />
+      <span>{props.label}</span>
+    </label>
+  )
+}

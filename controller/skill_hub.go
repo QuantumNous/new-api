@@ -1,0 +1,280 @@
+package controller
+
+import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/gin-gonic/gin"
+)
+
+type skillHubSkillRequest struct {
+	ID            string                      `json:"id"`
+	Name          string                      `json:"name"`
+	Description   string                      `json:"description"`
+	Version       string                      `json:"version"`
+	Author        string                      `json:"author"`
+	Icon          string                      `json:"icon"`
+	Tags          []string                    `json:"tags"`
+	Verified      bool                        `json:"verified"`
+	Recommended   bool                        `json:"recommended"`
+	Published     bool                        `json:"published"`
+	Status        *int                        `json:"status"`
+	Sort          int                         `json:"sort"`
+	Compatibility model.SkillHubCompatibility `json:"compatibility"`
+	Permissions   []string                    `json:"permissions"`
+	Manifest      model.SkillHubManifest      `json:"manifest"`
+	Source        model.SkillHubSource        `json:"source"`
+	Changelog     string                      `json:"changelog"`
+}
+
+func ListSkillHubSkills(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), false, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubListResponse{
+		Items: model.SkillHubSkillsToResponses(skills, false),
+		Total: total,
+	})
+}
+
+func GetSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil || skill.Status != model.SkillHubStatusPublished {
+		common.ApiErrorMsg(c, "skill not found")
+		return
+	}
+	common.ApiSuccess(c, skill.ToResponse(false))
+}
+
+func DownloadSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil || skill.Status != model.SkillHubStatusPublished {
+		common.ApiErrorMsg(c, "skill not found")
+		return
+	}
+	if strings.TrimSpace(skill.SourceRef) == "" {
+		if strings.HasPrefix(strings.ToLower(skill.SourceURL), "http://") || strings.HasPrefix(strings.ToLower(skill.SourceURL), "https://") {
+			c.Redirect(http.StatusFound, skill.SourceURL)
+			return
+		}
+		common.ApiErrorMsg(c, "skill package is not available")
+		return
+	}
+	signedURL, err := service.SignSkillHubZipURL(skill.SourceRef, skill.SkillID+"-"+skill.Version)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Redirect(http.StatusFound, signedURL)
+}
+
+func AdminListSkillHubSkills(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), true, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubListResponse{
+		Items: model.SkillHubSkillsToResponses(skills, true),
+		Total: total,
+	})
+}
+
+func AdminGetSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, skill.ToResponse(true))
+}
+
+func AdminUploadSkillHubZip(c *gin.Context) {
+	skillID := strings.TrimSpace(c.PostForm("skill_id"))
+	if skillID == "" {
+		common.ApiErrorMsg(c, "skill id is required before upload")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.SkillHubZipMaxBytes+(1<<20))
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer file.Close()
+	result, err := service.UploadSkillHubZip(file, header, skillID, c.PostForm("version"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	result.URL = skillHubDownloadURL(c, skillID)
+	common.ApiSuccess(c, result)
+}
+
+func AdminCreateSkillHubSkill(c *gin.Context) {
+	var request skillHubSkillRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	skill := skillHubRequestToModel(request, nil)
+	duplicated, err := model.IsSkillHubSkillIDDuplicated(0, skill.SkillID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if duplicated {
+		common.ApiErrorMsg(c, "skill id already exists")
+		return
+	}
+	if err := skill.Insert(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, skill.ToResponse(true))
+}
+
+func AdminUpdateSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var request skillHubSkillRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	skill = skillHubRequestToModel(request, skill)
+	if skill.SkillID == "" {
+		skill.SkillID = c.Param("id")
+	}
+	duplicated, err := model.IsSkillHubSkillIDDuplicated(skill.Id, skill.SkillID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if duplicated {
+		common.ApiErrorMsg(c, "skill id already exists")
+		return
+	}
+	if err := skill.Update(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, skill.ToResponse(true))
+}
+
+func AdminDeleteSkillHubSkill(c *gin.Context) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.DB.Delete(skill).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func AdminPublishSkillHubSkill(c *gin.Context) {
+	updateSkillHubPublishStatus(c, model.SkillHubStatusPublished)
+}
+
+func AdminUnpublishSkillHubSkill(c *gin.Context) {
+	updateSkillHubPublishStatus(c, model.SkillHubStatusDraft)
+}
+
+func updateSkillHubPublishStatus(c *gin.Context, status int) {
+	skill, err := model.GetSkillHubSkillBySkillID(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	skill.Status = status
+	if err := skill.Update(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, skill.ToResponse(true))
+}
+
+func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillHubSkill) *model.SkillHubSkill {
+	skill := &model.SkillHubSkill{}
+	if existing != nil {
+		copy := *existing
+		skill = &copy
+	}
+	if strings.TrimSpace(request.ID) != "" || existing == nil {
+		skill.SkillID = strings.TrimSpace(request.ID)
+	}
+	skill.Name = strings.TrimSpace(request.Name)
+	skill.Description = strings.TrimSpace(request.Description)
+	skill.Version = strings.TrimSpace(request.Version)
+	skill.Author = strings.TrimSpace(request.Author)
+	skill.Icon = strings.TrimSpace(request.Icon)
+	skill.Tags = model.StringListToJSON(request.Tags)
+	skill.Verified = request.Verified
+	skill.Recommended = request.Recommended
+	skill.Sort = request.Sort
+	if request.Status != nil {
+		skill.Status = *request.Status
+	} else if request.Published {
+		skill.Status = model.SkillHubStatusPublished
+	} else {
+		skill.Status = model.SkillHubStatusDraft
+	}
+	skill.ConnectorMinVersion = strings.TrimSpace(request.Compatibility.ConnectorMinVersion)
+	skill.Platforms = model.StringListToJSON(request.Compatibility.Platforms)
+	skill.Permissions = model.StringListToJSON(request.Permissions)
+	skill.ManifestEntry = strings.TrimSpace(request.Manifest.Entry)
+	skill.ManifestPermissions = model.StringListToJSON(request.Manifest.Permissions)
+	skill.ManifestTools = model.StringListToJSON(request.Manifest.Tools)
+	skill.SourceType = strings.ToLower(strings.TrimSpace(request.Source.Type))
+	skill.SourceURL = strings.TrimSpace(request.Source.URL)
+	skill.SourceRef = strings.TrimSpace(request.Source.Ref)
+	skill.SourceChecksum = strings.TrimSpace(request.Source.Checksum)
+	skill.Changelog = strings.TrimSpace(request.Changelog)
+	if skill.SourceType == "" {
+		skill.SourceType = "zip"
+	}
+	if skill.ManifestEntry == "" {
+		skill.ManifestEntry = "SKILL.md"
+	}
+	return skill
+}
+
+func skillHubDownloadURL(c *gin.Context, skillID string) string {
+	return fmt.Sprintf("%s/api/skill-hub/skills/%s/download", requestBaseURL(c), url.PathEscape(skillID))
+}
+
+func requestBaseURL(c *gin.Context) string {
+	if base := strings.TrimRight(strings.TrimSpace(system_setting.ServerAddress), "/"); base != "" {
+		if parsed, err := url.Parse(base); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+			return base
+		}
+	}
+	proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+	if proto == "" {
+		proto = "https"
+		if c.Request.TLS == nil {
+			proto = "http"
+		}
+	}
+	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = c.Request.Host
+	}
+	return strings.TrimRight(proto+"://"+host, "/")
+}

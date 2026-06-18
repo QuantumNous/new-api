@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation, useParams } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
 import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
@@ -45,6 +51,7 @@ import Rankings from './pages/Rankings';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
+import SkillHub from './pages/SkillHub';
 import Playground from './pages/Playground';
 import OnlineExperience from './pages/OnlineExperience';
 import Subscription from './pages/Subscription';
@@ -144,6 +151,18 @@ function App() {
               <ModelDeploymentPage />
             </AdminRoute>
           }
+        />
+        <Route
+          path='/console/skill-hub'
+          element={
+            <AdminRoute>
+              <SkillHub />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/skill-hub'
+          element={<Navigate to='/console/skill-hub' replace />}
         />
         <Route
           path='/console/subscription'
