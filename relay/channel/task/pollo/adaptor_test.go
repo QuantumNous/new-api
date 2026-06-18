@@ -474,6 +474,53 @@ func TestConvertPayload_SeedAbsentOmitted(t *testing.T) {
 	}
 }
 
+// TestConvertPayload_SafetyFilter verifies the upstream content-moderation toggle is passed
+// through verbatim as snake_case `safety_filter`. The field is a pointer so an explicit false
+// (opt OUT of moderation) survives — a non-pointer bool+omitempty would drop it and silently
+// re-enable the provider default. Verified live (2026-06): true blocks a sensitive prompt
+// ("Text content moderation failed"); false lets it through.
+func TestConvertPayload_SafetyFilter(t *testing.T) {
+	mk := func(t *testing.T, meta map[string]any) string {
+		a := &TaskAdaptor{baseURL: defaultBaseURL}
+		info := &relaycommon.RelayInfo{OriginModelName: "seedance-2-0"}
+		info.ChannelMeta = &relaycommon.ChannelMeta{UpstreamModelName: "seedance-2-0"}
+		req := &relaycommon.TaskSubmitReq{Prompt: "x", Duration: 5, Metadata: meta}
+		body, err := a.convertToRequestPayload(req, info)
+		if err != nil {
+			t.Fatalf("convertToRequestPayload: %v", err)
+		}
+		data, err := common.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return string(data)
+	}
+
+	t.Run("true preserved", func(t *testing.T) {
+		if got := mk(t, map[string]any{"safety_filter": true}); !strings.Contains(got, `"safety_filter":true`) {
+			t.Fatalf("marshaled body must contain \"safety_filter\":true, got %s", got)
+		}
+	})
+
+	t.Run("explicit false preserved", func(t *testing.T) {
+		if got := mk(t, map[string]any{"safety_filter": false}); !strings.Contains(got, `"safety_filter":false`) {
+			t.Fatalf("explicit safety_filter:false must survive omitempty, got %s", got)
+		}
+	})
+
+	t.Run("camelCase alias normalized", func(t *testing.T) {
+		if got := mk(t, map[string]any{"safetyFilter": true}); !strings.Contains(got, `"safety_filter":true`) {
+			t.Fatalf("camelCase safetyFilter must normalize to safety_filter, got %s", got)
+		}
+	})
+
+	t.Run("absent omitted", func(t *testing.T) {
+		if got := mk(t, nil); strings.Contains(got, "safety_filter") {
+			t.Fatalf("absent safety_filter must stay omitted, got %s", got)
+		}
+	})
+}
+
 // TestResolveSeconds_PrecedenceAndPayload guards the Seconds-first/Duration-fallback
 // precedence: an OpenAI-compatible `seconds` request (req.Seconds, no req.Duration) must
 // build the requested duration upstream, not silently default to 5s.

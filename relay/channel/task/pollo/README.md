@@ -57,6 +57,7 @@
 | `camera_fixed` / `watermark` / `return_last_frame` / `service_tier` / `draft` / `execution_expires_after` | ✅ 透传 | ⚠️ **静默忽略**（Pollo 上游无对应参数） | 上游能力差异，无法映射 |
 | `aspect_ratio` / `image` / `image_tail` / `image_urls[]`（可灵/即梦键） | ❌ 忽略 | ✅ 映射（超集） | 即梦/可灵格式可用性 |
 | `aspectRatio` / `length` / `videoNum` / `refs[]` / `imageMeta` / `imageTail` / `webSearch` / `generateAudio`（Pollo 原生键） | ❌ 忽略 | ✅ | Pollo 原生透传 |
+| `safety_filter`（别名 `safetyFilter`） | ❌ 忽略 | ✅ → `safety_filter` | 上游文本内容审核开关。**上游只认 snake_case `safety_filter`**——驼峰 `safetyFilter` 会被上游静默忽略（实测 2026-06：发驼峰 `true` 仍正常出片、审核不触发），故 tag 必须是 snake_case，并把驼峰客户端键经别名归一化到 snake_case 兜底。指针保真：显式 `false` 不被 omitempty 丢弃；**缺省（不下发）= 上游默认关闭**。实测 snake `true` 拦截敏感 prompt（`failMsg: Text content moderation failed`、任务 `failed`），`false`/缺省放行。审核失败任务走 `TaskStatusFailure → RefundTaskQuota` 全额退预扣，对终端用户不计费 |
 
 `*` Doubao 将多图全部透传由上游按位置处理；Pollo i2v 形态只有首帧+尾帧两个槽位。
 `⁺` 超集：Pollo 额外消费、Doubao 忽略的字段不会造成 Doubao 请求失败。

@@ -165,6 +165,22 @@ type polloInput struct {
 	WebSearch     *dto.BoolValue `json:"webSearch,omitempty"` // non-ref only
 	VideoNum      dto.IntValue   `json:"videoNum,omitempty"`  // ref only, 1-4
 
+	// SafetyFilter toggles Pollo's upstream text content moderation. Pointer so an explicit
+	// false is preserved instead of being dropped by omitempty.
+	//
+	// Upstream field name is snake_case `safety_filter` — verified live (2026-06) and NOT a
+	// guess: the camelCase `safetyFilter` that every other Pollo field uses is SILENTLY
+	// IGNORED here (sending safetyFilter:true does NOT moderate — the sensitive prompt still
+	// generates), so a camelCase tag would make moderation a silent no-op. Only snake_case
+	// safety_filter=true actually blocks (failMsg "Text content moderation failed"); =false
+	// (or the field absent — upstream default is OFF) lets the prompt through. A camelCase
+	// client key is rescued by the safetyFilter->safety_filter alias in metadataKeyAliases.
+	//
+	// A blocked task fails and the generic pipeline fully refunds the pre-charge
+	// (TaskStatusFailure -> RefundTaskQuota), so a moderated-away request is not billed to the
+	// end user. Applies to both t2v/i2v and ref2video.
+	SafetyFilter *dto.BoolValue `json:"safety_filter,omitempty"`
+
 	// Free-form provider-specific structures, passed through from metadata.
 	Refs      []any `json:"refs,omitempty"`      // ref models: required, 1-13 items
 	ImageMeta []any `json:"imageMeta,omitempty"` // ref models: optional
@@ -723,6 +739,10 @@ var metadataKeyAliases = map[string]string{
 	"aspect_ratio":   "aspectRatio", // Kling / Jimeng
 	"image_tail":     "imageTail",   // Kling
 	"image_meta":     "imageMeta",
+	// safety_filter is snake_case upstream and the camelCase form is silently ignored there
+	// (verified live), so normalize a camelCase client key onto the working snake_case field —
+	// otherwise a habitual safetyFilter:true would be a silent no-op and skip moderation.
+	"safetyFilter": "safety_filter",
 }
 
 func normalizeMetadataAliases(metadata map[string]any) {
@@ -770,7 +790,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	normalizeMetadataAliases(req.Metadata)
 
 	// 1) Overlay pollo-native fields from metadata (resolution, aspectRatio, length, duration,
-	//    seed, generateAudio, webSearch, videoNum, refs, imageMeta, image, imageTail...). This
+	//    seed, generateAudio, webSearch, videoNum, safety_filter, refs, imageMeta, image, imageTail...). This
 	//    preserves the original pollo-native request shape; the Doubao-style content[] inputs
 	//    below take precedence over anything overlaid here.
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, &input); err != nil {
