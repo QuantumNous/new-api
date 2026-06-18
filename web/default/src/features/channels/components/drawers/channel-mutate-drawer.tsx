@@ -98,6 +98,7 @@ import {
   sideDrawerSectionClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { getCurrencyLabel } from '@/lib/currency'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
 import {
@@ -276,6 +277,7 @@ export function ChannelMutateDrawer({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { setOpen } = useChannels()
+  const currencyLabel = getCurrencyLabel()
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
@@ -284,6 +286,7 @@ export function ChannelMutateDrawer({
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
+  const initialBalanceRef = useRef<number | undefined>(undefined)
   const [statusCodeRiskOpen, setStatusCodeRiskOpen] = useState(false)
   const [statusCodeRiskDetailItems, setStatusCodeRiskDetailItems] = useState<
     string[]
@@ -599,12 +602,14 @@ export function ChannelMutateDrawer({
       initialModelMappingRef.current = channelData.data.model_mapping || ''
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
+      initialBalanceRef.current = defaults.balance
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
       setAdvancedSettingsOpen(false)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
+      initialBalanceRef.current = undefined
     }
   }, [isEditing, channelData, form])
 
@@ -1020,6 +1025,11 @@ export function ChannelMutateDrawer({
             form.setValue('models', data.models)
           }
         }
+      }
+
+      // Skip balance when unchanged so currency conversion rounding never writes back
+      if (isEditing && data.balance === initialBalanceRef.current) {
+        data.balance = undefined
       }
 
       await channelMutation.mutateAsync(data)
@@ -2558,6 +2568,34 @@ export function ChannelMutateDrawer({
                               </FormItem>
                             )}
                           />
+
+                          {isEditing && (
+                            <FormField
+                              control={form.control}
+                              name='balance'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('Remaining Quota ({{currency}})', {
+                                      currency: currencyLabel,
+                                    })}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      step='any'
+                                      placeholder='0'
+                                      {...field}
+                                      onChange={(e) =>
+                                        field.onChange(Number(e.target.value))
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
                         </div>
 
                         <FormField
