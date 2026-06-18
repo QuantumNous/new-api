@@ -83,3 +83,51 @@ func TestQueryChannelKeyReportRejectsMoreThanTenThousandUniqueKeys(t *testing.T)
 	require.Contains(t, payload.Message, "10000")
 	require.Nil(t, payload.Data)
 }
+
+func TestBuildQueryKeyTestChannelUsesOnlyRequestedChannelKey(t *testing.T) {
+	setupModelListControllerTestDB(t)
+
+	channel := model.Channel{
+		Id:     2201,
+		Type:   1,
+		Key:    "sk-a\nsk-b",
+		Name:   "multi key channel",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "gpt-4o",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey: true,
+		},
+	}
+	require.NoError(t, model.DB.Create(&channel).Error)
+
+	testChannel, err := buildQueryKeyTestChannel(model.QueryKeyReportSourceChannel, channel.Id, "sk-b")
+	require.NoError(t, err)
+	require.Equal(t, "sk-b", testChannel.Key)
+	require.False(t, testChannel.ChannelInfo.IsMultiKey)
+
+	_, err = buildQueryKeyTestChannel(model.QueryKeyReportSourceChannel, channel.Id, "sk-missing")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "不属于")
+}
+
+func TestBuildQueryKeyTestChannelSupportsPreparation(t *testing.T) {
+	setupModelListControllerTestDB(t)
+
+	preparation := model.ChannelPreparation{
+		Id:     2301,
+		Type:   2,
+		Key:    "sk-prep-a\nsk-prep-b",
+		Name:   "prep multi",
+		Status: model.ChannelPreparationStatusPending,
+		Group:  "default",
+		Models: "claude-3",
+	}
+	require.NoError(t, model.DB.Create(&preparation).Error)
+
+	testChannel, err := buildQueryKeyTestChannel(model.QueryKeyReportSourcePreparation, preparation.Id, "sk-prep-a")
+	require.NoError(t, err)
+	require.Equal(t, preparation.Id, testChannel.Id)
+	require.Equal(t, "sk-prep-a", testChannel.Key)
+	require.False(t, testChannel.ChannelInfo.IsMultiKey)
+}

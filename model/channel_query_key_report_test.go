@@ -213,6 +213,14 @@ func TestBuildChannelQueryKeyReportMatchesMultiKeyFormatsAndSanitizesDetails(t *
 	require.NotContains(t, detailJSON, "\"key\"")
 }
 
+func TestQueryKeyReportStoredKeyContainsNormalizesInputFormats(t *testing.T) {
+	require.True(t, QueryKeyReportStoredKeyContains("sk-a\nsk-b", " sk-a "))
+	require.True(t, QueryKeyReportStoredKeyContains(`["sk-json", {"b": 2, "a": "x"}]`, "sk-json"))
+	require.True(t, QueryKeyReportStoredKeyContains(`["sk-json", {"b": 2, "a": "x"}]`, `{ "a": "x", "b": 2 }`))
+	require.False(t, QueryKeyReportStoredKeyContains("sk-a\nsk-b", "sk-c"))
+	require.False(t, QueryKeyReportStoredKeyContains("", "sk-a"))
+}
+
 func TestBuildChannelQueryKeyReportRejectsEmptyAndTooManyUniqueKeys(t *testing.T) {
 	setupQueryKeyReportModelTestDB(t)
 

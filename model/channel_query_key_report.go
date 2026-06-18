@@ -421,6 +421,19 @@ func uniqueNonBlankReportKeys(keys []string) []string {
 	return unique
 }
 
+func QueryKeyReportStoredKeyContains(storedKey string, inputKey string) bool {
+	matchKey := normalizeQueryKeyReportMatchKey(inputKey)
+	if matchKey == "" {
+		return false
+	}
+	for _, parsedKey := range parseQueryKeyReportChannelKeys(storedKey) {
+		if parsedKey == matchKey {
+			return true
+		}
+	}
+	return false
+}
+
 func quotaToAmount(usedQuota int64) float64 {
 	if common.QuotaPerUnit == 0 {
 		return 0

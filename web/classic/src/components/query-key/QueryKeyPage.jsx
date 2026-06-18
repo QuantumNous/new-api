@@ -31,6 +31,7 @@ import {
   Table,
   Tag,
   TextArea,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -62,6 +63,14 @@ const STATUS_CONFIG = {
 const SOURCE_CONFIG = {
   channel: { color: 'green', label: '正式渠道' },
   preparation: { color: 'blue', label: '备货池' },
+};
+
+const QUERY_KEY_TEST_STATUS = {
+  untested: { color: 'grey', label: '未测试' },
+  testing: { color: 'blue', label: '测试中' },
+  success: { color: 'green', label: '成功' },
+  failed: { color: 'red', label: '失败' },
+  partial: { color: 'orange', label: '部分成功' },
 };
 
 const BUCKETS = [
@@ -151,6 +160,9 @@ const buildTsv = (rows, columns, includeHeader) => {
   return lines.join('\n');
 };
 
+const buildQueryKeyTestId = (key, channel) =>
+  `${normalizeMatchKey(key)}::${channel?.source || 'channel'}::${channel?.id}`;
+
 const MetricCard = ({ title, value, color }) => (
   <Card className='!rounded-xl' bodyStyle={{ padding: 16 }}>
     <div className='text-sm text-semi-color-text-2'>{title}</div>
@@ -166,6 +178,8 @@ const QueryKeyPage = () => {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
   const [activeBucket, setActiveBucket] = useState('all');
+  const [queryKeyTestResults, setQueryKeyTestResults] = useState({});
+  const [testingQueryKeyIds, setTestingQueryKeyIds] = useState(new Set());
 
   const parsed = useMemo(() => parseKeyInput(inputText), [inputText]);
   const items = Array.isArray(report?.items) ? report.items : [];
@@ -205,6 +219,8 @@ const QueryKeyPage = () => {
       }
       setReport(data);
       setActiveBucket('all');
+      setQueryKeyTestResults({});
+      setTestingQueryKeyIds(new Set());
       showSuccess(t('查询完成'));
     } catch (error) {
       showError(
@@ -220,6 +236,8 @@ const QueryKeyPage = () => {
     setInputText('');
     setReport(null);
     setActiveBucket('all');
+    setQueryKeyTestResults({});
+    setTestingQueryKeyIds(new Set());
   };
 
   const copyKey = async (value) => {
@@ -238,14 +256,310 @@ const QueryKeyPage = () => {
   };
 
   const getChannelStatusLabel = (channel) => {
-    if (channel.source === 'preparation') return t('待晋升');
-    return channel.status === 1 ? t('已启用') : t('已禁用');
+    return getChannelStatusMeta(channel).label;
   };
+
+  const getChannelStatusMeta = (channel) => {
+    if (!channel) return { color: 'grey', label: t('未找到') };
+    if (channel.source === 'preparation') {
+      if (channel.status === 2) return { color: 'green', label: t('已晋升') };
+      if (channel.status === 3) return { color: 'grey', label: t('已归档') };
+      if (channel.status === 4) return { color: 'orange', label: t('晋升中') };
+      return { color: 'blue', label: t('待晋升') };
+    }
+    return channel.status === 1
+      ? { color: 'green', label: t('已启用') }
+      : { color: 'grey', label: t('已禁用') };
+  };
+
+  const getItemChannels = (item) =>
+    Array.isArray(item?.channels) ? item.channels : [];
+
+  const getItemChannelStatusText = (item) => {
+    const channels = getItemChannels(item);
+    if (channels.length === 0) return t('未找到');
+    const counts = channels.reduce((acc, channel) => {
+      const label = getChannelStatusMeta(channel).label;
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(counts)
+      .map(([label, count]) => (channels.length === 1 ? label : `${label} ${count}`))
+      .join(' / ');
+  };
+
+  const renderItemChannelStatus = (item) => {
+    const channels = getItemChannels(item);
+    if (channels.length === 0) return <Tag color='grey'>{t('未找到')}</Tag>;
+    const counts = channels.reduce((acc, channel) => {
+      const meta = getChannelStatusMeta(channel);
+      if (!acc[meta.label]) acc[meta.label] = { ...meta, count: 0 };
+      acc[meta.label].count += 1;
+      return acc;
+    }, {});
+    return (
+      <Space wrap>
+        {Object.values(counts).map((meta) => (
+          <Tag key={meta.label} color={meta.color}>
+            {meta.label}
+            {channels.length > 1 ? ` ${meta.count}` : ''}
+          </Tag>
+        ))}
+      </Space>
+    );
+  };
+
+  const getQueryKeyTestResult = (item, channel) =>
+    queryKeyTestResults[buildQueryKeyTestId(item?.key, channel)];
+
+  const isQueryKeyTesting = (item, channel) =>
+    testingQueryKeyIds.has(buildQueryKeyTestId(item?.key, channel));
+
+  const getItemTestSummary = (item) => {
+    const channels = getItemChannels(item);
+    const results = channels
+      .map((channel) => getQueryKeyTestResult(item, channel))
+      .filter(Boolean);
+    const testingCount = channels.filter((channel) =>
+      isQueryKeyTesting(item, channel),
+    ).length;
+    const successCount = results.filter((result) => result.success).length;
+    const failedCount = results.filter((result) => !result.success).length;
+    const responseTimes = results
+      .filter((result) => typeof result.time === 'number')
+      .map((result) => result.time);
+    return {
+      total: channels.length,
+      tested: results.length,
+      testingCount,
+      successCount,
+      failedCount,
+      fastestTime:
+        responseTimes.length > 0 ? Math.min(...responseTimes) : null,
+      firstFailure: results.find((result) => !result.success),
+    };
+  };
+
+  const getQueryKeyTestStatusText = (item) => {
+    const summary = getItemTestSummary(item);
+    if (summary.total === 0) return '-';
+    if (summary.testingCount > 0) return t('测试中');
+    if (summary.tested === 0) return t('未测试');
+    if (summary.total === 1) {
+      return summary.successCount === 1 ? t('成功') : t('失败');
+    }
+    if (summary.failedCount === 0 && summary.tested === summary.total) {
+      return t('全部成功');
+    }
+    if (summary.successCount > 0) {
+      return `${t('部分成功')} ${summary.successCount}/${summary.tested}`;
+    }
+    return `${t('全部失败')} ${summary.failedCount}/${summary.tested}`;
+  };
+
+  const getQueryKeyResponseTimeText = (item) => {
+    const summary = getItemTestSummary(item);
+    if (summary.testingCount > 0) return t('测试中');
+    if (summary.fastestTime === null) return '-';
+    return `${summary.fastestTime.toFixed(2)}s`;
+  };
+
+  const getSingleTestStatusText = (item, channel) => {
+    if (isQueryKeyTesting(item, channel)) return t('测试中');
+    const result = getQueryKeyTestResult(item, channel);
+    if (!result) return t('未测试');
+    return result.success ? t('成功') : t('失败');
+  };
+
+  const getSingleResponseTimeText = (item, channel) => {
+    if (isQueryKeyTesting(item, channel)) return t('测试中');
+    const result = getQueryKeyTestResult(item, channel);
+    if (!result || typeof result.time !== 'number') return '-';
+    return `${result.time.toFixed(2)}s`;
+  };
+
+  const renderSingleTestStatus = (item, channel) => {
+    if (isQueryKeyTesting(item, channel)) {
+      return <Tag color={QUERY_KEY_TEST_STATUS.testing.color}>{t('测试中')}</Tag>;
+    }
+    const result = getQueryKeyTestResult(item, channel);
+    if (!result) {
+      return <Tag color={QUERY_KEY_TEST_STATUS.untested.color}>{t('未测试')}</Tag>;
+    }
+    const tag = (
+      <Tag
+        color={
+          result.success
+            ? QUERY_KEY_TEST_STATUS.success.color
+            : QUERY_KEY_TEST_STATUS.failed.color
+        }
+      >
+        {result.success ? t('成功') : t('失败')}
+      </Tag>
+    );
+    if (!result.success && result.message) {
+      return <Tooltip content={result.message}>{tag}</Tooltip>;
+    }
+    return tag;
+  };
+
+  const renderItemTestStatus = (item) => {
+    const summary = getItemTestSummary(item);
+    if (summary.total === 0) return <Text type='tertiary'>-</Text>;
+    if (summary.testingCount > 0) {
+      return (
+        <Tag color={QUERY_KEY_TEST_STATUS.testing.color}>
+          {t('测试中')} {summary.testingCount}/{summary.total}
+        </Tag>
+      );
+    }
+    if (summary.tested === 0) {
+      return <Tag color={QUERY_KEY_TEST_STATUS.untested.color}>{t('未测试')}</Tag>;
+    }
+    if (summary.total === 1) {
+      const channel = getItemChannels(item)[0];
+      return renderSingleTestStatus(item, channel);
+    }
+    const allSuccess =
+      summary.successCount === summary.total && summary.tested === summary.total;
+    const allFailed = summary.failedCount === summary.tested;
+    const color = allSuccess
+      ? QUERY_KEY_TEST_STATUS.success.color
+      : allFailed
+        ? QUERY_KEY_TEST_STATUS.failed.color
+        : QUERY_KEY_TEST_STATUS.partial.color;
+    const tag = (
+      <Tag color={color}>
+        {allSuccess
+          ? t('全部成功')
+          : allFailed
+            ? t('全部失败')
+            : t('部分成功')}{' '}
+        {summary.successCount}/{summary.tested}
+      </Tag>
+    );
+    if (summary.firstFailure?.message) {
+      return <Tooltip content={summary.firstFailure.message}>{tag}</Tooltip>;
+    }
+    return tag;
+  };
+
+  const renderSingleResponseTime = (item, channel) => {
+    if (isQueryKeyTesting(item, channel)) return <Text type='tertiary'>{t('测试中')}</Text>;
+    const result = getQueryKeyTestResult(item, channel);
+    if (!result || typeof result.time !== 'number') return <Text type='tertiary'>-</Text>;
+    return <Text>{result.time.toFixed(2)}s</Text>;
+  };
+
+  const renderItemResponseTime = (item) => {
+    const summary = getItemTestSummary(item);
+    if (summary.testingCount > 0) return <Text type='tertiary'>{t('测试中')}</Text>;
+    if (summary.fastestTime === null) return <Text type='tertiary'>-</Text>;
+    return <Text>{summary.fastestTime.toFixed(2)}s</Text>;
+  };
+
+  const testQueryKeyChannel = async (item, channel, options = {}) => {
+    const testId = buildQueryKeyTestId(item?.key, channel);
+    if (!item?.key || !channel?.id || testingQueryKeyIds.has(testId)) return null;
+
+    setTestingQueryKeyIds((previous) => {
+      const next = new Set(previous);
+      next.add(testId);
+      return next;
+    });
+
+    try {
+      const res = await API.post('/api/channel/query-key/test', {
+        key: item.key,
+        source: channel.source || 'channel',
+        target_id: channel.id,
+        model: options.model || '',
+        endpoint_type: options.endpointType || '',
+        stream: Boolean(options.stream),
+      });
+      const payload = res.data || {};
+      const result = {
+        success: Boolean(payload.success),
+        message: payload.message || '',
+        time: typeof payload.time === 'number' ? payload.time : 0,
+        errorCode: payload.error_code || '',
+      };
+      setQueryKeyTestResults((previous) => ({
+        ...previous,
+        [testId]: result,
+      }));
+      if (!options.silent) {
+        if (result.success) {
+          showSuccess(t('测试成功'));
+        } else {
+          showError(result.message || t('测试失败'));
+        }
+      }
+      return result;
+    } catch (error) {
+      const result = {
+        success: false,
+        message:
+          error?.response?.data?.message || error?.message || t('网络错误'),
+        time: 0,
+        errorCode: '',
+      };
+      setQueryKeyTestResults((previous) => ({
+        ...previous,
+        [testId]: result,
+      }));
+      if (!options.silent) showError(result.message);
+      return result;
+    } finally {
+      setTestingQueryKeyIds((previous) => {
+        const next = new Set(previous);
+        next.delete(testId);
+        return next;
+      });
+    }
+  };
+
+  const testQueryKeyItem = async (item) => {
+    const channels = getItemChannels(item);
+    if (channels.length === 0) {
+      showError(t('没有匹配的渠道'));
+      return;
+    }
+    if (channels.length === 1) {
+      await testQueryKeyChannel(item, channels[0]);
+      return;
+    }
+
+    const results = [];
+    for (const channel of channels) {
+      // Keep tests sequential to avoid creating an accidental upstream burst.
+      // eslint-disable-next-line no-await-in-loop
+      const result = await testQueryKeyChannel(item, channel, { silent: true });
+      if (result) results.push(result);
+    }
+    const successCount = results.filter((result) => result.success).length;
+    const failedCount = results.length - successCount;
+    if (failedCount === 0) {
+      showSuccess(t('测试完成：全部成功'));
+    } else {
+      showError(
+        t('测试完成：成功 {{success}} / 失败 {{failed}}')
+          .replace('{{success}}', successCount)
+          .replace('{{failed}}', failedCount),
+      );
+    }
+  };
+
+  const isItemTesting = (item) =>
+    getItemChannels(item).some((channel) => isQueryKeyTesting(item, channel));
 
   const mainCopyColumns = useMemo(
     () => [
       { label: t('密钥'), getValue: (item) => item.key || '' },
       { label: t('结果'), getValue: getStatusLabel },
+      { label: t('渠道状态'), getValue: getItemChannelStatusText },
+      { label: t('测试状态'), getValue: getQueryKeyTestStatusText },
+      { label: t('响应时间'), getValue: getQueryKeyResponseTimeText },
       {
         label: t('渠道数'),
         getValue: (item) => item.channel_count || 0,
@@ -274,7 +588,7 @@ const QueryKeyPage = () => {
         getValue: (item) => renderQuotaWithAmount(item.over_brush_amount || 0),
       },
     ],
-    [t],
+    [t, queryKeyTestResults, testingQueryKeyIds],
   );
 
   const channelDetailCopyColumns = useMemo(
@@ -293,6 +607,14 @@ const QueryKeyPage = () => {
       {
         label: t('状态'),
         getValue: ({ channel }) => getChannelStatusLabel(channel),
+      },
+      {
+        label: t('测试状态'),
+        getValue: ({ item, channel }) => getSingleTestStatusText(item, channel),
+      },
+      {
+        label: t('响应时间'),
+        getValue: ({ item, channel }) => getSingleResponseTimeText(item, channel),
       },
       { label: t('分组'), getValue: ({ channel }) => channel.group || '' },
       {
@@ -328,7 +650,7 @@ const QueryKeyPage = () => {
         getValue: ({ channel }) => formatDate(channel.balance_updated_time),
       },
     ],
-    [t],
+    [t, queryKeyTestResults, testingQueryKeyIds],
   );
 
   const flattenChannelDetails = (rows) =>
@@ -433,14 +755,39 @@ const QueryKeyPage = () => {
       title: t('状态'),
       dataIndex: 'status',
       width: 110,
-      render: (status, record) => {
-        if (record.source === 'preparation') {
-          return <Tag color='blue'>{t('待晋升')}</Tag>;
-        }
-        return status === 1 ? (
-          <Tag color='green'>{t('已启用')}</Tag>
-        ) : (
-          <Tag color='grey'>{t('已禁用')}</Tag>
+      render: (_, record) => {
+        const meta = getChannelStatusMeta(record);
+        return <Tag color={meta.color}>{meta.label}</Tag>;
+      },
+    },
+    {
+      title: t('测试状态'),
+      dataIndex: 'query_key_test_status',
+      width: 120,
+      render: (_, record) => renderSingleTestStatus(record.__item, record),
+    },
+    {
+      title: t('响应时间'),
+      dataIndex: 'query_key_response_time',
+      width: 120,
+      render: (_, record) => renderSingleResponseTime(record.__item, record),
+    },
+    {
+      title: t('操作'),
+      dataIndex: 'query_key_operate',
+      width: 120,
+      fixed: 'right',
+      render: (_, record) => {
+        const item = record.__item;
+        return (
+          <Button
+            size='small'
+            type='tertiary'
+            onClick={() => testQueryKeyChannel(item, record)}
+            loading={isQueryKeyTesting(item, record)}
+          >
+            {t('测试')}
+          </Button>
         );
       },
     },
@@ -540,6 +887,24 @@ const QueryKeyPage = () => {
       },
     },
     {
+      title: t('渠道状态'),
+      dataIndex: 'channel_status',
+      width: 180,
+      render: (_, record) => renderItemChannelStatus(record),
+    },
+    {
+      title: t('测试状态'),
+      dataIndex: 'query_key_test_status',
+      width: 150,
+      render: (_, record) => renderItemTestStatus(record),
+    },
+    {
+      title: t('响应时间'),
+      dataIndex: 'query_key_response_time',
+      width: 130,
+      render: (_, record) => renderItemResponseTime(record),
+    },
+    {
       title: t('渠道数'),
       dataIndex: 'channel_count',
       width: 100,
@@ -585,6 +950,26 @@ const QueryKeyPage = () => {
         </Text>
       ),
     },
+    {
+      title: t('操作'),
+      dataIndex: 'query_key_operate',
+      width: 130,
+      fixed: 'right',
+      render: (_, record) => {
+        const channels = getItemChannels(record);
+        return (
+          <Button
+            size='small'
+            type='tertiary'
+            disabled={channels.length === 0}
+            loading={isItemTesting(record)}
+            onClick={() => testQueryKeyItem(record)}
+          >
+            {channels.length > 1 ? t('测试全部') : t('测试')}
+          </Button>
+        );
+      },
+    },
   ];
 
   const expandedRowRender = (record) => {
@@ -592,6 +977,10 @@ const QueryKeyPage = () => {
     if (channels.length === 0) {
       return <Empty description={t('没有匹配的渠道')} />;
     }
+    const channelsWithItem = channels.map((channel) => ({
+      ...channel,
+      __item: record,
+    }));
     return (
       <div className='rounded-lg bg-semi-color-fill-0 p-3'>
         <Banner
@@ -604,13 +993,13 @@ const QueryKeyPage = () => {
         />
         <Table
           columns={channelColumns}
-          dataSource={channels}
+          dataSource={channelsWithItem}
           rowKey={(channel) =>
             `${record.key}-${channel.source || 'channel'}-${channel.id}`
           }
           pagination={false}
           size='small'
-          scroll={{ x: 1900 }}
+          scroll={{ x: 2200 }}
           style={{ width: '100%' }}
         />
       </div>
