@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="fkcodex 提供 Codex API 服务，多种方案可选，价格清楚，接入简单。" />
+    <title>fkcodex - Codex API Service</title>
+    <!--umami-->
+    <!--Google Analytics-->
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #0c1b2a;
+        --ink-soft: #335065;
+        --muted: #64798a;
+        --line: #dbe8f1;
+        --line-strong: #bfd7e8;
+        --paper: #ffffff;
+        --mist: #f0f9ff;
+        --sky: #0ea5e9;
+        --sky-deep: #0369a1;
+        --sky-soft: #e0f2fe;
+        --orange: #f97316;
+        --green: #0f9f6e;
+        --shadow-sm: 0 10px 30px rgba(12, 74, 110, 0.08);
+        --shadow-lg: 0 28px 90px rgba(12, 74, 110, 0.16);
+        font-family: "DM Sans", "Noto Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 8% 4%, rgba(14, 165, 233, 0.18), transparent 32rem),
+          radial-gradient(circle at 92% 2%, rgba(249, 115, 22, 0.12), transparent 28rem),
+          linear-gradient(180deg, #f8fcff 0%, var(--mist) 44%, #ffffff 100%);
+        color: var(--ink);
+        overflow-x: hidden;
+      }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+      .nav-wrap { position: sticky; top: 16px; z-index: 20; padding: 16px 0 0; }
+      .nav {
+        display: flex; align-items: center; justify-content: space-between; gap: 18px;
+        border: 1px solid rgba(191, 215, 232, 0.78); border-radius: 24px; padding: 12px;
+        background: rgba(255, 255, 255, 0.82); box-shadow: var(--shadow-sm); backdrop-filter: blur(18px);
+      }
+      .brand { display: inline-flex; align-items: center; gap: 12px; padding: 0 8px; font-weight: 850; letter-spacing: -0.04em; }
+      .brand-mark {
+        display: grid; width: 38px; height: 38px; place-items: center; border-radius: 14px;
+        background: linear-gradient(135deg, var(--sky), #38bdf8); color: #fff;
+        box-shadow: 0 14px 28px rgba(14, 165, 233, 0.25);
+      }
+      .nav-links { display: flex; align-items: center; gap: 4px; }
+      .nav-links a { border-radius: 999px; padding: 10px 14px; color: var(--muted); font-size: 14px; font-weight: 650; transition: 180ms ease; }
+      .nav-links a:hover { background: var(--sky-soft); color: var(--sky-deep); }
+      .button {
+        display: inline-flex; align-items: center; justify-content: center; min-height: 46px;
+        border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 20px;
+        background: #fff; color: var(--ink); cursor: pointer; font-size: 15px; font-weight: 800;
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      }
+      .button:hover { transform: translateY(-2px); border-color: #9fcbe6; box-shadow: 0 16px 32px rgba(12, 74, 110, 0.12); }
+      .button.primary { border-color: transparent; background: linear-gradient(135deg, var(--orange), #fb923c); color: #fff; box-shadow: 0 18px 38px rgba(249, 115, 22, 0.28); }
+      .hero { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(340px, 0.98fr); gap: 56px; align-items: center; padding: 98px 0 86px; }
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 9px; border: 1px solid #bae6fd; border-radius: 999px;
+        padding: 8px 12px; background: rgba(224, 242, 254, 0.72); color: var(--sky-deep);
+        font-size: 12px; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase;
+      }
+      .eyebrow svg { width: 15px; height: 15px; }
+      h1 { margin: 24px 0 0; max-width: 780px; font-size: clamp(46px, 7.8vw, 92px); line-height: 0.98; letter-spacing: -0.08em; }
+      .highlight { color: var(--sky-deep); }
+      .lead { max-width: 650px; margin: 26px 0 0; color: var(--ink-soft); font-size: clamp(17px, 2vw, 21px); line-height: 1.72; }
+      .hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+      .proof-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+      .proof-strip span { border: 1px solid var(--line); border-radius: 999px; padding: 9px 12px; background: rgba(255, 255, 255, 0.78); color: var(--muted); font-size: 13px; font-weight: 650; }
+      .panel { position: relative; }
+      .panel::before {
+        position: absolute; inset: -34px -24px; z-index: -1; border-radius: 42px;
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(249, 115, 22, 0.1)), #fff;
+        filter: blur(4px); content: "";
+      }
+      .console-card { overflow: hidden; border: 1px solid rgba(191, 215, 232, 0.9); border-radius: 30px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--shadow-lg); }
+      .console-top { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 17px 18px; }
+      .window-dots { display: flex; gap: 7px; }
+      .window-dots i { width: 10px; height: 10px; border-radius: 999px; background: #cbd5e1; }
+      .window-dots i:nth-child(2) { background: #38bdf8; }
+      .window-dots i:nth-child(3) { background: #fb923c; }
+      .console-top span { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+      .console-body { padding: 26px; }
+      .request-box { border: 1px solid #dbeafe; border-radius: 22px; padding: 18px; background: linear-gradient(180deg, #f8fbff, #eff8ff); }
+      .code-line { display: flex; justify-content: space-between; gap: 14px; margin: 0; padding: 11px 0; border-bottom: 1px solid rgba(191, 215, 232, 0.62); color: #1f3d52; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+      .code-line:last-child { border-bottom: 0; }
+      .code-line strong { color: var(--sky-deep); }
+      .status-pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 6px 10px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 850; }
+      .status-pill::before { width: 7px; height: 7px; border-radius: 999px; background: var(--green); content: ""; }
+      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+      .metric { border: 1px solid var(--line); border-radius: 20px; padding: 17px; background: #fff; }
+      .metric strong { display: block; color: var(--sky-deep); font-size: 27px; letter-spacing: -0.06em; }
+      .metric span { color: var(--muted); font-size: 12px; font-weight: 700; }
+      .section { padding: 78px 0; }
+      .section-head { display: grid; grid-template-columns: minmax(0, 0.86fr) minmax(260px, 0.52fr); gap: 40px; align-items: end; margin-bottom: 28px; }
+      .section h2 { margin: 16px 0 0; font-size: clamp(34px, 5vw, 58px); line-height: 1.02; letter-spacing: -0.065em; }
+      .section-head p, .card p, .cta p { color: var(--muted); line-height: 1.72; }
+      .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+      .card { position: relative; min-height: 280px; border: 1px solid rgba(191, 215, 232, 0.9); border-radius: 28px; padding: 26px; background: rgba(255, 255, 255, 0.86); box-shadow: var(--shadow-sm); }
+      .card.featured { border-color: rgba(14, 165, 233, 0.36); background: linear-gradient(180deg, #fff, #edf8ff); }
+      .icon-box { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 16px; background: var(--sky-soft); color: var(--sky-deep); }
+      .icon-box svg { width: 22px; height: 22px; }
+      .card h3 { margin: 22px 0 10px; font-size: 22px; letter-spacing: -0.04em; }
+      .card ul { display: grid; gap: 9px; margin: 20px 0 0; padding: 0; list-style: none; }
+      .card li { display: flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: 14px; font-weight: 700; }
+      .card li::before { width: 8px; height: 8px; border-radius: 999px; background: var(--orange); content: ""; }
+      .story { display: grid; grid-template-columns: minmax(280px, 0.64fr) minmax(0, 1fr); gap: 18px; }
+      .quote, .proof-card { border: 1px solid var(--line); border-radius: 28px; background: #fff; box-shadow: var(--shadow-sm); }
+      .quote { padding: 28px; }
+      .quote p { margin: 0; color: var(--ink-soft); font-size: 20px; line-height: 1.6; letter-spacing: -0.02em; }
+      .quote footer { margin-top: 24px; color: var(--sky-deep); font-size: 14px; font-weight: 850; }
+      .proof-card { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden; background: var(--line); }
+      .proof-item { padding: 28px; background: #fff; }
+      .proof-item strong { display: block; color: var(--sky-deep); font-size: 34px; letter-spacing: -0.06em; }
+      .proof-item span { display: block; margin-top: 7px; color: var(--muted); font-size: 13px; font-weight: 700; }
+      .cta { display: grid; justify-items: center; border: 1px solid rgba(191, 215, 232, 0.9); border-radius: 36px; padding: clamp(42px, 7vw, 76px) 28px; background: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.2), transparent 28rem), linear-gradient(180deg, #fff, #f0f9ff); box-shadow: var(--shadow-lg); text-align: center; }
+      .cta h2 { max-width: 780px; margin: 18px 0 0; }
+      .cta p { max-width: 660px; margin: 18px 0 0; font-size: 18px; }
+      .footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); padding: 28px 0 42px; color: var(--muted); font-size: 13px; }
+      .footer a { color: var(--sky-deep); font-weight: 750; }
+      @media (max-width: 920px) {
+        .nav { align-items: flex-start; flex-direction: column; }
+        .nav-links { width: 100%; overflow-x: auto; padding-bottom: 3px; }
+        .hero, .section-head, .story { grid-template-columns: 1fr; }
+        .hero { padding-top: 62px; }
+        .cards, .metrics, .proof-card { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 520px) {
+        .shell { width: min(100% - 28px, 1180px); }
+        .nav-wrap { top: 8px; }
+        .nav-links a { white-space: nowrap; }
+        h1 { font-size: clamp(42px, 14vw, 64px); }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .hero-copy, .panel, .card, .story, .cta { animation: rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+        .panel { animation-delay: 120ms; }
+        .card:nth-child(2) { animation-delay: 80ms; }
+        .card:nth-child(3) { animation-delay: 160ms; }
+        @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="nav-wrap shell">
+      <header class="nav" aria-label="主导航">
+        <a class="brand" href="/" aria-label="fkcodex home">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 8.5 12 4l5 4.5v7L12 20l-5-4.5v-7Z" stroke="currentColor" stroke-width="2"/><path d="M9.5 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+          <span>fkcodex</span>
+        </a>
+        <nav class="nav-links" aria-label="页面链接">
+          <a href="/pricing/">定价</a><a href="/models/">模型</a><a href="/playground/">Playground</a><a href="/sign-in">登录</a><a class="button primary" href="/dashboard/">控制台</a>
+        </nav>
+      </header>
+    </div>
+
+    <main>
+      <section class="shell hero">
+        <div class="hero-copy">
+          <div class="eyebrow"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 3v18M5 8h14M7 16h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>官方 API 服务 · Practical Codex API plans</div>
+          <h1>Codex API<br />省钱省心，<br /><span class="highlight">接入更直接。</span></h1>
+          <p class="lead">多种方案可选，价格清楚，接入简单。你只管调用 API，额度、密钥、用量和杂事交给 fkcodex 处理。</p>
+          <div class="hero-actions"><a class="button primary" href="/pricing/">选择方案</a><a class="button" href="/sign-in">登录控制台</a></div>
+          <div class="proof-strip" aria-label="服务特点"><span>官方 API 服务</span><span>多种方案可选</span><span>用量清楚</span><span>少点麻烦</span></div>
+        </div>
+        <aside class="panel" aria-label="API 调用预览">
+          <div class="console-card">
+            <div class="console-top"><div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div><span>codex-api.request</span></div>
+            <div class="console-body">
+              <div class="request-box"><p class="code-line"><span>POST</span><strong>/v1/chat/completions</strong></p><p class="code-line"><span>Authorization</span><strong>Bearer fk_••••••••</strong></p><p class="code-line"><span>Model</span><strong>codex-latest</strong></p><p class="code-line"><span>Status</span><span class="status-pill">Ready</span></p></div>
+              <div class="metrics"><div class="metric"><strong>API</strong><span>主要产品</span></div><div class="metric"><strong>Plans</strong><span>灵活选择</span></div><div class="metric"><strong>Usage</strong><span>费用可见</span></div></div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="shell section" id="services">
+        <div class="section-head"><div><div class="eyebrow">API Service</div><h2>买 API，就要简单直接。</h2></div><p>fkcodex 只把关键事讲清楚：怎么买、怎么调、用了多少。首页保持轻量，控制台继续由 new-api 原前端承接。</p></div>
+        <div class="cards">
+          <article class="card featured"><div class="icon-box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h3>官方 API 接入</h3><p>围绕 Codex API 做服务，不把用户绕进一堆无关功能。</p><ul><li>先选方案</li><li>再拿密钥</li><li>直接调用</li></ul></article>
+          <article class="card"><div class="icon-box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v10H7V7Z" stroke="currentColor" stroke-width="2"/><path d="M4 10h3M17 10h3M4 14h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><h3>多种方案可选</h3><p>小用量先试，稳定调用再升级，特殊请求量再单独谈。</p><ul><li>入门</li><li>专业</li><li>定制</li></ul></article>
+          <article class="card"><div class="icon-box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 19V5M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m8 15 3-3 2 2 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h3>用量和密钥清楚</h3><p>密钥、请求、Token 和剩余额度都放在控制台里看。</p><ul><li>创建密钥</li><li>查看用量</li><li>控制费用</li></ul></article>
+        </div>
+      </section>
+
+      <section class="shell section" aria-label="可信证明">
+        <div class="story"><blockquote class="quote"><p>“这个页面只负责讲清楚 API 服务价值；用户进入控制台后，仍然使用 new-api 原生的登录、定价、模型和密钥管理流程。”</p><footer>独立 landing HTML · 保留原 SPA 能力</footer></blockquote><div class="proof-card"><div class="proof-item"><strong>/</strong><span>独立首页</span></div><div class="proof-item"><strong>SPA</strong><span>其他路径保留</span></div><div class="proof-item"><strong>0</strong><span>额外后端依赖</span></div></div></div>
+      </section>
+
+      <section class="shell section"><div class="cta"><div class="eyebrow">Ready when you are</div><h2>选方案。拿密钥。调用 Codex。</h2><p>fkcodex 卖的是 Codex API 服务，不是复杂平台。首页轻量独立，管理能力继续交给 new-api。</p><div class="hero-actions"><a class="button primary" href="/pricing/">查看定价</a><a class="button" href="/dashboard/">进入控制台</a></div></div></section>
+    </main>
+
+    <footer class="shell footer"><span>fkcodex · Codex API service</span><a href="/sign-in">Sign in</a></footer>
+  </body>
+</html>
