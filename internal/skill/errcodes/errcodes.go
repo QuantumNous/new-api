@@ -20,8 +20,8 @@ import (
 type ErrorCode string
 
 const (
-	ErrInvalidRequest            ErrorCode = "INVALID_REQUEST"
-	ErrAuthRequired              ErrorCode = "AUTH_REQUIRED"
+	ErrInvalidRequest ErrorCode = "INVALID_REQUEST"
+	ErrAuthRequired   ErrorCode = "AUTH_REQUIRED"
 	// ErrForbidden is emitted when a user is authenticated but lacks sufficient
 	// role for the endpoint (tasks/05 §4.1). See D-45-1 in the package doc.
 	ErrForbidden                 ErrorCode = "FORBIDDEN"

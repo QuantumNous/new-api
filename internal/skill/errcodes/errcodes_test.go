@@ -18,7 +18,7 @@ func TestHTTPStatus_AllCodes(t *testing.T) {
 	}{
 		{ErrInvalidRequest, 400},
 		{ErrAuthRequired, 401},
-		{ErrForbidden, 403},    // D-45-1: authenticated non-admin, see package doc
+		{ErrForbidden, 403}, // D-45-1: authenticated non-admin, see package doc
 		{ErrSkillNotFound, 404},
 		{ErrSkillNotPublished, 403},
 		{ErrSkillNotEnabled, 403},

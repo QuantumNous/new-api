@@ -150,8 +150,9 @@ func TestSkillRootAuth_InvalidToken_Returns401(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}))
+	oldDB := model.DB
 	model.DB = db
-	t.Cleanup(func() { model.DB = nil })
+	t.Cleanup(func() { model.DB = oldDB })
 
 	r := authTestRouter(SkillRootAuth())
 	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
