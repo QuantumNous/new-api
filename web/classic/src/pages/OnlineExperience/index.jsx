@@ -84,7 +84,7 @@ const OnlineExperience = () => {
   const styleState = { isMobile };
   const [searchParams] = useSearchParams();
 
-  const state = usePlaygroundState();
+  const state = usePlaygroundState(userState?.user?.id || null);
   const {
     inputs,
     parameterEnabled,
@@ -223,7 +223,14 @@ const OnlineExperience = () => {
       console.error('构造预览请求体失败:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody, t]);
+  }, [
+    inputs,
+    parameterEnabled,
+    message,
+    customRequestMode,
+    customRequestBody,
+    t,
+  ]);
 
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);

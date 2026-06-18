@@ -17,20 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
-import { Input, Typography } from '@douyinfe/semi-ui';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Input } from '@douyinfe/semi-ui';
 import {
-  TerminalSquare,
   MessageCircleMore,
   PanelLeftOpen,
   PanelRightOpen,
   Plus,
+  Search,
   Trash2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { normalizePlaygroundConversationType } from './configStorage';
 
 const PlaygroundSidebar = ({
   conversations,
+  playgroundMode,
   activeConversationId,
   collapsed,
   isMobile,
@@ -44,6 +46,8 @@ const PlaygroundSidebar = ({
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef(null);
+  const pendingSearchFocusRef = useRef(false);
 
   const getConversationSearchText = (conversation) => {
     const title = conversation?.title || '';
@@ -79,10 +83,16 @@ const PlaygroundSidebar = ({
   };
 
   const recentThreads = useMemo(() => {
+    const currentType = normalizePlaygroundConversationType(playgroundMode);
     return (conversations || [])
+      .filter(
+        (conversation) =>
+          normalizePlaygroundConversationType(conversation?.type) ===
+          currentType,
+      )
       .slice()
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  }, [conversations]);
+  }, [conversations, playgroundMode]);
 
   const filteredThreads = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -162,21 +172,54 @@ const PlaygroundSidebar = ({
     }
   };
 
-  const renderBrandMark = () => (
-    <div className='new-playground-logo' aria-hidden='true'>
-      <TerminalSquare size={20} />
-    </div>
-  );
+  const focusSearchInput = () => {
+    window.requestAnimationFrame(() => {
+      const inputElement =
+        searchInputRef.current?.input ||
+        searchInputRef.current?.nativeElement?.querySelector?.('input') ||
+        searchInputRef.current;
+      inputElement?.focus?.();
+    });
+  };
+
+  const handleSearchTrigger = () => {
+    if (isMobile) {
+      pendingSearchFocusRef.current = true;
+      onMobileOpen?.();
+      return;
+    }
+
+    if (collapsed) {
+      pendingSearchFocusRef.current = true;
+      onToggleCollapsed?.();
+      return;
+    }
+
+    focusSearchInput();
+  };
+
+  useEffect(() => {
+    const shouldFocusSearch =
+      pendingSearchFocusRef.current &&
+      (!collapsed || isMobile) &&
+      (!isMobile || mobileOpen);
+
+    if (!shouldFocusSearch) {
+      return;
+    }
+
+    pendingSearchFocusRef.current = false;
+    focusSearchInput();
+  }, [collapsed, isMobile, mobileOpen]);
 
   const renderQuickActions = () => (
     <div className='new-playground-quick-actions'>
       <button
         type='button'
         className='sidebar-quick-action'
-        aria-label={isMobile ? t('打开侧边栏') : t('展开侧边栏')}
-        onClick={handlePrimaryToggle}
+        onClick={handleSearchTrigger}
       >
-        <PanelLeftOpen size={16} />
+        <Search size={16} />
       </button>
       <button
         type='button'
@@ -186,15 +229,20 @@ const PlaygroundSidebar = ({
       >
         <Plus size={16} />
       </button>
+      <button
+        type='button'
+        className='sidebar-quick-action'
+        aria-label={isMobile ? t('打开侧边栏') : t('展开侧边栏')}
+        onClick={handlePrimaryToggle}
+      >
+        <PanelLeftOpen size={16} />
+      </button>
     </div>
   );
 
   const renderCollapsedEntry = (className) => (
     <div className={className}>
-      <div className='new-playground-entry-pill'>
-        {renderBrandMark()}
-        {renderQuickActions()}
-      </div>
+      <div className='new-playground-entry-pill'>{renderQuickActions()}</div>
     </div>
   );
 
@@ -220,28 +268,6 @@ const PlaygroundSidebar = ({
         className={`new-playground-sidebar ${isMobile ? 'is-mobile' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`}
       >
         <>
-          <div className='new-playground-sidebar-header'>
-            <div className='new-playground-brand'>
-              {renderBrandMark()}
-              <div className='new-playground-brand-copy'>
-                <Typography.Title heading={5} className='!mb-0 brand-title'>
-                  {t('操练场')}
-                </Typography.Title>
-              </div>
-            </div>
-
-            <div className='new-playground-sidebar-header-actions'>
-              <button
-                type='button'
-                className='sidebar-icon-button'
-                aria-label={isMobile ? t('关闭侧边栏') : t('收起侧边栏')}
-                onClick={handlePrimaryToggle}
-              >
-                <PanelRightOpen size={17} />
-              </button>
-            </div>
-          </div>
-
           <button
             type='button'
             className='new-chat-button'
@@ -253,6 +279,7 @@ const PlaygroundSidebar = ({
 
           <div className='conversation-search-wrap'>
             <Input
+              ref={searchInputRef}
               placeholder={t('搜索会话...')}
               className='conversation-search'
               showClear

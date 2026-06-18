@@ -52,6 +52,8 @@ const routerMap = {
   deployment: '/console/deployment',
   skillHub: '/console/skill-hub',
   playground: '/console/playground',
+  'image-playground': '/console/image-playground',
+  'video-playground': '/console/video-playground',
   onlineExperience: '/console/online-experience',
   personal: '/console/personal',
 };

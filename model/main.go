@@ -254,6 +254,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := ensurePlaygroundConversationTypeColumn(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -303,6 +306,9 @@ func migrateDB() error {
 func migrateDBFast() error {
 
 	var wg sync.WaitGroup
+	if err := ensurePlaygroundConversationTypeColumn(); err != nil {
+		return err
+	}
 
 	migrations := []struct {
 		model interface{}
@@ -371,6 +377,16 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+func ensurePlaygroundConversationTypeColumn() error {
+	if !DB.Migrator().HasTable(&PlaygroundConversation{}) {
+		return nil
+	}
+	if DB.Migrator().HasColumn(&PlaygroundConversation{}, "Type") {
+		return nil
+	}
+	return DB.Migrator().AddColumn(&PlaygroundConversation{}, "Type")
 }
 
 func migrateLOGDB() error {

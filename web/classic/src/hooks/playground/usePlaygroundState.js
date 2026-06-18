@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getDefaultMessages,
@@ -33,75 +33,68 @@ import { generateMessageId } from '../../helpers';
 import {
   loadConfig,
   saveConfig,
-  saveMessages,
-  loadConversationState,
-  saveConversationState,
   createStoredConversation,
+  normalizePlaygroundConversationType,
   loadConversationStateFromIndexedDB,
   saveConversationStateToIndexedDB,
   migrateConversationStateToIndexedDB,
 } from '../../components/playground/configStorage';
 import { processIncompleteThinkTags } from '../../helpers';
 
-export const usePlaygroundState = () => {
+export const usePlaygroundState = (userIdentity = null) => {
   const { t } = useTranslation();
+  const userId = userIdentity?.id ?? null;
+  const username = userIdentity?.username ?? 'anonymous';
+  const normalizedUserIdentity = useMemo(
+    () =>
+      userId || username
+        ? {
+            id: userId,
+            username,
+          }
+        : null,
+    [userId, username],
+  );
 
-  const normalizeConversationTitle = useCallback((conversation) => {
-    const title = typeof conversation?.title === 'string' ? conversation.title : '';
-    const legacyEmptyTitles = new Set([
-      PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
-      'New conversation',
-      'Nouvelle conversation',
-      '新しい会話',
-      'Новый диалог',
-      'Cuộc trò chuyện mới',
-      '新對話',
-      t(PLAYGROUND_I18N_KEYS.NEW_CONVERSATION),
-    ]);
-    const isLegacyEmptyTitle =
-      legacyEmptyTitles.has(title.trim());
+  const normalizeConversationTitle = useCallback(
+    (conversation) => {
+      const title =
+        typeof conversation?.title === 'string' ? conversation.title : '';
+      const legacyEmptyTitles = new Set([
+        PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
+        'New conversation',
+        'Nouvelle conversation',
+        '新しい会話',
+        'Новый диалог',
+        'Cuộc trò chuyện mới',
+        '新對話',
+        t(PLAYGROUND_I18N_KEYS.NEW_CONVERSATION),
+      ]);
+      const isLegacyEmptyTitle = legacyEmptyTitles.has(title.trim());
 
-    if (
-      isLegacyEmptyTitle &&
-      (!Array.isArray(conversation?.messages) || conversation.messages.length === 0)
-    ) {
-      return '';
-    }
+      if (
+        isLegacyEmptyTitle &&
+        (!Array.isArray(conversation?.messages) ||
+          conversation.messages.length === 0)
+      ) {
+        return '';
+      }
 
-    return title;
-  }, [t]);
+      return title;
+    },
+    [t],
+  );
 
   // 使用惰性初始化，确保只在组件首次挂载时加载配置和消息
   const [savedConfig] = useState(() => loadConfig());
-  const [savedConversationState] = useState(() => loadConversationState());
-  const [initialMessages] = useState(() => {
-    const activeConversation = savedConversationState.conversations.find(
-      (conversation) =>
-        conversation.id === savedConversationState.activeConversationId,
-    );
-    const loaded = activeConversation?.messages || null;
-    // 检查是否是旧的中文默认消息，如果是则清除
-    if (
-      loaded &&
-      loaded.length === 2 &&
-      loaded[0].id === '2' &&
-      loaded[1].id === '3'
-    ) {
-      const hasOldChinese =
-        loaded[0].content === '你好' ||
-        loaded[1].content === '你好，请问有什么可以帮助您的吗？' ||
-        loaded[1].content === '你好！很高兴见到你。有什么我可以帮助你的吗？' ||
-        loaded[0].content === t('默认用户消息') ||
-        loaded[1].content === t('默认助手消息');
-
-      if (hasOldChinese) {
-        // 清除旧的默认消息
-        localStorage.removeItem('playground_messages');
-        return null;
-      }
-    }
-    return loaded;
-  });
+  const [initialPlaygroundMode] = useState(() =>
+    normalizePlaygroundConversationType(
+      savedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
+    ),
+  );
+  const [initialConversation] = useState(() =>
+    createStoredConversation([], null, initialPlaygroundMode),
+  );
 
   // 基础配置状态
   const [inputs, setInputs] = useState(
@@ -119,9 +112,7 @@ export const usePlaygroundState = () => {
   const [customRequestBody, setCustomRequestBody] = useState(
     savedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
   );
-  const [playgroundMode, setPlaygroundMode] = useState(
-    savedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
-  );
+  const [playgroundMode, setPlaygroundMode] = useState(initialPlaygroundMode);
 
   // UI状态
   const [showSettings, setShowSettings] = useState(false);
@@ -132,25 +123,23 @@ export const usePlaygroundState = () => {
   const [status, setStatus] = useState({});
   const [conversationStorageReady, setConversationStorageReady] =
     useState(false);
-  const [conversations, setConversations] = useState(
-    savedConversationState.conversations,
-  );
+  const [conversations, setConversations] = useState([initialConversation]);
   const [activeConversationId, setActiveConversationId] = useState(
-    savedConversationState.activeConversationId,
+    initialConversation.id,
   );
 
   // 消息相关状态 - 使用加载的消息或默认消息初始化
-  const [message, setMessage] = useState(
-    () => initialMessages || getDefaultMessages(t),
-  );
+  const [message, setMessage] = useState(() => getDefaultMessages(t));
 
   // 当语言改变时，如果是默认消息则更新
   useEffect(() => {
-    // 只在没有保存的消息时才更新默认消息
-    if (!initialMessages) {
-      setMessage(getDefaultMessages(t));
-    }
-  }, [t, initialMessages]); // 当语言改变时
+    // 只在当前没有真实会话消息时才更新默认消息
+    setMessage((prevMessages) =>
+      !Array.isArray(prevMessages) || prevMessages.length === 0
+        ? getDefaultMessages(t)
+        : prevMessages,
+    );
+  }, [t]); // 当语言改变时
 
   // 调试状态
   const [debugData, setDebugData] = useState({
@@ -173,11 +162,17 @@ export const usePlaygroundState = () => {
   const saveConfigTimeoutRef = useRef(null);
   const saveRemoteConversationTimeoutRef = useRef(null);
   const deletedConversationIdsRef = useRef(new Set());
-  const remoteConversationHydratingRef = useRef(false);
-  const currentConversationIdRef = useRef(
-    savedConversationState.activeConversationId || null,
-  );
-  const localConversationStateRef = useRef(savedConversationState);
+  const currentConversationIdRef = useRef(initialConversation.id);
+  const localConversationStateRef = useRef({
+    conversations: [initialConversation],
+    activeConversationId: initialConversation.id,
+  });
+  const playgroundModeRef = useRef(playgroundMode);
+
+  useEffect(() => {
+    playgroundModeRef.current =
+      normalizePlaygroundConversationType(playgroundMode);
+  }, [playgroundMode]);
 
   const persistConversationState = useCallback(
     (nextConversations = [], nextActiveConversationId = null) => {
@@ -187,15 +182,15 @@ export const usePlaygroundState = () => {
       };
 
       localConversationStateRef.current = payload;
-      saveConversationState(nextConversations, nextActiveConversationId);
       saveConversationStateToIndexedDB(
         nextConversations,
         nextActiveConversationId,
+        normalizedUserIdentity,
       ).catch((error) => {
         console.error('保存 IndexedDB 会话状态失败:', error);
       });
     },
-    [],
+    [normalizedUserIdentity],
   );
 
   const isConversationEmpty = useCallback((conversation) => {
@@ -211,10 +206,14 @@ export const usePlaygroundState = () => {
         return '';
       }
       const normalizedTitle = normalizeConversationTitle(conversation);
+      const normalizedType = normalizePlaygroundConversationType(
+        conversation.type,
+      );
       if (isConversationEmpty(conversation)) {
-        return `empty:${normalizedTitle}`;
+        return `empty:${normalizedType}:${normalizedTitle}`;
       }
       return JSON.stringify({
+        type: normalizedType,
         title: normalizedTitle,
         messages: conversation.messages,
       });
@@ -252,145 +251,81 @@ export const usePlaygroundState = () => {
     [getConversationSignature],
   );
 
-  const normalizeConversation = useCallback((conversation) => {
-    if (!conversation) {
-      return null;
-    }
-
-    const seenMessageIds = new Set();
-    const normalizedMessages = Array.isArray(conversation.messages)
-      ? conversation.messages.map((msg) => {
-          const rawId =
-            typeof msg?.id === 'string' && msg.id.trim() !== '' ? msg.id : '';
-          const nextId =
-            rawId && !seenMessageIds.has(rawId) ? rawId : generateMessageId();
-          seenMessageIds.add(nextId);
-          return {
-            ...msg,
-            id: nextId,
-          };
-        })
-      : [];
-
-    return {
-      id: conversation.conversation_id || conversation.id,
-      title: normalizeConversationTitle(conversation),
-      messages: normalizedMessages,
-      createdAt:
-        conversation.created_at || conversation.createdAt || Date.now(),
-      updatedAt:
-        conversation.updated_at || conversation.updatedAt || Date.now(),
-    };
-  }, [normalizeConversationTitle]);
-
-  const getConversationQualityScore = useCallback((conversation) => {
-    const messages = Array.isArray(conversation?.messages)
-      ? conversation.messages
-      : [];
-    const lastMessage = messages[messages.length - 1];
-    const hasImageContent = messages.some(
-      (msg) =>
-        Array.isArray(msg?.content) &&
-        msg.content.some((item) => item?.type === 'image_url'),
-    );
-
-    let score = messages.length * 10;
-    if (
-      lastMessage?.status === MESSAGE_STATUS.COMPLETE ||
-      lastMessage?.status === MESSAGE_STATUS.ERROR
-    ) {
-      score += 100;
-    }
-    if (
-      lastMessage?.status === MESSAGE_STATUS.LOADING ||
-      lastMessage?.status === MESSAGE_STATUS.INCOMPLETE
-    ) {
-      score -= 100;
-    }
-    if (hasImageContent) {
-      score += 50;
-    }
-
-    return score;
-  }, []);
-
-  const pickPreferredConversation = useCallback(
-    (left, right) => {
-      if (!left) {
-        return right;
-      }
-      if (!right) {
-        return left;
-      }
-
-      const leftUpdatedAt = Number(left.updatedAt || 0);
-      const rightUpdatedAt = Number(right.updatedAt || 0);
-      if (leftUpdatedAt !== rightUpdatedAt) {
-        return leftUpdatedAt > rightUpdatedAt ? left : right;
-      }
-
-      const leftScore = getConversationQualityScore(left);
-      const rightScore = getConversationQualityScore(right);
-      if (leftScore !== rightScore) {
-        return leftScore > rightScore ? left : right;
-      }
-
-      return left;
-    },
-    [getConversationQualityScore],
-  );
-
-  const mergeConversationLists = useCallback(
-    (localList = [], remoteList = []) => {
-      const mergedById = new Map();
-
-      [...localList, ...remoteList].forEach((conversation) => {
-        if (!conversation?.id) {
-          return;
-        }
-        const existingConversation = mergedById.get(conversation.id);
-        mergedById.set(
-          conversation.id,
-          pickPreferredConversation(existingConversation, conversation),
-        );
-      });
-
-      return Array.from(mergedById.values()).sort(
-        (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
-      );
-    },
-    [pickPreferredConversation],
-  );
-
-  const resolveActiveConversationId = useCallback(
-    (conversationList, preferredActiveId = null) => {
-      if (!Array.isArray(conversationList) || conversationList.length === 0) {
+  const normalizeConversation = useCallback(
+    (conversation) => {
+      if (!conversation) {
         return null;
       }
 
-      const sortedConversations = conversationList
+      const seenMessageIds = new Set();
+      const normalizedMessages = Array.isArray(conversation.messages)
+        ? conversation.messages.map((msg) => {
+            const rawId =
+              typeof msg?.id === 'string' && msg.id.trim() !== '' ? msg.id : '';
+            const nextId =
+              rawId && !seenMessageIds.has(rawId) ? rawId : generateMessageId();
+            seenMessageIds.add(nextId);
+            return {
+              ...msg,
+              id: nextId,
+            };
+          })
+        : [];
+
+      return {
+        id: conversation.conversation_id || conversation.id,
+        type: normalizePlaygroundConversationType(conversation.type),
+        title: normalizeConversationTitle(conversation),
+        messages: normalizedMessages,
+        createdAt:
+          conversation.created_at || conversation.createdAt || Date.now(),
+        updatedAt:
+          conversation.updated_at || conversation.updatedAt || Date.now(),
+      };
+    },
+    [normalizeConversationTitle],
+  );
+
+  const getLatestConversationForMode = useCallback(
+    (conversationList = [], mode = playgroundModeRef.current) => {
+      const normalizedMode = normalizePlaygroundConversationType(mode);
+      return (conversationList || [])
+        .filter(
+          (conversation) =>
+            normalizePlaygroundConversationType(conversation?.type) ===
+            normalizedMode,
+        )
         .slice()
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-      const preferredConversation =
-        sortedConversations.find(
-          (item) => Array.isArray(item.messages) && item.messages.length > 0,
-        ) || sortedConversations[0];
-      const activeConversation = preferredActiveId
-        ? conversationList.find((item) => item.id === preferredActiveId)
-        : null;
-
-      if (
-        activeConversation &&
-        Array.isArray(activeConversation.messages) &&
-        activeConversation.messages.length > 0
-      ) {
-        return activeConversation.id;
-      }
-
-      return preferredConversation?.id || null;
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
     },
     [],
   );
+
+  const mergeConversationLists = useCallback((localList = [], remoteList = []) => {
+    const mergedById = new Map();
+
+    [...localList, ...remoteList].forEach((conversation) => {
+      if (!conversation?.id) {
+        return;
+      }
+      const existingConversation = mergedById.get(conversation.id);
+      if (!existingConversation) {
+        mergedById.set(conversation.id, conversation);
+        return;
+      }
+
+      const existingUpdatedAt = Number(existingConversation.updatedAt || 0);
+      const nextUpdatedAt = Number(conversation.updatedAt || 0);
+      mergedById.set(
+        conversation.id,
+        nextUpdatedAt >= existingUpdatedAt ? conversation : existingConversation,
+      );
+    });
+
+    return Array.from(mergedById.values()).sort(
+      (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+    );
+  }, []);
 
   const persistConversationToServer = useCallback(
     async (conversation) => {
@@ -408,6 +343,7 @@ export const usePlaygroundState = () => {
         API_ENDPOINTS.PLAYGROUND_CONVERSATIONS,
         {
           conversation_id: conversation.id,
+          type: normalizePlaygroundConversationType(conversation.type),
           title: normalizeConversationTitle(conversation),
           messages: Array.isArray(conversation.messages)
             ? conversation.messages
@@ -440,13 +376,10 @@ export const usePlaygroundState = () => {
     (messagesToSave, options = {}) => {
       const nextMessages = messagesToSave || [];
       const { flushRemote = false } = options;
-      saveMessages(nextMessages);
 
       const now = Date.now();
       const currentConversationId =
-        activeConversationId ||
-        currentConversationIdRef.current ||
-        `pg-${now}`;
+        activeConversationId || currentConversationIdRef.current || `pg-${now}`;
       const currentConversations =
         localConversationStateRef.current.conversations || [];
       const existingConversation = currentConversations.find(
@@ -458,8 +391,15 @@ export const usePlaygroundState = () => {
 
       const nextConversation = {
         ...(existingConversation ||
-          createStoredConversation(nextMessages, currentConversationId)),
+          createStoredConversation(
+            nextMessages,
+            currentConversationId,
+            playgroundModeRef.current,
+          )),
         id: currentConversationId,
+        type: normalizePlaygroundConversationType(
+          existingConversation?.type || playgroundModeRef.current,
+        ),
         title: createStoredConversation(nextMessages, currentConversationId)
           .title,
         messages: nextMessages,
@@ -524,16 +464,12 @@ export const usePlaygroundState = () => {
         setActiveConversationId(currentConversationId);
       }
     },
-    [
-      activeConversationId,
-      message,
-      persistMessagesSnapshot,
-    ],
+    [activeConversationId, message, persistMessagesSnapshot],
   );
 
   const createConversation = useCallback(
-    (messages = []) => {
-      const conversation = createStoredConversation(messages);
+    (messages = [], type = playgroundModeRef.current) => {
+      const conversation = createStoredConversation(messages, null, type);
       deletedConversationIdsRef.current.delete(conversation.id);
       setConversations((prevConversations) => {
         const updatedConversations = [conversation, ...prevConversations];
@@ -553,24 +489,32 @@ export const usePlaygroundState = () => {
     const currentConversation = conversations.find(
       (conversation) => conversation.id === currentConversationIdRef.current,
     );
+    const currentMode = playgroundModeRef.current;
 
-    if (currentConversation && isConversationEmpty(currentConversation)) {
+    if (
+      currentConversation &&
+      normalizePlaygroundConversationType(currentConversation.type) ===
+        currentMode &&
+      isConversationEmpty(currentConversation)
+    ) {
       currentConversationIdRef.current = currentConversation.id;
       setActiveConversationId(currentConversation.id);
       setMessage([]);
-      saveMessages([]);
       persistConversationState(conversations, currentConversation.id);
       return currentConversation.id;
     }
 
-    const nextConversation = createStoredConversation([]);
+    const nextConversation = createStoredConversation(
+      [],
+      null,
+      playgroundModeRef.current,
+    );
     const updatedConversations = [nextConversation, ...conversations];
     deletedConversationIdsRef.current.delete(nextConversation.id);
     currentConversationIdRef.current = nextConversation.id;
     setConversations(updatedConversations);
     setActiveConversationId(nextConversation.id);
     setMessage([]);
-    saveMessages([]);
     persistConversationState(updatedConversations, nextConversation.id);
     return nextConversation.id;
   }, [conversations, isConversationEmpty, persistConversationState]);
@@ -587,7 +531,6 @@ export const usePlaygroundState = () => {
       currentConversationIdRef.current = conversationId;
       setActiveConversationId(conversationId);
       setMessage(conversation.messages || []);
-      saveMessages(conversation.messages || []);
       persistConversationState(conversations, conversationId);
     },
     [conversations, persistConversationState],
@@ -604,17 +547,20 @@ export const usePlaygroundState = () => {
         const updatedConversations = prevConversations.filter(
           (conversation) => conversation.id !== conversationId,
         );
+        const nextActiveConversation =
+          activeConversationId === conversationId
+            ? getLatestConversationForMode(updatedConversations)
+            : null;
         const nextActiveId =
           activeConversationId === conversationId
-            ? updatedConversations[0]?.id || null
+            ? nextActiveConversation?.id || null
             : activeConversationId;
         persistConversationState(updatedConversations, nextActiveId);
         currentConversationIdRef.current = nextActiveId;
         setActiveConversationId(nextActiveId);
         if (activeConversationId === conversationId) {
-          const nextMessages = updatedConversations[0]?.messages || [];
+          const nextMessages = nextActiveConversation?.messages || [];
           setMessage(nextMessages);
-          saveMessages(nextMessages);
         }
         return updatedConversations;
       });
@@ -625,62 +571,53 @@ export const usePlaygroundState = () => {
         console.error('删除后端会话失败:', error);
       });
     },
-    [activeConversationId, persistConversationState],
+    [
+      activeConversationId,
+      getLatestConversationForMode,
+      persistConversationState,
+    ],
   );
 
   useEffect(() => {
     let isCancelled = false;
 
-    const hydrateConversationState = async () => {
-      const migratedState = await migrateConversationStateToIndexedDB();
+    const hydrateIndexedConversations = async () => {
+      const migratedState =
+        await migrateConversationStateToIndexedDB(normalizedUserIdentity);
       const indexedState =
-        (await loadConversationStateFromIndexedDB()) || migratedState;
+        (await loadConversationStateFromIndexedDB(normalizedUserIdentity)) ||
+        migratedState;
 
-      if (isCancelled || !indexedState?.conversations?.length) {
-        if (!isCancelled) {
-          setConversationStorageReady(true);
-        }
+      if (isCancelled) {
         return;
       }
 
-      const mergedConversations = mergeConversationLists(
-        localConversationStateRef.current.conversations || [],
-        indexedState.conversations,
-      );
-      const { conversations: dedupedMergedConversations } =
-        dedupeConversations(mergedConversations);
+      if (!indexedState?.conversations?.length) {
+        setConversationStorageReady(true);
+        return;
+      }
 
-      const nextActiveConversationId = resolveActiveConversationId(
-        dedupedMergedConversations,
-        localConversationStateRef.current.activeConversationId ||
-          indexedState.activeConversationId,
-      );
-      const activeConversation = dedupedMergedConversations.find(
-        (conversation) => conversation.id === nextActiveConversationId,
-      );
+      const { conversations: dedupedIndexedConversations } =
+        dedupeConversations(indexedState.conversations);
+      const nextActiveConversation =
+        getLatestConversationForMode(
+          dedupedIndexedConversations,
+          playgroundModeRef.current,
+        ) || dedupedIndexedConversations[0];
+      const nextActiveConversationId = nextActiveConversation?.id || null;
 
       localConversationStateRef.current = {
-        conversations: dedupedMergedConversations,
+        conversations: dedupedIndexedConversations,
         activeConversationId: nextActiveConversationId,
       };
       currentConversationIdRef.current = nextActiveConversationId;
-      setConversations(dedupedMergedConversations);
+      setConversations(dedupedIndexedConversations);
       setActiveConversationId(nextActiveConversationId);
-      setMessage(activeConversation?.messages || []);
-      saveConversationState(
-        dedupedMergedConversations,
-        nextActiveConversationId,
-      );
-      saveConversationStateToIndexedDB(
-        dedupedMergedConversations,
-        nextActiveConversationId,
-      ).catch((error) => {
-        console.error('同步合并后的 IndexedDB 会话失败:', error);
-      });
+      setMessage(nextActiveConversation?.messages?.length ? nextActiveConversation.messages : []);
       setConversationStorageReady(true);
     };
 
-    hydrateConversationState().catch((error) => {
+    hydrateIndexedConversations().catch((error) => {
       console.error('Hydrate IndexedDB 会话失败:', error);
       setConversationStorageReady(true);
     });
@@ -690,8 +627,8 @@ export const usePlaygroundState = () => {
     };
   }, [
     dedupeConversations,
-    mergeConversationLists,
-    resolveActiveConversationId,
+    getLatestConversationForMode,
+    normalizedUserIdentity,
   ]);
 
   useEffect(() => {
@@ -702,10 +639,6 @@ export const usePlaygroundState = () => {
     let isCancelled = false;
 
     const hydrateRemoteConversations = async () => {
-      if (remoteConversationHydratingRef.current) {
-        return;
-      }
-      remoteConversationHydratingRef.current = true;
       try {
         const res = await API.get(API_ENDPOINTS.PLAYGROUND_CONVERSATIONS, {
           disableDuplicate: true,
@@ -733,47 +666,34 @@ export const usePlaygroundState = () => {
           });
         }
 
-        if (normalizedRemoteConversations.length > 0) {
-          const mergedConversations = mergeConversationLists(
-            localConversationStateRef.current.conversations || [],
-            normalizedRemoteConversations,
-          );
-          const { conversations: dedupedMergedConversations } =
-            dedupeConversations(mergedConversations);
-          const nextActiveConversationId = resolveActiveConversationId(
-            dedupedMergedConversations,
-            localConversationStateRef.current.activeConversationId,
-          );
-          const activeConversation = dedupedMergedConversations.find(
-            (conversation) => conversation.id === nextActiveConversationId,
-          );
-          setConversations(dedupedMergedConversations);
-          currentConversationIdRef.current = nextActiveConversationId;
-          setActiveConversationId(nextActiveConversationId);
-          setMessage(activeConversation?.messages || []);
-          persistConversationState(
-            dedupedMergedConversations,
-            nextActiveConversationId,
-          );
-          return;
-        }
-
-        const { conversations: localConversations } = dedupeConversations(
+        const mergedConversations = mergeConversationLists(
           localConversationStateRef.current.conversations || [],
+          normalizedRemoteConversations,
         );
-        for (const conversation of localConversations) {
-          if (!conversation?.id) {
-            continue;
-          }
-          if (isConversationEmpty(conversation)) {
-            continue;
-          }
-          await persistConversationToServer(conversation);
-        }
+        const { conversations: dedupedMergedConversations } =
+          dedupeConversations(mergedConversations);
+        const nextConversations =
+          dedupedMergedConversations.length > 0
+            ? dedupedMergedConversations
+            : [createStoredConversation([], null, playgroundModeRef.current)];
+        const nextActiveConversation =
+          getLatestConversationForMode(
+            nextConversations,
+            playgroundModeRef.current,
+          ) || nextConversations[0];
+        const nextActiveConversationId = nextActiveConversation?.id || null;
+
+        setConversations(nextConversations);
+        currentConversationIdRef.current = nextActiveConversationId;
+        setActiveConversationId(nextActiveConversationId);
+        setMessage(
+          nextActiveConversation?.messages?.length
+            ? nextActiveConversation.messages
+            : [],
+        );
+        persistConversationState(nextConversations, nextActiveConversationId);
       } catch (error) {
         console.error('加载后端会话失败:', error);
-      } finally {
-        remoteConversationHydratingRef.current = false;
       }
     };
 
@@ -785,12 +705,59 @@ export const usePlaygroundState = () => {
   }, [
     dedupeConversations,
     mergeConversationLists,
-    isConversationEmpty,
+    getLatestConversationForMode,
     normalizeConversation,
     conversationStorageReady,
     persistConversationState,
-    persistConversationToServer,
-    resolveActiveConversationId,
+    normalizedUserIdentity,
+  ]);
+
+  useEffect(() => {
+    if (!conversationStorageReady) {
+      return;
+    }
+
+    const currentMode = normalizePlaygroundConversationType(playgroundMode);
+    const activeConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId,
+    );
+
+    if (
+      activeConversation &&
+      normalizePlaygroundConversationType(activeConversation.type) ===
+        currentMode
+    ) {
+      return;
+    }
+
+    const nextConversation = getLatestConversationForMode(
+      conversations,
+      currentMode,
+    );
+
+    if (nextConversation) {
+      currentConversationIdRef.current = nextConversation.id;
+      setActiveConversationId(nextConversation.id);
+      setMessage(nextConversation.messages || []);
+      persistConversationState(conversations, nextConversation.id);
+      return;
+    }
+
+    const emptyConversation = createStoredConversation([], null, currentMode);
+    const updatedConversations = [emptyConversation, ...conversations];
+    deletedConversationIdsRef.current.delete(emptyConversation.id);
+    currentConversationIdRef.current = emptyConversation.id;
+    setConversations(updatedConversations);
+    setActiveConversationId(emptyConversation.id);
+    setMessage([]);
+    persistConversationState(updatedConversations, emptyConversation.id);
+  }, [
+    activeConversationId,
+    conversationStorageReady,
+    conversations,
+    getLatestConversationForMode,
+    persistConversationState,
+    playgroundMode,
   ]);
 
   useEffect(() => {
@@ -941,10 +908,7 @@ export const usePlaygroundState = () => {
         return;
       }
 
-      const processed = processIncompleteThinkTags(
-        contentText,
-        reasoningText,
-      );
+      const processed = processIncompleteThinkTags(contentText, reasoningText);
 
       const fixedLastMsg = {
         ...lastMsg,

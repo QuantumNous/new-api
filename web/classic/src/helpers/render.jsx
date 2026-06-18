@@ -76,6 +76,8 @@ import {
   Package,
   Server,
   CalendarClock,
+  Sparkles,
+  Video,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -119,8 +121,14 @@ export function getLucideIcon(key, selected = false) {
   switch (key) {
     case 'detail':
       return <LayoutDashboard {...commonProps} color={iconColor} />;
+    // case 'playground':
+    //   return <TerminalSquare {...commonProps} color={iconColor} />;
     case 'playground':
-      return <TerminalSquare {...commonProps} color={iconColor} />;
+      return <Sparkles {...commonProps} color={iconColor} />;
+    case 'image-playground':
+      return <ImageIcon {...commonProps} color={iconColor} />;
+    case 'video-playground':
+      return <Video {...commonProps} color={iconColor} />;
     case 'chat':
       return <MessageSquare {...commonProps} color={iconColor} />;
     case 'token':

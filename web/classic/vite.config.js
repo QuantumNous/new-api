@@ -111,7 +111,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/pg': {
-        target: 'https://api.z-up.app',
+        target: 'http://104.225.153.184:3000',
         changeOrigin: true,
       },
     },

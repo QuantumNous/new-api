@@ -178,6 +178,32 @@ func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 	return &modelRequest, nil
 }
 
+func fillModelRequestFromTask(c *gin.Context, modelRequest *ModelRequest) error {
+	if modelRequest == nil || modelRequest.Model != "" {
+		return nil
+	}
+
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		taskID = c.GetString("task_id")
+	}
+	if taskID == "" {
+		return nil
+	}
+
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	task, exist, err := model.GetByTaskId(userID, taskID)
+	if err != nil {
+		return err
+	}
+	if !exist || task == nil {
+		return nil
+	}
+
+	modelRequest.Model = task.Properties.OriginModelName
+	return nil
+}
+
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
@@ -291,6 +317,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 			c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/pg/images/edits") {
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+			modelRequest.Group = req.Group
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+			c.Set("relay_mode", relayconstant.RelayModeImagesEdits)
+		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
@@ -365,12 +402,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
 
-	if strings.HasPrefix(c.Request.URL.Path, "/pg/images/generations") && modelRequest.Model == "" {
+	if (strings.HasPrefix(c.Request.URL.Path, "/pg/images/generations") || strings.HasPrefix(c.Request.URL.Path, "/pg/images/edits")) && modelRequest.Model == "" {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "gpt-image-2")
 	}
 
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+	}
+	if relayMode, ok := c.Get("relay_mode"); ok && relayMode == relayconstant.RelayModeVideoFetchByID {
+		if err := fillModelRequestFromTask(c, &modelRequest); err != nil {
+			return nil, false, err
+		}
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }

@@ -77,6 +77,8 @@ export default function SettingsSidebarModulesUser() {
       defaultConfig.chat = {
         enabled: true,
         playground: isSidebarModuleAllowed('chat', 'playground'),
+        'image-playground': isSidebarModuleAllowed('chat', 'chat-playground'),
+        'video-playground': isSidebarModuleAllowed('chat', 'chat-playground'),
         pricing: isSidebarModuleAllowed('chat', 'pricing'),
         chat: isSidebarModuleAllowed('chat', 'chat'),
       };
@@ -309,6 +311,16 @@ export default function SettingsSidebarModulesUser() {
           key: 'playground',
           title: t('操练场'),
           description: t('AI模型测试环境'),
+        },
+        {
+          key: 'image-playground',
+          title: t('聊天操练场'),
+          description: t('聊天操练场页面入口'),
+        },
+        {
+          key: 'video-playground',
+          title: t('聊天操练场'),
+          description: t('聊天操练场页面入口'),
         },
         {
           key: 'pricing',
