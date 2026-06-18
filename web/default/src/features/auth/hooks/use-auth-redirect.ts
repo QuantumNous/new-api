@@ -23,7 +23,11 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
-import { consumePendingOnboarding, saveUserId } from '../lib/storage'
+import {
+  consumePendingOnboarding,
+  isSafeInternalPath,
+  saveUserId,
+} from '../lib/storage'
 
 function getSavedLanguage(user: User): string | undefined {
   const userData = user as Record<string, unknown>
@@ -96,8 +100,13 @@ export function useAuthRedirect() {
     // Navigate to target page. First-time registrants land on the dashboard with
     // the card-binding onboarding dialog opened over it (unless they already bound
     // a card), as long as the feature is enabled. An explicit redirectTo always wins.
-    const targetPath = redirectTo || '/dashboard'
-    if (!redirectTo && pendingOnboarding) {
+    // redirectTo originates from the ?redirect= URL param, so validate it as an internal
+    // path before navigating to avoid an open-redirect. Treat an invalid redirect as "no
+    // redirect" everywhere (not just for navigation) so it can't suppress the onboarding
+    // dialog while silently consuming the pending-onboarding flag.
+    const safeRedirectTo = isSafeInternalPath(redirectTo) ? redirectTo : undefined
+    const targetPath = safeRedirectTo || '/dashboard'
+    if (!safeRedirectTo && pendingOnboarding) {
       const cardBindEnabled =
         useSystemConfigStore.getState().config.enableStripeCardBind === true
       // Read the freshly fetched user (the closed-over auth.user is the pre-login

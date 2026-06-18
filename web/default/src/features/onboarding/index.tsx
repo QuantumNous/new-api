@@ -122,8 +122,10 @@ export function Onboarding() {
         className='gap-5 sm:max-w-md'
         showCloseButton={!submitting}
       >
-        {/* Eyebrow */}
-        <p className='text-muted-foreground text-center text-xs font-medium'>
+        {/* Eyebrow — symmetric horizontal padding keeps the centered text clear of the
+            absolutely-positioned close (X) button, which otherwise overlaps long
+            translations (PT/ES/JP) on the first line. */}
+        <p className='text-muted-foreground px-8 text-center text-xs font-medium'>
           🎟 {t('Congrats — you’ve unlocked a new-user exclusive offer')}
         </p>
 
