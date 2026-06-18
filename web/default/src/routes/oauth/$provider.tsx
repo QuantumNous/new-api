@@ -35,6 +35,10 @@ import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import {
+  isSafeInternalPath,
+  readPendingPostLoginRedirect,
+} from '@/features/auth/lib/storage'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
@@ -220,7 +224,13 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
+        // The provider round-trip strips our ?redirect= param from the callback URL, so the
+        // value persisted at OAuth start is the reliable source for OAuth logins. Validate
+        // every candidate (search.redirect is user-controllable) through isSafeInternalPath
+        // so we never navigate to an external origin after authenticating (open-redirect).
+        const stored = readPendingPostLoginRedirect()
+        const requested = target || search?.redirect || stored
+        const to = isSafeInternalPath(requested) ? requested : '/dashboard'
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }

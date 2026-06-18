@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { isSafeInternalPath } from '@/features/auth/lib/storage'
 import { SignUp } from '@/features/auth/sign-up'
 
 const searchSchema = z.object({
@@ -35,7 +36,13 @@ export const Route = createFileRoute('/(auth)/sign-up')({
     // sign-up form entirely and go straight to the intended destination (the API Keys
     // tab via ?redirect=/keys), falling back to the dashboard. Mirrors sign-in.
     if (auth.user) {
-      throw redirect({ to: search?.redirect || '/dashboard' })
+      // redirect comes from the URL; validate it as an internal path to avoid an
+      // open-redirect, falling back to the dashboard.
+      throw redirect({
+        to: isSafeInternalPath(search?.redirect)
+          ? search.redirect
+          : '/dashboard',
+      })
     }
   },
 })
