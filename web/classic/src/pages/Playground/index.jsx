@@ -135,6 +135,9 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     setPlaygroundMode,
   } = state;
 
+  const normalizedImageModel = String(inputs.imageModel || '').toLowerCase();
+  const isQwenImageModel = normalizedImageModel.includes('qwen-image');
+
   useEffect(() => {
     if (
       forcedMode &&
@@ -145,6 +148,25 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       setPlaygroundMode(forcedMode);
     }
   }, [forcedMode, setPlaygroundMode]);
+
+  useEffect(() => {
+    if (!isQwenImageModel) {
+      return;
+    }
+
+    const supportedQwenSizes = new Set([
+      '1328x1328',
+      '1024x1024',
+      '1664x928',
+      '928x1664',
+      '1472x1140',
+      '1140x1472',
+    ]);
+
+    if (!supportedQwenSizes.has(inputs.imageSize)) {
+      handleInputChange('imageSize', '1328x1328');
+    }
+  }, [handleInputChange, inputs.imageSize, isQwenImageModel]);
 
   // API 请求相关
   const { sendRequest, onStopGenerator } = useApiRequest(

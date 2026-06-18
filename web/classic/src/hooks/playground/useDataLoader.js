@@ -41,6 +41,7 @@ const PLAYGROUND_IMAGE_MODEL_HINTS = [
   'imagen',
   'flux',
   'recraft',
+  'qwen-image',
 ];
 
 const PLAYGROUND_VIDEO_MODEL_HINTS = [
@@ -59,9 +60,10 @@ const isPlaygroundChatModel = (modelName) => {
     return false;
   }
   const normalizedModelName = modelName.toLowerCase();
-  return ![...PLAYGROUND_IMAGE_MODEL_HINTS, ...PLAYGROUND_VIDEO_MODEL_HINTS].some(
-    (hint) => normalizedModelName.includes(hint),
-  );
+  return ![
+    ...PLAYGROUND_IMAGE_MODEL_HINTS,
+    ...PLAYGROUND_VIDEO_MODEL_HINTS,
+  ].some((hint) => normalizedModelName.includes(hint));
 };
 
 const sortModelNames = (modelNames) =>

@@ -45,6 +45,8 @@ const PlaygroundComposer = ({
 
   const isVideoMode = playgroundMode === 'video';
   const isImageMode = playgroundMode === 'image';
+  const normalizedImageModel = String(inputs.imageModel || '').toLowerCase();
+  const isQwenImageModel = normalizedImageModel.includes('qwen-image');
   const modelOptions = isVideoMode
     ? videoModels
     : isImageMode
@@ -55,6 +57,27 @@ const PlaygroundComposer = ({
     : isImageMode
       ? inputs.imageModel
       : inputs.model;
+  const imageSizeOptions = isQwenImageModel
+    ? [
+        { label: '1328x1328', value: '1328x1328' },
+        { label: '1024x1024', value: '1024x1024' },
+        { label: '1664x928', value: '1664x928' },
+        { label: '928x1664', value: '928x1664' },
+        { label: '1472x1140', value: '1472x1140' },
+        { label: '1140x1472', value: '1140x1472' },
+      ]
+    : [
+        { label: '1024x1024', value: '1024x1024' },
+        { label: '1024x1536', value: '1024x1536' },
+        { label: '1536x1024', value: '1536x1024' },
+
+        { label: '2048x2048', value: '2048x2048' },
+        { label: '2048x1152', value: '2048x1152' },
+        { label: '1152x2048', value: '1152x2048' },
+
+        { label: '2160x3840', value: '2160x3840' },
+        { label: 'auto', value: 'auto' },
+      ];
 
   return (
     <div className='new-playground-composer-wrap'>
@@ -156,18 +179,7 @@ const PlaygroundComposer = ({
               <div className='video-options'>
                 <Select
                   value={inputs.imageSize}
-                  optionList={[
-                    { label: '1024x1024', value: '1024x1024' },
-                    { label: '1024x1536', value: '1024x1536' },
-                    { label: '1536x1024', value: '1536x1024' },
-
-                    { label: '2048x2048', value: '2048x2048' },
-                    { label: '2048x1152', value: '2048x1152' },
-                    { label: '1152x1152', value: '1152x2048' },
-
-                    { label: '2160x3840', value: '2160x3840' },
-                    { label: 'auto', value: 'auto' },
-                  ]}
+                  optionList={imageSizeOptions}
                   onChange={(value) => onInputChange('imageSize', value)}
                   className='video-option-control'
                   position='top'
