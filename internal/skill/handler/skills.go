@@ -177,6 +177,45 @@ func GetMarketplaceSkill(c *gin.Context) {
 	skillapi.Success(c, publicSkillFromModel(s, true))
 }
 
+// listAdminSkillsSafeQuery returns a GORM query base scoped to the admin-safe
+// field allowlist for the skills table.
+//
+// TEMPORARY: This is a substitute for the DR-82 admin-safe DAO, used under an
+// approved dependency waiver (Exception Path, DR-45). It must be replaced with
+// the DR-82 DAO once that dependency is merged. See follow-up task in PR/Jira:
+// "Once DR-82 is merged, replace this helper with the DR-82 admin-safe DAO
+// before final ticket closure."
+//
+// The explicit Select prevents instruction_template and any future prompt fields
+// from leaking into the admin list response — the guarantee is structural, not
+// incidental to the current table schema.
+func listAdminSkillsSafeQuery(db *gorm.DB) *gorm.DB {
+	return db.Model(&skillmodel.Skill{}).Select([]string{
+		// Identity & display
+		"id", "slug", "name", "category", "tags", "icon_url", "default_locale",
+		"short_description", "description",
+		// Lifecycle & status
+		"status", "published_at", "deprecated_at", "archived_at",
+		"featured_flag", "featured_rank",
+		// Monetization & limits
+		"required_plan", "monetization_type", "price_markup",
+		"free_quota_per_month", "max_input_tokens", "timeout_seconds", "timeout_risk",
+		// Kids safety
+		"is_kids_safe", "is_kids_exclusive", "kids_approval_status",
+		"ai_disclosure_required",
+		// Versioning & authorship
+		"active_version_id", "created_by", "updated_by", "created_at", "updated_at",
+		// Hints & examples
+		"input_hints", "example_inputs", "example_outputs", "model_whitelist",
+	})
+}
+
+// ListAdminSkills serves GET /api/v1/admin/skills (Super Admin only).
+// Query base: listAdminSkillsSafeQuery — TEMPORARY substitute for the DR-82
+// admin-safe DAO, used under an approved dependency waiver (Exception Path,
+// DR-45). instruction_template and all prompt fields are excluded by the
+// explicit SELECT allowlist above. Replace with the DR-82 DAO once DR-82
+// merges (see follow-up task in PR/Jira).
 func ListAdminSkills(c *gin.Context) {
 	page, validationErr := skillapi.ParsePageParams(c)
 	if validationErr != nil {
@@ -204,7 +243,7 @@ func ListAdminSkills(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query := db.Model(&skillmodel.Skill{})
+	query := listAdminSkillsSafeQuery(db)
 	query = applyAdminSkillFilters(query, c)
 
 	var total int64
