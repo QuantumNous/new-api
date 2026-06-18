@@ -72,6 +72,9 @@ const createRateLimitSchema = (t: (key: string) => string) =>
     ModelRequestRateLimitDurationMinutes: z.number().min(0),
     ModelRequestRateLimitCount: z.number().min(0).max(100000000),
     ModelRequestRateLimitSuccessCount: z.number().min(1).max(100000000),
+    ModelRequestRateLimitAdminFollowUser: z.boolean(),
+    ModelRequestRateLimitAdminCount: z.number().min(0).max(100000000),
+    ModelRequestRateLimitAdminSuccessCount: z.number().min(0).max(100000000),
     ModelRequestRateLimitGroup: z
       .string()
       .optional()
@@ -239,6 +242,95 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               )}
             />
           </div>
+
+          <FormField
+            control={form.control}
+            name='ModelRequestRateLimitAdminFollowUser'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Admins follow user rate limits')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'When on, admins and root users share the user rate limits above. Turn off to apply a separate admin tier below (0 = unlimited).'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          {!form.watch('ModelRequestRateLimitAdminFollowUser') && (
+            <div className='grid gap-4 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='ModelRequestRateLimitAdminCount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Admin max requests per period')}</FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={100000000}
+                          step={1}
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value) || 0)
+                          }
+                        />
+                        <span className='text-muted-foreground text-sm'>
+                          {t('times')}
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      {t('Including failed requests, 0 = unlimited')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ModelRequestRateLimitAdminSuccessCount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Admin max successful requests')}</FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={100000000}
+                          step={1}
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value) || 0)
+                          }
+                        />
+                        <span className='text-muted-foreground text-sm'>
+                          {t('times')}
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      {t('Only successful requests, 0 = unlimited')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
 
           <FormField
             control={form.control}

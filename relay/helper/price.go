@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 func modelPriceNotConfiguredError(modelName string, userId int) error {
@@ -61,7 +62,90 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 		groupRatioInfo.GroupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	}
 
+	if modelGroupRatio, ok := model.GetModelGroupRatio(relayInfo.OriginModelName, relayInfo.UsingGroup); ok {
+		groupRatioInfo.ModelGroupRatio = modelGroupRatio
+		groupRatioInfo.GroupRatio = modelGroupRatio
+		groupRatioInfo.HasModelGroupRatio = true
+	}
+	if modelGroupPricing, ok := model.GetModelGroupPriceOverrides(relayInfo.OriginModelName, relayInfo.UsingGroup); ok {
+		groupRatioInfo.ModelGroupPricing = &modelGroupPricing
+		groupRatioInfo.HasModelGroupPricing = true
+	}
+
 	return groupRatioInfo
+}
+
+// resolveGroupBillingMode returns the group's explicitly-pinned billing mode.
+// ok=false means the group did not pin a mode (inherit the model default).
+func resolveGroupBillingMode(groupRatioInfo types.GroupRatioInfo) (mode string, ok bool) {
+	if !groupRatioInfo.HasModelGroupPricing || groupRatioInfo.ModelGroupPricing == nil {
+		return "", false
+	}
+	if groupRatioInfo.ModelGroupPricing.BillingMode == nil {
+		return "", false
+	}
+	return *groupRatioInfo.ModelGroupPricing.BillingMode, true
+}
+
+func priceToQuotaPerToken(price float64) float64 {
+	return price / 1_000_000 * common.QuotaPerUnit
+}
+
+// minFeeToQuota 把「美元最低费用」折算成内部 quota；fee<=0 返回 0。
+func minFeeToQuota(fee float64, groupRatio float64) int {
+	if fee <= 0 {
+		return 0
+	}
+	return int(decimal.NewFromFloat(fee).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Mul(decimal.NewFromFloat(groupRatio)).
+		Round(0).
+		IntPart())
+}
+
+// computeMinQuota 解析最低费用下限：分组强制值优先（不乘倍率），否则模型级默认值（乘倍率）。
+func computeMinQuota(override *types.ModelGroupPricing, modelName string, groupRatio float64) int {
+	if override != nil && override.MinFee != nil {
+		return minFeeToQuota(*override.MinFee, 1.0)
+	}
+	if modelMinFee, ok := ratio_setting.GetModelMinFee(modelName); ok {
+		return minFeeToQuota(modelMinFee, groupRatio)
+	}
+	return 0
+}
+
+func applyTokenPriceOverrides(priceData *types.PriceData, promptTokens int) {
+	if priceData == nil || priceData.GroupPriceOverride == nil || priceData.UsePrice {
+		return
+	}
+	override := priceData.GroupPriceOverride
+	if override.PromptPrice == nil {
+		return
+	}
+	preConsumedTokens := float64(promptTokens)
+	if preConsumedTokens <= 0 {
+		return
+	}
+	priceData.QuotaToPreConsume = int(preConsumedTokens * priceToQuotaPerToken(*override.PromptPrice))
+	if priceData.QuotaToPreConsume == 0 && *override.PromptPrice > 0 {
+		priceData.QuotaToPreConsume = 1
+	}
+}
+
+func applyPerCallPriceOverrides(priceData *types.PriceData) {
+	if priceData == nil || priceData.GroupPriceOverride == nil || !priceData.UsePrice {
+		return
+	}
+	if priceData.GroupPriceOverride.ModelPrice == nil {
+		return
+	}
+	priceData.ModelPrice = *priceData.GroupPriceOverride.ModelPrice
+	priceData.Quota = int(priceData.ModelPrice * common.QuotaPerUnit)
+	priceData.QuotaToPreConsume = priceData.Quota
+	if priceData.Quota == 0 && priceData.ModelPrice > 0 {
+		priceData.Quota = 1
+		priceData.QuotaToPreConsume = 1
+	}
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
@@ -69,9 +153,31 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
-	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
-		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
+	// Per-group billing-mode override (group pin wins; else inherit the model default).
+	groupMode, groupHasMode := resolveGroupBillingMode(groupRatioInfo)
+	modelTiered := billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr
+
+	if groupHasMode {
+		switch groupMode {
+		case types.GroupBillingModeTieredExpr:
+			groupExpr := ""
+			if groupRatioInfo.ModelGroupPricing != nil && groupRatioInfo.ModelGroupPricing.BillingExpr != nil {
+				groupExpr = *groupRatioInfo.ModelGroupPricing.BillingExpr
+			}
+			return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo, groupExpr)
+		case types.GroupBillingModePerRequest:
+			usePrice = true
+			if modelPrice < 0 {
+				// 分组强制按次计费，但模型级未配置按次价（GetModelPrice 返回 -1 哨兵）。
+				// 归零等分组 override 填充；分组也未填则保持 0（免费），
+				// 避免 -1 哨兵进入预扣/结算产生负 quota（资损）。
+				modelPrice = 0
+			}
+		case types.GroupBillingModePerToken:
+			usePrice = false
+		}
+	} else if modelTiered {
+		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo, "")
 	}
 
 	var preConsumedQuota int
@@ -85,11 +191,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var audioRatio float64
 	var audioCompletionRatio float64
 	var freeModel bool
+	preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
+	if meta.MaxTokens != 0 {
+		preConsumedTokens += meta.MaxTokens
+	}
 	if !usePrice {
-		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
-		if meta.MaxTokens != 0 {
-			preConsumedTokens += meta.MaxTokens
-		}
 		var success bool
 		var matchName string
 		modelRatio, success, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
@@ -154,7 +260,13 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		GroupPriceOverride:   groupRatioInfo.ModelGroupPricing,
 	}
+	if !usePrice {
+		priceData.MinQuota = computeMinQuota(groupRatioInfo.ModelGroupPricing, info.OriginModelName, groupRatioInfo.GroupRatio)
+	}
+	applyTokenPriceOverrides(&priceData, preConsumedTokens)
+	applyPerCallPriceOverrides(&priceData)
 
 	if common.DebugEnabled {
 		logger.LogDebug(c, "model_price_helper result: %s", priceData.ToSetting())
@@ -166,6 +278,14 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	groupMode, groupHasMode := resolveGroupBillingMode(groupRatioInfo)
+	forceGroupPerRequest := groupHasMode && groupMode == types.GroupBillingModePerRequest
+	if groupHasMode && groupMode == types.GroupBillingModeTieredExpr {
+		// tiered_expr has no token context on the task surface; fall back to the
+		// model's own task billing. Documented boundary (see spec section 5.5/8).
+		logger.LogDebug(c, "group %s pins tiered_expr; not supported on task surface, using model task billing", info.UsingGroup)
+	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
@@ -214,13 +334,24 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	}
 
 	priceData := types.PriceData{
-		FreeModel:      freeModel,
-		ModelPrice:     modelPrice,
-		ModelRatio:     modelRatio,
-		UsePrice:       usePrice,
-		Quota:          quota,
-		GroupRatioInfo: groupRatioInfo,
+		FreeModel:          freeModel,
+		ModelPrice:         modelPrice,
+		ModelRatio:         modelRatio,
+		UsePrice:           usePrice,
+		Quota:              quota,
+		GroupRatioInfo:     groupRatioInfo,
+		GroupPriceOverride: groupRatioInfo.ModelGroupPricing,
 	}
+	if forceGroupPerRequest && !priceData.UsePrice {
+		// Switch this group to per-call billing; the group's ModelPrice (if any)
+		// is applied by applyPerCallPriceOverrides below. Empty group model_price
+		// -> stays 0 (free), matching the documented fallback chain.
+		priceData.UsePrice = true
+		priceData.ModelPrice = 0
+		priceData.Quota = 0
+		priceData.QuotaToPreConsume = 0
+	}
+	applyPerCallPriceOverrides(&priceData)
 	return priceData, nil
 }
 
@@ -238,10 +369,14 @@ func HasModelBillingConfig(modelName string) bool {
 	return ok && strings.TrimSpace(expr) != ""
 }
 
-func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
-	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
-	if !ok {
-		return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo, exprOverride string) (types.PriceData, error) {
+	exprStr := strings.TrimSpace(exprOverride)
+	if exprStr == "" {
+		var ok bool
+		exprStr, ok = billing_setting.GetBillingExpr(info.OriginModelName)
+		if !ok {
+			return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+		}
 	}
 
 	estimatedCompletionTokens := 0

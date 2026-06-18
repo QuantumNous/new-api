@@ -28,6 +28,13 @@ import {
   type BillingVar,
   type ParsedTier,
 } from './billing-expr'
+import {
+  getGroupDynamicTiers,
+  hasGroupDynamicRequestRules,
+  isGroupDynamicPricing,
+  resolveGroupBillingExpr,
+} from './group-billing'
+import { getEffectiveGroupRatio, resolveGroupBillingMode } from './price'
 
 type DynamicPriceOptions = {
   tokenUnit: TokenUnit
@@ -65,14 +72,27 @@ export function isDynamicPricingModel(model: PricingModel): boolean {
   return model.billing_mode === 'tiered_expr' && Boolean(model.billing_expr)
 }
 
-export function getDynamicDisplayGroupRatio(model: PricingModel): number {
+export function getDynamicDisplayGroupRatio(
+  model: PricingModel,
+  group?: string
+): number {
+  // 选中具体分组时,展示倍率就是该分组的有效倍率(对齐后端结算:
+  // 最终单价 = 表达式价 × 该组 group_ratio)。
+  if (group) {
+    return getEffectiveGroupRatio(model, group, model.group_ratio || {})
+  }
+
   const groups = Array.isArray(model.enable_groups) ? model.enable_groups : []
   const ratios = model.group_ratio || {}
   if (groups.length === 0) return 1
 
   let minRatio = Number.POSITIVE_INFINITY
-  for (const group of groups) {
-    const ratio = ratios[group]
+  for (const enabledGroup of groups) {
+    // Only groups that still resolve to tiered_expr contribute to the dynamic
+    // display ratio; a group overridden to per-token/per-request is shown with
+    // its own mode elsewhere and must not lower the dynamic price here.
+    if (resolveGroupBillingMode(model, enabledGroup) !== 'tiered_expr') continue
+    const ratio = getEffectiveGroupRatio(model, enabledGroup, ratios)
     if (ratio !== undefined && ratio < minRatio) {
       minRatio = ratio
     }
@@ -115,7 +135,13 @@ export function formatDynamicUnitPrice(
   })
 }
 
-export function getDynamicPricingTiers(model: PricingModel): ParsedTier[] {
+export function getDynamicPricingTiers(
+  model: PricingModel,
+  group?: string
+): ParsedTier[] {
+  // 选中具体分组时,按该分组覆盖后的表达式解析分级(覆盖优先于模型级,
+  // 与后端 relay/helper/price.go 一致);不传分组时维持模型级行为。
+  if (group !== undefined) return getGroupDynamicTiers(model, group)
   if (!isDynamicPricingModel(model)) return []
   const { billingExpr } = splitBillingExprAndRequestRules(
     model.billing_expr || ''
@@ -123,7 +149,11 @@ export function getDynamicPricingTiers(model: PricingModel): ParsedTier[] {
   return parseTiersFromExpr(billingExpr)
 }
 
-export function hasDynamicRequestRules(model: PricingModel): boolean {
+export function hasDynamicRequestRules(
+  model: PricingModel,
+  group?: string
+): boolean {
+  if (group !== undefined) return hasGroupDynamicRequestRules(model, group)
   if (!isDynamicPricingModel(model)) return false
   const { requestRuleExpr } = splitBillingExprAndRequestRules(
     model.billing_expr || ''
@@ -163,20 +193,30 @@ export function getDynamicPriceEntries(
 
 export function getDynamicPricingSummary(
   model: PricingModel,
-  options: DynamicPriceOptions
+  options: DynamicPriceOptions,
+  group?: string
 ): DynamicPricingSummary | null {
-  if (!isDynamicPricingModel(model)) return null
+  // 选中分组时,用分组解析后的动态判定(分组可能把模型级 tiered_expr 覆盖成
+  // per-token/per-request,此时应返回 null,调用方改走按量价格渲染)。
+  const isDynamic =
+    group !== undefined
+      ? isGroupDynamicPricing(model, group)
+      : isDynamicPricingModel(model)
+  if (!isDynamic) return null
 
-  const tiers = getDynamicPricingTiers(model)
+  const tiers = getDynamicPricingTiers(model, group)
   const tier = tiers[0] || null
   const entries = getDynamicPriceEntries(tier, options)
-  const rawExpression = model.billing_expr || ''
+  const rawExpression =
+    group !== undefined
+      ? resolveGroupBillingExpr(model, group) || ''
+      : model.billing_expr || ''
 
   return {
     tiers,
     tier,
     tierCount: tiers.length,
-    hasRequestRules: hasDynamicRequestRules(model),
+    hasRequestRules: hasDynamicRequestRules(model, group),
     isSpecialExpression: rawExpression.trim().length > 0 && tiers.length === 0,
     rawExpression,
     entries,

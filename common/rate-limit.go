@@ -68,3 +68,21 @@ func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration in
 	}
 	return true
 }
+
+// Check 只读判断 key 在当前窗口内是否仍有配额，不记录本次请求。
+// 放行条件与 Request 完全一致：key 不存在、或窗口内计数未达上限、或队头已可滑出。
+// 用于「先检查、放行后成功才记录」(check-then-act) 的成功数限流，
+// 避免用影子 key 预检导致失败请求也被计数的双计数问题。
+func (l *InMemoryRateLimiter) Check(key string, maxRequestNum int, duration int64) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	queue, ok := l.store[key]
+	if !ok {
+		return true
+	}
+	if len(*queue) < maxRequestNum {
+		return true
+	}
+	now := time.Now().Unix()
+	return now-(*queue)[0] >= duration
+}

@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
   formatLatency,
@@ -56,7 +57,9 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import { usePricingData } from '../hooks/use-pricing-data'
@@ -67,8 +70,14 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
+import { getGroupDynamicTiers } from '../lib/group-billing'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  formatFixedPrice,
+  formatGroupPrice,
+  getEffectiveGroupRatio,
+  resolveGroupBillingMode,
+} from '../lib/price'
 import type {
   ModelCapability,
   PriceType,
@@ -78,6 +87,7 @@ import type {
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
+import { ModelPricingAdminPanel } from './model-pricing-admin'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -890,19 +900,43 @@ function GroupPricingSection(props: {
   const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
 
+  const hasOverridePrice = (type: PriceType) => {
+    const keyByType: Record<PriceType, string> = {
+      input: 'prompt_price',
+      output: 'completion_price',
+      cache: 'cache_price',
+      create_cache: 'create_cache_price',
+      image: 'image_price',
+      audio_input: 'audio_price',
+      audio_output: 'audio_completion_price',
+    }
+    const key = keyByType[type]
+    return Object.values(props.model.group_pricing || {}).some((item) => {
+      if (!item || typeof item !== 'object') return false
+      const value = item[key as keyof typeof item]
+      return (
+        value !== undefined && value !== null && Number.isFinite(Number(value))
+      )
+    })
+  }
+
   const extraPriceTypes = useMemo(() => {
     const types: { label: string; type: PriceType }[] = []
-    if (props.model.cache_ratio != null)
+    if (props.model.cache_ratio != null || hasOverridePrice('cache'))
       types.push({ label: t('Cache'), type: 'cache' })
-    if (props.model.create_cache_ratio != null)
+    if (
+      props.model.create_cache_ratio != null ||
+      hasOverridePrice('create_cache')
+    )
       types.push({ label: t('Cache Write'), type: 'create_cache' })
-    if (props.model.image_ratio != null)
+    if (props.model.image_ratio != null || hasOverridePrice('image'))
       types.push({ label: t('Image'), type: 'image' })
-    if (props.model.audio_ratio != null)
+    if (props.model.audio_ratio != null || hasOverridePrice('audio_input'))
       types.push({ label: t('Audio In'), type: 'audio_input' })
     if (
-      props.model.audio_ratio != null &&
-      props.model.audio_completion_ratio != null
+      (props.model.audio_ratio != null &&
+        props.model.audio_completion_ratio != null) ||
+      hasOverridePrice('audio_output')
     )
       types.push({ label: t('Audio Out'), type: 'audio_output' })
     return types
@@ -955,40 +989,44 @@ function GroupPricingSection(props: {
       )
     }
 
-    const priceFields = getDynamicPriceFields(dynamicTiers, {
-      tokenUnit: props.tokenUnit,
-      showRechargePrice,
-      priceRate: props.priceRate,
-      usdExchangeRate: props.usdExchangeRate,
-      groupRatioMultiplier: 1,
-    })
-    const formattedPricesByGroup = new Map(
-      availableGroups.map((group) => {
-        const ratio = props.groupRatio[group] || 1
-        return [
-          group,
-          getDynamicFormattedPricesByTier(dynamicTiers, {
-            tokenUnit: props.tokenUnit,
-            showRechargePrice,
-            priceRate: props.priceRate,
-            usdExchangeRate: props.usdExchangeRate,
-            groupRatioMultiplier: ratio,
-          }),
-        ] as const
-      })
-    )
-
     return (
       <section>
         <SectionTitle>{t('Pricing by Group')}</SectionTitle>
         <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
         <div className='space-y-3'>
           {availableGroups.map((group) => {
-            const ratio = props.groupRatio[group] || 1
-            const formattedPricesByTier =
-              formattedPricesByGroup.get(group) ??
-              new Map<DynamicPricingTier, Map<string, string>>()
-
+            const ratio = getEffectiveGroupRatio(
+              props.model,
+              group,
+              props.groupRatio
+            )
+            // 按分组解析分级表达式:某分组在 group_pricing 里覆盖了 billing_expr 时,
+            // 必须展开该分组自己的分级价,而非模型级表达式(修复「所见≠所付」)。
+            // 未覆盖的分组回退到模型级表达式,结果与原行为一致。被覆盖成非
+            // tiered_expr(如 per-token)的罕见分组无分级可展开,回退模型级 tiers
+            // 以避免空表,保持与改动前一致、不回退。
+            const groupTiers = getGroupDynamicTiers(props.model, group)
+            const tiersToRender =
+              groupTiers.length > 0 ? groupTiers : dynamicTiers
+            // 表头列同样按分组的实际分级表推导,保证被覆盖分组的列与其行一致。
+            // 列与单元格价格都按该分组的有效倍率展开,确保「所见=所付」。
+            const priceFields = getDynamicPriceFields(tiersToRender, {
+              tokenUnit: props.tokenUnit,
+              showRechargePrice,
+              priceRate: props.priceRate,
+              usdExchangeRate: props.usdExchangeRate,
+              groupRatioMultiplier: 1,
+            })
+            const formattedPricesByTier = getDynamicFormattedPricesByTier(
+              tiersToRender,
+              {
+                tokenUnit: props.tokenUnit,
+                showRechargePrice,
+                priceRate: props.priceRate,
+                usdExchangeRate: props.usdExchangeRate,
+                groupRatioMultiplier: ratio,
+              }
+            )
             return (
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
@@ -1001,7 +1039,7 @@ function GroupPricingSection(props: {
                   className='rounded-none border-0'
                   tableClassName='text-sm'
                   headerRowClassName='hover:bg-transparent'
-                  data={dynamicTiers}
+                  data={tiersToRender}
                   getRowKey={(tier, tierIndex) =>
                     `${group}-${tier.label || tierIndex}`
                   }
@@ -1018,7 +1056,7 @@ function GroupPricingSection(props: {
                       header: t(fieldEntry.shortLabel),
                       className: `${thClass} text-right`,
                       cellClassName: 'py-2.5 text-right font-mono',
-                      cell: (tier: (typeof dynamicTiers)[number]) =>
+                      cell: (tier: (typeof tiersToRender)[number]) =>
                         formattedPricesByTier
                           .get(tier)
                           ?.get(fieldEntry.field) ?? '-',
@@ -1072,15 +1110,11 @@ function GroupPricingSection(props: {
             id: 'group',
             header: t('Group'),
             className: thClass,
-            cellClassName: 'py-2.5',
-            cell: (group) => <GroupBadge group={group} size='sm' />,
           },
           {
             id: 'ratio',
             header: t('Ratio'),
             className: thClass,
-            cellClassName: 'text-muted-foreground py-2.5 font-mono',
-            cell: (group) => `${props.groupRatio[group] || 1}x`,
           },
           ...(isTokenBased
             ? [
@@ -1088,22 +1122,16 @@ function GroupPricingSection(props: {
                   id: 'input',
                   header: t('Input'),
                   className: `${thClass} text-right`,
-                  cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) => renderGroupPrice(group, 'input'),
                 },
                 {
                   id: 'output',
                   header: t('Output'),
                   className: `${thClass} text-right`,
-                  cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) => renderGroupPrice(group, 'output'),
                 },
                 ...extraPriceTypes.map((ep) => ({
                   id: ep.type,
                   header: ep.label,
                   className: `${thClass} text-right`,
-                  cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) => renderGroupPrice(group, ep.type),
                 })),
               ]
             : [
@@ -1111,11 +1139,74 @@ function GroupPricingSection(props: {
                   id: 'price',
                   header: t('Price'),
                   className: `${thClass} text-right`,
-                  cellClassName: 'py-2.5 text-right font-mono',
-                  cell: renderFixedGroupPrice,
                 },
               ]),
         ]}
+        renderRow={(group) => {
+          // 按分组的有效倍率与计费模式渲染:某分组在 group_pricing 里可把模型级
+          // 计费模式覆盖成 per-request / tiered_expr / per-token,展示必须跟随该
+          // 分组的实际模式(修复「所见≠所付」),而非一律按模型级 renderGroupPrice。
+          const ratio = getEffectiveGroupRatio(
+            props.model,
+            group,
+            props.groupRatio
+          )
+          const groupMode = resolveGroupBillingMode(props.model, group)
+          const priceColSpan = isTokenBased ? 2 + extraPriceTypes.length : 1
+          return (
+            <TableRow key={group}>
+              <TableCell className='py-2.5'>
+                <GroupBadge group={group} size='sm' />
+              </TableCell>
+              <TableCell className='text-muted-foreground py-2.5 font-mono'>
+                {ratio}x
+              </TableCell>
+              {groupMode === 'per-request' ? (
+                <TableCell
+                  colSpan={priceColSpan}
+                  className='py-2.5 text-right font-mono'
+                >
+                  {renderFixedGroupPrice(group)}
+                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                    / {t('request')}
+                  </span>
+                </TableCell>
+              ) : groupMode === 'tiered_expr' ? (
+                <TableCell
+                  colSpan={priceColSpan}
+                  className='py-2.5 text-right'
+                >
+                  <span className='text-xs font-medium text-amber-700 dark:text-amber-300'>
+                    {t('Dynamic Pricing')}
+                  </span>
+                </TableCell>
+              ) : isTokenBased ? (
+                <>
+                  <TableCell className='py-2.5 text-right font-mono'>
+                    {renderGroupPrice(group, 'input')}
+                  </TableCell>
+                  <TableCell className='py-2.5 text-right font-mono'>
+                    {renderGroupPrice(group, 'output')}
+                  </TableCell>
+                  {extraPriceTypes.map((ep) => (
+                    <TableCell
+                      key={ep.type}
+                      className='py-2.5 text-right font-mono'
+                    >
+                      {renderGroupPrice(group, ep.type)}
+                    </TableCell>
+                  ))}
+                </>
+              ) : (
+                <TableCell className='py-2.5 text-right font-mono'>
+                  {renderGroupPrice(group, 'input')}
+                  <span className='text-muted-foreground/40 mx-1'>/</span>
+                  {renderGroupPrice(group, 'output')}
+                </TableCell>
+              )}
+            </TableRow>
+          )
+        }}
       />
       <div className='-mx-4 sm:mx-0'>
         {isTokenBased && (
@@ -1150,11 +1241,14 @@ export interface ModelDetailsContentProps {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  onPricingUpdated?: () => void
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
   const showRechargePrice = props.showRechargePrice ?? false
+  const canEditPricing = (user?.role ?? 0) >= ROLE.ADMIN
 
   const isDynamic =
     props.model.billing_mode === 'tiered_expr' &&
@@ -1206,6 +1300,14 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               tokenUnit={props.tokenUnit}
               showRechargePrice={showRechargePrice}
             />
+            {canEditPricing && (
+              <ModelPricingAdminPanel
+                model={props.model}
+                groupRatio={props.groupRatio}
+                usableGroup={props.usableGroup}
+                onSaved={props.onPricingUpdated}
+              />
+            )}
           </section>
 
           <ModelBackendDetailsSection model={props.model} />

@@ -43,6 +43,161 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 
+// 友好显示字节大小（上游链路 trace 的 body_size 用）
+function formatTraceBytes(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const k = 1024;
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(k)));
+  const value = n / Math.pow(k, i);
+  const formatted = i === 0 ? String(n) : value.toFixed(2);
+  return `${formatted} ${units[i]}`;
+}
+
+// 构造上游链路 httptrace 分段耗时的展示节点（仅管理员可见，含 remote_addr/内部耗时）。
+// trace 形如 logs.other.upstream_trace；除 enabled/reused_conn/was_idle 外字段均可能缺省。
+function buildUpstreamTraceValue(trace, t) {
+  if (!trace || typeof trace !== 'object') {
+    return null;
+  }
+
+  const hasValue = (v) => v !== undefined && v !== null && v !== '';
+  const yesNo = (v) => (v ? t('是') : t('否'));
+  const ms = (v) => `${v} ms`;
+
+  // 每组：标题 + 若干 { label, value } 行；只渲染有值的行，组内全空则跳过该组。
+  const groups = [
+    {
+      title: t('连接复用'),
+      rows: [
+        { label: t('复用连接'), value: yesNo(trace.reused_conn) },
+        { label: t('连接处于空闲'), value: yesNo(trace.was_idle) },
+        hasValue(trace.idle_ms)
+          ? { label: t('空闲时长'), value: ms(trace.idle_ms) }
+          : null,
+        hasValue(trace.remote_addr)
+          ? { label: t('上游地址'), value: trace.remote_addr }
+          : null,
+      ],
+    },
+    {
+      title: t('DNS / TCP / TLS'),
+      rows: [
+        hasValue(trace.dns_ms)
+          ? { label: t('DNS 解析'), value: ms(trace.dns_ms) }
+          : null,
+        hasValue(trace.connect_ms)
+          ? { label: t('TCP 连接'), value: ms(trace.connect_ms) }
+          : null,
+        hasValue(trace.tls_ms)
+          ? { label: t('TLS 握手'), value: ms(trace.tls_ms) }
+          : null,
+        hasValue(trace.got_conn_ms)
+          ? { label: t('获取连接'), value: ms(trace.got_conn_ms) }
+          : null,
+      ],
+    },
+    {
+      title: t('请求体'),
+      rows: [
+        hasValue(trace.write_req_ms)
+          ? { label: t('请求体写完'), value: ms(trace.write_req_ms) }
+          : null,
+        hasValue(trace.body_size)
+          ? { label: t('请求体大小'), value: formatTraceBytes(trace.body_size) }
+          : null,
+      ],
+    },
+    {
+      title: t('响应头 / 首字 / Flush'),
+      rows: [
+        hasValue(trace.header_ms)
+          ? { label: t('响应头'), value: ms(trace.header_ms) }
+          : null,
+        hasValue(trace.first_sse_ms)
+          ? { label: t('首条 SSE'), value: ms(trace.first_sse_ms) }
+          : null,
+        hasValue(trace.first_flush_ms)
+          ? { label: t('首次写客户端'), value: ms(trace.first_flush_ms) }
+          : null,
+        hasValue(trace.flush_delay_ms)
+          ? { label: t('读到写延迟'), value: ms(trace.flush_delay_ms) }
+          : null,
+      ],
+    },
+    {
+      title: t('本地预处理'),
+      rows: [
+        hasValue(trace.local_preprocess_ms)
+          ? {
+              label: t('派发前本地预处理'),
+              value: ms(trace.local_preprocess_ms),
+            }
+          : null,
+      ],
+    },
+    {
+      title: t('错误'),
+      rows: [
+        hasValue(trace.trace_error)
+          ? { label: t('Trace 错误'), value: trace.trace_error }
+          : null,
+      ],
+    },
+  ]
+    .map((group) => ({ ...group, rows: group.rows.filter(Boolean) }))
+    .filter((group) => group.rows.length > 0);
+
+  if (groups.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        maxWidth: 560,
+        lineHeight: 1.6,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      {groups.map((group) => (
+        <div key={group.title}>
+          <div
+            style={{
+              fontWeight: 600,
+              color: 'var(--semi-color-text-1)',
+              marginBottom: 2,
+            }}
+          >
+            {group.title}
+          </div>
+          {group.rows.map((row) => (
+            <div
+              key={row.label}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 16,
+                color: 'var(--semi-color-text-2)',
+              }}
+            >
+              <span>{row.label}</span>
+              <span style={{ wordBreak: 'break-all', textAlign: 'right' }}>
+                {row.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export const useLogsData = () => {
   const { t } = useTranslation();
 
@@ -164,7 +319,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -383,7 +540,10 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -430,7 +590,10 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('日志详情'),
             value: other?.claude
-              ? renderClaudeLogContent({ ...other, displayMode: billingDisplayMode })
+              ? renderClaudeLogContent({
+                  ...other,
+                  displayMode: billingDisplayMode,
+                })
               : renderLogContent({ ...other, displayMode: billingDisplayMode }),
           });
         }
@@ -520,7 +683,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -537,7 +707,8 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -552,10 +723,26 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),
+          });
+        }
+      }
+      if (isAdminUser && other?.upstream_trace?.enabled) {
+        const traceValue = buildUpstreamTraceValue(other.upstream_trace, t);
+        if (traceValue) {
+          expandDataLocal.push({
+            key: t('上游链路耗时'),
+            value: traceValue,
           });
         }
       }

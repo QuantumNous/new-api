@@ -75,24 +75,34 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 			continue
 		}
 
-		// 匹配供应商
-		vendorID := 0
-		modelLower := strings.ToLower(modelName)
-		for pattern, vendorName := range defaultVendorRules {
-			if strings.Contains(modelLower, pattern) {
-				vendorID = getOrCreateVendor(vendorName, vendorMap)
-				break
-			}
-		}
-
 		// 创建模型元数据
 		metaMap[modelName] = &Model{
 			ModelName: modelName,
-			VendorID:  vendorID,
+			VendorID:  inferDefaultVendorID(modelName, vendorMap),
 			Status:    1,
 			NameRule:  NameRuleExact,
 		}
 	}
+}
+
+func inferDefaultVendorID(modelName string, vendorMap map[int]*Vendor) int {
+	modelLower := strings.ToLower(modelName)
+	for pattern, vendorName := range defaultVendorRules {
+		if strings.Contains(modelLower, pattern) {
+			return getOrCreateVendor(vendorName, vendorMap)
+		}
+	}
+	return 0
+}
+
+func InferDefaultVendorIDForModel(modelName string) int {
+	var vendors []Vendor
+	_ = DB.Find(&vendors).Error
+	vendorMap := make(map[int]*Vendor, len(vendors))
+	for i := range vendors {
+		vendorMap[vendors[i].Id] = &vendors[i]
+	}
+	return inferDefaultVendorID(modelName, vendorMap)
 }
 
 // 查找或创建供应商

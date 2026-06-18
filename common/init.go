@@ -83,6 +83,15 @@ func InitEnv() {
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	initNodeNameIdentity()
+	UpstreamWarmupEnabled.Store(GetEnvOrDefaultBool("UPSTREAM_WARMUP_ENABLED", true))
+	UpstreamTraceEnabled.Store(GetEnvOrDefaultBool("UPSTREAM_TRACE_ENABLED", false))
+	SetUpstreamTraceSampleRate(GetEnvOrDefaultFloat("UPSTREAM_TRACE_SAMPLE_RATE", 1.0))
+	PoolStatusEnabled.Store(GetEnvOrDefaultBool("POOL_STATUS_ENABLED", false))
+	PoolStatusUpstreamURL = GetEnvOrDefaultString("POOL_STATUS_UPSTREAM_URL", PoolStatusUpstreamURL)
+	PoolStatusAuthHeader = GetEnvOrDefaultString("POOL_STATUS_AUTH_HEADER", PoolStatusAuthHeader)
+	PoolStatusUserID = GetEnvOrDefaultString("POOL_STATUS_USER_ID", PoolStatusUserID)
+	PoolStatusIntervalSeconds = GetEnvOrDefault("POOL_STATUS_INTERVAL_SECONDS", PoolStatusIntervalSeconds)
+	PoolStatusCategoryName = GetEnvOrDefaultString("POOL_STATUS_CATEGORY_NAME", PoolStatusCategoryName)
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
 	if TLSInsecureSkipVerify {
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {

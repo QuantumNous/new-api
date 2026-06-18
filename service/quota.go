@@ -37,6 +37,7 @@ type QuotaInfo struct {
 	ModelPrice    float64
 	ModelRatio    float64
 	GroupRatio    float64
+	Override      *types.ModelGroupPricing
 }
 
 func hasCustomModelRatio(modelName string, currentRatio float64) bool {
@@ -49,6 +50,15 @@ func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 
 func calculateAudioQuota(info QuotaInfo) int {
 	if info.UsePrice {
+		if info.Override != nil && info.Override.ModelPrice != nil {
+			modelPrice := decimal.NewFromFloat(*info.Override.ModelPrice)
+			quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+			quota := modelPrice.Mul(quotaPerUnit)
+			if quota.IsZero() && *info.Override.ModelPrice > 0 {
+				return 1
+			}
+			return int(quota.Round(0).IntPart())
+		}
 		modelPrice := decimal.NewFromFloat(info.ModelPrice)
 		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		groupRatio := decimal.NewFromFloat(info.GroupRatio)
@@ -71,11 +81,29 @@ func calculateAudioQuota(info QuotaInfo) int {
 	outputAudioTokens := decimal.NewFromInt(int64(info.OutputDetails.AudioTokens))
 
 	quota := decimal.Zero
+	if info.Override != nil && info.Override.HasPriceOverride() {
+		addOverrideOrRatio := func(price *float64, tokens decimal.Decimal, ratioMultiplier decimal.Decimal) {
+			if price != nil {
+				quota = quota.Add(decimal.NewFromFloat(*price).Div(decimal.NewFromInt(1_000_000)).Mul(tokens).Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+				return
+			}
+			quota = quota.Add(tokens.Mul(ratioMultiplier).Mul(modelRatio).Mul(groupRatio))
+		}
+		addOverrideOrRatio(info.Override.PromptPrice, inputTextTokens, decimal.NewFromInt(1))
+		addOverrideOrRatio(info.Override.CompletionPrice, outputTextTokens, completionRatio)
+		addOverrideOrRatio(info.Override.AudioPrice, inputAudioTokens, audioRatio)
+		addOverrideOrRatio(info.Override.AudioCompletionPrice, outputAudioTokens, audioRatio.Mul(audioCompletionRatio))
+
+		if totalTokens := inputTextTokens.Add(outputTextTokens).Add(inputAudioTokens).Add(outputAudioTokens); !totalTokens.IsZero() && quota.LessThanOrEqual(decimal.Zero) {
+			quota = decimal.NewFromInt(1)
+		}
+		return int(quota.Round(0).IntPart())
+	}
+
 	quota = quota.Add(inputTextTokens)
 	quota = quota.Add(outputTextTokens.Mul(completionRatio))
 	quota = quota.Add(inputAudioTokens.Mul(audioRatio))
 	quota = quota.Add(outputAudioTokens.Mul(audioRatio).Mul(audioCompletionRatio))
-
 	quota = quota.Mul(ratio)
 
 	// If ratio is not zero and quota is less than or equal to zero, set quota to 1
@@ -120,6 +148,9 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if ok {
 		actualGroupRatio = userGroupRatio
 	}
+	if modelGroupRatio, ok := model.GetModelGroupRatio(modelName, relayInfo.UsingGroup); ok {
+		actualGroupRatio = modelGroupRatio
+	}
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
@@ -134,6 +165,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		UsePrice:   relayInfo.UsePrice,
 		ModelRatio: modelRatio,
 		GroupRatio: actualGroupRatio,
+		Override:   relayInfo.PriceData.GroupPriceOverride,
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
@@ -197,6 +229,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		UsePrice:   usePrice,
 		ModelRatio: modelRatio,
 		GroupRatio: groupRatio,
+		Override:   relayInfo.PriceData.GroupPriceOverride,
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
@@ -318,6 +351,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		UsePrice:   usePrice,
 		ModelRatio: modelRatio,
 		GroupRatio: groupRatio,
+		Override:   relayInfo.PriceData.GroupPriceOverride,
 	}
 
 	quota := calculateAudioQuota(quotaInfo)

@@ -205,6 +205,10 @@ export const channelFormSchema = z
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
     disable_task_polling_sleep: z.boolean().optional(),
+    cowork_adaptive_thinking_fix: z.boolean().optional(), // Anthropic: Cowork adaptive thinking signature fix
+    upstream_warmup_enabled: z.boolean().optional(),
+    upstream_trace_enabled: z.boolean().optional(),
+    force_http1: z.boolean().optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -345,6 +349,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_speed: false,
   claude_beta_query: false,
   disable_task_polling_sleep: false,
+  cowork_adaptive_thinking_fix: false,
+  upstream_warmup_enabled: false,
+  upstream_trace_enabled: false,
+  force_http1: false,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -401,6 +409,10 @@ export function transformChannelToFormDefaults(
   let allowSpeed = false
   let claudeBetaQuery = false
   let disableTaskPollingSleep = false
+  let coworkAdaptiveThinkingFix = false
+  let upstreamWarmupEnabled = false
+  let upstreamTraceEnabled = false
+  let forceHttp1 = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -421,6 +433,10 @@ export function transformChannelToFormDefaults(
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
+      coworkAdaptiveThinkingFix = parsed.cowork_adaptive_thinking_fix === true
+      upstreamWarmupEnabled = parsed.upstream_warmup_enabled === true
+      upstreamTraceEnabled = parsed.upstream_trace_enabled === true
+      forceHttp1 = parsed.force_http1 === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -479,6 +495,10 @@ export function transformChannelToFormDefaults(
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     disable_task_polling_sleep: disableTaskPollingSleep,
+    cowork_adaptive_thinking_fix: coworkAdaptiveThinkingFix,
+    upstream_warmup_enabled: upstreamWarmupEnabled,
+    upstream_trace_enabled: upstreamTraceEnabled,
+    force_http1: forceHttp1,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -572,18 +592,29 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       delete settingsObj.allow_inference_geo
   }
 
-  // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
+  // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed, cowork_adaptive_thinking_fix
   if (formData.type === 14) {
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
     settingsObj.allow_speed = formData.allow_speed === true
     settingsObj.claude_beta_query = formData.claude_beta_query === true
+    settingsObj.cowork_adaptive_thinking_fix =
+      formData.cowork_adaptive_thinking_fix === true
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
+    if ('cowork_adaptive_thinking_fix' in settingsObj)
+      delete settingsObj.cowork_adaptive_thinking_fix
   }
 
   settingsObj.disable_task_polling_sleep =
     formData.disable_task_polling_sleep === true
+
+  settingsObj.upstream_warmup_enabled =
+    formData.upstream_warmup_enabled === true
+
+  settingsObj.upstream_trace_enabled = formData.upstream_trace_enabled === true
+
+  settingsObj.force_http1 = formData.force_http1 === true
 
   // Upstream model update settings (for model-fetchable channel types)
   if (MODEL_FETCHABLE_TYPES.has(formData.type)) {

@@ -48,6 +48,15 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap["UpstreamWarmupEnabled"] = strconv.FormatBool(common.UpstreamWarmupEnabled.Load())
+	common.OptionMap["UpstreamTraceEnabled"] = strconv.FormatBool(common.UpstreamTraceEnabled.Load())
+	common.OptionMap["UpstreamTraceSampleRate"] = strconv.FormatFloat(common.GetUpstreamTraceSampleRate(), 'f', -1, 64)
+	// PoolStatusUpstreamURL and PoolStatusAuthHeader are deliberately NOT
+	// registered here: the upstream host + credential stay env-only so they
+	// never surface via GetOptions or land in the DB.
+	common.OptionMap["PoolStatusEnabled"] = strconv.FormatBool(common.PoolStatusEnabled.Load())
+	common.OptionMap["PoolStatusIntervalSeconds"] = strconv.Itoa(common.PoolStatusIntervalSeconds)
+	common.OptionMap["PoolStatusCategoryName"] = common.PoolStatusCategoryName
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -138,9 +147,13 @@ func InitOptionMap() {
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
+	common.OptionMap["ModelRequestRateLimitAdminFollowUser"] = strconv.FormatBool(setting.ModelRequestRateLimitAdminFollowUser)
+	common.OptionMap["ModelRequestRateLimitAdminCount"] = strconv.Itoa(setting.ModelRequestRateLimitAdminCount)
+	common.OptionMap["ModelRequestRateLimitAdminSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitAdminSuccessCount)
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
+	common.OptionMap["ModelMinFee"] = ratio_setting.ModelMinFee2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
@@ -277,7 +290,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "ModelRequestRateLimitAdminFollowUser" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -308,6 +321,12 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case "UpstreamWarmupEnabled":
+			common.UpstreamWarmupEnabled.Store(boolValue)
+		case "UpstreamTraceEnabled":
+			common.UpstreamTraceEnabled.Store(boolValue)
+		case "PoolStatusEnabled":
+			common.PoolStatusEnabled.Store(boolValue)
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS
@@ -348,6 +367,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.CheckSensitiveOnPromptEnabled = boolValue
 		case "ModelRequestRateLimitEnabled":
 			setting.ModelRequestRateLimitEnabled = boolValue
+		case "ModelRequestRateLimitAdminFollowUser":
+			setting.ModelRequestRateLimitAdminFollowUser = boolValue
 		case "StopOnSensitiveEnabled":
 			setting.StopOnSensitiveEnabled = boolValue
 		case "SMTPSSLEnabled":
@@ -516,6 +537,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.ModelRequestRateLimitDurationMinutes, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitSuccessCount":
 		setting.ModelRequestRateLimitSuccessCount, _ = strconv.Atoi(value)
+	case "ModelRequestRateLimitAdminCount":
+		setting.ModelRequestRateLimitAdminCount, _ = strconv.Atoi(value)
+	case "ModelRequestRateLimitAdminSuccessCount":
+		setting.ModelRequestRateLimitAdminSuccessCount, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitGroup":
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "RetryTimes":
@@ -536,6 +561,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateCompletionRatioByJSONString(value)
 	case "ModelPrice":
 		err = ratio_setting.UpdateModelPriceByJSONString(value)
+	case "ModelMinFee":
+		err = ratio_setting.UpdateModelMinFeeByJSONString(value)
 	case "CacheRatio":
 		err = ratio_setting.UpdateCacheRatioByJSONString(value)
 	case "CreateCacheRatio":
@@ -554,8 +581,18 @@ func updateOptionMap(key string, value string) (err error) {
 	//	common.ChatLink2 = value
 	case "ChannelDisableThreshold":
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
+	case "UpstreamTraceSampleRate":
+		if f, ferr := strconv.ParseFloat(value, 64); ferr == nil {
+			common.SetUpstreamTraceSampleRate(f)
+		}
 	case "QuotaPerUnit":
 		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+	case "PoolStatusIntervalSeconds":
+		if n, nerr := strconv.Atoi(value); nerr == nil {
+			common.PoolStatusIntervalSeconds = n
+		}
+	case "PoolStatusCategoryName":
+		common.PoolStatusCategoryName = value
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
 	case "AutomaticDisableKeywords":

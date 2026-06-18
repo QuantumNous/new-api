@@ -193,8 +193,9 @@ export const useModelPricingData = () => {
   };
 
   const setModelsFormat = (models, groupRatio, vendorMap) => {
-    for (let i = 0; i < models.length; i++) {
-      const m = models[i];
+    const formattedModels = Array.isArray(models) ? [...models] : [];
+    for (let i = 0; i < formattedModels.length; i++) {
+      const m = formattedModels[i];
       m.key = m.model_name;
       m.group_ratio = groupRatio[m.model_name];
 
@@ -205,11 +206,11 @@ export const useModelPricingData = () => {
         m.vendor_description = vendor.description;
       }
     }
-    models.sort((a, b) => {
+    formattedModels.sort((a, b) => {
       return a.quota_type - b.quota_type;
     });
 
-    models.sort((a, b) => {
+    formattedModels.sort((a, b) => {
       if (a.model_name.startsWith('gpt') && !b.model_name.startsWith('gpt')) {
         return -1;
       } else if (
@@ -222,7 +223,14 @@ export const useModelPricingData = () => {
       }
     });
 
-    setModels(models);
+    setModels(formattedModels);
+    setSelectedModel((current) => {
+      if (!current) return current;
+      return (
+        formattedModels.find((model) => model.model_name === current.model_name) ||
+        current
+      );
+    });
   };
 
   const loadPricing = async () => {

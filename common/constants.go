@@ -69,6 +69,21 @@ var DataExportEnabled = true
 var DataExportInterval = 5         // unit: minute
 var DataExportDefaultTime = "hour" // unit: minute
 var DefaultCollapseSidebar = false // default value of collapse sidebar
+var UpstreamWarmupEnabled atomic.Bool // default true, set in init.go
+var UpstreamTraceEnabled atomic.Bool   // default false, set in init.go (segmented upstream httptrace)
+
+// Channel pool status: periodically fetch an upstream new-api pool-preview
+// endpoint and inject it as a virtual Uptime Kuma category on the dashboard.
+// The upstream URL and auth credential are intentionally env-only (set via
+// POOL_STATUS_UPSTREAM_URL / POOL_STATUS_AUTH_HEADER) and are deliberately kept
+// out of OptionMap / GetOptions / the DB, so the upstream host and credential
+// never reach any browser. Defaults are empty so nothing leaks from source.
+var PoolStatusEnabled atomic.Bool   // default false, set in init.go
+var PoolStatusUpstreamURL = ""      // env-only; never registered in OptionMap
+var PoolStatusAuthHeader = ""        // env-only credential ("Header: value"); never registered in OptionMap
+var PoolStatusUserID = ""            // env-only; sent as "New-Api-User" header for upstream new-api auth
+var PoolStatusIntervalSeconds = 60   // how often to refresh the cached snapshot
+var PoolStatusCategoryName = "号池状态" // category label shown in the Uptime panel
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 
@@ -183,7 +198,7 @@ var BatchUpdateInterval int
 
 var RelayTimeout int // unit is second
 
-var RelayIdleConnTimeout int // unit is second
+var RelayIdleConnTimeout int // unit is second, 0 means use default (90s)
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

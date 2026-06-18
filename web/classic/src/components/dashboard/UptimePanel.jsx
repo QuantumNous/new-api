@@ -90,7 +90,7 @@ const UptimePanel = ({
                     tab={
                       <span className='flex items-center gap-2'>
                         <Gauge size={14} />
-                        {group.categoryName}
+                        {t(group.categoryName)}
                         <Tag
                           color={
                             activeUptimeTab === group.categoryName

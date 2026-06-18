@@ -27,6 +27,8 @@ import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
 import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
+import ModelPricingAdminPanel from './components/ModelPricingAdminPanel';
+import { isAdmin } from '../../../../helpers';
 
 const { Text } = Typography;
 
@@ -44,9 +46,11 @@ const ModelDetailSideSheet = ({
   vendorsMap,
   endpointMap,
   autoGroups,
+  onPricingSaved,
   t,
 }) => {
   const isMobile = useIsMobile();
+  const canEditPricing = isAdmin();
 
   return (
     <SideSheet
@@ -95,17 +99,18 @@ const ModelDetailSideSheet = ({
                 t={t}
               />
             </div>
-            {modelData.billing_mode === 'tiered_expr' && modelData.billing_expr && (
-              <>
-                <Divider margin={16} />
-                <div style={{ padding: '0 24px' }}>
-                  <DynamicPricingBreakdown
-                    billingExpr={modelData.billing_expr}
-                    t={t}
-                  />
-                </div>
-              </>
-            )}
+            {modelData.billing_mode === 'tiered_expr' &&
+              modelData.billing_expr && (
+                <>
+                  <Divider margin={16} />
+                  <div style={{ padding: '0 24px' }}>
+                    <DynamicPricingBreakdown
+                      billingExpr={modelData.billing_expr}
+                      t={t}
+                    />
+                  </div>
+                </>
+              )}
             <Divider margin={16} />
             <div style={{ padding: '0 24px' }}>
               <ModelPricingTable
@@ -121,6 +126,20 @@ const ModelDetailSideSheet = ({
                 t={t}
               />
             </div>
+            {canEditPricing && (
+              <>
+                <Divider margin={16} />
+                <div style={{ padding: '0 24px' }}>
+                  <ModelPricingAdminPanel
+                    modelData={modelData}
+                    groupRatio={groupRatio}
+                    usableGroup={usableGroup}
+                    onSaved={onPricingSaved}
+                    t={t}
+                  />
+                </div>
+              </>
+            )}
             <Divider margin={16} />
           </>
         )}

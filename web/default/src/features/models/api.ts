@@ -37,6 +37,7 @@ import type {
   DeploymentSettingsResponse,
   ListDeploymentsResponse,
 } from './types'
+import type { ModelGroupPricingItem } from '@/features/pricing/types'
 
 // ============================================================================
 // Model CRUD Operations
@@ -98,6 +99,65 @@ export async function updateModelStatus(
   status: number
 ): Promise<{ success: boolean; message?: string }> {
   const res = await api.put('/api/models/?status_only=true', { id, status })
+  return res.data
+}
+
+export type UpdateModelPricingPayload = {
+  model_name?: string
+  billing_mode: 'per-token' | 'per-request' | 'tiered_expr' | 'ratio'
+  model_price?: number
+  model_ratio?: number
+  completion_ratio?: number
+  cache_ratio?: number
+  create_cache_ratio?: number
+  image_ratio?: number
+  audio_ratio?: number
+  audio_completion_ratio?: number
+  billing_expr?: string
+  min_fee?: number
+}
+
+export async function updateModelPricing(
+  id: number,
+  data: UpdateModelPricingPayload
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.put(`/api/models/${id}/pricing`, data)
+  return res.data
+}
+
+export async function updateModelPricingByName(
+  data: UpdateModelPricingPayload & { model_name: string }
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.put('/api/models/pricing_by_name', data)
+  return res.data
+}
+
+export async function updateModelGroupPricing(
+  id: number,
+  groupPricing: Record<string, ModelGroupPricingItem>
+): Promise<{
+  success: boolean
+  message?: string
+  data?: { group_pricing: Record<string, ModelGroupPricingItem> }
+}> {
+  const res = await api.put(`/api/models/${id}/group_pricing`, {
+    group_pricing: groupPricing,
+  })
+  return res.data
+}
+
+export async function updateModelGroupPricingByName(
+  modelName: string,
+  groupPricing: Record<string, ModelGroupPricingItem>
+): Promise<{
+  success: boolean
+  message?: string
+  data?: { group_pricing: Record<string, ModelGroupPricingItem> }
+}> {
+  const res = await api.put('/api/models/group_pricing_by_name', {
+    model_name: modelName,
+    group_pricing: groupPricing,
+  })
   return res.data
 }
 

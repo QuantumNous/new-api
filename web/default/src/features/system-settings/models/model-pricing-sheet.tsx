@@ -170,6 +170,7 @@ export const ModelPricingEditorPanel = forwardRef<
       imageRatio: '',
       audioRatio: '',
       audioCompletionRatio: '',
+      minFee: '',
     },
   })
 
@@ -187,6 +188,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: editData.imageRatio || '',
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
+        minFee: editData.minFee || '',
       })
       setPricingMode(
         editData.billingMode === 'tiered_expr'
@@ -208,6 +210,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: '',
         audioRatio: '',
         audioCompletionRatio: '',
+        minFee: '',
       })
       setPricingMode('per-token')
       setBillingExpr('')
@@ -451,6 +454,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: values.imageRatio || '',
         audioRatio: values.audioRatio || '',
         audioCompletionRatio: values.audioCompletionRatio || '',
+        minFee: values.minFee || '',
       }
 
       if (pricingMode === 'tiered_expr') {
@@ -595,6 +599,41 @@ export const ModelPricingEditorPanel = forwardRef<
                           )
                         })}
                       </div>
+
+                      <FormField
+                        control={form.control}
+                        name='minFee'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Min fee')}</FormLabel>
+                            <FormControl>
+                              <InputGroup>
+                                <InputGroupAddon>$</InputGroupAddon>
+                                <InputGroupInput
+                                  inputMode='decimal'
+                                  placeholder='0.05'
+                                  {...field}
+                                  onChange={(event) => {
+                                    const value = event.target.value
+                                    if (numericDraftRegex.test(value)) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                />
+                                <InputGroupAddon align='inline-end'>
+                                  {t('per request')}
+                                </InputGroupAddon>
+                              </InputGroup>
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Minimum charge per request; leave empty for none.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </FieldGroup>
                   </TabsContent>
 

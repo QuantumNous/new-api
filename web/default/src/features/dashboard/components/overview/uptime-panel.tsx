@@ -129,7 +129,7 @@ export function UptimePanel() {
               <div className='bg-muted/30 border-border/60 border-b px-3 py-2 sm:px-5'>
                 <div className='flex items-center gap-2'>
                   <h4 className='text-muted-foreground text-xs font-semibold tracking-wider uppercase'>
-                    {group.categoryName}
+                    {t(group.categoryName)}
                   </h4>
                   <span className='text-muted-foreground/40 font-mono text-xs tabular-nums'>
                     {group.monitors?.length || 0}

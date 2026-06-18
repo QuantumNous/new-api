@@ -198,6 +198,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			writeMutex.Lock()
 			dataHandler(data, sr)
 			writeMutex.Unlock()
+			// Stamp the first client-write moment for upstream tracing (no-op when
+			// tracing is off or already stamped). FlushDelayMs = FirstSSEAt -> here.
+			info.SetFirstFlushTime()
 			if sr.IsStopped() {
 				return
 			}

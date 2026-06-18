@@ -123,6 +123,11 @@ const OPERATIONS_SECTIONS = [
             settings['performance_setting.monitor_memory_threshold'] ?? 90,
           'performance_setting.monitor_disk_threshold':
             settings['performance_setting.monitor_disk_threshold'] ?? 95,
+          UpstreamWarmupEnabled: settings.UpstreamWarmupEnabled ?? true,
+          UpstreamTraceEnabled: settings.UpstreamTraceEnabled ?? false,
+          UpstreamTraceSampleRate: Number(
+            settings.UpstreamTraceSampleRate ?? 1
+          ),
         }}
       />
     ),

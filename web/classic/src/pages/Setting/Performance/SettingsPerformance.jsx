@@ -58,6 +58,11 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+function formatUnixTime(seconds) {
+  if (!seconds) return '-';
+  return new Date(seconds * 1000).toLocaleString();
+}
+
 export default function SettingsPerformance(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -72,6 +77,9 @@ export default function SettingsPerformance(props) {
     'performance_setting.monitor_cpu_threshold': 90,
     'performance_setting.monitor_memory_threshold': 90,
     'performance_setting.monitor_disk_threshold': 95,
+    UpstreamWarmupEnabled: true,
+    UpstreamTraceEnabled: false,
+    UpstreamTraceSampleRate: 1,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -79,6 +87,8 @@ export default function SettingsPerformance(props) {
   const [logCleanupMode, setLogCleanupMode] = useState('by_count');
   const [logCleanupValue, setLogCleanupValue] = useState(10);
   const [logCleanupLoading, setLogCleanupLoading] = useState(false);
+  const [warmupStatus, setWarmupStatus] = useState([]);
+  const [warmupLoading, setWarmupLoading] = useState(false);
 
   function handleFieldChange(fieldName) {
     return (value) => {
@@ -185,8 +195,26 @@ export default function SettingsPerformance(props) {
     }
   }
 
+  async function fetchWarmupStatus() {
+    setWarmupLoading(true);
+    try {
+      const res = await API.get('/api/channel/upstream_warmup/status');
+      if (res.data.success) {
+        setWarmupStatus(Array.isArray(res.data.data) ? res.data.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch upstream warmup status:', error);
+    } finally {
+      setWarmupLoading(false);
+    }
+  }
+
   async function cleanupLogFiles() {
-    if (logCleanupValue == null || isNaN(logCleanupValue) || logCleanupValue < 1) {
+    if (
+      logCleanupValue == null ||
+      isNaN(logCleanupValue) ||
+      logCleanupValue < 1
+    ) {
       showError(t('请输入有效的数值'));
       return;
     }
@@ -222,7 +250,9 @@ export default function SettingsPerformance(props) {
           currentInputs[key] =
             props.options[key] === 'true' || props.options[key] === true;
         } else if (typeof inputs[key] === 'number') {
-          currentInputs[key] = parseInt(props.options[key]) || inputs[key];
+          // 用 Number 而非 parseInt：采样率等字段可能是 0..1 的小数，parseInt 会截断为 0
+          const parsed = Number(props.options[key]);
+          currentInputs[key] = Number.isNaN(parsed) ? inputs[key] : parsed;
         } else {
           currentInputs[key] = props.options[key];
         }
@@ -235,6 +265,7 @@ export default function SettingsPerformance(props) {
     }
     fetchStats();
     fetchLogInfo();
+    fetchWarmupStatus();
   }, [props.options]);
 
   const diskCacheUsagePercent =
@@ -395,6 +426,247 @@ export default function SettingsPerformance(props) {
               </Button>
             </Row>
           </Form.Section>
+
+          <Form.Section text={t('上游连接预热')}>
+            <Banner
+              type='info'
+              description={t(
+                '定时预热已勾选渠道的上游连接，使用不计费健康请求，降低真实请求首字节延迟。',
+              )}
+              style={{ marginBottom: 16 }}
+            />
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'UpstreamWarmupEnabled'}
+                  label={t('启用上游连接预热任务')}
+                  extraText={t('具体预热哪些上游由渠道高级设置决定')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('UpstreamWarmupEnabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <div style={{ marginTop: 28 }}>
+                  <Button size='default' onClick={onSubmit}>
+                    {t('保存预热设置')}
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+            <div
+              style={{
+                marginTop: 16,
+                padding: 16,
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Text strong>{t('预热主机状态')}</Text>
+                  <Tag color={inputs.UpstreamWarmupEnabled ? 'green' : 'grey'}>
+                    {inputs.UpstreamWarmupEnabled ? t('已启用') : t('已禁用')}
+                  </Tag>
+                </div>
+                <Button
+                  size='small'
+                  onClick={fetchWarmupStatus}
+                  loading={warmupLoading}
+                >
+                  {t('刷新预热状态')}
+                </Button>
+              </div>
+              {warmupStatus.length > 0 ? (
+                <Row gutter={[16, 16]}>
+                  {warmupStatus.map((item) => {
+                    const lastCheckAt = item.last_check_at ?? 0;
+                    const lastReusableAt =
+                      item.last_reusable_at ?? item.last_success_at ?? 0;
+                    const connectSuccessCount =
+                      item.connect_success_count ?? item.success_count ?? 0;
+                    const reusableSuccessCount =
+                      item.reusable_success_count ?? item.success_count ?? 0;
+                    const drainFailureCount = item.drain_failure_count ?? 0;
+                    const latestHasError = Boolean(item.last_error);
+                    const reusable =
+                      reusableSuccessCount > 0 &&
+                      lastReusableAt > 0 &&
+                      lastReusableAt >= lastCheckAt &&
+                      !latestHasError;
+                    const drainNotReusable =
+                      latestHasError &&
+                      item.last_status_code > 0 &&
+                      drainFailureCount > 0;
+                    const tagColor = reusable
+                      ? 'green'
+                      : drainNotReusable
+                        ? 'orange'
+                        : latestHasError
+                          ? 'red'
+                          : 'grey';
+                    const tagText = reusable
+                      ? t('连接可复用')
+                      : drainNotReusable
+                        ? t('连接未复用')
+                        : latestHasError
+                          ? t('预热失败')
+                          : t('暂无可复用连接');
+                    return (
+                      <Col
+                        key={`${item.host}|${item.proxy || ''}`}
+                        xs={24}
+                        md={12}
+                      >
+                        <div
+                          style={{
+                            border: '1px solid var(--semi-color-border)',
+                            borderRadius: 8,
+                            padding: 12,
+                            minHeight: 148,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              marginBottom: 8,
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <Text
+                                strong
+                                ellipsis={{ showTooltip: true }}
+                                style={{ display: 'block' }}
+                              >
+                                {item.host}
+                              </Text>
+                              {item.proxy ? (
+                                <Text
+                                  type='tertiary'
+                                  ellipsis={{ showTooltip: true }}
+                                  style={{ display: 'block' }}
+                                >
+                                  {item.proxy}
+                                </Text>
+                              ) : null}
+                            </div>
+                            <Tag color={tagColor}>{tagText}</Tag>
+                          </div>
+                          <Descriptions
+                            data={[
+                              {
+                                key: t('业务状态'),
+                                value: item.last_status_code || '-',
+                              },
+                              {
+                                key: t('延迟'),
+                                value: `${item.last_latency_ms || 0} ms`,
+                              },
+                              {
+                                key: t('连接成功次数'),
+                                value: connectSuccessCount,
+                              },
+                              {
+                                key: t('可复用成功次数'),
+                                value: reusableSuccessCount,
+                              },
+                              {
+                                key: t('排空失败次数'),
+                                value: drainFailureCount,
+                              },
+                              {
+                                key: t('失败次数'),
+                                value: item.failure_count,
+                              },
+                              {
+                                key: t('最后检查'),
+                                value: formatUnixTime(item.last_check_at),
+                              },
+                              {
+                                key: t('最后可复用'),
+                                value: formatUnixTime(lastReusableAt),
+                              },
+                            ]}
+                          />
+                          {item.last_error ? (
+                            <Text
+                              type='danger'
+                              size='small'
+                              style={{
+                                display: 'block',
+                                marginTop: 8,
+                                wordBreak: 'break-all',
+                              }}
+                            >
+                              {item.last_error}
+                            </Text>
+                          ) : null}
+                        </div>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              ) : (
+                <Text type='tertiary'>{t('暂无预热状态')}</Text>
+              )}
+            </div>
+          </Form.Section>
+
+          <Form.Section text={t('上游请求埋点')}>
+            <Banner
+              type='info'
+              description={t(
+                '开启后会用 net/http/httptrace 采集上游请求的分段耗时（DNS/TCP/TLS/响应头/首字等），写入使用日志详情，仅管理员可见，用于排查首字延迟。采样率控制采集比例，1=全量、0=关闭。',
+              )}
+              style={{ marginBottom: 16 }}
+            />
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'UpstreamTraceEnabled'}
+                  label={t('启用上游请求埋点')}
+                  extraText={t(
+                    '采集上游请求分段耗时，写入日志详情（仅管理员可见）',
+                  )}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('UpstreamTraceEnabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={'UpstreamTraceSampleRate'}
+                  label={t('采样率')}
+                  extraText={t('0 到 1 之间，1=全量采集，0=关闭采集')}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  onChange={handleFieldChange('UpstreamTraceSampleRate')}
+                  disabled={!inputs.UpstreamTraceEnabled}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <div style={{ marginTop: 28 }}>
+                  <Button size='default' onClick={onSubmit}>
+                    {t('保存埋点设置')}
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+          </Form.Section>
         </Form>
       </Spin>
 
@@ -474,24 +746,24 @@ export default function SettingsPerformance(props) {
                   >
                     &nbsp;
                   </Text>
-                <Popconfirm
-                  title={t('确认清理日志文件？')}
-                  content={
-                    logCleanupMode === 'by_count'
-                      ? t(
-                          '将只保留最近 {{value}} 个日志文件，其余将被删除。',
-                          { value: logCleanupValue },
-                        )
-                      : t('将删除 {{value}} 天前的日志文件。', {
-                          value: logCleanupValue,
-                        })
-                  }
-                  onConfirm={cleanupLogFiles}
-                >
-                  <Button type='danger' loading={logCleanupLoading}>
-                    {t('清理日志文件')}
-                  </Button>
-                </Popconfirm>
+                  <Popconfirm
+                    title={t('确认清理日志文件？')}
+                    content={
+                      logCleanupMode === 'by_count'
+                        ? t(
+                            '将只保留最近 {{value}} 个日志文件，其余将被删除。',
+                            { value: logCleanupValue },
+                          )
+                        : t('将删除 {{value}} 天前的日志文件。', {
+                            value: logCleanupValue,
+                          })
+                    }
+                    onConfirm={cleanupLogFiles}
+                  >
+                    <Button type='danger' loading={logCleanupLoading}>
+                      {t('清理日志文件')}
+                    </Button>
+                  </Popconfirm>
                 </div>
               </Col>
             </Row>

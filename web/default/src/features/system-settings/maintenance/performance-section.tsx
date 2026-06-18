@@ -71,6 +71,9 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
  * server-side key format right before persisting.
  */
 const perfSchema = z.object({
+  UpstreamWarmupEnabled: z.boolean(),
+  UpstreamTraceEnabled: z.boolean(),
+  UpstreamTraceSampleRate: z.coerce.number().min(0).max(1),
   performance_setting: z.object({
     disk_cache_enabled: z.boolean(),
     disk_cache_threshold_mb: z.coerce.number().min(1),
@@ -87,6 +90,9 @@ type PerfFormInput = z.input<typeof perfSchema>
 type PerfFormValues = z.output<typeof perfSchema>
 
 type FlatPerfDefaults = {
+  UpstreamWarmupEnabled: boolean
+  UpstreamTraceEnabled: boolean
+  UpstreamTraceSampleRate: number
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number
@@ -98,6 +104,9 @@ type FlatPerfDefaults = {
 }
 
 const buildFormDefaults = (defaults: FlatPerfDefaults): PerfFormInput => ({
+  UpstreamWarmupEnabled: defaults.UpstreamWarmupEnabled ?? true,
+  UpstreamTraceEnabled: defaults.UpstreamTraceEnabled ?? false,
+  UpstreamTraceSampleRate: defaults.UpstreamTraceSampleRate ?? 1,
   performance_setting: {
     disk_cache_enabled: defaults['performance_setting.disk_cache_enabled'],
     disk_cache_threshold_mb:
@@ -116,6 +125,9 @@ const buildFormDefaults = (defaults: FlatPerfDefaults): PerfFormInput => ({
 })
 
 const normalizeFormValues = (values: PerfFormValues): FlatPerfDefaults => ({
+  UpstreamWarmupEnabled: values.UpstreamWarmupEnabled,
+  UpstreamTraceEnabled: values.UpstreamTraceEnabled,
+  UpstreamTraceSampleRate: values.UpstreamTraceSampleRate,
   'performance_setting.disk_cache_enabled':
     values.performance_setting.disk_cache_enabled,
   'performance_setting.disk_cache_threshold_mb':
@@ -147,8 +159,31 @@ function formatBytes(bytes: number, decimals = 2): string {
   }`
 }
 
+function formatUnixTime(seconds?: number): string {
+  if (!seconds) return '-'
+  const value = new Date(seconds * 1000)
+  if (Number.isNaN(value.getTime())) return '-'
+  return value.toLocaleString()
+}
+
 interface Props {
   defaultValues: FlatPerfDefaults
+}
+
+type WarmupHostStatus = {
+  host: string
+  proxy?: string
+  last_status_code: number
+  last_latency_ms: number
+  last_error?: string
+  success_count: number
+  failure_count: number
+  last_success_at?: number
+  last_check_at: number
+  connect_success_count?: number
+  reusable_success_count?: number
+  drain_failure_count?: number
+  last_reusable_at?: number
 }
 
 type PerformanceStats = {
@@ -188,6 +223,8 @@ export function PerformanceSection(props: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [stats, setStats] = useState<PerformanceStats | null>(null)
+  const [warmupStatus, setWarmupStatus] = useState<WarmupHostStatus[]>([])
+  const [warmupStatusLoading, setWarmupStatusLoading] = useState(false)
 
   const formDefaults = useMemo(
     () => buildFormDefaults(props.defaultValues),
@@ -221,9 +258,29 @@ export function PerformanceSection(props: Props) {
     }
   }, [])
 
+  const fetchWarmupStatus = useCallback(
+    async (silent = true) => {
+      setWarmupStatusLoading(true)
+      try {
+        const res = await api.get('/api/channel/upstream_warmup/status')
+        if (res.data.success) {
+          setWarmupStatus(Array.isArray(res.data.data) ? res.data.data : [])
+        }
+      } catch {
+        if (!silent) {
+          toast.error(t('Failed to fetch upstream warmup status'))
+        }
+      } finally {
+        setWarmupStatusLoading(false)
+      }
+    },
+    [t]
+  )
+
   useEffect(() => {
     fetchStats()
-  }, [fetchStats])
+    fetchWarmupStatus()
+  }, [fetchStats, fetchWarmupStatus])
 
   const onSubmit = async (values: PerfFormValues) => {
     const normalized = normalizeFormValues(values)
@@ -247,6 +304,7 @@ export function PerformanceSection(props: Props) {
     baselineSerializedRef.current = JSON.stringify(normalized)
     form.reset(buildFormDefaults(normalized))
     fetchStats()
+    fetchWarmupStatus()
   }
 
   const clearDiskCache = async () => {
@@ -287,6 +345,8 @@ export function PerformanceSection(props: Props) {
 
   const diskEnabled = form.watch('performance_setting.disk_cache_enabled')
   const monitorEnabled = form.watch('performance_setting.monitor_enabled')
+  const upstreamWarmupEnabled = form.watch('UpstreamWarmupEnabled')
+  const upstreamTraceEnabled = form.watch('UpstreamTraceEnabled')
   const maxCacheSizeRaw = form.watch(
     'performance_setting.disk_cache_max_size_mb'
   )
@@ -526,8 +586,165 @@ export function PerformanceSection(props: Props) {
               )}
             />
           </div>
+
+          <Separator />
+
+          <div>
+            <h4 className='font-medium'>{t('Upstream Warmup')}</h4>
+          </div>
+
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+            <FormField
+              control={form.control}
+              name='UpstreamWarmupEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Upstream Warmup')}</FormLabel>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='UpstreamTraceEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Upstream Trace')}</FormLabel>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='UpstreamTraceSampleRate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Trace Sample Rate')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      {...safeNumberFieldProps(field)}
+                      disabled={!upstreamTraceEnabled}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </SettingsForm>
       </Form>
+
+      <Separator />
+
+      <div className='space-y-4'>
+        <div className='flex items-center gap-2'>
+          <h4 className='font-medium'>{t('Upstream Warmup Status')}</h4>
+          <StatusBadge
+            variant={upstreamWarmupEnabled ? 'success' : 'neutral'}
+            copyable={false}
+          >
+            {upstreamWarmupEnabled ? t('Enabled') : t('Disabled')}
+          </StatusBadge>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => fetchWarmupStatus(false)}
+            disabled={warmupStatusLoading}
+          >
+            {warmupStatusLoading ? t('Refreshing') : t('Refresh')}
+          </Button>
+        </div>
+
+        {warmupStatus.length > 0 ? (
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+            {warmupStatus.map((item) => {
+              const hasError = Boolean(item.last_error)
+              const reusableCount =
+                item.reusable_success_count ?? item.success_count ?? 0
+              return (
+                <div
+                  key={`${item.host}|${item.proxy ?? ''}`}
+                  className='space-y-2 rounded-lg border p-4'
+                >
+                  <div className='flex min-w-0 items-center justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <p className='truncate text-sm font-medium'>
+                        {item.host}
+                      </p>
+                      {item.proxy && (
+                        <p className='text-muted-foreground truncate text-xs'>
+                          {item.proxy}
+                        </p>
+                      )}
+                    </div>
+                    <StatusBadge
+                      variant={hasError ? 'danger' : 'success'}
+                      copyable={false}
+                    >
+                      {hasError ? t('Failed') : t('Reusable')}
+                    </StatusBadge>
+                  </div>
+
+                  <div className='text-muted-foreground grid grid-cols-2 gap-2 text-xs md:grid-cols-4'>
+                    <span>
+                      {t('Status')}: {item.last_status_code || '-'}
+                    </span>
+                    <span>
+                      {t('Latency')}: {item.last_latency_ms || 0}ms
+                    </span>
+                    <span>
+                      {t('Reusable')}: {reusableCount}
+                    </span>
+                    <span>
+                      {t('Failures')}: {item.failure_count ?? 0}
+                    </span>
+                  </div>
+
+                  <div className='text-muted-foreground grid grid-cols-1 gap-1 text-xs md:grid-cols-2'>
+                    <span>
+                      {t('Last check')}: {formatUnixTime(item.last_check_at)}
+                    </span>
+                    <span>
+                      {t('Last reusable')}:{' '}
+                      {formatUnixTime(
+                        item.last_reusable_at ?? item.last_success_at
+                      )}
+                    </span>
+                  </div>
+
+                  {item.last_error && (
+                    <p className='text-destructive break-words text-xs'>
+                      {item.last_error}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className='text-muted-foreground rounded-lg border p-4 text-sm'>
+            {t('No upstream warmup status yet')}
+          </div>
+        )}
+      </div>
 
       <Separator />
 

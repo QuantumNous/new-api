@@ -288,6 +288,10 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_speed',
   'claude_beta_query',
   'disable_task_polling_sleep',
+  'cowork_adaptive_thinking_fix',
+  'upstream_warmup_enabled',
+  'upstream_trace_enabled',
+  'force_http1',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
@@ -333,6 +337,11 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    values.cowork_adaptive_thinking_fix ||
+    values.upstream_warmup_enabled ||
+    values.upstream_trace_enabled ||
+    values.force_http1 ||
+    values.disable_task_polling_sleep ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -4016,6 +4025,106 @@ export function ChannelMutateDrawer({
                                       <FormDescription>
                                         {t(
                                           'Do not wait one second between polling async tasks for this channel'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+
+                              {currentType === 14 && (
+                                <FormField
+                                  control={form.control}
+                                  name='cowork_adaptive_thinking_fix'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Cowork adaptive thinking fix')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Repair Claude Desktop/Cowork adaptive thinking history signatures before forwarding.'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+
+                              <FormField
+                                control={form.control}
+                                name='upstream_warmup_enabled'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('Upstream warmup')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Keep this channel upstream connection warm when the global warmup task is enabled.'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='upstream_trace_enabled'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('Upstream request tracing')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Record upstream timing details for this channel in admin log details.'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='force_http1'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>{t('Force HTTP/1.1')}</FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Disable HTTP/2 for this channel to avoid upstream RST_STREAM issues.'
                                         )}
                                       </FormDescription>
                                     </div>

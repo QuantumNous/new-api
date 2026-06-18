@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   UserCog,
   Info,
+  Timer,
   LogIn,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -399,6 +400,163 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   )
 }
 
+function formatTraceBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.min(
+    sizes.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(k))
+  )
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
+}
+
+function formatTraceMs(ms: number): string {
+  return `${ms} ms`
+}
+
+type TraceRow = { label: string; value: string }
+
+function UpstreamTraceSection(props: { other: LogOtherData }) {
+  const { t } = useTranslation()
+  const trace = props.other.upstream_trace
+  if (!trace) return null
+
+  // Connection group
+  const connectionRows: TraceRow[] = []
+  connectionRows.push({
+    label: t('Reused connection'),
+    value: trace.reused_conn ? t('Yes') : t('No'),
+  })
+  if (trace.was_idle) {
+    connectionRows.push({ label: t('Was idle'), value: t('Yes') })
+  }
+  if (trace.idle_ms != null) {
+    connectionRows.push({
+      label: t('Idle time'),
+      value: formatTraceMs(trace.idle_ms),
+    })
+  }
+  if (trace.remote_addr) {
+    connectionRows.push({
+      label: t('Upstream address'),
+      value: trace.remote_addr,
+    })
+  }
+  if (trace.dns_ms != null) {
+    connectionRows.push({
+      label: t('DNS lookup'),
+      value: formatTraceMs(trace.dns_ms),
+    })
+  }
+  if (trace.connect_ms != null) {
+    connectionRows.push({
+      label: t('TCP connect'),
+      value: formatTraceMs(trace.connect_ms),
+    })
+  }
+  if (trace.tls_ms != null) {
+    connectionRows.push({
+      label: t('TLS handshake'),
+      value: formatTraceMs(trace.tls_ms),
+    })
+  }
+  if (trace.got_conn_ms != null) {
+    connectionRows.push({
+      label: t('Connection ready'),
+      value: formatTraceMs(trace.got_conn_ms),
+    })
+  }
+
+  // Request group
+  const requestRows: TraceRow[] = []
+  if (trace.write_req_ms != null) {
+    requestRows.push({
+      label: t('Request written'),
+      value: formatTraceMs(trace.write_req_ms),
+    })
+  }
+  if (trace.body_size != null) {
+    requestRows.push({
+      label: t('Request body size'),
+      value: formatTraceBytes(trace.body_size),
+    })
+  }
+
+  // Response group
+  const responseRows: TraceRow[] = []
+  if (trace.header_ms != null) {
+    responseRows.push({
+      label: t('Response header'),
+      value: formatTraceMs(trace.header_ms),
+    })
+  }
+  if (trace.first_sse_ms != null) {
+    responseRows.push({
+      label: t('First SSE chunk'),
+      value: formatTraceMs(trace.first_sse_ms),
+    })
+  }
+  if (trace.first_flush_ms != null) {
+    responseRows.push({
+      label: t('First client flush'),
+      value: formatTraceMs(trace.first_flush_ms),
+    })
+  }
+  if (trace.flush_delay_ms != null) {
+    responseRows.push({
+      label: t('Local flush delay'),
+      value: formatTraceMs(trace.flush_delay_ms),
+    })
+  }
+
+  // Local (pre-dispatch) group
+  const localRows: TraceRow[] = []
+  if (trace.local_preprocess_ms != null) {
+    localRows.push({
+      label: t('Local preprocessing'),
+      value: formatTraceMs(trace.local_preprocess_ms),
+    })
+  }
+
+  const groups: Array<{ title: string; rows: TraceRow[] }> = [
+    { title: t('Connection'), rows: connectionRows },
+    { title: t('Request'), rows: requestRows },
+    { title: t('Response'), rows: responseRows },
+    { title: t('Local processing'), rows: localRows },
+  ]
+  const visibleGroups = groups.filter((group) => group.rows.length > 0)
+
+  return (
+    <DetailSection
+      icon={<Timer className='size-3.5' aria-hidden='true' />}
+      label={t('Upstream segmented timing')}
+    >
+      {visibleGroups.map((group) => (
+        <div key={group.title} className='min-w-0 space-y-1'>
+          <p className='text-muted-foreground text-[11px] font-medium uppercase'>
+            {group.title}
+          </p>
+          {group.rows.map((row, idx) => (
+            <DetailRow
+              key={`${group.title}-${idx}`}
+              label={row.label}
+              value={row.value}
+              mono
+            />
+          ))}
+        </div>
+      ))}
+      {trace.trace_error ? (
+        <DetailRow
+          label={t('Trace error')}
+          value={<span className='text-rose-600'>{trace.trace_error}</span>}
+        />
+      ) : null}
+    </DetailSection>
+  )
+}
+
 interface DetailsDialogProps {
   log: UsageLog
   isAdmin: boolean
@@ -594,8 +752,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   )}
                 </span>
               }
-              mono
-            />
+              />
           )}
 
           {channelChain && props.isAdmin && (
@@ -977,10 +1134,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
         )}
 
         {/* Admin billing mode indicator for non-consume */}
-        {props.isAdmin &&
-          !isConsume &&
-          props.log.type !== 6 &&
-          other?.admin_info && (
+          {props.isAdmin &&
+            !isConsume &&
+            props.log.type !== 6 &&
+            other?.admin_info && (
             <DetailRow
               label={t('Billing Source')}
               value={
@@ -1000,9 +1157,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
-        {/* Stream status details (admin only) */}
-        {props.isAdmin &&
-          other?.stream_status &&
+          {/* Upstream segmented timing (httptrace, admin only) */}
+          {props.isAdmin && other?.upstream_trace && (
+            <UpstreamTraceSection other={other} />
+          )}
+
+          {/* Stream status details (admin only) */}
+          {props.isAdmin &&
+            other?.stream_status &&
           other.stream_status.status !== 'ok' && (
             <DetailSection label={t('Stream Status')}>
               <DetailRow

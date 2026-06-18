@@ -51,6 +51,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = relayInfo.UpstreamModelName
 	}
+	if relayInfo.PriceData.GroupRatioInfo.HasModelGroupPricing && relayInfo.PriceData.GroupRatioInfo.ModelGroupPricing != nil {
+		other["model_group_pricing"] = relayInfo.PriceData.GroupRatioInfo.ModelGroupPricing
+	}
 
 	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)
 	if isSystemPromptOverwritten {
@@ -79,6 +82,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendUpstreamTrace(relayInfo, other)
 	return other
 }
 
@@ -87,6 +91,22 @@ func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]
 		return
 	}
 	other["po"] = relayInfo.ParamOverrideAudit
+}
+
+// appendUpstreamTrace publishes the optional upstream httptrace timing into
+// other["upstream_trace"] (omitted entirely when tracing is off). It also derives
+// local_preprocess_ms = StartTime (request entered NewAPI) -> StartAt (upstream
+// dispatch): the pre-dispatch local cost (auth/route/convert/marshal), which is
+// NOT a flush/forward delay — see docs/httptrace-upstream-segmented-timing.md §13.
+func appendUpstreamTrace(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || relayInfo.UpstreamTrace == nil {
+		return
+	}
+	tr := relayInfo.UpstreamTrace
+	if !tr.StartAt.IsZero() && !relayInfo.StartTime.IsZero() {
+		tr.LocalPreprocessMs = tr.StartAt.Sub(relayInfo.StartTime).Milliseconds()
+	}
+	other["upstream_trace"] = tr
 }
 
 func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
@@ -260,6 +280,12 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
+	}
+	if priceData.GroupRatioInfo.HasModelGroupRatio {
+		other["model_group_ratio"] = priceData.GroupRatioInfo.ModelGroupRatio
+	}
+	if priceData.GroupRatioInfo.HasModelGroupPricing && priceData.GroupRatioInfo.ModelGroupPricing != nil {
+		other["model_group_pricing"] = priceData.GroupRatioInfo.ModelGroupPricing
 	}
 	appendRequestPath(nil, relayInfo, other)
 	return other

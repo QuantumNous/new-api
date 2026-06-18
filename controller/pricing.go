@@ -33,6 +33,28 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
+// adminUsableGroups 返回管理员在模型广场应看到的全部分组：所有可计费分组
+// （即出现在 groupRatio 中的分组，含非用户可选分组）+ 已配置的用户可选分组
+// + 管理员自身分组。已配置的分组描述会被保留；仅在倍率表中出现的分组以分组名
+// 作为兜底描述。入参 map 不会被修改。
+func adminUsableGroups(configured map[string]string, groupRatio map[string]float64, userGroup string) map[string]string {
+	result := make(map[string]string, len(configured)+len(groupRatio)+1)
+	for g, desc := range configured {
+		result[g] = desc
+	}
+	for g := range groupRatio {
+		if _, ok := result[g]; !ok {
+			result[g] = g
+		}
+	}
+	if userGroup != "" {
+		if _, ok := result[userGroup]; !ok {
+			result[userGroup] = userGroup
+		}
+	}
+	return result
+}
+
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
@@ -56,6 +78,13 @@ func GetPricing(c *gin.Context) {
 	}
 
 	usableGroup = service.GetUserUsableGroups(group)
+	if exists {
+		if userIdInt, ok := userId.(int); ok && model.IsAdmin(userIdInt) {
+			// 管理员可查看所有可计费分组的价格（含非用户可选的受限分组，如仅 c 分组账号可选的 c 分组），
+			// 不应被自身账号分组的可选范围限制。
+			usableGroup = adminUsableGroups(usableGroup, groupRatio, group)
+		}
+	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {

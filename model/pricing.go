@@ -1,8 +1,8 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	"sync"
@@ -16,26 +16,29 @@ import (
 )
 
 type Pricing struct {
-	ModelName              string                  `json:"model_name"`
-	Description            string                  `json:"description,omitempty"`
-	Icon                   string                  `json:"icon,omitempty"`
-	Tags                   string                  `json:"tags,omitempty"`
-	VendorID               int                     `json:"vendor_id,omitempty"`
-	QuotaType              int                     `json:"quota_type"`
-	ModelRatio             float64                 `json:"model_ratio"`
-	ModelPrice             float64                 `json:"model_price"`
-	OwnerBy                string                  `json:"owner_by"`
-	CompletionRatio        float64                 `json:"completion_ratio"`
-	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
-	CreateCacheRatio       *float64                `json:"create_cache_ratio,omitempty"`
-	ImageRatio             *float64                `json:"image_ratio,omitempty"`
-	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
-	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
-	EnableGroup            []string                `json:"enable_groups"`
-	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
-	BillingMode            string                  `json:"billing_mode,omitempty"`
-	BillingExpr            string                  `json:"billing_expr,omitempty"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	Id                     int                                `json:"id,omitempty"`
+	ModelName              string                             `json:"model_name"`
+	Description            string                             `json:"description,omitempty"`
+	Icon                   string                             `json:"icon,omitempty"`
+	Tags                   string                             `json:"tags,omitempty"`
+	VendorID               int                                `json:"vendor_id,omitempty"`
+	QuotaType              int                                `json:"quota_type"`
+	ModelRatio             float64                            `json:"model_ratio"`
+	ModelPrice             float64                            `json:"model_price"`
+	OwnerBy                string                             `json:"owner_by"`
+	CompletionRatio        float64                            `json:"completion_ratio"`
+	CacheRatio             *float64                           `json:"cache_ratio,omitempty"`
+	CreateCacheRatio       *float64                           `json:"create_cache_ratio,omitempty"`
+	ImageRatio             *float64                           `json:"image_ratio,omitempty"`
+	AudioRatio             *float64                           `json:"audio_ratio,omitempty"`
+	AudioCompletionRatio   *float64                           `json:"audio_completion_ratio,omitempty"`
+	EnableGroup            []string                           `json:"enable_groups"`
+	SupportedEndpointTypes []constant.EndpointType            `json:"supported_endpoint_types"`
+	BillingMode            string                             `json:"billing_mode,omitempty"`
+	BillingExpr            string                             `json:"billing_expr,omitempty"`
+	GroupPricing           map[string]types.ModelGroupPricing `json:"group_pricing,omitempty"`
+	PricingVersion         string                             `json:"pricing_version,omitempty"`
+	ModelMinFee            float64                            `json:"model_min_fee,omitempty"`
 }
 
 type PricingVendor struct {
@@ -55,6 +58,7 @@ var (
 	// 缓存映射：模型名 -> 启用分组 / 计费类型
 	modelEnableGroups     = make(map[string][]string)
 	modelQuotaTypeMap     = make(map[string]int)
+	modelGroupPricingMap  = make(map[string]map[string]types.ModelGroupPricing)
 	modelEnableGroupsLock = sync.RWMutex{}
 )
 
@@ -105,6 +109,193 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 		return endpoints
 	}
 	return make([]constant.EndpointType, 0)
+}
+
+func isFiniteNonNegative(value float64) bool {
+	return value >= 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func sanitizeModelGroupPricingItem(item types.ModelGroupPricing) (types.ModelGroupPricing, bool) {
+	cleaned := types.ModelGroupPricing{}
+	if item.Ratio != nil && isFiniteNonNegative(*item.Ratio) {
+		value := *item.Ratio
+		cleaned.Ratio = &value
+	}
+	for _, pair := range []struct {
+		source *float64
+		assign func(float64)
+	}{
+		{item.ModelPrice, func(value float64) { cleaned.ModelPrice = &value }},
+		{item.PromptPrice, func(value float64) { cleaned.PromptPrice = &value }},
+		{item.CompletionPrice, func(value float64) { cleaned.CompletionPrice = &value }},
+		{item.CachePrice, func(value float64) { cleaned.CachePrice = &value }},
+		{item.CreateCachePrice, func(value float64) { cleaned.CreateCachePrice = &value }},
+		{item.ImagePrice, func(value float64) { cleaned.ImagePrice = &value }},
+		{item.AudioPrice, func(value float64) { cleaned.AudioPrice = &value }},
+		{item.AudioCompletionPrice, func(value float64) { cleaned.AudioCompletionPrice = &value }},
+		{item.MinFee, func(value float64) { cleaned.MinFee = &value }},
+	} {
+		if pair.source != nil && isFiniteNonNegative(*pair.source) {
+			pair.assign(*pair.source)
+		}
+	}
+	if item.BillingMode != nil {
+		mode := strings.TrimSpace(*item.BillingMode)
+		switch mode {
+		case types.GroupBillingModePerToken, types.GroupBillingModePerRequest:
+			cleaned.BillingMode = &mode
+		case types.GroupBillingModeTieredExpr:
+			if item.BillingExpr != nil {
+				expr := strings.TrimSpace(*item.BillingExpr)
+				if expr != "" {
+					cleaned.BillingMode = &mode
+					cleaned.BillingExpr = &expr
+				}
+			}
+			// tiered_expr with empty expr: drop the mode (treated as inherit)
+		}
+		// any other value: invalid -> dropped (inherit)
+	}
+	return cleaned, !cleaned.IsEmpty()
+}
+
+func parseModelGroupPricing(raw string) map[string]types.ModelGroupPricing {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	values := make(map[string]types.ModelGroupPricing)
+	if err := common.Unmarshal([]byte(raw), &values); err != nil {
+		return nil
+	}
+
+	cleaned := make(map[string]types.ModelGroupPricing, len(values))
+	for group, item := range values {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		if sanitized, ok := sanitizeModelGroupPricingItem(item); ok {
+			cleaned[group] = sanitized
+		}
+	}
+	if len(cleaned) == 0 {
+		return nil
+	}
+	return cleaned
+}
+
+func GetModelGroupPricing(modelName, group string) (types.ModelGroupPricing, bool) {
+	if strings.TrimSpace(modelName) == "" || strings.TrimSpace(group) == "" {
+		return types.ModelGroupPricing{}, false
+	}
+	rawModelName := strings.TrimSpace(modelName)
+	if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {
+		if DB == nil {
+			return types.ModelGroupPricing{}, false
+		}
+		GetPricing()
+	}
+
+	modelName = ratio_setting.FormatMatchingModelName(rawModelName)
+	modelEnableGroupsLock.RLock()
+	defer modelEnableGroupsLock.RUnlock()
+
+	if groups, ok := modelGroupPricingMap[modelName]; ok {
+		pricing, exists := groups[group]
+		return pricing, exists
+	}
+	if modelName != rawModelName {
+		if groups, ok := modelGroupPricingMap[rawModelName]; ok {
+			pricing, exists := groups[group]
+			return pricing, exists
+		}
+	}
+	return types.ModelGroupPricing{}, false
+}
+
+func GetModelGroupRatio(modelName, group string) (float64, bool) {
+	pricing, ok := GetModelGroupPricing(modelName, group)
+	if !ok || pricing.Ratio == nil {
+		return 0, false
+	}
+	return *pricing.Ratio, true
+}
+
+func GetModelGroupPriceOverrides(modelName, group string) (types.ModelGroupPricing, bool) {
+	pricing, ok := GetModelGroupPricing(modelName, group)
+	if !ok || (!pricing.HasPriceOverride() && !pricing.HasBillingMode() && !pricing.HasMinFee()) {
+		return types.ModelGroupPricing{}, false
+	}
+	return pricing, true
+}
+
+func getPricingRatio(item types.ModelGroupPricing) (float64, bool) {
+	if item.Ratio == nil {
+		return 0, false
+	}
+	return *item.Ratio, true
+}
+
+func modelGroupPricingRatioView(values map[string]types.ModelGroupPricing) map[string]interface{} {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make(map[string]interface{}, len(values))
+	for group, item := range values {
+		if !item.HasPriceOverride() && !item.HasBillingMode() && !item.HasMinFee() {
+			if ratio, ok := getPricingRatio(item); ok {
+				result[group] = ratio
+				continue
+			}
+		}
+		result[group] = item
+	}
+	return result
+}
+
+func legacyModelGroupPricingRatios(values map[string]types.ModelGroupPricing) map[string]float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make(map[string]float64, len(values))
+	for group, item := range values {
+		if ratio, ok := getPricingRatio(item); ok {
+			result[group] = ratio
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func legacyParseModelGroupPricing(raw string) map[string]float64 {
+	values := parseModelGroupPricing(raw)
+	return legacyModelGroupPricingRatios(values)
+}
+
+func NormalizeModelGroupPricing(values map[string]types.ModelGroupPricing) map[string]types.ModelGroupPricing {
+	cleaned := make(map[string]types.ModelGroupPricing)
+	for group, item := range values {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		if sanitized, ok := sanitizeModelGroupPricingItem(item); ok {
+			cleaned[group] = sanitized
+		}
+	}
+	return cleaned
+}
+
+func ModelGroupPricingJSON(values map[string]types.ModelGroupPricing) (string, error) {
+	cleaned := NormalizeModelGroupPricing(values)
+	raw, err := common.Marshal(cleaned)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }
 
 func updatePricing() {
@@ -220,7 +411,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			endpoints := make([]string, 0, len(raw))
 			for k, v := range raw {
 				switch v.(type) {
@@ -264,7 +455,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			for k, v := range raw {
 				switch val := v.(type) {
 				case string:
@@ -299,10 +490,12 @@ func updatePricing() {
 			if meta.Status != 1 {
 				continue
 			}
+			pricing.Id = meta.Id
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.GroupPricing = parseModelGroupPricing(meta.GroupPricing)
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
@@ -313,6 +506,9 @@ func updatePricing() {
 			pricing.ModelRatio = modelRatio
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
+		}
+		if minFee, ok := ratio_setting.GetModelMinFee(model); ok {
+			pricing.ModelMinFee = minFee
 		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
 			pricing.CacheRatio = &cacheRatio
@@ -349,9 +545,13 @@ func updatePricing() {
 	modelEnableGroupsLock.Lock()
 	modelEnableGroups = make(map[string][]string)
 	modelQuotaTypeMap = make(map[string]int)
+	modelGroupPricingMap = make(map[string]map[string]types.ModelGroupPricing)
 	for _, p := range pricingMap {
 		modelEnableGroups[p.ModelName] = p.EnableGroup
 		modelQuotaTypeMap[p.ModelName] = p.QuotaType
+		if len(p.GroupPricing) > 0 {
+			modelGroupPricingMap[p.ModelName] = p.GroupPricing
+		}
 	}
 	modelEnableGroupsLock.Unlock()
 

@@ -62,7 +62,6 @@ function formatConditionSummary(conditions, t) {
     .join(' && ');
 }
 
-
 function describeCondition(cond, t) {
   if (cond.source === SOURCE_TIME) {
     const fn = t(TIME_FUNC_LABELS[cond.timeFunc] || cond.timeFunc);

@@ -79,6 +79,38 @@ export type LogFilters = CommonLogFilters | DrawingLogFilters | TaskLogFilters
 // ============================================================================
 
 /**
+ * Upstream segmented timing (httptrace) captured by the backend when the
+ * admin-only `UpstreamTraceEnabled` switch is on and the request hits the
+ * sampling rate. Present on `LogOtherData.upstream_trace`. All numeric fields
+ * are milliseconds unless noted; every field except enabled/reused_conn/was_idle
+ * is omitempty on the backend and may therefore be absent.
+ */
+export interface UpstreamTrace {
+  enabled?: boolean
+  // Connection facts
+  reused_conn?: boolean
+  was_idle?: boolean
+  idle_ms?: number
+  remote_addr?: string
+  dns_ms?: number
+  connect_ms?: number
+  tls_ms?: number
+  got_conn_ms?: number
+  // Request
+  write_req_ms?: number
+  body_size?: number
+  // Response
+  header_ms?: number
+  first_sse_ms?: number
+  first_flush_ms?: number
+  flush_delay_ms?: number
+  // Local (pre-dispatch) processing
+  local_preprocess_ms?: number
+  // Error
+  trace_error?: string
+}
+
+/**
  * Parsed data from the 'other' field in usage logs
  */
 export interface ChannelAffinityInfo {
@@ -157,6 +189,8 @@ export interface LogOtherData {
   audio_ratio?: number
   audio_completion_ratio?: number
   frt?: number
+  // Upstream segmented timing (httptrace), admin-only. See UpstreamTrace.
+  upstream_trace?: UpstreamTrace
   // Tiered (expression-based) billing fields, set by backend when
   // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
   // expression and matched_tier is the label of the tier that fired.

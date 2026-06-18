@@ -20,9 +20,45 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import {
+  calculateModelPrice,
+  getModelPriceItems,
+  resolveGroupBillingMode,
+  parseTiersFromExpr,
+  getCurrencyConfig,
+} from '../../../../../helpers';
+import { BILLING_PRICING_VARS } from '../../../../../constants';
 
 const { Text } = Typography;
+
+// 把某个分组生效的分级表达式渲染成「逐档·按组」的价格条目,口径与卡片摘要
+// (utils.jsx 的 coeff × group_ratio × rate)以及后端结算(表达式价 × group_ratio)一致。
+// 替换原先「见上方动态计费详情」的空占位——那条占位指向模型级 DynamicPricingBreakdown,
+// 既不乘分组倍率、也不读分组覆盖后的表达式,导致侧拉「所见≠所付」。
+const buildDynamicPriceItems = (billingExpr, groupRatioValue, t) => {
+  const tiers = parseTiersFromExpr(billingExpr || '');
+  if (!tiers.length) return null;
+  const { symbol, rate } = getCurrencyConfig();
+  const gr = Number.isFinite(Number(groupRatioValue))
+    ? Number(groupRatioValue)
+    : 1;
+  const multi = tiers.length > 1;
+  const items = [];
+  tiers.forEach((tier, tierIndex) => {
+    BILLING_PRICING_VARS.forEach((v) => {
+      const coeff = Number(tier[v.field]);
+      if (!Number.isFinite(coeff) || coeff <= 0) return;
+      const tierLabel = multi ? `${tier.label || t('默认')} · ` : '';
+      items.push({
+        key: `tier-${tierIndex}-${v.field}`,
+        label: `${tierLabel}${t(v.shortLabel)}`,
+        value: `${symbol}${(coeff * gr * rate).toFixed(4)}`,
+        suffix: '/ 1M Tokens',
+      });
+    });
+  });
+  return items.length ? items : null;
+};
 
 const ModelPricingTable = ({
   modelData,
@@ -66,19 +102,32 @@ const ModelPricingTable = ({
       const groupRatioValue =
         groupRatio && groupRatio[group] ? groupRatio[group] : 1;
 
+      // 该分组生效的计费方式（分组覆盖优先）决定计费类型标签
+      const groupMode = resolveGroupBillingMode(modelData, group);
+
+      // 动态计费分组:用该分组生效的表达式 + 有效倍率渲染逐档价,口径同卡片摘要;
+      // 解析失败才回退到占位条目(getModelPriceItems 的 isDynamic 提示)。
+      let priceItems = getModelPriceItems(priceData, t, siteDisplayType);
+      if (priceData?.isDynamicPricing) {
+        const dynamicItems = buildDynamicPriceItems(
+          priceData.billingExpr,
+          priceData.usedGroupRatio,
+          t,
+        );
+        if (dynamicItems) priceItems = dynamicItems;
+      }
+
       return {
         key: group,
         group: group,
         ratio: groupRatioValue,
         billingType:
-          modelData?.billing_mode === 'tiered_expr'
+          groupMode === 'tiered_expr'
             ? t('动态计费')
-            : modelData?.quota_type === 0
-              ? t('按量计费')
-              : modelData?.quota_type === 1
-                ? t('按次计费')
-                : '-',
-        priceItems: getModelPriceItems(priceData, t, siteDisplayType),
+            : groupMode === 'per-request'
+              ? t('按次计费')
+              : t('按量计费'),
+        priceItems,
       };
     });
 
@@ -96,7 +145,11 @@ const ModelPricingTable = ({
       },
     ];
 
-    const isDynamic = modelData?.billing_mode === 'tiered_expr';
+    const isDynamic =
+      modelData?.billing_mode === 'tiered_expr' ||
+      availableGroups.some(
+        (g) => resolveGroupBillingMode(modelData, g) === 'tiered_expr',
+      );
 
     // 动态计费时始终显示倍率列，否则根据设置
     if (showRatio || isDynamic) {

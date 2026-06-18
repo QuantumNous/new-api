@@ -28,7 +28,7 @@ export type PricingVendor = {
 }
 
 export type PricingModel = {
-  id: number
+  id?: number
   model_name: string
   description?: string
   icon?: string
@@ -50,6 +50,9 @@ export type PricingModel = {
   supported_endpoint_types?: string[]
   key?: string
   group_ratio?: Record<string, number>
+  group_pricing?: Record<string, ModelGroupPricingItem>
+  /** 模型级最低费用（美元/次），用于编辑器回填 */
+  model_min_fee?: number
   /** Billing mode (e.g. "tiered_expr") used to flag dynamic pricing */
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
@@ -69,6 +72,23 @@ export type PricingModel = {
   output_modalities?: Modality[]
   capabilities?: ModelCapability[]
 }
+
+export type ModelGroupPricingOverride = {
+  ratio?: number | null
+  billing_mode?: string | null
+  billing_expr?: string | null
+  model_price?: number | null
+  prompt_price?: number | null
+  completion_price?: number | null
+  cache_price?: number | null
+  create_cache_price?: number | null
+  image_price?: number | null
+  audio_price?: number | null
+  audio_completion_price?: number | null
+  min_fee?: number | null
+}
+
+export type ModelGroupPricingItem = number | ModelGroupPricingOverride
 
 /** Input/output modalities supported by a model. */
 export type Modality = 'text' | 'image' | 'audio' | 'video' | 'file'

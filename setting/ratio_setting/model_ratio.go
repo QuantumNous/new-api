@@ -437,10 +437,10 @@ func GetCompletionRatio(name string) float64 {
 			return ratio
 		}
 	}
-	hardCodedRatio, contain := getHardcodedCompletionModelRatio(name)
-	if contain {
-		return hardCodedRatio
-	}
+	hardCodedRatio, _ := getHardcodedCompletionModelRatio(name)
+	// custom(completion-ratio unlock): 不在硬编码「锁定」时提前返回。
+	// 管理员在 completionRatioMap 中配置的补全倍率始终优先,硬编码值仅作回退,
+	// 从而允许把任意模型的补全倍率覆盖为任意值(含 < 1)。
 	if ratio, ok := completionRatioMap.Get(name); ok {
 		return ratio
 	}
@@ -464,13 +464,9 @@ func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 		}
 	}
 
-	hardCodedRatio, locked := getHardcodedCompletionModelRatio(name)
-	if locked {
-		return CompletionRatioInfo{
-			Ratio:  hardCodedRatio,
-			Locked: true,
-		}
-	}
+	hardCodedRatio, _ := getHardcodedCompletionModelRatio(name)
+	// custom(completion-ratio unlock): 不再因硬编码「锁定」而提前返回 Locked=true。
+	// 解锁后任何模型的补全倍率都可被管理员覆盖,故对外永不上报 Locked。
 
 	if ratio, ok := completionRatioMap.Get(name); ok {
 		return CompletionRatioInfo{
@@ -692,6 +688,26 @@ func GetModelRatioCopy() map[string]float64 {
 
 func GetModelPriceCopy() map[string]float64 {
 	return modelPriceMap.ReadAll()
+}
+
+var modelMinFeeMap = types.NewRWMap[string, float64]()
+
+func ModelMinFee2JSONString() string {
+	return modelMinFeeMap.MarshalJSONString()
+}
+
+func UpdateModelMinFeeByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelMinFeeMap, jsonStr, InvalidateExposedDataCache)
+}
+
+// GetModelMinFee 返回模型级最低费用（美元/次），未配置返回 0,false。
+func GetModelMinFee(name string) (float64, bool) {
+	name = FormatMatchingModelName(name)
+	return modelMinFeeMap.Get(name)
+}
+
+func GetModelMinFeeCopy() map[string]float64 {
+	return modelMinFeeMap.ReadAll()
 }
 
 func GetCompletionRatioCopy() map[string]float64 {

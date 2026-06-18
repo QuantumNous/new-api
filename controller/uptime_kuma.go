@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/setting/console_setting"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
@@ -128,10 +129,32 @@ func fetchGroupData(ctx context.Context, client *http.Client, groupConfig map[st
 	return result
 }
 
+// appendPoolStatusGroup injects the channel-pool snapshot as a virtual Uptime
+// Kuma category when the feature is enabled and a snapshot is cached. This lets
+// the pool health ride the existing dashboard panel with zero frontend change.
+func appendPoolStatusGroup(groups []UptimeGroupResult) []UptimeGroupResult {
+	category, monitors, ok := service.GetPoolStatusGroup()
+	if !ok {
+		return groups
+	}
+	poolMonitors := make([]Monitor, 0, len(monitors))
+	for _, m := range monitors {
+		poolMonitors = append(poolMonitors, Monitor{
+			Name:   m.Name,
+			Uptime: m.Uptime,
+			Status: m.Status,
+		})
+	}
+	return append(groups, UptimeGroupResult{
+		CategoryName: category,
+		Monitors:     poolMonitors,
+	})
+}
+
 func GetUptimeKumaStatus(c *gin.Context) {
 	groups := console_setting.GetUptimeKumaGroups()
 	if len(groups) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": []UptimeGroupResult{}})
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": appendPoolStatusGroup([]UptimeGroupResult{})})
 		return
 	}
 
@@ -151,5 +174,5 @@ func GetUptimeKumaStatus(c *gin.Context) {
 	}
 
 	g.Wait()
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": results})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": appendPoolStatusGroup(results)})
 }

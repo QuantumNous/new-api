@@ -155,8 +155,37 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		info.UpstreamRequestBodySize = storage.Size()
-		requestBody = common.ReaderOnly(storage)
+		if info.ChannelOtherSettings.CoworkAdaptiveThinkingFix {
+			jsonData, err := storage.Bytes()
+			if err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			fixedJSONData, fixStats, err := relaycommon.FixCoworkAdaptiveThinkingJSON(jsonData, info.ChannelOtherSettings)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			if fixStats.Changed {
+				logger.LogDebug(c, "cowork adaptive thinking fix used: model=%s thinking_blocks=%d redacted_blocks=%d", request.Model, fixStats.ThinkingBlocks, fixStats.RedactedThinkingBlocks)
+				body, size, closer, err := relaycommon.NewOutboundJSONBody(fixedJSONData)
+				if err != nil {
+					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+				defer closer.Close()
+				jsonData = nil
+				fixedJSONData = nil
+				info.UpstreamRequestBodySize = size
+				requestBody = body
+			} else {
+				if _, err = storage.Seek(0, io.SeekStart); err != nil {
+					return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+				info.UpstreamRequestBodySize = storage.Size()
+				requestBody = common.ReaderOnly(storage)
+			}
+		} else {
+			info.UpstreamRequestBodySize = storage.Size()
+			requestBody = common.ReaderOnly(storage)
+		}
 	} else {
 		convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
 		if err != nil {
@@ -182,7 +211,17 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
-		logger.LogDebug(c, "requestBody: %s", jsonData)
+		jsonData, fixStats, err := relaycommon.FixCoworkAdaptiveThinkingJSON(jsonData, info.ChannelOtherSettings)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if fixStats.Changed {
+			logger.LogDebug(c, "cowork adaptive thinking fix used: model=%s thinking_blocks=%d redacted_blocks=%d", request.Model, fixStats.ThinkingBlocks, fixStats.RedactedThinkingBlocks)
+		} else if !strings.Contains(string(jsonData), `"type":"thinking"`) && !strings.Contains(string(jsonData), `"type":"redacted_thinking"`) {
+			logger.LogDebug(c, "requestBody: %s", jsonData)
+		} else {
+			logger.LogDebug(c, "requestBody omitted: contains Claude thinking blocks")
+		}
 		body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

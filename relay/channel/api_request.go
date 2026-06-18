@@ -487,13 +487,23 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
+	forceH1 := info.ChannelOtherSettings.ForceHTTP1
+
 	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+		if forceH1 {
+			client, err = service.NewProxyHttpClientHTTP1Only(info.ChannelSetting.Proxy)
+		} else {
+			client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}
 	} else {
-		client = service.GetHttpClient()
+		if forceH1 {
+			client = service.GetHttpClientHTTP1Only()
+		} else {
+			client = service.GetHttpClient()
+		}
 	}
 
 	var stopPinger context.CancelFunc
@@ -514,6 +524,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	// Attach segmented upstream timing (no-op unless UPSTREAM_TRACE_ENABLED).
+	// Placed right before client.Do so StartAt marks the dispatch moment.
+	req = common.AttachUpstreamTrace(req, info)
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())

@@ -161,6 +161,11 @@ type RelayInfo struct {
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
 
+	// UpstreamTrace holds optional per-request upstream timing captured via
+	// net/http/httptrace. Non-nil only when common.UpstreamTraceEnabled is on
+	// (see AttachUpstreamTrace). nil => tracing disabled, zero overhead.
+	UpstreamTrace *UpstreamTraceInfo
+
 	PriceData types.PriceData
 
 	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
@@ -658,8 +663,36 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 
 func (info *RelayInfo) SetFirstResponseTime() {
 	if info.isFirstResponse {
-		info.FirstResponseTime = time.Now()
+		now := time.Now()
+		info.FirstResponseTime = now
 		info.isFirstResponse = false
+		// When upstream tracing is on, the first valid SSE data line is the
+		// "first response" event — stamp it relative to upstream dispatch.
+		if info.UpstreamTrace != nil && !info.UpstreamTrace.StartAt.IsZero() {
+			info.UpstreamTrace.FirstSSEAt = now
+			info.UpstreamTrace.FirstSSEMs = now.Sub(info.UpstreamTrace.StartAt).Milliseconds()
+		}
+	}
+}
+
+// SetFirstFlushTime records the moment NewAPI first hands an upstream chunk to
+// the client-write pipeline (called from the stream data-handler goroutine). It
+// is a no-op unless upstream tracing is enabled (UpstreamTrace != nil) and
+// self-guards via FirstFlushAt so only the first chunk is recorded. The
+// FirstSSEAt -> FirstFlushAt gap (FlushDelayMs) is the NewAPI-local read->write
+// latency — the only honest signal for "does NewAPI add local flush delay".
+func (info *RelayInfo) SetFirstFlushTime() {
+	if info.UpstreamTrace == nil || info.UpstreamTrace.StartAt.IsZero() {
+		return
+	}
+	if !info.UpstreamTrace.FirstFlushAt.IsZero() {
+		return
+	}
+	now := time.Now()
+	info.UpstreamTrace.FirstFlushAt = now
+	info.UpstreamTrace.FirstFlushMs = now.Sub(info.UpstreamTrace.StartAt).Milliseconds()
+	if !info.UpstreamTrace.FirstSSEAt.IsZero() {
+		info.UpstreamTrace.FlushDelayMs = now.Sub(info.UpstreamTrace.FirstSSEAt).Milliseconds()
 	}
 }
 
