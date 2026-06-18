@@ -452,8 +452,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
             useUsageLogsContext()
           const log = row.original
+          const displayName = log.username || (log.user_id ? String(log.user_id) : '')
 
-          if (!log.username) return null
+          if (!displayName) return null
 
           return (
             <button
@@ -473,16 +474,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   )}
                   style={
                     sensitiveVisible
-                      ? getUserAvatarStyle(log.username)
+                      ? getUserAvatarStyle(displayName)
                       : undefined
                   }
                 >
-                  {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
+                  {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
                 </AvatarFallback>
               </Avatar>
               <div className='flex min-w-0 flex-col'>
                 <span className='text-muted-foreground truncate text-sm hover:underline'>
-                  {sensitiveVisible ? log.username : '••••'}
+                  {sensitiveVisible ? displayName : '••••'}
                 </span>
                 {log.user_email && (
                   <span className='text-muted-foreground/60 truncate text-[11px]'>

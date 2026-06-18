@@ -180,7 +180,7 @@ func extractImageTaskURL(flatURL string, images []imageTaskPollImage) string {
 func finalizeImageReconcileSuccess(job imageReconcileJob) {
 	releaseImageBillingRefund(job.relayInfo)
 
-	bg := reconcileBackgroundContext(job.tokenName)
+	bg := reconcileBackgroundContext(job.relayInfo.UserId, job.tokenName)
 	usage := &dto.Usage{TotalTokens: 1, PromptTokens: 1}
 
 	logExtra := append([]string(nil), job.logExtra...)
@@ -194,7 +194,7 @@ func finalizeImageReconcileSuccess(job imageReconcileJob) {
 func finalizeImageReconcileFailure(job imageReconcileJob, reason string) {
 	releaseImageBillingRefund(job.relayInfo)
 
-	bg := reconcileBackgroundContext(job.tokenName)
+	bg := reconcileBackgroundContext(job.relayInfo.UserId, job.tokenName)
 	if job.relayInfo.Billing != nil && job.relayInfo.Billing.NeedsRefund() {
 		job.relayInfo.Billing.Refund(bg)
 	}
@@ -225,10 +225,15 @@ func finalizeImageReconcileFailure(job imageReconcileJob, reason string) {
 	logger.LogWarn(context.Background(), fmt.Sprintf("image reconcile failed task=%s: %s", job.taskID, reason))
 }
 
-func reconcileBackgroundContext(tokenName string) *gin.Context {
+func reconcileBackgroundContext(userId int, tokenName string) *gin.Context {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	if tokenName != "" {
 		c.Set("token_name", tokenName)
+	}
+	if userId > 0 {
+		if username, err := model.GetUsernameById(userId, false); err == nil && username != "" {
+			c.Set("username", username)
+		}
 	}
 	return c
 }

@@ -143,10 +143,24 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
+func resolveLogUsername(c *gin.Context, userId int) string {
+	if username := c.GetString("username"); username != "" {
+		return username
+	}
+	if userId <= 0 {
+		return ""
+	}
+	username, err := GetUsernameById(userId, false)
+	if err != nil {
+		return ""
+	}
+	return username
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
-	username := c.GetString("username")
+	username := resolveLogUsername(c, userId)
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
@@ -207,7 +221,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		return
 	}
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
-	username := c.GetString("username")
+	username := resolveLogUsername(c, userId)
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
@@ -380,7 +394,42 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
-	// Bulk-lookup user emails by username
+	// Backfill missing usernames (e.g. gpt-image-2 async reconcile logs) and bulk-lookup emails.
+	missingUserIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.Username == "" && log.UserId > 0 {
+			missingUserIds.Add(log.UserId)
+		}
+	}
+	if missingUserIds.Len() > 0 {
+		var userRows []struct {
+			Id       int    `gorm:"column:id"`
+			Username string `gorm:"column:username"`
+			Email    string `gorm:"column:email"`
+		}
+		if err2 := DB.Table("users").Select("id, username, email").Where("id IN ?", missingUserIds.Items()).Find(&userRows).Error; err2 == nil {
+			userMap := make(map[int]struct {
+				Username string
+				Email    string
+			}, len(userRows))
+			for _, row := range userRows {
+				userMap[row.Id] = struct {
+					Username string
+					Email    string
+				}{Username: row.Username, Email: row.Email}
+			}
+			for i := range logs {
+				if logs[i].Username != "" || logs[i].UserId <= 0 {
+					continue
+				}
+				if user, ok := userMap[logs[i].UserId]; ok {
+					logs[i].Username = user.Username
+					logs[i].UserEmail = user.Email
+				}
+			}
+		}
+	}
+
 	usernames := types.NewSet[string]()
 	for _, log := range logs {
 		if log.Username != "" {
@@ -398,7 +447,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 				emailMap[row.Username] = row.Email
 			}
 			for i := range logs {
-				logs[i].UserEmail = emailMap[logs[i].Username]
+				if logs[i].UserEmail == "" {
+					logs[i].UserEmail = emailMap[logs[i].Username]
+				}
 			}
 		}
 	}
