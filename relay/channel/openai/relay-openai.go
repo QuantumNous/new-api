@@ -836,7 +836,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 					),
 					Type: "server_error",
 					Code: "image_generation_timeout",
-				}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog())
+				}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipRetry())
 			}
 		}
 	}

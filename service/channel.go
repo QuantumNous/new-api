@@ -153,6 +153,9 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
+	if types.IsImageGenerationTimeoutError(err) {
+		return false
+	}
 	if types.IsChannelError(err) {
 		return true
 	}

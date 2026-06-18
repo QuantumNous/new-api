@@ -61,6 +61,10 @@ func ClassifyChannelError(err *types.NewAPIError) ChannelErrorCategory {
 		return CategorySkip
 	}
 
+	if types.IsImageGenerationTimeoutError(err) {
+		return CategorySkip
+	}
+
 	msg := strings.ToLower(err.Error())
 
 	for _, m := range distributorSkipMarkers {

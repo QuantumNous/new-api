@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -38,6 +39,17 @@ func TestClassifyChannelError_distributorSkip(t *testing.T) {
 	)
 	err.SetMessage("No available channel for model gpt-5.4 under group A-Codex-Sale (distributor)")
 	require.Equal(t, CategorySkip, ClassifyChannelError(err))
+}
+
+func TestClassifyChannelError_imageGenerationTimeout(t *testing.T) {
+	t.Parallel()
+	err := types.WithOpenAIError(types.OpenAIError{
+		Message: "Image generation timed out after 600 seconds. Retry with lower resolution or quality.",
+		Type:    "server_error",
+		Code:    string(types.ErrorCodeImageGenerationTimeout),
+	}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipRetry())
+	require.Equal(t, CategorySkip, ClassifyChannelError(err))
+	require.False(t, ShouldDisableChannel(err))
 }
 
 func TestClassifyChannelError_windowFault502(t *testing.T) {
