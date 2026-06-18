@@ -464,13 +464,17 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	return nil
 }
 
-func RechargeWaffo(tradeNo string, callerIp string) (err error) {
+// RechargeWaffo credits the order's quota to the user (idempotent). It returns
+// the order and whether quota was actually granted in THIS call; granted is
+// false on a webhook replay of an already-success order, so the caller can fire
+// side-effects (e.g. the Lark notification) exactly once.
+func RechargeWaffo(tradeNo string, callerIp string) (topUp *TopUp, granted bool, err error) {
 	if tradeNo == "" {
-		return errors.New("未提供支付单号")
+		return nil, false, errors.New("未提供支付单号")
 	}
 
 	var quotaToAdd int
-	topUp := &TopUp{}
+	topUp = &TopUp{}
 
 	refCol := "`trade_no`"
 	if common.UsingPostgreSQL {
@@ -517,14 +521,14 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if err != nil {
 		common.SysError("waffo topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return nil, false, errors.New("充值失败，请稍后重试")
 	}
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 	}
 
-	return nil
+	return topUp, quotaToAdd > 0, nil
 }
 
 func RechargeWaffoPancake(tradeNo string) (err error) {

@@ -394,14 +394,34 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 	LockOrder(merchantOrderId)
 	defer UnlockOrder(merchantOrderId)
 
-	if err := model.RechargeWaffo(merchantOrderId, c.ClientIP()); err != nil {
+	topUp, granted, err := model.RechargeWaffo(merchantOrderId, c.ClientIP())
+	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 充值处理失败 trade_no=%s client_ip=%s error=%q", merchantOrderId, c.ClientIP(), err.Error()))
 		sendWaffoWebhookResponse(c, wh, false, err.Error())
 		return
 	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo 充值成功 trade_no=%s client_ip=%s", merchantOrderId, c.ClientIP()))
+	// granted is false on webhook replay of an already-success order; notify once.
+	if granted {
+		notifyWaffoTopupSuccess(topUp)
+	}
 	sendWaffoWebhookResponse(c, wh, true, "")
+}
+
+// notifyWaffoTopupSuccess fires the best-effort Lark "top-up success" card for a
+// freshly-granted Waffo recharge. The actual send is async inside the service.
+func notifyWaffoTopupSuccess(topUp *model.TopUp) {
+	username, _ := model.GetUsernameById(topUp.UserId, false)
+	service.NotifyLarkTopupSuccess(service.LarkTopupSuccess{
+		Scenario: "Token Topup",
+		Channel:  "Waffo",
+		Amount:   topUp.Money,
+		Currency: getWaffoCurrency(),
+		UserID:   topUp.UserId,
+		Username: username,
+		PaidAt:   time.Now(),
+	})
 }
 
 // sendWaffoWebhookResponse 发送签名响应
