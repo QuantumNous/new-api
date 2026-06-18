@@ -307,6 +307,10 @@ export type OperationsSettings = {
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
+  'cdk_tool_setting.enabled': boolean
+  'cdk_tool_setting.service_user_id': number
+  'cdk_tool_setting.token_group': string
+  'cdk_tool_setting.token_name_prefix': string
   LogConsumeEnabled: boolean
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number

@@ -25,6 +25,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { CdkToolSettingsSection } from './cdk-tool-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -96,6 +97,23 @@ const OPERATIONS_SECTIONS = [
           WorkerValidKey: settings.WorkerValidKey,
           WorkerAllowHttpImageRequestEnabled:
             settings.WorkerAllowHttpImageRequestEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'cdk-tool',
+    titleKey: 'CDK Assistant',
+    build: (settings: OperationsSettings) => (
+      <CdkToolSettingsSection
+        defaultValues={{
+          'cdk_tool_setting.enabled': settings['cdk_tool_setting.enabled'],
+          'cdk_tool_setting.service_user_id':
+            settings['cdk_tool_setting.service_user_id'],
+          'cdk_tool_setting.token_group':
+            settings['cdk_tool_setting.token_group'],
+          'cdk_tool_setting.token_name_prefix':
+            settings['cdk_tool_setting.token_name_prefix'],
         }}
       />
     ),

@@ -66,7 +66,7 @@ func RedeemCdkToolCode(key string, recoveryToken ...string) (*CdkToolRedeemResul
 		}
 
 		tokenGroup := strings.TrimSpace(cdkSetting.TokenGroup)
-		if tokenGroup != "" && !cdkToolTokenGroupAllowed(serviceUser.Group, tokenGroup) {
+		if tokenGroup != "" && !CdkToolTokenGroupAllowed(serviceUser.Group, tokenGroup) {
 			return fmt.Errorf("CDK 工具专用账户无权使用 %s 分组", tokenGroup)
 		}
 
@@ -216,7 +216,10 @@ func quotaToAmount(quota int) float64 {
 	return float64(quota) / common.QuotaPerUnit
 }
 
-func cdkToolTokenGroupAllowed(userGroup string, tokenGroup string) bool {
+func CdkToolTokenGroupAllowed(userGroup string, tokenGroup string) bool {
+	if tokenGroup == "auto" {
+		return true
+	}
 	groupsCopy := setting.GetUserUsableGroupsCopy()
 	if userGroup != "" {
 		if specialSettings, ok := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup); ok {
@@ -237,5 +240,5 @@ func cdkToolTokenGroupAllowed(userGroup string, tokenGroup string) bool {
 	if _, ok := groupsCopy[tokenGroup]; !ok {
 		return false
 	}
-	return tokenGroup == "auto" || ratio_setting.ContainsGroupRatio(tokenGroup)
+	return ratio_setting.ContainsGroupRatio(tokenGroup)
 }
