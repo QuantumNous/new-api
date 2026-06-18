@@ -2,12 +2,14 @@ package common
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -16,6 +18,53 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// sanitizeRequestUnmarshalError rewrites a JSON type-mismatch error so it does
+// not leak the internal Go struct name. encoding/json's UnmarshalTypeError.Error()
+// embeds it, e.g. "json: cannot unmarshal string into Go struct field
+// GeneralOpenAIRequest.max_tokens of type uint" — that GeneralOpenAIRequest token
+// reached customers and was flagged as an error-leakage defect. The client-safe
+// message names only the JSON field and the expected type.
+func sanitizeRequestUnmarshalError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		field := typeErr.Field
+		if field == "" {
+			field = "request body"
+		}
+		return fmt.Errorf("invalid type for field %q: expected %s, got %s", field, friendlyJSONType(typeErr.Type), typeErr.Value)
+	}
+	return err
+}
+
+// friendlyJSONType maps a reflected Go type to a user-facing JSON type name.
+func friendlyJSONType(t reflect.Type) string {
+	if t == nil {
+		return "a different type"
+	}
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "integer"
+	case reflect.Float32, reflect.Float64:
+		return "number"
+	case reflect.String:
+		return "string"
+	case reflect.Bool:
+		return "boolean"
+	case reflect.Slice, reflect.Array:
+		return "array"
+	case reflect.Map, reflect.Struct:
+		return "object"
+	case reflect.Ptr:
+		return friendlyJSONType(t.Elem())
+	default:
+		return t.Kind().String()
+	}
+}
 
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
@@ -120,7 +169,7 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 			return seekErr
 		}
 		if err := DecodeJson(storage, v); err != nil {
-			return err
+			return sanitizeRequestUnmarshalError(err)
 		}
 		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
 			return seekErr
@@ -144,7 +193,7 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 		// TODO: someday non json request have variant model, we will need to implementation this
 	}
 	if err != nil {
-		return err
+		return sanitizeRequestUnmarshalError(err)
 	}
 	// Reset request body
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
