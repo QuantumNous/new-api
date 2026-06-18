@@ -193,7 +193,37 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		}
 	}
 
-	checkoutSession, paymentCurrency, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, payMoney, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard)
+	// Stripe delivers invoice emails to the Customer object's email. When an invoice is
+	// requested, make sure the Stripe customer carries the billing email entered on the page
+	// before we open Checkout: new customers are created with it, and existing customers are
+	// updated to it (Checkout's customer_update cannot set email, so this is the only hook).
+	checkoutEmail := user.Email
+	checkoutCustomerId := strings.TrimSpace(user.StripeCustomer)
+	if invoiceRequested {
+		if billing := strings.TrimSpace(invoiceFields.BillingEmail); billing != "" {
+			checkoutEmail = billing
+		}
+		if err := ensureStripeKey(); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败（密钥无效）user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+			return
+		}
+		customerId, err := ensureStripeInvoiceCustomer(topUp, user, invoiceFields)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+			return
+		}
+		checkoutCustomerId = customerId
+	}
+
+	checkoutSession, paymentCurrency, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, req.Amount, payMoney, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
@@ -757,7 +787,18 @@ func createPaidStripeTopUpInvoice(ctx context.Context, topUp *model.TopUp, user 
 	if err != nil {
 		return nil, err
 	}
-	return paid, nil
+
+	// A charge_automatically invoice marked paid out-of-band is never emailed by Stripe
+	// on its own, so deliver it explicitly. For an already-paid invoice the email omits
+	// any payment reference and simply hands the customer their finalized invoice + PDF.
+	// Best-effort: the invoice is already created, finalized and persisted for in-app
+	// download, so a send failure must not fail the whole top-up invoice request.
+	sent, err := stripeinvoice.SendInvoice(paid.ID, &stripe.InvoiceSendInvoiceParams{})
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 发送发票邮件失败 trade_no=%s invoice_id=%s error=%q", topUp.TradeNo, paid.ID, err.Error()))
+		return paid, nil
+	}
+	return sent, nil
 }
 
 func ensureStripeInvoiceCustomer(topUp *model.TopUp, user *model.User, fields model.InvoiceProfileFields) (string, error) {
