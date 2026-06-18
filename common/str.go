@@ -21,6 +21,76 @@ var (
 	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
 )
 
+// knownTLDs is an allowlist of top-level domains used to tell a real host
+// (api.openai.com, blockrun.ai) apart from a dotted code/field path
+// (thinking.type, messages.0.content.source.base64) when masking plain domains.
+// The maskDomainPattern matches any "word.word" token, so without this gate it
+// corrupts legitimate error messages that reference nested fields. Masking is
+// defense-in-depth (full URLs and IPs are masked by their own patterns), so an
+// occasional obscure TLD slipping through is acceptable; over-masking field
+// paths is the real defect this prevents.
+//
+// DELIBERATELY EXCLUDED: TLDs that are also common English-word field-name
+// suffixes — id, in, to, us, me, it, at, be, no, so, cc, tv, info, dev, app,
+// run, pro, live, link, etc. — because "user.id" / "payment.id" / "request.in"
+// would otherwise be mangled to "***.id" / "***.in". AI providers do not use
+// these TLDs, so dropping them costs no real masking coverage. The kept 2-char
+// TLDs (io/ai/co) are heavily used by providers (x.ai, modal.io); a field path
+// ending in exactly those is rare and an accepted residual.
+var knownTLDs = map[string]struct{}{
+	// gTLDs that essentially never end a JSON field name
+	"com": {}, "net": {}, "org": {}, "io": {}, "ai": {}, "co": {},
+	"cloud": {}, "biz": {}, "xyz": {}, "gov": {}, "edu": {},
+	// country-code TLDs that are not common English words
+	"uk": {}, "cn": {}, "jp": {}, "kr": {}, "eu": {}, "de": {}, "fr": {},
+	"ru": {}, "ca": {}, "au": {}, "br": {}, "es": {}, "nl": {}, "se": {},
+	"fi": {}, "pl": {}, "cz": {}, "tr": {}, "sa": {}, "ae": {}, "sg": {},
+	"hk": {}, "tw": {}, "my": {}, "th": {}, "vn": {}, "ph": {}, "mx": {},
+	"ar": {}, "cl": {}, "za": {}, "ng": {}, "ke": {}, "il": {}, "ir": {},
+	"ua": {}, "ro": {}, "hu": {}, "gr": {}, "pt": {}, "dk": {}, "ch": {}, "ie": {},
+}
+
+// isLikelyPlainDomain reports whether a bare "a.b[.c]" token is a real hostname
+// (its last label is a known TLD) rather than a dotted code/field path.
+//
+// This is a deliberately conservative heuristic. It is impossible to perfectly
+// tell a 2-label host from a field path by structure alone (e.g. "tenant.id"
+// the host vs "user.id" the field are identical), so we accept a known
+// trade-off: bare hostnames on field-word TLDs (.dev/.app/.info/.id/...) are
+// NOT masked here. That is acceptable because the real leak vectors are still
+// covered — full URLs (maskURLPattern), IPs (maskIPPattern), and, on whitelabel
+// channels, provider brand keywords (taskcommon.ContainsBrandKeyword) — whereas
+// mangling a customer-facing field path is frequent and user-visible.
+func isLikelyPlainDomain(s string) bool {
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	// Structural guard: real DNS hostnames have no all-numeric labels (those are
+	// array indices like messages.0.content) and no underscores (snake_case
+	// fields). Either marker means it is a code/field path, not a host.
+	for _, p := range parts {
+		if p == "" || strings.ContainsRune(p, '_') || isAllDigits(p) {
+			return false
+		}
+	}
+	last := strings.ToLower(parts[len(parts)-1])
+	_, ok := knownTLDs[last]
+	return ok
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 const LocalLogContentLimit = 2048
 
 // LocalLogPreview limits log-only content unless debug logging is enabled.
@@ -250,8 +320,14 @@ func MaskSensitiveInfo(str string) string {
 		return result
 	})
 
-	// Mask domain names without protocol (like openai.com, www.openai.com)
+	// Mask domain names without protocol (like openai.com, www.openai.com).
+	// Skip dotted tokens that are not real hosts (e.g. the field path
+	// thinking.type or messages.0.content.source.base64) so legitimate error
+	// messages are not corrupted into ***.type.
 	str = maskDomainPattern.ReplaceAllStringFunc(str, func(domain string) string {
+		if !isLikelyPlainDomain(domain) {
+			return domain
+		}
 		return maskHostForPlainDomain(domain)
 	})
 
