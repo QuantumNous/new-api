@@ -343,7 +343,7 @@ export function MonitoringSettingsSection({
                   </Select>
                   <FormDescription>
                     {t(
-                      'Scheduled full test probes all channels; passive recovery only checks auto-disabled channels after real request failures.'
+                      'Scheduled full test probes non-manually-disabled channels; passive recovery only checks auto-disabled channels after real request failures.'
                     )}
                   </FormDescription>
                   <FormMessage />

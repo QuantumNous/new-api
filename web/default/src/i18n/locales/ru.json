@@ -3629,7 +3629,7 @@
     "Scenario Templates": "Шаблоны сценариев",
     "Scheduled channel tests": "Запланированные тесты канала",
     "Scheduled full test": "Полная проверка по расписанию",
-    "Scheduled full test probes all channels; passive recovery only checks auto-disabled channels after real request failures.": "Полная проверка по расписанию проверяет все каналы; пассивное восстановление проверяет только автоматически отключенные каналы после сбоев реальных запросов.",
+    "Scheduled full test probes non-manually-disabled channels; passive recovery only checks auto-disabled channels after real request failures.": "Полная проверка по расписанию проверяет каналы, не отключенные вручную; пассивное восстановление проверяет только автоматически отключенные каналы после сбоев реальных запросов.",
     "scheduling controls": "механизмов управления маршрутизацией",
     "Science": "Наука",
     "Scope": "Область",

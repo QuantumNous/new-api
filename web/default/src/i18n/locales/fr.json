@@ -3629,7 +3629,7 @@
     "Scenario Templates": "Modèles de scénario",
     "Scheduled channel tests": "Tests de canaux planifiés",
     "Scheduled full test": "Test complet planifié",
-    "Scheduled full test probes all channels; passive recovery only checks auto-disabled channels after real request failures.": "Le test complet planifié sonde tous les canaux ; la récupération passive vérifie uniquement les canaux désactivés automatiquement après des échecs de requêtes réelles.",
+    "Scheduled full test probes non-manually-disabled channels; passive recovery only checks auto-disabled channels after real request failures.": "Le test complet planifié sonde les canaux non désactivés manuellement ; la récupération passive vérifie uniquement les canaux désactivés automatiquement après des échecs de requêtes réelles.",
     "scheduling controls": "contrôles d'ordonnancement",
     "Science": "Science",
     "Scope": "Portée",

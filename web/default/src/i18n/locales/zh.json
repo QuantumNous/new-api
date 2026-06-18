@@ -3629,7 +3629,7 @@
     "Scenario Templates": "场景模板",
     "Scheduled channel tests": "定期渠道测试",
     "Scheduled full test": "定时全量测试",
-    "Scheduled full test probes all channels; passive recovery only checks auto-disabled channels after real request failures.": "定时全量测试会探测所有渠道；仅被动恢复只会在真实请求失败导致渠道自动禁用后检查这些渠道是否可恢复。",
+    "Scheduled full test probes non-manually-disabled channels; passive recovery only checks auto-disabled channels after real request failures.": "定时全量测试会探测非手动禁用的渠道；仅被动恢复只会在真实请求失败导致渠道自动禁用后检查这些渠道是否可恢复。",
     "scheduling controls": "调度控制能力",
     "Science": "科研",
     "Scope": "作用域",
