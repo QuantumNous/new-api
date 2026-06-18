@@ -101,6 +101,11 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
+				if routedGroup, ok := autoGroupForRequestPath(usingGroup, c.Request.URL.Path); ok {
+					usingGroup = routedGroup
+					common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+				}
+
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
@@ -165,6 +170,16 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func autoGroupForRequestPath(usingGroup string, requestPath string) (string, bool) {
+	if usingGroup != "auto" {
+		return usingGroup, false
+	}
+	if strings.Contains(requestPath, "/v1/chat/completions") {
+		return "codex-completions", true
+	}
+	return usingGroup, false
 }
 
 // getModelFromRequest 从请求中读取模型信息
