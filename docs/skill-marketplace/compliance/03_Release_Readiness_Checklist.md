@@ -114,8 +114,8 @@
 - [ ] Support diagnostics are limited and audited.
 - [ ] Refund/support traceability joins `skill_billing_events` to `skill_usage_events` only by `request_id` or `idempotency_key`; Kids support tooling must not join by real `user_id`.
 - [ ] Event ingestion rejection/quarantine monitoring is configured.
-- [ ] `entry_point` values match Data/API enum and V1 does not use `api` as an entry point.
-- [ ] `source_entry_point` and `repeat_index` appear only in allowlisted metadata.
+- [ ] `execution_entry_point` values on execution events match Data/API enum（`native_deeprouter`、`external_ai_client`、`api_direct`、`admin_preview`）；`discovery_source` values on discovery events match Data/API enum；两者不得混用；V1 不使用 `api_direct`。
+- [ ] `source_discovery_source` and `repeat_index` appear only in allowlisted metadata.
 - [ ] Retention dashboards label D1/D7/D30 as snapshot retention, not continuous retention.
 
 ## 9. Billing and Finance Readiness

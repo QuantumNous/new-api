@@ -23,7 +23,7 @@ V1 analytics must answer:
 | Item | Decision |
 |---|---|
 | Unauthenticated Public Skill API analytics | Not in V1; unauthenticated `api_direct` entry point is not used |
-| External AI client analytics | **In V1 P0** — `external_ai_client` entry point is required; skill_used / skill_blocked events from external AI clients must be captured with this entry point |
+| External AI client analytics | **In V1 P0** — `execution_entry_point=external_ai_client` is required for ChatGPT-triggered executions; `execution_entry_point=native_deeprouter` is required for Skill Run Page executions; both must be captured for all skill_used / skill_blocked events |
 | Full referral attribution | V1.1 |
 | Community rating/review analytics | V2 |
 | A/B experiment dashboard | P1/V1.1 |
@@ -56,15 +56,15 @@ Analytics dashboards must not read or expose `instruction_template`, `prompt_gua
 
 | Event | Producer | Trigger | Storage Target | Required Core Properties |
 |---|---|---|---|---|
-| `skill_impression` | Frontend | Skill card or rail item becomes visible | `skill_usage_events` | `event_id`, `timestamp`, `schema_version`, `user_id` nullable, `session_id`, `skill_id`, `entry_point` |
-| `skill_detail_view` | Frontend | Skill Detail opened | `skill_usage_events` | Core + `metadata.source_entry_point` |
+| `skill_impression` | Frontend | Skill card or rail item becomes visible | `skill_usage_events` | `event_id`, `timestamp`, `schema_version`, `user_id` nullable, `session_id`, `skill_id`, `discovery_source` |
+| `skill_detail_view` | Frontend | Skill Detail opened | `skill_usage_events` | Core + `discovery_source`, `metadata.source_discovery_source` |
 | `skill_enabled` | Backend | Enable succeeds | `skill_usage_events` | Core + `tenant_id`, `request_id`, `source` in metadata |
 | `skill_disabled` | Backend | Disable succeeds | `skill_usage_events` | Core + `tenant_id`, `request_id`, `source` in metadata |
-| `skill_first_use` | Backend/Relay | First successful use for user+skill | `skill_usage_events` | Core + `skill_version_id`, `request_id`, `model`, `latency_ms`, token fields |
-| `skill_used` | Backend/Relay | Every successful Skill execution | `skill_usage_events` | Core + `skill_version_id`, `request_id`, `model`, `latency_ms`, token fields |
-| `skill_repeat_use` | Backend/Relay | Successful non-first use | `skill_usage_events` | Core + `skill_version_id`, `request_id`, `metadata.repeat_index` |
-| `skill_blocked` | Backend/Relay | Execution blocked before successful provider completion | `skill_usage_events` | Core + `request_id`, `block_reason`, `error_code` |
-| `skill_timeout_error` | Backend/Relay | Execution timeout | `skill_usage_events` | Core + `request_id`, `skill_version_id`, `latency_ms`, `error_code=SKILL_TIMEOUT` |
+| `skill_first_use` | Backend/Relay | First successful use for user+skill | `skill_usage_events` | Core + `execution_entry_point`, `skill_version_id`, `request_id`, `model`, `latency_ms`, token fields |
+| `skill_used` | Backend/Relay | Every successful Skill execution | `skill_usage_events` | Core + `execution_entry_point`, `skill_version_id`, `request_id`, `model`, `latency_ms`, token fields |
+| `skill_repeat_use` | Backend/Relay | Successful non-first use | `skill_usage_events` | Core + `execution_entry_point`, `skill_version_id`, `request_id`, `metadata.repeat_index` |
+| `skill_blocked` | Backend/Relay | Execution blocked before successful provider completion | `skill_usage_events` | Core + `execution_entry_point`, `request_id`, `block_reason`, `error_code` |
+| `skill_timeout_error` | Backend/Relay | Execution timeout | `skill_usage_events` | Core + `execution_entry_point`, `request_id`, `skill_version_id`, `latency_ms`, `error_code=SKILL_TIMEOUT` |
 | `skill_admin_action` | Backend/Admin | Admin writes Skill state/config | `skill_audit_log` and derived `skill_usage_events` if dashboarded | `event_id`, `timestamp`, `actor_id`, `actor_role`, `skill_id`, `action`, `request_id` |
 | `skill_safety_violation` | Backend/Relay/Safety | Safety issue detected | `skill_usage_events`; incident/audit where required | Core + `request_id`, `violation_stage`, `error_code` |
 | `skill_kids_approved` | Backend/Admin | Kids approval granted | `skill_audit_log` as source; derived analytics event optional | `event_id`, `timestamp`, `actor_id`, `actor_role`, `skill_id`, `approval_status`, `request_id` |
@@ -111,7 +111,8 @@ These events must not be required for V1 P0 dashboards:
 | `request_id` | string/null | Conditional | Required for backend/relay events |
 | `skill_id` | UUID | Yes for Skill events | Nullable only for global admin/system events |
 | `skill_version_id` | UUID/null | Conditional | Required for execution and billing-related events |
-| `entry_point` | enum | Yes | Uses Data/API `entry_point` enum |
+| `execution_entry_point` | enum / null | Execution events | Uses Data/API `execution_entry_point` enum：`native_deeprouter`（Skill Run Page）、`external_ai_client`（ChatGPT / external AI client）、`api_direct`、`admin_preview`；仅适用于 `skill_used`、`skill_first_use`、`skill_repeat_use`、`skill_blocked`、`skill_timeout_error` 等执行事件 |
+| `discovery_source` | enum / null | Discovery events | Uses Data/API `discovery_source` enum：`marketplace_card`、`skill_detail`、`my_skills`、`featured`、`popular`、`new`、`recommended`；仅适用于 `skill_impression`、`skill_detail_view` 等发现事件 |
 | `plan` | enum/null | Conditional | `free`, `pro`, `enterprise` |
 | `subscription_status` | string/null | Conditional | `active`, `inactive`, `expired`, `none` |
 | `persona` | string/null | Optional | Coarse V1 segmentation |
@@ -141,7 +142,7 @@ These events must not be required for V1 P0 dashboards:
 
 | Key | Type | Applies To | Notes |
 |---|---|---|---|
-| `source_entry_point` | entry_point enum | `skill_detail_view`, enable/disable flows | Previous UI source; must use Data/API enum |
+| `source_discovery_source` | discovery_source enum | `skill_detail_view`, enable/disable flows | 用户从哪个 UI 入口打开 Skill Detail；使用 Data/API `discovery_source` 枚举（`marketplace_card`、`my_skills`、`featured` 等）|
 | `repeat_index` | integer | `skill_repeat_use` | Positive integer, starting at 2 |
 | `surface_id` | string | impressions/rails | Stable non-sensitive UI surface ID |
 | `card_position` | integer | impressions/rails | Zero or one-based convention must be documented by Frontend |
@@ -168,24 +169,38 @@ Restricted keys such as `instruction_template`, `prompt`, `system_prompt`, `raw_
 
 ---
 
-## 5. Entry Point Enum
+## 5. Enum Definitions
 
-Use the same enum as Data/API Spec.
+Use the same enums as Data/API Spec. Entry point tracking is split into two separate enums for execution tracking and discovery analytics.
 
-| Entry Point | Meaning |
+### 5.1 `execution_entry_point` Enum
+
+适用于执行事件（`skill_used`、`skill_first_use`、`skill_repeat_use`、`skill_blocked`、`skill_timeout_error`、`skill_safety_violation`）。
+
+| Value | Meaning |
 |---|---|
-| `marketplace_card` | Card impression or action from Marketplace |
-| `skill_detail` | Detail page CTA（含 tool spec download）|
-| `my_skills` | My Skills page（含 Get Tool Spec）|
+| `native_deeprouter` | **P0-A** — 用户通过 Skill Run Page（`/skills/:id/run`）直接在 DeepRouter 内执行 Skill；session token 认证 |
+| `external_ai_client` | **P0-B** — Skill 被外部 AI 客户端（ChatGPT Custom GPT Action）通过 tool call + Connection Key 触发执行 |
+| `api_direct` | 保留用于未来直接 API 调用；V1 不使用 |
+| `admin_preview` | Super Admin 通过 `admin_preview` 端点测试执行；不计入业务指标和收入 |
+
+`native_deeprouter` 和 `external_ai_client` 均为 P0 V1 执行入口。所有执行事件必须携带此字段。
+
+### 5.2 `discovery_source` Enum
+
+适用于发现事件（`skill_impression`、`skill_detail_view`）。
+
+| Value | Meaning |
+|---|---|
+| `marketplace_card` | Skill card 曝光或从 Marketplace 列表操作 |
+| `skill_detail` | 从 Skill Detail 页面跳转 |
+| `my_skills` | My Skills 页面（含 Get Tool Spec）|
 | `featured` | Featured rail |
 | `popular` | Popular rail |
 | `new` | New rail |
-| `recommended` | Recommended Lite rail |
-| `admin_preview` | Admin preview/test execution |
-| `external_ai_client` | Skill execution triggered by an external AI client (ChatGPT / Gemini / Claude) via tool call with user API Key |
-| `api_direct` | Reserved for future authenticated direct API calls; not used in V1 |
+| `recommended` | Recommended Lite rail（P1）|
 
-`external_ai_client` is a P0 V1 entry point. All skill execution events from external AI clients must use this value. Unauthenticated API calls are not permitted in V1 and do not have an entry point value.
+Unauthenticated API calls are not permitted in V1 and do not have an `execution_entry_point` value.
 
 ---
 
@@ -409,7 +424,7 @@ Rules:
 
 - Deprecated and archived Skills are excluded.
 - Free users should see at least one Free Skill when available.
-- Recommendation interactions use existing Skill events with `entry_point=featured/popular/new/recommended`.
+- Recommendation interactions use existing Skill events with `discovery_source=featured/popular/new/recommended`.
 
 ---
 
@@ -481,7 +496,7 @@ Ops may create a review from the Ops Dashboard using "Mark for Review" on a Skil
 | Clock source | Backend server time preferred |
 | Timezone | Persist and query P0 analytics in UTC |
 | Schema version | All events include `schema_version` |
-| Unknown entry point | Reject or map to `unknown` only in quarantine, not production dashboards |
+| Unknown execution_entry_point | Reject or map to `unknown` only in quarantine, not production dashboards; must not mix with `discovery_source` values |
 | Null user | Allowed for anonymous impression/detail and Kids Session analytics only |
 | No prompt leakage | Reject events containing restricted prompt-like keys |
 | Kids privacy | Reject raw Kids input/output fields |
@@ -532,7 +547,7 @@ Export policy:
   "request_id": null,
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": null,
-  "entry_point": "marketplace_card",
+  "discovery_source": "marketplace_card",
   "plan": null,
   "subscription_status": "none",
   "persona": null,
@@ -563,7 +578,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_789",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": "66666666-6666-4666-8666-666666666666",
-  "entry_point": "external_ai_client",
+  "execution_entry_point": "external_ai_client",
   "plan": "pro",
   "subscription_status": "active",
   "persona": "developer",
@@ -599,7 +614,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_blocked_123",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": null,
-  "entry_point": "external_ai_client",
+  "execution_entry_point": "external_ai_client",
   "plan": "free",
   "subscription_status": "active",
   "is_kids_session": false,
@@ -621,7 +636,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
 ### 17.1 Event QA
 
 1. Each P0 event has a producer, trigger, storage target, required properties, and sample payload where required.
-2. `entry_point` values match Data/API Spec.
+2. `execution_entry_point` values on execution events match Data/API Spec `execution_entry_point` enum（`native_deeprouter`、`external_ai_client`、`api_direct`、`admin_preview`）；`discovery_source` values on discovery events match Data/API `discovery_source` enum；两者不得混用。
 3. Event `timestamp` maps to DB `occurred_at` and is queried in UTC.
 4. Anonymous impression/detail events allow null `user_id`; normal execution events require `user_id`; Kids Session execution events persist `user_id=NULL`, `is_kids_session=true`, and `session_id=kids_session_pseudo_id` unless Legal/Privacy approves a different pseudonymous schema.
 5. Execution events require `skill_id`, `skill_version_id`, `request_id`, and `entry_point`.
