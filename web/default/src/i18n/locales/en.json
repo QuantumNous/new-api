@@ -5106,7 +5106,6 @@
     "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.",
     "TypeScript": "TypeScript",
     "You can use it with OpenAI-compatible apps, or": "You can use it with OpenAI-compatible apps, or",
-    "You will not be able to see it again.": "You will not be able to see it again.",
     "Your new key": "Your new key",
     "cURL": "cURL",
     "your own code": "your own code",

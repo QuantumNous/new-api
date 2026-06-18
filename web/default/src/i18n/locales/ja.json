@@ -5106,7 +5106,6 @@
     "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "この API は OpenAI 互換なので、ベース URL と API キーを変更するだけで任意の OpenAI SDK が動作します。",
     "TypeScript": "TypeScript",
     "You can use it with OpenAI-compatible apps, or": "OpenAI 互換のアプリで使用するか、",
-    "You will not be able to see it again.": "二度と表示することはできません。",
     "Your new key": "新しいキー",
     "cURL": "cURL",
     "your own code": "あなた自身のコード",

@@ -5106,7 +5106,6 @@
     "The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.": "本 API 兼容 OpenAI，只需更改 base URL 和 API 密钥，任何 OpenAI SDK 即可使用。",
     "TypeScript": "TypeScript",
     "You can use it with OpenAI-compatible apps, or": "你可以将它用于兼容 OpenAI 的应用，或",
-    "You will not be able to see it again.": "你将无法再次查看它。",
     "Your new key": "你的新密钥",
     "cURL": "cURL",
     "your own code": "你自己的代码",
