@@ -66,6 +66,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     log: true,
     midjourney: true,
     task: true,
+    channel_status: false,
   },
   personal: {
     enabled: true,
@@ -77,6 +78,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
   admin: {
     enabled: true,
     channel: true,
+    channel_monitor: true,
     models: true,
     redemption: true,
     user: true,
@@ -135,6 +137,24 @@ const cloneSidebarDefault = (): SidebarModulesAdminConfig =>
     },
     {}
   )
+
+const migrateSidebarModulesAdmin = (
+  config: SidebarModulesAdminConfig
+): SidebarModulesAdminConfig => {
+  const personalChannelStatus = config.personal?.channel_status
+  if (personalChannelStatus === undefined) {
+    return config
+  }
+
+  const consoleSection = config.console ?? { enabled: true }
+  config.console = {
+    ...consoleSection,
+    channel_status: consoleSection.channel_status ?? personalChannelStatus,
+  }
+  delete config.personal.channel_status
+
+  return config
+}
 
 export function parseHeaderNavModules(
   value: string | null | undefined
@@ -217,6 +237,8 @@ export function parseSidebarModulesAdmin(
 
       result[sectionKey] = sectionConfig
     })
+
+    migrateSidebarModulesAdmin(result)
 
     // Merge defaults to ensure expected sections exist
     Object.entries(defaults).forEach(([sectionKey, config]) => {

@@ -67,6 +67,12 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      channel_monitor_enabled: z.boolean(),
+      channel_monitor_default_interval_seconds: z.coerce
+        .number()
+        .int()
+        .min(15, 'Interval must be at least 15 seconds')
+        .max(3600, 'Interval must be at most 3600 seconds'),
     }),
   })
   .superRefine((values, ctx) => {
@@ -111,6 +117,8 @@ type MonitoringSettingsSectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.channel_monitor_enabled': boolean
+    'monitor_setting.channel_monitor_default_interval_seconds': number
   }
 }
 
@@ -128,6 +136,8 @@ type NormalizedMonitoringValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.channel_monitor_enabled': boolean
+  'monitor_setting.channel_monitor_default_interval_seconds': number
 }
 
 const buildFormDefaults = (
@@ -147,6 +157,10 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    channel_monitor_enabled:
+      defaults['monitor_setting.channel_monitor_enabled'],
+    channel_monitor_default_interval_seconds:
+      defaults['monitor_setting.channel_monitor_default_interval_seconds'],
   },
 })
 
@@ -170,6 +184,10 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.channel_monitor_enabled':
+    defaults['monitor_setting.channel_monitor_enabled'],
+  'monitor_setting.channel_monitor_default_interval_seconds':
+    defaults['monitor_setting.channel_monitor_default_interval_seconds'],
 })
 
 const normalizeFormValues = (
@@ -192,6 +210,10 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.channel_monitor_enabled':
+    values.monitor_setting.channel_monitor_enabled,
+  'monitor_setting.channel_monitor_default_interval_seconds':
+    values.monitor_setting.channel_monitor_default_interval_seconds,
 })
 
 export function MonitoringSettingsSection({
@@ -295,6 +317,54 @@ export function MonitoringSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('How frequently the system tests all channels')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.channel_monitor_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Channel monitor scheduler')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Run configured channel monitors and show user-facing status data'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.channel_monitor_default_interval_seconds'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Default monitor interval (seconds)')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={15}
+                      max={3600}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Default interval used when creating a new monitor')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

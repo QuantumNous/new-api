@@ -49,6 +49,8 @@ import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedChannelStatusIndexRouteImport } from './routes/_authenticated/channel-status/index'
+import { Route as AuthenticatedChannelMonitorsIndexRouteImport } from './routes/_authenticated/channel-monitors/index'
 import { Route as AuthenticatedAffiliateIndexRouteImport } from './routes/_authenticated/affiliate/index'
 import { Route as AuthenticatedAffiliateCommissionsIndexRouteImport } from './routes/_authenticated/affiliate-commissions/index'
 import { Route as AuthenticatedAffiliateCdkIndexRouteImport } from './routes/_authenticated/affiliate-cdk/index'
@@ -282,6 +284,18 @@ const AuthenticatedChannelsIndexRoute =
     path: '/channels/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedChannelStatusIndexRoute =
+  AuthenticatedChannelStatusIndexRouteImport.update({
+    id: '/channel-status/',
+    path: '/channel-status/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedChannelMonitorsIndexRoute =
+  AuthenticatedChannelMonitorsIndexRouteImport.update({
+    id: '/channel-monitors/',
+    path: '/channel-monitors/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAffiliateIndexRoute =
   AuthenticatedAffiliateIndexRouteImport.update({
     id: '/affiliate/',
@@ -454,6 +468,8 @@ export interface FileRoutesByFullPath {
   '/affiliate-cdk/': typeof AuthenticatedAffiliateCdkIndexRoute
   '/affiliate-commissions/': typeof AuthenticatedAffiliateCommissionsIndexRoute
   '/affiliate/': typeof AuthenticatedAffiliateIndexRoute
+  '/channel-monitors/': typeof AuthenticatedChannelMonitorsIndexRoute
+  '/channel-status/': typeof AuthenticatedChannelStatusIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -516,6 +532,8 @@ export interface FileRoutesByTo {
   '/affiliate-cdk': typeof AuthenticatedAffiliateCdkIndexRoute
   '/affiliate-commissions': typeof AuthenticatedAffiliateCommissionsIndexRoute
   '/affiliate': typeof AuthenticatedAffiliateIndexRoute
+  '/channel-monitors': typeof AuthenticatedChannelMonitorsIndexRoute
+  '/channel-status': typeof AuthenticatedChannelStatusIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -582,6 +600,8 @@ export interface FileRoutesById {
   '/_authenticated/affiliate-cdk/': typeof AuthenticatedAffiliateCdkIndexRoute
   '/_authenticated/affiliate-commissions/': typeof AuthenticatedAffiliateCommissionsIndexRoute
   '/_authenticated/affiliate/': typeof AuthenticatedAffiliateIndexRoute
+  '/_authenticated/channel-monitors/': typeof AuthenticatedChannelMonitorsIndexRoute
+  '/_authenticated/channel-status/': typeof AuthenticatedChannelStatusIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -647,6 +667,8 @@ export interface FileRouteTypes {
     | '/affiliate-cdk/'
     | '/affiliate-commissions/'
     | '/affiliate/'
+    | '/channel-monitors/'
+    | '/channel-status/'
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
@@ -709,6 +731,8 @@ export interface FileRouteTypes {
     | '/affiliate-cdk'
     | '/affiliate-commissions'
     | '/affiliate'
+    | '/channel-monitors'
+    | '/channel-status'
     | '/channels'
     | '/dashboard'
     | '/keys'
@@ -774,6 +798,8 @@ export interface FileRouteTypes {
     | '/_authenticated/affiliate-cdk/'
     | '/_authenticated/affiliate-commissions/'
     | '/_authenticated/affiliate/'
+    | '/_authenticated/channel-monitors/'
+    | '/_authenticated/channel-status/'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
@@ -1107,6 +1133,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/channel-status/': {
+      id: '/_authenticated/channel-status/'
+      path: '/channel-status'
+      fullPath: '/channel-status/'
+      preLoaderRoute: typeof AuthenticatedChannelStatusIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/channel-monitors/': {
+      id: '/_authenticated/channel-monitors/'
+      path: '/channel-monitors'
+      fullPath: '/channel-monitors/'
+      preLoaderRoute: typeof AuthenticatedChannelMonitorsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/affiliate/': {
       id: '/_authenticated/affiliate/'
       path: '/affiliate'
@@ -1365,6 +1405,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAffiliateCdkIndexRoute: typeof AuthenticatedAffiliateCdkIndexRoute
   AuthenticatedAffiliateCommissionsIndexRoute: typeof AuthenticatedAffiliateCommissionsIndexRoute
   AuthenticatedAffiliateIndexRoute: typeof AuthenticatedAffiliateIndexRoute
+  AuthenticatedChannelMonitorsIndexRoute: typeof AuthenticatedChannelMonitorsIndexRoute
+  AuthenticatedChannelStatusIndexRoute: typeof AuthenticatedChannelStatusIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -1391,6 +1433,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAffiliateCommissionsIndexRoute:
     AuthenticatedAffiliateCommissionsIndexRoute,
   AuthenticatedAffiliateIndexRoute: AuthenticatedAffiliateIndexRoute,
+  AuthenticatedChannelMonitorsIndexRoute:
+    AuthenticatedChannelMonitorsIndexRoute,
+  AuthenticatedChannelStatusIndexRoute: AuthenticatedChannelStatusIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,

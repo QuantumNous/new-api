@@ -133,6 +133,7 @@ export interface SystemStatus {
     password_login_enabled?: boolean
     password_register_enabled?: boolean
     notice_force_popup?: boolean
+    channel_monitor_default_interval_seconds?: number
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }
@@ -181,6 +182,7 @@ export interface SystemStatus {
   password_login_enabled?: boolean
   password_register_enabled?: boolean
   notice_force_popup?: boolean
+  channel_monitor_default_interval_seconds?: number
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   [key: string]: unknown
 }

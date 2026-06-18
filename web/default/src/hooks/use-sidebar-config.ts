@@ -48,6 +48,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     log: true,
     midjourney: true,
     task: true,
+    channel_status: false,
   },
   personal: {
     enabled: true,
@@ -59,6 +60,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   admin: {
     enabled: true,
     channel: true,
+    channel_monitor: true,
     models: true,
     redemption: true,
     user: true,
@@ -93,6 +95,24 @@ const mergeWithDefaultSidebarModules = (
   return merged
 }
 
+const migrateSidebarModulesConfig = (
+  config: SidebarModulesAdminConfig
+): SidebarModulesAdminConfig => {
+  const personalChannelStatus = config.personal?.channel_status
+  if (personalChannelStatus === undefined) {
+    return config
+  }
+
+  const consoleSection = config.console ?? { enabled: true }
+  config.console = {
+    ...consoleSection,
+    channel_status: consoleSection.channel_status ?? personalChannelStatus,
+  }
+  delete config.personal.channel_status
+
+  return config
+}
+
 /**
  * Mapping from URL to configuration keys
  */
@@ -107,11 +127,13 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/common': { section: 'console', module: 'log' },
   '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/usage-logs/task': { section: 'console', module: 'task' },
+  '/channel-status': { section: 'console', module: 'channel_status' },
   '/wallet': { section: 'personal', module: 'topup' },
   '/affiliate': { section: 'personal', module: 'affiliate' },
   '/affiliate-cdk': { section: 'personal', module: 'affiliate_cdk' },
   '/profile': { section: 'personal', module: 'personal' },
   '/channels': { section: 'admin', module: 'channel' },
+  '/channel-monitors': { section: 'admin', module: 'channel_monitor' },
   '/models': { section: 'admin', module: 'models' },
   '/models/metadata': { section: 'admin', module: 'models' },
   '/models/deployments': { section: 'admin', module: 'models' },
@@ -136,7 +158,7 @@ function parseSidebarConfig(
 
   try {
     const parsed = JSON.parse(value) as SidebarModulesAdminConfig
-    return mergeWithDefaultSidebarModules(parsed)
+    return mergeWithDefaultSidebarModules(migrateSidebarModulesConfig(parsed))
   } catch {
     // eslint-disable-next-line no-console
     console.error('Failed to parse sidebar modules configuration')
@@ -158,7 +180,7 @@ function parseUserSidebarConfig(
   try {
     const parsed = JSON.parse(value) as SidebarModulesAdminConfig
     if (!parsed || typeof parsed !== 'object') return null
-    return parsed
+    return migrateSidebarModulesConfig(parsed)
   } catch {
     return null
   }

@@ -13,21 +13,23 @@ import (
 )
 
 type Redemption struct {
-	Id              int            `json:"id"`
-	UserId          int            `json:"user_id"`
-	CreatorUsername string         `json:"creator_username" gorm:"-:all"`
-	Key             string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status          int            `json:"status" gorm:"default:1"`
-	Name            string         `json:"name" gorm:"index"`
-	Quota           int            `json:"quota" gorm:"default:100"`
-	SourceType      string         `json:"source_type" gorm:"type:varchar(32);default:'';index"`
-	SourceOrderId   int            `json:"source_order_id" gorm:"default:0;index"`
-	CreatedTime     int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime    int64          `json:"redeemed_time" gorm:"bigint"`
-	Count           int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId      int            `json:"used_user_id"`
-	DeletedAt       gorm.DeletedAt `gorm:"index"`
-	ExpiredTime     int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id                       int            `json:"id"`
+	UserId                   int            `json:"user_id"`
+	CreatorUsername          string         `json:"creator_username" gorm:"-:all"`
+	Key                      string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status                   int            `json:"status" gorm:"default:1"`
+	Name                     string         `json:"name" gorm:"index"`
+	Quota                    int            `json:"quota" gorm:"default:100"`
+	SourceType               string         `json:"source_type" gorm:"type:varchar(32);default:'';index"`
+	SourceOrderId            int            `json:"source_order_id" gorm:"default:0;index"`
+	CreatedTime              int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime             int64          `json:"redeemed_time" gorm:"bigint"`
+	RedeemedTokenId          int            `json:"redeemed_token_id" gorm:"default:0;index"`
+	CdkToolRecoveryTokenHash string         `json:"-" gorm:"type:varchar(64);default:'';index"`
+	Count                    int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId               int            `json:"used_user_id"`
+	DeletedAt                gorm.DeletedAt `gorm:"index"`
+	ExpiredTime              int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }
 
 func populateRedemptionCreatorNames(db *gorm.DB, redemptions []*Redemption) error {

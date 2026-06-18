@@ -60,6 +60,7 @@ func SetApiRouter(router *gin.Engine) {
 		// :env separates test vs prod URLs so the operator can register each
 		// in Pancake's matching webhook slot; handler enforces env match.
 		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)
+		apiRouter.POST("/cdk/redeem", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RedeemCdkToolCode)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
@@ -257,6 +258,41 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
+		channelMonitorUserRoute := apiRouter.Group("/channel_monitor")
+		channelMonitorUserRoute.Use(middleware.UserAuth())
+		{
+			channelMonitorUserRoute.GET("/status", controller.GetUserChannelMonitorStatus)
+			channelMonitorUserRoute.GET("/:id/status", controller.GetUserChannelMonitorDetail)
+		}
+
+		channelMonitorAdminRoute := apiRouter.Group("/channel_monitor")
+		channelMonitorAdminRoute.Use(middleware.AdminAuth())
+		{
+			channelMonitorAdminRoute.GET("", controller.GetAllChannelMonitors)
+			channelMonitorAdminRoute.GET("/", controller.GetAllChannelMonitors)
+			channelMonitorAdminRoute.GET("/:id", controller.GetChannelMonitor)
+			channelMonitorAdminRoute.POST("", controller.CreateChannelMonitor)
+			channelMonitorAdminRoute.POST("/", controller.CreateChannelMonitor)
+			channelMonitorAdminRoute.PUT("/:id", controller.UpdateChannelMonitor)
+			channelMonitorAdminRoute.DELETE("/:id", controller.DeleteChannelMonitor)
+			channelMonitorAdminRoute.POST("/:id/run", controller.RunChannelMonitor)
+			channelMonitorAdminRoute.GET("/:id/history", controller.GetChannelMonitorHistory)
+		}
+
+		channelMonitorTemplateAdminRoute := apiRouter.Group("/channel_monitor_template")
+		channelMonitorTemplateAdminRoute.Use(middleware.AdminAuth())
+		{
+			channelMonitorTemplateAdminRoute.GET("", controller.GetAllChannelMonitorTemplates)
+			channelMonitorTemplateAdminRoute.GET("/", controller.GetAllChannelMonitorTemplates)
+			channelMonitorTemplateAdminRoute.GET("/:id", controller.GetChannelMonitorTemplate)
+			channelMonitorTemplateAdminRoute.POST("", controller.CreateChannelMonitorTemplate)
+			channelMonitorTemplateAdminRoute.POST("/", controller.CreateChannelMonitorTemplate)
+			channelMonitorTemplateAdminRoute.PUT("/:id", controller.UpdateChannelMonitorTemplate)
+			channelMonitorTemplateAdminRoute.DELETE("/:id", controller.DeleteChannelMonitorTemplate)
+			channelMonitorTemplateAdminRoute.POST("/:id/apply", controller.ApplyChannelMonitorTemplate)
+			channelMonitorTemplateAdminRoute.GET("/:id/monitors", controller.GetChannelMonitorTemplateAssociatedMonitors)
+		}
+
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{
