@@ -28,14 +28,14 @@ export const CHANNEL_TYPES = {
   3: 'Azure',
   4: 'Ollama',
   5: 'MidjourneyPlus',
-  6: 'OpenAIMax',
+  // 6: 'OpenAIMax',
   7: 'OhMyGPT',
   8: 'Custom',
-  9: 'AILS',
-  10: 'AI Proxy',
-  11: 'PaLM',
-  12: 'API2GPT',
-  13: 'AIGC2D',
+  // 9: 'AILS',
+  // 10: 'AI Proxy',
+  // 11: 'PaLM',
+  // 12: 'API2GPT',
+  // 13: 'AIGC2D',
   14: 'Anthropic',
   15: 'Baidu',
   16: 'Zhipu',
@@ -43,7 +43,7 @@ export const CHANNEL_TYPES = {
   18: 'Xunfei',
   19: '360',
   20: 'OpenRouter',
-  21: 'AI Proxy Library',
+  // 21: 'AI Proxy Library',
   22: 'FastGPT',
   23: 'Tencent',
   24: 'Gemini',
@@ -76,12 +76,13 @@ export const CHANNEL_TYPES = {
   55: 'Sora',
   56: 'Replicate',
   57: 'ChatGPT Subscription (Codex)',
+  58: 'Advanced Custom',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
-  1, 14, 33, 24, 43, 3, 41, 48, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15, 46, 23,
-  18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44, 2, 5, 36, 50,
-  51, 52, 53, 54, 55, 56,
+  1, 14, 33, 24, 43, 3, 41, 48, 58, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15, 46, 23,
+  18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44, 2, 5, 36,
+  50, 51, 52, 53, 54, 55, 56,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
