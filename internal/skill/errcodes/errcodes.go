@@ -1,6 +1,12 @@
 // Package errcodes defines Skill Marketplace API error codes and their canonical
 // HTTP status mappings, plus helpers for translating between the data-model
 // BlockReason and the API ErrorCode. Source of truth: tasks/03 §7.2.
+//
+// DR-45 deviation D-45-1: ErrForbidden ("FORBIDDEN", HTTP 403) is added here to
+// satisfy tasks/05 §4.1 (authenticated non-admin → 403) but is NOT in the
+// tasks/03 §7.2 catalog of 14 codes. It has no BlockReason counterpart and is
+// intentionally excluded from blockReasonToCode/allBlockReasons. PR description
+// for DR-45 must disclose this extension and request reviewer sign-off.
 package errcodes
 
 import (
@@ -16,6 +22,9 @@ type ErrorCode string
 const (
 	ErrInvalidRequest            ErrorCode = "INVALID_REQUEST"
 	ErrAuthRequired              ErrorCode = "AUTH_REQUIRED"
+	// ErrForbidden is emitted when a user is authenticated but lacks sufficient
+	// role for the endpoint (tasks/05 §4.1). See D-45-1 in the package doc.
+	ErrForbidden                 ErrorCode = "FORBIDDEN"
 	ErrSkillNotFound             ErrorCode = "SKILL_NOT_FOUND"
 	ErrSkillNotPublished         ErrorCode = "SKILL_NOT_PUBLISHED"
 	ErrSkillNotEnabled           ErrorCode = "SKILL_NOT_ENABLED"
@@ -44,6 +53,7 @@ const (
 var httpStatusByCode = map[ErrorCode]int{
 	ErrInvalidRequest:            http.StatusBadRequest,          // 400
 	ErrAuthRequired:              http.StatusUnauthorized,        // 401
+	ErrForbidden:                 http.StatusForbidden,           // 403 — D-45-1, see package doc
 	ErrSkillNotFound:             http.StatusNotFound,            // 404
 	ErrSkillNotPublished:         http.StatusForbidden,           // 403
 	ErrSkillNotEnabled:           http.StatusForbidden,           // 403
@@ -64,6 +74,7 @@ var httpStatusByCode = map[ErrorCode]int{
 var allErrorCodes = []ErrorCode{
 	ErrInvalidRequest,
 	ErrAuthRequired,
+	ErrForbidden,
 	ErrSkillNotFound,
 	ErrSkillNotPublished,
 	ErrSkillNotEnabled,
