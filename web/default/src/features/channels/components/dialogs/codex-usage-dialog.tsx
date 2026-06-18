@@ -16,21 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
-import {
-  Copy,
-  Check,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  User,
-  Mail,
-  Hash,
-} from 'lucide-react'
+import { type ReactNode, useMemo, useState } from 'react'
+import { Copy, Check, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
+import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog } from '@/components/dialog'
@@ -64,9 +64,17 @@ type CodexUsagePayload = {
   plan_type?: string
   user_id?: string
   email?: string
-  account_id?: string
   rate_limit?: CodexRateLimit
   additional_rate_limits?: CodexAdditionalRateLimit[]
+  rate_limit_reset_credits?: {
+    available_count?: number
+  }
+  credits?: {
+    overage_limit_reached?: boolean
+  }
+  spend_control?: {
+    reached?: boolean
+  }
 }
 
 export type CodexUsageDialogData = {
@@ -210,6 +218,54 @@ function windowLabel(windowData?: CodexRateLimitWindow | null) {
   return { percent, variant }
 }
 
+function getUsageStatusBadge(
+  rateLimit: CodexRateLimit | undefined,
+  t: (key: string) => string
+) {
+  if (!rateLimit || Object.keys(rateLimit).length === 0) {
+    return (
+      <StatusBadge label={t('Pending')} variant='neutral' copyable={false} />
+    )
+  }
+  if (rateLimit.allowed && !rateLimit.limit_reached) {
+    return (
+      <StatusBadge label={t('Available')} variant='success' copyable={false} />
+    )
+  }
+  return <StatusBadge label={t('Limited')} variant='danger' copyable={false} />
+}
+
+function formatLabelValue(label: string, value: string) {
+  return label.endsWith('：') ? `${label}${value}` : `${label} ${value}`
+}
+
+const percentTextClassName: Record<
+  NonNullable<StatusBadgeProps['variant']>,
+  string
+> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-destructive',
+  info: 'text-info',
+  neutral: 'text-muted-foreground',
+  purple: 'text-chart-4',
+  amber: 'text-warning',
+  blue: 'text-chart-1',
+  cyan: 'text-chart-2',
+  green: 'text-success',
+  grey: 'text-muted-foreground',
+  indigo: 'text-chart-1',
+  'light-blue': 'text-info',
+  'light-green': 'text-success',
+  lime: 'text-chart-3',
+  orange: 'text-warning',
+  pink: 'text-chart-5',
+  red: 'text-destructive',
+  teal: 'text-chart-2',
+  violet: 'text-chart-4',
+  yellow: 'text-warning',
+}
+
 type RateLimitWindowProps = {
   title: string
   window?: CodexRateLimitWindow | null
@@ -224,34 +280,107 @@ function RateLimitWindow(props: RateLimitWindowProps) {
   const { percent, variant } = windowLabel(props.window)
 
   return (
-    <div className='rounded-lg border p-4'>
-      <div className='flex items-center justify-between gap-2'>
-        <div className='text-sm font-medium'>{props.title}</div>
-        <StatusBadge label={`${percent}%`} variant={variant} copyable={false} />
-      </div>
-      <div className='mt-3'>
-        <Progress
-          value={percent}
-          aria-label={`${props.title} usage: ${percent}%`}
-        />
-      </div>
-      {hasData ? (
-        <div className='text-muted-foreground mt-2 space-y-1 text-xs'>
-          <div>
-            {t('Reset at:')} {formatUnixSeconds(props.window?.reset_at)}
+    <Card size='sm' className='gap-0 py-0'>
+      <CardHeader className='p-3 pb-2'>
+        <div className='flex items-start justify-between gap-3'>
+          <div className='min-w-0'>
+            <CardTitle className='text-sm font-semibold'>
+              {props.title}
+            </CardTitle>
+            <CardDescription className='mt-1 text-xs'>
+              {t('Window:')}{' '}
+              {hasData
+                ? formatDurationSeconds(props.window?.limit_window_seconds, t)
+                : '-'}
+            </CardDescription>
           </div>
-          <div>
-            {t('Resets in:')}{' '}
-            {formatDurationSeconds(props.window?.reset_after_seconds, t)}
-          </div>
-          <div>
-            {t('Window:')}{' '}
-            {formatDurationSeconds(props.window?.limit_window_seconds, t)}
+          <div className='shrink-0 text-right'>
+            <div
+              className={cn(
+                'text-xl leading-none font-semibold tabular-nums',
+                percentTextClassName[variant ?? 'neutral']
+              )}
+            >
+              {hasData ? `${percent}%` : '-'}
+            </div>
+            <div className='text-muted-foreground mt-1 text-[11px]'>
+              {t('Used')}
+            </div>
           </div>
         </div>
-      ) : (
-        <div className='text-muted-foreground mt-2 text-xs'>-</div>
-      )}
+      </CardHeader>
+      <CardContent className='p-3 pt-0'>
+        {hasData ? (
+          <Progress
+            value={percent}
+            aria-label={`${props.title} usage: ${percent}%`}
+            className='mt-1'
+          />
+        ) : (
+          <div className='text-muted-foreground mt-1 text-sm'>-</div>
+        )}
+        <div className='mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2'>
+          <div className='min-w-0'>
+            <div className='text-muted-foreground text-[11px]'>
+              {t('Reset at:')}
+            </div>
+            <div className='break-all tabular-nums'>
+              {hasData ? formatUnixSeconds(props.window?.reset_at) : '-'}
+            </div>
+          </div>
+          <div className='min-w-0 sm:text-right'>
+            <div className='text-muted-foreground text-[11px]'>
+              {t('Resets in:')}
+            </div>
+            <div className='tabular-nums'>
+              {hasData
+                ? formatDurationSeconds(props.window?.reset_after_seconds, t)
+                : '-'}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RateLimitWindowGrid(props: {
+  fiveHourWindow?: CodexRateLimitWindow | null
+  weeklyWindow?: CodexRateLimitWindow | null
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+      <RateLimitWindow
+        title={t('5-Hour Window')}
+        window={props.fiveHourWindow}
+      />
+      <RateLimitWindow title={t('Weekly Window')} window={props.weeklyWindow} />
+    </div>
+  )
+}
+
+function SectionHeading(props: {
+  title: string
+  description?: string
+  children?: ReactNode
+}) {
+  return (
+    <div className='flex flex-wrap items-start justify-between gap-3'>
+      <div className='min-w-0'>
+        <div className='text-sm font-semibold'>{props.title}</div>
+        {props.description ? (
+          <div className='text-muted-foreground mt-1 text-xs leading-5'>
+            {props.description}
+          </div>
+        ) : null}
+      </div>
+      {props.children ? (
+        <div className='flex shrink-0 flex-wrap items-center gap-2'>
+          {props.children}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -266,73 +395,74 @@ type RateLimitGroupSectionProps = {
 function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
   const { t } = useTranslation()
   const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(props.source)
+  const statusBadge = getUsageStatusBadge(props.source?.rate_limit, t)
 
   return (
-    <section className='space-y-3'>
-      <div className='space-y-1'>
-        <div className='text-sm font-semibold'>{props.title}</div>
-        {(props.description || props.meteredFeature) && (
-          <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs'>
-            {props.description && <span>{props.description}</span>}
-            {props.meteredFeature && (
-              <span className='bg-muted/60 inline-flex max-w-full items-center gap-2 rounded-md px-2 py-0.5'>
-                <span className='text-[11px]'>metered_feature</span>
-                <span className='min-w-0 font-mono text-xs break-all'>
-                  {props.meteredFeature}
-                </span>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-        <RateLimitWindow title={t('5-Hour Window')} window={fiveHourWindow} />
-        <RateLimitWindow title={t('Weekly Window')} window={weeklyWindow} />
-      </div>
+    <section className='bg-muted/40 flex flex-col gap-3 rounded-xl p-3'>
+      <SectionHeading title={props.title} description={props.description}>
+        {statusBadge}
+      </SectionHeading>
+      {props.meteredFeature ? (
+        <div className='bg-background ring-border/60 inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1 text-xs ring-1'>
+          <span className='text-muted-foreground text-[11px]'>
+            metered_feature
+          </span>
+          <span className='min-w-0 font-mono break-all'>
+            {props.meteredFeature}
+          </span>
+        </div>
+      ) : null}
+      <RateLimitWindowGrid
+        fiveHourWindow={fiveHourWindow}
+        weeklyWindow={weeklyWindow}
+      />
     </section>
   )
 }
 
-function CopyableField(props: {
-  icon: React.ReactNode
+function InfoField(props: {
   label: string
   value?: string | null
   mono?: boolean
+  copyable?: boolean
+  className?: string
 }) {
+  const { t } = useTranslation()
   const { copyToClipboard, copiedText } = useCopyToClipboard({ notify: false })
   const text = props.value?.trim() || ''
   const hasCopied = copiedText === text
 
   return (
-    <div className='flex items-center justify-between gap-2 py-1'>
-      <div className='flex min-w-0 items-center gap-2'>
-        <span className='text-muted-foreground flex-shrink-0'>
-          {props.icon}
-        </span>
-        <span className='text-muted-foreground flex-shrink-0 text-xs'>
-          {props.label}
-        </span>
+    <div
+      className={cn(
+        'bg-background ring-border/60 min-w-0 rounded-lg p-3 ring-1',
+        props.className
+      )}
+    >
+      <div className='text-muted-foreground text-[11px] font-medium'>
+        {props.label}
+      </div>
+      <div className='mt-1 flex min-w-0 items-start justify-between gap-2'>
         <span
-          className={`min-w-0 truncate text-xs ${props.mono ? 'font-mono' : ''}`}
+          className={cn(
+            'min-w-0 flex-1 text-xs leading-5 break-all',
+            props.mono && 'font-mono tabular-nums'
+          )}
         >
           {text || '-'}
         </span>
+        {props.copyable !== false && text ? (
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon-xs'
+            aria-label={t('Copy')}
+            onClick={() => copyToClipboard(text)}
+          >
+            {hasCopied ? <Check className='text-success' /> : <Copy />}
+          </Button>
+        ) : null}
       </div>
-      {text && (
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          className='h-6 w-6 flex-shrink-0 p-0'
-          onClick={() => copyToClipboard(text)}
-        >
-          {hasCopied ? (
-            <Check className='h-3 w-3 text-green-600' />
-          ) : (
-            <Copy className='h-3 w-3' />
-          )}
-        </Button>
-      )}
     </div>
   )
 }
@@ -362,26 +492,14 @@ export function CodexUsageDialog({
   const additionalRateLimits = (payload?.additional_rate_limits ?? []).filter(
     (item) => item && Object.keys(item).length > 0
   )
-
-  const statusBadge = (() => {
-    if (!rateLimit || Object.keys(rateLimit).length === 0) {
-      return (
-        <StatusBadge label={t('Pending')} variant='neutral' copyable={false} />
-      )
-    }
-    if (rateLimit.allowed && !rateLimit.limit_reached) {
-      return (
-        <StatusBadge
-          label={t('Available')}
-          variant='success'
-          copyable={false}
-        />
-      )
-    }
-    return (
-      <StatusBadge label={t('Limited')} variant='danger' copyable={false} />
-    )
-  })()
+  const resetCredits = payload?.rate_limit_reset_credits?.available_count
+  const resetCreditsText = Number.isFinite(Number(resetCredits))
+    ? String(resetCredits)
+    : '-'
+  const channelLabel = `${channelName || '-'}${
+    channelId ? ` (#${channelId})` : ''
+  }`
+  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(payload)
 
   const errorMessage =
     response?.success === false
@@ -411,17 +529,10 @@ export function CodexUsageDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('Codex Account & Usage')}
-      description={
-        <>
-          {t('Channel:')}
-          <strong>{channelName || '-'}</strong>{' '}
-          {channelId ? `(#${channelId})` : ''}
-        </>
-      }
-      contentClassName='sm:max-w-3xl'
+      contentClassName='sm:max-w-[900px]'
       titleClassName='flex items-center gap-2'
       contentHeight='auto'
-      bodyClassName='space-y-4'
+      bodyClassName='flex flex-col gap-4'
       footer={
         <>
           <Button
@@ -434,121 +545,127 @@ export function CodexUsageDialog({
         </>
       }
     >
-      <div className='space-y-4'>
+      <div className='flex flex-col gap-4'>
         {errorMessage && (
           <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
             {errorMessage}
           </div>
         )}
 
-        {/* Account summary */}
-        <div className='rounded-lg border p-4'>
-          <div className='flex flex-wrap items-center justify-between gap-2'>
+        <Card size='sm' className='bg-muted/30 gap-0 py-0'>
+          <CardHeader className='p-4 pb-2'>
+            <CardTitle className='text-muted-foreground text-xs font-medium'>
+              {t('Codex Account Status')}
+            </CardTitle>
+            {onRefresh ? (
+              <CardAction>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={onRefresh}
+                  disabled={Boolean(isRefreshing)}
+                >
+                  <RefreshCw data-icon='inline-start' />
+                  {t('Refresh')}
+                </Button>
+              </CardAction>
+            ) : null}
+          </CardHeader>
+          <CardContent className='p-4 pt-0'>
             <div className='flex flex-wrap items-center gap-2'>
               <StatusBadge
                 label={accountBadge.label}
                 variant={accountBadge.variant}
                 copyable={false}
               />
-              {statusBadge}
-              {typeof response?.upstream_status === 'number' && (
+              {getUsageStatusBadge(rateLimit, t)}
+              <StatusBadge
+                label={`HTTP ${response?.upstream_status ?? '-'}`}
+                variant='neutral'
+                copyable={false}
+              />
+              <StatusBadge
+                label={formatLabelValue(t('Reset count:'), resetCreditsText)}
+                variant={Number(resetCredits) > 0 ? 'blue' : 'neutral'}
+                copyable={false}
+              />
+              {payload?.credits?.overage_limit_reached ? (
                 <StatusBadge
-                  label={`${t('Status:')} ${response.upstream_status}`}
-                  variant='neutral'
+                  label={t('Overage limited')}
+                  variant='danger'
                   copyable={false}
                 />
-              )}
+              ) : null}
+              {payload?.spend_control?.reached ? (
+                <StatusBadge
+                  label={t('Spend limited')}
+                  variant='danger'
+                  copyable={false}
+                />
+              ) : null}
             </div>
-            {onRefresh && (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={onRefresh}
-                disabled={Boolean(isRefreshing)}
-              >
-                <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
-                {t('Refresh')}
-              </Button>
-            )}
-          </div>
+            <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
+              <InfoField
+                label={t('Email')}
+                value={payload?.email}
+                copyable={true}
+              />
+              <InfoField
+                label={t('Channel')}
+                value={channelLabel}
+                copyable={false}
+              />
+              <InfoField
+                label='User ID'
+                value={payload?.user_id}
+                mono
+                className='md:col-span-2'
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Account identity info */}
-          <div className='bg-muted/30 mt-3 rounded-md px-3 py-2'>
-            <CopyableField
-              icon={<User className='h-3.5 w-3.5' />}
-              label='User ID'
-              value={payload?.user_id}
-              mono
-            />
-            <CopyableField
-              icon={<Mail className='h-3.5 w-3.5' />}
-              label={t('Email')}
-              value={payload?.email}
-            />
-            <CopyableField
-              icon={<Hash className='h-3.5 w-3.5' />}
-              label='Account ID'
-              value={payload?.account_id}
-              mono
-            />
-          </div>
+        <div className='flex flex-col gap-3'>
+          <SectionHeading
+            title={t('Base Limits')}
+            description={t('Base rate limit windows for this account.')}
+          >
+            {getUsageStatusBadge(rateLimit, t)}
+          </SectionHeading>
+          <RateLimitWindowGrid
+            fiveHourWindow={fiveHourWindow}
+            weeklyWindow={weeklyWindow}
+          />
         </div>
 
-        {/* Rate limit windows */}
-        <div className='space-y-5'>
-          <div>
-            <div className='mb-1 text-sm font-medium'>
-              {t('Rate Limit Windows')}
-            </div>
-            <p className='text-muted-foreground mb-3 text-xs'>
-              {t(
-                'Tracks current account base limits and additional metered usage on Codex upstream.'
+        {additionalRateLimits.length > 0 ? (
+          <div className='flex flex-col gap-3'>
+            <SectionHeading
+              title={t('Additional Limits')}
+              description={t(
+                'Per-feature metered windows split by model or capability.'
               )}
-            </p>
-            <RateLimitGroupSection
-              title={t('Base Limits')}
-              description={t('Base rate limit windows for this account.')}
-              source={payload}
             />
-          </div>
-
-          {additionalRateLimits.length > 0 && (
-            <div className='space-y-4 border-t pt-4'>
-              <div>
-                <div className='text-sm font-medium'>
-                  {t('Additional Limits')}
-                </div>
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Per-feature metered windows split by model or capability.'
-                  )}
-                </p>
-              </div>
-              <div className='space-y-4'>
-                {additionalRateLimits.map((item, index) => {
-                  const limitName =
-                    item.limit_name ||
-                    item.metered_feature ||
-                    `${t('Additional Limit')} ${index + 1}`
-                  return (
-                    <div
-                      key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
-                      className={index > 0 ? 'border-t pt-4' : ''}
-                    >
-                      <RateLimitGroupSection
-                        title={limitName}
-                        description={t('Additional metered capability')}
-                        source={item}
-                        meteredFeature={item.metered_feature}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
+            <div className='flex flex-col gap-3'>
+              {additionalRateLimits.map((item, index) => {
+                const limitName =
+                  item.limit_name ||
+                  item.metered_feature ||
+                  `${t('Additional Limit')} ${index + 1}`
+                return (
+                  <RateLimitGroupSection
+                    key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
+                    title={limitName}
+                    description={t('Additional metered capability')}
+                    source={item}
+                    meteredFeature={item.metered_feature}
+                  />
+                )
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         {/* Raw JSON collapsible */}
         <div className='rounded-lg border'>
@@ -575,9 +692,9 @@ export function CodexUsageDialog({
                   disabled={!rawJsonText}
                 >
                   {copiedText === rawJsonText ? (
-                    <Check className='mr-1.5 h-3.5 w-3.5 text-green-600' />
+                    <Check data-icon='inline-start' className='text-success' />
                   ) : (
-                    <Copy className='mr-1.5 h-3.5 w-3.5' />
+                    <Copy data-icon='inline-start' />
                   )}
                   {t('Copy')}
                 </Button>
