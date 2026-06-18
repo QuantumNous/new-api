@@ -101,10 +101,7 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				if routedGroup, ok := autoGroupForRequestPath(usingGroup, c.Request.URL.Path); ok {
-					usingGroup = routedGroup
-					common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
-				}
+				usingGroup = routeAutoGroupForRequestPath(c, usingGroup)
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
@@ -170,6 +167,16 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func routeAutoGroupForRequestPath(c *gin.Context, usingGroup string) string {
+	routedGroup, ok := autoGroupForRequestPath(usingGroup, c.Request.URL.Path)
+	if !ok {
+		return usingGroup
+	}
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, routedGroup)
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, routedGroup)
+	return routedGroup
 }
 
 func autoGroupForRequestPath(usingGroup string, requestPath string) (string, bool) {

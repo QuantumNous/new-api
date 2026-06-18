@@ -1,8 +1,13 @@
 package middleware
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,4 +60,32 @@ func TestAutoGroupForRequestPath(t *testing.T) {
 			assert.Equal(t, tt.expectedChanged, changed)
 		})
 	}
+}
+
+func TestRouteAutoGroupForRequestPathUpdatesRetryTokenGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "auto")
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, "auto")
+
+	routedGroup := routeAutoGroupForRequestPath(c, "auto")
+
+	assert.Equal(t, "codex-completions", routedGroup)
+	assert.Equal(t, "codex-completions", common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
+	assert.Equal(t, "codex-completions", common.GetContextKeyString(c, constant.ContextKeyTokenGroup))
+}
+
+func TestRouteAutoGroupForRequestPathKeepsResponsesRetryAuto(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "auto")
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, "auto")
+
+	routedGroup := routeAutoGroupForRequestPath(c, "auto")
+
+	assert.Equal(t, "auto", routedGroup)
+	assert.Equal(t, "auto", common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
+	assert.Equal(t, "auto", common.GetContextKeyString(c, constant.ContextKeyTokenGroup))
 }
