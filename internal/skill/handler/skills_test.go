@@ -77,7 +77,7 @@ func TestGetMarketplaceSkillNotFoundEnvelope(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestListAdminSkills_* — 14 tests covering DR-45 handler behaviour.
+// TestListAdminSkills_* — DR-45 admin list skills handler tests.
 // ---------------------------------------------------------------------------
 
 // TestListAdminSkills_ReturnsAllStatuses confirms that without a status filter
@@ -98,7 +98,15 @@ func TestListAdminSkills_ReturnsAllStatuses(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	var got listResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
-	assert.Equal(t, int64(4), got.Pagination.Total)
+	require.Equal(t, int64(4), got.Pagination.Total)
+	seen := make(map[string]bool, 4)
+	for _, s := range got.Data {
+		seen[s.Status] = true
+	}
+	assert.True(t, seen["draft"], "Super Admin must see draft skills")
+	assert.True(t, seen["published"], "Super Admin must see published skills")
+	assert.True(t, seen["deprecated"], "Super Admin must see deprecated skills")
+	assert.True(t, seen["archived"], "Super Admin must see archived skills")
 }
 
 // TestListAdminSkills_FilterByStatus confirms status=published filters correctly.
@@ -291,10 +299,11 @@ func TestListAdminSkills_EnvelopeShape(t *testing.T) {
 	assert.NotEmpty(t, meta.RequestID)
 }
 
-// TestListAdminSkills_NoInstructionTemplateInResponse asserts that
-// instruction_template is never serialised in the admin skill list response.
-// instruction_template lives only in skill_versions; db.Model(&Skill{}) never
-// reaches that column, so this test documents the DR-82 safety assumption.
+// TestListAdminSkills_NoInstructionTemplateInResponse is the D-3 redaction
+// assertion, valid for both Path A and Exception Path.
+// Under Exception Path (current), the guarantee is structural: listAdminSkillsSafeQuery
+// uses an explicit SELECT allowlist that excludes instruction_template and all
+// prompt fields — not an incidental property of the current table schema.
 func TestListAdminSkills_NoInstructionTemplateInResponse(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
@@ -305,7 +314,7 @@ func TestListAdminSkills_NoInstructionTemplateInResponse(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.NotContains(t, w.Body.String(), "instruction_template",
-		"instruction_template must never appear in the admin skill list (DR-82 safety)")
+		"instruction_template must be excluded by the explicit SELECT allowlist (D-3)")
 }
 
 // TestListAdminSkills_DefaultPagination confirms that omitting page and limit
@@ -361,10 +370,48 @@ func TestListAdminSkills_FilterByKidsApprovalStatus_EmergencyApproved(t *testing
 	assert.Equal(t, "ea-skill", got.Data[0].Slug)
 }
 
+// TestListAdminSkills_InvalidSort confirms that an unrecognised sort key returns
+// 400 INVALID_REQUEST with detail.reason=INVALID_SORT. sort is an existing handler
+// capability (tasks/03 §7.3); this test guards against future changes to adminSortKeys.
+func TestListAdminSkills_InvalidSort(t *testing.T) {
+	SetDB(testSkillDB(t))
+	c, w := testContext("/api/v1/admin/skills?sort=price")
+	ListAdminSkills(c)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
+	assert.Contains(t, w.Body.String(), `"reason":"INVALID_SORT"`)
+}
+
+// TestListAdminSkills_SortByUpdatedAt confirms the default sort (-updated_at) places
+// the most recently updated skill first. sort is an existing handler capability;
+// this test guards the default ordering behaviour.
+func TestListAdminSkills_SortByUpdatedAt(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	older := testSkill("older-skill", "published")
+	require.NoError(t, db.Create(&older).Error)
+	newer := testSkill("newer-skill", "published")
+	require.NoError(t, db.Create(&newer).Error)
+	// Force older-skill to an earlier updated_at so the default -updated_at sort
+	// reliably produces a deterministic order independent of insert timing.
+	require.NoError(t, db.Exec("UPDATE skills SET updated_at = ? WHERE slug = ?",
+		time.Now().UTC().Add(-time.Hour), "older-skill").Error)
+
+	c, w := testContext("/api/v1/admin/skills")
+	ListAdminSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got listResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 2)
+	assert.Equal(t, "newer-skill", got.Data[0].Slug)
+}
+
 // listResponse is a typed helper for unmarshalling the List envelope in tests.
 type listResponse struct {
 	Data []struct {
-		Slug string `json:"slug"`
+		Slug   string `json:"slug"`
+		Status string `json:"status"`
 	} `json:"data"`
 	Pagination struct {
 		Page    int   `json:"page"`
