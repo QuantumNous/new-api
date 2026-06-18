@@ -328,8 +328,12 @@ func HardDeleteUserById(id int) error {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
-	err := DB.Unscoped().Delete(&User{}, "id = ?", id).Error
-	return err
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := deleteUserOAuthBindingsByUserId(tx, id); err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&User{}, "id = ?", id).Error
+	})
 }
 
 func inviteUser(inviterId int) (err error) {
@@ -589,8 +593,12 @@ func (user *User) HardDelete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
-	err := DB.Unscoped().Delete(user).Error
-	return err
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := deleteUserOAuthBindingsByUserId(tx, user.Id); err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(user).Error
+	})
 }
 
 // ValidateAndFill check password & user status
