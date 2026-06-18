@@ -21,6 +21,43 @@ var (
 	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
 )
 
+// knownTLDs is an allowlist of top-level domains used to tell a real host
+// (api.openai.com, blockrun.ai) apart from a dotted code/field path
+// (thinking.type, messages.0.content.source.base64) when masking plain domains.
+// The maskDomainPattern matches any "word.word" token, so without this gate it
+// corrupts legitimate error messages that reference nested fields. Masking is
+// defense-in-depth (full URLs and IPs are masked by their own patterns), so an
+// occasional obscure TLD slipping through is acceptable; over-masking field
+// paths is the real defect this prevents.
+var knownTLDs = map[string]struct{}{
+	// common gTLDs
+	"com": {}, "net": {}, "org": {}, "io": {}, "ai": {}, "co": {}, "dev": {},
+	"app": {}, "cloud": {}, "info": {}, "biz": {}, "xyz": {}, "tech": {},
+	"online": {}, "site": {}, "store": {}, "run": {}, "sh": {}, "gg": {},
+	"me": {}, "tv": {}, "cc": {}, "ws": {}, "pro": {}, "live": {}, "link": {},
+	"gov": {}, "edu": {}, "ly": {}, "so": {}, "to": {},
+	// country-code TLDs commonly seen in provider/host names
+	"us": {}, "uk": {}, "cn": {}, "jp": {}, "kr": {}, "in": {}, "eu": {},
+	"de": {}, "fr": {}, "ru": {}, "ca": {}, "au": {}, "br": {}, "it": {},
+	"es": {}, "nl": {}, "se": {}, "no": {}, "fi": {}, "pl": {}, "cz": {},
+	"tr": {}, "sa": {}, "ae": {}, "sg": {}, "hk": {}, "tw": {}, "my": {},
+	"th": {}, "vn": {}, "ph": {}, "mx": {}, "ar": {}, "cl": {}, "za": {},
+	"ng": {}, "ke": {}, "il": {}, "ir": {}, "ua": {}, "ro": {}, "hu": {},
+	"gr": {}, "pt": {}, "dk": {}, "ch": {}, "at": {}, "be": {}, "ie": {}, "id": {},
+}
+
+// isLikelyPlainDomain reports whether a bare "a.b[.c]" token is a real hostname
+// (its last label is a known TLD) rather than a dotted code/field path.
+func isLikelyPlainDomain(s string) bool {
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	last := strings.ToLower(parts[len(parts)-1])
+	_, ok := knownTLDs[last]
+	return ok
+}
+
 const LocalLogContentLimit = 2048
 
 // LocalLogPreview limits log-only content unless debug logging is enabled.
@@ -250,8 +287,14 @@ func MaskSensitiveInfo(str string) string {
 		return result
 	})
 
-	// Mask domain names without protocol (like openai.com, www.openai.com)
+	// Mask domain names without protocol (like openai.com, www.openai.com).
+	// Skip dotted tokens that are not real hosts (e.g. the field path
+	// thinking.type or messages.0.content.source.base64) so legitimate error
+	// messages are not corrupted into ***.type.
 	str = maskDomainPattern.ReplaceAllStringFunc(str, func(domain string) string {
+		if !isLikelyPlainDomain(domain) {
+			return domain
+		}
 		return maskHostForPlainDomain(domain)
 	})
 
