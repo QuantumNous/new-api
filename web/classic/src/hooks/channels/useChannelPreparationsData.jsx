@@ -24,6 +24,7 @@ export const PREPARATION_TEST_STATUS = {
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_GROUP = 'default';
+const DEFAULT_BATCH_TEST_MODEL = 'claude-sonnet-4-6';
 
 const toUnixTimestamp = (value) => {
   if (!value) return null;
@@ -441,7 +442,9 @@ export function useChannelPreparationsData() {
           const batch = targets.slice(i, i + concurrencyLimit);
           const results = await Promise.allSettled(
             batch.map((item) =>
-              testPreparation(item, '', '', false, { silent: true }),
+              testPreparation(item, DEFAULT_BATCH_TEST_MODEL, '', false, {
+                silent: true,
+              }),
             ),
           );
           results.forEach((result) => {

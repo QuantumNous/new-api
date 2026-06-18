@@ -73,6 +73,8 @@ const QUERY_KEY_TEST_STATUS = {
   partial: { color: 'orange', label: '部分成功' },
 };
 
+const DEFAULT_BATCH_TEST_MODEL = 'claude-sonnet-4-6';
+
 const BUCKETS = [
   { key: 'all', label: '全部' },
   { key: 'found', label: '已找到' },
@@ -534,7 +536,10 @@ const QueryKeyPage = () => {
     for (const channel of channels) {
       // Keep tests sequential to avoid creating an accidental upstream burst.
       // eslint-disable-next-line no-await-in-loop
-      const result = await testQueryKeyChannel(item, channel, { silent: true });
+      const result = await testQueryKeyChannel(item, channel, {
+        silent: true,
+        model: DEFAULT_BATCH_TEST_MODEL,
+      });
       if (result) results.push(result);
     }
     const successCount = results.filter((result) => result.success).length;
