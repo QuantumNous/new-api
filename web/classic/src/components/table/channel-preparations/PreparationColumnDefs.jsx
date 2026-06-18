@@ -10,6 +10,7 @@ import {
 import { IconTreeTriangleDown } from '@douyinfe/semi-icons';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import {
+  DEFAULT_BATCH_TEST_MODEL,
   PREPARATION_STATUS,
   PREPARATION_STATUS_LABELS,
   PREPARATION_TEST_STATUS,
@@ -174,7 +175,7 @@ export const getPreparationColumns = ({
             <Button
               size='small'
               type='tertiary'
-              onClick={() => testPreparation(record, '')}
+              onClick={() => testPreparation(record, DEFAULT_BATCH_TEST_MODEL)}
             >
               {t('测试')}
             </Button>

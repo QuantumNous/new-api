@@ -89,10 +89,12 @@ func validateChannelPreparationInput(preparation *model.ChannelPreparation, isCr
 	if preparation == nil {
 		return fmt.Errorf("preparation cannot be empty")
 	}
-	if strings.TrimSpace(preparation.Name) == "" {
+	preparation.Name = strings.TrimSpace(preparation.Name)
+	preparation.Key = strings.TrimSpace(preparation.Key)
+	if preparation.Name == "" {
 		return fmt.Errorf("name cannot be empty")
 	}
-	if isCreate && strings.TrimSpace(preparation.Key) == "" {
+	if isCreate && preparation.Key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
 	if strings.TrimSpace(preparation.Group) == "" {
@@ -107,6 +109,29 @@ func validateChannelPreparationInput(preparation *model.ChannelPreparation, isCr
 		if err := channel.ValidateSettings(); err != nil {
 			return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 		}
+	}
+	return nil
+}
+
+func channelPreparationKeyConflictError(conflict model.ChannelPreparation) error {
+	statusText := "待晋升"
+	if conflict.Status == model.ChannelPreparationStatusPromoting {
+		statusText = "晋升中"
+	}
+	name := strings.TrimSpace(conflict.Name)
+	if name == "" {
+		name = "未命名"
+	}
+	return fmt.Errorf("Key 已存在于备货池%s候选渠道：%s（ID %d，%s）", statusText, conflict.KeyPreview(), conflict.Id, name)
+}
+
+func checkChannelPreparationKeyConflict(key string, excludeID int) error {
+	conflicts, err := model.FindActiveChannelPreparationKeyConflicts([]string{key}, excludeID)
+	if err != nil {
+		return err
+	}
+	if conflict, ok := conflicts[strings.TrimSpace(key)]; ok {
+		return channelPreparationKeyConflictError(conflict)
 	}
 	return nil
 }
@@ -192,7 +217,7 @@ func TestChannelPreparation(c *gin.Context) {
 	}
 	applyChannelPreparationDefaults(&preparation)
 	channel := preparation.ToChannel()
-	testModel := c.Query("model")
+	testModel := strings.TrimSpace(c.Query("model"))
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
 	testUserID, err := resolveChannelTestUserID(c)
@@ -247,6 +272,10 @@ func AddChannelPreparation(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := checkChannelPreparationKeyConflict(preparation.Key, 0); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	preparation.NormalizeForCreate()
 	if err := model.DB.Create(&preparation).Error; err != nil {
 		common.ApiError(c, err)
@@ -277,6 +306,10 @@ func UpdateChannelPreparation(c *gin.Context) {
 	}
 	input.NormalizeForUpdate(&existing)
 	if err := validateChannelPreparationInput(&input, false); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := checkChannelPreparationKeyConflict(input.Key, existing.Id); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -311,22 +344,70 @@ func ImportChannelPreparations(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	results := make([]channelPreparationImportResult, 0, len(request.Items))
+
+	resultsByIndex := make([]channelPreparationImportResult, len(request.Items))
+	resultSet := make([]bool, len(request.Items))
+	normalizedItems := make([]model.ChannelPreparation, len(request.Items))
+	validIndexes := make([]int, 0, len(request.Items))
+	validKeys := make([]string, 0, len(request.Items))
+
 	for index, item := range request.Items {
 		if strings.TrimSpace(item.Source) == "" {
 			item.Source = "batch_import"
 		}
 		if err := validateChannelPreparationInput(&item, true); err != nil {
-			results = append(results, channelPreparationImportResult{Index: index, Name: item.Name, Ok: false, Error: err.Error()})
+			resultsByIndex[index] = channelPreparationImportResult{Index: index, Name: item.Name, Ok: false, Error: err.Error()}
+			resultSet[index] = true
 			continue
 		}
 		item.NormalizeForCreate()
+		normalizedItems[index] = item
+		validIndexes = append(validIndexes, index)
+		validKeys = append(validKeys, item.Key)
+	}
+
+	dbConflicts, err := model.FindActiveChannelPreparationKeyConflicts(validKeys, 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	seenImportKeys := make(map[string]int, len(validIndexes))
+	for _, index := range validIndexes {
+		item := normalizedItems[index]
+		key := strings.TrimSpace(item.Key)
+		if firstIndex, ok := seenImportKeys[key]; ok {
+			resultsByIndex[index] = channelPreparationImportResult{
+				Index: index,
+				Name:  item.Name,
+				Ok:    false,
+				Error: fmt.Sprintf("本次导入重复：第 %d 条已包含相同 Key", firstIndex+1),
+			}
+			resultSet[index] = true
+			continue
+		}
+		seenImportKeys[key] = index
+
+		if conflict, ok := dbConflicts[key]; ok {
+			resultsByIndex[index] = channelPreparationImportResult{Index: index, Name: item.Name, Ok: false, Error: channelPreparationKeyConflictError(conflict).Error()}
+			resultSet[index] = true
+			continue
+		}
 		if err := model.DB.Create(&item).Error; err != nil {
-			results = append(results, channelPreparationImportResult{Index: index, Name: item.Name, Ok: false, Error: err.Error()})
+			resultsByIndex[index] = channelPreparationImportResult{Index: index, Name: item.Name, Ok: false, Error: err.Error()}
+			resultSet[index] = true
 			continue
 		}
 		response := item.ToResponse()
-		results = append(results, channelPreparationImportResult{Index: index, Name: item.Name, Data: &response, Ok: true})
+		resultsByIndex[index] = channelPreparationImportResult{Index: index, Name: item.Name, Data: &response, Ok: true}
+		resultSet[index] = true
+	}
+
+	results := make([]channelPreparationImportResult, 0, len(request.Items))
+	for index := range request.Items {
+		if resultSet[index] {
+			results = append(results, resultsByIndex[index])
+		}
 	}
 	common.ApiSuccess(c, gin.H{"results": results})
 }

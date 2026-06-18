@@ -70,8 +70,9 @@ func QueryChannelKeyTest(c *gin.Context) {
 		return
 	}
 
+	testModel := strings.TrimSpace(request.Model)
 	tik := time.Now()
-	result := testChannel(channel, testUserID, request.Model, request.EndpointType, request.Stream)
+	result := testChannel(channel, testUserID, testModel, request.EndpointType, request.Stream)
 	milliseconds := time.Since(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.localErr != nil {

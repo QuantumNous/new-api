@@ -5,9 +5,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -79,4 +82,50 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, userID)
+}
+
+func TestResolveChannelTestModelSelectsConfiguredAnthropicModel(t *testing.T) {
+	withModelRatioConfig(t, map[string]float64{
+		"claude-3-sonnet-20240229":   1.5,
+		"claude-3-7-sonnet-20250219": 1.5,
+	})
+
+	unconfiguredTestModel := "claude-unpriced-test-model"
+	channel := &model.Channel{
+		Type:      constant.ChannelTypeAnthropic,
+		TestModel: &unconfiguredTestModel,
+		Models:    "claude-3-sonnet-20240229,claude-unpriced-test-model,claude-3-7-sonnet-20250219",
+	}
+
+	require.Equal(t, "claude-3-7-sonnet-20250219", resolveChannelTestModel(channel, ""))
+	require.Equal(t, "claude-unpriced-test-model", resolveChannelTestModel(channel, " claude-unpriced-test-model "))
+}
+
+func TestResolveChannelTestModelUsesConfiguredAnthropicTestModel(t *testing.T) {
+	withModelRatioConfig(t, map[string]float64{
+		"claude-3-5-sonnet-20241022": 1.5,
+		"claude-3-7-sonnet-20250219": 1.5,
+	})
+
+	testModel := "claude-3-5-sonnet-20241022"
+	channel := &model.Channel{
+		Type:      constant.ChannelTypeAnthropic,
+		TestModel: &testModel,
+		Models:    "claude-3-7-sonnet-20250219,claude-3-5-sonnet-20241022",
+	}
+
+	require.Equal(t, "claude-3-5-sonnet-20241022", resolveChannelTestModel(channel, ""))
+}
+
+func withModelRatioConfig(t *testing.T, ratios map[string]float64) {
+	t.Helper()
+
+	saved := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(saved))
+	})
+
+	payload, err := common.Marshal(ratios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(string(payload)))
 }

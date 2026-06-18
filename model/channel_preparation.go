@@ -219,6 +219,48 @@ func ChannelPreparationResponses(preparations []ChannelPreparation) []ChannelPre
 	return responses
 }
 
+func FindActiveChannelPreparationKeyConflicts(keys []string, excludeID int) (map[string]ChannelPreparation, error) {
+	normalizedKeys := make([]string, 0, len(keys))
+	seen := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		normalized := strings.TrimSpace(key)
+		if normalized == "" || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		normalizedKeys = append(normalizedKeys, normalized)
+	}
+	if len(normalizedKeys) == 0 {
+		return map[string]ChannelPreparation{}, nil
+	}
+
+	activeStatuses := []int{ChannelPreparationStatusPending, ChannelPreparationStatusPromoting}
+	query := DB.Model(&ChannelPreparation{}).
+		Select("id, "+commonKeyCol+", name, status").
+		Where("status IN ?", activeStatuses).
+		Where("TRIM("+commonKeyCol+") IN ?", normalizedKeys)
+	if excludeID > 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+
+	var conflicts []ChannelPreparation
+	if err := query.Order("id asc").Find(&conflicts).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]ChannelPreparation, len(conflicts))
+	for _, conflict := range conflicts {
+		normalized := strings.TrimSpace(conflict.Key)
+		if normalized == "" {
+			continue
+		}
+		if _, exists := result[normalized]; !exists {
+			result[normalized] = conflict
+		}
+	}
+	return result, nil
+}
+
 func (p *ChannelPreparation) ToChannel() *Channel {
 	group := p.Group
 	if strings.TrimSpace(group) == "" {

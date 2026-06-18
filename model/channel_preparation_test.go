@@ -163,6 +163,31 @@ func TestChannelPreparationResponseAndToChannelIncludeTestFields(t *testing.T) {
 	require.Equal(t, 456, channel.ResponseTime)
 }
 
+func TestFindActiveChannelPreparationKeyConflictsOnlyBlocksUnconsumedRecords(t *testing.T) {
+	setupChannelPreparationModelTestDB(t)
+
+	preparations := []ChannelPreparation{
+		{Id: 1, Type: 1, Key: "sk-pending", Name: "pending candidate", Status: ChannelPreparationStatusPending, Group: "default"},
+		{Id: 2, Type: 1, Key: " sk-promoting ", Name: "promoting candidate", Status: ChannelPreparationStatusPromoting, Group: "default"},
+		{Id: 3, Type: 1, Key: "sk-promoted", Name: "promoted candidate", Status: ChannelPreparationStatusPromoted, Group: "default"},
+		{Id: 4, Type: 1, Key: "sk-archived", Name: "archived candidate", Status: ChannelPreparationStatusArchived, Group: "default"},
+	}
+	require.NoError(t, DB.Create(&preparations).Error)
+
+	conflicts, err := FindActiveChannelPreparationKeyConflicts([]string{"sk-pending", "sk-promoting", "sk-promoted", "sk-archived"}, 0)
+	require.NoError(t, err)
+	require.Contains(t, conflicts, "sk-pending")
+	require.Contains(t, conflicts, "sk-promoting")
+	require.NotContains(t, conflicts, "sk-promoted")
+	require.NotContains(t, conflicts, "sk-archived")
+	require.Equal(t, "pending candidate", conflicts["sk-pending"].Name)
+	require.Equal(t, "promoting candidate", conflicts["sk-promoting"].Name)
+
+	conflicts, err = FindActiveChannelPreparationKeyConflicts([]string{"sk-pending"}, 1)
+	require.NoError(t, err)
+	require.Empty(t, conflicts)
+}
+
 func TestGetChannelPreparationsFiltersGroupByExactToken(t *testing.T) {
 	setupChannelPreparationModelTestDB(t)
 

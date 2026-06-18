@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Banner,
@@ -48,6 +48,7 @@ import {
   renderQuota,
   renderQuotaWithAmount,
   showError,
+  showInfo,
   showSuccess,
 } from '../../helpers';
 import { CHANNEL_OPTIONS } from '../../constants';
@@ -73,7 +74,8 @@ const QUERY_KEY_TEST_STATUS = {
   partial: { color: 'orange', label: '部分成功' },
 };
 
-const DEFAULT_BATCH_TEST_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_BATCH_TEST_MODEL = '';
+const DEFAULT_BATCH_TEST_MODEL_LABEL = '使用渠道配置的测试模型';
 
 const BUCKETS = [
   { key: 'all', label: '全部' },
@@ -182,6 +184,12 @@ const QueryKeyPage = () => {
   const [activeBucket, setActiveBucket] = useState('all');
   const [queryKeyTestResults, setQueryKeyTestResults] = useState({});
   const [testingQueryKeyIds, setTestingQueryKeyIds] = useState(new Set());
+  const [isQueryKeyBatchTesting, setIsQueryKeyBatchTesting] = useState(false);
+  const [queryKeyBatchProgress, setQueryKeyBatchProgress] = useState({
+    finished: 0,
+    total: 0,
+  });
+  const shouldStopQueryKeyBatchTestingRef = useRef(false);
 
   const parsed = useMemo(() => parseKeyInput(inputText), [inputText]);
   const items = Array.isArray(report?.items) ? report.items : [];
@@ -200,6 +208,7 @@ const QueryKeyPage = () => {
   };
 
   const submitReport = async () => {
+    if (loading || isQueryKeyBatchTesting) return;
     if (parsed.keys.length === 0) {
       showError(t('请输入密钥'));
       return;
@@ -223,6 +232,8 @@ const QueryKeyPage = () => {
       setActiveBucket('all');
       setQueryKeyTestResults({});
       setTestingQueryKeyIds(new Set());
+      setQueryKeyBatchProgress({ finished: 0, total: 0 });
+      shouldStopQueryKeyBatchTestingRef.current = false;
       showSuccess(t('查询完成'));
     } catch (error) {
       showError(
@@ -234,12 +245,14 @@ const QueryKeyPage = () => {
   };
 
   const clearAll = () => {
-    if (loading) return;
+    if (loading || isQueryKeyBatchTesting) return;
     setInputText('');
     setReport(null);
     setActiveBucket('all');
     setQueryKeyTestResults({});
     setTestingQueryKeyIds(new Set());
+    setQueryKeyBatchProgress({ finished: 0, total: 0 });
+    shouldStopQueryKeyBatchTestingRef.current = false;
   };
 
   const copyKey = async (value) => {
@@ -276,6 +289,14 @@ const QueryKeyPage = () => {
 
   const getItemChannels = (item) =>
     Array.isArray(item?.channels) ? item.channels : [];
+
+  const buildQueryKeyBatchTasks = (rows) =>
+    rows.flatMap((item) =>
+      getItemChannels(item).map((channel) => ({
+        item,
+        channel,
+      })),
+    );
 
   const getItemChannelStatusText = (item) => {
     const channels = getItemChannels(item);
@@ -475,7 +496,7 @@ const QueryKeyPage = () => {
         key: item.key,
         source: channel.source || 'channel',
         target_id: channel.id,
-        model: options.model || '',
+        model: options.model || DEFAULT_BATCH_TEST_MODEL,
         endpoint_type: options.endpointType || '',
         stream: Boolean(options.stream),
       });
@@ -528,7 +549,9 @@ const QueryKeyPage = () => {
       return;
     }
     if (channels.length === 1) {
-      await testQueryKeyChannel(item, channels[0]);
+      await testQueryKeyChannel(item, channels[0], {
+        model: DEFAULT_BATCH_TEST_MODEL,
+      });
       return;
     }
 
@@ -553,6 +576,96 @@ const QueryKeyPage = () => {
           .replace('{{failed}}', failedCount),
       );
     }
+  };
+
+  const batchTestQueryKeyItems = async (scope) => {
+    if (isQueryKeyBatchTesting) {
+      showInfo(t('批量测试正在进行中'));
+      return;
+    }
+
+    const sourceRows = scope === 'filtered' ? filteredItems : items;
+    const tasks = buildQueryKeyBatchTasks(sourceRows);
+    if (tasks.length === 0) {
+      showError(t('没有可测试的渠道'));
+      return;
+    }
+
+    const taskIds = new Set(
+      tasks.map(({ item, channel }) => buildQueryKeyTestId(item.key, channel)),
+    );
+    setQueryKeyTestResults((previous) => {
+      const next = { ...previous };
+      taskIds.forEach((testId) => {
+        delete next[testId];
+      });
+      return next;
+    });
+
+    setIsQueryKeyBatchTesting(true);
+    setQueryKeyBatchProgress({ finished: 0, total: tasks.length });
+    shouldStopQueryKeyBatchTestingRef.current = false;
+
+    let successCount = 0;
+    let failedCount = 0;
+    let finishedCount = 0;
+    const concurrencyLimit = 5;
+
+    try {
+      for (let i = 0; i < tasks.length; i += concurrencyLimit) {
+        if (shouldStopQueryKeyBatchTestingRef.current) break;
+        const batch = tasks.slice(i, i + concurrencyLimit);
+        // eslint-disable-next-line no-await-in-loop
+        const results = await Promise.allSettled(
+          batch.map(({ item, channel }) =>
+            testQueryKeyChannel(item, channel, {
+              silent: true,
+              model: DEFAULT_BATCH_TEST_MODEL,
+            }),
+          ),
+        );
+        results.forEach((result) => {
+          finishedCount += 1;
+          if (result.status === 'fulfilled' && result.value?.success) {
+            successCount += 1;
+          } else {
+            failedCount += 1;
+          }
+        });
+        setQueryKeyBatchProgress({
+          finished: finishedCount,
+          total: tasks.length,
+        });
+      }
+
+      if (shouldStopQueryKeyBatchTestingRef.current) {
+        showInfo(
+          t('批量测试已停止：完成 {{finished}} / {{total}}')
+            .replace('{{finished}}', finishedCount)
+            .replace('{{total}}', tasks.length),
+        );
+      } else if (failedCount === 0) {
+        showSuccess(
+          t('批量测试完成：全部成功，共 {{count}} 个')
+            .replace('{{count}}', successCount),
+        );
+      } else {
+        showError(
+          t('批量测试完成：成功 {{success}} / 失败 {{failed}}')
+            .replace('{{success}}', successCount)
+            .replace('{{failed}}', failedCount),
+        );
+      }
+    } finally {
+      setIsQueryKeyBatchTesting(false);
+      shouldStopQueryKeyBatchTestingRef.current = false;
+    }
+  };
+
+  const stopQueryKeyBatchTest = () => {
+    if (!isQueryKeyBatchTesting) return;
+    shouldStopQueryKeyBatchTestingRef.current = true;
+    showInfo(t('正在停止批量测试，已开始的请求会继续完成'));
   };
 
   const isItemTesting = (item) =>
@@ -726,6 +839,24 @@ const QueryKeyPage = () => {
           {copyColumnConfig.label}
         </Dropdown.Item>
       ))}
+    </Dropdown.Menu>
+  );
+
+  const renderBatchTestMenu = () => (
+    <Dropdown.Menu>
+      <Dropdown.Item onClick={() => batchTestQueryKeyItems('filtered')}>
+        {t('测试当前筛选')}
+      </Dropdown.Item>
+      <Dropdown.Item onClick={() => batchTestQueryKeyItems('all')}>
+        {t('测试全部结果')}
+      </Dropdown.Item>
+      <Dropdown.Divider />
+      <div className='px-3 py-2 text-xs text-semi-color-text-2'>
+        {t('默认模型：{{model}}').replace(
+          '{{model}}',
+          t(DEFAULT_BATCH_TEST_MODEL_LABEL),
+        )}
+      </div>
     </Dropdown.Menu>
   );
 
@@ -1035,7 +1166,7 @@ const QueryKeyPage = () => {
           <TextArea
             value={inputText}
             onChange={setInputText}
-            disabled={loading}
+            disabled={loading || isQueryKeyBatchTesting}
             placeholder={`sk-xxxx\nsk-yyyy\nsk-zzzz`}
             autosize={{ minRows: 12, maxRows: 22 }}
             style={{
@@ -1062,7 +1193,7 @@ const QueryKeyPage = () => {
             <Space wrap>
               <Button
                 onClick={clearAll}
-                disabled={loading}
+                disabled={loading || isQueryKeyBatchTesting}
                 icon={<IconRefresh />}
               >
                 {t('清空')}
@@ -1072,7 +1203,7 @@ const QueryKeyPage = () => {
                 theme='solid'
                 onClick={submitReport}
                 loading={loading}
-                disabled={parsed.keys.length === 0}
+                disabled={parsed.keys.length === 0 || isQueryKeyBatchTesting}
                 icon={<IconSearch />}
               >
                 {t('生成报告')}
@@ -1153,6 +1284,26 @@ const QueryKeyPage = () => {
                 ))}
               </div>
               <Space wrap>
+                {isQueryKeyBatchTesting ? (
+                  <Button size='small' type='danger' onClick={stopQueryKeyBatchTest}>
+                    {t('停止批量测试')} {queryKeyBatchProgress.finished}/
+                    {queryKeyBatchProgress.total}
+                  </Button>
+                ) : (
+                  <Dropdown
+                    trigger='click'
+                    position='bottomRight'
+                    render={renderBatchTestMenu()}
+                  >
+                    <Button
+                      size='small'
+                      type='tertiary'
+                      disabled={buildQueryKeyBatchTasks(items).length === 0}
+                    >
+                      {t('批量测试')}
+                    </Button>
+                  </Dropdown>
+                )}
                 <Dropdown
                   trigger='click'
                   position='bottomRight'

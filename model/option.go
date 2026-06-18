@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -182,6 +183,7 @@ func InitOptionMap() {
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
+	backfillRequiredModelRatioOptions()
 }
 
 func loadOptionsFromDatabase() {
@@ -191,6 +193,57 @@ func loadOptionsFromDatabase() {
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
+	}
+}
+
+var requiredModelRatioBackfills = map[string]float64{
+	"claude-sonnet-4-6": 1.5,
+}
+
+func backfillRequiredModelRatioOptions() {
+	var option Option
+	if err := DB.First(&option, "key = ?", "ModelRatio").Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			common.SysLog("failed to load model ratio option for backfill: " + err.Error())
+		}
+		return
+	}
+
+	ratioMap := make(map[string]float64)
+	if err := common.Unmarshal([]byte(option.Value), &ratioMap); err != nil {
+		common.SysLog("failed to parse model ratio option for backfill: " + err.Error())
+		return
+	}
+
+	changed := false
+	for modelName, defaultRatio := range requiredModelRatioBackfills {
+		if _, ok := ratioMap[modelName]; ok {
+			continue
+		}
+		if ratio, ok := ratioMap["anthropic."+modelName]; ok {
+			defaultRatio = ratio
+		} else if ratio, ok := ratioMap["anthropic/"+modelName]; ok {
+			defaultRatio = ratio
+		}
+		ratioMap[modelName] = defaultRatio
+		changed = true
+	}
+	if !changed {
+		return
+	}
+
+	payload, err := common.Marshal(ratioMap)
+	if err != nil {
+		common.SysLog("failed to marshal model ratio option for backfill: " + err.Error())
+		return
+	}
+	option.Value = string(payload)
+	if err := DB.Save(&option).Error; err != nil {
+		common.SysLog("failed to save model ratio option backfill: " + err.Error())
+		return
+	}
+	if err := updateOptionMap("ModelRatio", option.Value); err != nil {
+		common.SysLog("failed to reload model ratio option after backfill: " + err.Error())
 	}
 }
 

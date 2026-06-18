@@ -24,7 +24,7 @@ export const PREPARATION_TEST_STATUS = {
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_GROUP = 'default';
-const DEFAULT_BATCH_TEST_MODEL = 'claude-sonnet-4-6';
+export const DEFAULT_BATCH_TEST_MODEL = '';
 
 const toUnixTimestamp = (value) => {
   if (!value) return null;
@@ -230,7 +230,21 @@ export function useChannelPreparationsData() {
       }
       const results = res.data.data?.results || [];
       const successCount = results.filter((item) => item.ok).length;
+      const failedResults = results.filter((item) => !item.ok);
       showSuccess(t('导入完成：{{count}} 条成功', { count: successCount }));
+      if (failedResults.length > 0) {
+        showError(
+          t('导入失败 {{count}} 条：{{details}}')
+            .replace('{{count}}', failedResults.length)
+            .replace(
+              '{{details}}',
+              failedResults
+                .slice(0, 5)
+                .map((item) => `#${Number(item.index) + 1} ${item.error}`)
+                .join('；'),
+            ),
+        );
+      }
       refresh();
       return results;
     },

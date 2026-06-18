@@ -111,13 +111,18 @@ const ImportPreparationModal = ({ visible, onCancel, onSubmit }) => {
       }).format(totalBalance),
     [totalBalance],
   );
+  const successResults = useMemo(
+    () => results.filter((item) => item.ok),
+    [results],
+  );
+  const failedResults = useMemo(
+    () => results.filter((item) => !item.ok),
+    [results],
+  );
   const progress =
     parsed.entries.length === 0
       ? 0
-      : Math.round(
-          (results.filter((item) => item.ok).length / parsed.entries.length) *
-            100,
-        );
+      : Math.round((successResults.length / parsed.entries.length) * 100);
 
   const reset = () => {
     setInputText('');
@@ -272,6 +277,31 @@ const ImportPreparationModal = ({ visible, onCancel, onSubmit }) => {
           showInfo
           style={{ display: results.length > 0 ? 'block' : 'none' }}
         />
+        {results.length > 0 ? (
+          <div className='rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm'>
+            <div className='font-semibold text-gray-900'>
+              {t('导入结果')}：{t('成功')} {successResults.length}，
+              {t('失败')} {failedResults.length}
+            </div>
+            {failedResults.length > 0 ? (
+              <div className='mt-1 text-red-500 space-y-1'>
+                {failedResults.slice(0, 10).map((item) => (
+                  <div key={`${item.index}-${item.name}`}>
+                    #{Number(item.index) + 1} {item.name || '-'}：{item.error}
+                  </div>
+                ))}
+                {failedResults.length > 10 ? (
+                  <div>
+                    {t('还有 {{count}} 条失败未显示').replace(
+                      '{{count}}',
+                      failedResults.length - 10,
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <Table
           columns={previewColumns}
           dataSource={parsed.entries}
