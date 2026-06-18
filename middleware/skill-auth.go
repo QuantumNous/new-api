@@ -23,7 +23,7 @@ func skillAuthHelper(c *gin.Context, minRole int) {
 	if username == nil {
 		accessToken := c.Request.Header.Get("Authorization")
 		if accessToken == "" {
-			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn), nil)
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn), nil, errcodes.ErrAuthRequired)
 			return
 		}
 		user, authErr := model.ValidateAccessToken(accessToken)
@@ -32,17 +32,17 @@ func skillAuthHelper(c *gin.Context, minRole int) {
 				common.SysLog("ValidateAccessToken database error: " + authErr.Error())
 				skillapi.Error(c, errcodes.ErrSkillInternalError, common.TranslateMessage(c, i18n.MsgDatabaseError), nil)
 			} else {
-				abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid), nil)
+				abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid), nil, errcodes.ErrAuthRequired)
 			}
 			c.Abort()
 			return
 		}
 		if user == nil || user.Username == "" {
-			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid), nil)
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid), nil, errcodes.ErrAuthRequired)
 			return
 		}
 		if !validUserInfo(user.Username, user.Role) {
-			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid), nil)
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid), nil, errcodes.ErrAuthRequired)
 			return
 		}
 		username = user.Username
@@ -54,31 +54,32 @@ func skillAuthHelper(c *gin.Context, minRole int) {
 
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
 	if apiUserIdStr == "" {
-		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdNotProvided), nil)
+		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdNotProvided), nil, errcodes.ErrAuthRequired)
 		return
 	}
 	apiUserId, err := strconv.Atoi(apiUserIdStr)
 	if err != nil {
-		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdFormatError), nil)
+		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdFormatError), nil, errcodes.ErrAuthRequired)
 		return
 	}
 	if id != apiUserId {
-		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch), nil)
+		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch), nil, errcodes.ErrAuthRequired)
 		return
 	}
 	userStatus, ok := status.(int)
 	if !ok || userStatus == common.UserStatusDisabled {
-		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserBanned), nil)
+		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserBanned), nil, errcodes.ErrAuthRequired)
 		return
 	}
 	userRole, ok := role.(int)
 	if !ok || userRole < minRole {
-		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege), nil)
+		// Authenticated but insufficient role → 403, not 401 (tasks/05 §4.1).
+		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege), nil, errcodes.ErrForbidden)
 		return
 	}
 	userName, ok := username.(string)
 	if !ok || !validUserInfo(userName, userRole) {
-		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid), nil)
+		abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid), nil, errcodes.ErrAuthRequired)
 		return
 	}
 
@@ -92,8 +93,8 @@ func skillAuthHelper(c *gin.Context, minRole int) {
 	c.Next()
 }
 
-func abortSkillAuth(c *gin.Context, message string, detail any) {
-	skillapi.Error(c, errcodes.ErrAuthRequired, message, detail)
+func abortSkillAuth(c *gin.Context, message string, detail any, code errcodes.ErrorCode) {
+	skillapi.Error(c, code, message, detail)
 	c.Abort()
 }
 
