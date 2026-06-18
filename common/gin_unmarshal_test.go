@@ -3,8 +3,12 @@ package common
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,4 +41,23 @@ func TestSanitizeRequestUnmarshalError_PassThroughAndNil(t *testing.T) {
 	// Non-type errors are returned unchanged.
 	other := errors.New("unexpected end of JSON input")
 	require.Equal(t, other, sanitizeRequestUnmarshalError(other))
+}
+
+// TestUnmarshalBodyReusable_SanitizesTypeError drives the real production path
+// (UnmarshalBodyReusable -> common.Unmarshal -> sanitizeRequestUnmarshalError)
+// so a future change to common.Unmarshal that breaks errors.As (e.g. switching
+// to jsoniter / wrapping) would fail here instead of silently re-leaking.
+func TestUnmarshalBodyReusable_SanitizesTypeError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"max_tokens":"30"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	var dst GeneralOpenAIRequest
+	err := UnmarshalBodyReusable(c, &dst)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "GeneralOpenAIRequest", "Go struct name must not leak via the real decode path")
+	require.NotContains(t, err.Error(), "Go struct field")
+	require.Contains(t, err.Error(), "max_tokens")
 }

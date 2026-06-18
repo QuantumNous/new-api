@@ -62,7 +62,9 @@ func friendlyJSONType(t reflect.Type) string {
 	case reflect.Ptr:
 		return friendlyJSONType(t.Elem())
 	default:
-		return t.Kind().String()
+		// Avoid leaking Go-flavored kind names (chan/func/interface/...) to the
+		// client; these are unreachable for request DTOs but stay generic.
+		return "a different type"
 	}
 }
 
