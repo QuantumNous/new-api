@@ -306,6 +306,58 @@ export function ApiKeysMutateDrawer({
               )}
             />
 
+            {/* Enterprise users can pick a group at create time. PLG (non-enterprise)
+                users never see groups; their keys are forced to plg server-side. */}
+            {!isUpdate && isEnterprise && (
+              <>
+                <FormField
+                  control={form.control}
+                  name='group'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Group')}</FormLabel>
+                      <FormControl>
+                        <ApiKeyGroupCombobox
+                          options={groups}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          placeholder={t('Select a group')}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {selectedGroup === 'auto' && (
+                  <FormField
+                    control={form.control}
+                    name='cross_group_retry'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel className='text-sm'>
+                            {t('Cross-group retry')}
+                          </FormLabel>
+                          <FormDescription className='text-xs'>
+                            {t(
+                              'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </>
+            )}
+
             {!isUpdate && (
               // CREATE mode (OpenRouter-style): a single optional credit-limit
               // input. Blank => unlimited; a number => that quota amount.
