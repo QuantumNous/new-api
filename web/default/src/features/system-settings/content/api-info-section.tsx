@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -54,14 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { BadgeCell, StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSwitchField } from '../components/settings-form-layout'
@@ -110,18 +103,37 @@ const colorOptions = [
   { value: 'slate', label: 'Slate' },
 ]
 
+function parseApiInfoList(data: string): ApiInfo[] {
+  try {
+    const parsed = JSON.parse(data || '[]')
+    if (!Array.isArray(parsed)) return []
+
+    return parsed.map((item, idx) => ({
+      ...item,
+      id: item.id || idx + 1,
+    }))
+  } catch {
+    return []
+  }
+}
+
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const apiInfoSchema = createApiInfoSchema(t)
-  const [apiInfoList, setApiInfoList] = useState<ApiInfo[]>([])
-  const [isEnabled, setIsEnabled] = useState(enabled)
-  const [hasChanges, setHasChanges] = useState(false)
+  const parsedApiInfoList = useMemo(() => parseApiInfoList(data), [data])
+  const [draftApiInfoList, setDraftApiInfoList] = useState<ApiInfo[] | null>(
+    null
+  )
+  const [isEnabledDraft, setIsEnabledDraft] = useState<boolean | null>(null)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editingApiInfo, setEditingApiInfo] = useState<ApiInfo | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<'single' | 'batch'>('single')
+  const apiInfoList = draftApiInfoList ?? parsedApiInfoList
+  const isEnabled = isEnabledDraft ?? enabled
+  const hasChanges = draftApiInfoList !== null
 
   const form = useForm<ApiInfoFormValues>({
     resolver: zodResolver(apiInfoSchema),
@@ -133,33 +145,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     },
   })
 
-  useEffect(() => {
-    try {
-      const parsed = JSON.parse(data || '[]')
-      if (Array.isArray(parsed)) {
-        setApiInfoList(
-          parsed.map((item, idx) => ({
-            ...item,
-            id: item.id || idx + 1,
-          }))
-        )
-      }
-    } catch {
-      setApiInfoList([])
-    }
-  }, [data])
-
-  useEffect(() => {
-    setIsEnabled(enabled)
-  }, [enabled])
-
   const handleToggleEnabled = async (checked: boolean) => {
     try {
       await updateOption.mutateAsync({
         key: 'console_setting.api_info_enabled',
         value: checked,
       })
-      setIsEnabled(checked)
+      setIsEnabledDraft(checked)
       toast.success(t('Setting saved'))
     } catch {
       toast.error(t('Failed to update setting'))
@@ -205,17 +197,15 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const confirmDelete = () => {
     if (deleteTarget === 'single' && editingApiInfo) {
-      setApiInfoList((prev) =>
-        prev.filter((item) => item.id !== editingApiInfo.id)
+      setDraftApiInfoList(
+        apiInfoList.filter((item) => item.id !== editingApiInfo.id)
       )
-      setHasChanges(true)
       toast.success(t('API info deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
-      setApiInfoList((prev) =>
-        prev.filter((item) => !selectedIds.includes(item.id))
+      setDraftApiInfoList(
+        apiInfoList.filter((item) => !selectedIds.includes(item.id))
       )
       setSelectedIds([])
-      setHasChanges(true)
       toast.success(
         t('{{count}} API entries deleted. Click "Save Settings" to apply.', {
           count: selectedIds.length,
@@ -228,18 +218,17 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleSubmitForm = (values: ApiInfoFormValues) => {
     if (editingApiInfo) {
-      setApiInfoList((prev) =>
-        prev.map((item) =>
+      setDraftApiInfoList(
+        apiInfoList.map((item) =>
           item.id === editingApiInfo.id ? { ...item, ...values } : item
         )
       )
       toast.success(t('API info updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...apiInfoList.map((item) => item.id), 0) + 1
-      setApiInfoList((prev) => [...prev, { id: newId, ...values }])
+      setDraftApiInfoList([...apiInfoList, { id: newId, ...values }])
       toast.success(t('API info added. Click "Save Settings" to apply.'))
     }
-    setHasChanges(true)
     setShowDialog(false)
   }
 
@@ -250,7 +239,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         value: JSON.stringify(apiInfoList),
       })
       if (result.success) {
-        setHasChanges(false)
+        setDraftApiInfoList(null)
       }
     } catch {
       toast.error(t('Failed to save API info'))
@@ -306,101 +295,102 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
           />
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === apiInfoList.length &&
-                      apiInfoList.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
+        <StaticDataTable
+          data={apiInfoList}
+          getRowKey={(apiInfo) => apiInfo.id}
+          emptyContent={t('No API Domains yet. Click "Add API" to create one.')}
+          columns={[
+            {
+              id: 'select',
+              header: (
+                <Checkbox
+                  checked={
+                    selectedIds.length === apiInfoList.length &&
+                    apiInfoList.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+              ),
+              className: 'w-12',
+              cell: (apiInfo) => (
+                <Checkbox
+                  checked={selectedIds.includes(apiInfo.id)}
+                  onCheckedChange={(checked) =>
+                    toggleSelectOne(apiInfo.id, checked as boolean)
+                  }
+                />
+              ),
+            },
+            {
+              id: 'url',
+              header: t('URL'),
+              cellClassName: 'max-w-xs truncate font-mono text-sm',
+              cell: (apiInfo) => (
+                <BadgeCell>
+                  <StatusBadge
+                    label={apiInfo.url}
+                    variant='neutral'
+                    copyable={false}
                   />
-                </TableHead>
-                <TableHead>{t('URL')}</TableHead>
-                <TableHead>{t('Route')}</TableHead>
-                <TableHead>{t('Description')}</TableHead>
-                <TableHead>{t('Color')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {apiInfoList.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className='h-24 text-center'>
-                    {t('No API Domains yet. Click "Add API" to create one.')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                apiInfoList.map((apiInfo) => (
-                  <TableRow key={apiInfo.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(apiInfo.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(apiInfo.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate font-mono text-sm'
-                      title={apiInfo.url}
-                    >
-                      <StatusBadge
-                        label={apiInfo.url}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        label={apiInfo.route}
-                        variant='neutral'
-                        copyable={false}
-                      />
-                    </TableCell>
-                    <TableCell
-                      className='max-w-xs truncate'
-                      title={apiInfo.description}
-                    >
-                      {apiInfo.description}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex items-center gap-2'>
-                        <div
-                          className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
-                        />
-                        <span className='text-sm capitalize'>
-                          {apiInfo.color}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(apiInfo)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(apiInfo)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                </BadgeCell>
+              ),
+            },
+            {
+              id: 'route',
+              header: t('Route'),
+              cell: (apiInfo) => (
+                <BadgeCell>
+                  <StatusBadge
+                    label={apiInfo.route}
+                    variant='neutral'
+                    copyable={false}
+                  />
+                </BadgeCell>
+              ),
+            },
+            {
+              id: 'description',
+              header: t('Description'),
+              cellClassName: 'max-w-xs truncate',
+              cell: (apiInfo) => apiInfo.description,
+            },
+            {
+              id: 'color',
+              header: t('Color'),
+              cell: (apiInfo) => (
+                <div className='flex items-center gap-2'>
+                  <div
+                    className={`h-4 w-4 rounded-full ${getColorClass(apiInfo.color)}`}
+                  />
+                  <span className='text-sm capitalize'>{apiInfo.color}</span>
+                </div>
+              ),
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-32',
+              cell: (apiInfo) => (
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={() => handleEdit(apiInfo)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Edit className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(apiInfo)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <Dialog

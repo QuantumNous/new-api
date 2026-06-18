@@ -39,7 +39,9 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'AccessKey / SecretAccessKey',
   'AZURE_OPENAI_ENDPOINT *',
   'Baidu V2',
+  'CC Switch',
   'ChatGPT',
+  'ChatGPT Subscription (Codex)',
   'Claude',
   'Client ID',
   'Client Secret',
@@ -316,5 +318,3 @@ main().catch((err) => {
   console.error(err)
   process.exitCode = 1
 })
-
-

@@ -77,64 +77,66 @@ export function DataTableRowActions<TData>({
   const canToggle = !isUsed && !isExpired
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant='ghost'
-            className='data-popup-open:bg-muted flex h-8 w-8 p-0'
-          />
-        }
-      >
-        <DotsHorizontalIcon className='h-4 w-4' />
-        <span className='sr-only'>{t('Open menu')}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-[160px]'>
-        <DropdownMenuItem
-          onClick={() => {
-            setCurrentRow(redemption)
-            setOpen('update')
-          }}
-          disabled={!canEdit}
+    <div className='-ml-2'>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='ghost'
+              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+            />
+          }
         >
-          {t('Edit')}
-          <DropdownMenuShortcut>
-            <Edit size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        {canToggle && (
-          <DropdownMenuItem onClick={handleToggleStatus}>
-            {isEnabled ? (
-              <>
-                {t('Disable')}
-                <DropdownMenuShortcut>
-                  <PowerOff size={16} />
-                </DropdownMenuShortcut>
-              </>
-            ) : (
-              <>
-                {t('Enable')}
-                <DropdownMenuShortcut>
-                  <Power size={16} />
-                </DropdownMenuShortcut>
-              </>
-            )}
+          <DotsHorizontalIcon className='h-4 w-4' />
+          <span className='sr-only'>{t('Open menu')}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end' className='w-[160px]'>
+          <DropdownMenuItem
+            onClick={() => {
+              setCurrentRow(redemption)
+              setOpen('update')
+            }}
+            disabled={!canEdit}
+          >
+            {t('Edit')}
+            <DropdownMenuShortcut>
+              <Edit size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => {
-            setCurrentRow(redemption)
-            setOpen('delete')
-          }}
-          className='text-destructive focus:text-destructive'
-        >
-          {t('Delete')}
-          <DropdownMenuShortcut>
-            <Trash2 size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {canToggle && (
+            <DropdownMenuItem onClick={handleToggleStatus}>
+              {isEnabled ? (
+                <>
+                  {t('Disable')}
+                  <DropdownMenuShortcut>
+                    <PowerOff size={16} />
+                  </DropdownMenuShortcut>
+                </>
+              ) : (
+                <>
+                  {t('Enable')}
+                  <DropdownMenuShortcut>
+                    <Power size={16} />
+                  </DropdownMenuShortcut>
+                </>
+              )}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              setCurrentRow(redemption)
+              setOpen('delete')
+            }}
+            className='text-destructive focus:text-destructive'
+          >
+            {t('Delete')}
+            <DropdownMenuShortcut>
+              <Trash2 size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }

@@ -31,15 +31,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import {
@@ -358,48 +351,53 @@ export function MultiKeyManageDialog({
                 {t('No keys found')}
               </div>
             ) : (
-              <div className='min-w-[800px]'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className='w-20'>{t('Index')}</TableHead>
-                      <TableHead className='w-32'>{t('Status')}</TableHead>
-                      <TableHead className='min-w-[200px]'>
-                        {t('Disabled Reason')}
-                      </TableHead>
-                      <TableHead className='w-44'>
-                        {t('Disabled Time')}
-                      </TableHead>
-                      <TableHead className='w-44 text-right'>
-                        {t('Actions')}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {keys.map((key) => (
-                      <TableRow key={key.index}>
-                        <TableCell className='font-mono text-sm'>
-                          #{key.index + 1}
-                        </TableCell>
-                        <TableCell>{renderStatusBadge(key.status)}</TableCell>
-                        <TableCell className='max-w-xs truncate text-sm'>
-                          {key.reason || '-'}
-                        </TableCell>
-                        <TableCell className='text-muted-foreground text-sm'>
-                          {formatKeyTimestamp(key.disabled_time)}
-                        </TableCell>
-                        <TableCell>
-                          <MultiKeyTableRowActions
-                            keyIndex={key.index}
-                            status={key.status}
-                            onAction={setConfirmAction}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <StaticDataTable
+                className='rounded-none border-0'
+                tableClassName='min-w-[800px]'
+                data={keys}
+                getRowKey={(key) => key.index}
+                columns={[
+                  {
+                    id: 'index',
+                    header: t('Index'),
+                    className: 'w-20',
+                    cellClassName: 'font-mono text-sm',
+                    cell: (key) => `#${key.index + 1}`,
+                  },
+                  {
+                    id: 'status',
+                    header: t('Status'),
+                    className: 'w-32',
+                    cell: (key) => renderStatusBadge(key.status),
+                  },
+                  {
+                    id: 'reason',
+                    header: t('Disabled Reason'),
+                    className: 'min-w-[200px]',
+                    cellClassName: 'max-w-xs truncate text-sm',
+                    cell: (key) => key.reason || '-',
+                  },
+                  {
+                    id: 'disabled-time',
+                    header: t('Disabled Time'),
+                    className: 'w-44',
+                    cellClassName: 'text-muted-foreground text-sm',
+                    cell: (key) => formatKeyTimestamp(key.disabled_time),
+                  },
+                  {
+                    id: 'actions',
+                    header: t('Actions'),
+                    className: 'w-44 text-right',
+                    cell: (key) => (
+                      <MultiKeyTableRowActions
+                        keyIndex={key.index}
+                        status={key.status}
+                        onAction={setConfirmAction}
+                      />
+                    ),
+                  },
+                ]}
+              />
             )}
           </div>
 

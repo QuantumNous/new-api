@@ -94,9 +94,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     e.stopPropagation()
     setIsTesting(true)
     try {
-      await handleTestChannel(channel.id, undefined, () => {
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-      })
+      await handleTestChannel(
+        channel.id,
+        { channelName: channel.name },
+        () => {
+          queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        }
+      )
     } finally {
       setIsTesting(false)
     }
@@ -140,7 +144,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   return (
-    <div className='flex items-center justify-end gap-1'>
+    <div className='-ml-1.5 flex items-center gap-1'>
       <Tooltip>
         <TooltipTrigger
           render={

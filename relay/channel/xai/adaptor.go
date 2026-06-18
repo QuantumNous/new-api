@@ -114,7 +114,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
-		usage, err = openai.OpenaiHandlerWithUsage(c, info, resp)
+		usage, err = openai.OpenaiImageHandler(c, info, resp)
 	case constant.RelayModeResponses:
 		if info.IsStream {
 			usage, err = openai.OaiResponsesStreamHandler(c, info, resp)

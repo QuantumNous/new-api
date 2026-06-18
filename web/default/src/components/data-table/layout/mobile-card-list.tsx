@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import * as React from 'react'
 import {
   flexRender,
   type Cell,
@@ -33,6 +34,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusBadgeTypeContext } from '@/components/status-badge'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -43,24 +45,11 @@ interface MobileCardListProps<TData> {
   getRowClassName?: (row: Row<TData>) => string | undefined
 }
 
-interface MobileColumnMeta {
-  label?: string
-  mobileTitle?: boolean
-  mobileBadge?: boolean
-  mobileHidden?: boolean
-}
-
-function getCellMeta<TData>(
-  cell: Cell<TData, unknown>
-): MobileColumnMeta | undefined {
-  return cell.column.columnDef.meta as MobileColumnMeta | undefined
-}
-
 function getCellLabel<TData>(cell: Cell<TData, unknown>): string | null {
-  const meta = getCellMeta(cell)
+  const { header, meta } = cell.column.columnDef
+  if (typeof header === 'string') return header
   if (meta?.label) return meta.label
-  const header = cell.column.columnDef.header
-  return typeof header === 'string' ? header : null
+  return null
 }
 
 function renderCellContent<TData>(cell: Cell<TData, unknown>): React.ReactNode {
@@ -128,16 +117,22 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
     .getVisibleCells()
     .filter((cell) => cell.column.id !== 'select')
 
-  const titleCell = allCells.find((c) => getCellMeta(c)?.mobileTitle)
-  const badgeCell = allCells.find((c) => getCellMeta(c)?.mobileBadge)
-  const actionsCell = allCells.find((c) => c.column.id === 'actions')
+  // Read each cell's meta once, then reuse for all categorisation checks.
+  const cellMetas = React.useMemo(
+    () => allCells.map((c) => c.column.columnDef.meta),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allCells.map((c) => c.id).join(',')]
+  )
 
+  const titleCell = allCells.find((_, i) => cellMetas[i]?.mobileTitle)
+  const badgeCell = allCells.find((_, i) => cellMetas[i]?.mobileBadge)
+  const actionsCell = allCells.find((c) => c.column.id === 'actions')
   const fieldCells = allCells.filter(
-    (c) =>
+    (c, i) =>
       c !== titleCell &&
       c !== badgeCell &&
       c !== actionsCell &&
-      !getCellMeta(c)?.mobileHidden
+      !cellMetas[i]?.mobileHidden
   )
 
   return (
@@ -145,12 +140,14 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
       {/* Row 1: Title + Badge */}
       <div className='flex items-center justify-between gap-2'>
         {titleCell && (
-          <div className='min-w-0 flex-1 overflow-hidden text-sm font-medium'>
+          <div className='min-w-0 flex-1 text-sm font-medium [&_[data-slot=status-badge]]:max-w-full [&_[data-slot=status-badge]]:whitespace-normal'>
             {renderCellContent(titleCell)}
           </div>
         )}
         {badgeCell && (
-          <div className='shrink-0'>{renderCellContent(badgeCell)}</div>
+          <div className='flex-none [&_[data-slot=status-badge]]:max-w-none'>
+            {renderCellContent(badgeCell)}
+          </div>
         )}
       </div>
 
@@ -166,8 +163,10 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
                     {label}
                   </div>
                 )}
-                <div className='min-w-0 overflow-hidden text-xs'>
-                  {renderCellContent(cell) ?? '-'}
+                <div className='min-w-0 overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+                  <StatusBadgeTypeContext.Provider value='text'>
+                    {renderCellContent(cell) ?? '-'}
+                  </StatusBadgeTypeContext.Provider>
                 </div>
               </div>
             )
@@ -194,21 +193,31 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
     .getVisibleCells()
     .filter((cell) => cell.column.id !== 'select')
 
+  const cellMetas = React.useMemo(
+    () => allCells.map((c) => c.column.columnDef.meta),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allCells.map((c) => c.id).join(',')]
+  )
+
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
   const contentCells = allCells.filter(
-    (c) => c.column.id !== 'actions' && !getCellMeta(c)?.mobileHidden
+    (c, i) => c.column.id !== 'actions' && !cellMetas[i]?.mobileHidden
   )
 
   return (
     <>
       {contentCells.map((cell) => {
         const label = getCellLabel(cell)
-        const content = renderCellContent(cell)
 
         if (!label) {
           return (
-            <div key={cell.id} className='flex justify-end overflow-hidden'>
-              {content}
+            <div
+              key={cell.id}
+              className='flex justify-end overflow-hidden [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'
+            >
+              <StatusBadgeTypeContext.Provider value='text'>
+                {renderCellContent(cell)}
+              </StatusBadgeTypeContext.Provider>
             </div>
           )
         }
@@ -221,8 +230,10 @@ function FallbackRow<TData>({ row }: { row: Row<TData> }) {
             <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
               {label}
             </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs'>
-              {content ?? '-'}
+            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+              <StatusBadgeTypeContext.Provider value='text'>
+                {renderCellContent(cell) ?? '-'}
+              </StatusBadgeTypeContext.Provider>
             </div>
           </div>
         )
@@ -265,10 +276,15 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   const resolvedEmptyTitle = emptyTitle ?? t('No Data')
   const resolvedEmptyDescription = emptyDescription ?? t('No data available')
 
-  const hasCompactMeta = table.getVisibleLeafColumns().some((col) => {
-    const meta = col.columnDef.meta as MobileColumnMeta | undefined
-    return meta?.mobileTitle || meta?.mobileBadge
-  })
+  const visibleColumns = table.getVisibleLeafColumns()
+  const hasCompactMeta = React.useMemo(
+    () =>
+      visibleColumns.some((col) => {
+        const meta = col.columnDef.meta
+        return meta?.mobileTitle || meta?.mobileBadge
+      }),
+    [visibleColumns]
+  )
 
   if (isLoading) {
     return hasCompactMeta ? <ListSkeleton /> : <FallbackListSkeleton />
