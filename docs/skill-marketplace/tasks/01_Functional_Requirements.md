@@ -402,7 +402,7 @@ P0-A 是 V1 的主要用户执行路径。用户在 DeepRouter 内直接运行 S
 | FR-D7 | Emit `skill_blocked` | P0 | Includes standard block reason |
 | FR-D8 | Emit admin actions | P0 | Skill create/update/publish/archive/kids approval |
 | FR-D9 | Emit safety events | P0 if Kids enabled | `skill_safety_violation` with stage |
-| FR-D10 | Every entry point has `entry_point` | P0 | No null / unknown for launch paths; valid values: `external_ai_client`（用户唯一执行路径）、`admin_preview`（Admin 测试）、`api_direct`（保留） |
+| FR-D10 | Every execution event has `execution_entry_point` | P0 | 执行事件（`skill_used`、`skill_first_use`、`skill_repeat_use`、`skill_blocked`）必须含非 null 的 `execution_entry_point`；有效值：`native_deeprouter`（P0-A Skill Run Page）、`external_ai_client`（P0-B ChatGPT 及未来外部平台）、`api_direct`（保留）、`admin_preview`（Admin 测试）。发现/展示事件（`skill_impression`、`skill_detail_view`）不使用 `execution_entry_point`，改用 `metadata.discovery_source`（见 `03_Data_Model_and_API_Spec.md §3`）。 |
 | FR-D11 | Sensitive content not persisted | P0 | No prompt, no Kids sensitive input |
 | FR-D12 | Aggregation API supports dashboard | P0 | Overview, funnel, skill table |
 
@@ -648,7 +648,8 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 | `session_id` | Yes | Server/session derived |
 | `skill_id` | Yes | All Skill events |
 | `skill_version_id` | Execution/admin version events | Required for usage/billing |
-| `entry_point` | Yes | Must be a valid enum |
+| `execution_entry_point` | For execution events | Must be a valid `execution_entry_point` enum value (`native_deeprouter`, `external_ai_client`, `api_direct`, `admin_preview`); must not be null for skill_used / skill_first_use / skill_repeat_use / skill_blocked events |
+| `metadata.discovery_source` | For impression / click events | Must be a valid `discovery_source` enum value; used for skill_impression and skill_detail_view events |
 | `plan` | Yes if logged in | free/pro/enterprise |
 | `persona` | If known | May be coarse in V1 |
 | `is_kids_session` | Execution events | Server-derived only |
@@ -661,7 +662,8 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 
 - No event may include `instruction_template`.
 - Kids sensitive raw input must not be persisted.
-- `entry_point` cannot be null for launch paths.
+- `execution_entry_point` cannot be null for execution events on any launch path.
+- `metadata.discovery_source` cannot be null for impression and discovery events.
 - Failed or blocked events must include `failure_reason` or `block_reason`.
 - Event names must be stable and not free-form.
 - Kids Session analytics must persist `user_id=NULL` and a non-reversible daily `kids_session_pseudo_id` in `session_id`; billing and runtime controls remain tied to the real authenticated user in restricted systems.
@@ -701,11 +703,29 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 27. External AI client can call the Skill execute endpoint with a valid Connection Key; DeepRouter authenticates, runs entitlement check, executes Skill logic, and returns tool result.
 28. External AI client call with invalid or missing Connection Key receives 401 `AUTH_REQUIRED`.
 29. MCP live server `GET /mcp` returns only the calling user's enabled Skills; `POST /mcp` routes to the same execution chain as direct API calls.
-30. Billing event for external AI client or MCP call includes `entry_point=external_ai_client`; quota is deducted from the Connection Key owner's account.
+30. Billing event for external AI client or MCP call includes `execution_entry_point=external_ai_client`; quota is deducted from the Connection Key owner's account. Billing event for Skill Run Page execution includes `execution_entry_point=native_deeprouter`; quota is deducted from the logged-in user's account.
 31. Connection Key revocation takes effect within one request cycle; all platforms (ChatGPT / Claude / Claude Code / Gemini) that use the revoked Key receive 401 on subsequent calls.
 32. Skill Detail Install Dialog has 5 platform tabs (ChatGPT / OpenAI API / Gemini / Claude / Claude Code), each with step-by-step guide, copy/download buttons, and Connection Key copy area.
 33. Non-technical UI does not expose terms "OpenAPI", "MCP", "Bearer", "JSON-RPC", or "API Key" in default (non-Advanced) view; "Connection Key" is used throughout.
 34. Connection Test UX: My Skills dashboard shows Last activity timestamp; failed-install checklist is displayed if no activity within 10 minutes of install.
+
+**Native DeepRouter Skill Run Page acceptance (P0-A):**
+
+35. Every Skill Run Page execution emits `execution_entry_point=native_deeprouter` in `skill_used`, `skill_first_use`, `skill_repeat_use`, and `skill_blocked` events.
+36. Native Skill Run Page execution authenticates via user session token, not Connection Key. The execute endpoint accepts both auth modes and routes them to the correct `execution_entry_point`.
+37. Unauthenticated users cannot access Skill Run Page (`/skills/:id/run`); they are redirected to login with return URL preserved.
+38. A logged-in user who has not enabled the Skill cannot execute it from Skill Run Page; they see an Enable CTA instead of the input form.
+39. User-facing billing history (My Skills + account dashboard) includes native DeepRouter executions (`execution_entry_point=native_deeprouter`).
+40. Admin preview executions (`execution_entry_point=admin_preview`) do not appear in user-facing billing history or My Skills execution history.
+
+**ChatGPT install schema acceptance (P0-B):**
+
+41. `chatgpt-install.json` must not contain hidden instruction templates, private prompt logic, scoring rubrics, or execution logic.
+42. `chatgpt-install.json` must not contain the user's Connection Key or any credential.
+43. `chatgpt-install.json` tool input schema must include `additionalProperties: false` to prevent models from passing undeclared fields.
+44. DeepRouter Relay validates the inbound request body against the canonical server-side `tool_input_schema`; extra fields are rejected.
+45. Any `skill_id` provided in the request body is ignored; URL path `skill_id` is authoritative for all external AI client calls.
+46. Security team manually reviews the generated `chatgpt-install.json` before launch to confirm no protected content is present.
 
 ### 10.2 P1 Acceptance
 

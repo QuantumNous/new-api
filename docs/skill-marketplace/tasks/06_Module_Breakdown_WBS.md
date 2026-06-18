@@ -19,32 +19,50 @@
 
 ### 1.1 Product Baseline
 
-V1 是官方托管的 AI Tool 平台。**V1 核心范式：Skills 是可安装的 API Tool，不是 Prompt 模板。** 用户可以下载 Skill 的 tool spec（OpenAPI / MCP 格式）并安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端中直接调用。执行逻辑永不离开服务端，API Key 绑定用户帐号。
+V1 是官方托管的跨平台 AI Skill 平台。**V1 核心范式：Skills 是可调用的 AI 能力，执行逻辑永不离开 DeepRouter 服务端。** 用户可以在 DeepRouter 内直接通过 Skill Run Page 运行 Skill，也可以将 Skill 连接到外部 AI 客户端（如 ChatGPT），通过平台专属安装包（install artifact）实现互操作。安装包只含 schema 和 endpoint，不含执行逻辑。Connection Key 绑定用户帐号，不嵌入任何安装文件。
 
-V1 P0 闭环：
+> Playground Skill Picker 已移除。普通用户通过 Skill Run Page（P0-User）或 ChatGPT Custom GPT Action（P0-Demo）使用 Skill。Playground 保持通用聊天界面。
 
+**V1 两条 P0 闭环：**
+
+P0-User — Native DeepRouter Skill Run（非技术用户首选路径）：
 ```text
 Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑）
 → Skill is published to Marketplace
 → User browses detail and enables Skill
-→ User downloads tool spec (OpenAPI / MCP) and installs into their AI client
-  OR selects one enabled Skill in Playground
-→ External AI client calls DeepRouter Skill API with user's API Key
-  OR Playground passes skill_id to Relay
-→ Relay authenticates API Key, validates use-time entitlement and safety
-→ Relay executes Skill logic server-side; returns tool_result
-→ Execution emits usage, billing attribution, analytics, audit where applicable
+→ User enters Skill Run Page（/skills/:id/run）
+→ User fills in the form（generated from tool_input_schema）→ clicks Run
+→ DeepRouter Relay: Auth → Entitlement → Safety → inject instruction_template（server-side）→ Execute
+→ Relay returns structured result（execution_entry_point=native_deeprouter）
+→ Skill Run Page renders formatted output
+→ Execution emits usage, billing attribution（execution_entry_point=native_deeprouter）, analytics, audit
 → Operations monitors adoption, blocked usage, revenue, and safety
 ```
+
+P0-Demo — ChatGPT Custom GPT Action Install（互操作性演示路径）：
+```text
+Super Admin creates official Skill（same Canonical Manifest as above）
+→ Skill is published to Marketplace
+→ User enables Skill → opens Install Dialog → downloads chatgpt-install.json or copies Import URL
+→ User opens ChatGPT Custom GPT Builder → Configure → Actions → Create new action
+→ User imports JSON / URL → sets Authentication: API Key / Bearer → pastes Connection Key → saves GPT
+→ User uses Custom GPT naturally; ChatGPT automatically calls DeepRouter Skill tool
+→ DeepRouter Relay: same Auth / Entitlement / Safety / execution chain（execution_entry_point=external_ai_client）
+→ Execution emits billing attribution（execution_entry_point=external_ai_client）
+→ Operations monitors adoption, blocked usage, revenue, and safety
+```
+
+User can run an enabled Skill directly in DeepRouter through Skill Run Page, or connect the same Skill to external AI clients such as ChatGPT via platform-specific install artifacts. Both paths run the same protected server-side Skill Runtime — only the entry surface differs.
 
 ### 1.2 Locked V1 Decisions
 
 | Area | Decision |
 |---|---|
 | Skill supply | Official curated Skills only |
-| Tool spec download | P0 — 下载 tool spec 是用户使用 Skill 的唯一路径；spec 只含 schema + endpoint，不含执行逻辑 |
-| External AI client invocation | P0 — DeepRouter Skill API 接受来自 ChatGPT / Gemini / Claude 的 tool call，携带用户 API Key |
-| User Playground Skill execution | **移除** — 普通用户没有 Playground Skill 执行路径；Playground 保持通用聊天界面 |
+| P0-User: Native Skill Run Page | P0 — 用户在 DeepRouter 内直接运行 Skill；`/skills/:id/run`；session token 认证；`execution_entry_point=native_deeprouter` |
+| P0-Demo: ChatGPT install artifact | P0 — 下载 `chatgpt-install.json` 或复制 Import URL 安装到 Custom GPT；`execution_entry_point=external_ai_client`；install artifact 只含 schema + endpoint，不含执行逻辑或 Connection Key |
+| External AI client invocation | P0 — DeepRouter Relay 接受来自 ChatGPT 等外部 AI 客户端的 tool call，携带用户 Connection Key |
+| User Playground Skill execution | **移除** — 普通用户没有 Playground Skill 执行路径；Playground 保持通用聊天界面；Skill 执行通过 Skill Run Page（P0-User）或 ChatGPT install（P0-Demo） |
 | Execution logic download | Never — `instruction_template` and execution handlers are never exportable |
 | Multi-Skill stacking | Out of scope; zero or one active Skill per request |
 | User-created Skills | Out of scope |

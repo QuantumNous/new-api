@@ -51,7 +51,8 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `review_status` | `open`, `assigned`, `escalated`, `resolved`, `reopened` |
 | `kids_approval_status` | `not_required`, `pending`, `approved`, `emergency_approved`, `rejected`, `revoked` |
 | `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `skill_not_enabled`, `plan_required`, `subscription_inactive`, `quota_exceeded`, `kids_mode_blocked`, `context_too_long`, `rate_limited`, `timeout`, `safety_violation`, `internal_error` |
-| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `external_ai_client`, `api_direct` |
+| `execution_entry_point` | `native_deeprouter`, `external_ai_client`, `api_direct`, `admin_preview` |
+| `discovery_source` | `marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended` |
 
 ---
 
@@ -243,7 +244,10 @@ CREATE TABLE skill_usage_events (
 
   skill_id UUID NULL,
   skill_version_id UUID NULL,
-  entry_point VARCHAR(64) NOT NULL,
+  -- For execution events (skill_used, skill_blocked, skill_first_use, etc.): one of native_deeprouter / external_ai_client / api_direct / admin_preview
+  -- For discovery/impression events (skill_impression, skill_detail_view): use NULL here; store discovery_source in metadata JSONB
+  execution_entry_point VARCHAR(64) NULL
+    CHECK (execution_entry_point IS NULL OR execution_entry_point IN ('native_deeprouter', 'external_ai_client', 'api_direct', 'admin_preview')),
 
   plan VARCHAR(32) NULL,
   subscription_status VARCHAR(32) NULL,
@@ -283,8 +287,9 @@ Rules:
 - Kids Session analytics must not store a real child user identifier in `skill_usage_events.user_id`. For Kids events, persist `user_id=NULL`, set `is_kids_session=true`, and set `session_id=kids_session_pseudo_id`, where `kids_session_pseudo_id = HMAC_SHA256(user_id + tenant_id + salt_version, daily_salt)`.
 - `daily_salt` must be secret-managed, rotated at least daily, and unavailable to analytics/dashboard users. To avoid midnight funnel breaks, pseudo id generation must use the authenticated session creation time or a gateway-maintained sticky salt version for the session, not the event trigger time. The pseudonymous `session_id` is for same-session/same-salt funnel and abuse-pattern analysis only; cross-session identity stitching is disabled unless Legal/Privacy explicitly approves a different schema.
 - Any required user-level safety/audit trace must live in restricted audit/support systems, not business analytics.
-- `metadata` is allowlisted, not free-form. V1 allowed analytics metadata keys are `source_entry_point`, `repeat_index`, `surface_id`, `card_position`, `query_hash`, `filter_hash`, `schema_version`, `producer`, and `client_event_time`.
-- `metadata.source_entry_point` must use the same `entry_point` enum when present.
+- `metadata` is allowlisted, not free-form. V1 allowed analytics metadata keys are `discovery_source`, `repeat_index`, `surface_id`, `card_position`, `query_hash`, `filter_hash`, `schema_version`, `producer`, and `client_event_time`.
+- `metadata.discovery_source` must use the `discovery_source` enum values (`marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended`) when present. It records where in the UI the user came from before the event, not the execution path.
+- `execution_entry_point` must not be null for any execution event (`skill_used`, `skill_first_use`, `skill_repeat_use`, `skill_blocked`). It may be null for discovery/impression events.
 - `metadata.repeat_index` must be a positive integer when present and is required for `skill_repeat_use` until promoted to a first-class column.
 - Restricted keys such as `instruction_template`, `prompt`, `system_prompt`, `raw_messages`, `provider_payload`, `kids_raw_input`, `full_user_input`, `raw_output`, and `model_output` must be rejected or quarantined.
 
@@ -633,8 +638,9 @@ Error:
 | `/api/v1/marketplace/skills/{id}/enable` | Logged-in user |
 | `/api/v1/admin/*` | Super Admin unless route explicitly read-only |
 | `/api/v1/ops/*` | Operation/Product aggregate views |
-| `/v1/skills/execute/{skill_id}` (external AI client) | API Key bearer token (active logged-in user) |
-| `/api/v1/admin/skills/{skill_id}/preview` | Super Admin only |
+| `/v1/skills/execute/{skill_id}` — **P0-A Skill Run Page** | User session token (`Authorization: Bearer <session_token>`); `execution_entry_point=native_deeprouter`; user must be logged in; user must have enabled the Skill; quota must be available; `skill_id` from URL path only — any `skill_id` in request body is discarded |
+| `/v1/skills/execute/{skill_id}` — **P0-B External AI clients** | DeepRouter Connection Key (`Authorization: Bearer <connection_key>`); `execution_entry_point=external_ai_client`; Connection Key must map to a valid DeepRouter account; user must have enabled the Skill; quota must be available; `skill_id` from URL path only — any `skill_id` in request body is discarded |
+| `/api/v1/admin/skills/{skill_id}/preview` | Super Admin session only; `execution_entry_point=admin_preview`; must not appear in user-facing billing history; Admin Preview quota applies |
 
 ---
 

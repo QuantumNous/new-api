@@ -145,14 +145,14 @@ Help users discover official Skills and understand whether each Skill is usable 
 | Anonymous + Free Skill | Public card, no enabled state | Log in to enable |
 | Anonymous + Pro Skill | Public card with Pro badge | Log in to continue |
 | Logged-in + Free + not enabled | Available | Enable |
-| Logged-in + Free + enabled | Enabled badge | Download Tool Spec |
+| Logged-in + Free + enabled | Enabled badge | **Run**（Skill Run Page）/ Use in my ChatGPT（secondary）/ Install in other AI tools（advanced） |
 | Logged-in + Pro + Free user | Locked with Pro badge | Upgrade |
-| Logged-in + Pro + Pro user | Available | Enable or Get Tool Spec |
+| Logged-in + Pro + Pro user | Available | Enable or Use Skill |
 | Subscription expired | Locked with renewal reason | Renew |
 | Enterprise Skill + non-enterprise | Enterprise badge | Contact sales |
 | Quota exceeded | Locked state with quota message and reset time when available | Upgrade |
 | Deprecated + not enabled | Hidden from Marketplace | None |
-| Deprecated + enabled | Not in Marketplace; visible in My Skills | Get Tool Spec (deprecated) |
+| Deprecated + enabled | Not in Marketplace; visible in My Skills | Run（deprecated warning）/ Install in other AI tools（advanced） |
 | Archived | Hidden from Marketplace | None |
 | Kids Session + unsafe Skill | Hidden from discovery; direct access shows Kids blocked state | None |
 
@@ -191,7 +191,7 @@ Help users understand what the Skill does, what input it needs, what output to e
 | Example Input / Output | At least one representative example |
 | Pricing / Entitlement | Free/Pro/Enterprise, quota message when quota is enabled |
 | Safety & Privacy | Hosted execution statement, AI-generated disclosure, data note |
-| Tool Spec Download | Download tool spec (OpenAPI / MCP) and one-click install guides for ChatGPT, Gemini, Claude — visible only to enabled users |
+| Connect to AI tools |「Use in my ChatGPT」primary button + 「Install in other AI tools」advanced link; visible only to enabled users; opens Install Dialog scoped to each platform; default view shows ChatGPT tab; technical file formats (install file, API schema) shown in Advanced section only |
 | Kids Mode | Kids Safe / Kids Exclusive explanation when Kids feature flag is enabled |
 | CTA Bar | Primary and secondary actions based on CTA decision table |
 | Related Skills | P1; excludes archived/deprecated |
@@ -201,13 +201,13 @@ Help users understand what the Skill does, what input it needs, what output to e
 | User / Skill State | Primary CTA | Secondary CTA | Notes |
 |---|---|---|---|
 | Anonymous | Log in to enable | Back to Marketplace | Preserve return URL |
-| Logged-in + not enabled + allowed | Enable Skill | Back | After enable, show Download Tool Spec CTA immediately |
-| Enabled + executable | Download Tool Spec | Disable | Download shows format selector (OpenAPI / MCP) and platform install guides |
+| Logged-in + not enabled + allowed | Enable Skill | Back | After enable, show Run CTA and Use in my ChatGPT CTA immediately |
+| Enabled + executable | **Run**（Skill Run Page） | Use in my ChatGPT / Install in other AI tools | Primary: opens `/skills/:id/run`; Secondary: opens Install Dialog with ChatGPT tab; Advanced: shows full platform install options |
 | Free user + Pro Skill | Upgrade to Pro | Back | Do not enable automatically unless Product decides |
 | Expired subscription | Renew membership | Back | Skill remains in My Skills |
 | Enterprise Skill + not entitled | Contact sales | Back | No fake enable state |
 | Quota exceeded | Upgrade | Back | Show quota reset if available; may preview Pro value without implying entitlement |
-| Deprecated + enabled | Get Tool Spec (deprecated) | Disable | Show deprecation notice; warn that Skill may be removed |
+| Deprecated + enabled | Run（deprecated warning） | Disable / Install in other AI tools | Show deprecation notice; warn that Skill may be removed; Run still available for already-enabled users |
 | Deprecated + not enabled | Unavailable | Back | No enable CTA |
 | Archived | Unavailable | Back | No execution CTA |
 | Kids blocked | Not available in Kids Mode | Back | No switch-mode CTA in V1 |
@@ -245,10 +245,10 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 
 | State | UX | Actions |
 |---|---|---|
-| Enabled + executable | Normal row | Get Tool Spec, Disable |
+| Enabled + executable | Normal row | **Run**（primary）, Use in my ChatGPT（secondary）, Install in other AI tools（advanced）, Disable |
 | Enabled + plan locked | Locked badge and reason | Upgrade/Renew, Disable |
 | Enabled + quota exceeded | Quota badge with reset time if available | Upgrade, Disable |
-| Deprecated enabled | Warning badge | Get Tool Spec (deprecated), Disable |
+| Deprecated enabled | Warning badge | Run（deprecated warning）, Install in other AI tools（advanced）, Disable |
 | Archived | Unavailable badge | Remove/Disable |
 | Kids blocked | Kids unavailable badge | Disable |
 
@@ -256,7 +256,7 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 
 ```text
 No Skills enabled yet.
-Explore Marketplace to find and enable Skills, then download and install them in ChatGPT, Gemini, or Claude.
+Browse the Marketplace, enable a Skill, and run it directly here in DeepRouter — or connect it to ChatGPT to use it in your existing workflow.
 ```
 
 Primary action: `Explore Skills`.
@@ -364,11 +364,11 @@ Skill Run Page 底部固定显示：
 | 2 | 进入 Configure → 拉到底 → Actions → Create new action |
 | 3 | **Import from URL（推荐）**：复制下方 Import URL，粘贴到 Import schema 输入框，OpenAI 自动拉取最新 schema，Skill schema 更新后无需重新操作 |
 | 4 | 备选：[⬇ Download openai-action.json] → 上传文件（schema 变更需手动重新下载） |
-| 5 | Authentication → **API Key** → Bearer → 填入 DeepRouter API Key |
+| 5 | Authentication → API Key → Bearer → 填入 DeepRouter **Connection Key** |
 
-认证说明：
-- MVP：Authentication → API Key → Bearer token。OpenAI 加密保存该 Key，仅用于请求 DeepRouter；Key 不写入 schema JSON，不暴露给模型 prompt。
-- 正式版（P1）：Authentication → OAuth → Connect DeepRouter Account，用户授权后 ChatGPT 自动携带 token，无需手动填 Key。
+认证说明（用户可见文案使用非技术语言）：
+- MVP：Authentication → API Key → Bearer（此为 ChatGPT 内部选项名称，用户填入的是 DeepRouter Connection Key）。ChatGPT 加密保存该 Key，仅用于请求 DeepRouter；Connection Key 不写入安装文件，不暴露给模型 prompt。
+- 正式版（P1）：Authentication → OAuth → Connect DeepRouter Account，用户授权后 ChatGPT 自动携带 token，无需手动填 Connection Key。
 
 [📋 Copy Import URL]　　[⬇ Download openai-action.json]
 
@@ -483,6 +483,72 @@ Skill Package 安装（备选，适合无网络环境）：
 - 文件只告诉 ChatGPT"如何调用 DeepRouter"，真正的 Skill 逻辑在 DeepRouter 服务端运行。
 - Import URL 方式优先：Skill schema 更新后用户无需重新操作。
 - 未来（P1）：支持 OAuth → 用户点击「Connect DeepRouter Account」完成授权，无需手动填 Connection Key。
+
+---
+
+#### A-Demo: ChatGPT Custom GPT Demo Flow（完整演示步骤）
+
+> **目标：** 演示 DeepRouter Skill 可在外部 AI 客户端（ChatGPT）运行，同时执行逻辑（instruction_template、workflow、billing）始终保留在 DeepRouter 服务端。
+
+**为什么还需要 ChatGPT install，如果 DeepRouter 原生路径已经更快？**
+
+> **Native DeepRouter is the fastest way to run a Skill.** ChatGPT install is for users who want to keep working inside their existing ChatGPT workflow, connect the Skill to a Custom GPT they already use for other purposes, or demonstrate that DeepRouter Skills can run inside external AI clients while the protected Skill Runtime remains server-side.
+
+**演示步骤（12步完整流程）：**
+
+| 步骤 | 用户操作 | 界面文案 |
+|---|---|---|
+| 1 | 在 DeepRouter Marketplace 启用 Skill | 点击「Enable Skill」 |
+| 2 | 点击「Use in my ChatGPT」| 弹出 Install Dialog，ChatGPT Tab |
+| 3 | 下载 ChatGPT install file 或复制 Import URL | [⬇ Download ChatGPT install file]　[📋 Copy Import URL] |
+| 4 | 打开 ChatGPT → 点头像 → My GPTs | — |
+| 5 | 点击「Create GPT」或编辑已有 Custom GPT | — |
+| 6 | 进入 Configure → 拉到底 → Actions → Create new action | — |
+| 7 | 粘贴 Import URL（推荐）或上传安装文件 | ChatGPT 自动读取 Skill 配置 |
+| 8 | Authentication → API Key → Bearer | — |
+| 9 | 粘贴 DeepRouter Connection Key | [Copy Connection Key] 在 Install Dialog 底部 |
+| 10 | 点击 Save GPT | — |
+| 11 | 在 Custom GPT 中发送测试提示：**"Please review this short contract and identify the top 3 risks."** | Custom GPT 自动调用 DeepRouter Skill tool |
+| 12 | 查看 DeepRouter My Skills 面板确认连接成功 | 显示「Connection successful. Last request received just now.」 |
+
+**ChatGPT Install Troubleshooting Checklist：**
+
+如果 Custom GPT 没有调用 DeepRouter，按以下清单检查：
+
+| 检查项 | 说明 |
+|---|---|
+| ✅ 是否已下载或导入 ChatGPT install file / Import URL？ | Install Dialog → [Download ChatGPT install file] 或 [Copy Import URL] |
+| ✅ 是否在 Custom GPT 中创建了 Action（不是普通 Custom GPT 指令）？ | Custom GPT Builder → Configure → Actions → Create new action |
+| ✅ 是否设置了 Authentication？ | Action 配置页面 → Authentication 区域 |
+| ✅ 是否选择了 API Key / Bearer？ | Authentication type = API Key；Auth type = Bearer |
+| ✅ 是否粘贴了 Connection Key？ | 从 Install Dialog 底部复制 Connection Key 后粘贴 |
+| ✅ 是否保存了 Custom GPT？ | 点击 Save GPT，确认保存成功 |
+| ✅ 是否问了 Custom GPT 与 Skill 相关的问题？ | 发送与 Skill 功能匹配的提示词，例如「review this contract」|
+| ✅ DeepRouter My Skills 是否显示了最近请求记录？ | My Skills → 该 Skill → 查看 Last activity；若 10 分钟内无记录，重复以上步骤 |
+
+**Moat 说明（演示时可使用）：**
+
+Install artifacts 只包含公开 schema 和 endpoint 元数据，从不包含：
+- `instruction_template`（隐藏提示词）
+- 私有 prompt 逻辑
+- 风险评分规则
+- 内部评估逻辑
+- 模型路由逻辑
+- 配额逻辑
+- 计费逻辑
+- 用户密钥
+
+Protected server-side Skill Runtime（始终保留在 DeepRouter 服务端）包含：
+- `instruction_template`（隐藏提示词）
+- Agent workflow
+- 模型/Provider 路由
+- 结构化输出验证
+- Prompt injection 防护
+- 使用日志
+- 成本追踪
+- 计费归因
+- 版本控制
+- 审计轨迹
 
 ---
 
