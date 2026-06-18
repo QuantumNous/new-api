@@ -3,7 +3,7 @@ package middleware
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAutoGroupForRequestPath(t *testing.T) {
@@ -39,14 +39,20 @@ func TestAutoGroupForRequestPath(t *testing.T) {
 			requestPath:   "/proxy/v1/chat/completions",
 			expectedGroup: "auto",
 		},
+		{
+			name:          "ignores similar chat completions prefix",
+			usingGroup:    "auto",
+			requestPath:   "/v1/chat/completions-extra",
+			expectedGroup: "auto",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, changed := autoGroupForRequestPath(tt.usingGroup, tt.requestPath)
 
-			require.Equal(t, tt.expectedGroup, got)
-			require.Equal(t, tt.expectedChanged, changed)
+			assert.Equal(t, tt.expectedGroup, got)
+			assert.Equal(t, tt.expectedChanged, changed)
 		})
 	}
 }

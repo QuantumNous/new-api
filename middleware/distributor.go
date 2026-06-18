@@ -176,7 +176,7 @@ func autoGroupForRequestPath(usingGroup string, requestPath string) (string, boo
 	if usingGroup != "auto" {
 		return usingGroup, false
 	}
-	if strings.HasPrefix(requestPath, "/v1/chat/completions") {
+	if requestPath == "/v1/chat/completions" || strings.HasPrefix(requestPath, "/v1/chat/completions/") {
 		return "codex-completions", true
 	}
 	return usingGroup, false
