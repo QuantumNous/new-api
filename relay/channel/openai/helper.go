@@ -21,6 +21,9 @@ import (
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 
+	// image-aware 路由提示：在首个含内容的 delta 前置提示文本（覆盖 OpenAI/Claude/Gemini 客户端格式）
+	data = injectRouteHintIfNeeded(c, info, data)
+
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		return sendStreamData(c, info, data, forceFormat, thinkToContent)
@@ -30,6 +33,39 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 		return handleGeminiFormat(c, data, info)
 	}
 	return nil
+}
+
+// injectRouteHintIfNeeded 在首个含文本内容的 stream chunk 前置路由提示。
+// 仅注入一次（info.RouteHintInjected）。返回（可能改写过的）data 字符串。
+func injectRouteHintIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, data string) string {
+	if info.RouteHintInjected || data == "" {
+		return data
+	}
+	hint := helper.RouteHint(c, info)
+	if hint == "" {
+		return data
+	}
+	var streamResponse dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+		return data
+	}
+	injected := false
+	for i := range streamResponse.Choices {
+		content := streamResponse.Choices[i].Delta.GetContentString()
+		if content != "" {
+			streamResponse.Choices[i].Delta.SetContentString(hint + content)
+			injected = true
+			break
+		}
+	}
+	if !injected {
+		return data
+	}
+	info.RouteHintInjected = true
+	if newData, err := common.Marshal(streamResponse); err == nil {
+		return string(newData)
+	}
+	return data
 }
 
 func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {

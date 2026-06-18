@@ -42,6 +42,14 @@ export const apiKeySchema = z.object({
     }, z.boolean())
     .optional()
     .default(false),
+  model_route_notify: z
+    .preprocess((v) => {
+      if (v === 1) return true
+      if (v === 0) return false
+      return v
+    }, z.boolean())
+    .optional()
+    .default(true),
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
@@ -92,6 +100,7 @@ export interface ApiKeyFormData {
   allow_ips: string
   group: string
   cross_group_retry: boolean
+  model_route_notify: boolean
 }
 
 // ============================================================================

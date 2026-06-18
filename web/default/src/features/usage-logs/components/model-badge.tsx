@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Route } from 'lucide-react'
+import { Camera, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,7 @@ import { StatusBadge } from '@/components/status-badge'
 interface ModelBadgeProps {
   modelName: string
   actualModel?: string
+  imageAwareEntryModel?: string
   className?: string
 }
 
@@ -125,7 +126,9 @@ function ModelBadgeContent(props: ModelBadgeProps) {
 export function ModelBadge(props: ModelBadgeProps) {
   const { t } = useTranslation()
 
-  if (!props.actualModel) {
+  const hasRouteInfo = props.actualModel || props.imageAwareEntryModel
+
+  if (!hasRouteInfo) {
     return <ModelBadgeContent {...props} />
   }
 
@@ -137,10 +140,25 @@ export function ModelBadge(props: ModelBadgeProps) {
         }
       >
         <ModelBadgeContent {...props} />
-        <Route className='text-muted-foreground size-3 shrink-0' />
+        {props.imageAwareEntryModel ? (
+          <Camera className='text-muted-foreground size-3 shrink-0' />
+        ) : (
+          <Route className='text-muted-foreground size-3 shrink-0' />
+        )}
       </PopoverTrigger>
       <PopoverContent className='w-72'>
         <div className='space-y-2'>
+          {props.imageAwareEntryModel && (
+            <div className='flex items-start justify-between gap-3'>
+              <span className='text-muted-foreground flex items-center gap-1 text-xs'>
+                <Camera className='size-3' />
+                {t('Entry Model:')}
+              </span>
+              <span className='truncate font-mono text-xs font-medium'>
+                {props.imageAwareEntryModel}
+              </span>
+            </div>
+          )}
           <div className='flex items-start justify-between gap-3'>
             <span className='text-muted-foreground text-xs'>
               {t('Request Model:')}
@@ -149,14 +167,16 @@ export function ModelBadge(props: ModelBadgeProps) {
               {props.modelName}
             </span>
           </div>
-          <div className='flex items-start justify-between gap-3'>
-            <span className='text-muted-foreground text-xs'>
-              {t('Actual Model:')}
-            </span>
-            <span className='truncate font-mono text-xs font-medium'>
-              {props.actualModel}
-            </span>
-          </div>
+          {props.actualModel && (
+            <div className='flex items-start justify-between gap-3'>
+              <span className='text-muted-foreground text-xs'>
+                {t('Actual Model:')}
+              </span>
+              <span className='truncate font-mono text-xs font-medium'>
+                {props.actualModel}
+              </span>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

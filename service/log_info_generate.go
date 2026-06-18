@@ -52,6 +52,11 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		other["upstream_model_name"] = relayInfo.UpstreamModelName
 	}
 
+	// image-aware 路由：记录被改写前的虚拟入口模型名
+	if entryModel := common.GetContextKeyString(ctx, constant.ContextKeyImageAwareEntryModel); entryModel != "" {
+		other["image_aware_entry_model"] = entryModel
+	}
+
 	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)
 	if isSystemPromptOverwritten {
 		other["is_system_prompt_overwritten"] = true

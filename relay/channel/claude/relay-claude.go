@@ -584,12 +584,13 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId        string
+	Created           int64
+	Model             string
+	ResponseText      strings.Builder
+	Usage             *dto.Usage
+	Done              bool
+	RouteHintInjected bool // image-aware 路由提示是否已注入
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -816,6 +817,22 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
 		}
+		// image-aware 路由提示：在首个文本 delta 前注入一个提示 delta（Claude 客户端格式）
+		if !claudeInfo.RouteHintInjected && claudeResponse.Type == "content_block_delta" &&
+			claudeResponse.Delta != nil && claudeResponse.Delta.Type == "text_delta" {
+			if hint := helper.RouteHint(c, info); hint != "" {
+				hintText := hint
+				hintResp := &dto.ClaudeResponse{
+					Type:  "content_block_delta",
+					Index: claudeResponse.Index,
+					Delta: &dto.ClaudeMediaMessage{Type: "text_delta", Text: &hintText},
+				}
+				if hintData, mErr := common.Marshal(hintResp); mErr == nil {
+					helper.ClaudeChunkData(c, *hintResp, string(hintData))
+				}
+				claudeInfo.RouteHintInjected = true
+			}
+		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		response := StreamResponseClaude2OpenAI(&claudeResponse)
@@ -879,6 +896,24 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		Usage:        &dto.Usage{},
 	}
 	var err *types.NewAPIError
+	// image-aware 路由提示：当客户端是 OpenAI 格式时，在响应流之前注入一个 OpenAI 提示 chunk
+	if info.RelayFormat == types.RelayFormatOpenAI {
+		if hint := helper.RouteHint(c, info); hint != "" {
+			hintChunk := &dto.ChatCompletionsStreamResponse{
+				Id:      c.GetString("request_id"),
+				Object:  "chat.completion.chunk",
+				Created: common.GetTimestamp(),
+				Model:   info.UpstreamModelName,
+				Choices: []dto.ChatCompletionsStreamResponseChoice{
+					{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Role: "assistant"}},
+				},
+			}
+			hintChunk.Choices[0].Delta.SetContentString(hint)
+			if e := helper.ObjectData(c, hintChunk); e != nil {
+				logger.LogError(c, "send route hint chunk failed: "+e.Error())
+			}
+		}
+	}
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		err = HandleStreamResponseData(c, info, claudeInfo, data)
 		if err != nil {
@@ -917,16 +952,32 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
 	}
 	var responseData []byte
+	hint := helper.RouteHint(c, info)
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
 		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		// image-aware 路由提示（非流式，OpenAI 客户端格式）
+		if hint != "" && len(openaiResponse.Choices) > 0 && openaiResponse.Choices[0].Message.IsStringContent() {
+			msg := &openaiResponse.Choices[0].Message
+			msg.SetStringContent(hint + msg.StringContent())
+		}
 		responseData, err = json.Marshal(openaiResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		responseData = data
+		// image-aware 路由提示（非流式，Claude 客户端格式）：前置拼到首个 text content block
+		if hint != "" && len(claudeResponse.Content) > 0 && claudeResponse.Content[0].Type == "text" && claudeResponse.Content[0].Text != nil {
+			prepended := hint + *claudeResponse.Content[0].Text
+			claudeResponse.Content[0].Text = &prepended
+			responseData, err = common.Marshal(claudeResponse)
+			if err != nil {
+				responseData = data
+			}
+		} else {
+			responseData = data
+		}
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
