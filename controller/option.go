@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,6 +36,10 @@ func isPaymentComplianceOptionKey(key string) bool {
 
 func isDistributionOptionKey(key string) bool {
 	return strings.HasPrefix(key, operation_setting.DistributionSettingName+".")
+}
+
+func isCdkToolOptionKey(key string) bool {
+	return strings.HasPrefix(key, operation_setting.CdkToolSettingName+".")
 }
 
 func isPositiveOptionValue(value string) bool {
@@ -77,6 +82,81 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 		return "{}"
 	}
 	return string(jsonBytes)
+}
+
+func validateCdkToolServiceUser(userId int) (*model.User, error) {
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		return nil, errors.New("CDK 工具专用账户不存在")
+	}
+	if user.Status != common.UserStatusEnabled {
+		return nil, errors.New("CDK 工具专用账户已被禁用")
+	}
+	return user, nil
+}
+
+func buildCdkToolSettingCandidate(key string, value string) (operation_setting.CdkToolSetting, error) {
+	value = strings.TrimSpace(value)
+	currentSetting := *operation_setting.GetCdkToolSetting()
+
+	switch key {
+	case operation_setting.CdkToolSettingName + ".enabled":
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return currentSetting, errors.New("CDK 助手启用状态无效")
+		}
+		currentSetting.Enabled = enabled
+	case operation_setting.CdkToolSettingName + ".service_user_id":
+		userId, err := strconv.Atoi(value)
+		if err != nil || userId < 0 {
+			return currentSetting, errors.New("CDK 工具专用账户 ID 无效")
+		}
+		currentSetting.ServiceUserId = userId
+	case operation_setting.CdkToolSettingName + ".token_group":
+		currentSetting.TokenGroup = value
+	case operation_setting.CdkToolSettingName + ".token_name_prefix":
+		currentSetting.TokenNamePrefix = value
+	}
+
+	currentSetting.TokenGroup = strings.TrimSpace(currentSetting.TokenGroup)
+	currentSetting.TokenNamePrefix = strings.TrimSpace(currentSetting.TokenNamePrefix)
+	return currentSetting, nil
+}
+
+func validateCdkToolSettingCandidate(setting operation_setting.CdkToolSetting) error {
+	if setting.TokenNamePrefix == "" {
+		return errors.New("CDK 工具密钥名称前缀不能为空")
+	}
+	if len([]rune(setting.TokenNamePrefix)) > 64 {
+		return errors.New("CDK 工具密钥名称前缀不能超过 64 个字符")
+	}
+	if setting.TokenGroup != "" && setting.TokenGroup != "auto" && !ratio_setting.ContainsGroupRatio(setting.TokenGroup) {
+		return fmt.Errorf("CDK 工具密钥分组不存在: %s", setting.TokenGroup)
+	}
+	if setting.ServiceUserId == 0 {
+		if setting.Enabled {
+			return errors.New("启用 CDK 助手前请先配置专用账户")
+		}
+		return nil
+	}
+
+	user, err := validateCdkToolServiceUser(setting.ServiceUserId)
+	if err != nil {
+		return err
+	}
+	if setting.Enabled && setting.TokenGroup != "" && !model.CdkToolTokenGroupAllowed(user.Group, setting.TokenGroup) {
+		return fmt.Errorf("CDK 工具专用账户无权使用 %s 分组", setting.TokenGroup)
+	}
+
+	return nil
+}
+
+func validateCdkToolOptionUpdate(key string, value string) error {
+	candidate, err := buildCdkToolSettingCandidate(key, value)
+	if err != nil {
+		return err
+	}
+	return validateCdkToolSettingCandidate(candidate)
 }
 
 func GetOptions(c *gin.Context) {
@@ -154,6 +234,12 @@ func UpdateOption(c *gin.Context) {
 		}
 		if isDistributionOptionKey(option.Key) {
 			if err := operation_setting.ValidateDistributionOptionUpdate(option.Key, option.Value.(string)); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+		if isCdkToolOptionKey(option.Key) {
+			if err := validateCdkToolOptionUpdate(option.Key, option.Value.(string)); err != nil {
 				common.ApiError(c, err)
 				return
 			}

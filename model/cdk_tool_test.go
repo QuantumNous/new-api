@@ -123,6 +123,28 @@ func TestRedeemCdkToolCodeCreatesLimitedTokenAndIsIdempotent(t *testing.T) {
 	assert.Equal(t, quota, serviceUser.Quota)
 }
 
+func TestRedeemCdkToolCodeAllowsAutoTokenGroup(t *testing.T) {
+	truncateTables(t)
+	serviceUserId := 7101
+	withCdkToolSetting(t, operation_setting.CdkToolSetting{
+		Enabled:         true,
+		ServiceUserId:   serviceUserId,
+		TokenGroup:      "auto",
+		TokenNamePrefix: "cdk-tool",
+	})
+	insertCdkToolUser(t, serviceUserId, "cdk_service_auto", 0)
+	insertCdkToolRedemption(t, "cdk-auto-group", 100)
+
+	result, err := RedeemCdkToolCode("cdk-auto-group")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "auto", result.TokenGroup)
+
+	var token Token
+	require.NoError(t, DB.First(&token, result.TokenId).Error)
+	assert.Equal(t, "auto", token.Group)
+}
+
 func TestRedeemCdkToolCodeRequiresEnabledSetting(t *testing.T) {
 	truncateTables(t)
 	withCdkToolSetting(t, operation_setting.CdkToolSetting{
