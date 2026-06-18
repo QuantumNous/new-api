@@ -115,4 +115,4 @@ curl https://your-newapi-host/v1/chat/completions \
 
 - **计费**按实际使用的真实模型（`gpt-4o` 或 `claude-sonnet-4`）计算，不按虚拟入口名
 - **日志**中显示的模型名为真实模型名
-- 如需在日志中追溯入口名，可查看 context 中的 `image_aware_entry_model` 字段（当前版本仅在内部记录，未在日志页面显示）
+- 如需在日志中追溯入口名：用量日志的 Model 列会显示入口模型（含相机图标与入口名 Popover），同时 `image_aware_entry_model` 仍会记录在上下文元数据中

@@ -77,8 +77,7 @@ func Distribute() func(c *gin.Context) {
 			}
 
 			if shouldSelectChannel {
-				// image-aware 模型路由：若为配置好的虚拟入口模型，按最后一条 user
-				// 消息是否含图片改写为视觉/编程模型。需在选渠道之前完成。
+				// image-aware：虚拟入口模型按最后一条 user 消息是否含图片改写为视觉/编程模型，须在选渠道之前完成。
 				ApplyImageAwareRouting(c, modelRequest)
 				if modelRequest.Model == "" {
 					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))

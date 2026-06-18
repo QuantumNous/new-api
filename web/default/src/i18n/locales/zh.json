@@ -2479,7 +2479,6 @@
     "Model mapping values must be strings": "模型映射的值必须是字符串",
     "Model Route Notify": "模型路由提示",
     "Show a hint in the response when the request is auto-routed to a different model.": "当请求被自动路由到其他模型时，在响应中显示一条提示。",
-    "Model {{model}}": "模型 {{model}}",
     "Model name": "模型名称",
     "Model Name": "模型名称",
     "Model Name *": "模型名称 *",

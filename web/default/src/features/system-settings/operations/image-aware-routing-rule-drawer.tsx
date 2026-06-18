@@ -65,7 +65,7 @@ type ImageAwareRoutingRuleDrawerProps = {
   onOpenChange: (open: boolean) => void
   mode: 'add' | 'edit'
   initialValues?: ImageAwareRouteRuleForm | null
-  onSave: (rule: ImageAwareRouteRuleForm) => void
+  onSave: (rule: ImageAwareRouteRuleForm) => Promise<void> | void
 }
 
 export function ImageAwareRoutingRuleDrawer({
@@ -104,13 +104,13 @@ export function ImageAwareRoutingRuleDrawer({
     }
   }, [open, initialValues, form])
 
-  const handleSubmit = (values: ImageAwareRouteRuleForm) => {
+  const handleSubmit = async (values: ImageAwareRouteRuleForm) => {
     const trimmed = {
       entryModel: values.entryModel.trim(),
       visionModel: values.visionModel.trim(),
       codingModel: values.codingModel.trim(),
     }
-    onSave(trimmed)
+    await onSave(trimmed)
     onOpenChange(false)
   }
 

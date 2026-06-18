@@ -32,14 +32,14 @@
 ## 📸 运行证明 / Proof of Work
 
 带图请求被正确路由到视觉模型，纯文本请求回到编程模型（`record consume log` 的 `model_name` 字段）：
-```
+```text
 model_name=glm-4.6v  prompt_tokens=41355  image_aware_entry_model=auto-coder   // 含图 → 视觉模型
 model_name=glm-5     prompt_tokens=79     image_aware_entry_model=auto-coder   // 纯文本 → 编程模型
 model_name=glm-5     prompt_tokens=41188  image_aware_entry_model=auto-coder   // 后续纯文本轮，仍回编程模型
 ```
 
 路由决策日志（distributor，每请求一次，不刷屏）：
-```
+```text
 image_aware_routing: entry=auto-coder has_image=true -> routed=glm-4.6v notify=true
 ```
 

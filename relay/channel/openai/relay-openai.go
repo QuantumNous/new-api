@@ -122,9 +122,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
-	// 注：image-aware 路由提示由 HandleStreamFormat 在首个含内容的 delta 前置注入，
-	// 覆盖 OpenAI/Claude/Gemini 客户端格式，无需在此单独发送 chunk。
-
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
@@ -254,7 +251,6 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
-	// image-aware 路由提示（非流式，OpenAI 客户端格式）：前置拼到首条 message content
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		if hint := helper.RouteHint(c, info); hint != "" && len(simpleResponse.Choices) > 0 {
 			message := &simpleResponse.Choices[0].Message

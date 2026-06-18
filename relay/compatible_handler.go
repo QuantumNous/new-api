@@ -193,12 +193,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
-	// image-aware 路由标识头：在 DoResponse 写响应体前设置，流式和非流式均有效。
-	// 通知客户端本次请求被路由到了哪个真实模型及原因。
 	if entryModel := common.GetContextKeyString(c, constant.ContextKeyImageAwareEntryModel); entryModel != "" {
+		reason := "no_image"
+		if common.GetContextKeyBool(c, constant.ContextKeyImageAwareHasImage) {
+			reason = "image_detected"
+		}
 		c.Header("X-Routed-Model", info.OriginModelName)
 		c.Header("X-Route-Entry-Model", entryModel)
-		c.Header("X-Route-Reason", "image_detected")
+		c.Header("X-Route-Reason", reason)
 	}
 
 	if resp != nil {

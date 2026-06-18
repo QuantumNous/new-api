@@ -21,7 +21,6 @@ import (
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 
-	// image-aware 路由提示：在首个含内容的 delta 前置提示文本（覆盖 OpenAI/Claude/Gemini 客户端格式）
 	data = injectRouteHintIfNeeded(c, info, data)
 
 	switch info.RelayFormat {
@@ -35,8 +34,7 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 	return nil
 }
 
-// injectRouteHintIfNeeded 在首个含文本内容的 stream chunk 前置路由提示。
-// 仅注入一次（info.RouteHintInjected）。返回（可能改写过的）data 字符串。
+// injectRouteHintIfNeeded 在首个含文本内容的 stream chunk 前置路由提示，仅注入一次。
 func injectRouteHintIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, data string) string {
 	if info.RouteHintInjected || data == "" {
 		return data

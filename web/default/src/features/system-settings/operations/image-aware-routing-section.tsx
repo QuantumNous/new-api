@@ -57,6 +57,7 @@ function parseRules(json: string): RouteRule[] {
   } catch {
     // ignore parse errors, fall back to empty list
   }
+
   return []
 }
 
@@ -107,10 +108,12 @@ export function ImageAwareRoutingSection({
   }
 
   const handleDelete = async (entryModel: string) => {
+    if (updateOption.isPending) return
     await persist(rules.filter((rule) => rule.entryModel !== entryModel))
   }
 
   const handleSave = async (rule: RouteRule) => {
+    if (updateOption.isPending) return
     if (drawerMode === 'edit' && editingRule) {
       const nextRules = rules.map((existing) =>
         existing.entryModel === editingRule.entryModel ? rule : existing
@@ -178,6 +181,7 @@ export function ImageAwareRoutingSection({
                           size='icon'
                           onClick={() => handleEdit(rule)}
                           title={t('Edit')}
+                          disabled={updateOption.isPending}
                         >
                           <Pencil className='size-4' />
                         </Button>
@@ -186,6 +190,7 @@ export function ImageAwareRoutingSection({
                           size='icon'
                           onClick={() => handleDelete(rule.entryModel)}
                           title={t('Delete')}
+                          disabled={updateOption.isPending}
                         >
                           <Trash2 className='size-4' />
                         </Button>

@@ -2479,7 +2479,6 @@
     "Model mapping values must be strings": "Model mapping values must be strings",
     "Model Route Notify": "Model Route Notify",
     "Show a hint in the response when the request is auto-routed to a different model.": "Show a hint in the response when the request is auto-routed to a different model.",
-    "Model {{model}}": "Model {{model}}",
     "Model name": "Model name",
     "Model Name": "Model Name",
     "Model Name *": "Model Name *",
