@@ -89,16 +89,16 @@ export function useSidebarData(): SidebarData {
             icon: FileText,
           },
           {
-            title: t('Channel Status'),
-            url: '/channel-status',
-            icon: Activity,
-          },
-          {
             title: t('Task Logs'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
+          },
+          {
+            title: t('Channel Status'),
+            url: '/channel-status',
+            icon: Activity,
           },
         ],
       },

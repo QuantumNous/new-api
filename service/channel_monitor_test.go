@@ -165,6 +165,7 @@ func TestChannelMonitorAggregationWithSQLite(t *testing.T) {
 		PrimaryModel:    "gpt-primary",
 		ExtraModels:     "[]",
 		Enabled:         true,
+		UserVisible:     boolPtr(true),
 		IntervalSeconds: 60,
 		CreatedBy:       1,
 	}
@@ -198,24 +199,219 @@ func TestChannelMonitorAggregationWithSQLite(t *testing.T) {
 	require.InDelta(t, 50.0, byModel["gpt-primary"].AvailabilityPct, 0.1)
 }
 
-func TestChannelMonitorRunnerScheduleAndInFlightGuards(t *testing.T) {
+func TestChannelMonitorSummaryUsesAvailabilityHealth(t *testing.T) {
+	setupChannelMonitorServiceTestDB(t)
+	now := time.Now().UTC()
+	monitor := createChannelMonitorTestRecord(t, "availability-health", true, true)
+
+	rows := make([]model.ChannelMonitorHistory, 0, 6)
+	for i := 1; i <= 5; i++ {
+		rows = append(rows, model.ChannelMonitorHistory{
+			MonitorID: monitor.Id,
+			Model:     monitor.PrimaryModel,
+			Status:    MonitorStatusOperational,
+			CheckedAt: now.Add(time.Duration(-i) * time.Hour),
+		})
+	}
+	rows = append(rows, model.ChannelMonitorHistory{
+		MonitorID: monitor.Id,
+		Model:     monitor.PrimaryModel,
+		Status:    MonitorStatusFailed,
+		CheckedAt: now.Add(-1 * time.Minute),
+	})
+	require.NoError(t, model.DB.Create(&rows).Error)
+
+	summaries := BatchChannelMonitorStatusSummary(context.Background(), []*model.ChannelMonitor{&monitor})
+	summary := summaries[monitor.Id]
+
+	require.InDelta(t, 83.33, summary.Availability7d, 0.1)
+	require.Equal(t, MonitorStatusOperational, summary.PrimaryStatus)
+}
+
+func TestChannelMonitorSummaryDegradesWhenAvailabilityIsLow(t *testing.T) {
+	setupChannelMonitorServiceTestDB(t)
+	now := time.Now().UTC()
+	monitor := createChannelMonitorTestRecord(t, "availability-low", true, true)
+
+	require.NoError(t, model.DB.Create(&[]model.ChannelMonitorHistory{
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusOperational, CheckedAt: now.Add(-2 * time.Hour)},
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusFailed, CheckedAt: now.Add(-1 * time.Hour)},
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusFailed, CheckedAt: now.Add(-1 * time.Minute)},
+	}).Error)
+
+	summaries := BatchChannelMonitorStatusSummary(context.Background(), []*model.ChannelMonitor{&monitor})
+	summary := summaries[monitor.Id]
+
+	require.InDelta(t, 33.33, summary.Availability7d, 0.1)
+	require.Equal(t, MonitorStatusDegraded, summary.PrimaryStatus)
+}
+
+func TestChannelMonitorDetailUsesAvailabilityHealth(t *testing.T) {
+	setupChannelMonitorServiceTestDB(t)
+	now := time.Now().UTC()
+	monitor := createChannelMonitorTestRecord(t, "detail-health", true, true)
+	latestLatency := 30005
+
+	require.NoError(t, model.DB.Create(&[]model.ChannelMonitorHistory{
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusOperational, CheckedAt: now.Add(-3 * time.Hour)},
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusOperational, CheckedAt: now.Add(-2 * time.Hour)},
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusOperational, CheckedAt: now.Add(-1 * time.Hour)},
+		{MonitorID: monitor.Id, Model: monitor.PrimaryModel, Status: MonitorStatusError, LatencyMs: &latestLatency, CheckedAt: now.Add(-1 * time.Minute)},
+	}).Error)
+
+	detail, err := GetUserChannelMonitorDetail(context.Background(), monitor.Id, true)
+	require.NoError(t, err)
+	require.Len(t, detail.Models, 1)
+	require.InDelta(t, 75.0, detail.Models[0].Availability7d, 0.1)
+	require.Equal(t, MonitorStatusDegraded, detail.Models[0].LatestStatus)
+	require.Equal(t, 30005, *detail.Models[0].LatestLatencyMs)
+}
+
+func TestChannelMonitorUserVisibilityFilteringWithSQLite(t *testing.T) {
+	setupChannelMonitorServiceTestDB(t)
+	visible := createChannelMonitorTestRecord(t, "visible", true, true)
+	hidden := createChannelMonitorTestRecord(t, "hidden", true, false)
+	disabled := createChannelMonitorTestRecord(t, "disabled", false, true)
+
+	enabled, err := model.ListEnabledChannelMonitors()
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{visible.Id, hidden.Id}, channelMonitorIDs(enabled))
+
+	userVisible, err := model.ListUserVisibleChannelMonitors()
+	require.NoError(t, err)
+	require.Equal(t, []int64{visible.Id}, channelMonitorIDs(userVisible))
+
+	views, err := ListUserChannelMonitorViews(context.Background(), false)
+	require.NoError(t, err)
+	require.Len(t, views, 1)
+	require.Equal(t, visible.Id, views[0].ID)
+	require.False(t, views[0].AdminOnly)
+
+	adminViews, err := ListUserChannelMonitorViews(context.Background(), true)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{visible.Id, hidden.Id}, userMonitorViewIDs(adminViews))
+	visibleView := userMonitorViewByID(adminViews, visible.Id)
+	require.NotNil(t, visibleView)
+	require.False(t, visibleView.AdminOnly)
+	hiddenView := userMonitorViewByID(adminViews, hidden.Id)
+	require.NotNil(t, hiddenView)
+	require.True(t, hiddenView.AdminOnly)
+
+	_, err = GetUserChannelMonitorDetail(context.Background(), hidden.Id, false)
+	require.ErrorIs(t, err, ErrChannelMonitorNotFound)
+	adminDetail, err := GetUserChannelMonitorDetail(context.Background(), hidden.Id, true)
+	require.NoError(t, err)
+	require.True(t, adminDetail.AdminOnly)
+	_, err = GetUserChannelMonitorDetail(context.Background(), disabled.Id, true)
+	require.ErrorIs(t, err, ErrChannelMonitorNotFound)
+}
+
+func TestChannelMonitorRunnerScheduleImmediateFire(t *testing.T) {
 	runner := newChannelMonitorRunner()
-	disabled := &model.ChannelMonitor{Id: 1, Enabled: false, IntervalSeconds: 15}
-	runner.Schedule(disabled)
-	require.Empty(t, runner.entries)
+	calls := make(chan int64, 4)
+	runner.checkFunc = func(_ context.Context, id int64) ([]*CheckResult, error) {
+		calls <- id
+		return nil, nil
+	}
+	runner.reloadFunc = nil
 
 	enabled := &model.ChannelMonitor{Id: 1, Enabled: true, IntervalSeconds: 15}
 	runner.Schedule(enabled)
-	require.Len(t, runner.entries, 1)
-	t.Cleanup(func() {
-		runner.Unschedule(1)
-	})
+	t.Cleanup(runner.Stop)
+
+	require.Eventually(t, func() bool {
+		return channelMonitorRunnerTaskCount(runner) == 1
+	}, time.Second, 10*time.Millisecond)
+
+	select {
+	case id := <-calls:
+		require.EqualValues(t, 1, id)
+	case <-time.After(time.Second):
+		t.Fatal("expected immediate channel monitor check")
+	}
+}
+
+func TestChannelMonitorRunnerScheduleReplaceAndUnschedule(t *testing.T) {
+	runner := newChannelMonitorRunner()
+	runner.checkFunc = func(_ context.Context, _ int64) ([]*CheckResult, error) {
+		return nil, nil
+	}
+	runner.reloadFunc = nil
+	t.Cleanup(runner.Stop)
+
+	disabled := &model.ChannelMonitor{Id: 1, Enabled: false, IntervalSeconds: 15}
+	runner.Schedule(disabled)
+	require.Empty(t, channelMonitorRunnerTaskCount(runner))
+
+	enabled := &model.ChannelMonitor{Id: 1, Enabled: true, IntervalSeconds: 15}
+	runner.Schedule(enabled)
+	require.Eventually(t, func() bool {
+		return channelMonitorRunnerTaskCount(runner) == 1
+	}, time.Second, 10*time.Millisecond)
+	first := channelMonitorRunnerTask(runner, 1)
+	require.NotNil(t, first)
+
+	runner.Schedule(enabled)
+	second := channelMonitorRunnerTask(runner, 1)
+	require.NotNil(t, second)
+	require.NotSame(t, first, second)
+
+	runner.Unschedule(1)
+	require.Eventually(t, func() bool {
+		return channelMonitorRunnerTaskCount(runner) == 0
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestChannelMonitorRunnerStopCancelsInFlightCheck(t *testing.T) {
+	runner := newChannelMonitorRunner()
+	started := make(chan struct{}, 1)
+	runner.checkFunc = func(ctx context.Context, _ int64) ([]*CheckResult, error) {
+		started <- struct{}{}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	runner.reloadFunc = nil
+
+	runner.Schedule(&model.ChannelMonitor{Id: 1, Enabled: true, IntervalSeconds: 15})
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected immediate channel monitor check")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		runner.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected Stop to cancel in-flight channel monitor check")
+	}
+}
+
+func TestChannelMonitorRunnerInFlightGuards(t *testing.T) {
+	runner := newChannelMonitorRunner()
+	t.Cleanup(runner.Stop)
 
 	require.True(t, runner.tryEnter(1))
 	require.False(t, runner.tryEnter(1))
 	runner.leave(1)
 	require.True(t, runner.tryEnter(1))
 	runner.leave(1)
+}
+
+func channelMonitorRunnerTaskCount(runner *channelMonitorRunner) int {
+	runner.mu.Lock()
+	defer runner.mu.Unlock()
+	return len(runner.tasks)
+}
+
+func channelMonitorRunnerTask(runner *channelMonitorRunner, id int64) *channelMonitorTask {
+	runner.mu.Lock()
+	defer runner.mu.Unlock()
+	return runner.tasks[id]
 }
 
 type channelMonitorTestResponder func(r *http.Request, answer string) (status int, body string)
@@ -279,4 +475,54 @@ func setupChannelMonitorServiceTestDB(t *testing.T) {
 			_ = sqlDB.Close()
 		}
 	})
+}
+
+func createChannelMonitorTestRecord(t *testing.T, name string, enabled bool, userVisible bool) model.ChannelMonitor {
+	t.Helper()
+	monitor := model.ChannelMonitor{
+		Name:            name,
+		Provider:        MonitorProviderOpenAI,
+		APIMode:         MonitorAPIModeChatCompletions,
+		Endpoint:        "https://api.example.com",
+		APIKeyEncrypted: "encrypted",
+		PrimaryModel:    "gpt-primary",
+		ExtraModels:     "[]",
+		Enabled:         enabled,
+		UserVisible:     boolPtr(userVisible),
+		IntervalSeconds: 60,
+		CreatedBy:       1,
+	}
+	require.NoError(t, model.DB.Create(&monitor).Error)
+	if !enabled {
+		require.NoError(t, model.DB.Model(&monitor).Update("enabled", false).Error)
+		monitor.Enabled = false
+	}
+	require.NotNil(t, monitor.UserVisible)
+	require.Equal(t, userVisible, *monitor.UserVisible)
+	return monitor
+}
+
+func channelMonitorIDs(items []*model.ChannelMonitor) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.Id)
+	}
+	return ids
+}
+
+func userMonitorViewIDs(items []*UserMonitorView) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids
+}
+
+func userMonitorViewByID(items []*UserMonitorView, id int64) *UserMonitorView {
+	for _, item := range items {
+		if item.ID == id {
+			return item
+		}
+	}
+	return nil
 }

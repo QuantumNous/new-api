@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import i18next from 'i18next'
 import {
@@ -26,6 +32,7 @@ import {
   PauseCircle,
   Radio,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -46,6 +53,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -349,9 +357,8 @@ function MonitorStatusCard({
   onOpenDetail: () => void
 }) {
   const { t } = useTranslation()
-  const availability = formatAvailabilityParts(
-    getMonitorAvailability(monitor, availabilityWindow)
-  )
+  const availabilityValue = getMonitorAvailability(monitor, availabilityWindow)
+  const availability = formatAvailabilityParts(availabilityValue)
   const refreshLabel = autoRefresh
     ? t('Refreshes in {{seconds}}s', {
         seconds: secondsUntilRefresh,
@@ -377,9 +384,20 @@ function MonitorStatusCard({
           <div className='flex min-w-0 items-center gap-3'>
             <ProviderAvatar provider={monitor.provider} />
             <div className='min-w-0'>
-              <CardTitle className='truncate text-base'>
-                {monitor.name}
-              </CardTitle>
+              <div className='flex min-w-0 items-center gap-2'>
+                <CardTitle className='truncate text-base'>
+                  {monitor.name}
+                </CardTitle>
+                {monitor.admin_only && (
+                  <Badge
+                    variant='secondary'
+                    className='shrink-0 rounded-md px-1.5 text-[10px]'
+                  >
+                    <ShieldAlert data-icon='inline-start' />
+                    {t('Admin only')}
+                  </Badge>
+                )}
+              </div>
               <CardDescription className='mt-1 flex min-w-0 items-center gap-1.5'>
                 <Badge
                   variant='secondary'
@@ -419,10 +437,8 @@ function MonitorStatusCard({
             {t(getAvailabilityWindowLabel(availabilityWindow))}
           </span>
           <div
-            className={cn(
-              'flex items-baseline gap-1 text-3xl font-semibold tabular-nums',
-              statusTextClassName(monitor.primary_status)
-            )}
+            className='flex items-baseline gap-1 text-3xl font-semibold tabular-nums'
+            style={availabilityColorStyle(availabilityValue)}
           >
             <span>{availability.value}</span>
             {availability.unit && (
@@ -631,18 +647,10 @@ function statusPillClassName(status: string) {
   }
 }
 
-function statusTextClassName(status: string) {
-  switch (status) {
-    case 'operational':
-      return 'text-success'
-    case 'degraded':
-      return 'text-warning'
-    case 'failed':
-    case 'error':
-      return 'text-destructive'
-    default:
-      return 'text-muted-foreground'
-  }
+function availabilityColorStyle(value?: number | null): CSSProperties {
+  if (value == null || Number.isNaN(value)) return {}
+  const clamped = Math.max(0, Math.min(100, value))
+  return { color: `hsl(${clamped * 1.2} 72% 42%)` }
 }
 
 function MonitorDetailDialog({
@@ -678,6 +686,11 @@ function MonitorDetailDialog({
           <DialogTitle className='truncate text-lg font-semibold'>
             {data?.monitor.name ?? t('Monitor Detail')}
           </DialogTitle>
+          {data?.monitor.admin_only && (
+            <DialogDescription>
+              {t('This monitor is visible to administrators only.')}
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <div className='max-h-[60vh] overflow-auto px-6 pb-4'>
@@ -697,7 +710,7 @@ function MonitorDetailDialog({
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('Model')}</TableHead>
-                  <TableHead>{t('Latest Status')}</TableHead>
+                  <TableHead>{t('Status')}</TableHead>
                   <TableHead>{t('Latest Latency (MS)')}</TableHead>
                   <TableHead>{t('7d Availability')}</TableHead>
                   <TableHead>{t('15d Availability')}</TableHead>

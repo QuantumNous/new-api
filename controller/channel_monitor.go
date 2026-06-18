@@ -23,6 +23,7 @@ type channelMonitorCreateRequest struct {
 	ExtraModels      []string          `json:"extra_models"`
 	GroupName        string            `json:"group_name"`
 	Enabled          *bool             `json:"enabled"`
+	UserVisible      *bool             `json:"user_visible"`
 	IntervalSeconds  int               `json:"interval_seconds"`
 	JitterSeconds    int               `json:"jitter_seconds"`
 	TemplateID       *int64            `json:"template_id"`
@@ -41,6 +42,7 @@ type channelMonitorUpdateRequest struct {
 	ExtraModels      *[]string          `json:"extra_models"`
 	GroupName        *string            `json:"group_name"`
 	Enabled          *bool              `json:"enabled"`
+	UserVisible      *bool              `json:"user_visible"`
 	IntervalSeconds  *int               `json:"interval_seconds"`
 	JitterSeconds    *int               `json:"jitter_seconds"`
 	TemplateID       *int64             `json:"template_id"`
@@ -62,6 +64,7 @@ type channelMonitorAdminResponse struct {
 	ExtraModels         []string                   `json:"extra_models"`
 	GroupName           string                     `json:"group_name"`
 	Enabled             bool                       `json:"enabled"`
+	UserVisible         bool                       `json:"user_visible"`
 	IntervalSeconds     int                        `json:"interval_seconds"`
 	JitterSeconds       int                        `json:"jitter_seconds"`
 	LastCheckedAt       *time.Time                 `json:"last_checked_at"`
@@ -157,6 +160,7 @@ type channelMonitorUserMonitorStatus struct {
 	Name                 string                            `json:"name"`
 	Provider             string                            `json:"provider"`
 	GroupName            string                            `json:"group_name"`
+	AdminOnly            bool                              `json:"admin_only"`
 	PrimaryModel         string                            `json:"primary_model"`
 	PrimaryStatus        string                            `json:"primary_status"`
 	PrimaryLatencyMs     *int                              `json:"primary_latency_ms"`
@@ -186,6 +190,7 @@ type channelMonitorUserDetail struct {
 	Name      string                      `json:"name"`
 	Provider  string                      `json:"provider"`
 	GroupName string                      `json:"group_name"`
+	AdminOnly bool                        `json:"admin_only"`
 	Models    []channelMonitorModelDetail `json:"models"`
 }
 
@@ -277,6 +282,7 @@ func CreateChannelMonitor(c *gin.Context) {
 		ExtraModels:      req.ExtraModels,
 		GroupName:        req.GroupName,
 		Enabled:          enabled,
+		UserVisible:      req.UserVisible,
 		IntervalSeconds:  interval,
 		JitterSeconds:    req.JitterSeconds,
 		CreatedBy:        int64(c.GetInt("id")),
@@ -313,6 +319,7 @@ func UpdateChannelMonitor(c *gin.Context) {
 		ExtraModels:      req.ExtraModels,
 		GroupName:        req.GroupName,
 		Enabled:          req.Enabled,
+		UserVisible:      req.UserVisible,
 		IntervalSeconds:  req.IntervalSeconds,
 		JitterSeconds:    req.JitterSeconds,
 		TemplateID:       req.TemplateID,
@@ -520,7 +527,7 @@ func GetUserChannelMonitorStatus(c *gin.Context) {
 		})
 		return
 	}
-	items, err := service.ListUserChannelMonitorViews(c.Request.Context())
+	items, err := service.ListUserChannelMonitorViews(c.Request.Context(), channelMonitorIncludeAdminOnly(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -546,7 +553,7 @@ func GetUserChannelMonitorDetail(c *gin.Context) {
 	if !ok {
 		return
 	}
-	detail, err := service.GetUserChannelMonitorDetail(c.Request.Context(), id)
+	detail, err := service.GetUserChannelMonitorDetail(c.Request.Context(), id, channelMonitorIncludeAdminOnly(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -558,9 +565,14 @@ func GetUserChannelMonitorDetail(c *gin.Context) {
 			Name:      detail.Name,
 			Provider:  detail.Provider,
 			GroupName: detail.GroupName,
+			AdminOnly: detail.AdminOnly,
 			Models:    buildChannelMonitorModelDetails(detail.Models),
 		},
 	})
+}
+
+func channelMonitorIncludeAdminOnly(c *gin.Context) bool {
+	return c.GetInt("role") >= common.RoleAdminUser
 }
 
 func buildChannelMonitorAdminResponse(m *model.ChannelMonitor, summary service.MonitorStatusSummary) channelMonitorAdminResponse {
@@ -580,6 +592,7 @@ func buildChannelMonitorAdminResponse(m *model.ChannelMonitor, summary service.M
 		ExtraModels:         m.GetExtraModels(),
 		GroupName:           m.GroupName,
 		Enabled:             m.Enabled,
+		UserVisible:         m.IsUserVisible(),
 		IntervalSeconds:     m.IntervalSeconds,
 		JitterSeconds:       m.JitterSeconds,
 		LastCheckedAt:       m.LastCheckedAt,
@@ -629,6 +642,7 @@ func buildChannelMonitorUserMonitorStatus(item *service.UserMonitorView) channel
 		Name:                 item.Name,
 		Provider:             item.Provider,
 		GroupName:            item.GroupName,
+		AdminOnly:            item.AdminOnly,
 		PrimaryModel:         item.PrimaryModel,
 		PrimaryStatus:        normalizeMonitorResponseStatus(item.PrimaryStatus),
 		PrimaryLatencyMs:     item.PrimaryLatencyMs,
@@ -665,11 +679,7 @@ func buildChannelMonitorOverallSummary(items []channelMonitorUserMonitorStatus) 
 	if summary.MonitoredCount == 0 {
 		return summary
 	}
-	if summary.FailedCount > 0 || summary.ErrorCount > 0 {
-		summary.OverallState = service.MonitorStatusError
-		return summary
-	}
-	if summary.DegradedCount > 0 {
+	if summary.DegradedCount > 0 || summary.FailedCount > 0 || summary.ErrorCount > 0 || summary.UnknownCount > 0 {
 		summary.OverallState = service.MonitorStatusDegraded
 		return summary
 	}

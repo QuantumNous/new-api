@@ -46,6 +46,24 @@ type SectionDef = {
   modules: { key: string; title: string; description: string }[]
 }
 
+const migrateSidebarModulesConfig = (
+  config: SidebarModulesConfig
+): SidebarModulesConfig => {
+  const personalChannelStatus = config.personal?.channel_status
+  if (personalChannelStatus === undefined) {
+    return config
+  }
+
+  const consoleSection = config.console ?? { enabled: true }
+  config.console = {
+    ...consoleSection,
+    channel_status: consoleSection.channel_status ?? personalChannelStatus,
+  }
+  delete config.personal.channel_status
+
+  return config
+}
+
 export function SidebarModulesCard() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
@@ -105,6 +123,13 @@ export function SidebarModulesCard() {
             title: t('Task Logs'),
             description: t('System task records'),
           },
+          {
+            key: 'channel_status',
+            title: t('Channel Status'),
+            description: t(
+              'Run configured channel monitors and show user-facing status data'
+            ),
+          },
         ],
       },
       {
@@ -159,24 +184,30 @@ export function SidebarModulesCard() {
     return defaults
   }, [sectionDefs])
 
-  const loadConfig = useCallback(async () => {
-    try {
-      const res = await api.get('/api/user/self')
-      if (res.data.success && res.data.data?.sidebar_modules) {
-        const raw = res.data.data.sidebar_modules
-        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-        setConfig(parsed)
-      } else {
-        setConfig(buildDefaultConfig())
-      }
-    } catch {
-      /* ignore */
+  useEffect(() => {
+    let ignore = false
+
+    api
+      .get('/api/user/self')
+      .then((res) => {
+        if (ignore) return
+
+        if (res.data.success && res.data.data?.sidebar_modules) {
+          const raw = res.data.data.sidebar_modules
+          const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+          setConfig(migrateSidebarModulesConfig(parsed))
+        } else {
+          setConfig(buildDefaultConfig())
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      })
+
+    return () => {
+      ignore = true
     }
   }, [buildDefaultConfig])
-
-  useEffect(() => {
-    loadConfig()
-  }, [loadConfig])
 
   const toggleSection = (sectionKey: string, val: boolean) => {
     setConfig((prev) => ({

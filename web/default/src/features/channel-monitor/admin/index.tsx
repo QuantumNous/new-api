@@ -103,7 +103,6 @@ import {
   channelMonitorQueryKeys,
   formatAvailability,
   formatLatency,
-  formatMonitorRelativeTime,
   formatMonitorTime,
   getMonitorStatusLabel,
   getMonitorStatusVariant,
@@ -153,6 +152,7 @@ type MonitorFormState = {
   primaryModel: string
   extraModelsText: string
   enabled: boolean
+  userVisible: boolean
   intervalSeconds: string
   jitterSeconds: string
   templateId: string
@@ -364,6 +364,7 @@ function buildFormState(
     primaryModel: monitor?.primary_model ?? '',
     extraModelsText: monitor?.extra_models?.join('\n') ?? '',
     enabled: monitor?.enabled ?? true,
+    userVisible: monitor?.user_visible ?? true,
     intervalSeconds: String(
       monitor?.interval_seconds ?? defaultIntervalSeconds
     ),
@@ -515,9 +516,58 @@ function ChannelMonitorsTable({
   })
 
   const [runningMonitorId, setRunningMonitorId] = useState<number | null>(null)
+  const [updatingEnabled, setUpdatingEnabled] = useState<{
+    id: number
+    enabled: boolean
+  } | null>(null)
   const { mutateAsync: runMonitorAsync } = useMutation({
     mutationFn: runChannelMonitor,
   })
+  const { mutateAsync: updateMonitorAsync } = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number
+      payload: ChannelMonitorUpdatePayload
+    }) => updateChannelMonitor(id, payload),
+  })
+
+  const handleToggleMonitorEnabled = useCallback(
+    async (monitor: ChannelMonitor, enabled: boolean) => {
+      setUpdatingEnabled({ id: monitor.id, enabled })
+      try {
+        const result = await updateMonitorAsync({
+          id: monitor.id,
+          payload: { enabled },
+        })
+        if (!result.success) {
+          toast.error(
+            result.message ||
+              t(
+                enabled
+                  ? 'Failed to start monitor'
+                  : 'Failed to pause monitor'
+              )
+          )
+          return
+        }
+        toast.success(t(enabled ? 'Monitor started' : 'Monitor paused'))
+        await queryClient.invalidateQueries({
+          queryKey: channelMonitorQueryKeys.all,
+        })
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t(enabled ? 'Failed to start monitor' : 'Failed to pause monitor')
+        )
+      } finally {
+        setUpdatingEnabled(null)
+      }
+    },
+    [queryClient, t, updateMonitorAsync]
+  )
 
   const handleRunMonitor = useCallback(
     async (monitor: ChannelMonitor) => {
@@ -656,22 +706,52 @@ function ChannelMonitorsTable({
       },
       {
         accessorKey: 'enabled',
-        header: () => t('Enabled'),
+        header: () => t('Monitor status'),
+        cell: ({ row }) => {
+          const monitor = row.original
+          const pendingEnabled =
+            updatingEnabled?.id === monitor.id ? updatingEnabled.enabled : null
+          const isUpdating = pendingEnabled !== null
+          const isEnabled = pendingEnabled ?? monitor.enabled
+          return (
+            <div className='flex items-center gap-2'>
+              <Switch
+                checked={isEnabled}
+                disabled={isUpdating}
+                size='sm'
+                aria-label={
+                  isEnabled ? t('Pause monitor') : t('Start monitor')
+                }
+                onCheckedChange={(value) =>
+                  void handleToggleMonitorEnabled(monitor, value)
+                }
+              />
+              <span className='text-muted-foreground text-sm'>
+                {t(isEnabled ? 'Running' : 'Paused')}
+              </span>
+            </div>
+          )
+        },
+        size: 130,
+      },
+      {
+        accessorKey: 'user_visible',
+        header: () => t('Visibility'),
         cell: ({ row }) =>
-          row.original.enabled
-            ? statusBadge('operational', t('Enabled'))
-            : statusBadge('disabled', t('Disabled')),
-        size: 110,
+          row.original.user_visible
+            ? statusBadge('operational', t('Users'))
+            : statusBadge('disabled', t('Admin only')),
+        size: 120,
       },
       {
         accessorKey: 'last_checked_at',
-        header: () => t('Last Checked'),
+        header: () => t('Latest check time'),
         cell: ({ row }) => (
           <span className='text-muted-foreground whitespace-nowrap'>
-            {formatMonitorRelativeTime(row.original.last_checked_at)}
+            {formatMonitorTime(row.original.last_checked_at)}
           </span>
         ),
-        size: 140,
+        size: 170,
       },
       {
         id: 'actions',
@@ -692,7 +772,14 @@ function ChannelMonitorsTable({
         size: 56,
       },
     ],
-    [handleRunMonitor, runningMonitorId, setDialog, t]
+    [
+      handleRunMonitor,
+      handleToggleMonitorEnabled,
+      runningMonitorId,
+      setDialog,
+      t,
+      updatingEnabled,
+    ]
   )
 
   const { table } = useDataTable({
@@ -1659,6 +1746,7 @@ function ChannelMonitorFormDialog({
       extra_models: splitModelList(formState.extraModelsText),
       group_name: formState.name.trim(),
       enabled: formState.enabled,
+      user_visible: formState.userVisible,
       interval_seconds: Number(formState.intervalSeconds) || 0,
       jitter_seconds: Number(formState.jitterSeconds) || 0,
       extra_headers: advanced.extra_headers,
@@ -1825,7 +1913,7 @@ function ChannelMonitorFormDialog({
               />
             </Field>
 
-            <div className='grid gap-4 md:grid-cols-3'>
+            <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_minmax(16rem,2fr)]'>
               <Field>
                 <FieldLabel htmlFor='monitor-interval'>
                   {t('Interval (seconds)')}
@@ -1859,7 +1947,10 @@ function ChannelMonitorFormDialog({
                   {t('Interval minus jitter must stay at least 15 seconds.')}
                 </FieldDescription>
               </Field>
-              <Field orientation='horizontal' className='self-start md:pt-7'>
+              <Field
+                orientation='horizontal'
+                className='w-fit self-start md:pt-7 [&>[data-slot=field-label]]:flex-none'
+              >
                 <FieldLabel htmlFor='monitor-enabled'>
                   {t('Enabled')}
                 </FieldLabel>
@@ -1868,6 +1959,44 @@ function ChannelMonitorFormDialog({
                   checked={formState.enabled}
                   onCheckedChange={(value) => update('enabled', value)}
                 />
+              </Field>
+              <Field>
+                <FieldLabel id='monitor-visibility-label'>
+                  {t('Visibility')}
+                </FieldLabel>
+                <ToggleGroup
+                  aria-labelledby='monitor-visibility-label'
+                  value={[formState.userVisible ? 'users' : 'admin']}
+                  onValueChange={(values) => {
+                    const value = values[0]
+                    if (!value) return
+                    update('userVisible', value === 'users')
+                  }}
+                  className='grid w-full grid-cols-2'
+                  variant='outline'
+                >
+                  <ToggleGroupItem
+                    value='users'
+                    className='w-full justify-center'
+                  >
+                    {t('Visible to users')}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value='admin'
+                    className='w-full justify-center'
+                  >
+                    {t('Admin only')}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <FieldDescription>
+                  {formState.userVisible
+                    ? t(
+                        'Shown in the channel status page for regular users and administrators.'
+                      )
+                    : t(
+                        'Still checked on schedule, but shown only to administrators.'
+                      )}
+                </FieldDescription>
               </Field>
             </div>
 

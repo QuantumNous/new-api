@@ -52,6 +52,7 @@ export type ChannelMonitor = {
   extra_models: string[]
   group_name: string
   enabled: boolean
+  user_visible: boolean
   interval_seconds: number
   jitter_seconds: number
   last_checked_at?: string | null
@@ -93,6 +94,7 @@ export type ChannelMonitorPayload = {
   extra_models: string[]
   group_name: string
   enabled: boolean
+  user_visible: boolean
   interval_seconds: number
   jitter_seconds: number
   template_id?: number | null
@@ -141,6 +143,7 @@ export type UserChannelMonitor = {
   name: string
   provider: ChannelMonitorProvider
   group_name: string
+  admin_only: boolean
   primary_model: string
   primary_status: ChannelMonitorStatus
   primary_latency_ms?: number | null
@@ -190,6 +193,7 @@ export type UserChannelMonitorDetailData = {
     name: string
     provider: ChannelMonitorProvider
     group_name: string
+    admin_only: boolean
     models: UserChannelMonitorModelDetail[]
   }
 }

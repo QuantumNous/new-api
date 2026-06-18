@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -17,20 +18,34 @@ import (
 	"gorm.io/gorm"
 )
 
-const channelMonitorCleanupInterval = 24 * time.Hour
+const (
+	channelMonitorCleanupInterval        = 24 * time.Hour
+	channelMonitorStartupMaxInitialDelay = time.Minute
+)
 
-type channelMonitorTimerEntry struct {
-	monitor *model.ChannelMonitor
-	timer   *time.Timer
-	version int64
+type channelMonitorCheckFunc func(ctx context.Context, id int64) ([]*CheckResult, error)
+type channelMonitorReloadFunc func(id int64) (*model.ChannelMonitor, error)
+
+type channelMonitorTask struct {
+	id       int64
+	name     string
+	interval time.Duration
+	jitter   time.Duration
+	cancel   context.CancelFunc
 }
 
 type channelMonitorRunner struct {
-	mu       sync.Mutex
-	entries  map[int64]*channelMonitorTimerEntry
-	inflight map[int64]struct{}
-	sem      chan struct{}
-	version  int64
+	mu           sync.Mutex
+	tasks        map[int64]*channelMonitorTask
+	inflight     map[int64]struct{}
+	sem          chan struct{}
+	parentCtx    context.Context
+	parentCancel context.CancelFunc
+	taskWg       sync.WaitGroup
+	workerWg     sync.WaitGroup
+	stopped      bool
+	checkFunc    channelMonitorCheckFunc
+	reloadFunc   channelMonitorReloadFunc
 }
 
 var channelMonitorRunnerOnce sync.Once
@@ -64,10 +79,15 @@ func StartChannelMonitorTask() {
 }
 
 func newChannelMonitorRunner() *channelMonitorRunner {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &channelMonitorRunner{
-		entries:  make(map[int64]*channelMonitorTimerEntry),
-		inflight: make(map[int64]struct{}),
-		sem:      make(chan struct{}, monitorWorkerConcurrency),
+		tasks:        make(map[int64]*channelMonitorTask),
+		inflight:     make(map[int64]struct{}),
+		sem:          make(chan struct{}, monitorWorkerConcurrency),
+		parentCtx:    ctx,
+		parentCancel: cancel,
+		checkFunc:    RunChannelMonitorCheck,
+		reloadFunc:   model.GetChannelMonitorByID,
 	}
 }
 
@@ -77,150 +97,218 @@ func (r *channelMonitorRunner) loadEnabled(ctx context.Context) error {
 		return err
 	}
 	for _, item := range items {
-		r.Schedule(item)
+		r.scheduleFromStartup(item)
 	}
 	return nil
 }
 
 func (r *channelMonitorRunner) Schedule(m *model.ChannelMonitor) {
+	r.schedule(m, 0, true)
+}
+
+func (r *channelMonitorRunner) scheduleFromStartup(m *model.ChannelMonitor) {
+	r.schedule(m, nextChannelMonitorStartupDelay(m), false)
+}
+
+func (r *channelMonitorRunner) schedule(m *model.ChannelMonitor, initialDelay time.Duration, replace bool) {
 	if r == nil || m == nil {
 		return
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if !m.Enabled {
-		r.unscheduleLocked(m.Id)
+		r.Unschedule(m.Id)
 		return
 	}
 	if m.APIKeyDecryptFailed {
-		r.unscheduleLocked(m.Id)
+		r.Unschedule(m.Id)
 		logger.LogWarn(context.Background(), fmt.Sprintf("channel monitor scheduled check skipped: monitor_id=%d api key decrypt failed", m.Id))
 		return
 	}
-	r.scheduleLocked(cloneChannelMonitorForTimer(m))
+
+	ctx, cancel := context.WithCancel(r.parentCtx)
+	task := &channelMonitorTask{
+		id:       m.Id,
+		name:     m.Name,
+		interval: channelMonitorInterval(m),
+		jitter:   channelMonitorJitter(m),
+		cancel:   cancel,
+	}
+
+	r.mu.Lock()
+	if r.stopped {
+		r.mu.Unlock()
+		cancel()
+		return
+	}
+	if !replace {
+		if _, ok := r.tasks[m.Id]; ok {
+			r.mu.Unlock()
+			cancel()
+			return
+		}
+	}
+	if existing := r.tasks[m.Id]; existing != nil {
+		existing.cancel()
+	}
+	r.tasks[m.Id] = task
+	r.taskWg.Add(1)
+	r.mu.Unlock()
+
+	go r.runScheduled(ctx, task, initialDelay)
 }
 
 func (r *channelMonitorRunner) Unschedule(id int64) {
 	if r == nil {
 		return
 	}
+	var task *channelMonitorTask
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.unscheduleLocked(id)
-}
-
-func (r *channelMonitorRunner) scheduleLocked(m *model.ChannelMonitor) {
-	r.unscheduleLocked(m.Id)
-	r.version++
-	version := r.version
-	entry := &channelMonitorTimerEntry{
-		monitor: m,
-		version: version,
+	if r.tasks != nil {
+		task = r.tasks[id]
+		delete(r.tasks, id)
 	}
-	delay := nextChannelMonitorDelay(m)
-	entry.timer = time.AfterFunc(delay, func() {
-		r.fire(m.Id, version)
-	})
-	r.entries[m.Id] = entry
-}
-
-func (r *channelMonitorRunner) unscheduleLocked(id int64) {
-	if entry := r.entries[id]; entry != nil && entry.timer != nil {
-		entry.timer.Stop()
+	r.mu.Unlock()
+	if task != nil {
+		task.cancel()
 	}
-	delete(r.entries, id)
 }
 
-func (r *channelMonitorRunner) fire(id int64, version int64) {
-	monitorSnapshot, ok := r.currentMonitorSnapshot(id, version)
-	if !ok {
+func (r *channelMonitorRunner) Stop() {
+	if r == nil {
 		return
 	}
+	r.mu.Lock()
+	if r.stopped {
+		r.mu.Unlock()
+		return
+	}
+	r.stopped = true
+	r.parentCancel()
+	for _, task := range r.tasks {
+		task.cancel()
+	}
+	r.tasks = nil
+	r.mu.Unlock()
 
+	r.taskWg.Wait()
+	r.workerWg.Wait()
+}
+
+func (r *channelMonitorRunner) runScheduled(ctx context.Context, task *channelMonitorTask, initialDelay time.Duration) {
+	defer r.taskWg.Done()
+
+	if initialDelay > 0 {
+		timer := time.NewTimer(initialDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+	r.fire(ctx, task)
+
+	timer := time.NewTimer(task.nextDelay())
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			r.fire(ctx, task)
+			timer.Reset(task.nextDelay())
+		}
+	}
+}
+
+func (r *channelMonitorRunner) fire(ctx context.Context, task *channelMonitorTask) {
+	if r == nil || task == nil || ctx.Err() != nil {
+		return
+	}
 	if !operation_setting.GetMonitorSetting().ChannelMonitorEnabled {
-		r.rescheduleIfCurrent(monitorSnapshot, version)
 		return
 	}
-	if !r.tryEnter(id) {
-		logger.LogWarn(context.Background(), fmt.Sprintf("channel monitor scheduled check skipped: monitor_id=%d already running", id))
-		r.rescheduleIfCurrent(monitorSnapshot, version)
+	if !r.tryEnter(task.id) {
+		logger.LogWarn(context.Background(), fmt.Sprintf("channel monitor scheduled check skipped: monitor_id=%d already running", task.id))
 		return
 	}
-	defer r.leave(id)
-
 	select {
 	case r.sem <- struct{}{}:
-		defer func() { <-r.sem }()
 	default:
-		logger.LogWarn(context.Background(), fmt.Sprintf("channel monitor scheduled check skipped: monitor_id=%d global concurrency full", id))
-		r.rescheduleIfCurrent(monitorSnapshot, version)
+		r.leave(task.id)
+		logger.LogWarn(context.Background(), fmt.Sprintf("channel monitor scheduled check skipped: monitor_id=%d global concurrency full", task.id))
+		return
+	}
+	if !r.addWorker() {
+		<-r.sem
+		r.leave(task.id)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), monitorRequestTimeout+monitorRunOneBuffer)
+	go func() {
+		defer r.workerWg.Done()
+		defer func() {
+			<-r.sem
+			r.leave(task.id)
+		}()
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.LogError(context.Background(), fmt.Sprintf("channel monitor scheduled check panic: monitor_id=%d panic=%v stack=%s", task.id, rec, string(debug.Stack())))
+			}
+		}()
+		r.runOne(ctx, task)
+	}()
+}
+
+func (r *channelMonitorRunner) addWorker() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stopped {
+		return false
+	}
+	r.workerWg.Add(1)
+	return true
+}
+
+func (r *channelMonitorRunner) runOne(parent context.Context, task *channelMonitorTask) {
+	if parent.Err() != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(parent, monitorRequestTimeout+monitorPingTimeout+monitorRunOneBuffer)
 	defer cancel()
 
-	if _, err := RunChannelMonitorCheck(ctx, id); err != nil {
-		if errors.Is(err, ErrChannelMonitorNotFound) {
-			r.unscheduleIfCurrent(id, version)
+	checkFunc := r.checkFunc
+	if checkFunc == nil {
+		checkFunc = RunChannelMonitorCheck
+	}
+	if _, err := checkFunc(ctx, task.id); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return
 		}
-		logger.LogWarn(ctx, fmt.Sprintf("channel monitor scheduled check failed: monitor_id=%d error=%v", id, err))
+		if errors.Is(err, ErrChannelMonitorNotFound) {
+			r.Unschedule(task.id)
+			return
+		}
+		logger.LogWarn(ctx, fmt.Sprintf("channel monitor scheduled check failed: monitor_id=%d error=%v", task.id, err))
+	}
+	if parent.Err() != nil || ctx.Err() != nil {
+		return
 	}
 
-	fresh, err := model.GetChannelMonitorByID(id)
+	if r.reloadFunc == nil {
+		return
+	}
+	fresh, err := r.reloadFunc(task.id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			r.unscheduleIfCurrent(id, version)
+			r.Unschedule(task.id)
 			return
 		}
-		logger.LogWarn(ctx, fmt.Sprintf("channel monitor reload after scheduled check failed: monitor_id=%d error=%v", id, err))
-		r.rescheduleIfCurrent(monitorSnapshot, version)
+		logger.LogWarn(ctx, fmt.Sprintf("channel monitor reload after scheduled check failed: monitor_id=%d error=%v", task.id, err))
 		return
 	}
 	if !fresh.Enabled {
-		r.unscheduleIfCurrent(id, version)
-		return
+		r.Unschedule(task.id)
 	}
-	r.rescheduleIfCurrent(fresh, version)
-}
-
-func (r *channelMonitorRunner) currentMonitorSnapshot(id int64, version int64) (*model.ChannelMonitor, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	entry := r.entries[id]
-	if entry == nil || entry.version != version || entry.monitor == nil {
-		return nil, false
-	}
-	return cloneChannelMonitorForTimer(entry.monitor), true
-}
-
-func (r *channelMonitorRunner) rescheduleIfCurrent(m *model.ChannelMonitor, version int64) {
-	if r == nil || m == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	entry := r.entries[m.Id]
-	if entry == nil || entry.version != version {
-		return
-	}
-	if !m.Enabled {
-		r.unscheduleLocked(m.Id)
-		return
-	}
-	r.scheduleLocked(cloneChannelMonitorForTimer(m))
-}
-
-func (r *channelMonitorRunner) unscheduleIfCurrent(id int64, version int64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	entry := r.entries[id]
-	if entry == nil || entry.version != version {
-		return
-	}
-	r.unscheduleLocked(id)
 }
 
 func (r *channelMonitorRunner) tryEnter(id int64) bool {
@@ -239,25 +327,57 @@ func (r *channelMonitorRunner) leave(id int64) {
 	delete(r.inflight, id)
 }
 
-func nextChannelMonitorDelay(m *model.ChannelMonitor) time.Duration {
-	seconds := m.IntervalSeconds
+func (task *channelMonitorTask) nextDelay() time.Duration {
+	if task == nil {
+		return time.Duration(monitorMinIntervalSeconds) * time.Second
+	}
+	if task.jitter <= 0 {
+		return task.interval
+	}
+	offset := time.Duration(rand.Int64N(int64(task.jitter)*2+1)) - task.jitter
+	delay := task.interval + offset
+	if minDelay := time.Duration(monitorMinIntervalSeconds) * time.Second; delay < minDelay {
+		return minDelay
+	}
+	return delay
+}
+
+func channelMonitorInterval(m *model.ChannelMonitor) time.Duration {
+	seconds := monitorMinIntervalSeconds
+	if m != nil {
+		seconds = m.IntervalSeconds
+	}
 	if seconds < monitorMinIntervalSeconds {
 		seconds = monitorMinIntervalSeconds
 	}
-	jitter := m.JitterSeconds
-	if jitter > 0 {
-		seconds += rand.IntN(jitter*2+1) - jitter
-	}
-	if seconds < monitorMinIntervalSeconds {
-		seconds = monitorMinIntervalSeconds
+	if seconds > monitorMaxIntervalSeconds {
+		seconds = monitorMaxIntervalSeconds
 	}
 	return time.Duration(seconds) * time.Second
 }
 
-func cloneChannelMonitorForTimer(m *model.ChannelMonitor) *model.ChannelMonitor {
-	if m == nil {
-		return nil
+func channelMonitorJitter(m *model.ChannelMonitor) time.Duration {
+	if m == nil || m.JitterSeconds <= 0 {
+		return 0
 	}
-	cp := *m
-	return &cp
+	intervalSeconds := int(channelMonitorInterval(m) / time.Second)
+	jitterSeconds := m.JitterSeconds
+	if jitterSeconds > intervalSeconds-monitorMinIntervalSeconds {
+		jitterSeconds = intervalSeconds - monitorMinIntervalSeconds
+	}
+	if jitterSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(jitterSeconds) * time.Second
+}
+
+func nextChannelMonitorStartupDelay(m *model.ChannelMonitor) time.Duration {
+	spread := channelMonitorInterval(m)
+	if spread > channelMonitorStartupMaxInitialDelay {
+		spread = channelMonitorStartupMaxInitialDelay
+	}
+	if spread <= 0 {
+		return 0
+	}
+	return time.Duration(rand.Int64N(int64(spread) + 1))
 }

@@ -12,6 +12,7 @@ type ChannelMonitorCreateParams struct {
 	ExtraModels      []string
 	GroupName        string
 	Enabled          bool
+	UserVisible      *bool
 	IntervalSeconds  int
 	JitterSeconds    int
 	CreatedBy        int64
@@ -31,6 +32,7 @@ type ChannelMonitorUpdateParams struct {
 	ExtraModels      *[]string
 	GroupName        *string
 	Enabled          *bool
+	UserVisible      *bool
 	IntervalSeconds  *int
 	JitterSeconds    *int
 	TemplateID       *int64
@@ -111,6 +113,7 @@ type UserMonitorView struct {
 	Name                 string
 	Provider             string
 	GroupName            string
+	AdminOnly            bool
 	PrimaryModel         string
 	PrimaryStatus        string
 	PrimaryLatencyMs     *int
@@ -135,6 +138,7 @@ type UserMonitorDetail struct {
 	Name      string
 	Provider  string
 	GroupName string
+	AdminOnly bool
 	Models    []ModelDetail
 }
 

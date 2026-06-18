@@ -82,6 +82,7 @@ func CreateChannelMonitor(ctx context.Context, p ChannelMonitorCreateParams) (*m
 		PrimaryModel:     strings.TrimSpace(p.PrimaryModel),
 		GroupName:        strings.TrimSpace(p.GroupName),
 		Enabled:          p.Enabled,
+		UserVisible:      boolPtr(defaultMonitorUserVisible(p.UserVisible)),
 		IntervalSeconds:  p.IntervalSeconds,
 		JitterSeconds:    p.JitterSeconds,
 		CreatedBy:        p.CreatedBy,
@@ -259,8 +260,16 @@ func BatchChannelMonitorStatusSummary(ctx context.Context, items []*model.Channe
 	return buildMonitorStatusSummaries(ctx, ids, primaryByID, extrasByID)
 }
 
-func ListUserChannelMonitorViews(ctx context.Context) ([]*UserMonitorView, error) {
-	items, err := model.ListEnabledChannelMonitors()
+func ListUserChannelMonitorViews(ctx context.Context, includeAdminOnly bool) ([]*UserMonitorView, error) {
+	var (
+		items []*model.ChannelMonitor
+		err   error
+	)
+	if includeAdminOnly {
+		items, err = model.ListEnabledChannelMonitors()
+	} else {
+		items, err = model.ListUserVisibleChannelMonitors()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +295,7 @@ func ListUserChannelMonitorViews(ctx context.Context) ([]*UserMonitorView, error
 			Name:                 item.Name,
 			Provider:             item.Provider,
 			GroupName:            item.GroupName,
+			AdminOnly:            !item.IsUserVisible(),
 			PrimaryModel:         item.PrimaryModel,
 			PrimaryStatus:        summary.PrimaryStatus,
 			PrimaryLatencyMs:     summary.PrimaryLatencyMs,
@@ -310,7 +320,7 @@ func ListUserChannelMonitorViews(ctx context.Context) ([]*UserMonitorView, error
 	return out, nil
 }
 
-func GetUserChannelMonitorDetail(ctx context.Context, id int64) (*UserMonitorDetail, error) {
+func GetUserChannelMonitorDetail(ctx context.Context, id int64, includeAdminOnly bool) (*UserMonitorDetail, error) {
 	monitor, err := model.GetChannelMonitorByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -319,6 +329,9 @@ func GetUserChannelMonitorDetail(ctx context.Context, id int64) (*UserMonitorDet
 		return nil, err
 	}
 	if !monitor.Enabled {
+		return nil, ErrChannelMonitorNotFound
+	}
+	if !includeAdminOnly && !monitor.IsUserVisible() {
 		return nil, ErrChannelMonitorNotFound
 	}
 
@@ -351,6 +364,7 @@ func GetUserChannelMonitorDetail(ctx context.Context, id int64) (*UserMonitorDet
 		Name:      monitor.Name,
 		Provider:  monitor.Provider,
 		GroupName: monitor.GroupName,
+		AdminOnly: !monitor.IsUserVisible(),
 		Models:    make([]ModelDetail, 0, len(modelNames)),
 	}
 	for _, modelName := range modelNames {
@@ -365,6 +379,7 @@ func GetUserChannelMonitorDetail(ctx context.Context, id int64) (*UserMonitorDet
 		if v := av7[modelName]; v != nil {
 			modelDetail.Availability7d = v.AvailabilityPct
 			modelDetail.AvgLatency7dMs = v.AvgLatencyMs
+			modelDetail.LatestStatus = channelMonitorAvailabilityStatus(v, modelDetail.LatestStatus)
 		}
 		if v := av15[modelName]; v != nil {
 			modelDetail.Availability15d = v.AvailabilityPct
@@ -464,6 +479,11 @@ func applyChannelMonitorUpdate(existing *model.ChannelMonitor, p ChannelMonitorU
 	}
 	if p.Enabled != nil {
 		existing.Enabled = *p.Enabled
+	}
+	if p.UserVisible != nil {
+		existing.SetUserVisible(*p.UserVisible)
+	} else if existing.UserVisible == nil {
+		existing.SetUserVisible(true)
 	}
 	interval := existing.IntervalSeconds
 	jitter := existing.JitterSeconds
@@ -650,6 +670,7 @@ func buildMonitorStatusSummaries(ctx context.Context, ids []int64, primaryByID m
 		}
 		if av := availability7ByModel[primary]; av != nil {
 			summary.Availability7d = av.AvailabilityPct
+			summary.PrimaryStatus = channelMonitorAvailabilityStatus(av, summary.PrimaryStatus)
 		}
 		if av := availability15ByModel[primary]; av != nil {
 			summary.Availability15d = av.AvailabilityPct
@@ -670,6 +691,22 @@ func buildMonitorStatusSummaries(ctx context.Context, ids []int64, primaryByID m
 	return out
 }
 
+func channelMonitorAvailabilityStatus(av *model.ChannelMonitorAvailability, latestStatus string) string {
+	if av == nil || av.TotalChecks <= 0 {
+		return latestStatus
+	}
+	if av.AvailabilityPct >= monitorOperationalAvailability {
+		return MonitorStatusOperational
+	}
+	if av.AvailabilityPct > 0 {
+		return MonitorStatusDegraded
+	}
+	if latestStatus == "" {
+		return MonitorStatusFailed
+	}
+	return latestStatus
+}
+
 func latestSliceToMap(items []*model.ChannelMonitorLatest) map[string]*model.ChannelMonitorLatest {
 	out := make(map[string]*model.ChannelMonitorLatest, len(items))
 	for _, item := range items {
@@ -684,4 +721,15 @@ func availabilitySliceToMap(items []*model.ChannelMonitorAvailability) map[strin
 		out[item.Model] = item
 	}
 	return out
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}
+
+func defaultMonitorUserVisible(value *bool) bool {
+	if value == nil {
+		return true
+	}
+	return *value
 }

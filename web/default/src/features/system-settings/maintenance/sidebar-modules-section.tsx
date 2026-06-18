@@ -114,6 +114,12 @@ export function SidebarModulesSection({
         title: t('Task logs'),
         description: t('Background job tracker for queued work.'),
       },
+      channel_status: {
+        title: t('Channel Status'),
+        description: t(
+          'Run configured channel monitors and show user-facing status data'
+        ),
+      },
     },
     personal: {
       topup: {
@@ -141,6 +147,12 @@ export function SidebarModulesSection({
       channel: {
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),
+      },
+      channel_monitor: {
+        title: t('Channel Monitors'),
+        description: t(
+          'Create and manage upstream channel availability monitors.'
+        ),
       },
       models: {
         title: t('Models'),

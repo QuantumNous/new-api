@@ -21,6 +21,7 @@ type ChannelMonitor struct {
 	ExtraModels      string     `json:"extra_models" gorm:"type:text;not null;default:'[]'"`
 	GroupName        string     `json:"group_name" gorm:"type:varchar(100);not null;default:'';index"`
 	Enabled          bool       `json:"enabled" gorm:"not null;default:true;index"`
+	UserVisible      *bool      `json:"user_visible" gorm:"not null;default:true;index"`
 	IntervalSeconds  int        `json:"interval_seconds" gorm:"not null"`
 	JitterSeconds    int        `json:"jitter_seconds" gorm:"not null;default:0"`
 	LastCheckedAt    *time.Time `json:"last_checked_at" gorm:"index"`
@@ -188,6 +189,20 @@ func (m *ChannelMonitor) SetBodyOverride(body map[string]any) error {
 	}
 	m.BodyOverride = string(bytes)
 	return nil
+}
+
+func (m *ChannelMonitor) IsUserVisible() bool {
+	if m == nil || m.UserVisible == nil {
+		return true
+	}
+	return *m.UserVisible
+}
+
+func (m *ChannelMonitor) SetUserVisible(visible bool) {
+	if m == nil {
+		return
+	}
+	m.UserVisible = &visible
 }
 
 func (t *ChannelMonitorRequestTemplate) GetExtraHeaders() map[string]string {
@@ -388,6 +403,12 @@ func applyChannelMonitorFilters(query *gorm.DB, params ChannelMonitorListParams)
 func ListEnabledChannelMonitors() ([]*ChannelMonitor, error) {
 	var items []*ChannelMonitor
 	err := DB.Where("enabled = ?", true).Order("id asc").Find(&items).Error
+	return items, err
+}
+
+func ListUserVisibleChannelMonitors() ([]*ChannelMonitor, error) {
+	var items []*ChannelMonitor
+	err := DB.Where("enabled = ? AND (user_visible = ? OR user_visible IS NULL)", true, true).Order("id asc").Find(&items).Error
 	return items, err
 }
 

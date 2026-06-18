@@ -48,6 +48,7 @@ const (
 	monitorPingDiscardMaxBytes      = 1024
 	monitorDialTimeout              = 10 * time.Second
 	monitorDialKeepAlive            = 30 * time.Second
+	monitorOperationalAvailability  = 80.0
 
 	providerOpenAIPath            = "/v1/chat/completions"
 	providerOpenAIResponsesPath   = "/v1/responses"
