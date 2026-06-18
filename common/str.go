@@ -29,21 +29,25 @@ var (
 // defense-in-depth (full URLs and IPs are masked by their own patterns), so an
 // occasional obscure TLD slipping through is acceptable; over-masking field
 // paths is the real defect this prevents.
+//
+// DELIBERATELY EXCLUDED: TLDs that are also common English-word field-name
+// suffixes — id, in, to, us, me, it, at, be, no, so, cc, tv, info, dev, app,
+// run, pro, live, link, etc. — because "user.id" / "payment.id" / "request.in"
+// would otherwise be mangled to "***.id" / "***.in". AI providers do not use
+// these TLDs, so dropping them costs no real masking coverage. The kept 2-char
+// TLDs (io/ai/co) are heavily used by providers (x.ai, modal.io); a field path
+// ending in exactly those is rare and an accepted residual.
 var knownTLDs = map[string]struct{}{
-	// common gTLDs
-	"com": {}, "net": {}, "org": {}, "io": {}, "ai": {}, "co": {}, "dev": {},
-	"app": {}, "cloud": {}, "info": {}, "biz": {}, "xyz": {}, "tech": {},
-	"online": {}, "site": {}, "store": {}, "run": {}, "sh": {}, "gg": {},
-	"me": {}, "tv": {}, "cc": {}, "ws": {}, "pro": {}, "live": {}, "link": {},
-	"gov": {}, "edu": {}, "ly": {}, "so": {}, "to": {},
-	// country-code TLDs commonly seen in provider/host names
-	"us": {}, "uk": {}, "cn": {}, "jp": {}, "kr": {}, "in": {}, "eu": {},
-	"de": {}, "fr": {}, "ru": {}, "ca": {}, "au": {}, "br": {}, "it": {},
-	"es": {}, "nl": {}, "se": {}, "no": {}, "fi": {}, "pl": {}, "cz": {},
-	"tr": {}, "sa": {}, "ae": {}, "sg": {}, "hk": {}, "tw": {}, "my": {},
-	"th": {}, "vn": {}, "ph": {}, "mx": {}, "ar": {}, "cl": {}, "za": {},
-	"ng": {}, "ke": {}, "il": {}, "ir": {}, "ua": {}, "ro": {}, "hu": {},
-	"gr": {}, "pt": {}, "dk": {}, "ch": {}, "at": {}, "be": {}, "ie": {}, "id": {},
+	// gTLDs that essentially never end a JSON field name
+	"com": {}, "net": {}, "org": {}, "io": {}, "ai": {}, "co": {},
+	"cloud": {}, "biz": {}, "xyz": {}, "gov": {}, "edu": {},
+	// country-code TLDs that are not common English words
+	"uk": {}, "cn": {}, "jp": {}, "kr": {}, "eu": {}, "de": {}, "fr": {},
+	"ru": {}, "ca": {}, "au": {}, "br": {}, "es": {}, "nl": {}, "se": {},
+	"fi": {}, "pl": {}, "cz": {}, "tr": {}, "sa": {}, "ae": {}, "sg": {},
+	"hk": {}, "tw": {}, "my": {}, "th": {}, "vn": {}, "ph": {}, "mx": {},
+	"ar": {}, "cl": {}, "za": {}, "ng": {}, "ke": {}, "il": {}, "ir": {},
+	"ua": {}, "ro": {}, "hu": {}, "gr": {}, "pt": {}, "dk": {}, "ch": {}, "ie": {},
 }
 
 // isLikelyPlainDomain reports whether a bare "a.b[.c]" token is a real hostname

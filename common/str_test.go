@@ -34,6 +34,17 @@ func TestMaskSensitiveInfo_FieldPathsNotMangled(t *testing.T) {
 		"GeneralOpenAIRequest.max_tokens",
 		"thinking.budget_tokens is required",
 		"tools.0.input_schema.properties",
+		// field names whose last label collides with a ccTLD — must NOT be masked
+		// (code-review regression: user.id -> ***.id, request.in -> ***.in, etc.)
+		"user.id",
+		"payment.id is required",
+		"request.in",
+		"contact.us",
+		"email.cc",
+		"user.info",
+		"reply.to",
+		"is.it",
+		"data.me",
 	}
 	for _, in := range cases {
 		out := MaskSensitiveInfo(in)
