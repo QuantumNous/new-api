@@ -980,6 +980,14 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 			_ = channel.Save()           // 保存修改
 		}
 	}
+	if setting.TrustUpstreamUsage == nil && channel.Setting != nil && *channel.Setting != "" {
+		var legacySetting struct {
+			TrustUpstreamUsage *bool `json:"trust_upstream_usage,omitempty"`
+		}
+		if err := common.Unmarshal(common.StringToByteSlice(*channel.Setting), &legacySetting); err == nil && legacySetting.TrustUpstreamUsage != nil {
+			setting.TrustUpstreamUsage = legacySetting.TrustUpstreamUsage
+		}
+	}
 	return setting
 }
 

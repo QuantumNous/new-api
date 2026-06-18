@@ -124,7 +124,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 
 				if realtimeEvent.Type == dto.RealtimeEventTypeResponseDone {
 					realtimeUsage := realtimeEvent.Response.Usage
-					if realtimeUsage != nil {
+					if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) && validRealtimeUsage(realtimeUsage) {
 						usage.TotalTokens += realtimeUsage.TotalTokens
 						usage.InputTokens += realtimeUsage.InputTokens
 						usage.OutputTokens += realtimeUsage.OutputTokens
@@ -221,6 +221,10 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	// check usage total tokens, if 0, use local usage
 
 	return nil, sumUsage
+}
+
+func validRealtimeUsage(usage *dto.RealtimeUsage) bool {
+	return usage != nil && (usage.TotalTokens != 0 || usage.InputTokens != 0 || usage.OutputTokens != 0)
 }
 
 func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) error {

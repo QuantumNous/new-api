@@ -42,9 +42,22 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
-	normalizeOpenAIUsage(&usageResp.Usage)
+	if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+		normalizeOpenAIUsage(&usageResp.Usage)
+	} else {
+		usageResp.Usage = openAIImageLocalUsage(info)
+	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+func openAIImageLocalUsage(info *relaycommon.RelayInfo) dto.Usage {
+	usage := dto.Usage{}
+	if info != nil {
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+	}
+	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	return usage
 }
 
 // normalizeOpenAIUsage maps the OpenAI Images usage shape (input_tokens /
@@ -109,10 +122,17 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 		var usageResp dto.SimpleResponse
 		if err := common.Unmarshal(raw, &usageResp); err == nil {
-			normalizeOpenAIUsage(&usageResp.Usage)
+			if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+				normalizeOpenAIUsage(&usageResp.Usage)
+			} else {
+				usageResp.Usage = openAIImageLocalUsage(info)
+			}
 			if service.ValidUsage(&usageResp.Usage) {
 				usage = &usageResp.Usage
 			}
+		}
+		if !relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+			raw = clearImageStreamUsage(raw)
 		}
 		writeOpenaiImageStreamChunk(c, raw)
 	})
@@ -140,6 +160,22 @@ func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) {
 	}
 	c.Render(-1, common.CustomEvent{Data: "data: " + string(data)})
 	_ = helper.FlushWriter(c)
+}
+
+func clearImageStreamUsage(data []byte) []byte {
+	var payload map[string]interface{}
+	if err := common.Unmarshal(data, &payload); err != nil {
+		return data
+	}
+	if _, ok := payload["usage"]; !ok {
+		return data
+	}
+	delete(payload, "usage")
+	modifiedData, err := common.Marshal(payload)
+	if err != nil {
+		return data
+	}
+	return modifiedData
 }
 
 // isOpenAIImageStreamErrorEvent detects upstream error chunks by JSON content
@@ -210,7 +246,11 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
-	normalizeOpenAIUsage(&usageResp.Usage)
+	if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) {
+		normalizeOpenAIUsage(&usageResp.Usage)
+	} else {
+		usageResp.Usage = openAIImageLocalUsage(info)
+	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 
 	helper.SetEventStreamHeaders(c)
@@ -237,7 +277,7 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		if image.RevisedPrompt != "" {
 			payload["revised_prompt"] = image.RevisedPrompt
 		}
-		if service.ValidUsage(&usageResp.Usage) {
+		if relaycommon.ShouldTrustUpstreamUsage(info.ChannelOtherSettings) && service.ValidUsage(&usageResp.Usage) {
 			payload["usage"] = usageResp.Usage
 		}
 		if err := writeOpenaiImageStreamPayload(c, "image_generation.completed", payload); err != nil {

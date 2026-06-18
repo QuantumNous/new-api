@@ -217,6 +217,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    values.trust_upstream_usage ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -2896,6 +2897,39 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Relay behavior controls')}
+                          icon={<Route className='h-3.5 w-3.5' />}
+                        />
+
+                        <div className='divide-border space-y-0 divide-y border-y'>
+                          <FormField
+                            control={form.control}
+                            name='trust_upstream_usage'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel className='text-sm'>
+                                    {t('Trust upstream usage')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'Use upstream token usage when available. Enable only for channels whose usage data is trusted.'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
                       {(currentType === 1 || currentType === 14) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
