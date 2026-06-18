@@ -32,3 +32,67 @@ export function formatUptimePct(pct: number): string {
   if (!Number.isFinite(pct)) return '—'
   return `${pct.toFixed(2)}%`
 }
+
+export type SuccessRateLevel =
+  | 'excellent'
+  | 'good'
+  | 'warning'
+  | 'critical'
+  | 'unknown'
+
+const SUCCESS_RATE_EXCELLENT_MIN = 100
+const SUCCESS_RATE_GOOD_MIN = 90
+const SUCCESS_RATE_WARNING_MIN = 70
+
+/**
+ * Single source of truth for grading a success rate (0-100).
+ * - excellent: 100% (full green)
+ * - good: >= 90% (slightly lighter green)
+ * - warning: >= 70%
+ * - critical: below 70%
+ * - unknown: non-finite values
+ */
+export function getSuccessRateLevel(rate: number): SuccessRateLevel {
+  if (!Number.isFinite(rate)) return 'unknown'
+  if (rate >= SUCCESS_RATE_EXCELLENT_MIN) return 'excellent'
+  if (rate >= SUCCESS_RATE_GOOD_MIN) return 'good'
+  if (rate >= SUCCESS_RATE_WARNING_MIN) return 'warning'
+  return 'critical'
+}
+
+const SUCCESS_RATE_TEXT_CLASS: Record<SuccessRateLevel, string> = {
+  excellent: 'text-success',
+  good: 'text-success/70',
+  warning: 'text-warning',
+  critical: 'text-destructive',
+  unknown: 'text-muted-foreground',
+}
+
+const SUCCESS_RATE_DOT_CLASS: Record<SuccessRateLevel, string> = {
+  excellent: 'bg-success',
+  good: 'bg-success/60',
+  warning: 'bg-warning',
+  critical: 'bg-destructive',
+  unknown: 'bg-muted-foreground',
+}
+
+// Hex colors for non-CSS contexts (e.g. chart libraries that need raw values).
+const SUCCESS_RATE_HEX_COLOR: Record<SuccessRateLevel, string> = {
+  excellent: '#10b981', // emerald-500 (full green)
+  good: '#34d399', // emerald-400 (slightly lighter green)
+  warning: '#f59e0b', // amber-500
+  critical: '#ef4444', // red-500
+  unknown: '#9ca3af', // gray-400
+}
+
+export function getSuccessRateTextClass(rate: number): string {
+  return SUCCESS_RATE_TEXT_CLASS[getSuccessRateLevel(rate)]
+}
+
+export function getSuccessRateDotClass(rate: number): string {
+  return SUCCESS_RATE_DOT_CLASS[getSuccessRateLevel(rate)]
+}
+
+export function getSuccessRateColor(rate: number): string {
+  return SUCCESS_RATE_HEX_COLOR[getSuccessRateLevel(rate)]
+}
