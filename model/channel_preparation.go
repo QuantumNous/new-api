@@ -15,6 +15,12 @@ const (
 	ChannelPreparationStatusPromoting = 4
 )
 
+const (
+	ChannelPreparationTestStatusUntested = 0
+	ChannelPreparationTestStatusSuccess  = 1
+	ChannelPreparationTestStatusFailed   = 2
+)
+
 type ChannelPreparation struct {
 	Id                 int     `json:"id"`
 	Type               int     `json:"type" gorm:"default:0"`
@@ -27,6 +33,8 @@ type ChannelPreparation struct {
 	UpdatedTime        int64   `json:"updated_time" gorm:"bigint"`
 	TestTime           int64   `json:"test_time" gorm:"bigint;default:0"`
 	ResponseTime       int     `json:"response_time" gorm:"default:0"`
+	TestStatus         int     `json:"test_status" gorm:"default:0"`
+	TestMessage        string  `json:"test_message" gorm:"type:text"`
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"`
@@ -63,6 +71,8 @@ type ChannelPreparationResponse struct {
 	UpdatedTime        int64   `json:"updated_time"`
 	TestTime           int64   `json:"test_time"`
 	ResponseTime       int     `json:"response_time"`
+	TestStatus         int     `json:"test_status"`
+	TestMessage        string  `json:"test_message"`
 	BaseURL            *string `json:"base_url"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"`
@@ -115,6 +125,8 @@ func (p *ChannelPreparation) NormalizeForCreate() {
 	p.UpdatedTime = now
 	p.TestTime = 0
 	p.ResponseTime = 0
+	p.TestStatus = ChannelPreparationTestStatusUntested
+	p.TestMessage = ""
 	p.PromotedTime = nil
 	p.PromotedChannelId = nil
 	if strings.TrimSpace(p.Group) == "" {
@@ -133,6 +145,8 @@ func (p *ChannelPreparation) NormalizeForUpdate(existing *ChannelPreparation) {
 	p.UpdatedTime = common.GetTimestamp()
 	p.TestTime = existing.TestTime
 	p.ResponseTime = existing.ResponseTime
+	p.TestStatus = existing.TestStatus
+	p.TestMessage = existing.TestMessage
 	p.PromotedTime = existing.PromotedTime
 	p.PromotedChannelId = existing.PromotedChannelId
 	if strings.TrimSpace(p.Key) == "" {
@@ -171,6 +185,8 @@ func (p *ChannelPreparation) ToResponse() ChannelPreparationResponse {
 		UpdatedTime:        p.UpdatedTime,
 		TestTime:           p.TestTime,
 		ResponseTime:       p.ResponseTime,
+		TestStatus:         p.TestStatus,
+		TestMessage:        p.TestMessage,
 		BaseURL:            p.BaseURL,
 		Other:              p.Other,
 		Balance:            p.Balance,
@@ -243,12 +259,21 @@ func (p *ChannelPreparation) ToChannel() *Channel {
 }
 
 func (p *ChannelPreparation) UpdateResponseTime(responseTime int64) {
-	err := DB.Model(p).Select("response_time", "test_time").Updates(ChannelPreparation{
+	p.UpdateTestResult(responseTime, ChannelPreparationTestStatusSuccess, "")
+}
+
+func (p *ChannelPreparation) UpdateTestResult(responseTime int64, testStatus int, testMessage string) {
+	if len(testMessage) > 2048 {
+		testMessage = testMessage[:2048]
+	}
+	err := DB.Model(p).Select("response_time", "test_time", "test_status", "test_message").Updates(ChannelPreparation{
 		TestTime:     common.GetTimestamp(),
 		ResponseTime: int(responseTime),
+		TestStatus:   testStatus,
+		TestMessage:  testMessage,
 	}).Error
 	if err != nil {
-		common.SysLog(fmt.Sprintf("failed to update preparation response time: preparation_id=%d, error=%v", p.Id, err))
+		common.SysLog(fmt.Sprintf("failed to update preparation test result: preparation_id=%d, error=%v", p.Id, err))
 	}
 }
 

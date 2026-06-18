@@ -1,6 +1,6 @@
 import React from 'react';
-import { Button, Modal } from '@douyinfe/semi-ui';
-import { IconRefresh, IconDelete } from '@douyinfe/semi-icons';
+import { Button, Dropdown, Modal } from '@douyinfe/semi-ui';
+import { IconRefresh, IconDelete, IconTreeTriangleDown } from '@douyinfe/semi-icons';
 
 const PreparationActions = ({
   t,
@@ -8,6 +8,10 @@ const PreparationActions = ({
   selectedPreparations,
   promoteSelected,
   deleteSelected,
+  batchTestPreparations,
+  stopPreparationBatchTest,
+  isPreparationBatchTesting,
+  preparationBatchProgress,
 }) => {
   const hasSelection = selectedPreparations.length > 0;
 
@@ -16,7 +20,7 @@ const PreparationActions = ({
       <Button
         size='small'
         type='tertiary'
-        disabled={!hasSelection}
+        disabled={!hasSelection || isPreparationBatchTesting}
         onClick={() => {
           Modal.confirm({
             title: t('确认批量晋升？'),
@@ -27,11 +31,42 @@ const PreparationActions = ({
       >
         {t('批量晋升')}
       </Button>
+      {isPreparationBatchTesting ? (
+        <Button size='small' type='danger' onClick={stopPreparationBatchTest}>
+          {t('停止批量测试')} {preparationBatchProgress.finished}/
+          {preparationBatchProgress.total}
+        </Button>
+      ) : (
+        <Dropdown
+          trigger='click'
+          position='bottomLeft'
+          render={
+            <Dropdown.Menu>
+              <Dropdown.Item
+                disabled={!hasSelection}
+                onClick={() => batchTestPreparations('selected')}
+              >
+                {t('测试勾选渠道')}
+              </Dropdown.Item>
+              <Dropdown.Item onClick={() => batchTestPreparations('filtered')}>
+                {t('测试当前筛选全部')}
+              </Dropdown.Item>
+              <Dropdown.Item onClick={() => batchTestPreparations('all')}>
+                {t('测试全部备货渠道')}
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          }
+        >
+          <Button size='small' type='tertiary' icon={<IconTreeTriangleDown />}>
+            {t('批量测试')}
+          </Button>
+        </Dropdown>
+      )}
       <Button
         size='small'
         type='tertiary'
         icon={<IconDelete />}
-        disabled={!hasSelection}
+        disabled={!hasSelection || isPreparationBatchTesting}
         onClick={() => {
           Modal.confirm({
             title: t('确认批量删除？'),

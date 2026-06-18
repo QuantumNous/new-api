@@ -72,11 +72,37 @@ func TestChannelPreparationUpdateResponseTimeOnlyTouchesTestFields(t *testing.T)
 	var got ChannelPreparation
 	require.NoError(t, DB.First(&got, "id = ?", preparation.Id).Error)
 	require.Equal(t, 3456, got.ResponseTime)
+	require.Equal(t, ChannelPreparationTestStatusSuccess, got.TestStatus)
+	require.Empty(t, got.TestMessage)
 	require.GreaterOrEqual(t, got.TestTime, before)
 	require.LessOrEqual(t, got.TestTime, common.GetTimestamp())
 	require.Equal(t, ChannelPreparationStatusPending, got.Status)
 	require.Equal(t, "sk-test", got.Key)
 	require.Equal(t, int64(12345), got.UpdatedTime)
+}
+
+func TestChannelPreparationUpdateTestResultStoresFailure(t *testing.T) {
+	setupChannelPreparationModelTestDB(t)
+
+	preparation := ChannelPreparation{
+		Type:   1,
+		Key:    "sk-test",
+		Name:   "candidate",
+		Status: ChannelPreparationStatusPending,
+		Group:  "default",
+	}
+	require.NoError(t, DB.Create(&preparation).Error)
+
+	before := common.GetTimestamp()
+	preparation.UpdateTestResult(789, ChannelPreparationTestStatusFailed, "upstream timeout")
+
+	var got ChannelPreparation
+	require.NoError(t, DB.First(&got, "id = ?", preparation.Id).Error)
+	require.Equal(t, 789, got.ResponseTime)
+	require.Equal(t, ChannelPreparationTestStatusFailed, got.TestStatus)
+	require.Equal(t, "upstream timeout", got.TestMessage)
+	require.GreaterOrEqual(t, got.TestTime, before)
+	require.LessOrEqual(t, got.TestTime, common.GetTimestamp())
 }
 
 func TestChannelPreparationNormalizePreservesAndResetsTestFields(t *testing.T) {
@@ -89,6 +115,8 @@ func TestChannelPreparationNormalizePreservesAndResetsTestFields(t *testing.T) {
 		Group:        "vip",
 		TestTime:     300,
 		ResponseTime: 456,
+		TestStatus:   ChannelPreparationTestStatusFailed,
+		TestMessage:  "previous failure",
 	}
 	input := ChannelPreparation{Key: "", Group: ""}
 	input.NormalizeForUpdate(existing)
@@ -96,11 +124,20 @@ func TestChannelPreparationNormalizePreservesAndResetsTestFields(t *testing.T) {
 	require.Equal(t, existing.Key, input.Key)
 	require.Equal(t, int64(300), input.TestTime)
 	require.Equal(t, 456, input.ResponseTime)
+	require.Equal(t, ChannelPreparationTestStatusFailed, input.TestStatus)
+	require.Equal(t, "previous failure", input.TestMessage)
 
-	createInput := ChannelPreparation{TestTime: 300, ResponseTime: 456}
+	createInput := ChannelPreparation{
+		TestTime:     300,
+		ResponseTime: 456,
+		TestStatus:   ChannelPreparationTestStatusFailed,
+		TestMessage:  "previous failure",
+	}
 	createInput.NormalizeForCreate()
 	require.Zero(t, createInput.TestTime)
 	require.Zero(t, createInput.ResponseTime)
+	require.Equal(t, ChannelPreparationTestStatusUntested, createInput.TestStatus)
+	require.Empty(t, createInput.TestMessage)
 }
 
 func TestChannelPreparationResponseAndToChannelIncludeTestFields(t *testing.T) {
@@ -111,11 +148,15 @@ func TestChannelPreparationResponseAndToChannelIncludeTestFields(t *testing.T) {
 		Group:        "default",
 		TestTime:     300,
 		ResponseTime: 456,
+		TestStatus:   ChannelPreparationTestStatusFailed,
+		TestMessage:  "failed",
 	}
 
 	response := preparation.ToResponse()
 	require.Equal(t, int64(300), response.TestTime)
 	require.Equal(t, 456, response.ResponseTime)
+	require.Equal(t, ChannelPreparationTestStatusFailed, response.TestStatus)
+	require.Equal(t, "failed", response.TestMessage)
 
 	channel := preparation.ToChannel()
 	require.Equal(t, int64(300), channel.TestTime)

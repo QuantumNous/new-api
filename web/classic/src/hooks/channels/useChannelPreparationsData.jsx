@@ -16,6 +16,12 @@ export const PREPARATION_STATUS_LABELS = {
   [PREPARATION_STATUS.PENDING]: '待晋升',
 };
 
+export const PREPARATION_TEST_STATUS = {
+  UNTESTED: 0,
+  SUCCESS: 1,
+  FAILED: 2,
+};
+
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_GROUP = 'default';
 
@@ -65,27 +71,58 @@ export function useChannelPreparationsData() {
   const [isStreamTest, setIsStreamTest] = useState(false);
   const allSelectingRef = useRef(false);
   const shouldStopBatchTestingRef = useRef(false);
+  const shouldStopPreparationBatchTestingRef = useRef(false);
+  const [testingPreparationIds, setTestingPreparationIds] = useState(new Set());
+  const [isPreparationBatchTesting, setIsPreparationBatchTesting] = useState(false);
+  const [preparationBatchProgress, setPreparationBatchProgress] = useState({
+    total: 0,
+    finished: 0,
+    success: 0,
+    fail: 0,
+  });
+
+  const buildListParams = useCallback(
+    (page, size, overrides = {}) => {
+      const filter = {
+        keyword,
+        group,
+        dateRange,
+        type,
+        status,
+        ...overrides,
+      };
+      const params = {
+        p: page,
+        page_size: size,
+        keyword: filter.keyword,
+        group: filter.group,
+      };
+      if (Array.isArray(filter.dateRange) && filter.dateRange.length === 2) {
+        const startTimestamp = toUnixTimestamp(filter.dateRange[0]);
+        const endTimestamp = toUnixTimestamp(filter.dateRange[1]);
+        if (startTimestamp !== null) params.start_timestamp = startTimestamp;
+        if (endTimestamp !== null) params.end_timestamp = endTimestamp;
+      }
+      if (filter.type !== undefined && filter.type !== null && filter.type !== '') {
+        params.type = filter.type;
+      }
+      if (
+        filter.status !== undefined &&
+        filter.status !== null &&
+        filter.status !== ''
+      ) {
+        params.status = filter.status;
+      }
+      return params;
+    },
+    [keyword, group, dateRange, type, status],
+  );
 
   const loadPreparations = useCallback(
     async (page = activePage, size = pageSize) => {
       setLoading(true);
       try {
-        const params = {
-          p: page,
-          page_size: size,
-          keyword,
-          group,
-        };
-        if (Array.isArray(dateRange) && dateRange.length === 2) {
-          const startTimestamp = toUnixTimestamp(dateRange[0]);
-          const endTimestamp = toUnixTimestamp(dateRange[1]);
-          if (startTimestamp !== null) params.start_timestamp = startTimestamp;
-          if (endTimestamp !== null) params.end_timestamp = endTimestamp;
-        }
-        if (type !== undefined && type !== null && type !== '')
-          params.type = type;
-        if (status !== undefined && status !== null && status !== '')
-          params.status = status;
+        const params = buildListParams(page, size);
         const res = await API.get('/api/channel/preparations', { params });
         const { success, data, message } = res.data;
         if (!success) {
@@ -105,7 +142,7 @@ export function useChannelPreparationsData() {
         setLoading(false);
       }
     },
-    [activePage, pageSize, keyword, group, dateRange, type, status, t],
+    [activePage, pageSize, buildListParams, t],
   );
 
   const refresh = useCallback(
@@ -200,12 +237,20 @@ export function useChannelPreparationsData() {
   );
 
   const testPreparation = useCallback(
-    async (preparation, model = '', endpointType = '', stream = false) => {
+    async (
+      preparation,
+      model = '',
+      endpointType = '',
+      stream = false,
+      options = {},
+    ) => {
       const testKey = `${preparation.id}-${model}`;
+      const silent = options.silent === true;
       if (shouldStopBatchTestingRef.current && isBatchTesting) {
         return false;
       }
       setTestingModels((prev) => new Set([...prev, model]));
+      setTestingPreparationIds((prev) => new Set([...prev, preparation.id]));
 
       try {
         const params = new URLSearchParams();
@@ -233,37 +278,46 @@ export function useChannelPreparationsData() {
           },
         }));
 
-        if (success) {
+        const updateTestResult = (testStatus, testMessage = '') => {
           setPreparations((prev) =>
             prev.map((item) =>
               item.id === preparation.id
                 ? {
                     ...item,
-                    response_time: time * 1000,
+                    response_time: (time || 0) * 1000,
                     test_time: Date.now() / 1000,
+                    test_status: testStatus,
+                    test_message: testMessage,
                   }
                 : item,
             ),
           );
-          if (model) {
-            showInfo(
-              t(
-                '候选渠道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。',
-              )
-                .replace('${name}', preparation.name)
-                .replace('${model}', model)
-                .replace('${time.toFixed(2)}', time.toFixed(2)),
-            );
-          } else {
-            showInfo(
-              t('候选渠道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。')
-                .replace('${name}', preparation.name)
-                .replace('${time.toFixed(2)}', time.toFixed(2)),
-            );
+        };
+
+        if (success) {
+          updateTestResult(PREPARATION_TEST_STATUS.SUCCESS, '');
+          if (!silent) {
+            if (model) {
+              showInfo(
+                t(
+                  '候选渠道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。',
+                )
+                  .replace('${name}', preparation.name)
+                  .replace('${model}', model)
+                  .replace('${time.toFixed(2)}', time.toFixed(2)),
+              );
+            } else {
+              showInfo(
+                t('候选渠道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。')
+                  .replace('${name}', preparation.name)
+                  .replace('${time.toFixed(2)}', time.toFixed(2)),
+              );
+            }
           }
           return true;
         }
-        showError(message || t('测试失败'));
+        updateTestResult(PREPARATION_TEST_STATUS.FAILED, message || t('测试失败'));
+        if (!silent) showError(message || t('测试失败'));
         return false;
       } catch (error) {
         setModelTestResults((prev) => ({
@@ -277,7 +331,21 @@ export function useChannelPreparationsData() {
             errorCode: null,
           },
         }));
-        showError(error?.response?.data?.message || error.message || t('测试失败'));
+        const errorMessage =
+          error?.response?.data?.message || error.message || t('测试失败');
+        setPreparations((prev) =>
+          prev.map((item) =>
+            item.id === preparation.id
+              ? {
+                  ...item,
+                  test_time: Date.now() / 1000,
+                  test_status: PREPARATION_TEST_STATUS.FAILED,
+                  test_message: errorMessage,
+                }
+              : item,
+          ),
+        );
+        if (!silent) showError(errorMessage);
         return false;
       } finally {
         setTestingModels((prev) => {
@@ -285,10 +353,148 @@ export function useChannelPreparationsData() {
           next.delete(model);
           return next;
         });
+        setTestingPreparationIds((prev) => {
+          const next = new Set(prev);
+          next.delete(preparation.id);
+          return next;
+        });
       }
     },
     [isBatchTesting, t],
   );
+
+  const fetchPreparationsForBatchTest = useCallback(
+    async (scope) => {
+      if (scope === 'selected') {
+        return selectedPreparations.filter(
+          (item) => item.status === PREPARATION_STATUS.PENDING,
+        );
+      }
+
+      const size = 100;
+      let page = 1;
+      let totalCount = 0;
+      const items = [];
+      const filterOverrides =
+        scope === 'all'
+          ? {
+              keyword: '',
+              group: '',
+              dateRange: [],
+              type: undefined,
+              status: PREPARATION_STATUS.PENDING,
+            }
+          : {};
+
+      do {
+        const params = buildListParams(page, size, filterOverrides);
+        const res = await API.get('/api/channel/preparations', { params });
+        const { success, data, message } = res.data;
+        if (!success) {
+          throw new Error(message || t('加载失败'));
+        }
+        const pageItems = data?.items || [];
+        items.push(
+          ...pageItems.filter((item) => item.status === PREPARATION_STATUS.PENDING),
+        );
+        totalCount = data?.total || 0;
+        if (pageItems.length === 0 || page * size >= totalCount) break;
+        page += 1;
+      } while (page <= 1000);
+
+      return items;
+    },
+    [buildListParams, selectedPreparations, t],
+  );
+
+  const batchTestPreparations = useCallback(
+    async (scope) => {
+      if (isPreparationBatchTesting) {
+        showInfo(t('批量测试正在进行中'));
+        return;
+      }
+
+      try {
+        const targets = await fetchPreparationsForBatchTest(scope);
+        if (targets.length === 0) {
+          showInfo(t('没有可测试的候选渠道'));
+          return;
+        }
+
+        shouldStopPreparationBatchTestingRef.current = false;
+        setIsPreparationBatchTesting(true);
+        setPreparationBatchProgress({
+          total: targets.length,
+          finished: 0,
+          success: 0,
+          fail: 0,
+        });
+        showInfo(t('开始批量测试 {{count}} 个候选渠道', { count: targets.length }));
+
+        const concurrencyLimit = 5;
+        let successCount = 0;
+        let failCount = 0;
+        let finishedCount = 0;
+
+        for (let i = 0; i < targets.length; i += concurrencyLimit) {
+          if (shouldStopPreparationBatchTestingRef.current) break;
+          const batch = targets.slice(i, i + concurrencyLimit);
+          const results = await Promise.allSettled(
+            batch.map((item) =>
+              testPreparation(item, '', '', false, { silent: true }),
+            ),
+          );
+          results.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value) successCount += 1;
+            else failCount += 1;
+          });
+          finishedCount += batch.length;
+          setPreparationBatchProgress({
+            total: targets.length,
+            finished: finishedCount,
+            success: successCount,
+            fail: failCount,
+          });
+          if (i + concurrencyLimit < targets.length) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        }
+
+        if (shouldStopPreparationBatchTestingRef.current) {
+          showInfo(
+            t('批量测试已停止：成功 {{success}}，失败 {{fail}}', {
+              success: successCount,
+              fail: failCount,
+            }),
+          );
+        } else {
+          showSuccess(
+            t('批量测试完成：成功 {{success}}，失败 {{fail}}', {
+              success: successCount,
+              fail: failCount,
+            }),
+          );
+        }
+        refresh();
+      } catch (error) {
+        showError(error.message || t('批量测试失败'));
+      } finally {
+        setIsPreparationBatchTesting(false);
+      }
+    },
+    [
+      fetchPreparationsForBatchTest,
+      isPreparationBatchTesting,
+      refresh,
+      t,
+      testPreparation,
+    ],
+  );
+
+  const stopPreparationBatchTest = useCallback(() => {
+    shouldStopPreparationBatchTestingRef.current = true;
+    showInfo(t('正在停止批量测试'));
+  }, [t]);
 
   const batchTestModels = useCallback(async () => {
     if (!currentTestChannel || !currentTestChannel.models) {
@@ -518,6 +724,9 @@ export function useChannelPreparationsData() {
       isStreamTest,
       setIsStreamTest,
       allSelectingRef,
+      testingPreparationIds,
+      isPreparationBatchTesting,
+      preparationBatchProgress,
       refresh,
       handleSearch,
       handlePageChange,
@@ -528,6 +737,8 @@ export function useChannelPreparationsData() {
       savePreparation,
       importPreparations,
       testPreparation,
+      batchTestPreparations,
+      stopPreparationBatchTest,
       batchTestModels,
       handleCloseModal,
       promotePreparation,
@@ -564,6 +775,9 @@ export function useChannelPreparationsData() {
       modelTablePage,
       selectedEndpointType,
       isStreamTest,
+      testingPreparationIds,
+      isPreparationBatchTesting,
+      preparationBatchProgress,
       refresh,
       handleSearch,
       handlePageChange,
@@ -574,6 +788,8 @@ export function useChannelPreparationsData() {
       savePreparation,
       importPreparations,
       testPreparation,
+      batchTestPreparations,
+      stopPreparationBatchTest,
       batchTestModels,
       handleCloseModal,
       promotePreparation,

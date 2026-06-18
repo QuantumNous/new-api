@@ -4,6 +4,7 @@ import {
   Modal,
   SplitButtonGroup,
   Tag,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconTreeTriangleDown } from '@douyinfe/semi-icons';
@@ -11,6 +12,7 @@ import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import {
   PREPARATION_STATUS,
   PREPARATION_STATUS_LABELS,
+  PREPARATION_TEST_STATUS,
 } from '../../../hooks/channels/useChannelPreparationsData';
 import { renderResponseTime } from '../channels/ChannelsColumnDefs';
 
@@ -27,15 +29,25 @@ const getChannelLabel = (type) => {
   return CHANNEL_OPTIONS.find((item) => item.value === type)?.label || type;
 };
 
-const getModelsPreview = (models) => {
-  if (!models) return '-';
-  const list = String(models)
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (list.length === 0) return '-';
-  if (list.length <= 2) return list.join(', ');
-  return `${list.slice(0, 2).join(', ')} +${list.length - 2}`;
+const renderTestStatus = (record, testingPreparationIds, t) => {
+  if (testingPreparationIds?.has(record.id)) {
+    return <Tag color='blue'>{t('测试中')}</Tag>;
+  }
+  if (record.test_status === PREPARATION_TEST_STATUS.SUCCESS) {
+    return <Tag color='green'>{t('成功')}</Tag>;
+  }
+  if (record.test_status === PREPARATION_TEST_STATUS.FAILED) {
+    const failedTag = <Tag color='red'>{t('失败')}</Tag>;
+    return record.test_message ? (
+      <Tooltip content={record.test_message}>{failedTag}</Tooltip>
+    ) : (
+      failedTag
+    );
+  }
+  if (record.test_time) {
+    return <Tag color='green'>{t('已测试')}</Tag>;
+  }
+  return <Tag color='grey'>{t('未测试')}</Tag>;
 };
 
 export const getPreparationColumns = ({
@@ -46,6 +58,7 @@ export const getPreparationColumns = ({
   testPreparation,
   setCurrentTestChannel,
   setShowModelTestModal,
+  testingPreparationIds,
 }) => [
   {
     title: 'ID',
@@ -82,6 +95,13 @@ export const getPreparationColumns = ({
     ),
   },
   {
+    title: t('测试状态'),
+    dataIndex: 'test_status',
+    key: 'test_status',
+    width: 110,
+    render: (_, record) => renderTestStatus(record, testingPreparationIds, t),
+  },
+  {
     title: t('响应时间'),
     dataIndex: 'response_time',
     key: 'response_time',
@@ -100,13 +120,6 @@ export const getPreparationColumns = ({
     key: 'key_preview',
     width: 160,
     render: (value) => value || '-',
-  },
-  {
-    title: t('模型'),
-    dataIndex: 'models',
-    key: 'models',
-    width: 220,
-    render: getModelsPreview,
   },
   {
     title: t('余额'),

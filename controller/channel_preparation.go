@@ -202,11 +202,15 @@ func TestChannelPreparation(c *gin.Context) {
 	}
 	tik := time.Now()
 	result := testChannel(channel, testUserID, testModel, endpointType, isStream)
+	milliseconds := time.Since(tik).Milliseconds()
+	consumedTime := float64(milliseconds) / 1000.0
 	if result.localErr != nil {
+		message := result.localErr.Error()
+		go preparation.UpdateTestResult(milliseconds, model.ChannelPreparationTestStatusFailed, message)
 		resp := gin.H{
 			"success": false,
-			"message": result.localErr.Error(),
-			"time":    0.0,
+			"message": message,
+			"time":    consumedTime,
 		}
 		if result.newAPIError != nil {
 			resp["error_code"] = result.newAPIError.GetErrorCode()
@@ -214,18 +218,18 @@ func TestChannelPreparation(c *gin.Context) {
 		c.JSON(http.StatusOK, resp)
 		return
 	}
-	milliseconds := time.Since(tik).Milliseconds()
-	go preparation.UpdateResponseTime(milliseconds)
-	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
+		message := result.newAPIError.Error()
+		go preparation.UpdateTestResult(milliseconds, model.ChannelPreparationTestStatusFailed, message)
 		c.JSON(http.StatusOK, gin.H{
 			"success":    false,
-			"message":    result.newAPIError.Error(),
+			"message":    message,
 			"time":       consumedTime,
 			"error_code": result.newAPIError.GetErrorCode(),
 		})
 		return
 	}
+	go preparation.UpdateResponseTime(milliseconds)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

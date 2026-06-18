@@ -26,6 +26,7 @@ const PreparationTable = ({
   testPreparation,
   setCurrentTestChannel,
   setShowModelTestModal,
+  testingPreparationIds,
 }) => {
   const columns = useMemo(
     () =>
@@ -37,6 +38,7 @@ const PreparationTable = ({
         testPreparation,
         setCurrentTestChannel,
         setShowModelTestModal,
+        testingPreparationIds,
       }),
     [
       t,
@@ -46,6 +48,7 @@ const PreparationTable = ({
       testPreparation,
       setCurrentTestChannel,
       setShowModelTestModal,
+      testingPreparationIds,
     ],
   );
 
