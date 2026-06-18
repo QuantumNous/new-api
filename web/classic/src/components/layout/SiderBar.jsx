@@ -197,7 +197,7 @@ const SiderBar = ({
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: 'Skill Hub',
+        text: t('技能广场'),
         itemKey: 'skillHub',
         to: '/console/skill-hub',
         className: isAdmin() ? '' : 'tableHiddle',

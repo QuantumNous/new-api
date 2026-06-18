@@ -4462,6 +4462,10 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Skill Hub": "技能广场",
+    "Failed to load Skill Hub": "技能广场加载失败",
+    "Skills returned to local connectors.": "返回给本地连接器的技能。",
+    "Manage installable Skill packages.": "管理可安装的技能包。"
   }
 }

@@ -336,7 +336,7 @@ const SkillHub = () => {
         <div className='flex flex-wrap items-center justify-between gap-3'>
           <div>
             <Typography.Title heading={3} className='!mb-1'>
-              Skill Hub
+              技能广场
             </Typography.Title>
             <Typography.Text type='tertiary'>
               配置可被本地连接器安装的 Skill 包；当前只支持 HTTPS Zip 包安装。

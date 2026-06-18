@@ -323,8 +323,8 @@ export default function SettingsSidebarModulesAdmin(props) {
         },
         {
           key: 'skillHub',
-          title: 'Skill Hub',
-          description: t('Skill 包管理'),
+          title: '技能广场',
+          description: t('技能包管理'),
         },
         {
           key: 'redemption',
