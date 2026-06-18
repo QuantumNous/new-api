@@ -52,14 +52,43 @@ var knownTLDs = map[string]struct{}{
 
 // isLikelyPlainDomain reports whether a bare "a.b[.c]" token is a real hostname
 // (its last label is a known TLD) rather than a dotted code/field path.
+//
+// This is a deliberately conservative heuristic. It is impossible to perfectly
+// tell a 2-label host from a field path by structure alone (e.g. "tenant.id"
+// the host vs "user.id" the field are identical), so we accept a known
+// trade-off: bare hostnames on field-word TLDs (.dev/.app/.info/.id/...) are
+// NOT masked here. That is acceptable because the real leak vectors are still
+// covered — full URLs (maskURLPattern), IPs (maskIPPattern), and, on whitelabel
+// channels, provider brand keywords (taskcommon.ContainsBrandKeyword) — whereas
+// mangling a customer-facing field path is frequent and user-visible.
 func isLikelyPlainDomain(s string) bool {
 	parts := strings.Split(s, ".")
 	if len(parts) < 2 {
 		return false
 	}
+	// Structural guard: real DNS hostnames have no all-numeric labels (those are
+	// array indices like messages.0.content) and no underscores (snake_case
+	// fields). Either marker means it is a code/field path, not a host.
+	for _, p := range parts {
+		if p == "" || strings.ContainsRune(p, '_') || isAllDigits(p) {
+			return false
+		}
+	}
 	last := strings.ToLower(parts[len(parts)-1])
 	_, ok := knownTLDs[last]
 	return ok
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 const LocalLogContentLimit = 2048

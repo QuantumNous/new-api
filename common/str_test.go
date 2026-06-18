@@ -45,6 +45,11 @@ func TestMaskSensitiveInfo_FieldPathsNotMangled(t *testing.T) {
 		"reply.to",
 		"is.it",
 		"data.me",
+		// structural guard: a numeric (array-index) or underscore label ending in
+		// a KEPT TLD is still a field path, not a host
+		"tools.0.io",
+		"items.0.co",
+		"a_b.io",
 	}
 	for _, in := range cases {
 		out := MaskSensitiveInfo(in)
