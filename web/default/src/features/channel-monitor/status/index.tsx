@@ -20,7 +20,6 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   useEffect,
-  useMemo,
   useState,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -89,7 +88,6 @@ import {
   getMonitorStatusLabel,
   getMonitorStatusVariant,
   getProviderLabel,
-  groupUserMonitors,
   statusSegmentClassName,
 } from '../lib'
 import type {
@@ -159,10 +157,6 @@ export function ChannelStatusPage() {
     )
   }, [autoRefresh, isFetching, refetch, secondsUntilRefresh])
 
-  const grouped = useMemo(
-    () => groupUserMonitors(data?.monitors ?? []),
-    [data?.monitors]
-  )
   const overallStatus = data?.enabled
     ? data.summary.overall_state
     : data
@@ -192,7 +186,7 @@ export function ChannelStatusPage() {
           />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex flex-col gap-4'>
+          <div className='flex flex-col gap-6'>
             {data && !data.enabled && (
               <Alert>
                 <PauseCircle />
@@ -218,22 +212,18 @@ export function ChannelStatusPage() {
                 </EmptyHeader>
               </Empty>
             ) : (
-              Object.entries(grouped).map(([group, monitors]) => (
-                <section key={group} className='flex flex-col gap-2'>
-                  <div className='grid gap-4 sm:grid-cols-[repeat(auto-fill,minmax(28rem,28rem))]'>
-                    {monitors.map((monitor) => (
-                      <MonitorStatusCard
-                        key={monitor.id}
-                        monitor={monitor}
-                        availabilityWindow={availabilityWindow}
-                        autoRefresh={autoRefresh}
-                        secondsUntilRefresh={secondsUntilRefresh}
-                        onOpenDetail={() => setSelectedMonitorId(monitor.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))
+              <div className='grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),1fr))]'>
+                {(data?.monitors ?? []).map((monitor) => (
+                  <MonitorStatusCard
+                    key={monitor.id}
+                    monitor={monitor}
+                    availabilityWindow={availabilityWindow}
+                    autoRefresh={autoRefresh}
+                    secondsUntilRefresh={secondsUntilRefresh}
+                    onOpenDetail={() => setSelectedMonitorId(monitor.id)}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </SectionPageLayout.Content>
@@ -375,7 +365,7 @@ function MonitorStatusCard({
       role='button'
       tabIndex={0}
       aria-label={t('Open monitor details')}
-      className='focus-visible:ring-ring w-full cursor-pointer overflow-hidden transition-shadow outline-none hover:shadow-md focus-visible:ring-[3px] sm:w-[28rem]'
+      className='focus-visible:ring-ring h-full w-full cursor-pointer overflow-hidden transition-shadow outline-none hover:shadow-md focus-visible:ring-[3px]'
       onClick={onOpenDetail}
       onKeyDown={handleKeyDown}
     >
@@ -774,9 +764,9 @@ function formatMilliseconds(value?: number | null) {
 
 function ChannelStatusSkeleton() {
   return (
-    <div className='grid gap-4 sm:grid-cols-[repeat(auto-fill,minmax(28rem,28rem))]'>
+    <div className='grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),1fr))]'>
       {Array.from({ length: 6 }).map((_, index) => (
-        <Card key={index} className='w-full sm:w-[28rem]'>
+        <Card key={index} className='h-full w-full'>
           <CardHeader className='gap-0 pb-0'>
             <div className='flex items-start justify-between gap-3'>
               <div className='flex min-w-0 items-center gap-3'>
