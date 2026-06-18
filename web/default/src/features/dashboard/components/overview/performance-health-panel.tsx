@@ -27,6 +27,8 @@ import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
+  getSuccessRateDotClass,
+  getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
 
@@ -49,20 +51,6 @@ function simpleAverage(
     count++
   }
   return count > 0 ? total / count : NaN
-}
-
-function rateTextClass(rate: number): string {
-  if (!Number.isFinite(rate)) return 'text-muted-foreground'
-  if (rate >= 99.9) return 'text-success'
-  if (rate >= 99) return 'text-warning'
-  return 'text-destructive'
-}
-
-function rateDotClass(rate: number): string {
-  if (!Number.isFinite(rate)) return 'bg-muted-foreground'
-  if (rate >= 99.9) return 'bg-success'
-  if (rate >= 99) return 'bg-warning'
-  return 'bg-destructive'
 }
 
 export function PerformanceHealthPanel() {
@@ -121,7 +109,7 @@ export function PerformanceHealthPanel() {
             label={t('Success rate')}
             value={formatUptimePct(summary.successRate)}
             loading={loading}
-            valueClassName={rateTextClass(summary.successRate)}
+            valueClassName={getSuccessRateTextClass(summary.successRate)}
           />
           <MetricCell
             icon={Timer}
@@ -162,14 +150,14 @@ export function PerformanceHealthPanel() {
                       <span
                         className={cn(
                           'size-1.5 rounded-full',
-                          rateDotClass(model.success_rate)
+                          getSuccessRateDotClass(model.success_rate)
                         )}
                         aria-hidden='true'
                       />
                       <span
                         className={cn(
                           'font-mono text-[11px] font-semibold tabular-nums',
-                          rateTextClass(model.success_rate)
+                          getSuccessRateTextClass(model.success_rate)
                         )}
                       >
                         {formatUptimePct(model.success_rate)}

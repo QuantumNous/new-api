@@ -57,17 +57,22 @@ function DataTableRowInner<TData>({
       className={className}
       {...rowProps}
     >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell
-          key={cell.id}
-          className={cn(
-            'max-w-full min-w-0 overflow-hidden',
-            getColumnClassName?.(cell.column.id, 'cell')
-          )}
-        >
-          {renderCellContent(cell)}
-        </TableCell>
-      ))}
+      {row.getVisibleCells().map((cell) => {
+        const renderedCell = renderCellContent(cell)
+
+        return (
+          <TableCell
+            key={cell.id}
+            className={cn(
+              'max-w-full min-w-0',
+              renderedCell.isPrimitive && 'overflow-hidden',
+              getColumnClassName?.(cell.column.id, 'cell')
+            )}
+          >
+            {renderedCell.content}
+          </TableCell>
+        )
+      })}
     </TableRow>
   )
 }
@@ -100,22 +105,21 @@ function renderCellContent<TData>(cell: Cell<TData, unknown>) {
   const content = flexRender(cell.column.columnDef.cell, cell.getContext())
   const textContent = getPrimitiveTextContent(content)
 
-  if (!textContent) return content
+  if (!textContent) {
+    return { content, isPrimitive: false }
+  }
 
-  return <TruncatedCell tooltipContent={textContent}>{content}</TruncatedCell>
+  return {
+    content: (
+      <TruncatedCell tooltipContent={textContent}>{content}</TruncatedCell>
+    ),
+    isPrimitive: true,
+  }
 }
 
 function getPrimitiveTextContent(content: React.ReactNode): string | null {
   if (typeof content === 'string' || typeof content === 'number') {
     return String(content)
-  }
-
-  if (
-    React.isValidElement<{ children?: React.ReactNode }>(content) &&
-    (typeof content.props.children === 'string' ||
-      typeof content.props.children === 'number')
-  ) {
-    return String(content.props.children)
   }
 
   return null
