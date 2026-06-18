@@ -186,7 +186,7 @@ export function ChannelStatusPage() {
           />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex flex-col gap-6'>
+          <div className='flex min-w-0 flex-col gap-6'>
             {data && !data.enabled && (
               <Alert>
                 <PauseCircle />
@@ -212,7 +212,7 @@ export function ChannelStatusPage() {
                 </EmptyHeader>
               </Empty>
             ) : (
-              <div className='grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),1fr))]'>
+              <div className='grid min-w-0 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),30rem))] sm:justify-start'>
                 {(data?.monitors ?? []).map((monitor) => (
                   <MonitorStatusCard
                     key={monitor.id}
@@ -365,12 +365,12 @@ function MonitorStatusCard({
       role='button'
       tabIndex={0}
       aria-label={t('Open monitor details')}
-      className='focus-visible:ring-ring h-full w-full cursor-pointer overflow-hidden transition-shadow outline-none hover:shadow-md focus-visible:ring-[3px]'
+      className='focus-visible:ring-ring h-full min-w-0 cursor-pointer overflow-hidden transition-shadow outline-none hover:shadow-md focus-visible:ring-[3px]'
       onClick={onOpenDetail}
       onKeyDown={handleKeyDown}
     >
       <CardHeader className='gap-0 pb-0'>
-        <div className='flex items-start justify-between gap-3'>
+        <div className='flex min-w-0 items-start justify-between gap-3'>
           <div className='flex min-w-0 items-center gap-3'>
             <ProviderAvatar provider={monitor.provider} />
             <div className='min-w-0'>
@@ -421,13 +421,13 @@ function MonitorStatusCard({
 
         <Separator />
 
-        <div className='flex items-end justify-between gap-3'>
+        <div className='flex min-w-0 items-end justify-between gap-3'>
           <span className='text-muted-foreground text-xs'>
             {t('Availability')} ·{' '}
             {t(getAvailabilityWindowLabel(availabilityWindow))}
           </span>
           <div
-            className='flex items-baseline gap-1 text-3xl font-semibold tabular-nums'
+            className='flex shrink-0 items-baseline gap-1 text-3xl font-semibold tabular-nums'
             style={availabilityColorStyle(availabilityValue)}
           >
             <span>{availability.value}</span>
@@ -440,12 +440,12 @@ function MonitorStatusCard({
         </div>
 
         <div className='flex flex-col gap-1.5'>
-          <div className='flex items-center justify-between gap-3'>
+          <div className='flex min-w-0 items-center justify-between gap-3'>
             <span className='text-muted-foreground truncate text-xs'>
               {t('Last {{count}} records', { count: TIMELINE_MAX_POINTS })}
             </span>
             <span
-              className='text-muted-foreground truncate text-xs'
+              className='text-muted-foreground min-w-0 truncate text-right text-xs'
               title={`${t('Last checked')}: ${formatMonitorTime(
                 monitor.last_checked_at
               )}`}
@@ -764,7 +764,7 @@ function formatMilliseconds(value?: number | null) {
 
 function ChannelStatusSkeleton() {
   return (
-    <div className='grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),1fr))]'>
+    <div className='grid min-w-0 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,28rem),30rem))] sm:justify-start'>
       {Array.from({ length: 6 }).map((_, index) => (
         <Card key={index} className='h-full w-full'>
           <CardHeader className='gap-0 pb-0'>
