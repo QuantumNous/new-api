@@ -507,6 +507,7 @@ function ChannelTestDialogContent({
         await handleTestChannel(
           currentRow.id,
           {
+            channelName: currentRow.name,
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: effectiveStreamTest || undefined,

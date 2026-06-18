@@ -71,6 +71,41 @@ function getChannelTestResponseTime(
   return undefined
 }
 
+function formatChannelTestDuration(responseTime?: number): string | undefined {
+  if (responseTime === undefined) return undefined
+
+  if (responseTime >= 1000) {
+    return `${(responseTime / 1000).toFixed(2)} s`
+  }
+
+  return `${Math.max(1, Math.round(responseTime))} ms`
+}
+
+function getChannelTestLabel(options?: {
+  channelName?: string
+  testModel?: string
+}): string {
+  const channelName = options?.channelName?.trim()
+  const testModel = options?.testModel?.trim()
+
+  if (channelName && testModel) {
+    return i18next.t('Channel {{name}} model {{model}}', {
+      name: channelName,
+      model: testModel,
+    })
+  }
+
+  if (channelName) {
+    return i18next.t('Channel {{name}}', { name: channelName })
+  }
+
+  if (testModel) {
+    return i18next.t('Model {{model}}', { model: testModel })
+  }
+
+  return i18next.t('Channel')
+}
+
 // ============================================================================
 // Single Channel Actions
 // ============================================================================
@@ -231,6 +266,7 @@ export async function handleUpdateTagField(
 export async function handleTestChannel(
   id: number,
   options?: {
+    channelName?: string
     testModel?: string
     endpointType?: string
     stream?: boolean
@@ -257,28 +293,42 @@ export async function handleTestChannel(
   try {
     const response = await testChannel(id, payload)
     const responseTime = getChannelTestResponseTime(response)
+    const duration = formatChannelTestDuration(responseTime)
+    const target = getChannelTestLabel(options)
     if (response.success) {
       if (!options?.silent) {
-        toast.success(i18next.t(SUCCESS_MESSAGES.TESTED))
+        toast.success(
+          i18next.t('{{target}} test succeeded', { target }),
+          duration
+            ? {
+                description: i18next.t('Response time: {{duration}}', {
+                  duration,
+                }),
+              }
+            : undefined
+        )
       }
       onTestComplete?.(true, responseTime)
     } else {
+      const errorMsg = response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED)
       if (!options?.silent) {
-        toast.error(response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED))
+        toast.error(i18next.t('{{target}} test failed', { target }), {
+          description: response.error_code
+            ? `${errorMsg} (${response.error_code})`
+            : errorMsg,
+        })
       }
-      onTestComplete?.(
-        false,
-        responseTime,
-        response.message,
-        response.error_code
-      )
+      onTestComplete?.(false, responseTime, errorMsg, response.error_code)
     }
   } catch (_error: unknown) {
     const err = _error as { response?: { data?: { message?: string } } }
     const errorMsg =
       err?.response?.data?.message || i18next.t(ERROR_MESSAGES.TEST_FAILED)
+    const target = getChannelTestLabel(options)
     if (!options?.silent) {
-      toast.error(errorMsg)
+      toast.error(i18next.t('{{target}} test failed', { target }), {
+        description: errorMsg,
+      })
     }
     onTestComplete?.(false, undefined, errorMsg)
   }
