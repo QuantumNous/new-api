@@ -179,26 +179,63 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 4. 确认输出正确后，Admin 通过 Publish Checklist 发布 Skill。
 5. 系统记录 `skill_admin_action`，`entry_point=admin_preview`。
 
-### 3.4 User Downloads Tool Spec and Executes Skill via External AI Client
+### 3.4 User Installs Skill into AI Client and Uses Naturally
 
-1. User enables a Skill in Marketplace.
-2. User visits Skill Detail page and clicks "Download / Install".
-3. System generates the Skill's tool spec in OpenAPI or MCP format.
-   - Spec contains: tool name, description, input/output JSON schema, and the DeepRouter Skill API endpoint URL.
-   - Spec does **not** contain: execution logic, `instruction_template`, or any server-side implementation.
-4. User installs the tool spec into their AI client (ChatGPT Custom Action, Gemini Function Tool, Claude MCP, etc.).
-   - DeepRouter provides one-click install guides for each platform.
-5. User adds their DeepRouter API Key to the AI client's tool authentication config.
-6. User starts a conversation in their AI client.
-7. AI client decides to call the Skill tool (based on the tool description and user's message).
-8. AI client sends HTTP request to DeepRouter Skill API endpoint, carrying the user's API Key in the `Authorization` header.
-9. DeepRouter Relay authenticates the API Key, resolves user identity and entitlement.
-10. DeepRouter executes Skill logic server-side.
-11. DeepRouter returns `tool_result` JSON to the AI client.
-12. AI client integrates the tool result into its response to the user.
-13. Billing and analytics events are emitted with `entry_point=external_ai_client`.
+所有平台路径遵循同一产品心智：**Enable → 获取安装包 → 导入/添加到 AI 客户端 → 粘贴 Connection Key → 自然对话使用**
 
-> **Copy protection**: The tool spec points to DeepRouter's API endpoint and requires a valid, account-bound API Key. Sharing the tool spec file gives recipients only the schema — they cannot call DeepRouter's API without a valid Key. Sharing the API Key itself violates Terms of Service and Keys can be revoked per-user.
+#### 3.4a ChatGPT — Custom GPT Action
+
+1. User 在 Marketplace 启用 Skill。
+2. User 进入 Skill Detail → 点击「Use in my ChatGPT」。
+3. 复制 ChatGPT Import URL（推荐）或下载 `chatgpt-install.json`。
+4. 打开 ChatGPT → My GPTs → Create/Edit Custom GPT → Configure → Actions → Create new action。
+5. 粘贴 Import URL 或上传 install file；ChatGPT 自动识别 Skill 配置。
+6. 设置 Authentication → API Key → Bearer → 粘贴 DeepRouter Connection Key（在 Install Dialog 中复制）。
+7. 保存 Custom GPT。
+8. 在 Custom GPT 中自然对话；ChatGPT 自动决定何时调用 DeepRouter Skill tool。
+9. ChatGPT 携带 Connection Key 调用 `POST /v1/skills/execute/{skill_id}`。
+10. DeepRouter 验证 Key、检查 Enable 状态、注入 instruction_template、执行、返回结构化结果。
+11. ChatGPT 整合结果并回复用户。
+12. 系统记录 usage / billing，`entry_point=external_ai_client`。
+
+> **产品原则**：`chatgpt-install.json` 不含 Connection Key、不含 instruction_template、不含执行逻辑。安装文件只告诉 ChatGPT 如何调用 DeepRouter；真正的 Skill 逻辑在 DeepRouter 服务端运行。
+
+#### 3.4b Gemini API 开发者
+
+1. User 在 Marketplace 启用 Skill。
+2. User 进入 Skill Detail → 「Use in my Gemini App」→ 下载 `gemini-function.json`。
+3. 开发者将 function declaration 导入 Gemini API 应用后端；Connection Key 存为环境变量。
+4. 用户与 Gemini 对话；Gemini 根据 function declaration 决定发出 function call。
+5. 开发者后端收到 function call → 调用 `POST /v1/skills/execute/{skill_id}`，携带 Connection Key。
+6. DeepRouter 执行并返回结构化结果。
+7. 开发者后端将结果作为 functionResponse 返回 Gemini；Gemini 整合为最终答案。
+
+> **重要说明**：消费级 Gemini（chat.google.com）暂不支持导入外部 function spec。此 Track 面向 Gemini API 开发者。消费级 Gemini 直接安装路径标记为 **Future / pending platform support**。
+
+#### 3.4c Claude — Remote MCP Connector
+
+1. User 在 Marketplace 启用 Skill。
+2. User 进入 Skill Detail → 「Connect to Claude」。
+3. 复制 DeepRouter Remote MCP Connector URL：`https://deeprouter.ai/mcp`。
+4. 打开 Claude → Settings → Connections → Add custom connector → 粘贴 URL。
+5. 使用 Connection Key 或 OAuth 认证。
+6. Claude 自动发现该用户已 enabled 的所有 Skill（通过 `GET /mcp`）。
+7. 用户自然对话；Claude 自动调用 DeepRouter MCP tool。
+8. DeepRouter 执行并返回结构化结果；Claude 整合为最终答案。
+
+> **产品原则**：Connector 只暴露 tool definition（名称 + 参数 schema），不含 instruction_template；Connection Key 仅用于认证，不暴露给 Claude 模型。
+
+#### 3.4d Claude Code — MCP Install
+
+1. User 在 Marketplace 启用 Skill。
+2. User 进入 Skill Detail → 「Use in Claude Code」→ 复制安装命令。
+3. 在终端运行：
+   `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"`
+4. 备选：下载 `claude-code-skill.zip`，解压到项目根目录。
+5. 在 Claude Code 中自然对话：「Review contracts/vendor-api.md for legal risk.」
+6. Claude Code 调用 DeepRouter MCP tool → DeepRouter 执行 → 结果返回。
+
+> **产品原则**：Connection Key 不写入 zip 文件；install command 中的 Key 只存在于用户终端，不写入代码仓库。
 
 ### 3.5 User Membership Expires
 
@@ -625,13 +662,21 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 17. Deprecated Skill safety patch versions activate for existing enabled entitled users without reopening enablement.
 18. Existing non-Skill API calls remain unchanged.
 19. Feature flag can disable Marketplace entry without deleting data.
-20. Published Skill has a downloadable tool spec (OpenAPI format) accessible to enabled users; spec does not contain `instruction_template` or any execution logic.
-21. MCP-format tool spec is available for Claude integration.
-22. Skill Detail page provides one-click install guides for ChatGPT, Gemini, and Claude.
-23. External AI client can call the Skill API endpoint with a valid API Key; DeepRouter authenticates, runs entitlement check, executes Skill logic, and returns tool result.
-24. External AI client call with invalid or missing API Key receives 401 `AUTH_REQUIRED`.
-25. Billing event for external AI client call includes `entry_point=external_ai_client`; quota is deducted from the API Key owner's account.
-26. API Key revocation takes effect immediately; previously issued tool specs are rendered non-functional within one request cycle.
+20. ChatGPT install path is complete: user can download `chatgpt-install.json` or copy Import URL from Skill Detail, import into Custom GPT Actions, set Authentication to API Key / Bearer, paste Connection Key, and use the Skill naturally in that Custom GPT.
+21. Gemini API developer path is complete: user can download `gemini-function.json`, integrate into Gemini API app, and call DeepRouter execute endpoint from their backend.
+22. Consumer Gemini direct install is correctly labeled **Future / pending platform support** if not supported at launch.
+23. Claude path is complete: user can copy the Remote MCP Connector URL (`https://deeprouter.ai/mcp`), add it as a Claude connector, authenticate, and Claude discovers all user-enabled Skills as tools.
+24. Claude Code path is complete: user can run `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` or download `claude-code-skill.zip` and use the Skill naturally in Claude Code.
+25. All install artifacts (chatgpt-install.json / gemini-function.json / anthropic-tool.json / mcp-config.json / claude-code-skill.zip) are confirmed by Security review to not contain `instruction_template`, Connection Key, or any execution logic.
+26. All adapter artifacts pass automated scan: no `instruction_template`, `execution_handler`, or user credentials in any downloadable file.
+27. External AI client can call the Skill execute endpoint with a valid Connection Key; DeepRouter authenticates, runs entitlement check, executes Skill logic, and returns tool result.
+28. External AI client call with invalid or missing Connection Key receives 401 `AUTH_REQUIRED`.
+29. MCP live server `GET /mcp` returns only the calling user's enabled Skills; `POST /mcp` routes to the same execution chain as direct API calls.
+30. Billing event for external AI client or MCP call includes `entry_point=external_ai_client`; quota is deducted from the Connection Key owner's account.
+31. Connection Key revocation takes effect within one request cycle; all platforms (ChatGPT / Claude / Claude Code / Gemini) that use the revoked Key receive 401 on subsequent calls.
+32. Skill Detail Install Dialog has 5 platform tabs (ChatGPT / OpenAI API / Gemini / Claude / Claude Code), each with step-by-step guide, copy/download buttons, and Connection Key copy area.
+33. Non-technical UI does not expose terms "OpenAPI", "MCP", "Bearer", "JSON-RPC", or "API Key" in default (non-Advanced) view; "Connection Key" is used throughout.
+34. Connection Test UX: My Skills dashboard shows Last activity timestamp; failed-install checklist is displayed if no activity within 10 minutes of install.
 
 ### 10.2 P1 Acceptance
 

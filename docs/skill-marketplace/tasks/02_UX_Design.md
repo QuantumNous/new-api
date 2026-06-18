@@ -12,11 +12,12 @@
 
 | Decision | V1 UX Baseline |
 |---|---|
-| Skill 使用路径 | 下载 tool spec 是唯一路径；普通用户没有 Playground Skill 执行入口 |
-| Tool Spec Download | P0 — Skill Detail 和 My Skills 页面提供 tool spec 下载（OpenAPI / MCP）和平台安装引导 |
-| External AI Client Invocation | P0 — 外部 AI 客户端用 API Key 调用 DeepRouter Skill API |
+| Skill 使用路径 | 安装优先（Install-First）：用户从 Marketplace 启用 Skill，下载或复制平台专属安装包，导入到自己的 AI 客户端，然后自然使用；普通用户没有 Playground Skill 执行入口 |
+| 安装包（Install Artifact）| P0 — Skill Detail 提供每个平台的安装包：ChatGPT install file / Gemini function JSON / Claude MCP connector URL / Claude Code install command 或 zip |
+| 用户身份标识 | 用户界面统一称 **Connection Key**；技术文档 / Advanced 区域保留 API Key 称谓 |
+| External AI Client Invocation | P0 — 外部 AI 客户端携带 Connection Key（作为 Authorization Bearer）调用 DeepRouter Skill API |
 | Playground Skill Picker | 不对用户暴露；Playground 保持通用聊天界面 |
-| Unauthenticated Public Skill API | 不支持；所有 Skill API 调用需要有效 API Key |
+| Unauthenticated Public Skill API | 不支持；所有 Skill API 调用需要有效 Connection Key |
 | Kids Mode | Closed beta / feature-flagged by default until Product + Safety declare GA |
 | Kids UI when flag off | Hide Kids filters and Kids-exclusive browsing entry from normal users |
 | Kids UI when flag on | Apply all Kids blocked, Kids Safe, Kids Exclusive states in this spec |
@@ -33,7 +34,9 @@
 
 | Principle | Requirement |
 |---|---|
-| Hosted Execution, Tool Spec Available | UI 提供 tool spec（schema + endpoint）下载和平台安装引导；不得暗示执行逻辑（instruction_template / execution_handler）可查看或下载 |
+| Install-First, Not API-First | DeepRouter 是跨平台 Skill Marketplace，不仅是 API 后端。每个 Skill 对终端用户的呈现是"安装到你的 AI 工具"，而不是"调用一个 API endpoint" |
+| Plain Language, Technical Optional | 默认 UI 使用用户熟悉的词汇（"ChatGPT install file"、"Connection Key"、"Connect to Claude"）；技术术语（OpenAPI、Bearer、MCP、JSON-RPC）仅出现在 Advanced / Developer 区域 |
+| Hosted Execution, Install Artifact Only | UI 提供平台专属安装包（JSON / URL / command / zip）；安装包只含 schema + endpoint，绝不含 instruction_template、Connection Key 或执行逻辑 |
 | Use-Time Entitlement | 启用不等于永久可用；UI 必须显示当前执行可用性 |
 | Safety First | Kids / policy / entitlement block 必须清晰、克制、不可绕过 |
 | Operations Ready | Admin / Ops 页面必须支持排查、审计、筛选和追踪 |
@@ -352,18 +355,322 @@ Skill Package 安装（备选，适合无网络环境）：
 
 | 区域 | 内容 |
 |---|---|
-| API Key | 显示用户当前 DeepRouter API Key（脱敏），含「Copy」和「Generate New Key」快捷入口 |
-| Execute Endpoint | 一键复制 `https://deeprouter.ai/v1/skills/execute/<skill_id>` |
-| 安全说明 | "Your API Key is not included in the downloaded files. It must be configured separately in your AI client or app backend as an Authorization header. DeepRouter uses it to identify your account, verify entitlement, and track usage." |
+| Connection Key | 显示用户当前 DeepRouter Connection Key（脱敏），含「Copy」和「Generate New Key」快捷入口；标签统一显示 **Connection Key**（Advanced 折叠项中显示技术名称 API Key / Bearer token） |
+| Execute Endpoint | 仅 Advanced 区域展示；一键复制 `https://deeprouter.ai/v1/skills/execute/<skill_id>` |
+| 安全说明 | "Your Connection Key is not included in the downloaded install files. You paste it separately into your AI client during setup. DeepRouter uses it to identify your account, verify your Skill access, and track usage." |
 
 #### States
 
 | 状态 | UI |
 |---|---|
-| Skill 已启用 | 「Get Tool Spec / Install」为主 CTA；所有 Tab 可用 |
+| Skill 已启用 | 「Connect this Skill to your AI」为主 CTA；所有 Tab 可用 |
 | Skill 未启用 | 先完成 Enable 流程，完成后自动打开 Install Dialog |
 | Skill deprecated | 安装可用，所有 Tab 顶部显示「此 Skill 已废弃，可能随时停止服务」警告 |
-| API Key 未生成 | Install Dialog 内提示生成 API Key，不阻断下载/复制 URL |
+| Connection Key 未生成 | Install Dialog 内提示生成 Connection Key，不阻断下载/复制 URL |
+
+---
+
+### 4.4b Primary Install UX by Platform
+
+每个平台的安装路径遵循同一产品心智：
+
+> **Enable → Download/Copy install artifact → Import/Add to AI client → Authenticate with Connection Key → Use naturally**
+
+用户不需要理解 API、schema 或 MCP 协议细节。DeepRouter 处理所有服务端逻辑。
+
+---
+
+#### A. ChatGPT — Connect to Custom GPT Action
+
+**适用用户**：ChatGPT 普通用户（非开发者）
+
+> ⚠️ 这是安装到某个 **Custom GPT** 的 Actions，不是全局 ChatGPT 对话。用户需要先创建或编辑一个 Custom GPT。
+
+**用户流程：**
+
+| 步骤 | 用户操作 | 界面文案（非技术） |
+|---|---|---|
+| 1 | 在 DeepRouter Marketplace 启用 Skill | 点击「Enable Skill」|
+| 2 | 点击「Use in my ChatGPT」| 弹出 Install Dialog |
+| 3 | 复制 Import URL（推荐） 或 下载安装文件 | [📋 Copy ChatGPT Import URL] 或 [⬇ Download ChatGPT install file] |
+| 4 | 打开 ChatGPT → My GPTs → Create GPT（或 Edit 已有 GPT） | — |
+| 5 | Configure → Actions → Create new action | — |
+| 6 | 粘贴 Import URL 或上传安装文件 | ChatGPT 自动读取 Skill 配置 |
+| 7 | Authentication → API Key → Bearer → 粘贴 Connection Key | [Copy Connection Key] 按钮在 Install Dialog 下方 |
+| 8 | 点击 Save GPT | — |
+| 9 | 在 Custom GPT 对话中自然使用 | "帮我审查这份合约" → Custom GPT 自动调用 DeepRouter |
+
+**Clarify（产品原则）：**
+- 安装文件（`chatgpt-install.json`）不含 Connection Key。
+- 安装文件不含隐藏 prompt 或 instruction template。
+- 文件只告诉 ChatGPT"如何调用 DeepRouter"，真正的 Skill 逻辑在 DeepRouter 服务端运行。
+- Import URL 方式优先：Skill schema 更新后用户无需重新操作。
+- 未来（P1）：支持 OAuth → 用户点击「Connect DeepRouter Account」完成授权，无需手动填 Connection Key。
+
+---
+
+#### B. Gemini — 两条安装路径
+
+**重要：消费级 Gemini（chat.google.com）目前不支持用户直接导入外部 tool spec。Gemini 的两条路径面向不同用户群体。**
+
+**Track 1 — Gemini API 开发者**
+
+适用：开发者在自己的 app 或脚本中使用 Gemini API。
+
+| 步骤 | 用户操作 |
+|---|---|
+| 1 | 在 Marketplace 启用 Skill |
+| 2 | 点击「Use in my Gemini App」→ 下载 `gemini-function.json` |
+| 3 | 在后端代码导入 function declaration |
+| 4 | 后端存储 DeepRouter Connection Key（作为环境变量，不放入代码） |
+| 5 | Gemini 模型根据用户输入发出 function call |
+| 6 | 开发者后端调用 `POST /v1/skills/execute/{skill_id}`，携带 Connection Key |
+| 7 | DeepRouter 执行并返回结构化结果 |
+| 8 | Gemini 将结果整合为用户可读的答案 |
+
+**Track 2 — Gemini CLI / AI Agent 环境（if supported）**
+
+适用：使用 Gemini CLI 或支持 MCP 的 agent 框架。
+
+| 步骤 | 用户操作 |
+|---|---|
+| 1 | 在 Marketplace 启用 Skill |
+| 2 | 复制 MCP server config 或下载 Gemini agent 安装包 |
+| 3 | 在 Gemini CLI / agent 环境添加 DeepRouter MCP server 配置 |
+| 4 | 使用 Connection Key 或 OAuth 认证 |
+| 5 | 自然语言使用 Skill |
+
+> **产品诚信说明（必须在 UI 中展示）**：消费级 Gemini（chat.google.com）暂不支持导入外部 tool spec。Track 1 适合开发者；Track 2 需要 Gemini CLI 或兼容 MCP 的 agent 环境。不支持在普通 Gemini 对话中"一键安装"，此路径标记为 **Future / pending platform support**。
+
+---
+
+#### C. Claude — Remote MCP Connector
+
+适用：使用 Claude.ai 或 Anthropic Claude API，且支持 Remote MCP Connector 的环境。
+
+**用户流程：**
+
+| 步骤 | 用户操作 | 界面文案（非技术） |
+|---|---|---|
+| 1 | 在 Marketplace 启用 Skill | 点击「Enable Skill」|
+| 2 | 点击「Connect to Claude」| 弹出 Install Dialog |
+| 3 | 复制 DeepRouter MCP URL | [📋 Copy Connector URL] — `https://deeprouter.ai/mcp` |
+| 4 | 打开 Claude → Settings → Connections → Add custom connector | — |
+| 5 | 粘贴 Connector URL | — |
+| 6 | 使用 Connection Key 或 OAuth 认证 | [Copy Connection Key] |
+| 7 | Claude 自动发现用户已 enabled 的所有 Skill | — |
+| 8 | 自然语言使用："帮我审查这份合约的租户风险" | Claude 自动调用 DeepRouter MCP tool |
+
+**Clarify（产品原则）：**
+- 这是 connector 连接，不是下载 prompt 逻辑。
+- Connector 只暴露 tool definition（名称 + 参数 schema）。
+- instruction template 始终保留在 DeepRouter 服务端。
+- Connection Key 仅用于身份认证、quota 检查和 billing 归因，不暴露给 Claude 模型。
+- 此路径依赖 Claude.ai 对 Remote MCP Connector 的支持程度；如目标版本不支持，标记为 **pending platform support**。
+
+---
+
+#### D. Claude Code — MCP Install or Skill Package
+
+适用：在本地或 IDE 中使用 Claude Code 的开发者。
+
+**用户流程（命令行方式，推荐）：**
+
+| 步骤 | 用户操作 | 界面文案 |
+|---|---|---|
+| 1 | 在 Marketplace 启用 Skill | 点击「Enable Skill」|
+| 2 | 点击「Use in Claude Code」| 弹出 Install Dialog |
+| 3 | 复制安装命令 | [📋 Copy install command] |
+| 4 | 在终端粘贴运行 | `claude mcp add --transport http deeprouter https://deeprouter.ai/mcp --header "Authorization: Bearer <CONNECTION_KEY>"` |
+| 5 | Claude Code 中自然提问 | "Review contracts/vendor-api.md for legal risk." |
+| 6 | Claude Code 自动识别 MCP tool 并调用 DeepRouter | — |
+
+**备选：Skill Package（zip 安装）**
+
+| 步骤 | 用户操作 |
+|---|---|
+| 1 | 点击「Download Skill Package」→ 下载 `claude-code-skill.zip` |
+| 2 | 解压到项目根目录：`unzip claude-code-skill.zip -d ./` |
+| 3 | zip 内包含：`.claude/skills/<skill-name>/SKILL.md`、可选 examples、可选 `.mcp.json` 模板、安装说明 |
+| 4 | Claude Code 自动读取 SKILL.md，识别 MCP tool |
+
+**Clarify（产品原则）：**
+- Claude Code 用户比 ChatGPT 用户更偏技术，但同样适用"安装包 + Connection Key + 自然语言使用"的产品心智。
+- Connection Key 不写入可分享的 zip 文件。如生成个人专属配置文件，必须明确标注"此文件含您的 Connection Key，请勿分享"。
+- UI 标签统一用「Connection Key」；install command 里的 `Bearer <CONNECTION_KEY>` 在 Advanced 折叠区展示。
+
+---
+
+### 4.4c Install Artifacts
+
+每个平台生成的安装包定义如下：
+
+| 平台 | Artifact | 文件 / 内容 | 优先级 |
+|---|---|---|---|
+| ChatGPT Custom GPT | ChatGPT install file | `chatgpt-install.json`（OpenAPI schema + endpoint + auth scheme） | P0 |
+| ChatGPT Custom GPT | ChatGPT Import URL | `https://deeprouter.ai/v1/skills/<id>/adapters/openai-action`（直接 import） | P0 |
+| ChatGPT Custom GPT | Visual setup guide | 步骤截图 / 动图 | P0 |
+| ChatGPT Custom GPT | Sample test prompt | 一个测试对话示例 | P0 |
+| OpenAI API | OpenAI API tool schema | `openai-tool.json`（function calling，含 `additionalProperties: false`） | P0 |
+| OpenAI API | Python 代码示例 | 3 轮对话 + tool call 示例 | P0 |
+| OpenAI API | TypeScript 代码示例 | 同上 | P1 |
+| Gemini API | Gemini function declaration | `gemini-function.json` | P0 |
+| Gemini API | Python 代码示例 | function call → DeepRouter execute → functionResponse 示例 | P0 |
+| Gemini CLI / Agent | MCP config | `mcp-config.json`（MCP remote server 配置） | P1 |
+| Gemini 消费级 | 暂不支持 | — | Future / pending platform support |
+| Claude | Remote MCP Connector URL | `https://deeprouter.ai/mcp` | P0 |
+| Claude | Connector setup guide | Claude Settings → Connections 步骤说明 | P0 |
+| Claude | OAuth / Connection Key 说明 | 认证方式选择指引 | P0 |
+| Claude Code | MCP install command | `claude mcp add --transport http ...` | P0 |
+| Claude Code | Skill Package | `claude-code-skill.zip`（含 SKILL.md + examples + `.mcp.json` template） | P0 |
+| Claude Code | `.mcp.json` template | 可选，供需要手动配置的场景使用 | P1 |
+
+**Artifact 安全规则（适用所有 artifact）：**
+- 安装包不含 instruction template。
+- 安装包不含 Connection Key（用户专属配置文件除外，且须明确警告）。
+- 安装包不含执行逻辑或服务端代码。
+- 安装包只告诉 AI 客户端"如何调用 DeepRouter"，DeepRouter 服务端执行所有 Skill 逻辑。
+
+---
+
+### 4.4d Non-Technical UX Rules
+
+#### 默认 UI 术语规范
+
+| 技术术语（禁用于默认 UI） | 用户友好标签（默认 UI 使用） |
+|---|---|
+| API Key | Connection Key |
+| Bearer token | Connection Key |
+| OpenAPI schema | ChatGPT install file |
+| MCP server | Connector（或"Connect to Claude"） |
+| MCP transport | — （不展示给非技术用户） |
+| JSON-RPC | — （不展示给非技术用户） |
+| Remote MCP server URL | Connector URL |
+| tool spec | install file / install package |
+| `instruction_template` | — （永不对用户展示） |
+| POST /v1/skills/execute | — （仅 Advanced 区域展示） |
+
+#### 分层展示规则
+
+| 层级 | 内容 | 适用用户 |
+|---|---|---|
+| 默认（Default） | 步骤引导 / 复制按钮 / 下载按钮 / Connection Key 复制 / 测试连接 | 所有用户 |
+| Advanced | Execute endpoint URL / Bearer header 格式 / JSON schema 预览 / SDK 示例代码 | 开发者 / 技术用户 |
+| Developer Tab | OpenAI API / Gemini API / Claude API 开发者集成说明 | API 开发者 |
+
+#### 每个安装流程必须包含
+
+| 元素 | 说明 |
+|---|---|
+| Step-by-step guide | 明确的顺序步骤，含截图或动图（P0：文字步骤；P1：视觉引导） |
+| Copy button | 每个需要粘贴的内容旁有 [Copy] 按钮（URL / Key / command） |
+| Test connection instructions | 告诉用户如何验证安装成功（见 §4.4e） |
+| Troubleshooting checklist | 常见失败原因 + 检查项（见 §4.4e） |
+
+---
+
+### 4.4e Connection Test UX
+
+用户完成安装后，DeepRouter 提供以下方式验证连接是否成功：
+
+#### ChatGPT
+
+**测试流程：**
+1. 在已安装该 Skill Action 的 Custom GPT 里发送测试 prompt（Install Dialog 内提供示例 prompt）。
+2. DeepRouter 用户 Dashboard → My Skills → 该 Skill → 查看「Last request received」时间戳。
+3. 如果时间戳更新，表示安装成功。
+
+**如果没有收到请求，显示以下检查清单：**
+
+```
+Did you import the install file or URL into Custom GPT Actions?
+Did you set Authentication to API Key?
+Did you select Bearer as the token type?
+Did you paste your DeepRouter Connection Key?
+Did you click Save GPT before testing?
+Is the Skill still enabled in your DeepRouter account?
+```
+
+#### Claude / Claude Code
+
+**测试流程：**
+1. 发送测试 prompt。
+2. DeepRouter Dashboard → My Skills → 该 Skill → 查看「Last MCP tool call」时间戳。
+
+**如果失败，显示以下检查清单：**
+
+```
+Is the MCP Connector URL correct? (https://deeprouter.ai/mcp)
+Is the Authorization header present? (--header "Authorization: Bearer ...")
+Is the Skill enabled in your DeepRouter account?
+Is your Connection Key valid and not revoked?
+Is your quota available?
+```
+
+#### Gemini API 开发者
+
+**测试流程：**
+- Install Dialog 提供测试脚本（Python / TypeScript），调用 DeepRouter execute endpoint。
+- Dashboard 显示「Last API call」时间戳。
+
+#### Gemini CLI / MCP Agent
+
+**测试流程：**
+- 发送测试 prompt 并检查 Dashboard「Last MCP tool call」。
+- 如失败，检查 MCP config 认证字段是否正确。
+
+#### Dashboard 统一 My Skills 状态面板
+
+每个 enabled Skill 显示：
+
+| 字段 | 说明 |
+|---|---|
+| Status | Enabled / Disabled / Deprecated |
+| Last activity | 最近一次成功调用时间 |
+| Last platform | 最近调用来自哪个 entry point |
+| This month usage | 本月调用次数 / 消耗 tokens |
+| Connection status | ✅ Connected（有近期成功调用）/ ⚠️ No recent activity / ❌ Last call failed |
+
+---
+
+### 4.4f Unified Execution Contract
+
+无论用户通过哪个平台安装，所有 Skill 执行最终调用同一后端运行时：
+
+```
+POST /v1/skills/execute/{skill_id}
+```
+
+或通过 MCP：
+
+```
+tools/call → DeepRouter Skill Runtime → POST /v1/skills/execute/{skill_id}
+```
+
+**DeepRouter 服务端执行链（用户不可见，所有平台通用）：**
+
+```
+① 接收请求
+② 验证 Connection Key / OAuth token
+③ 识别用户身份（从 token 解析，不接受 request body 中的 user_id）
+④ 验证该 Skill 是否 enabled（该用户账号）
+⑤ 检查 quota 和 entitlement
+⑥ 注入隐藏 instruction template（服务端，用户不可见）
+⑦ 路由到 LLM provider 执行
+⑧ 验证结构化输出格式
+⑨ 返回结构化结果（不含 instruction template）
+⑩ 记录 usage、cost、entry_point
+⑪ billing 归因
+```
+
+**客户端只发送三件事：**
+```
+skill_id         → URL path（/v1/skills/execute/{skill_id}）
+user input args  → request body
+token            → Authorization: Bearer <Connection Key>
+```
+
+DeepRouter 只接受以上三件事。request body 中的 skill_id、user_id、tenant_id 字段一律忽略。
 
 ---
 

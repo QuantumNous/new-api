@@ -328,13 +328,90 @@ Blocked output returns `SKILL_SAFETY_VIOLATION` or a safe replacement response a
 
 ---
 
-## 7. Kids Safety Gate
+## 7. Install Artifact Security and Hidden Logic
 
-### 7.1 Release Baseline
+本章节定义所有平台安装包（Install Artifact）的安全边界，确保 Skill 的私有逻辑、Connection Key 和执行逻辑不通过安装包泄露。
+
+### 7.1 Install Artifact Security Rules
+
+**平台安装包（chatgpt-install.json / gemini-function.json / anthropic-tool.json / claude-code-skill.zip / mcp-config.json 等）永不包含：**
+
+| 禁止包含的内容 | 说明 |
+|---|---|
+| `instruction_template` | Skill 的核心 prompt 模板；平台 IP；绝不出现在任何客户端可访问的文件中 |
+| `prompt_guard_template` | 安全防护 prompt；同上 |
+| `execution_handler` / 执行逻辑 | 服务端代码、LLM provider 路由配置、后处理逻辑 |
+| Connection Key / API Key | 用户身份凭证；安装包不含 Key，Key 由用户在 AI 客户端安装时单独配置 |
+| 用户 `user_id` / `tenant_id` | 身份标识符不写入可分享的安装文件 |
+
+**平台安装包只包含：**
+
+| 允许包含的内容 | 说明 |
+|---|---|
+| `tool_function_name` | 工具调用名称 |
+| `tool_input_schema` | 用户输入参数 JSON Schema（不含执行逻辑） |
+| `tool_output_schema` | 输出结构 JSON Schema（不含执行逻辑） |
+| `description` | Skill 的用户可见描述 |
+| DeepRouter execute endpoint URL | `https://deeprouter.ai/v1/skills/execute/{skill_id}` 或 `/mcp` |
+| Auth scheme 说明 | "Bearer token required"（不含 token 本身） |
+
+### 7.2 Connection Key Security Rules
+
+| Rule | Requirement |
+|---|---|
+| Key 不写入安装文件 | 所有平台安装包（JSON / zip / URL）不含 Connection Key |
+| 个人专属配置文件 | 如生成含 Key 的个人配置文件（如 `.env` template），必须在 UI 显示警告："This file contains your Connection Key. Do not share or commit to version control." |
+| Key 不暴露给 LLM prompt | Connection Key 只作为 HTTP Authorization header 传输；AI 客户端配置系统加密存储，不写入 conversation context |
+| Key 传输路径 | AI 客户端 → DeepRouter HTTPS endpoint（`Authorization: Bearer <key>`）；Key 不经过用户输入框 / chat context / 模型推理路径 |
+| Key 绑定账号 | Key 与用户账号绑定；共享安装文件给他人不授予任何执行权限（无 Key = 401） |
+
+### 7.3 What DeepRouter Receives and Does
+
+DeepRouter 服务端从每次执行请求中只接受以下内容：
+
+```
+skill_id         → URL path（绝不从 request body 读取）
+user input args  → request body（按 tool_input_schema 定义的字段）
+token            → Authorization: Bearer header
+```
+
+DeepRouter 服务端执行以下操作（所有对用户不可见）：
+
+```
+1. 验证 Connection Key / OAuth token
+2. 从 token 解析用户身份（不信任 request body 中的 user_id / tenant_id）
+3. 验证该用户是否已 Enable 该 Skill
+4. 检查 entitlement / quota / Kids policy
+5. 在服务端注入 instruction_template（用户不可见，不离开服务端）
+6. 路由到 LLM provider 执行
+7. 验证结构化输出（按 tool_output_schema）
+8. 返回结构化 result（不含 instruction_template）
+9. 记录 usage / cost / entry_point / run_id
+10. billing 归因
+```
+
+### 7.4 Instruction Template Exposure Test（Launch Gate）
+
+Launch 前须通过以下全部测试：
+
+| 测试项 | 验证方法 |
+|---|---|
+| 安装文件不含 instruction_template | 下载所有 6 种 Adapter artifact，逐字段扫描，无 instruction_template 字段或内容 |
+| Execute endpoint 响应不含 instruction_template | 调用 `/v1/skills/execute/{skill_id}`，检查响应 body 和 headers |
+| MCP 响应不含 instruction_template | 调用 `POST /mcp`，检查 `result.content` 和 `result.structuredContent` |
+| Logs / audit / billing 不含 instruction_template | 检查执行日志、audit_log、billing_events，无 instruction_template 字段 |
+| Error 响应不含 instruction_template | 触发各类错误（401 / 403 / 429 / 500），检查 error body |
+| Admin preview 响应不含 instruction_template | 调用 `/api/v1/admin/skills/{skill_id}/preview`，检查响应 |
+
+---
+
+## 9. Kids Safety Gate
+
+### 9.1 Release Baseline
 
 Kids mode is disabled by default unless Product, Safety, Legal, Engineering, and QA approve it for GA. If not approved for GA, Kids mode may only run as closed beta behind a feature flag.
 
-### 7.2 Runtime Rules
+### 9.2 Runtime Rules
 
 | Rule | Requirement |
 |---|---|
@@ -347,14 +424,14 @@ Kids mode is disabled by default unless Product, Safety, Legal, Engineering, and
 | Output guard | Safety output guard is mandatory |
 | Logging | No raw Kids input/output in Skill logs, analytics, or support diagnostics |
 
-### 7.3 Publish and Approval
+### 9.3 Publish and Approval
 
 - Kids Safe or Kids Exclusive publish requires Safety Reviewer approval.
 - Template, model whitelist, output schema, or safety-critical setting changes invalidate prior Kids approval.
 - Safety violation after publish can trigger single-Skill kill switch, archive, or full Kids kill switch.
 - Emergency Super Admin override requires reason and creates audit log.
 
-### 7.4 Kids Incident Response
+### 9.4 Kids Incident Response
 
 | Severity | Trigger | Required Action |
 |---|---|---|
@@ -366,9 +443,9 @@ Severe Kids abuse handling must not depend on business analytics identity. The A
 
 ---
 
-## 8. Entitlement, Quota, and Billing Security
+## 10. Entitlement, Quota, and Billing Security
 
-### 8.1 Entitlement Rules
+### 10.1 Entitlement Rules
 
 - Enablement does not grant permanent execution rights.
 - Relay must perform use-time checks on every execution.
@@ -376,7 +453,7 @@ Severe Kids abuse handling must not depend on business analytics identity. The A
 - Direct Relay calls must not bypass marketplace enablement.
 - Deprecated Skills can execute only for already-enabled and still-entitled users.
 
-### 8.1.1 Quota Reservation and Compensation
+### 10.1.1 Quota Reservation and Compensation
 
 Free Skill quota must use request-scoped reservation, not irreversible pre-decrement without recovery.
 
@@ -394,7 +471,7 @@ Quota compensation must be retry-safe. Duplicate timeout callbacks, worker retri
 
 Quota compensation applies only to the business/monthly quota ledger. Gateway abuse controls are separate: rate-limit token buckets, concurrency semaphores, IP/user/provider abuse counters, and admin-route preview buckets are never refunded for failed, timed-out, malformed, or compensated requests. A compensated request may restore monthly quota, but it still counts against rate limiting and abuse detection.
 
-### 8.2 Cache Consistency
+### 10.2 Cache Consistency
 
 | Cache | Required Scope | Max TTL | Invalidation |
 |---|---|---:|---|
@@ -406,7 +483,7 @@ Quota compensation applies only to the business/monthly quota ledger. Gateway ab
 
 On cache miss or stale-risk condition, Relay must prefer source-of-truth validation over allowing execution.
 
-### 8.3 Billing Controls
+### 10.3 Billing Controls
 
 - Blocked calls must not create `skill_billing_events`.
 - Failed calls do not charge by default.
@@ -420,9 +497,9 @@ On cache miss or stale-risk condition, Relay must prefer source-of-truth validat
 
 ---
 
-## 9. Rate Limiting, Abuse, and Availability Protection
+## 11. Rate Limiting, Abuse, and Availability Protection
 
-### 9.1 Rate Limit Dimensions
+### 11.1 Rate Limit Dimensions
 
 | Dimension | Requirement |
 |---|---|
@@ -435,7 +512,7 @@ On cache miss or stale-risk condition, Relay must prefer source-of-truth validat
 
 Rate-limited responses use `SKILL_RATE_LIMITED`, HTTP 429, and `Retry-After`.
 
-### 9.2 Circuit Breakers
+### 11.2 Circuit Breakers
 
 | Breaker | Condition | Action |
 |---|---|---|
@@ -448,9 +525,9 @@ Fallback must stay within the Skill model whitelist and provider capability poli
 
 ---
 
-## 10. Non-Functional Requirements
+## 12. Non-Functional Requirements
 
-### 10.1 Availability and Reliability
+### 12.1 Availability and Reliability
 
 | Area | Target |
 |---|---|
@@ -461,7 +538,7 @@ Fallback must stay within the Skill model whitelist and provider capability poli
 | Ops dashboards | 99.0% monthly availability |
 | Critical alerts | Delivered within 5 minutes of trigger |
 
-### 10.2 Latency and Timeout
+### 12.2 Latency and Timeout
 
 | Path | Target |
 |---|---|
@@ -475,7 +552,7 @@ Fallback must stay within the Skill model whitelist and provider capability poli
 
 Timeout returns `SKILL_TIMEOUT` and emits `skill_timeout_error`. Non-streaming timeout or timeout with no usable output creates no charge by default and must trigger eligible quota compensation. Streaming timeout after usable partial output follows partial-timeout billing rules and may be charged by actual delivered/consumed tokens.
 
-### 10.3 Scalability
+### 12.3 Scalability
 
 | Capability | Requirement |
 |---|---|
@@ -485,7 +562,7 @@ Timeout returns `SKILL_TIMEOUT` and emits `skill_timeout_error`. Non-streaming t
 | Dashboard queries | Use indexed/aggregated sources for common ranges |
 | Admin writes | Low QPS but strong audit and consistency requirements |
 
-### 10.4 Degradation
+### 12.4 Degradation
 
 | Failure | Expected Behavior |
 |---|---|
@@ -498,9 +575,9 @@ Timeout returns `SKILL_TIMEOUT` and emits `skill_timeout_error`. Non-streaming t
 
 ---
 
-## 11. Observability and Audit
+## 13. Observability and Audit
 
-### 11.1 Logs
+### 13.1 Logs
 
 Logs must include:
 
@@ -515,7 +592,7 @@ Logs must include:
 
 Logs must not include `instruction_template`, raw full user input, raw Kids input, provider raw payload, or full model output.
 
-### 11.2 Metrics
+### 13.2 Metrics
 
 P0 metrics:
 
@@ -529,7 +606,7 @@ P0 metrics:
 - event ingestion rejection/quarantine count
 - cache hit/miss and stale fallback count
 
-### 11.3 Audit
+### 13.3 Audit
 
 Audit is required for:
 
@@ -545,9 +622,9 @@ Audit records must not include prompt text; use hashes and changed field names.
 
 ---
 
-## 12. Feature Flags, Kill Switches, and Rollback
+## 14. Feature Flags, Kill Switches, and Rollback
 
-### 12.1 Required Controls
+### 14.1 Required Controls
 
 | Control | Scope | Owner |
 |---|---|---|
@@ -561,7 +638,7 @@ Audit records must not include prompt text; use hashes and changed field names.
 
 Emergency controls for `skill_id_enabled`, `kids_mode_enabled`, `provider_enabled`, and `skill_execution_enabled` must support urgent invalidation/broadcast across all Relay/Gateway instances. Safety-critical disablement must not wait for the normal cache TTL; target propagation is immediate best effort and no more than 5 seconds under healthy infrastructure.
 
-### 12.2 Rollback Requirements
+### 14.2 Rollback Requirements
 
 - Publishing a new `skill_version` must support rollback to the previous active version.
 - Rollback must preserve usage, billing, and audit history.
