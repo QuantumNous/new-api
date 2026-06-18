@@ -412,6 +412,33 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+// resolveOriginalUserGroupTx recovers the original (pre-upgrade) group for a user
+// who is currently sitting in upgradedGroup. The baseline MUST be derived from the
+// whole subscription chain, not a single row: a renewal or a stacked plan bought
+// while the user is already in upgradedGroup is created with an empty
+// prev_user_group (see CreateUserSubscriptionFromPlanTx), so trusting one row would
+// lose the baseline. We pick the earliest subscription that recorded a real,
+// different previous group. Returns "" when no baseline is recoverable.
+func resolveOriginalUserGroupTx(tx *gorm.DB, userId int, upgradedGroup string) (string, error) {
+	upgradedGroup = strings.TrimSpace(upgradedGroup)
+	if tx == nil || userId <= 0 || upgradedGroup == "" {
+		return "", nil
+	}
+	var origin UserSubscription
+	q := tx.Where("user_id = ? AND upgrade_group = ? AND prev_user_group <> '' AND prev_user_group <> ?",
+		userId, upgradedGroup, upgradedGroup).
+		Order("start_time asc, id asc").
+		Limit(1).
+		Find(&origin)
+	if q.Error != nil {
+		return "", q.Error
+	}
+	if q.RowsAffected == 0 {
+		return "", nil
+	}
+	return strings.TrimSpace(origin.PrevUserGroup), nil
+}
+
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
@@ -437,6 +464,16 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 		return "", nil
 	}
 	prevGroup := strings.TrimSpace(sub.PrevUserGroup)
+	if prevGroup == "" {
+		// This row recorded no baseline (it was created while the user was already in
+		// upgradeGroup, e.g. a renewal). Recover the original group from the chain
+		// instead of silently bailing out.
+		resolved, err := resolveOriginalUserGroupTx(tx, sub.UserId, upgradeGroup)
+		if err != nil {
+			return "", err
+		}
+		prevGroup = resolved
+	}
 	if prevGroup == "" || prevGroup == currentGroup {
 		return "", nil
 	}
@@ -493,6 +530,17 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 				Update("group", upgradeGroup).Error; err != nil {
 				return nil, err
 			}
+		} else {
+			// User is already in upgradeGroup (renewal, or stacking another plan that
+			// grants the same group). currentGroup is NOT the original baseline, so
+			// inherit it from the existing subscription chain; otherwise this later-
+			// ending row would store an empty prev_user_group and the expiry revert
+			// would have no baseline to fall back to.
+			inherited, err := resolveOriginalUserGroupTx(tx, userId, upgradeGroup)
+			if err != nil {
+				return nil, err
+			}
+			prevGroup = inherited
 		}
 	}
 	sub := &UserSubscription{
@@ -982,26 +1030,40 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 				return nil
 			}
 
-			// No active upgraded subscription, downgrade to previous group if needed.
-			var lastExpired UserSubscription
-			expiredQuery := tx.Where("user_id = ? AND status = ? AND upgrade_group <> ''",
-				userId, "expired").
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&lastExpired)
-			if expiredQuery.Error != nil || expiredQuery.RowsAffected == 0 {
-				return nil
-			}
-			upgradeGroup := strings.TrimSpace(lastExpired.UpgradeGroup)
-			prevGroup := strings.TrimSpace(lastExpired.PrevUserGroup)
-			if upgradeGroup == "" || prevGroup == "" {
-				return nil
-			}
+			// No active upgraded subscription remains. Revert the user's group back to
+			// the original baseline. The baseline MUST come from the whole chain, not
+			// just the latest-ending expired sub: renewals/stacked subscriptions store
+			// an empty prev_user_group, so trusting a single row would silently skip
+			// the revert and strand the user in the upgraded group.
 			currentGroup, err := getUserGroupByIdTx(tx, userId)
 			if err != nil {
 				return err
 			}
-			if currentGroup != upgradeGroup || currentGroup == prevGroup {
+			currentGroup = strings.TrimSpace(currentGroup)
+			if currentGroup == "" {
+				return nil
+			}
+			// Only revert when the user's current group was actually granted by an
+			// expired subscription, so we never touch a manually-assigned group.
+			var grantedByExpired UserSubscription
+			grantQuery := tx.Where("user_id = ? AND status = ? AND upgrade_group = ?",
+				userId, "expired", currentGroup).
+				Limit(1).
+				Find(&grantedByExpired)
+			if grantQuery.Error != nil {
+				return grantQuery.Error
+			}
+			if grantQuery.RowsAffected == 0 {
+				return nil
+			}
+			prevGroup, err := resolveOriginalUserGroupTx(tx, userId, currentGroup)
+			if err != nil {
+				return err
+			}
+			if prevGroup == "" || prevGroup == currentGroup {
+				// Baseline unrecoverable (every row recorded an empty prev, e.g. the
+				// user was placed into this group manually before subscribing). Leave
+				// the group as-is for admin remediation rather than guessing.
 				return nil
 			}
 			if err := tx.Model(&User{}).Where("id = ?", userId).
