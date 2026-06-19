@@ -1,9 +1,10 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/samber/lo"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -11,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
-	"github.com/samber/lo"
 )
 
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
@@ -36,7 +36,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
-			effortBytes, _ := json.Marshal(effort)
+			effortBytes, _ := common.Marshal(effort)
 			openAIRequest.Verbosity = effortBytes
 		}
 		if claudeRequest.Thinking != nil {
@@ -51,7 +51,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					Enabled: true,
 				}
 			}
-			reasoningJSON, err := json.Marshal(reasoning)
+			reasoningJSON, err := common.Marshal(reasoning)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
 			}
@@ -648,7 +648,7 @@ func stopReasonOpenAI2Claude(reason string) string {
 }
 
 func toJSONString(v interface{}) string {
-	b, err := json.Marshal(v)
+	b, err := common.Marshal(v)
 	if err != nil {
 		return "{}"
 	}
@@ -870,7 +870,7 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relayco
 				// 解析参数
 				var args map[string]interface{}
 				if toolCall.Function.Arguments != "" {
-					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+					if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
 					}
 				} else {
@@ -973,7 +973,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 				// 解析参数
 				var args map[string]interface{}
 				if toolCall.Function.Arguments != "" {
-					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+					if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
 					}
 				} else {

@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,8 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 )
 
 // SignRequestForJimeng 对即梦 API 请求进行签名，支持 http.Request 或 header+url+body 方式
@@ -41,7 +42,7 @@ import (
 const HexPayloadHashKey = "HexPayloadHash"
 
 func SetPayloadHash(c *gin.Context, req any) error {
-	body, err := json.Marshal(req)
+	body, err := common.Marshal(req)
 	if err != nil {
 		return err
 	}

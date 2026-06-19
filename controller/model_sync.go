@@ -180,10 +180,10 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 				cacheMutex.Unlock()
 
 				// Try decode as envelope first
-				if err := json.Unmarshal(buf, out); err != nil {
+				if err := common.Unmarshal(buf, out); err != nil {
 					// Try decode as pure array
 					var arr []T
-					if err2 := json.Unmarshal(buf, &arr); err2 != nil {
+					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
 						return
 					}
@@ -205,9 +205,9 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 					lastErr = errors.New("cache miss for 304 response")
 					return
 				}
-				if err := json.Unmarshal(buf, out); err != nil {
+				if err := common.Unmarshal(buf, out); err != nil {
 					var arr []T
-					if err2 := json.Unmarshal(buf, &arr); err2 != nil {
+					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
 						return
 					}

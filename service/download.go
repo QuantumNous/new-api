@@ -41,7 +41,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 	}
 
 	// 序列化worker请求数据
-	workerPayload, err := json.Marshal(req)
+	workerPayload, err := common.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal worker payload: %v", err)
 	}

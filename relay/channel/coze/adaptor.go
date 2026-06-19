@@ -1,13 +1,13 @@
 package coze
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	commonpkg "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/common"
@@ -79,7 +79,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *common.RelayInfo, requestBody 
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(respBody, &cozeResponse)
+	err = commonpkg.Unmarshal(respBody, &cozeResponse)
 	if cozeResponse.Code != 0 {
 		return nil, errors.New(cozeResponse.Msg)
 	}

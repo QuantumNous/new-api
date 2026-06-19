@@ -3,7 +3,6 @@ package oauth
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,11 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -90,7 +90,7 @@ func (p *LinuxDOProvider) ExchangeToken(ctx context.Context, code string, c *gin
 		AccessToken string `json:"access_token"`
 		Message     string `json:"message"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&tokenRes); err != nil {
+	if err := common.DecodeJson(res.Body, &tokenRes); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (p *LinuxDOProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 	logger.LogDebug(ctx, "[OAuth-LinuxDO] GetUserInfo response status: %d", res.StatusCode)
 
 	var linuxdoUser linuxdoUser
-	if err := json.NewDecoder(res.Body).Decode(&linuxdoUser); err != nil {
+	if err := common.DecodeJson(res.Body, &linuxdoUser); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-LinuxDO] GetUserInfo decode error: %s", err.Error()))
 		return nil, err
 	}

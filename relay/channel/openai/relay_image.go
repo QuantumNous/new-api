@@ -148,7 +148,7 @@ func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) {
 // "data:" payload. A payload carrying just a "message" key is deliberately NOT
 // treated as an error to avoid false positives.
 func isOpenAIImageStreamErrorEvent(data []byte) bool {
-	if !json.Valid(data) {
+	if !common.ValidJson(data) {
 		return false
 	}
 	var payload struct {
@@ -163,7 +163,7 @@ func isOpenAIImageStreamErrorEvent(data []byte) bool {
 }
 
 func extractOpenAIImageStreamErrorMessage(data []byte) string {
-	if len(data) == 0 || !json.Valid(data) {
+	if len(data) == 0 || !common.ValidJson(data) {
 		return "upstream image stream returned error event"
 	}
 	var payload struct {

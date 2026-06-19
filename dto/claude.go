@@ -414,7 +414,7 @@ func (c *ClaudeRequest) GetTools() []any {
 
 func (c *ClaudeRequest) GetEfforts() string {
 	var OutputConfig OutputConfigForEffort
-	if err := json.Unmarshal(c.OutputConfig, &OutputConfig); err == nil {
+	if err := common.Unmarshal(c.OutputConfig, &OutputConfig); err == nil {
 		effort := OutputConfig.Effort
 		return effort
 	}

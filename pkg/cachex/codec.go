@@ -1,10 +1,11 @@
 package cachex
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type ValueCodec[V any] interface {
@@ -34,7 +35,7 @@ func (c StringCodec) Decode(s string) (string, error) { return s, nil }
 type JSONCodec[V any] struct{}
 
 func (c JSONCodec[V]) Encode(v V) (string, error) {
-	b, err := json.Marshal(v)
+	b, err := common.Marshal(v)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +47,7 @@ func (c JSONCodec[V]) Decode(s string) (V, error) {
 	if strings.TrimSpace(s) == "" {
 		return v, fmt.Errorf("empty json value")
 	}
-	if err := json.Unmarshal([]byte(s), &v); err != nil {
+	if err := common.Unmarshal([]byte(s), &v); err != nil {
 		return v, err
 	}
 	return v, nil
