@@ -76,6 +76,147 @@ func TestGetMarketplaceSkillNotFoundEnvelope(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"request_id":`)
 }
 
+// TestGetMarketplaceSkill_ReturnsDetailFields verifies that the detail endpoint
+// includes requires_deeprouter_key: true and a download_cta pointing to the
+// DR-81 download endpoint (DR-53 acceptance criteria).
+func TestGetMarketplaceSkill_ReturnsDetailFields(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.Create(ptr(testSkill("my-skill", "published"))).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills/my-skill")
+	c.Params = gin.Params{{Key: "id", Value: "my-skill"}}
+	GetMarketplaceSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data struct {
+			Slug                  string `json:"slug"`
+			RequiresDeepRouterKey bool   `json:"requires_deeprouter_key"`
+			DownloadCTA           struct {
+				URL    string `json:"url"`
+				Method string `json:"method"`
+			} `json:"download_cta"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, "my-skill", got.Data.Slug)
+	assert.True(t, got.Data.RequiresDeepRouterKey, "requires_deeprouter_key must be true for all published skills")
+	assert.Equal(t, "/api/v1/marketplace/skills/my-skill/download", got.Data.DownloadCTA.URL)
+	assert.Equal(t, "GET", got.Data.DownloadCTA.Method)
+}
+
+// TestGetMarketplaceSkill_NoProviderCredentialsExposed guards the DR-53 security
+// requirement: detail response must not leak routing credentials or internal fields.
+func TestGetMarketplaceSkill_NoProviderCredentialsExposed(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.Create(ptr(testSkill("secure-skill", "published"))).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills/secure-skill")
+	c.Params = gin.Params{{Key: "id", Value: "secure-skill"}}
+	GetMarketplaceSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.NotContains(t, body, "instruction_template", "instruction_template must not be exposed")
+	assert.NotContains(t, body, "model_whitelist", "model_whitelist must not be exposed")
+	assert.NotContains(t, body, "price_markup", "provider pricing must not be exposed")
+	assert.NotContains(t, body, "monetization_type", "internal monetization type must not be exposed")
+}
+
+// TestGetMarketplaceSkill_CTAEscapesSlug verifies that a slug containing
+// URL-unsafe characters is properly escaped in the download_cta.url so the
+// CTA never produces a broken link (DR-53 hardening).
+func TestGetMarketplaceSkill_CTAEscapesSlug(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("slug with spaces", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills/slug+with+spaces")
+	c.Params = gin.Params{{Key: "id", Value: "slug with spaces"}}
+	GetMarketplaceSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data struct {
+			DownloadCTA struct {
+				URL string `json:"url"`
+			} `json:"download_cta"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, "/api/v1/marketplace/skills/slug%20with%20spaces/download", got.Data.DownloadCTA.URL,
+		"URL-unsafe characters in slug must be percent-encoded in download_cta.url")
+}
+
+// TestGetMarketplaceSkill_ListDoesNotExposeDetailFields guards against regression
+// where list endpoint accidentally starts returning PublicSkillDetail fields.
+// requires_deeprouter_key and download_cta must only appear on the detail endpoint.
+func TestGetMarketplaceSkill_ListDoesNotExposeDetailFields(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.Create(ptr(testSkill("list-skill", "published"))).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.NotContains(t, body, "requires_deeprouter_key", "detail fields must not leak into list response")
+	assert.NotContains(t, body, "download_cta", "detail fields must not leak into list response")
+}
+
+// TestGetMarketplaceSkill_LookupByID_CTAUsesSlug verifies that when the skill
+// is fetched by its UUID (not slug), the download_cta.url still uses the slug.
+// Slugs are stable human-readable identifiers; the CTA must not expose internal UUIDs.
+func TestGetMarketplaceSkill_LookupByID_CTAUsesSlug(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("slug-check-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+	// Fetch the auto-generated UUID from DB.
+	var created skillmodel.Skill
+	require.NoError(t, db.Where("slug = ?", "slug-check-skill").First(&created).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills/" + created.ID)
+	c.Params = gin.Params{{Key: "id", Value: created.ID}}
+	GetMarketplaceSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data struct {
+			DownloadCTA struct {
+				URL string `json:"url"`
+			} `json:"download_cta"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, "/api/v1/marketplace/skills/slug-check-skill/download", got.Data.DownloadCTA.URL,
+		"download_cta.url must use slug even when fetched by UUID")
+}
+
+// TestGetMarketplaceSkill_NonPublishedReturns404 verifies that draft, deprecated,
+// and archived skills are not accessible via the public marketplace detail endpoint.
+func TestGetMarketplaceSkill_NonPublishedReturns404(t *testing.T) {
+	for _, status := range []string{"draft", "deprecated", "archived"} {
+		t.Run("status="+status, func(t *testing.T) {
+			db := testSkillDB(t)
+			SetDB(db)
+			require.NoError(t, db.Create(ptr(testSkill("hidden-skill", status))).Error)
+
+			c, w := testContext("/api/v1/marketplace/skills/hidden-skill")
+			c.Params = gin.Params{{Key: "id", Value: "hidden-skill"}}
+			GetMarketplaceSkill(c)
+
+			require.Equal(t, http.StatusNotFound, w.Code,
+				"status=%s must not be accessible via public marketplace endpoint", status)
+			assert.Contains(t, w.Body.String(), `"code":"SKILL_NOT_FOUND"`)
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // TestListAdminSkills_* — DR-45 admin list skills handler tests.
 // ---------------------------------------------------------------------------

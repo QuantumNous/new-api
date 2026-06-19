@@ -44,14 +44,22 @@ mapfile -t AVAILABLE < <(
 )
 
 # ── 3. Compare ─────────────────────────────────────────────────────────────
+# Write AVAILABLE to a tempfile so grep reads from a file rather than a
+# pipeline. The printf|grep pattern triggers SIGPIPE on Linux when grep -q
+# exits early after finding a match; with pipefail that makes the `if`
+# evaluate to false even though the function was found.
+tmpfile=$(mktemp)
+trap 'rm -f "$tmpfile"' EXIT
+[[ ${#AVAILABLE[@]} -gt 0 ]] && printf '%s\n' "${AVAILABLE[@]}" > "$tmpfile"
+
 MISSING=()
 for fn in "${REQUIRED[@]}"; do
   # Exact match
-  if printf '%s\n' "${AVAILABLE[@]}" | grep -qx "$fn"; then
+  if grep -qx "$fn" "$tmpfile"; then
     continue
   fi
   # Prefix match for wildcard entries: TestFoo matches TestFoo_Bar, TestFoo_Baz
-  if printf '%s\n' "${AVAILABLE[@]}" | grep -q "^${fn}_"; then
+  if grep -q "^${fn}_" "$tmpfile"; then
     continue
   fi
   MISSING+=("$fn")

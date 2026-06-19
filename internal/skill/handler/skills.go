@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -100,6 +101,22 @@ type AdminSkill struct {
 	ModelWhitelist     json.RawMessage          `json:"model_whitelist,omitempty"`
 }
 
+// DownloadCTA is the download entry-point advertised on the Skill detail
+// response. Points to the DR-81 package download endpoint.
+type DownloadCTA struct {
+	URL    string `json:"url"`
+	Method string `json:"method"`
+}
+
+// PublicSkillDetail extends PublicSkill with detail-page-only fields:
+// the DeepRouter runtime-dependency flag and the download entry point (DR-53).
+// Only returned by GetMarketplaceSkill, not by the list endpoint.
+type PublicSkillDetail struct {
+	PublicSkill
+	RequiresDeepRouterKey bool        `json:"requires_deeprouter_key"`
+	DownloadCTA           DownloadCTA `json:"download_cta"`
+}
+
 type OpsSkillSummary struct {
 	Total             int64            `json:"total"`
 	ByStatus          map[string]int64 `json:"by_status"`
@@ -174,7 +191,7 @@ func GetMarketplaceSkill(c *gin.Context) {
 		writeSkillLookupError(c, err)
 		return
 	}
-	skillapi.Success(c, publicSkillFromModel(s, true))
+	skillapi.Success(c, publicSkillDetailFromModel(s))
 }
 
 // listAdminSkillsSafeQuery returns a GORM query base scoped to the admin-safe
@@ -411,6 +428,21 @@ func publicSkillFromModel(s skillmodel.Skill, includeDetail bool) PublicSkill {
 		out.Tags = rawJSON(s.Tags)
 	}
 	return out
+}
+
+// publicSkillDetailFromModel builds the detail-page response.
+// download_cta.url uses slug (not ID) because slugs are human-readable and
+// stable. DR-81 must accept slug as the {id} path parameter — verify before
+// closing DR-81 or this CTA will produce broken URLs.
+func publicSkillDetailFromModel(s skillmodel.Skill) PublicSkillDetail {
+	return PublicSkillDetail{
+		PublicSkill:           publicSkillFromModel(s, true),
+		RequiresDeepRouterKey: true,
+		DownloadCTA: DownloadCTA{
+			URL:    "/api/v1/marketplace/skills/" + url.PathEscape(s.Slug) + "/download",
+			Method: "GET",
+		},
+	}
 }
 
 func adminSkillFromModel(s skillmodel.Skill) AdminSkill {
