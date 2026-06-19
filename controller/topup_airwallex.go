@@ -334,7 +334,7 @@ func RequestAirwallexPay(c *gin.Context) {
 		return
 	}
 
-	intent, err := createAirwallexPaymentIntent(c.Request.Context(), tradeNo, payMoney, strings.ToUpper(ccy.Currency), user.Email)
+	intent, err := createAirwallexPaymentIntent(c.Request.Context(), tradeNo, payMoney, strings.ToUpper(ccy.Currency), user.Email, "")
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 创建 PaymentIntent 失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -370,7 +370,46 @@ type airwallexIntentResp struct {
 	Status       string `json:"status"`
 }
 
-func createAirwallexPaymentIntent(ctx context.Context, tradeNo string, amount float64, currency string, email string) (*airwallexIntentResp, error) {
+// ensureAirwallexCustomer creates an Airwallex Customer (POST /pa/customers/
+// create) and returns its id (cus_...), so a saved card can be attached for
+// off-session auto-charge. merchant_customer_id = our userId for traceability.
+// Used by the save-for-future flow (PR-4); not called by the one-time path.
+func ensureAirwallexCustomer(ctx context.Context, userID int) (string, error) {
+	token, err := getAirwallexAccessToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	body, _ := json.Marshal(map[string]interface{}{
+		"request_id":           common.GetUUID(),
+		"merchant_customer_id": fmt.Sprintf("user-%d", userID),
+	})
+	url := setting.AirwallexApiBaseURL() + "/api/v1/pa/customers/create"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		return "", fmt.Errorf("创建 Airwallex Customer HTTP 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("创建 Airwallex Customer 返回 %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(respBody, &parsed); err != nil || parsed.ID == "" {
+		return "", fmt.Errorf("解析 Airwallex Customer 响应失败: %s", string(respBody))
+	}
+	return parsed.ID, nil
+}
+
+func createAirwallexPaymentIntent(ctx context.Context, tradeNo string, amount float64, currency string, email string, customerID string) (*airwallexIntentResp, error) {
 	token, err := getAirwallexAccessToken(ctx)
 	if err != nil {
 		return nil, err
@@ -382,6 +421,11 @@ func createAirwallexPaymentIntent(ctx context.Context, tradeNo string, amount fl
 		"amount":            amount,
 		"currency":          currency,
 		"descriptor":        "DeepRouter Credit",
+	}
+	// Attach to a customer so the card can be saved for off-session auto-charge
+	// (only when the caller opted in to save-for-future). Empty = one-time.
+	if customerID != "" {
+		body["customer_id"] = customerID
 	}
 	if email != "" {
 		body["order"] = map[string]interface{}{
@@ -589,7 +633,12 @@ func handleAirwallexSucceeded(c *gin.Context, event *AirwallexWebhookEvent, inte
 		return
 	}
 
-	if err := model.RechargeAirwallex(tradeNo, c.ClientIP()); err != nil {
+	if err := model.RechargeAirwallex(tradeNo, c.ClientIP(),
+		intent.CustomerID,
+		intent.PaymentConsentID,
+		intent.LatestPaymentAttempt.PaymentMethod.ID,
+		intent.LatestPaymentAttempt.PaymentMethodTransactionID,
+	); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Airwallex webhook 充值失败 trade_no=%s intent_id=%s error=%q", tradeNo, intent.ID, err.Error()))
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return

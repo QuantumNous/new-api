@@ -533,7 +533,11 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 // creation) and TopUp.Amount is the quota-units count requested. Quota is
 // credited from Amount * QuotaPerUnit to keep currency out of the ledger —
 // the per-currency unit_price already converted at request time.
-func RechargeAirwallex(tradeNo string, callerIp string) (err error) {
+// RechargeAirwallex credits quota for a successful Airwallex top-up. The
+// optional saved-card handles (customerId/consentId/pmId/originalTxnId) are
+// persisted onto the user when non-empty, enabling later off-session
+// auto-charge. Empty values (the default, pre-PR-4) leave the user unchanged.
+func RechargeAirwallex(tradeNo string, callerIp string, customerId, consentId, pmId, originalTxnId string) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -577,7 +581,24 @@ func RechargeAirwallex(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		userUpdates := map[string]interface{}{
+			"quota": gorm.Expr("quota + ?", quotaToAdd),
+		}
+		// Persist saved-card handles when this top-up opted in to save the card
+		// (off-session auto-charge later). Empty values leave columns untouched.
+		if customerId != "" {
+			userUpdates["airwallex_customer"] = customerId
+		}
+		if consentId != "" {
+			userUpdates["airwallex_consent_id"] = consentId
+		}
+		if pmId != "" {
+			userUpdates["airwallex_payment_method"] = pmId
+		}
+		if originalTxnId != "" {
+			userUpdates["airwallex_original_txn_id"] = originalTxnId
+		}
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(userUpdates).Error; err != nil {
 			return err
 		}
 
