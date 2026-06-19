@@ -126,15 +126,29 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       >,
       defaultValues: normalizedDefaults,
       onSubmit: async (_data, changedFields) => {
+        let frontendThemeChanged = false
         for (const [key, value] of Object.entries(changedFields)) {
           let v = normalizeValue(value)
           if (key === 'ServerAddress') {
             v = v.replace(/\/+$/, '')
           }
-          await updateOption.mutateAsync({
+          const res = await updateOption.mutateAsync({
             key,
             value: v,
           })
+          if (key === 'theme.frontend' && res.success) {
+            frontendThemeChanged = true
+          }
+        }
+        // Switching the frontend theme changes which frontend bundle the
+        // backend serves, and the current route does not exist in the classic
+        // frontend. Reset to the home page after a successful switch to avoid a
+        // 404. The delay lets the form's dirty state clear (removing the
+        // beforeunload guard) and the success toast show before the reload.
+        if (frontendThemeChanged) {
+          setTimeout(() => {
+            window.location.href = '/'
+          }, 600)
         }
       },
     })
