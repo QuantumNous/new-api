@@ -90,6 +90,12 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		if err = common.Unmarshal(request.Metadata, &volcRequest); err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
 		}
+		// Restore server-controlled auth fields so client metadata cannot override them
+		volcRequest.App = VolcengineTTSApp{
+			AppID:   appID,
+			Token:   token,
+			Cluster: "volcano_tts",
+		}
 	}
 
 	c.Set(contextKeyTTSRequest, volcRequest)
