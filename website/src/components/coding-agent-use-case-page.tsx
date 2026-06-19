@@ -145,7 +145,7 @@ export const IMAGE_BUDDY_USE_CASE: UseCaseConfig = {
     { title: "Product marketing images", body: "Turn a short product idea into polished hero images for landing pages and campaigns." },
     { title: "Multilingual image workflows", body: "Give teams a simple CLI and skill prompt they can use from any AI assistant." },
     { title: "Ecommerce and social ads", body: "Create product shots, UGC-style ad stills, posters, and vertical demo creatives." },
-    { title: "Template-driven generation", body: "Use templates like avatar-pack plus a short hint, without learning every variable name." },
+    { title: "Template-driven generation", body: "Use templates like product-shot plus a short ecommerce hint, without learning every variable name." },
   ],
   faqs: [
     { question: "What does Image Buddy install?", answer: "It installs the @flatkey-ai/image-buddy CLI and uses your Flatkey API key to generate images." },
@@ -171,7 +171,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "产品营销图", body: "把一句产品想法生成落地页、广告和活动可用的主视觉。" },
       { title: "多语言图片工作流", body: "给不同语言用户同一套 CLI 和 skill prompt，AI 助手背后自动使用 CLI。" },
       { title: "电商与社媒广告", body: "生成产品图、UGC 广告封面、海报和竖版 demo 素材。" },
-      { title: "模板化生成", body: "用 avatar-pack 这类模板加一个短 hint，不必学习每个变量名。" },
+      { title: "模板化生成", body: "用 product-shot 这类模板加一个电商短 hint，不必学习每个变量名。" },
     ],
     faqs: [
       { question: "Image Buddy 会安装什么？", answer: "它安装 @flatkey-ai/image-buddy CLI，并用你的 Flatkey API key 生成图片。" },
@@ -194,7 +194,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "Imágenes de producto", body: "Convierte una idea de producto en hero images para landing pages y campañas." },
       { title: "Flujos multilingües", body: "Da a los equipos una CLI y un skill prompt que cualquier asistente de IA puede usar." },
       { title: "Ecommerce y anuncios sociales", body: "Crea fotos de producto, frames UGC, posters y creatividades verticales." },
-      { title: "Generación con plantillas", body: "Usa plantillas como avatar-pack con un hint corto, sin aprender cada variable." },
+      { title: "Generación con plantillas", body: "Usa plantillas como product-shot con un hint ecommerce corto, sin aprender cada variable." },
     ],
     faqs: [
       { question: "¿Qué instala Image Buddy?", answer: "Instala la CLI @flatkey-ai/image-buddy y usa tu API key de Flatkey para generar imágenes." },
@@ -217,7 +217,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "Images marketing produit", body: "Transformez une idée produit en visuels hero pour landing pages et campagnes." },
       { title: "Workflows multilingues", body: "Donnez aux équipes un CLI et un skill prompt utilisables depuis tout assistant IA." },
       { title: "Ecommerce et social ads", body: "Créez photos produit, frames UGC, posters et créations verticales." },
-      { title: "Génération par template", body: "Utilisez des templates comme avatar-pack avec un court hint, sans apprendre chaque variable." },
+      { title: "Génération par template", body: "Utilisez des templates comme product-shot avec un court hint ecommerce, sans apprendre chaque variable." },
     ],
     faqs: [
       { question: "Qu'installe Image Buddy ?", answer: "Il installe le CLI @flatkey-ai/image-buddy et utilise votre clé API Flatkey pour générer des images." },
@@ -240,7 +240,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "Imagens de produto", body: "Transforme uma ideia de produto em hero images para landing pages e campanhas." },
       { title: "Fluxos multilíngues", body: "Dê às equipes uma CLI e um prompt de skill que qualquer assistente de IA pode usar." },
       { title: "Ecommerce e social ads", body: "Crie fotos de produto, frames UGC, pôsteres e criativos verticais." },
-      { title: "Geração por template", body: "Use templates como avatar-pack com um hint curto, sem aprender cada variável." },
+      { title: "Geração por template", body: "Use templates como product-shot com um hint curto de ecommerce, sem aprender cada variável." },
     ],
     faqs: [
       { question: "O que o Image Buddy instala?", answer: "Ele instala a CLI @flatkey-ai/image-buddy e usa sua API key Flatkey para gerar imagens." },
@@ -263,7 +263,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "Продуктовый маркетинг", body: "Превращайте идею продукта в hero-визуалы для лендингов и кампаний." },
       { title: "Мультиязычные workflows", body: "Дайте командам CLI и skill prompt для любого AI-ассистента." },
       { title: "Ecommerce и social ads", body: "Создавайте product shots, UGC-кадры, постеры и вертикальные креативы." },
-      { title: "Генерация по шаблонам", body: "Используйте шаблоны вроде avatar-pack с коротким hint без изучения переменных." },
+      { title: "Генерация по шаблонам", body: "Используйте шаблоны вроде product-shot с коротким ecommerce hint без изучения переменных." },
     ],
     faqs: [
       { question: "Что устанавливает Image Buddy?", answer: "CLI @flatkey-ai/image-buddy, который использует ваш Flatkey API key для генерации изображений." },
@@ -286,7 +286,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "商品マーケティング画像", body: "短い商品アイデアからランディングページや広告用の hero image を作成します。" },
       { title: "多言語画像ワークフロー", body: "どの AI アシスタントからでも使える CLI と skill prompt を提供します。" },
       { title: "EC と SNS 広告", body: "商品写真、UGC 風広告フレーム、ポスター、縦型クリエイティブを作成します。" },
-      { title: "テンプレート生成", body: "avatar-pack などのテンプレートを短い hint で使え、変数名を覚える必要がありません。" },
+      { title: "テンプレート生成", body: "product-shot などのテンプレートを短い EC hint で使え、変数名を覚える必要がありません。" },
     ],
     faqs: [
       { question: "Image Buddy は何をインストールしますか？", answer: "@flatkey-ai/image-buddy CLI をインストールし、Flatkey API key で画像を生成します。" },
@@ -309,7 +309,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "Ảnh marketing sản phẩm", body: "Biến ý tưởng sản phẩm thành hero image cho landing page và chiến dịch." },
       { title: "Workflow đa ngôn ngữ", body: "Cung cấp CLI và skill prompt dùng được với mọi trợ lý AI." },
       { title: "Ecommerce và social ads", body: "Tạo ảnh sản phẩm, frame quảng cáo UGC, poster và creative dọc." },
-      { title: "Tạo bằng template", body: "Dùng template như avatar-pack với hint ngắn, không cần học từng biến." },
+      { title: "Tạo bằng template", body: "Dùng template như product-shot với hint ecommerce ngắn, không cần học từng biến." },
     ],
     faqs: [
       { question: "Image Buddy cài gì?", answer: "Nó cài CLI @flatkey-ai/image-buddy và dùng Flatkey API key để tạo ảnh." },
@@ -332,7 +332,7 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { title: "Produktmarketing-Bilder", body: "Verwandle eine Produktidee in Hero Images für Landingpages und Kampagnen." },
       { title: "Mehrsprachige Workflows", body: "Gib Teams eine CLI und einen Skill-Prompt für jeden AI-Assistenten." },
       { title: "Ecommerce und Social Ads", body: "Erstelle Produktfotos, UGC-Frames, Poster und vertikale Creatives." },
-      { title: "Template-basierte Generierung", body: "Nutze Templates wie avatar-pack mit kurzem Hint, ohne Variablen zu lernen." },
+      { title: "Template-basierte Generierung", body: "Nutze Templates wie product-shot mit kurzem Ecommerce-Hint, ohne Variablen zu lernen." },
     ],
     faqs: [
       { question: "Was installiert Image Buddy?", answer: "Die CLI @flatkey-ai/image-buddy, die mit deinem Flatkey API key Bilder generiert." },
@@ -1138,7 +1138,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     ],
     actionCards: () => [
       { title: "Onboard", body: "Run image-buddy onboard once to save a Flatkey API key." },
-      { title: "Generate", body: "Use a plain prompt or a template hint like image-buddy generate avatar-pack \"地雷妹\"." },
+      { title: "Generate", body: "Use a plain prompt or a template hint like image-buddy generate product-shot \"ceramic coffee mug for a summer ecommerce campaign\"." },
       { title: "Demo", body: "Open image-buddy web to browse examples and generate with Flatkey." },
     ],
     finalTitle: () => "Ready to generate images with Flatkey?",
@@ -1165,7 +1165,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     ],
     actionCards: () => [
       { title: "Onboard", body: "运行一次 image-buddy onboard 保存 Flatkey API key。" },
-      { title: "生成", body: "用一句话或模板 hint，例如 image-buddy generate avatar-pack \"地雷妹\"。" },
+      { title: "生成", body: "用一句话或模板 hint，例如 image-buddy generate product-shot \"ceramic coffee mug for a summer ecommerce campaign\"。" },
       { title: "Demo", body: "打开 image-buddy web 浏览示例，并用 Flatkey 生成图片。" },
     ],
     finalTitle: () => "准备好用 Flatkey 生成图片了吗？",
@@ -1312,7 +1312,7 @@ When I ask for an image, use image-buddy CLI with Flatkey. First run image-buddy
 const imageBuddyCommands = [
   "npx @flatkey-ai/image-buddy onboard",
   'npx @flatkey-ai/image-buddy generate --prompt "premium product hero image for an AI image API CLI"',
-  'npx @flatkey-ai/image-buddy generate avatar-pack "地雷妹"',
+  'npx @flatkey-ai/image-buddy generate product-shot "ceramic coffee mug for a summer ecommerce campaign"',
   "npx @flatkey-ai/image-buddy web",
 ];
 
