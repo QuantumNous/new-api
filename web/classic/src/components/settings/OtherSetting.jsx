@@ -301,7 +301,7 @@ const OtherSetting = () => {
             showError(message);
             return;
           }
-          showSuccess(t('已切换到新版前端，正在刷新页面'));
+          showSuccess(t('已切换到新版前端，正在跳转首页'));
           setTimeout(() => {
             // 新版前端的路由与经典前端不同，原地刷新当前路径会 404，
             // 因此切换后重置到首页，由后端按新主题返回对应前端。

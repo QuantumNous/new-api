@@ -147,7 +147,11 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             allSucceeded = false
           }
         }
-
+        if (themeEntry && !allSucceeded) {
+          // Theme was not submitted; keep form state consistent with backend.
+          _data.theme.frontend = normalizedDefaults.theme.frontend
+          return
+        }
         if (themeEntry && allSucceeded) {
           const res = await updateOption.mutateAsync({
             key: themeEntry[0],
@@ -160,6 +164,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             setTimeout(() => {
               window.location.replace('/')
             }, 600)
+          } else {
+            // Theme update failed; revert to the last saved value.
+            _data.theme.frontend = normalizedDefaults.theme.frontend
           }
         }
       },
