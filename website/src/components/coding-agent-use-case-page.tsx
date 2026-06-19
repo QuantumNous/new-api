@@ -12,6 +12,7 @@ import {
   Sparkles,
   UsersRound,
 } from "lucide-react";
+import Image from "next/image";
 import { ClaudeCodeInstallTabs } from "@/components/claude-code-install-tabs";
 import { SiteShell } from "@/components/site-shell";
 import { CLAUDE_CODE_BASE_URL, CLAUDE_CODE_KEY_URL } from "@/lib/claude-code-use-case";
@@ -1328,6 +1329,165 @@ const imageBuddyInstallCopy: Record<Locale, { skillTitle: string; cliTitle: stri
   de: { skillTitle: "AI-Skill-Prompt", cliTitle: "CLI-Schnellstart" },
 };
 
+const imageBuddyDemoCopy: Record<Locale, {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  images: Array<{ src: string; title: string; prompt: string; alt: string; wide?: boolean }>;
+}> = {
+  en: {
+    eyebrow: "Generated with Image Buddy",
+    title: "Real ecommerce image demos",
+    subtitle: "Prompt templates turn short commercial hints into ready-to-use product visuals.",
+    images: [
+      {
+        src: "/use-case/image-buddy/premium-product-hero.jpg",
+        title: "Premium product hero",
+        prompt: "ceramic coffee mug for a summer ecommerce campaign",
+        alt: "Generated hero image of a ceramic coffee mug near a sunny beach",
+        wide: true,
+      },
+      {
+        src: "/use-case/image-buddy/marketplace-main-image.jpg",
+        title: "Marketplace main image",
+        prompt: "insulated stainless steel water bottle for Amazon listing",
+        alt: "Generated marketplace product image of a stainless steel water bottle on white background",
+      },
+      {
+        src: "/use-case/image-buddy/ugc-ad-still.jpg",
+        title: "UGC ad still",
+        prompt: "organic skincare serum bottle in bright bathroom",
+        alt: "Generated UGC style image of a hand holding amber skincare serum in a bright bathroom",
+      },
+    ],
+  },
+  zh: {
+    eyebrow: "由 Image Buddy 生成",
+    title: "真实电商图片 demo",
+    subtitle: "提示词模板把简短商业需求变成可直接使用的产品视觉。",
+    images: [
+      {
+        src: "/use-case/image-buddy/premium-product-hero.jpg",
+        title: "高端产品主视觉",
+        prompt: "夏季电商活动的陶瓷咖啡杯",
+        alt: "生成的海边阳光陶瓷咖啡杯主视觉",
+        wide: true,
+      },
+      {
+        src: "/use-case/image-buddy/marketplace-main-image.jpg",
+        title: "Marketplace 主图",
+        prompt: "Amazon listing 的不锈钢保温水瓶",
+        alt: "生成的白底不锈钢水瓶电商主图",
+      },
+      {
+        src: "/use-case/image-buddy/ugc-ad-still.jpg",
+        title: "UGC 广告图",
+        prompt: "明亮浴室里的有机护肤精华瓶",
+        alt: "生成的手持琥珀色护肤精华瓶 UGC 风格图片",
+      },
+    ],
+  },
+  es: {
+    eyebrow: "Generado con Image Buddy",
+    title: "Demos reales para ecommerce",
+    subtitle: "Las plantillas convierten hints comerciales cortos en visuales de producto listos.",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "Hero de producto premium", prompt: "taza cerámica para campaña ecommerce de verano", alt: "Hero generado de una taza cerámica junto a una playa soleada", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Imagen principal marketplace", prompt: "botella de acero inoxidable para Amazon listing", alt: "Imagen generada de botella de acero inoxidable sobre fondo blanco" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "Still de anuncio UGC", prompt: "serum orgánico en baño luminoso", alt: "Imagen UGC generada de una mano con serum ámbar en un baño luminoso" },
+    ],
+  },
+  fr: {
+    eyebrow: "Généré avec Image Buddy",
+    title: "Démos ecommerce réelles",
+    subtitle: "Les templates transforment de courts briefs commerciaux en visuels produit prêts à l'emploi.",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "Hero produit premium", prompt: "mug en céramique pour campagne ecommerce estivale", alt: "Hero généré d'un mug en céramique près d'une plage ensoleillée", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Image principale marketplace", prompt: "gourde inox pour listing Amazon", alt: "Image générée d'une gourde inox sur fond blanc" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "Visuel publicitaire UGC", prompt: "sérum skincare bio dans une salle de bain lumineuse", alt: "Image UGC générée d'une main tenant un sérum ambré dans une salle de bain lumineuse" },
+    ],
+  },
+  pt: {
+    eyebrow: "Gerado com Image Buddy",
+    title: "Demos reais de ecommerce",
+    subtitle: "Templates transformam hints comerciais curtos em visuais de produto prontos.",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "Hero premium de produto", prompt: "caneca cerâmica para campanha ecommerce de verão", alt: "Hero gerado de uma caneca cerâmica perto de uma praia ensolarada", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Imagem principal marketplace", prompt: "garrafa inox para listing Amazon", alt: "Imagem gerada de garrafa inox em fundo branco" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "Still de anúncio UGC", prompt: "sérum orgânico em banheiro claro", alt: "Imagem UGC gerada de uma mão segurando sérum âmbar em banheiro claro" },
+    ],
+  },
+  ru: {
+    eyebrow: "Сгенерировано через Image Buddy",
+    title: "Реальные ecommerce demo",
+    subtitle: "Шаблоны превращают короткие коммерческие hints в готовые продуктовые визуалы.",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "Премиальный product hero", prompt: "керамическая кружка для летней ecommerce-кампании", alt: "Сгенерированный hero-визуал керамической кружки у солнечного пляжа", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Главное изображение marketplace", prompt: "бутылка из нержавеющей стали для Amazon listing", alt: "Сгенерированное изображение стальной бутылки на белом фоне" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "UGC ad still", prompt: "органическая skincare-сыворотка в светлой ванной", alt: "Сгенерированное UGC-изображение руки с янтарной сывороткой в светлой ванной" },
+    ],
+  },
+  ja: {
+    eyebrow: "Image Buddy で生成",
+    title: "実用的な EC 画像 demo",
+    subtitle: "テンプレートが短い商用 hint を、そのまま使える商品ビジュアルに変換します。",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "プレミアム商品 hero", prompt: "夏の EC キャンペーン向け陶器マグ", alt: "晴れた海辺の陶器マグを生成した hero 画像", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Marketplace メイン画像", prompt: "Amazon listing 向けステンレスボトル", alt: "白背景のステンレスボトルを生成した商品画像" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "UGC 広告画像", prompt: "明るい浴室のオーガニック美容液", alt: "明るい浴室で琥珀色の美容液を持つ手の UGC 風生成画像" },
+    ],
+  },
+  vi: {
+    eyebrow: "Tạo bằng Image Buddy",
+    title: "Demo ảnh ecommerce thực tế",
+    subtitle: "Template biến hint thương mại ngắn thành ảnh sản phẩm dùng được ngay.",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "Hero sản phẩm premium", prompt: "ly gốm cho chiến dịch ecommerce mùa hè", alt: "Ảnh hero được tạo của ly gốm cạnh bãi biển nắng", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Ảnh chính marketplace", prompt: "bình nước inox cho Amazon listing", alt: "Ảnh sản phẩm bình nước inox nền trắng được tạo" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "Ảnh quảng cáo UGC", prompt: "serum skincare hữu cơ trong phòng tắm sáng", alt: "Ảnh UGC được tạo của tay cầm serum màu hổ phách trong phòng tắm sáng" },
+    ],
+  },
+  de: {
+    eyebrow: "Mit Image Buddy generiert",
+    title: "Echte Ecommerce-Demos",
+    subtitle: "Templates verwandeln kurze kommerzielle Hints in sofort nutzbare Produktvisuals.",
+    images: [
+      { src: "/use-case/image-buddy/premium-product-hero.jpg", title: "Premium Product Hero", prompt: "Keramikbecher für eine Sommer-Ecommerce-Kampagne", alt: "Generiertes Hero-Bild eines Keramikbechers an einem sonnigen Strand", wide: true },
+      { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Marketplace-Hauptbild", prompt: "Edelstahlflasche für Amazon Listing", alt: "Generiertes Produktbild einer Edelstahlflasche auf weißem Hintergrund" },
+      { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "UGC-Ad-Still", prompt: "organisches Skincare-Serum in hellem Bad", alt: "Generiertes UGC-Bild einer Hand mit bernsteinfarbenem Serum in hellem Bad" },
+    ],
+  },
+};
+
+function ImageBuddyDemoGallery({ locale }: { locale: Locale }) {
+  const demoCopy = imageBuddyDemoCopy[locale] ?? imageBuddyDemoCopy.en;
+  return (
+    <div className="lg:pl-4">
+      <div className="mb-4">
+        <div className="text-[11px] font-semibold tracking-wide text-violet-700 uppercase dark:text-violet-200">{demoCopy.eyebrow}</div>
+        <h2 className="mt-1 text-xl font-extrabold tracking-tight">{demoCopy.title}</h2>
+        <p className="text-muted-foreground mt-1 text-sm leading-6">{demoCopy.subtitle}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {demoCopy.images.map((item) => (
+          <figure
+            key={item.src}
+            className={item.wide ? "col-span-2 overflow-hidden rounded-2xl border border-violet-500/14 bg-white dark:bg-white/[0.04]" : "overflow-hidden rounded-2xl border border-violet-500/14 bg-white dark:bg-white/[0.04]"}
+          >
+            <div className={item.wide ? "relative aspect-[16/9]" : "relative aspect-square"}>
+              <Image src={item.src} alt={item.alt} fill sizes={item.wide ? "(min-width: 1024px) 520px, 100vw" : "(min-width: 1024px) 250px, 50vw"} className="object-cover" priority={item.wide} />
+            </div>
+            <figcaption className="p-3">
+              <div className="text-sm font-bold">{item.title}</div>
+              <div className="text-muted-foreground mt-1 line-clamp-2 font-mono text-[11px] leading-4">{item.prompt}</div>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ImageBuddyInstallPanel({ locale }: { locale: Locale }) {
   const panelCopy = imageBuddyInstallCopy[locale] ?? imageBuddyInstallCopy.en;
   return (
@@ -1404,7 +1564,7 @@ export function CodingAgentUseCasePage(props: Props) {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-violet-500/16 bg-white/78 p-5 shadow-[0_30px_100px_-62px_rgba(91,33,182,0.9)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.04]">
+            {config.installMode === "image-buddy" ? <ImageBuddyDemoGallery locale={locale} /> : <div className="rounded-3xl border border-violet-500/16 bg-white/78 p-5 shadow-[0_30px_100px_-62px_rgba(91,33,182,0.9)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.04]">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-bold">
                   <BadgeDollarSign className="size-4 text-violet-600 dark:text-violet-300" />
@@ -1429,7 +1589,7 @@ export function CodingAgentUseCasePage(props: Props) {
               <div className="mt-4 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-extrabold text-white">
                 {config.moreUsageLine}
               </div>
-            </div>
+            </div>}
           </section>
 
           <section className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
