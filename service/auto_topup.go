@@ -30,6 +30,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
@@ -87,19 +88,15 @@ func decideAutoTopup(p autoTopupPreconditions) (shouldCharge bool, cents int64, 
 		return false, 0, "redis_not_enabled"
 	}
 	// Auto-topup is charged at the SELLING rate, not the cost basis. quotaUnits-
-	// ToStripeCents gives the cost-dollar value of the quota; we multiply by
-	// autoTopupSellMultiplier so the platform earns the same markup as a manual
-	// top-up instead of selling quota at cost. Operator-tunable later.
-	cents = quotaUnitsToStripeCents(p.Amount) * autoTopupSellMultiplier
-	if cents < 500 { // platform minimum auto-topup charge: $5.00 USD
+	// ToStripeCents gives the cost-dollar value of the quota; we multiply by the
+	// operator-configurable sell multiplier so the platform earns the same markup
+	// as a manual top-up instead of selling quota at cost.
+	cents = quotaUnitsToStripeCents(p.Amount) * operation_setting.AutoTopupSellMultiplier()
+	if cents < operation_setting.AutoTopupMinChargeCents() {
 		return false, cents, "amount_below_stripe_minimum"
 	}
 	return true, cents, ""
 }
-
-// autoTopupSellMultiplier is the USD selling price per cost-dollar of quota.
-// 5 ⇒ $5 charged per $1 of model usage (≈ the 8 AUD/unit manual price).
-const autoTopupSellMultiplier int64 = 5
 
 // MaybeAutoTopup checks the user's auto-topup config and, if conditions
 // are met, charges the saved Stripe payment method and increments the
