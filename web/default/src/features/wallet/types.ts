@@ -56,6 +56,8 @@ export interface AirwallexPaymentRequest {
   payment_method: 'airwallex'
   success_url?: string
   cancel_url?: string
+  /** Save the card for off-session auto-recharge. */
+  save_for_future?: boolean
 }
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string

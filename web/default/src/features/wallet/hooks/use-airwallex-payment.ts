@@ -18,13 +18,14 @@ export function useAirwallexPayment() {
   const [processing, setProcessing] = useState(false)
 
   const processAirwallexPayment = useCallback(
-    async (amount: number, currency: string) => {
+    async (amount: number, currency: string, saveForFuture = false) => {
       try {
         setProcessing(true)
         const response = await requestAirwallexPayment({
           amount: Math.floor(amount),
           currency,
           payment_method: 'airwallex',
+          save_for_future: saveForFuture,
         })
 
         if (!isApiSuccess(response)) {

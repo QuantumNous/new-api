@@ -253,9 +253,9 @@ export function Wallet(props: WalletProps) {
   }
 
   const handleAirwallexPay = useCallback(
-    async (currency: string) => {
+    async (currency: string, saveForFuture = false) => {
       if (topupAmount <= 0) return
-      await processAirwallexPayment(topupAmount, currency)
+      await processAirwallexPayment(topupAmount, currency, saveForFuture)
     },
     [processAirwallexPayment, topupAmount]
   )

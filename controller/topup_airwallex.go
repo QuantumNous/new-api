@@ -64,6 +64,9 @@ type AirwallexPayRequest struct {
 	PaymentMethod string `json:"payment_method"`
 	SuccessURL    string `json:"success_url,omitempty"`
 	CancelURL     string `json:"cancel_url,omitempty"`
+	// SaveForFuture: user opted to save this card for auto-recharge. We then
+	// create/attach an Airwallex Customer so the consent + card can be reused.
+	SaveForFuture bool `json:"save_for_future,omitempty"`
 }
 
 // AirwallexWebhookEvent is the subset of the webhook payload we depend on.
@@ -334,7 +337,21 @@ func RequestAirwallexPay(c *gin.Context) {
 		return
 	}
 
-	intent, err := createAirwallexPaymentIntent(c.Request.Context(), tradeNo, payMoney, strings.ToUpper(ccy.Currency), user.Email, "")
+	// If the user opted to save the card for auto-recharge, ensure an Airwallex
+	// Customer and attach the intent to it (so the card/consent can be reused
+	// off-session). Failure here falls back to a normal one-time payment.
+	customerID := ""
+	if req.SaveForFuture {
+		if user.AirwallexCustomer != "" {
+			customerID = user.AirwallexCustomer
+		} else if cus, cerr := ensureAirwallexCustomer(c.Request.Context(), id); cerr == nil {
+			customerID = cus
+		} else {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Airwallex 创建 customer 失败(降级为一次性支付) user_id=%d error=%q", id, cerr.Error()))
+		}
+	}
+
+	intent, err := createAirwallexPaymentIntent(c.Request.Context(), tradeNo, payMoney, strings.ToUpper(ccy.Currency), user.Email, customerID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 创建 PaymentIntent 失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
