@@ -5109,6 +5109,15 @@
     "Your new key": "Tu nueva clave",
     "cURL": "cURL",
     "your own code": "tu propio código",
-    "Reset limit every...": "Restablecer límite cada..."
+    "Reset limit every...": "Restablecer límite cada...",
+    "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "¡Bienvenido a flatkey! Envía un mensaje para hacer tu primera llamada a la API en 30 segundos, sin clave ni configuración.",
+    "Hello!": "¡Hola!",
+    "Write a quicksort in Python": "Escribe un quicksort en Python",
+    "Explain Transformers": "Explica los Transformers",
+    "Nice — it works! Use it in your own code": "¡Genial, funciona! Úsalo en tu propio código",
+    "Get my API key": "Obtener mi clave API",
+    "View quickstart": "Ver inicio rápido",
+    "Dismiss": "Descartar",
+    "Account created!": "¡Cuenta creada!"
   }
 }

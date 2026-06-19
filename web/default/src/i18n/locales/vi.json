@@ -5109,6 +5109,15 @@
     "Your new key": "Khóa mới của bạn",
     "cURL": "cURL",
     "your own code": "mã của riêng bạn",
-    "Reset limit every...": "Đặt lại hạn mức mỗi…"
+    "Reset limit every...": "Đặt lại hạn mức mỗi…",
+    "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "Chào mừng đến với flatkey! Gửi một tin nhắn để thực hiện lệnh gọi API đầu tiên trong 30 giây — không cần khóa hay thiết lập.",
+    "Hello!": "Xin chào!",
+    "Write a quicksort in Python": "Viết thuật toán quicksort bằng Python",
+    "Explain Transformers": "Giải thích về Transformers",
+    "Nice — it works! Use it in your own code": "Tuyệt — nó hoạt động! Dùng nó trong mã của bạn",
+    "Get my API key": "Lấy khóa API của tôi",
+    "View quickstart": "Xem hướng dẫn nhanh",
+    "Dismiss": "Đóng",
+    "Account created!": "Đã tạo tài khoản!"
   }
 }
