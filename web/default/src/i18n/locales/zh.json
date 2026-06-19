@@ -4683,6 +4683,7 @@
     "Not now": "暂不",
     "Your card is saved 🎉": "银行卡已保存 🎉",
     "Enable auto-recharge": "开启自动充值",
-    "Turn on auto-recharge so you never run out — we top up $10 to your balance automatically when it gets low. Change or cancel it anytime in your wallet.": "开启自动充值,余额永不耗尽——余额不足时自动为你充值 $10。可随时在钱包修改或关闭。"
+    "Turn on auto-recharge so you never run out — we top up $10 to your balance automatically when it gets low. Change or cancel it anytime in your wallet.": "开启自动充值,余额永不耗尽——余额不足时自动为你充值 $10。可随时在钱包修改或关闭。",
+    "Save this card for auto-recharge — top up automatically when your balance is low. You can turn it off anytime.": "保存此卡用于自动充值 —— 余额不足时自动续费,可随时关闭。"
   }
 }

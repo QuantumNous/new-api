@@ -335,6 +335,9 @@ export function Wallet(props: WalletProps) {
                     topupInfo?.enable_waffo_pancake_topup
                   }
                   enableAirwallexTopup={topupInfo?.enable_airwallex_topup}
+                  airwallexAutoTopupEnabled={
+                    topupInfo?.airwallex_autotopup_enabled
+                  }
                   airwallexCurrencies={topupInfo?.airwallex_currencies}
                   onAirwallexPay={handleAirwallexPay}
                   airwallexLoading={airwallexProcessing}

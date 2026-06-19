@@ -164,6 +164,8 @@ export interface TopupInfo {
   waffo_pancake_min_topup?: number
   /** Whether Airwallex topup is enabled */
   enable_airwallex_topup?: boolean
+  /** Off-session Airwallex auto-recharge enabled by the operator */
+  airwallex_autotopup_enabled?: boolean
   /** Enabled currencies for Airwallex (admin-configured) */
   airwallex_currencies?: AirwallexCurrency[]
 }
