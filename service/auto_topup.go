@@ -218,6 +218,22 @@ func quotaUnitsToStripeCents(quotaUnits int) int64 {
 	return int64(dollars * 100)
 }
 
+// quotaUnitsToMajorAmount converts quota units to a charge amount in MAJOR
+// currency units (e.g. 5.00) at the selling multiplier — Airwallex amounts are
+// major units, not cents. The number is currency-neutral; the caller pairs it
+// with the right ISO code (AUD for the Airwallex path).
+//
+// NOTE: uses the same SellMultiplier markup as Stripe. Aligning auto-topup to
+// the per-currency AirwallexCurrencies unit_price (so manual & auto Airwallex
+// prices match exactly) is a future refinement.
+func quotaUnitsToMajorAmount(quotaUnits int) float64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	costDollars := float64(quotaUnits) / common.QuotaPerUnit
+	return costDollars * float64(operation_setting.AutoTopupSellMultiplier())
+}
+
 func looksLikeStripeKey(s string) bool {
 	if len(s) < 3 {
 		return false

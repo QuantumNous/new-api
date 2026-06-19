@@ -169,6 +169,24 @@ func TestQuotaUnitsToStripeCents_ZeroQuotaPerUnit(t *testing.T) {
 	}
 }
 
+func TestQuotaUnitsToMajorAmount(t *testing.T) {
+	saved := common.QuotaPerUnit
+	defer func() { common.QuotaPerUnit = saved }()
+	common.QuotaPerUnit = 500000 // canonical default; SellMultiplier default 5
+
+	// 500000 units = $1 cost × 5 = 5.00 major; 1,000,000 = 10.00
+	if got := quotaUnitsToMajorAmount(500000); got != 5.0 {
+		t.Errorf("quotaUnitsToMajorAmount(500000) = %v, want 5.0", got)
+	}
+	if got := quotaUnitsToMajorAmount(1000000); got != 10.0 {
+		t.Errorf("quotaUnitsToMajorAmount(1000000) = %v, want 10.0", got)
+	}
+	common.QuotaPerUnit = 0
+	if got := quotaUnitsToMajorAmount(500000); got != 0 {
+		t.Errorf("QuotaPerUnit=0 should return 0, got %v", got)
+	}
+}
+
 // =============================================================================
 // stripeChargeFn injection — verify MaybeAutoTopup actually delegates
 // =============================================================================
