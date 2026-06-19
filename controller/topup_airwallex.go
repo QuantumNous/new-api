@@ -84,6 +84,17 @@ type AirwallexPaymentIntent struct {
 	Amount          float64 `json:"amount"`
 	Currency        string  `json:"currency"`
 	Status          string  `json:"status"`
+	// Saved-card / off-session handles, populated when a first top-up opts in to
+	// save the card. Exact JSON paths vary by account API version — confirm
+	// against a real webhook payload before relying on them in PR-3.
+	CustomerID           string `json:"customer_id"`
+	PaymentConsentID     string `json:"payment_consent_id"`
+	LatestPaymentAttempt struct {
+		PaymentMethod struct {
+			ID string `json:"id"`
+		} `json:"payment_method"`
+		PaymentMethodTransactionID string `json:"payment_method_transaction_id"`
+	} `json:"latest_payment_attempt"`
 }
 
 // ---------- Token cache ----------
@@ -459,6 +470,36 @@ func verifyAirwallexSignature(timestamp, body, signature, secret string) bool {
 	return hmac.Equal([]byte(expected), []byte(signature))
 }
 
+// airwallexWebhookMaxSkew bounds how old a webhook timestamp may be. Once
+// webhooks can trigger saved-consent side effects (PR-3+), a replay window is
+// required — a valid signature alone doesn't stop a captured request being
+// resent later.
+const airwallexWebhookMaxSkew = 5 * time.Minute
+
+// airwallexTimestampFresh reports whether the x-timestamp is within the allowed
+// skew of now. Airwallex sends Unix epoch; tolerate both seconds and ms.
+func airwallexTimestampFresh(timestamp string) bool {
+	n, err := strconv.ParseInt(strings.TrimSpace(timestamp), 10, 64)
+	if err != nil || n <= 0 {
+		// Unknown timestamp format → fail-OPEN. The HMAC already covers the
+		// timestamp, so a genuine replay carries a valid-but-old value caught
+		// by the parseable path below; failing open here avoids breaking live
+		// webhooks if the epoch format differs from what we assume.
+		return true
+	}
+	var t time.Time
+	if n > 1e12 { // milliseconds
+		t = time.UnixMilli(n)
+	} else {
+		t = time.Unix(n, 0)
+	}
+	diff := time.Since(t)
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= airwallexWebhookMaxSkew
+}
+
 func AirwallexWebhook(c *gin.Context) {
 	ctx := c.Request.Context()
 	if !isAirwallexWebhookEnabled() {
@@ -480,6 +521,12 @@ func AirwallexWebhook(c *gin.Context) {
 
 	if !verifyAirwallexSignature(timestamp, string(bodyBytes), signature, setting.AirwallexWebhookSecret) {
 		logger.LogWarn(ctx, fmt.Sprintf("Airwallex webhook 验签失败 path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	if !airwallexTimestampFresh(timestamp) {
+		logger.LogWarn(ctx, fmt.Sprintf("Airwallex webhook 时间戳超出容许窗口(防重放) path=%q client_ip=%s timestamp=%q", c.Request.RequestURI, c.ClientIP(), timestamp))
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
