@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { CircleAlert, GitBranch, Sparkles } from 'lucide-react'
+import { CircleAlert, GitBranch, Globe, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -289,7 +289,10 @@ function buildTypeDetailSegments(
   return segments
 }
 
-export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
+export function useCommonLogsColumns(
+  isAdmin: boolean,
+  showIpInLogs: boolean
+): ColumnDef<UsageLog>[] {
   const { t } = useTranslation()
   const groupRatios = useGroupRatios()
   const columns: ColumnDef<UsageLog>[] = [
@@ -749,6 +752,47 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         contentMode: 'full',
       },
     },
+
+    ...(showIpInLogs
+      ? [
+          {
+            accessorKey: 'ip',
+            header: t('IP Address'),
+            cell: function IpCell({ row }) {
+              const { sensitiveVisible } = useUsageLogsContext()
+              const ip = row.original.ip
+              if (!ip) {
+                return (
+                  <span className='text-muted-foreground/50 text-xs'>-</span>
+                )
+              }
+              const className =
+                'border-border/60 bg-muted/30 text-foreground h-6 max-w-[150px] gap-1.5 overflow-hidden rounded-md border px-2 py-0.5 font-mono'
+
+              if (!sensitiveVisible) {
+                return (
+                  <StatusBadge size='sm' className={className}>
+                    <Globe data-icon='inline-start' />
+                    ••••
+                  </StatusBadge>
+                )
+              }
+
+              return (
+                <CopyableStatusBadge value={ip} size='sm' className={className}>
+                  <Globe data-icon='inline-start' />
+                  {ip}
+                </CopyableStatusBadge>
+              )
+            },
+            size: 150,
+            meta: {
+              cardRole: 'primary',
+              cardOrder: 45,
+            },
+          } satisfies ColumnDef<UsageLog>,
+        ]
+      : []),
 
     {
       accessorKey: 'prompt_tokens',
