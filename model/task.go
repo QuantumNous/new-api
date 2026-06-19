@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -50,6 +51,8 @@ type Task struct {
 	UserId     int                   `json:"user_id" gorm:"index"`
 	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
 	ChannelId  int                   `json:"channel_id" gorm:"index"`
+	// TokenId 由 BeforeSave 钩子从 PrivateData.TokenId 镜像而来，作为真列用于企业子账户「仅看绑定 key 的任务」过滤（设计 §4.5）。
+	TokenId    int                   `json:"token_id" gorm:"index;column:token_id"`
 	Quota      int                   `json:"quota"`
 	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
 	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
@@ -63,6 +66,17 @@ type Task struct {
 	// 禁止返回给用户，内部可能包含key等隐私信息
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
 	Data        json.RawMessage `json:"data" gorm:"type:json"`
+}
+
+// BeforeSave 把 PrivateData.TokenId 镜像到真列 token_id，覆盖 Insert/Update/UpdateWithStatus 三条写路径。
+// token_id 仅在任务创建时（controller/relay.go）写入 PrivateData，后续轮询的 Update 携带的 PrivateData 不变，镜像幂等。
+func (t *Task) BeforeSave(tx *gorm.DB) error {
+	// 仅在 PrivateData.TokenId 有值时镜像；为空时不动 token_id，避免「部分结构体 + Select("*") 存盘」
+	// 误把已有的非零 token_id 清零（评审护栏，现实路径都会加载完整 task，此处兜底未来新增写路径）。
+	if t.PrivateData.TokenId != 0 {
+		t.TokenId = t.PrivateData.TokenId
+	}
+	return nil
 }
 
 func (t *Task) SetData(data any) {
@@ -167,6 +181,8 @@ type SyncTaskQueryParams struct {
 	StartTimestamp int64
 	EndTimestamp   int64
 	UserIDs        []int
+	// TokenIds 非空时限定 token_id ∈ 集合，供企业子账户「仅看绑定 key 的任务」只读视图使用（设计 §4.5）。
+	TokenIds []int
 }
 
 func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
@@ -215,6 +231,9 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	// 初始化查询构建器
 	query := DB.Where("user_id = ?", userId)
 
+	if len(queryParams.TokenIds) > 0 {
+		query = query.Where("token_id IN ?", queryParams.TokenIds)
+	}
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)
 	}
@@ -485,6 +504,9 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	var total int64
 	query := DB.Model(&Task{}).Where("user_id = ?", userId)
+	if len(queryParams.TokenIds) > 0 {
+		query = query.Where("token_id IN ?", queryParams.TokenIds)
+	}
 	if queryParams.TaskID != "" {
 		query = query.Where("task_id = ?", queryParams.TaskID)
 	}

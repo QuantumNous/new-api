@@ -25,6 +25,7 @@ type UserBase struct {
 	Role             int    `json:"role"`
 	KycStatus        int    `json:"kyc_status"`
 	EnterpriseStatus int    `json:"enterprise_status"`
+	ParentUserId     int    `json:"parent_user_id"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
@@ -37,6 +38,7 @@ func (user *UserBase) WriteContext(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyUserRole, user.Role)
 	common.SetContextKey(c, constant.ContextKeyUserKYCStatus, user.KycStatus)
 	common.SetContextKey(c, constant.ContextKeyUserEnterpriseStatus, user.EnterpriseStatus)
+	common.SetContextKey(c, constant.ContextKeyUserParentId, user.ParentUserId)
 }
 
 func (user *UserBase) GetSetting() dto.UserSetting {
@@ -122,6 +124,7 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 		Role:             user.Role,
 		KycStatus:        user.KycStatus,
 		EnterpriseStatus: user.EnterpriseStatus,
+		ParentUserId:     user.ParentUserId,
 	}
 
 	return userCache, nil

@@ -288,3 +288,5 @@ kyc.images_incomplete: "請同時上傳身分證正面和背面圖片。"
 kyc.images_not_found: "該 KYC 記錄暫無身分證圖片。"
 kyc.sensitive_access_denied: "當前 KYC 狀態下您無權查看敏感資訊。"
 kyc.image_upload_failed: "身分證圖片上傳失敗。"
+
+sub_account.forbidden: "子帳戶無權進行此操作。"

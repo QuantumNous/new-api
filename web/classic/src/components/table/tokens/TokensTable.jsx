@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
@@ -25,8 +25,12 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getTokensColumns } from './TokensColumnDefs';
+import { UserContext } from '../../../context/User';
 
 const TokensTable = (tokensData) => {
+  // 子账户令牌页只读：隐藏每行写操作与批量选择（设计 §4.6，D11）。
+  const [userState] = useContext(UserContext);
+  const readOnly = (userState?.user?.parent_user_id || 0) > 0;
   const {
     tokens,
     loading,
@@ -69,6 +73,7 @@ const TokensTable = (tokensData) => {
       setShowEdit,
       refresh,
       groupRatios,
+      readOnly,
     });
   }, [
     t,
@@ -84,6 +89,7 @@ const TokensTable = (tokensData) => {
     setShowEdit,
     refresh,
     groupRatios,
+    readOnly,
   ]);
 
   // Handle compact mode by removing fixed positioning
@@ -115,7 +121,7 @@ const TokensTable = (tokensData) => {
       }}
       hidePagination={true}
       loading={loading}
-      rowSelection={rowSelection}
+      rowSelection={readOnly ? undefined : rowSelection}
       onRow={handleRow}
       empty={
         <Empty

@@ -31,6 +31,7 @@ const (
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodAlipay       = "alipay"
 	PaymentMethodWxpay        = "wxpay"
+	PaymentMethodBankTransfer = "bank_transfer"
 )
 
 const (
@@ -41,6 +42,7 @@ const (
 	PaymentProviderWaffoPancake = "waffo_pancake"
 	PaymentProviderAlipayDirect = "alipay_direct"
 	PaymentProviderWxpayDirect  = "wxpay_direct"
+	PaymentProviderBankTransfer = "bank_transfer_manual"
 )
 
 var (

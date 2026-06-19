@@ -115,6 +115,39 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
+// GetQuotaDataFromLogsByTokenIds 为企业子账户的数据看板从 logs 实时聚合（设计 §4.5，决策点 D10 同款理由）。
+//
+// 不动 quota_data 聚合表（其无 token 维度，加列会让行数随 key 数线性膨胀并触碰上游热路径）。
+// 子账户是低频查看场景，从 logs 聚合（有 user_id/token_id 索引 + 时间窗限制）足够。返回结构与
+// GetQuotaDataByUserId 对齐，前端零改动。tokenIds 必须非空（空集合应由 controller 短路为空结果，
+// 否则等价于不过滤会泄漏企业全量数据）。
+//
+// 小时分桶用 created_at - created_at % 3600，% 在 MySQL/PostgreSQL/SQLite 通用，
+// 与 LogQuotaData 落库时的分桶口径一致。
+func GetQuotaDataFromLogsByTokenIds(userId int, tokenIds []int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	if len(tokenIds) == 0 {
+		return []*QuotaData{}, nil
+	}
+	hourExpr := "(logs.created_at - logs.created_at % 3600)"
+	var quotaDatas []*QuotaData
+	err = LOG_DB.Table("logs").
+		Select("logs.model_name as model_name, "+hourExpr+" as created_at, "+
+			"count(*) as count, sum(logs.quota) as quota, "+
+			"sum(logs.prompt_tokens + logs.completion_tokens) as token_used").
+		Where("logs.user_id = ? AND logs.token_id IN ? AND logs.type = ? AND logs.created_at >= ? AND logs.created_at <= ?",
+			userId, tokenIds, LogTypeConsume, startTime, endTime).
+		Group("logs.model_name, " + hourExpr).
+		Find(&quotaDatas).Error
+	if err != nil {
+		return nil, err
+	}
+	// 补回 user_id（聚合未选该列），保持返回结构与 quota_data 行一致。
+	for _, qd := range quotaDatas {
+		qd.UserID = userId
+	}
+	return quotaDatas, nil
+}
+
 func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	err = DB.Table("quota_data").

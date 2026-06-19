@@ -54,6 +54,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     user: true,
     kyc: true,
     enterprise: true,
+    bankTransfer: true,
     feedback: true,
     subscription: true,
     reconcile: true,

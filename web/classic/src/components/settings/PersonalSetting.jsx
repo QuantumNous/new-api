@@ -611,17 +611,19 @@ const PersonalSetting = () => {
                 onPasskeyDelete={handleRemovePasskey}
               />
 
-              {/* 实名认证 */}
-              <div
-                ref={kycCardRef}
-                className={
-                  kycHighlight
-                    ? 'rounded-xl ring-2 ring-orange-400 transition-shadow duration-700 ring-offset-2 ring-offset-transparent'
-                    : 'rounded-xl transition-shadow duration-700'
-                }
-              >
-                <KYCSetting />
-              </div>
+              {/* 实名认证 —— 子账户不是独立法律主体，隐藏认证卡片（设计 §4.6） */}
+              {(userState?.user?.parent_user_id || 0) === 0 && (
+                <div
+                  ref={kycCardRef}
+                  className={
+                    kycHighlight
+                      ? 'rounded-xl ring-2 ring-orange-400 transition-shadow duration-700 ring-offset-2 ring-offset-transparent'
+                      : 'rounded-xl transition-shadow duration-700'
+                  }
+                >
+                  <KYCSetting />
+                </div>
+              )}
             </div>
 
             {/* 右侧：通知设置 + 企业认证 */}
@@ -634,7 +636,10 @@ const PersonalSetting = () => {
                 }
                 saveNotificationSettings={saveNotificationSettings}
               />
-              <EnterpriseSetting />
+              {/* 企业认证 —— 子账户隐藏 */}
+              {(userState?.user?.parent_user_id || 0) === 0 && (
+                <EnterpriseSetting />
+              )}
             </div>
           </div>
         </div>

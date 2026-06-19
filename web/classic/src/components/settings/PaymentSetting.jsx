@@ -27,6 +27,7 @@ import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPay
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
 import SettingsPaymentGatewayAlipay from '../../pages/Setting/Payment/SettingsPaymentGatewayAlipay';
 import SettingsPaymentGatewayWxpay from '../../pages/Setting/Payment/SettingsPaymentGatewayWxpay';
+import SettingsPaymentBankTransfer from '../../pages/Setting/Payment/SettingsPaymentBankTransfer';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -77,6 +78,14 @@ const PaymentSetting = () => {
     WxpayPublicKey: '',
     WxpayPublicKeyId: '',
     WxpayMinTopUp: 1,
+
+    BankTransferEnabled: false,
+    BankTransferCompanyName: '',
+    BankTransferPayeeName: '',
+    BankTransferAccountNumber: '',
+    BankTransferBankName: '',
+    BankTransferMinAmountFen: 0,
+    BankTransferTips: '',
   });
 
   let [loading, setLoading] = useState(false);
@@ -142,6 +151,28 @@ const PaymentSetting = () => {
           case 'WaffoPancakeSandbox':
           case 'AlipaySandbox':
             newInputs[item.key] = toBoolean(item.value);
+            break;
+          case 'bank_transfer_setting.enabled':
+            newInputs['BankTransferEnabled'] = toBoolean(item.value);
+            break;
+          case 'bank_transfer_setting.company_name':
+            newInputs['BankTransferCompanyName'] = item.value;
+            break;
+          case 'bank_transfer_setting.payee_name':
+            newInputs['BankTransferPayeeName'] = item.value;
+            break;
+          case 'bank_transfer_setting.account_number':
+            newInputs['BankTransferAccountNumber'] = item.value;
+            break;
+          case 'bank_transfer_setting.bank_name':
+            newInputs['BankTransferBankName'] = item.value;
+            break;
+          case 'bank_transfer_setting.min_amount_fen':
+            newInputs['BankTransferMinAmountFen'] =
+              parseInt(item.value, 10) || 0;
+            break;
+          case 'bank_transfer_setting.tips':
+            newInputs['BankTransferTips'] = item.value;
             break;
           default:
             if (item.key.endsWith('Enabled')) {
@@ -227,6 +258,13 @@ const PaymentSetting = () => {
             </Tabs.TabPane>
             <Tabs.TabPane tab={t('微信支付直连')} itemKey='wxpay-direct'>
               <SettingsPaymentGatewayWxpay
+                options={inputs}
+                refresh={onRefresh}
+                hideSectionTitle
+              />
+            </Tabs.TabPane>
+            <Tabs.TabPane tab={t('对公转账')} itemKey='bank-transfer'>
+              <SettingsPaymentBankTransfer
                 options={inputs}
                 refresh={onRefresh}
                 hideSectionTitle

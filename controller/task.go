@@ -45,10 +45,22 @@ func GetAllTask(c *gin.Context) {
 func GetUserTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 
-	userId := c.GetInt("id")
+	scope, err := resolveSelfDataScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+
+	// 子账户无绑定 key → 返回空，不查库。
+	if scope.emptyForSubAccount() {
+		pageInfo.SetTotal(0)
+		pageInfo.SetItems(tasksToDto(nil, false))
+		common.ApiSuccess(c, pageInfo)
+		return
+	}
 
 	queryParams := model.SyncTaskQueryParams{
 		Platform:       constant.TaskPlatform(c.Query("platform")),
@@ -57,10 +69,11 @@ func GetUserTask(c *gin.Context) {
 		Action:         c.Query("action"),
 		StartTimestamp: startTimestamp,
 		EndTimestamp:   endTimestamp,
+		TokenIds:       scope.tokenIds, // 子账户限定绑定 token；普通用户为 nil 不过滤
 	}
 
-	items := model.TaskGetAllUserTask(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
-	total := model.TaskCountAllUserTask(userId, queryParams)
+	items := model.TaskGetAllUserTask(scope.userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
+	total := model.TaskCountAllUserTask(scope.userId, queryParams)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(tasksToDto(items, false))
 	common.ApiSuccess(c, pageInfo)

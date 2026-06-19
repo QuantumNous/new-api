@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { Card, Avatar, Skeleton, Tag } from '@douyinfe/semi-ui';
 import { VChart } from '@visactor/react-vchart';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { UserContext } from '../../context/User';
 
 const StatsCards = ({
   groupedStatsData,
@@ -32,6 +33,9 @@ const StatsCards = ({
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  // 子账户不能充值，看板余额卡片隐藏「充值」按钮（后端充值接口已 403 兜底）
+  const [userState] = useContext(UserContext);
+  const isSubAccount = (userState?.user?.parent_user_id || 0) > 0;
   return (
     <div className='mb-4'>
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
@@ -80,7 +84,7 @@ const StatsCards = ({
                       </div>
                     </div>
                   </div>
-                  {item.title === t('当前余额') ? (
+                  {item.title === t('当前余额') && !isSubAccount ? (
                     <Tag
                       color='white'
                       shape='circle'

@@ -39,7 +39,11 @@ function validate(form, t) {
 // Compress an image File to a base64 string (no data-URI prefix).
 // Scales down to maxLongEdgePx, encodes as JPEG, retries with lower quality
 // if the result exceeds maxSizeKB.
-async function compressImageToBase64(file, maxLongEdgePx = 2400, maxSizeKB = 1500) {
+async function compressImageToBase64(
+  file,
+  maxLongEdgePx = 2400,
+  maxSizeKB = 1500,
+) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -62,16 +66,22 @@ async function compressImageToBase64(file, maxLongEdgePx = 2400, maxSizeKB = 150
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
 
-      const tryEncode = (quality) => {
+      // Encode at the given quality. Retry exactly once at a lower quality if
+      // the result is still over target — a single fallback, never a loop
+      // (re-encoding at a fixed quality would never shrink and would hang).
+      const tryEncode = (quality, isRetry) => {
         canvas.toBlob(
           (blob) => {
-            if (!blob) { reject(new Error('canvas.toBlob failed')); return; }
+            if (!blob) {
+              reject(new Error('canvas.toBlob failed'));
+              return;
+            }
             const reader = new FileReader();
             reader.onload = () => {
               // Strip the "data:image/jpeg;base64," prefix
               const b64 = reader.result.split(',')[1];
-              if (b64.length > maxSizeKB * 1024 * (4 / 3) && quality > 0.6) {
-                tryEncode(0.82);
+              if (!isRetry && b64.length > maxSizeKB * 1024 * (4 / 3)) {
+                tryEncode(0.82, true);
               } else {
                 resolve(b64);
               }
@@ -83,7 +93,7 @@ async function compressImageToBase64(file, maxLongEdgePx = 2400, maxSizeKB = 150
           quality,
         );
       };
-      tryEncode(0.88);
+      tryEncode(0.88, false);
     };
     img.onerror = reject;
     img.src = url;
@@ -142,25 +152,46 @@ function ImageSlot({ label, base64, onSelect, onClear }) {
             alt={label}
             style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 4 }}
           />
-          <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 4 }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 4,
+              right: 4,
+              display: 'flex',
+              gap: 4,
+            }}
+          >
             <Button
               size='small'
               icon={<IconUpload />}
-              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                inputRef.current?.click();
+              }}
             />
             <Button
               size='small'
               type='danger'
               icon={<IconClose />}
-              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
             />
           </div>
         </>
       ) : (
         <>
-          <IconUpload size='large' style={{ color: 'var(--semi-color-text-2)', marginBottom: 6 }} />
-          <Text type='secondary' size='small'>{label}</Text>
-          <Text type='tertiary' size='small'>{t('点击上传')}</Text>
+          <IconUpload
+            size='large'
+            style={{ color: 'var(--semi-color-text-2)', marginBottom: 6 }}
+          />
+          <Text type='secondary' size='small'>
+            {label}
+          </Text>
+          <Text type='tertiary' size='small'>
+            {t('点击上传')}
+          </Text>
         </>
       )}
     </div>
@@ -304,7 +335,11 @@ export default function KYCSetting() {
             <div>
               <Text type='secondary'>{t('您尚未提交实名认证信息')}</Text>
               <br />
-              <Button style={{ marginTop: 12 }} theme='solid' onClick={() => openForm()}>
+              <Button
+                style={{ marginTop: 12 }}
+                theme='solid'
+                onClick={() => openForm()}
+              >
                 {t('立即认证')}
               </Button>
             </div>
@@ -312,11 +347,17 @@ export default function KYCSetting() {
 
           {status === 1 && (
             <div>
-              <Text>{t('姓名')}：{kyc.real_name}</Text>
+              <Text>
+                {t('姓名')}：{kyc.real_name}
+              </Text>
               <br />
-              <Text>{t('证件类型')}：{t('居民身份证')}</Text>
+              <Text>
+                {t('证件类型')}：{t('居民身份证')}
+              </Text>
               <br />
-              <Text>{t('证件号')}：{kyc.id_number_masked}</Text>
+              <Text>
+                {t('证件号')}：{kyc.id_number_masked}
+              </Text>
               <br />
               <Text type='secondary' style={{ marginTop: 8, display: 'block' }}>
                 {t('已提交，等待管理员审核')}
@@ -333,11 +374,17 @@ export default function KYCSetting() {
 
           {status === 2 && (
             <div>
-              <Text>{t('姓名')}：{kyc.real_name}</Text>
+              <Text>
+                {t('姓名')}：{kyc.real_name}
+              </Text>
               <br />
-              <Text>{t('证件类型')}：{t('居民身份证')}</Text>
+              <Text>
+                {t('证件类型')}：{t('居民身份证')}
+              </Text>
               <br />
-              <Text>{t('证件号')}：{kyc.id_number_masked}</Text>
+              <Text>
+                {t('证件号')}：{kyc.id_number_masked}
+              </Text>
               <br />
               {kyc.verified_at && (
                 <Text type='secondary'>
@@ -386,7 +433,9 @@ export default function KYCSetting() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* 真实姓名 */}
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}
+            >
               {t('真实姓名')} <span style={{ color: 'red' }}>*</span>
             </label>
             <Input
@@ -394,10 +443,18 @@ export default function KYCSetting() {
               value={form.real_name}
               onChange={(v) => handleChange('real_name', v)}
               onBlur={() => setTouched((p) => ({ ...p, real_name: true }))}
-              validateStatus={touched.real_name && errors.real_name ? 'error' : undefined}
+              validateStatus={
+                touched.real_name && errors.real_name ? 'error' : undefined
+              }
             />
             {touched.real_name && errors.real_name && (
-              <div style={{ color: 'var(--semi-color-danger)', fontSize: 12, marginTop: 4 }}>
+              <div
+                style={{
+                  color: 'var(--semi-color-danger)',
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
                 {t(errors.real_name)}
               </div>
             )}
@@ -405,7 +462,9 @@ export default function KYCSetting() {
 
           {/* 证件号码 */}
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+            <label
+              style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}
+            >
               {t('身份证号码')} <span style={{ color: 'red' }}>*</span>
             </label>
             <Input
@@ -413,10 +472,18 @@ export default function KYCSetting() {
               value={form.id_number}
               onChange={(v) => handleChange('id_number', v)}
               onBlur={() => setTouched((p) => ({ ...p, id_number: true }))}
-              validateStatus={touched.id_number && errors.id_number ? 'error' : undefined}
+              validateStatus={
+                touched.id_number && errors.id_number ? 'error' : undefined
+              }
             />
             {touched.id_number && errors.id_number && (
-              <div style={{ color: 'var(--semi-color-danger)', fontSize: 12, marginTop: 4 }}>
+              <div
+                style={{
+                  color: 'var(--semi-color-danger)',
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
                 {t(errors.id_number)}
               </div>
             )}
@@ -424,7 +491,9 @@ export default function KYCSetting() {
 
           {/* 身份证图片 */}
           <div>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+            <label
+              style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}
+            >
               {t('身份证照片')} <span style={{ color: 'red' }}>*</span>
             </label>
             <div style={{ display: 'flex', gap: 12 }}>
@@ -441,7 +510,13 @@ export default function KYCSetting() {
                 onClear={() => setBackBase64('')}
               />
             </div>
-            <div style={{ marginTop: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 12,
+                color: 'var(--semi-color-text-2)',
+              }}
+            >
               {t('格式不限，上传前自动压缩，每张建议不超过 5MB')}
             </div>
           </div>

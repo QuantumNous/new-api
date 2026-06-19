@@ -58,6 +58,7 @@ export default function GeneralSettings(props) {
     DemoSiteEnabled: false,
     SelfUseModeEnabled: false,
     'token_setting.max_user_tokens': 1000,
+    'sub_account_setting.max_count': 10,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -143,16 +144,6 @@ export default function GeneralSettings(props) {
 
   const quotaDisplayType = inputs['general_setting.quota_display_type'];
 
-  const quotaDisplayTypeDesc = useMemo(() => {
-    const descMap = {
-      USD: t('站点所有额度将以美元 ($) 显示'),
-      CNY: t('站点所有额度将按汇率换算为人民币 (¥) 显示'),
-      TOKENS: t('站点所有额度将以原始 Token 数显示，不做货币换算'),
-      CUSTOM: t('站点所有额度将按汇率换算为自定义货币显示'),
-    };
-    return descMap[quotaDisplayType] || '';
-  }, [quotaDisplayType, t]);
-
   const rateLabel = useMemo(() => {
     if (quotaDisplayType === 'CNY') return t('汇率');
     if (quotaDisplayType === 'TOKENS') return t('每美元对应 Token 数');
@@ -167,22 +158,6 @@ export default function GeneralSettings(props) {
       return inputs['general_setting.custom_currency_symbol'] || '¤';
     return '';
   }, [quotaDisplayType, inputs]);
-
-  const rateExtraText = useMemo(() => {
-    if (quotaDisplayType === 'CNY')
-      return t(
-        '系统内部以美元 (USD) 为基准计价。用户余额、充值金额、模型定价、用量日志等所有金额显示均按此汇率换算为人民币，不影响内部计费',
-      );
-    if (quotaDisplayType === 'TOKENS')
-      return t(
-        '系统内部计费精度，默认 500000，修改可能导致计费异常，请谨慎操作',
-      );
-    if (quotaDisplayType === 'CUSTOM')
-      return t(
-        '系统内部以美元 (USD) 为基准计价。用户余额、充值金额、模型定价、用量日志等所有金额显示均按此汇率换算为自定义货币，不影响内部计费',
-      );
-    return '';
-  }, [quotaDisplayType, t]);
 
   const previewText = useMemo(() => {
     if (quotaDisplayType === 'USD') return '$1.00';
@@ -277,17 +252,14 @@ export default function GeneralSettings(props) {
                 <Form.Select
                   field='general_setting.quota_display_type'
                   label={t('额度展示类型')}
-                  extraText={quotaDisplayTypeDesc}
+                  disabled
+                  extraText={t('对公转账/发票对账基准，已锁定不可修改')}
                   onChange={handleFieldChange(
                     'general_setting.quota_display_type',
                   )}
                 >
-                  <Form.Select.Option value='USD'>
-                    USD ($)
-                  </Form.Select.Option>
-                  <Form.Select.Option value='CNY'>
-                    CNY (¥)
-                  </Form.Select.Option>
+                  <Form.Select.Option value='USD'>USD ($)</Form.Select.Option>
+                  <Form.Select.Option value='CNY'>CNY (¥)</Form.Select.Option>
                   {showTokensOption && (
                     <Form.Select.Option value='TOKENS'>
                       Tokens
@@ -306,13 +278,14 @@ export default function GeneralSettings(props) {
                       suffix={rateSuffix}
                       value={combinedRate}
                       onChange={onCombinedRateChange}
+                      disabled
                     />
                     <Text
                       type='tertiary'
                       size='small'
                       style={{ marginTop: 4, display: 'block' }}
                     >
-                      {rateExtraText}
+                      {t('对公转账/发票对账基准，已锁定不可修改')}
                     </Text>
                   </Form.Slot>
                 </Col>
@@ -398,9 +371,24 @@ export default function GeneralSettings(props) {
                   field={'token_setting.max_user_tokens'}
                   step={1}
                   min={1}
-                  extraText={t('每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能')}
+                  extraText={t(
+                    '每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能',
+                  )}
                   placeholder={'1000'}
                   onChange={handleFieldChange('token_setting.max_user_tokens')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('企业账户最大子账户数量')}
+                  field={'sub_account_setting.max_count'}
+                  step={1}
+                  min={1}
+                  extraText={t(
+                    '每个已通过企业认证的账户最多可创建的子账户数量，默认 10',
+                  )}
+                  placeholder={'10'}
+                  onChange={handleFieldChange('sub_account_setting.max_count')}
                 />
               </Col>
             </Row>

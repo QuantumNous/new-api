@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Button, Space } from '@douyinfe/semi-ui';
 import { showError } from '../../../helpers';
+import { UserContext } from '../../../context/User';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
 
@@ -31,9 +32,17 @@ const TokensActions = ({
   batchDeleteTokens,
   t,
 }) => {
+  // 子账户令牌页只读：隐藏添加/批量复制/批量删除工具栏（设计 §4.6）。
+  const [userState] = useContext(UserContext);
+  const readOnly = (userState?.user?.parent_user_id || 0) > 0;
+
   // Modal states
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  if (readOnly) {
+    return null;
+  }
 
   // Handle copy selected tokens with options
   const handleCopySelectedTokens = () => {

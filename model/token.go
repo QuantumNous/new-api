@@ -85,6 +85,17 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	return tokens, err
 }
 
+// GetTokensByIdsAndUser 按 id 集合取出归属 userId 的令牌，供企业子账户只读查看其绑定的 key。
+// 强制 user_id 过滤，避免越权取到别家令牌（IDOR）。
+func GetTokensByIdsAndUser(ids []int, userId int) ([]*Token, error) {
+	if len(ids) == 0 {
+		return []*Token{}, nil
+	}
+	var tokens []*Token
+	err := DB.Where("id IN ? AND user_id = ?", ids, userId).Order("id desc").Find(&tokens).Error
+	return tokens, err
+}
+
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
 // 规则：
 //  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite）
@@ -124,7 +135,9 @@ func sanitizeLikePattern(input string) (string, error) {
 
 const searchHardLimit = 100
 
-func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+// SearchUserTokens 搜索某用户的令牌。tokenIds 非空时额外限定 id ∈ 集合，
+// 供企业子账户在「绑定 key」范围内搜索（userId 传企业主 id）；普通用户传 nil 即不过滤。
+func SearchUserTokens(userId int, keyword string, token string, offset int, limit int, tokenIds []int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -152,6 +165,9 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	}
 
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
+	if len(tokenIds) > 0 {
+		baseQuery = baseQuery.Where("id IN ?", tokenIds)
+	}
 
 	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
@@ -437,6 +453,21 @@ func CountUserTokens(userId int) (int64, error) {
 	var total int64
 	err := DB.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error
 	return total, err
+}
+
+// IsTokenNameDuplicated 校验同一用户下令牌名称是否重复（便于企业子账户按名识别绑定令牌）。
+// 空名称不参与去重；excludeId>0 时排除该令牌自身（编辑场景）。软删令牌天然被 DeletedAt 过滤。
+func IsTokenNameDuplicated(userId int, name string, excludeId int) (bool, error) {
+	if strings.TrimSpace(name) == "" {
+		return false, nil
+	}
+	q := DB.Model(&Token{}).Where("user_id = ? AND name = ?", userId, name)
+	if excludeId > 0 {
+		q = q.Where("id <> ?", excludeId)
+	}
+	var total int64
+	err := q.Count(&total).Error
+	return total > 0, err
 }
 
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
