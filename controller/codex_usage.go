@@ -35,6 +35,15 @@ func GetCodexChannelRateLimitResetCredits(c *gin.Context) {
 	)
 }
 
+func ResetCodexChannelUsage(c *gin.Context) {
+	fetchCodexChannelWhamData(
+		c,
+		service.ConsumeCodexWhamRateLimitResetCredit,
+		"failed to reset codex usage",
+		"重置用量失败，请稍后重试",
+	)
+}
+
 type codexWhamFetchFunc func(
 	ctx context.Context,
 	client *http.Client,

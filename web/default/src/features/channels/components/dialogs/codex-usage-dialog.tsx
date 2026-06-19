@@ -17,12 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Copy, Check, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Copy,
+  Check,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  AlertTriangle,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { formatDateTimeStr, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -46,9 +55,14 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { getCodexResetCredits, type CodexResetCreditsResponse } from '../../api'
+import {
+  getCodexResetCredits,
+  resetCodexUsage,
+  type CodexResetCreditsResponse,
+} from '../../api'
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -124,7 +138,7 @@ type CodexUsageDialogProps = {
   channelName?: string
   channelId?: number
   response: CodexUsageDialogData | null
-  onRefresh?: () => void
+  onRefresh?: () => void | Promise<void>
   isRefreshing?: boolean
 }
 
@@ -672,8 +686,12 @@ function ResetCreditsPanel(props: {
   response: CodexResetCreditsResponse | null
   usageAvailableCount: string
   isLoading: boolean
+  isResetting: boolean
   errorMessage: string
+  resetErrorMessage: string
+  resetSuccessMessage: string
   onRefresh: () => void
+  onRequestReset: () => void
 }) {
   const { t } = useTranslation()
   const credits = useMemo(
@@ -689,6 +707,7 @@ function ResetCreditsPanel(props: {
   )
     ? String(props.payload?.total_earned_count)
     : '-'
+  const canReset = Number(availableCount) > 0
 
   return (
     <div className='flex flex-col gap-3 p-3'>
@@ -728,6 +747,54 @@ function ResetCreditsPanel(props: {
           {t('Refresh details')}
         </Button>
       </div>
+
+      <div className='bg-muted/30 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='min-w-0'>
+          <div className='text-sm font-semibold'>{t('Reset usage window')}</div>
+          <div className='text-muted-foreground mt-1 text-xs leading-5'>
+            {t(
+              'Use one available reset credit to refresh the current Codex usage windows.'
+            )}
+          </div>
+        </div>
+        <Button
+          type='button'
+          variant={canReset ? 'destructive' : 'outline'}
+          size='sm'
+          onClick={props.onRequestReset}
+          disabled={!canReset || props.isLoading || props.isResetting}
+          className='shrink-0'
+        >
+          <RotateCcw data-icon='inline-start' />
+          {props.isResetting ? t('Resetting...') : t('Apply reset')}
+        </Button>
+      </div>
+
+      {!canReset ? (
+        <Alert>
+          <AlertTriangle />
+          <AlertTitle>{t('No reset credits available')}</AlertTitle>
+          <AlertDescription>
+            {t('The reset request stays disabled until a credit is available.')}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {props.resetSuccessMessage ? (
+        <Alert className='border-success/40 bg-success/10 text-success'>
+          <Check />
+          <AlertTitle>{t('Reset completed')}</AlertTitle>
+          <AlertDescription>{props.resetSuccessMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {props.resetErrorMessage ? (
+        <Alert variant='destructive'>
+          <AlertTriangle />
+          <AlertTitle>{t('Reset failed')}</AlertTitle>
+          <AlertDescription>{props.resetErrorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {props.errorMessage ? (
         <div className='border-destructive/40 bg-destructive/10 text-destructive rounded-lg border px-3 py-2 text-sm'>
@@ -779,6 +846,10 @@ export function CodexUsageDialog({
     useState<CodexResetCreditsResponse | null>(null)
   const [isLoadingResetCredits, setIsLoadingResetCredits] = useState(false)
   const [resetCreditsError, setResetCreditsError] = useState('')
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [resetActionError, setResetActionError] = useState('')
+  const [resetActionMessage, setResetActionMessage] = useState('')
 
   const payload: CodexUsagePayload | null = useMemo(() => {
     const raw = response?.data
@@ -804,6 +875,7 @@ export function CodexUsageDialog({
   const resetCreditsText = Number.isFinite(Number(resetCredits))
     ? String(resetCredits)
     : '-'
+  const canResetCodexUsage = Number(resetCredits) > 0
   const channelLabel = `${channelName || '-'}${
     channelId ? ` (#${channelId})` : ''
   }`
@@ -859,8 +931,47 @@ export function CodexUsageDialog({
       setResetCreditsResponse(null)
       setResetCreditsError('')
       setIsLoadingResetCredits(false)
+      setResetConfirmOpen(false)
+      setIsResetting(false)
+      setResetActionError('')
+      setResetActionMessage('')
     }
     onOpenChange(nextOpen)
+  }
+
+  const handleConfirmReset = async () => {
+    if (!channelId || isResetting || !canResetCodexUsage) return
+
+    setIsResetting(true)
+    setResetActionError('')
+    setResetActionMessage('')
+    try {
+      const res = await resetCodexUsage(channelId)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to reset usage'))
+      }
+
+      const resetPayload = res.data as
+        | { windows_reset?: number; code?: string }
+        | undefined
+      const windowsReset = Number(resetPayload?.windows_reset)
+      setResetActionMessage(
+        Number.isFinite(windowsReset)
+          ? `${t('Reset completed. Latest usage has been refreshed.')} ${t(
+              'Affected windows:'
+            )} ${windowsReset}`
+          : t('Reset completed. Latest usage has been refreshed.')
+      )
+      setResetConfirmOpen(false)
+      await Promise.resolve(onRefresh?.())
+      await loadResetCredits(true)
+    } catch (error) {
+      setResetActionError(
+        error instanceof Error ? error.message : t('Failed to reset usage')
+      )
+    } finally {
+      setIsResetting(false)
+    }
   }
 
   const rawJsonText = useMemo(() => {
@@ -1024,8 +1135,16 @@ export function CodexUsageDialog({
               response={resetCreditsResponse}
               usageAvailableCount={resetCreditsText}
               isLoading={isLoadingResetCredits}
+              isResetting={isResetting}
               errorMessage={resetCreditsError}
+              resetErrorMessage={resetActionError}
+              resetSuccessMessage={resetActionMessage}
               onRefresh={() => void loadResetCredits(true)}
+              onRequestReset={() => {
+                setResetActionError('')
+                setResetActionMessage('')
+                setResetConfirmOpen(true)
+              }}
             />
           </CollapsibleContent>
         </Collapsible>
@@ -1119,6 +1238,35 @@ export function CodexUsageDialog({
           </CollapsibleContent>
         </Collapsible>
       </div>
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        onOpenChange={setResetConfirmOpen}
+        title={t('Confirm usage reset')}
+        desc={
+          <div className='flex flex-col gap-2'>
+            <p>
+              {t(
+                'Use one available reset credit for this channel. The reset request is sent only after confirmation.'
+              )}
+            </p>
+            <div className='bg-muted/50 rounded-lg border px-3 py-2 text-xs'>
+              <div className='font-medium'>{channelLabel}</div>
+              <div className='text-muted-foreground mt-1'>
+                {t('Available reset credits')}: {resetCreditsText}
+              </div>
+            </div>
+            <p className='text-destructive'>
+              {t('Used reset credits cannot be restored.')}
+            </p>
+          </div>
+        }
+        destructive
+        disabled={!canResetCodexUsage}
+        isLoading={isResetting}
+        cancelBtnText={t('Cancel')}
+        confirmText={isResetting ? t('Resetting...') : t('Apply reset')}
+        handleConfirm={handleConfirmReset}
+      />
     </Dialog>
   )
 }
