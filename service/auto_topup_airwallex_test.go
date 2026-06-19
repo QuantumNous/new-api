@@ -1,6 +1,49 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+)
+
+func TestDecideAirwallexAutoTopup(t *testing.T) {
+	saved := common.QuotaPerUnit
+	defer func() { common.QuotaPerUnit = saved }()
+	common.QuotaPerUnit = 500000 // SellMultiplier default 5 → 1,000,000 units = A$10
+
+	base := airwallexAutoTopupPreconditions{
+		Enabled: true, FlagEnabled: true, Amount: 1000000, Threshold: 2000000,
+		Quota: 100000, ConsentID: "cst_x", MinChargeCents: 500, RedisEnabled: true,
+	}
+	// happy path → A$10.00
+	if ok, amt, reason := decideAirwallexAutoTopup(base); !ok || amt != 10.0 || reason != "" {
+		t.Fatalf("happy path: ok=%v amt=%v reason=%q", ok, amt, reason)
+	}
+	// master flag off
+	p := base
+	p.FlagEnabled = false
+	if ok, _, reason := decideAirwallexAutoTopup(p); ok || reason != "airwallex_autotopup_disabled" {
+		t.Fatalf("flag off: ok=%v reason=%q", ok, reason)
+	}
+	// no consent
+	p = base
+	p.ConsentID = ""
+	if ok, _, reason := decideAirwallexAutoTopup(p); ok || reason != "no_airwallex_consent" {
+		t.Fatalf("no consent: ok=%v reason=%q", ok, reason)
+	}
+	// quota above threshold
+	p = base
+	p.Quota = 3000000
+	if ok, _, reason := decideAirwallexAutoTopup(p); ok || reason != "quota_above_threshold" {
+		t.Fatalf("above threshold: ok=%v reason=%q", ok, reason)
+	}
+	// below min charge (200000 units = A$2 < A$5 min)
+	p = base
+	p.Amount = 200000
+	if ok, _, reason := decideAirwallexAutoTopup(p); ok || reason != "amount_below_minimum" {
+		t.Fatalf("below min: ok=%v reason=%q", ok, reason)
+	}
+}
 
 func TestBuildAirwallexCreateBody(t *testing.T) {
 	b := buildAirwallexCreateBody(airwallexChargeRequest{

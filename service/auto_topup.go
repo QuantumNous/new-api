@@ -107,6 +107,14 @@ func MaybeAutoTopup(ctx *gin.Context, userId int) AutoTopupResult {
 		return AutoTopupResult{SkipReason: "user_not_found", Err: err}
 	}
 
+	// Provider split: Airwallex off-session path takes precedence when the
+	// operator master flag is on AND the user has a saved Airwallex consent
+	// (mutually exclusive with Stripe — a user binds one provider). Default flag
+	// is OFF, so this is a no-op until an operator enables it after PR-9 testing.
+	if operation_setting.AutoTopupAirwallexEnabled() && user.AirwallexConsentID != "" {
+		return maybeAirwallexAutoTopup(ctx, user)
+	}
+
 	shouldCharge, cents, skipReason := decideAutoTopup(autoTopupPreconditions{
 		Enabled:        user.AutoTopupEnabled,
 		Amount:         user.AutoTopupAmount,

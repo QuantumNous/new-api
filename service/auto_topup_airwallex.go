@@ -20,7 +20,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+
+	"github.com/gin-gonic/gin"
 )
 
 // airwallexChargeRequest mirrors stripeChargeRequest. Amount is in MAJOR
@@ -37,6 +43,48 @@ type airwallexChargeRequest struct {
 
 // airwallexChargeFn is the seam PR-7 / tests override to avoid real API calls.
 var airwallexChargeFn = airwallexOffSessionCharge
+
+// airwallexAutoTopupPreconditions is the pure-decision input for the Airwallex
+// off-session path (parallel to autoTopupPreconditions for Stripe).
+type airwallexAutoTopupPreconditions struct {
+	Enabled        bool   // user.AutoTopupEnabled
+	FlagEnabled    bool   // operator master flag (AutoTopupAirwallexEnabled)
+	Amount         int    // quota units to add
+	Threshold      int    // quota units; charge when Quota < Threshold
+	Quota          int    // current user quota
+	ConsentID      string // user.AirwallexConsentID (the off-session mandate)
+	MinChargeCents int64  // AUD min, in cents
+	RedisEnabled   bool
+}
+
+// decideAirwallexAutoTopup mirrors decideAutoTopup for the Airwallex path.
+// Returns whether to charge, the major-unit amount (e.g. 5.00), and a skip
+// reason. Pure — no IO.
+func decideAirwallexAutoTopup(p airwallexAutoTopupPreconditions) (shouldCharge bool, amountMajor float64, skipReason string) {
+	if !p.FlagEnabled {
+		return false, 0, "airwallex_autotopup_disabled"
+	}
+	if !p.Enabled {
+		return false, 0, "auto_topup_disabled"
+	}
+	if p.Amount <= 0 {
+		return false, 0, "auto_topup_amount_zero"
+	}
+	if p.Quota >= p.Threshold {
+		return false, 0, "quota_above_threshold"
+	}
+	if p.ConsentID == "" {
+		return false, 0, "no_airwallex_consent"
+	}
+	if !p.RedisEnabled {
+		return false, 0, "redis_not_enabled"
+	}
+	amountMajor = quotaUnitsToMajorAmount(p.Amount)
+	if int64(amountMajor*100) < p.MinChargeCents {
+		return false, amountMajor, "amount_below_minimum"
+	}
+	return true, amountMajor, ""
+}
 
 // buildAirwallexCreateBody builds the PaymentIntent create payload.
 func buildAirwallexCreateBody(req airwallexChargeRequest) map[string]interface{} {
@@ -153,4 +201,66 @@ func airwallexOffSessionCharge(req airwallexChargeRequest) (string, error) {
 		return intentID, fmt.Errorf("airwallex off-session not succeeded: status=%v", status)
 	}
 	return intentID, nil
+}
+
+// maybeAirwallexAutoTopup runs the Airwallex off-session auto-charge for a user
+// (the Airwallex counterpart of the Stripe branch in MaybeAutoTopup). Called
+// only when the operator flag is on AND the user has a saved consent. Mirrors
+// the Stripe path: decide → Redis lock → charge → credit → log.
+func maybeAirwallexAutoTopup(ctx *gin.Context, user *model.User) AutoTopupResult {
+	should, amountMajor, reason := decideAirwallexAutoTopup(airwallexAutoTopupPreconditions{
+		Enabled:        user.AutoTopupEnabled,
+		FlagEnabled:    operation_setting.AutoTopupAirwallexEnabled(),
+		Amount:         user.AutoTopupAmount,
+		Threshold:      user.AutoTopupThreshold,
+		Quota:          user.Quota,
+		ConsentID:      user.AirwallexConsentID,
+		MinChargeCents: operation_setting.AutoTopupMinChargeAUDCents(),
+		RedisEnabled:   common.RedisEnabled,
+	})
+	if !should {
+		return AutoTopupResult{SkipReason: reason}
+	}
+
+	// Same lock key as the Stripe path — a user has only one auto-topup in
+	// flight regardless of provider.
+	lockKey := fmt.Sprintf("auto_topup_lock:%d", user.Id)
+	acquired, err := common.RDB.SetNX(context.Background(), lockKey, "1", 60*time.Second).Result()
+	if err != nil {
+		return AutoTopupResult{SkipReason: "lock_error", Err: err}
+	}
+	if !acquired {
+		return AutoTopupResult{SkipReason: "lock_held"}
+	}
+
+	intentID, chargeErr := airwallexChargeFn(airwallexChargeRequest{
+		Amount:        amountMajor,
+		Currency:      "AUD",
+		CustomerID:    user.AirwallexCustomer,
+		ConsentID:     user.AirwallexConsentID,
+		PaymentMethod: user.AirwallexPaymentMethod,
+		OriginalTxnID: user.AirwallexOriginalTxnID,
+		RequestID:     fmt.Sprintf("aw-autotopup-%d-%d", user.Id, time.Now().Unix()/60),
+	})
+	if chargeErr != nil {
+		if ctx != nil {
+			logger.LogError(ctx, fmt.Sprintf("airwallex auto-topup charge failed for user %d: %v", user.Id, chargeErr))
+		}
+		return AutoTopupResult{Triggered: true, Err: chargeErr}
+	}
+
+	if err := model.IncreaseUserQuota(user.Id, user.AutoTopupAmount, true); err != nil {
+		if ctx != nil {
+			logger.LogError(ctx, fmt.Sprintf("CRITICAL airwallex auto-topup user %d: charged (%s) but quota credit failed: %v", user.Id, intentID, err))
+		}
+		return AutoTopupResult{Triggered: true, StripeIntentID: intentID, Err: err}
+	}
+
+	model.RecordLog(user.Id, model.LogTypeTopup, fmt.Sprintf("auto-topup via Airwallex %s, A$%.2f → +%d quota", intentID, amountMajor, user.AutoTopupAmount))
+	return AutoTopupResult{
+		Triggered:      true,
+		StripeIntentID: intentID, // reused field: holds the provider intent id
+		ChargedCents:   int64(amountMajor * 100),
+		QuotaIncreased: user.AutoTopupAmount,
+	}
 }
