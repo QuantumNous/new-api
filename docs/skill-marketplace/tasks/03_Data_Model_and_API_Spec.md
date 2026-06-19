@@ -10,11 +10,11 @@
 
 | Principle | Requirement |
 |---|---|
-| Server-side DRM | `instruction_template` 只存储在服务端，只允许 Super Admin 和 Relay 执行链路访问 |
-| Use-time Entitlement | `user_enabled_skills` 只代表用户启用关系，不代表永久执行授权 |
-| Immutable Execution | 每次执行必须绑定进入请求时选定的 `skill_version_id` 和执行快照 |
+| Runtime-Dependency Moat (R2/D-09) | 已发布的 `instruction_template` 随下载包分发、可读；护城河是运行时硬依赖 + 按运行者 own-key 鉴权计费。服务端 DRM 只保护 provider 凭证、路由/选模型逻辑与草稿模板 |
+| Use-time Entitlement | `user_enabled_skills` 只代表用户下载/启用关系，不代表永久执行授权 |
+| Immutable Execution | 每次执行必须绑定进入请求时选定的 `skill_version_id` 和服务端执行快照（不信任包内提供的模板/路由提示） |
 | Analytics by Default | 所有关键行为必须有事件记录，且带 `entry_point` |
-| Privacy by Design | 不在 analytics、audit、logs 中存储 prompt 原文、Kids 敏感输入或 provider raw payload |
+| Privacy by Design | 不在 analytics、audit、logs 中存储 raw user input、PII、Kids 敏感输入或 provider raw payload（`instruction_template` 不再是脱敏对象） |
 | Explicit RBAC | `/admin/*` 用于 Super Admin 敏感写操作；`/ops/*` 用于聚合运营视图 |
 | Migration Ready | 表结构必须包含类型、默认值、约束、索引和回滚策略 |
 
@@ -26,14 +26,17 @@
 skills
   1 ── * skill_versions
   1 ── * skills_i18n
-  1 ── * user_enabled_skills
-  1 ── * skill_usage_events
-  1 ── * skill_billing_events
-  1 ── * skill_reviews
+  1 ── * user_enabled_skills   (download/entitlement record)
+  1 ── * skill_usage_events    (Tier 1 platform events)
+  1 ── * skill_evaluations     (per-version evaluation results)
+  1 ── * skill_ratings         (user star ratings + comments)
+  1 ── * skill_saves           (save / favorite records)
+  1 ── * skill_reviews         (ops review workflow)
   1 ── * skill_audit_log
 
-users / tenants / sessions / subscriptions
-  referenced by user_enabled_skills, usage events, billing events, reviews, audit logs
+users / tenants / subscriptions
+  referenced by user_enabled_skills, usage events, ratings, saves, reviews, audit logs
+  users.tier2_telemetry_consent gates Tier 2 telemetry ingestion
 ```
 
 V1 assumes existing platform tables exist for users, tenants, sessions, subscriptions, billing, and feature flags. Foreign keys can be enforced only where the existing database ownership model allows them; otherwise store ids with application-level validation.
@@ -50,8 +53,12 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `skill_version_status` | `draft`, `active`, `inactive`, `archived` |
 | `review_status` | `open`, `assigned`, `escalated`, `resolved`, `reopened` |
 | `kids_approval_status` | `not_required`, `pending`, `approved`, `emergency_approved`, `rejected`, `revoked` |
-| `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `skill_not_enabled`, `plan_required`, `subscription_inactive`, `quota_exceeded`, `kids_mode_blocked`, `context_too_long`, `rate_limited`, `timeout`, `safety_violation`, `internal_error` |
-| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `external_ai_client`, `api_direct` |
+| `evaluation_status` | `pending`, `running`, `passed`, `failed`, `warning` |
+| `evaluation_issue_type` | `format`, `completeness`, `task_completion`, `violation` |
+| `save_type` | `saved`, `favorited` |
+| `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `plan_required`, `subscription_inactive`, `kids_mode_blocked`, `evaluation_not_passed` |
+| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results` |
+| `tier2_event_type` | `skill_installed`, `skill_used_local` |
 
 ---
 
@@ -106,21 +113,6 @@ CREATE TABLE skills (
 
   featured_flag BOOLEAN NOT NULL DEFAULT false,
   featured_rank INTEGER NULL CHECK (featured_rank IS NULL OR featured_rank >= 0),
-
-  -- Tool spec distribution fields (V1: external AI client invocation)
-  tool_function_name VARCHAR(64) NULL,
-  -- Function name used in OpenAPI/MCP spec (e.g. "contract_review_analyze").
-  -- Must be a valid JSON identifier: [a-zA-Z_][a-zA-Z0-9_]*; max 64 chars.
-  -- Required before publish if Skill supports external AI client invocation.
-  tool_input_schema JSONB NULL,
-  -- JSON Schema object for the tool's input parameters.
-  -- Must not contain any reference to instruction_template or execution details.
-  tool_output_schema JSONB NULL,
-  -- JSON Schema object for the tool's output / tool_result format.
-  tool_spec_openapi_version VARCHAR(16) NOT NULL DEFAULT '3.1.0',
-  tool_spec_mcp_version VARCHAR(16) NOT NULL DEFAULT '2024-11-05',
-  tool_spec_invalidated_at TIMESTAMPTZ NULL,
-  -- Set when tool_function_name, tool_input_schema, or tool_output_schema changes to trigger spec regeneration.
 
   active_version_id UUID NULL,
   created_by UUID NOT NULL,
@@ -180,11 +172,12 @@ CREATE TABLE skill_versions (
 );
 ```
 
-Security requirements:
-- Application queries that power public/user/ops APIs must never select `instruction_template`.
-- Admin detail may retrieve `instruction_template` only for Super Admin and must audit access.
-- Logs, analytics, audit diff, billing, and error responses must use `instruction_template_sha256`, not prompt text.
-- If database encryption tooling is available, `instruction_template` must be encrypted at rest or protected by equivalent managed storage encryption.
+Security requirements (R2/D-09):
+- The **published** version `instruction_template` is distributed inside the downloadable package and may be returned by the package-build and package-download paths; it is no longer a confidentiality boundary.
+- **Draft / unpublished** version templates must not be served to non-Super-Admin surfaces.
+- `instruction_template_sha256` is retained as a package/version integrity check (verify the downloaded package matches the active version) rather than a secrecy measure.
+- Provider credentials and server-side routing/model-selection config are never stored in `skill_versions` exposed columns and never appear in any package, public/user/ops API, log, or event.
+- Encryption-at-rest still applies to draft templates and to genuinely sensitive server-side config; it is not required for published templates that already ship in the package.
 
 Rules:
 - V1 allows only one `active` version per Skill through `idx_skill_versions_one_active`.
@@ -288,79 +281,87 @@ Rules:
 - `metadata.repeat_index` must be a positive integer when present and is required for `skill_repeat_use` until promoted to a first-class column.
 - Restricted keys such as `instruction_template`, `prompt`, `system_prompt`, `raw_messages`, `provider_payload`, `kids_raw_input`, `full_user_input`, `raw_output`, and `model_output` must be rejected or quarantined.
 
-### 4.5 `skill_billing_events`
+### 4.5 `skill_evaluations`
 
-Billing attribution event. It may feed the existing billing/charge system but is not itself an invoice.
+每个 Skill 版本的自动化评估结果。Evaluation passed 是发布的硬性前提。
 
 ```sql
-CREATE TABLE skill_billing_events (
+CREATE TABLE skill_evaluations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  request_id VARCHAR(128) NOT NULL,
-  idempotency_key VARCHAR(160) NOT NULL UNIQUE,
-  related_billing_event_id UUID NULL REFERENCES skill_billing_events(id),
-
-  user_id UUID NOT NULL,
-  tenant_id UUID NOT NULL,
   skill_id UUID NOT NULL REFERENCES skills(id),
   skill_version_id UUID NOT NULL REFERENCES skill_versions(id),
 
-  monetization_type VARCHAR(32) NOT NULL,
-  required_plan VARCHAR(32) NOT NULL,
-  input_tokens INTEGER NOT NULL DEFAULT 0,
-  output_tokens INTEGER NOT NULL DEFAULT 0,
-  total_tokens INTEGER NOT NULL DEFAULT 0,
-  base_cost NUMERIC(14, 6) NOT NULL DEFAULT 0,
-  skill_markup NUMERIC(14, 6) NOT NULL DEFAULT 0,
-  billable_amount NUMERIC(14, 6) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL
+    CHECK (status IN ('pending', 'running', 'passed', 'failed', 'warning')),
+  score INTEGER NULL CHECK (score IS NULL OR score BETWEEN 0 AND 100),
 
-  charge_status VARCHAR(32) NOT NULL DEFAULT 'not_charged'
-    CHECK (charge_status IN ('not_charged', 'pending', 'charged', 'refunded', 'voided')),
-  partial_output BOOLEAN NOT NULL DEFAULT false,
-  success BOOLEAN NOT NULL DEFAULT true,
+  format_check_passed BOOLEAN NOT NULL DEFAULT false,
+  completeness_check_passed BOOLEAN NOT NULL DEFAULT false,
+  task_completion_passed BOOLEAN NOT NULL DEFAULT false,
+  violation_check_passed BOOLEAN NOT NULL DEFAULT false,
 
+  issues JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- issue shape: [{type: 'format'|'completeness'|'task'|'violation', severity: 'error'|'warning', message: '...'}]
+
+  triggered_by VARCHAR(64) NOT NULL DEFAULT 'publish_action'
+    CHECK (triggered_by IN ('publish_action', 'manual_retrigger', 'version_update')),
+  triggered_by_actor_id UUID NULL,
+
+  started_at TIMESTAMPTZ NULL,
+  completed_at TIMESTAMPTZ NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
 Rules:
-- Blocked calls do not create `skill_billing_events`.
-- Failed calls do not charge by default.
-- `skill_billing_events` is append-only. Do not mutate prior billing rows to change financial meaning after insert, especially charged rows.
-- Refund, void, adjustment, or charge reversal must create a new compensating row with a new `idempotency_key`, `related_billing_event_id` pointing to the original event where available, related `request_id`, negative `billable_amount` where applicable, and `charge_status='refunded'` or `voided`. The original `charged` event remains immutable for audit and reconciliation.
-- Partial streaming output defaults to `charge_status='not_charged'` only for safety-aborted, provider-error-without-usable-output, preview, or client-disconnect-before-usable-output paths unless Finance explicitly approves otherwise.
-- Streaming timeout after partial output is a separate cost-control case: if Relay has delivered usable streamed output or provider usage indicates consumed/output tokens before timeout, create a `skill_billing_events` row with `partial_output=true`, `success=false`, actual token counts where available, and `charge_status='pending'` or `charged` according to the approved Finance settlement flow.
-- Timeout billing must be idempotent by `idempotency_key`; retries or delayed provider usage callbacks must update/reconcile the same billing event rather than creating a second event.
-- Client disconnect after usable streamed output is treated as a billable partial, not as provider failure. If Relay has delivered usable streamed tokens before disconnect, record actual token counts with `partial_output=true` and settle according to Finance-approved partial billing policy.
-- Partial billing must avoid input-token cost asymmetry. Once the provider has started usable output, billable `input_tokens` are charged at 100% of actual/provider-reported input usage; only `output_tokens` are prorated to the delivered/generated amount at disconnect or timeout.
-- Client disconnect before any usable output is delivered creates no charge by default.
-- Kids Session billing still stores the real `user_id` and `tenant_id` because this is the restricted financial/accounting attribution table. This table must not contain raw prompt, raw input/output, provider payloads, Kids-sensitive content, or hidden Skill instructions.
-- Refund and support traceability must use `request_id` or `idempotency_key` to correlate `skill_billing_events` with `skill_usage_events`; support tools must not join Kids events by real `user_id`.
-- Access to `skill_billing_events` is restricted to Finance-approved billing systems, Security, and tightly scoped Engineering support; it must not be used as a general analytics source.
+- One evaluation row per trigger; re-trigger creates a new row.
+- Publish action must check the latest evaluation for the version: `status='passed'` required; any other status blocks publish.
+- `issues` is append-only during a run; do not mutate after `completed_at` is set.
+- `score` is derived from sub-check results; formula owned by Evaluation Pipeline team.
 
-**Billing ledger immutability enforcement (DDL)**:
+### 4.5b `skill_ratings`
 
-The append-only rule must be enforced at the database layer, not only in application code. Add the following trigger to the migration:
+用户对 Skill 的评分和可选短评。
 
 ```sql
-CREATE OR REPLACE FUNCTION skill_billing_events_prevent_charged_mutation()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF OLD.charge_status = 'charged' THEN
-    RAISE EXCEPTION
-      'skill_billing_events: row % is charged and immutable. '
-      'Insert a compensating row with related_billing_event_id instead of updating the original.',
-      OLD.id;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE skill_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id UUID NOT NULL REFERENCES skills(id),
+  skill_version_id UUID NOT NULL REFERENCES skill_versions(id),
+  user_id UUID NOT NULL,
+  tenant_id UUID NOT NULL,
 
-CREATE TRIGGER enforce_billing_immutability
-BEFORE UPDATE ON skill_billing_events
-FOR EACH ROW EXECUTE FUNCTION skill_billing_events_prevent_charged_mutation();
+  stars SMALLINT NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  comment VARCHAR(280) NULL,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (user_id, tenant_id, skill_id)
+);
 ```
 
-This trigger allows status transitions on `pending` rows (e.g., `not_charged` → `pending` → `charged`) but blocks any UPDATE once a row reaches `charged`. The `refunded` and `voided` values in `charge_status` are intentionally reserved for compensating rows; they must never be set by UPDATE on a prior `charged` row.
+Rules:
+- One rating per user per skill; re-rate updates the existing row.
+- `comment` is optional, max 280 chars; no raw user input or PII.
+- Rating aggregate (avg_stars, rating_count) is computed and cached on `skills` table or a materialized view for dashboard performance.
+
+### 4.5c `skill_saves`
+
+用户收藏（save/favorite）行为记录。
+
+```sql
+CREATE TABLE skill_saves (
+  user_id UUID NOT NULL,
+  tenant_id UUID NOT NULL,
+  skill_id UUID NOT NULL REFERENCES skills(id),
+  save_type VARCHAR(32) NOT NULL DEFAULT 'saved'
+    CHECK (save_type IN ('saved', 'favorited')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  PRIMARY KEY (user_id, tenant_id, skill_id, save_type)
+);
+```
 
 ### 4.6 `skill_reviews`
 
@@ -540,8 +541,10 @@ CREATE INDEX idx_audit_actor_time ON skill_audit_log(actor_id, created_at DESC);
 
 | Field / Data | Classification | Handling |
 |---|---|---|
-| `instruction_template` | Highly sensitive platform IP | Super Admin + Relay only; never in public APIs/logs/events |
-| `prompt_guard_template` | Sensitive platform IP | Same as instruction template |
+| Published `instruction_template` | Public-by-distribution (R2) | Ships in the downloadable package; readable; not a confidentiality boundary |
+| Draft / unpublished `instruction_template` | Sensitive (pre-release) | Super Admin only until published |
+| Provider credentials & server routing/model-selection logic | Highly sensitive platform IP | Server-side only; never in package, public APIs, logs, or events |
+| `prompt_guard_template` (if server-side only) | Sensitive platform IP | Server-side only if not part of the published package |
 | User input / model output | User content | Do not store raw in Skill analytics by default |
 | Kids session raw input | Restricted sensitive | Do not persist in V1 analytics/logs |
 | Billing amounts | Financial | Access controlled; no client trust |
@@ -600,7 +603,6 @@ Error:
 
 | Code | HTTP | Notes |
 |---|---:|---|
-| `INVALID_REQUEST` | 400 | Invalid pagination, sorting, filtering, or malformed request parameters |
 | `AUTH_REQUIRED` | 401 | Login required |
 | `SKILL_NOT_FOUND` | 404 | Unknown Skill |
 | `SKILL_NOT_PUBLISHED` | 403 | Draft, archived, or unavailable deprecated Skill |
@@ -622,7 +624,6 @@ Error:
 - `sort`: server-defined enum; reject unknown sort keys.
 - `locale`: optional; defaults to `Accept-Language`.
 - Filters with unsupported values return 400.
-- Unsupported or invalid pagination, sort, and filter inputs return the standard error envelope with code `INVALID_REQUEST`.
 
 ### 7.4 Auth and RBAC
 
@@ -630,11 +631,10 @@ Error:
 |---|---|
 | `/api/v1/marketplace/skills` GET | Anonymous allowed with public fields |
 | `/api/v1/marketplace/my-skills` | Logged-in user |
-| `/api/v1/marketplace/skills/{id}/enable` | Logged-in user |
+| `/api/v1/marketplace/skills/{id}/download` | Logged-in user (entitled) |
 | `/api/v1/admin/*` | Super Admin unless route explicitly read-only |
 | `/api/v1/ops/*` | Operation/Product aggregate views |
-| `/v1/skills/execute/{skill_id}` (external AI client) | API Key bearer token (active logged-in user) |
-| `/api/v1/admin/skills/{skill_id}/preview` | Super Admin only |
+| Public routing/execution API (called by package) | Valid runner DeepRouter credential only |
 
 ---
 
@@ -715,7 +715,17 @@ Response includes public fields only:
 }
 ```
 
-Must not include `instruction_template`, `prompt_guard_template`, provider raw config, or internal review notes.
+The Detail response is public metadata only and must not include provider raw config, server routing internals, or internal review notes. The `instruction_template` itself is not returned here; it is delivered via the package-download endpoint (§8.6). Detail may add a `download` CTA and a `requires_deeprouter_key: true` runtime-dependency flag.
+
+### 8.6 Download Skill Package
+
+`GET /api/v1/marketplace/skills/{skill_id_or_slug}/download`
+
+- Returns the versioned zip package (manifest + published `instruction_template` + thin client) for the active published version, pinned to `skill_version_id`.
+- Requires a logged-in, entitled user; archived/draft are 403/404 per the entitlement table.
+- The package must not contain provider credentials, server routing/model-selection logic, or draft templates.
+- Emits `skill_enabled` (download) with `entry_point` of the originating surface.
+- The package's bundled client targets the public routing API (§9) and authenticates with the runner's own DeepRouter credential at runtime.
 
 ### 8.3 My Skills
 
@@ -779,76 +789,40 @@ Rules:
 - Updates `enabled=false`, sets `disabled_at`.
 - Emits `skill_disabled`.
 
-### 8.X Tool Spec Download
+---
 
-`GET /api/v1/marketplace/skills/{skill_id}/tool-spec`
+## 9. Tier 2 Telemetry Contract
 
-Query parameters:
-- `format` (required): `openapi` or `mcp`
-- `platform` (optional): `chatgpt`, `gemini`, `claude` — returns platform-specific install instructions
+V1 Skill 执行发生在用户本地，DeepRouter 不参与执行。用户可在账号设置中授权 Tier 2 遥测，授权后本地工具（Claude Code 插件或 DeepRouter CLI）回传 installed / used 事件。
 
-Rules:
-- Auth required; user must have `enabled=true` for this Skill.
-- Published Skills only; draft/archived/deprecated without active version return 404.
-- Response contains `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and the DeepRouter Skill API endpoint URL only.
-- Response must never contain `instruction_template`, execution handler code, or any server-side logic.
-- `tool_spec_invalidated_at` is included in response so clients can detect stale specs.
-- Emits `skill_spec_downloaded` event with `format`, `platform` (if provided), `skill_id`, `user_id`, `entry_point=skill_detail`.
+**授权字段**（存于用户账号表）：
+```sql
+ALTER TABLE users ADD COLUMN tier2_telemetry_consent BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN tier2_telemetry_consented_at TIMESTAMPTZ NULL;
+```
 
-Response example (OpenAPI format):
+**Tier 2 事件上报接口**：
+
+`POST /api/v1/telemetry/skill-events`
+
+Headers: `Authorization: Bearer <user DeepRouter key>`
+
+Request:
 ```json
 {
-  "format": "openapi",
-  "spec": {
-    "openapi": "3.1.0",
-    "info": { "title": "Contract Review", "version": "1.0" },
-    "paths": {
-      "/v1/skills/execute/{skill_id}": {
-        "post": {
-          "operationId": "contract_review_analyze",
-          "summary": "Analyzes a contract and returns key risks and clauses.",
-          "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Input" } } } },
-          "responses": { "200": { "description": "Tool result" } },
-          "security": [{ "bearerAuth": [] }]
-        }
-      }
-    },
-    "components": {
-      "schemas": { "Input": { "$ref": "inline_tool_input_schema" } },
-      "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "description": "Your DeepRouter API Key" } }
-    }
-  },
-  "install_guide_url": "https://deeprouter.ai/docs/install/chatgpt",
-  "spec_invalidated_at": null
+  "event_type": "skill_installed | skill_used_local",
+  "skill_id": "6e3f...",
+  "skill_version_id": "...",
+  "occurred_at": "<ISO8601>",
+  "client_info": { "tool": "claude-code", "version": "..." }
 }
 ```
 
----
-
-## 9. Relay / Execution Contract
-
-V1 用户使用 Skill 只有一条路：通过外部 AI 客户端（ChatGPT / Gemini / Claude）调用 DeepRouter Skill API。Playground 不提供用户级 Skill 执行；Admin Preview 使用独立的 `/api/v1/admin/skills/{skill_id}/preview` 端点。
-
-### 9.1 External AI Client (Tool Call) Request
-
-External AI clients (ChatGPT, Gemini, Claude) call the Skill execute endpoint directly.
-
-`POST /v1/skills/execute/{skill_id}`
-
-Headers:
-- `Authorization: Bearer <user_api_key>` (required)
-- `Content-Type: application/json`
-
-Request body matches the tool's `tool_input_schema` as defined in the downloaded tool spec.
-
 Rules:
-- `Authorization` header is required; missing/invalid Key returns 401 `AUTH_REQUIRED`.
-- API Key is resolved to user account; entitlement checked against that account.
-- `skill_id` is taken from the URL path; any Skill ID in the request body is ignored.
-- Relay performs the same entitlement, lifecycle, quota, Kids safety, rate limit, and execution flow as Playground.
-- `instruction_template` is never sent to the caller; response is `tool_result` JSON only.
-- Execution/block events include `request_id`, `skill_id`, `skill_version_id`, `entry_point=external_ai_client`.
-- `deeprouter` vendor extension in request body is not applicable for this endpoint; `skill_id` comes from the URL.
+- 无 `tier2_telemetry_consent=true` 的请求返回 403 并丢弃事件。
+- 事件不含 raw user input、对话内容、模型输出或 PII。
+- `client_info` 仅用于工具版本分析，不做身份追踪。
+- 用户在账号设置中撤销授权后，后续事件立即丢弃；历史数据保留至隐私政策规定的保留期。
 
 ---
 
@@ -870,21 +844,11 @@ Response must redact `instruction_template`.
 
 Creates draft Skill. Required fields: `slug`, `name`, `short_description`, `description`, `category`, `required_plan`, `monetization_type`. `max_input_tokens` is required when `required_plan='free'`, `monetization_type='free'`, or `free_quota_per_month` is set.
 
-Tool spec fields (`tool_function_name`, `tool_input_schema`, `tool_output_schema`) are optional at draft creation but required before publish. They can be set at creation or via PATCH.
-
 ### 10.3 Patch Skill
 
 `PATCH /api/v1/admin/skills/{skill_id}`
 
-Can update public metadata, entitlement, promotion, safety flags, execution settings excluding template, and tool spec schema fields. Template changes use version endpoint.
-
-Patchable tool spec fields: `tool_function_name`, `tool_input_schema`, `tool_output_schema`.
-
-Rules:
-- `tool_function_name` must match `/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/`; API returns 400 on invalid value.
-- `tool_input_schema` and `tool_output_schema` must be valid JSON Schema objects; API returns 400 if parse fails.
-- Any change to these three fields sets `tool_spec_invalidated_at = now()` to mark previously-downloaded specs as stale.
-- Patch must reject Free/free-quota configurations that omit `max_input_tokens`.
+Can update public metadata, entitlement, promotion, safety flags, execution settings excluding template. Template changes use version endpoint. Patch must reject Free/free-quota configurations that omit `max_input_tokens`.
 
 ### 10.4 Version APIs
 
@@ -963,17 +927,17 @@ CSV export is P1 aggregate-only and must be separately permissioned.
 ### 12.1 Order
 
 1. Create enums/check-compatible tables without foreign-key cycles.
-2. Create `skills` — including tool spec columns: `tool_function_name`, `tool_input_schema`, `tool_output_schema`, `tool_spec_openapi_version`, `tool_spec_mcp_version`, `tool_spec_invalidated_at`. All nullable at creation; required before publish for external-client-capable Skills.
+2. Create `skills`.
 3. Create `skill_versions`.
 4. Add `skills.active_version_id` FK if DB ownership allows.
 5. Create `skills_i18n`.
 6. Create `user_enabled_skills`.
-7. Create `skill_usage_events` — `entry_point` enum must include `external_ai_client` and `api_direct`.
+7. Create `skill_usage_events`.
 8. Create `skill_billing_events`.
 9. Create `skill_reviews`.
 10. Create `skill_audit_log`.
 11. Add indexes.
-12. Seed initial official Skills as drafts only — populate `tool_function_name` and `tool_input_schema` for each seed Skill before publish.
+12. Seed initial official Skills as drafts only.
 
 ### 12.2 Rollback
 
@@ -1006,10 +970,6 @@ CSV export is P1 aggregate-only and must be separately permissioned.
 4. Anonymous list/detail responses do not expose user-specific enabled state.
 5. Enable/disable endpoints are idempotent where specified.
 6. Admin and Ops routes are separated by permission model.
-7. Tool spec download endpoint returns spec containing only `tool_function_name`, `tool_input_schema`, `tool_output_schema`, and API endpoint URL; `instruction_template` is never present in the response.
-8. Admin PATCH rejects `tool_function_name` values that do not match `/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/`.
-9. Publish checklist API returns a blocking error if `tool_function_name` is null or empty.
-10. External client execution endpoint (`POST /v1/skills/execute/{skill_id}`) returns 401 for missing/invalid API Key before any Skill state is loaded.
-11. Kids approval APIs exist if Kids flag can be enabled.
-12. Relay contract explicitly ignores client-provided Kids Session fields.
-13. All response examples exclude `instruction_template`.
+7. Kids approval APIs exist if Kids flag can be enabled.
+8. Relay contract explicitly ignores client-provided Kids Session fields.
+9. All response examples exclude `instruction_template`.
