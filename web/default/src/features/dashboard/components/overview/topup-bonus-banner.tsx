@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 
 const QUOTA_PER_UNIT = 500000 // 500k quota = $1
-// Show the "running low → top up, 50% bonus" banner only when balance is low
+// Show the "running low → top up, zero fee" banner only when balance is low
 // enough that the user is about to hit the wall (and thus most likely to top
 // up). Hidden once they have a meaningful balance.
 const LOW_BALANCE_QUOTA = 0.5 * QUOTA_PER_UNIT // < $0.50
