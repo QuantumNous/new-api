@@ -47,8 +47,9 @@ function getPromoDeadline(): number {
   }
 }
 
-// Two promo recharge tiers. amount = USD charged; usage/off labels are
-// marketing copy (actual discount lives in group ratios).
+// Promo recharge tiers. amount = USD charged; usage/off labels are
+// marketing copy (actual discount lives in group ratios). $10 is the
+// low-friction entry tier to lift first-topup conversion.
 interface PromoTier {
   amount: number
   off: string // e.g. "40% OFF"
@@ -56,6 +57,7 @@ interface PromoTier {
   highlight?: boolean
 }
 const TIERS: PromoTier[] = [
+  { amount: 10, off: '10% OFF', usage: '1.5X' },
   { amount: 20, off: '40% OFF', usage: '3X' },
   { amount: 200, off: '50% OFF', usage: '40X', highlight: true },
 ]
@@ -72,7 +74,7 @@ function breakdown(ms: number) {
 
 /**
  * Onboarding promo dialog. Floats over the console with a translucent, blurred backdrop.
- * Presents two recharge tiers; clicking one starts a real Stripe payment that also binds
+ * Presents recharge tiers; clicking one starts a real Stripe payment that also binds
  * the card (save_card) for later postpaid auto-charge. Discount figures shown
  * are marketing copy; payment pricing is enforced on the backend.
  */
