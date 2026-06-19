@@ -126,15 +126,33 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       >,
       defaultValues: normalizedDefaults,
       onSubmit: async (_data, changedFields) => {
+        let frontendThemeChanged = false
+        let allSucceeded = true
         for (const [key, value] of Object.entries(changedFields)) {
           let v = normalizeValue(value)
           if (key === 'ServerAddress') {
             v = v.replace(/\/+$/, '')
           }
-          await updateOption.mutateAsync({
+          const res = await updateOption.mutateAsync({
             key,
             value: v,
           })
+          if (!res.success) {
+            allSucceeded = false
+          }
+          if (key === 'theme.frontend' && res.success) {
+            frontendThemeChanged = true
+          }
+        }
+        // 切换前端主题会改变后端返回的前端产物，而当前路由在经典前端中并不存在，
+        // 因此切换成功后重置到首页以避免 404。仅在所有更新都成功时才跳转，避免在
+        // 其他设置仍需处理时把用户带离页面（更新失败时会返回 success=false 而非抛错）。
+        // 延时用于让表单脏状态先清除（移除 beforeunload 拦截）并展示成功提示后再刷新；
+        // 使用 replace 让已失效的路由不进入历史，防止返回按钮再次触发 404。
+        if (frontendThemeChanged && allSucceeded) {
+          setTimeout(() => {
+            window.location.replace('/')
+          }, 600)
         }
       },
     })
