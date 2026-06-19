@@ -115,10 +115,11 @@ export function Stats(_props: StatsProps) {
 
   // Stats rewritten for onboarding-v2 §7.1 — user-facing benefit numbers
   // instead of dev-stack jargon. Counter component supports prefix as
-  // well as suffix, so "¥5" renders correctly.
+  // well as suffix, so "$5" renders correctly. Minimum top-up is $5 USD
+  // (pricing is USD-denominated; CNY is just one accepted payment method).
   const stats: StatItem[] = [
     { end: 25, suffix: '+', label: t('AI models in one account') },
-    { end: 5, prefix: '¥', label: t('minimum top-up') },
+    { end: 5, prefix: '$', label: t('minimum top-up') },
     { end: 100, suffix: '%', label: t('pay as you go') },
     { end: 0, label: t('overseas credit cards needed') },
   ]

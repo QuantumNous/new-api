@@ -16,25 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useRef, useState, type PointerEvent } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
+import { HeroAccessWizard } from '../hero-access-wizard'
 
 // Brand names to show in the "supported models" strip below the hero CTA.
 // Plain text rather than logos — keeps the bundle light and avoids the
 // trademark / licensing surface for marketing artwork. Real logos can
-// land as a follow-up once we standardize the asset set.
-const SUPPORTED_BRANDS = [
-  'OpenAI',
-  'Anthropic',
-  'Google',
-  'DeepSeek',
-  'Moonshot',
-  'Alibaba',
-  'xAI',
-] as const
+// land as a follow-up once we standardize the asset set (I5: hover reveals
+// the models behind each brand as the lightweight, asset-free fallback).
+const SUPPORTED_BRANDS: { name: string; models: string }[] = [
+  { name: 'OpenAI', models: 'GPT-5.5 · GPT-4o · o-series' },
+  { name: 'Anthropic', models: 'Claude Opus · Sonnet · Haiku' },
+  { name: 'Google', models: 'Gemini 2.5 Pro · Flash' },
+  { name: 'DeepSeek', models: 'DeepSeek V3 · R1' },
+  { name: 'Moonshot', models: 'Kimi (Moonshot)' },
+  { name: 'Alibaba', models: 'Qwen 通义千问' },
+  { name: 'xAI', models: 'Grok' },
+]
 
 interface HeroProps {
   className?: string
@@ -44,15 +48,57 @@ interface HeroProps {
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
   const { systemName } = useSystemConfig()
+  const reduce = useReducedMotion()
+
+  // I7 — pointer parallax on the decorative layers. Written straight to the DOM
+  // via refs (no state) so mouse-move never re-renders the hero. Off when the
+  // user prefers reduced motion.
+  const bloomRef = useRef<HTMLDivElement>(null)
+  const routingRef = useRef<HTMLDivElement>(null)
+  // I3 — the routing background lights up once the visitor uses the wizard.
+  const [interacted, setInteracted] = useState(false)
+
+  const handlePointer = (e: PointerEvent<HTMLElement>) => {
+    if (reduce) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - r.left) / r.width - 0.5
+    const y = (e.clientY - r.top) / r.height - 0.5
+    if (bloomRef.current)
+      bloomRef.current.style.transform = `translate3d(${x * 14}px, ${y * 14}px, 0)`
+    if (routingRef.current)
+      routingRef.current.style.transform = `translate3d(${x * 26}px, ${y * 26}px, 0)`
+  }
+  const resetPointer = () => {
+    if (bloomRef.current) bloomRef.current.style.transform = ''
+    if (routingRef.current) routingRef.current.style.transform = ''
+  }
 
   return (
-    <section className='relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-16 md:pt-34 md:pb-24'>
+    <section
+      className='relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-16 md:pt-34 md:pb-24'
+      onPointerMove={handlePointer}
+      onPointerLeave={resetPointer}
+    >
       {/* Animated radial bloom — replaces the static gradient. Two layers
        * (warm cream + faint accent blue) drift slowly on long cycles for a
        * Hero that feels alive without being distracting. Respects
        * prefers-reduced-motion (defined in styles/index.css). */}
-      <div aria-hidden className='landing-hero-bloom top-0 h-80' />
-      <div aria-hidden className='landing-hero-routing-bg'>
+      <div
+        ref={bloomRef}
+        aria-hidden
+        className='landing-hero-bloom top-0 h-80'
+        style={{ transition: 'transform 0.25s ease-out' }}
+      />
+      <div
+        ref={routingRef}
+        aria-hidden
+        className='landing-hero-routing-bg'
+        data-active={interacted ? 'true' : undefined}
+        style={{
+          transition: 'transform 0.25s ease-out, opacity 0.6s ease',
+          opacity: interacted ? 1 : undefined,
+        }}
+      >
         <span className='landing-hero-route landing-hero-route-a' />
         <span className='landing-hero-route landing-hero-route-b' />
         <span className='landing-hero-route landing-hero-route-c' />
@@ -77,18 +123,16 @@ export function Hero(props: HeroProps) {
           className='landing-animate-fade-up text-[clamp(2.5rem,6.2vw,4.75rem)] leading-[1.02] font-bold tracking-normal'
           style={{ animationDelay: '60ms' }}
         >
-          {t('Pay in CNY.')}
+          {t('One account.')}
           <br />
-          <span className='text-accent'>
-            {t('Use GPT, Claude, Gemini, DeepSeek.')}
-          </span>
+          <span className='text-accent'>{t('Every AI model.')}</span>
         </h1>
         <p
           className='landing-animate-fade-up text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed opacity-0 md:text-lg'
           style={{ animationDelay: '120ms' }}
         >
           {t(
-            'Top up via WeChat or Alipay from ¥5. No overseas credit card. No need to sign up with each AI provider separately.'
+            'Sign up, top up, and use GPT, Claude, Gemini & 20+ models — one key. No foreign card, no separate sign-ups.'
           )}
         </p>
         <div
@@ -112,6 +156,13 @@ export function Hero(props: HeroProps) {
             </>
           )}
         </div>
+
+        <div
+          className='landing-animate-fade-up mt-10 w-full max-w-md opacity-0'
+          style={{ animationDelay: '220ms' }}
+        >
+          <HeroAccessWizard onInteract={() => setInteracted(true)} />
+        </div>
       </div>
 
       {/* Supported brands strip — replaces the developer-oriented terminal
@@ -128,10 +179,11 @@ export function Hero(props: HeroProps) {
         <div className='mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-3'>
           {SUPPORTED_BRANDS.map((brand) => (
             <span
-              key={brand}
-              className='text-foreground/80 text-base font-medium tracking-tight md:text-lg'
+              key={brand.name}
+              title={brand.models}
+              className='text-foreground/70 hover:text-foreground cursor-default text-base font-medium tracking-tight transition-colors md:text-lg'
             >
-              {brand}
+              {brand.name}
             </span>
           ))}
         </div>
