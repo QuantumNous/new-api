@@ -26,16 +26,18 @@ export function getMessageContentStyles() {
     'group-[.is-assistant]:w-full',
     'group-[.is-assistant]:max-w-none',
     'group-[.is-user]:w-fit',
-    // User bubble: rounded and themed background
+    // User bubble: rounded and themed background, pushed to right
     'group-[.is-user]:text-foreground',
     'group-[.is-user]:bg-secondary',
     'dark:group-[.is-user]:bg-muted',
-    'group-[.is-user]:rounded-3xl',
-    // Assistant bubble: flat serif style (one-sided style)
+    'group-[.is-user]:rounded-2xl',
+    'group-[.is-user]:ml-auto',
+    // Assistant bubble: flat serif style, stays left
     'group-[.is-assistant]:text-foreground',
     'group-[.is-assistant]:bg-transparent',
     'group-[.is-assistant]:p-0',
     'group-[.is-assistant]:font-serif',
+    'group-[.is-assistant]:mr-auto',
     // Preferred readable widths and wrapping
     'leading-relaxed',
     'break-words',

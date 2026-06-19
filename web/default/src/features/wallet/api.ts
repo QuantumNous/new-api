@@ -38,6 +38,10 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  CryptoDepositConfig,
+  CryptoDepositRequest,
+  CryptoDepositOrder,
+  CryptoDepositRecord,
 } from './types'
 
 // ============================================================================
@@ -233,3 +237,60 @@ export async function completeOrder(
   const res = await api.post('/api/user/topup/complete', request)
   return res.data
 }
+
+// ============================================================================
+// Crypto Deposit API Functions
+// ============================================================================
+
+/**
+ * Get crypto deposit configuration
+ */
+export async function getCryptoDepositConfig(): Promise<
+  ApiResponse<CryptoDepositConfig>
+> {
+  const res = await api.get('/api/user/crypto/config')
+  return res.data
+}
+
+/**
+ * Create a new crypto deposit order
+ */
+export async function createCryptoDeposit(
+  request: CryptoDepositRequest
+): Promise<ApiResponse<CryptoDepositOrder>> {
+  const res = await api.post('/api/user/crypto/deposit', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Get crypto deposit order status
+ */
+export async function getCryptoDepositStatus(
+  orderId: string
+): Promise<ApiResponse<CryptoDepositOrder>> {
+  const res = await api.get(`/api/user/crypto/deposit-status/${orderId}`)
+  return res.data
+}
+
+/**
+ * Get user's crypto deposit history
+ */
+export async function getUserCryptoDeposits(
+  limit = 20
+): Promise<ApiResponse<CryptoDepositRecord[]>> {
+  const res = await api.get(`/api/user/crypto/deposit-list?limit=${limit}`)
+  return res.data
+}
+
+/**
+ * Cancel a pending crypto deposit
+ */
+export async function cancelCryptoDeposit(
+  orderId: string
+): Promise<ApiResponse> {
+  const res = await api.post(`/api/user/crypto/deposit-cancel/${orderId}`)
+  return res.data
+}
+

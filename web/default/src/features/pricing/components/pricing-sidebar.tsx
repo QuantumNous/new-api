@@ -272,12 +272,12 @@ export function PricingSidebar(props: PricingSidebarProps) {
       )}
 
       <div className='space-y-1'>
-        <FilterSection
+        {/* <FilterSection
           title={t('Groups')}
           value={props.groupFilter}
           options={groupOptions}
           onChange={props.onGroupChange}
-        />
+        /> */}
         <FilterSection
           title={t('All Vendors')}
           value={props.vendorFilter}

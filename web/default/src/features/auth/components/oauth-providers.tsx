@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import {
   IconDiscord,
   IconGithub,
+  IconGoogle,
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
@@ -99,8 +100,9 @@ export function OAuthProviders({
   if (status?.oidc_enabled) {
     providerButtons.push({
       key: 'oidc',
-      label: t('Continue with OIDC'),
+      label: t('Continue with Google'),
       onClick: handleOIDCLogin,
+      icon: <IconGoogle className='h-4 w-4' />,
     })
   }
 

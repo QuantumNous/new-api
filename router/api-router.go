@@ -122,6 +122,24 @@ func SetApiRouter(router *gin.Engine) {
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
+
+				// Crypto deposit routes
+				selfRoute.GET("/crypto/config", controller.GetCryptoDepositConfig)
+				selfRoute.POST("/crypto/deposit", middleware.CriticalRateLimit(), controller.CreateCryptoDeposit)
+				selfRoute.GET("/crypto/deposit-status/:order_id", controller.GetCryptoDepositStatus)
+				selfRoute.GET("/crypto/deposit-list", controller.GetUserCryptoDeposits)
+				selfRoute.POST("/crypto/deposit-cancel/:order_id", controller.CancelCryptoDeposit)
+
+				// File upload route (R2 storage)
+				selfRoute.POST("/upload", controller.UploadFile)
+
+				// Chat history routes
+				selfRoute.GET("/chats", controller.GetChatSessions)
+				selfRoute.POST("/chats", controller.CreateChatSession)
+				selfRoute.GET("/chats/:id", controller.GetChatMessages)
+				selfRoute.PUT("/chats/:id", controller.UpdateChatSessionTitle)
+				selfRoute.DELETE("/chats/:id", controller.DeleteChatSession)
+				selfRoute.POST("/chats/:id/messages", controller.SaveChatMessage)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -144,6 +162,10 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Admin crypto deposit routes
+				adminRoute.GET("/crypto/deposit-all", controller.AdminGetAllCryptoDeposits)
+				adminRoute.POST("/crypto/deposit-confirm/:order_id", controller.AdminManualConfirmDeposit)
 			}
 		}
 

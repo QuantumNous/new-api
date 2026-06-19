@@ -156,6 +156,8 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Whether Binance crypto deposit is enabled */
+  enable_crypto_deposit?: boolean
 }
 
 /**
@@ -287,3 +289,66 @@ export interface BillingHistoryResponse {
 export interface CompleteOrderRequest {
   trade_no: string
 }
+
+// ============================================================================
+// Crypto Deposit Types
+// ============================================================================
+
+/**
+ * Crypto deposit configuration from backend
+ */
+export interface CryptoDepositConfig {
+  enabled: boolean
+  binance_uid: string
+  min_deposit: number
+  coins: string[]
+  expiry_minutes: number
+}
+
+/**
+ * Crypto deposit creation request
+ */
+export interface CryptoDepositRequest {
+  coin: string
+  amount: number
+}
+
+/**
+ * Crypto deposit order response
+ */
+export interface CryptoDepositOrder {
+  order_id: string
+  coin: string
+  amount: number
+  original_amount: number
+  binance_uid: string
+  status: number
+  expires_at: number
+  created_at: number
+}
+
+/**
+ * Crypto deposit record for history
+ */
+export interface CryptoDepositRecord {
+  id: number
+  user_id: number
+  order_id: string
+  coin: string
+  amount: number
+  original_amount: number
+  status: number
+  binance_tx_id: string
+  created_at: number
+  confirmed_at: number
+  expired_at: number
+}
+
+/** Crypto deposit status constants */
+export const CRYPTO_DEPOSIT_STATUS = {
+  PENDING: 0,
+  CONFIRMED: 1,
+  EXPIRED: 2,
+  CANCELLED: 3,
+} as const
+

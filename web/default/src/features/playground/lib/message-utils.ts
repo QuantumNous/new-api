@@ -128,12 +128,32 @@ export function getTextContent(content: string | ContentPart[]): string {
 
 /**
  * Format message for API request
+ * If the message has image sources, builds multipart content with image_url parts
  */
 export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
+  const textContent = currentVersion.content
+
+  // Check if message has image sources attached
+  const imageUrls = message.sources
+    ?.map((s) => s.href)
+    .filter((url) => url && url.trim() !== '')
+
+  if (imageUrls && imageUrls.length > 0) {
+    // Strip the markdown image syntax from content for API
+    const cleanText = textContent
+      .replace(/\n\n!\[image\]\([^)]+\)/g, '')
+      .trim()
+    const content = buildMessageContent(cleanText || '', imageUrls)
+    return {
+      role: message.from,
+      content,
+    }
+  }
+
   return {
     role: message.from,
-    content: currentVersion.content,
+    content: textContent,
   }
 }
 

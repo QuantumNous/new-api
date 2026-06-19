@@ -42,18 +42,27 @@ import {
 } from '@/components/ai-elements/reasoning'
 import { Response } from '@/components/ai-elements/response'
 import { Shimmer } from '@/components/ai-elements/shimmer'
-import {
-  Source,
-  Sources,
-  SourcesContent,
-  SourcesTrigger,
-} from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
 import { parseThinkTags } from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
+
+// Check if a URL is an image URL
+const isImageUrl = (url: string) => {
+  if (!url) return false
+  const lower = url.toLowerCase()
+  return (
+    lower.match(/\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/) !== null ||
+    lower.includes('r2.dev/') ||
+    lower.includes('r2.cloudflarestorage.com/')
+  )
+}
+
+// Check if a source is a file attachment (not an image URL)
+const isFileSource = (source: { href: string; title: string }) =>
+  !source.href || !isImageUrl(source.href)
 
 interface PlaygroundChatProps {
   messages: MessageType[]
@@ -106,21 +115,37 @@ export function PlaygroundChat({
         <div className='mx-auto w-full max-w-4xl px-4 py-4'>
           {messages.map((message, messageIndex) => {
             const { versions = [] } = message
+            const isUser = message.from === MESSAGE_ROLES.USER
+            const isAssistant = message.from === MESSAGE_ROLES.ASSISTANT
             const isLastAssistantMessage =
-              messageIndex === messages.length - 1 &&
-              message.from === MESSAGE_ROLES.ASSISTANT
+              messageIndex === messages.length - 1 && isAssistant
+
+            // Separate image sources from file sources
+            const imageSources = message.sources?.filter((s) =>
+              isImageUrl(s.href)
+            )
+            const fileSources = message.sources?.filter(isFileSource)
+            const hasImages = !!imageSources?.length
+            const hasFiles = !!fileSources?.length
+
             return (
               <Branch defaultBranch={0} key={message.key}>
                 <BranchMessages>
                   {versions.map((version, versionIndex) => (
                     <Message
-                      className='group flex-row-reverse'
                       from={message.from}
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
-                      <div className='w-full min-w-0 flex-1 basis-full py-1'>
+                      <div
+                        className={cn(
+                          'min-w-0 py-1',
+                          isUser
+                            ? 'flex flex-col items-end max-w-[85%]'
+                            : 'w-full flex-1 basis-full'
+                        )}
+                      >
                         {isEditing(message.key) ? (
-                          <div className='space-y-2'>
+                          <div className='w-full space-y-2'>
                             <Textarea
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
@@ -129,7 +154,7 @@ export function PlaygroundChat({
                             />
                             <div className='flex gap-2'>
                               {/* Save & Submit only makes sense for user messages */}
-                              {message.from === MESSAGE_ROLES.USER && (
+                              {isUser && (
                                 <Button
                                   size='sm'
                                   onClick={() =>
@@ -159,9 +184,6 @@ export function PlaygroundChat({
                         ) : (
                           <>
                             {(() => {
-                              const isAssistant =
-                                message.from === MESSAGE_ROLES.ASSISTANT
-                              const hasSources = !!message.sources?.length
                               const showReasoning =
                                 isAssistant && !!message.reasoning?.content
                               const showLoader =
@@ -171,14 +193,20 @@ export function PlaygroundChat({
                                   (message.status === 'streaming' &&
                                     !version.content))
                               const showMessageContent =
-                                (message.from === MESSAGE_ROLES.USER ||
-                                  !message.isReasoningStreaming) &&
+                                (isUser || !message.isReasoningStreaming) &&
                                 !!version.content
 
                               // Extract visible content (remove <think> tags for assistant messages)
-                              const displayContent = isAssistant
+                              let displayContent = isAssistant
                                 ? parseThinkTags(version.content).visibleContent
                                 : version.content
+
+                              // For user messages, strip markdown image syntax (we show thumbnails instead)
+                              if (isUser && hasImages) {
+                                displayContent = displayContent
+                                  .replace(/\n\n!\[image\]\([^)]+\)/g, '')
+                                  .trim()
+                              }
 
                               const actions = (
                                 <MessageActions
@@ -195,24 +223,38 @@ export function PlaygroundChat({
 
                               return (
                                 <>
-                                  {/* Sources */}
-                                  {hasSources && (
-                                    <Sources>
-                                      <SourcesTrigger
-                                        count={message.sources!.length}
-                                      />
-                                      <SourcesContent>
-                                        {message.sources!.map(
-                                          (source, sourceIndex) => (
-                                            <Source
-                                              href={source.href}
-                                              key={`${message.key}-source-${sourceIndex}`}
-                                              title={source.title}
-                                            />
-                                          )
-                                        )}
-                                      </SourcesContent>
-                                    </Sources>
+                                  {/* Image thumbnails in user message (instead of "Used X sources") */}
+                                  {isUser && hasImages && (
+                                    <div className='mb-1.5 flex flex-wrap justify-end gap-1.5'>
+                                      {imageSources!.map((source, idx) => (
+                                        <img
+                                          key={`${message.key}-img-${idx}`}
+                                          src={source.href}
+                                          alt='Attached'
+                                          className='h-20 w-20 cursor-pointer rounded-lg border object-cover shadow-sm transition-transform hover:scale-105'
+                                          onClick={() =>
+                                            window.open(source.href, '_blank')
+                                          }
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* File chip in user message */}
+                                  {isUser && hasFiles && (
+                                    <div className='mb-1.5 flex flex-wrap justify-end gap-1.5'>
+                                      {fileSources!.map((source, idx) => (
+                                        <div
+                                          key={`${message.key}-file-${idx}`}
+                                          className='inline-flex items-center gap-1.5 rounded-xl border bg-muted/60 px-2.5 py-1.5 text-xs'
+                                        >
+                                          <span>📎</span>
+                                          <span className='max-w-[140px] truncate font-medium'>
+                                            {source.title.replace('📎 ', '')}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
 
                                   {/* Reasoning */}

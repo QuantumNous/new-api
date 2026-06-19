@@ -78,6 +78,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  onCryptoDeposit?: () => void
 }
 
 export function RechargeFormCard({
@@ -108,6 +109,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  onCryptoDeposit,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -370,6 +372,18 @@ export function RechargeFormCard({
                         button
                       )
                     })}
+                    {onCryptoDeposit && (
+                      <Button
+                        variant='outline'
+                        onClick={onCryptoDeposit}
+                        className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                      >
+                        <svg className='h-4 w-4' viewBox='0 0 24 24' fill='currentColor'>
+                          <path d='M12 2c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10-4.477-10-10-10zm3.75 14.65c-.45.95-1.35 1.45-2.25 1.6v1.25h-1v-1.25h-1v1.25h-1v-1.3c-1.85-.25-2.75-1.25-2.95-2.75l1.7-.25c.15.85.6 1.45 1.65 1.55v-3.9c-2.15-.45-3.15-1.25-3.15-2.85 0-1.75 1.25-2.75 2.75-2.95v-1.25h1v1.25h1v-1.25h1v1.3c1.5.25 2.35 1.1 2.6 2.5l-1.7.25c-.1-.65-.45-1.15-1.3-1.25v3.65c2.25.45 3.35 1.3 3.35 2.95 0 .95-.3 1.65-.7 2.15z' />
+                        </svg>
+                        <span className='truncate'>{t('Binance')}</span>
+                      </Button>
+                    )}
                   </div>
                 ) : hasWaffoPaymentMethods ? null : (
                   <Alert>

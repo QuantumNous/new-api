@@ -119,6 +119,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Crypto deposit verification worker (polls Binance API every 30s)
+	service.StartDepositVerificationWorker()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
@@ -328,6 +331,15 @@ func InitResources() error {
 	if err != nil {
 		common.SysError("failed to load custom OAuth providers: " + err.Error())
 		// Don't return error, custom OAuth is not critical
+	}
+
+	// Initialize Cloudflare R2 storage (optional)
+	err = service.InitR2Storage()
+	if err != nil {
+		common.SysLog("R2 storage not available: " + err.Error())
+		// Don't return error, R2 is optional
+	} else {
+		common.SysLog("Cloudflare R2 storage initialized successfully")
 	}
 
 	return nil
