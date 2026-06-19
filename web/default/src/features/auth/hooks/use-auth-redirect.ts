@@ -116,7 +116,20 @@ export function useAuthRedirect() {
         useOnboardingStore.getState().openOnboarding()
       }
     }
-    navigate({ to: targetPath, replace: true })
+    // targetPath may carry a query string (e.g. '/playground?first=1' for the
+    // post-registration first-run onboarding). TanStack's navigate does NOT parse
+    // a query out of `to`, so split it into pathname + structured search params
+    // explicitly. Without a query, behavior is identical to before.
+    const [toPathname, toQuery] = targetPath.split('?')
+    if (toQuery) {
+      navigate({
+        to: toPathname,
+        search: Object.fromEntries(new URLSearchParams(toQuery)),
+        replace: true,
+      })
+    } else {
+      navigate({ to: toPathname, replace: true })
+    }
   }
 
   /**
