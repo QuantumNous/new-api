@@ -58,7 +58,11 @@ func GetAllLogs(c *gin.Context) {
 
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	userId := c.GetInt("id")
+	scope, err := resolveSelfDataScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -66,7 +70,14 @@ func GetUserLogs(c *gin.Context) {
 	modelName := c.Query("model_name")
 	group := c.Query("group")
 	requestId := c.Query("request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId)
+	// 子账户无任何绑定 key → 返回空，不查库（防把空集合当不过滤而泄漏企业全量日志）。
+	if scope.emptyForSubAccount() {
+		pageInfo.SetTotal(0)
+		pageInfo.SetItems(make([]*model.Log, 0))
+		common.ApiSuccess(c, pageInfo)
+		return
+	}
+	logs, total, err := model.GetUserLogs(scope.userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, scope.tokenIds)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -325,7 +336,11 @@ func ExportAllLogs(c *gin.Context) {
 
 // ExportUserLogs 普通用户视角：流式 CSV 导出自己的日志。
 func ExportUserLogs(c *gin.Context) {
-	userId := c.GetInt("id")
+	scope, err := resolveSelfDataScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -336,7 +351,11 @@ func ExportUserLogs(c *gin.Context) {
 
 	var firstBatchErr error
 	csvStarted := streamExportCSV(c, false, func(perBatch func(logs []*model.Log) error) error {
-		err := model.ExportUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId, 1000, perBatch)
+		// 子账户无绑定 → 导出空 CSV（仅表头），不查库、不过滤泄漏。
+		if scope.emptyForSubAccount() {
+			return nil
+		}
+		err := model.ExportUserLogs(scope.userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId, scope.tokenIds, 1000, perBatch)
 		firstBatchErr = err
 		return err
 	})
@@ -394,7 +413,7 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channelIds := parseChannelIdsQuery(c)
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channelIds, group)
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channelIds, group, nil)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -413,7 +432,11 @@ func GetLogsStat(c *gin.Context) {
 }
 
 func GetLogsSelfStat(c *gin.Context) {
-	username := c.GetString("username")
+	scope, err := resolveSelfDataScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -421,7 +444,17 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channelIds := parseChannelIdsQuery(c)
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channelIds, group)
+	// 子账户无绑定 → 零统计，不查库。
+	if scope.emptyForSubAccount() {
+		c.JSON(200, gin.H{
+			"success": true,
+			"message": "",
+			"data":    gin.H{"quota": 0, "rpm": 0, "tpm": 0},
+		})
+		return
+	}
+	// 子账户按企业主账户用户名 + 绑定 token 集合统计；普通用户 tokenIds=nil 不过滤。
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, scope.username, tokenName, channelIds, group, scope.tokenIds)
 	if err != nil {
 		common.ApiError(c, err)
 		return

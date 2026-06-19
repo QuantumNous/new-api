@@ -83,61 +83,86 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
 				selfRoute.GET("/self", controller.GetSelf)
 				selfRoute.GET("/models", controller.GetUserModels)
-				selfRoute.PUT("/self", controller.UpdateSelf)
-				selfRoute.DELETE("/self", controller.DeleteSelf)
+				// 子账户凭据由企业主账户管理（M3-4）：禁止自改用户名/密码/显示名。
+				selfRoute.PUT("/self", middleware.SubAccountForbidden(), controller.UpdateSelf)
+				// 子账户由企业主账户管理生命周期，禁止自删（否则绕过「有绑定不可删」的绑定保护）
+				selfRoute.DELETE("/self", middleware.SubAccountForbidden(), controller.DeleteSelf)
 				selfRoute.GET("/token", controller.GenerateAccessToken)
 				selfRoute.GET("/passkey", controller.PasskeyStatus)
-				selfRoute.POST("/passkey/register/begin", controller.PasskeyRegisterBegin)
-				selfRoute.POST("/passkey/register/finish", controller.PasskeyRegisterFinish)
+				// 子账户不得自设 passkey（M3-4）：注册新登录因子会让企业「改密码吊销」失效。
+				selfRoute.POST("/passkey/register/begin", middleware.SubAccountForbidden(), controller.PasskeyRegisterBegin)
+				selfRoute.POST("/passkey/register/finish", middleware.SubAccountForbidden(), controller.PasskeyRegisterFinish)
 				selfRoute.POST("/passkey/verify/begin", controller.PasskeyVerifyBegin)
 				selfRoute.POST("/passkey/verify/finish", controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
-				selfRoute.GET("/aff", controller.GetAffCode)
+				// 子账户黑名单：一切能改变余额/产生消费承诺的入口全部封死（设计 §4.4）。
+				// 子账户是企业主账户的只读视图，不能充值/兑换/邀请/认证/管理令牌。
+				selfRoute.GET("/aff", middleware.SubAccountForbidden(), controller.GetAffCode)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
-				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
-				selfRoute.POST("/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestEpay)
-				selfRoute.POST("/amount", controller.RequestAmount)
-				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestStripePay)
-				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
-				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestCreemPay)
-				selfRoute.POST("/waffo/amount", controller.RequestWaffoAmount)
-				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestWaffoPay)
+				selfRoute.POST("/topup", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), controller.TopUp)
+				selfRoute.POST("/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestEpay)
+				selfRoute.POST("/amount", middleware.SubAccountForbidden(), controller.RequestAmount)
+				selfRoute.POST("/stripe/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestStripePay)
+				selfRoute.POST("/stripe/amount", middleware.SubAccountForbidden(), controller.RequestStripeAmount)
+				selfRoute.POST("/creem/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestCreemPay)
+				selfRoute.POST("/waffo/amount", middleware.SubAccountForbidden(), controller.RequestWaffoAmount)
+				selfRoute.POST("/waffo/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestWaffoPay)
 				//selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				//selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestWaffoPancakePay)
-				selfRoute.POST("/alipay/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestAlipay)
+				selfRoute.POST("/alipay/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestAlipay)
 				selfRoute.GET("/alipay/query", controller.QueryAlipayOrder)
-				selfRoute.POST("/wxpay/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestWxpay)
+				selfRoute.POST("/wxpay/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.RequestWxpay)
 				selfRoute.GET("/wxpay/query", controller.QueryWxpayOrder)
-				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
+				selfRoute.POST("/aff_transfer", middleware.SubAccountForbidden(), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
-				// 2FA routes
+				// 2FA routes — 子账户不得自设 2FA（M3-4），同 passkey 理由；禁用/查询保留。
 				selfRoute.GET("/2fa/status", controller.Get2FAStatus)
-				selfRoute.POST("/2fa/setup", controller.Setup2FA)
-				selfRoute.POST("/2fa/enable", controller.Enable2FA)
+				selfRoute.POST("/2fa/setup", middleware.SubAccountForbidden(), controller.Setup2FA)
+				selfRoute.POST("/2fa/enable", middleware.SubAccountForbidden(), controller.Enable2FA)
 				selfRoute.POST("/2fa/disable", controller.Disable2FA)
-				selfRoute.POST("/2fa/backup_codes", controller.RegenerateBackupCodes)
+				selfRoute.POST("/2fa/backup_codes", middleware.SubAccountForbidden(), controller.RegenerateBackupCodes)
 
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
-				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
+				selfRoute.POST("/checkin", middleware.SubAccountForbidden(), middleware.TurnstileCheck(), controller.DoCheckin)
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
 
-				// KYC routes
+				// KYC routes — 子账户不是独立法律主体，写操作封禁
 				selfRoute.GET("/kyc", controller.GetKYCStatus)
-				selfRoute.POST("/kyc", controller.SubmitKYC)
-				selfRoute.PUT("/kyc", controller.UpdateKYC)
-				selfRoute.DELETE("/kyc", controller.DeleteKYC)
+				selfRoute.POST("/kyc", middleware.SubAccountForbidden(), controller.SubmitKYC)
+				selfRoute.PUT("/kyc", middleware.SubAccountForbidden(), controller.UpdateKYC)
+				selfRoute.DELETE("/kyc", middleware.SubAccountForbidden(), controller.DeleteKYC)
 
-				// Enterprise certification routes
+				// Enterprise certification routes — 同上，写操作封禁
 				selfRoute.GET("/enterprise", controller.GetEnterpriseStatus)
-				selfRoute.POST("/enterprise", controller.SubmitEnterprise)
-				selfRoute.PUT("/enterprise", controller.UpdateEnterprise)
-				selfRoute.DELETE("/enterprise", controller.DeleteEnterprise)
+				selfRoute.POST("/enterprise", middleware.SubAccountForbidden(), controller.SubmitEnterprise)
+				selfRoute.PUT("/enterprise", middleware.SubAccountForbidden(), controller.UpdateEnterprise)
+				selfRoute.DELETE("/enterprise", middleware.SubAccountForbidden(), controller.DeleteEnterprise)
+				selfRoute.GET("/bank_transfer/config", controller.GetBankTransferConfig)
+				selfRoute.GET("/bank_transfer/self", controller.GetUserBankTransfers)
+				selfRoute.POST("/bank_transfer", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), controller.SubmitBankTransfer)
+				selfRoute.DELETE("/bank_transfer/:id", middleware.SubAccountForbidden(), controller.CancelBankTransfer)
+				selfRoute.GET("/invoice/quota", controller.GetInvoiceQuota)
+				selfRoute.GET("/invoice/self", controller.GetUserInvoices)
+				selfRoute.POST("/invoice", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), controller.SubmitInvoice)
+				selfRoute.DELETE("/invoice/:id", middleware.SubAccountForbidden(), controller.CancelInvoice)
+				selfRoute.GET("/invoice/:id/file", controller.GetUserInvoiceFile)
+
+				// 子账户管理（企业主账户操作）。全部挂 SubAccountForbidden 防套娃；
+				// enterprise_status==2 前置校验在 controller 内进行。
+				selfRoute.GET("/sub_account", middleware.SubAccountForbidden(), controller.GetSubAccounts)
+				selfRoute.POST("/sub_account", middleware.SubAccountForbidden(), controller.CreateSubAccount)
+				selfRoute.PUT("/sub_account/:id/password", middleware.SubAccountForbidden(), controller.ResetSubAccountPassword)
+				selfRoute.PUT("/sub_account/:id/status", middleware.SubAccountForbidden(), controller.SetSubAccountStatus)
+				selfRoute.DELETE("/sub_account/:id", middleware.SubAccountForbidden(), controller.DeleteSubAccount)
+				selfRoute.GET("/sub_account/:id/bindings", middleware.SubAccountForbidden(), controller.GetSubAccountBindings)
+				selfRoute.POST("/sub_account/:id/bind", middleware.SubAccountForbidden(), controller.BindSubAccountToken)
+				selfRoute.POST("/sub_account/:id/unbind", middleware.SubAccountForbidden(), controller.UnbindSubAccountToken)
 
 				// Feedback (建议及咨询/工单) routes
 				selfRoute.GET("/feedback/topics", controller.GetUserFeedbackTopics)
@@ -175,7 +200,8 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/kyc/admin/by-user/:user_id", controller.AdminGetKYCByUser)
 				adminRoute.PUT("/kyc/admin/:id/approve", controller.AdminApproveKYC)
 				adminRoute.PUT("/kyc/admin/:id/reject", controller.AdminRejectKYC)
-				adminRoute.PUT("/kyc/admin/:id/reset", controller.AdminResetKYC)
+				// 重置仅超管：清空认证状态影响较大，叠加 RootAuth 强制（前端按钮也仅 root 可见）
+				adminRoute.PUT("/kyc/admin/:id/reset", middleware.RootAuth(), controller.AdminResetKYC)
 				adminRoute.GET("/kyc/admin/:id/reveal", controller.AdminRevealKYC)
 				adminRoute.GET("/kyc/admin/:id/images", controller.AdminGetKYCImages)
 
@@ -184,9 +210,21 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/enterprise/admin/by-user/:user_id", controller.AdminGetEnterpriseByUser)
 				adminRoute.PUT("/enterprise/admin/:id/approve", controller.AdminApproveEnterprise)
 				adminRoute.PUT("/enterprise/admin/:id/reject", controller.AdminRejectEnterprise)
-				adminRoute.PUT("/enterprise/admin/:id/reset", controller.AdminResetEnterprise)
+				// 重置仅超管（同 KYC）
+				adminRoute.PUT("/enterprise/admin/:id/reset", middleware.RootAuth(), controller.AdminResetEnterprise)
 				adminRoute.GET("/enterprise/admin/:id/reveal", controller.AdminRevealEnterprise)
 				adminRoute.GET("/enterprise/admin/:id/images", controller.AdminGetEnterpriseImages)
+				adminRoute.GET("/bank_transfer/admin", controller.AdminGetBankTransferList)
+				adminRoute.GET("/bank_transfer/admin/:id/receipt", controller.AdminGetBankTransferReceipt)
+				adminRoute.PUT("/bank_transfer/admin/:id/approve", controller.AdminApproveBankTransfer)
+				adminRoute.PUT("/bank_transfer/admin/:id/reject", controller.AdminRejectBankTransfer)
+				adminRoute.GET("/invoice/admin", controller.AdminGetInvoiceList)
+				adminRoute.PUT("/invoice/admin/:id/issue", controller.AdminIssueInvoice)
+				adminRoute.PUT("/invoice/admin/:id/reject", controller.AdminRejectInvoice)
+				adminRoute.GET("/invoice/admin/:id/file", controller.AdminGetInvoiceFile)
+
+				// 审核待办计数（侧边栏/页签红点）：实名认证 / 企业认证 / 对公转账+发票
+				adminRoute.GET("/review/pending_counts", controller.GetReviewPendingCounts)
 
 				// Feedback admin routes — static segments before /:id
 				adminRoute.GET("/feedback/admin/topics", controller.AdminGetFeedbackTopics)
@@ -204,13 +242,13 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
-			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
-			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestEpay)
-			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestStripePay)
-			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestCreemPay)
-			subscriptionRoute.POST("/alipay/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestAlipay)
+			subscriptionRoute.PUT("/self/preference", middleware.SubAccountForbidden(), controller.UpdateSubscriptionPreference)
+			subscriptionRoute.POST("/epay/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestEpay)
+			subscriptionRoute.POST("/stripe/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestStripePay)
+			subscriptionRoute.POST("/creem/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestCreemPay)
+			subscriptionRoute.POST("/alipay/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestAlipay)
 			subscriptionRoute.GET("/alipay/query", controller.SubscriptionQueryAlipayOrder)
-			subscriptionRoute.POST("/wxpay/pay", middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestWxpay)
+			subscriptionRoute.POST("/wxpay/pay", middleware.SubAccountForbidden(), middleware.CriticalRateLimit(), middleware.KYCRequired(), controller.SubscriptionRequestWxpay)
 			subscriptionRoute.GET("/wxpay/query", controller.SubscriptionQueryWxpayOrder)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
@@ -340,10 +378,11 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.GET("/search", middleware.SearchRateLimit(), controller.SearchTokens)
 			tokenRoute.GET("/:id", controller.GetToken)
 			tokenRoute.POST("/:id/key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKey)
-			tokenRoute.POST("/", controller.AddToken)
-			tokenRoute.PUT("/", controller.UpdateToken)
-			tokenRoute.DELETE("/:id", controller.DeleteToken)
-			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
+			// 子账户令牌页只读：禁止创建/修改/删除（含批量）；读取走 GetAllTokens 的子账户分支。
+			tokenRoute.POST("/", middleware.SubAccountForbidden(), controller.AddToken)
+			tokenRoute.PUT("/", middleware.SubAccountForbidden(), controller.UpdateToken)
+			tokenRoute.DELETE("/:id", middleware.SubAccountForbidden(), controller.DeleteToken)
+			tokenRoute.POST("/batch", middleware.SubAccountForbidden(), controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
 		}
 
@@ -405,7 +444,8 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		mjRoute := apiRouter.Group("/mj")
-		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
+		// 绘图日志本期不对子账户开放（D10）：midjourneys 无 token_id 维度，无法按绑定集合过滤。
+		mjRoute.GET("/self", middleware.UserAuth(), middleware.SubAccountForbidden(), controller.GetUserMidjourney)
 		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
 
 		taskRoute := apiRouter.Group("/task")

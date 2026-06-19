@@ -75,4 +75,8 @@ const (
 	// userCache.WriteContext (relay chain). Used by KYCRequired to exempt
 	// enterprise-certified users from the forced KYC gate.
 	ContextKeyUserEnterpriseStatus ContextKey = "user_enterprise_status"
+
+	// Sub-account parent id — written alongside the KYC keys by
+	// userCache.WriteContext (relay chain). >0 表示当前用户是某企业主账户的只读子账户。
+	ContextKeyUserParentId ContextKey = "user_parent_id"
 )

@@ -36,6 +36,8 @@ import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
+import BankTransferCard from './BankTransferCard';
+import InvoiceCard from './InvoiceCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
@@ -213,9 +215,7 @@ const TopUp = () => {
   const startDirectPayPoll = (payType, tradeNo) => {
     stopDirectPayPoll();
     const apiBase =
-      payType === 'alipay_direct'
-        ? '/api/user/alipay'
-        : '/api/user/wxpay';
+      payType === 'alipay_direct' ? '/api/user/alipay' : '/api/user/wxpay';
     let count = 0;
     directPayPollRef.current = setInterval(async () => {
       count++;
@@ -258,9 +258,7 @@ const TopUp = () => {
     setPaymentLoading(true);
     try {
       const apiBase =
-        payType === 'alipay_direct'
-          ? '/api/user/alipay'
-          : '/api/user/wxpay';
+        payType === 'alipay_direct' ? '/api/user/alipay' : '/api/user/wxpay';
       const res = await API.post(`${apiBase}/pay`, {
         amount: parseInt(topUpCount),
       });
@@ -1121,6 +1119,15 @@ const TopUp = () => {
           showError(t('支付码已过期，请重新下单'));
         }}
       />
+
+      {/* 对公转账（左）/ 增值税发票（右）—— 放在账户充值/邀请奖励上方；仅企业认证用户展示，
+          各卡片内部再细判管理员是否启用。外层用 enterprise_status 把关，避免非企业用户下空 grid 留白。 */}
+      {userState?.user?.enterprise_status === 2 && (
+        <div className='grid grid-cols-1 lg:grid-cols-2 items-start gap-4 md:gap-6 mb-4 md:mb-6'>
+          <BankTransferCard userState={userState} />
+          <InvoiceCard userState={userState} />
+        </div>
+      )}
 
       {/* 主布局区域 */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>

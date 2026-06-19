@@ -405,12 +405,17 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+// GetUserLogs 普通用户视角查询日志。tokenIds 非空时额外限定 token_id ∈ 集合，
+// 供企业子账户「仅看绑定 key」的只读视图使用（设计 §4.5）；普通用户传 nil 即不过滤。
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, tokenIds []int) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
 	} else {
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+	}
+	if len(tokenIds) > 0 {
+		tx = tx.Where("logs.token_id IN ?", tokenIds)
 	}
 
 	if modelName != "" {
@@ -582,7 +587,7 @@ func ExportAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelN
 
 // ExportUserLogs 按普通用户视角流式遍历自己的日志，使用手动游标分页保证不重不漏。
 // 与 GetUserLogs 一致：不回填 ChannelName、对 model_name 做 LIKE escape。
-func ExportUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string, requestId string, batchSize int, callback func(logs []*Log) error) error {
+func ExportUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string, requestId string, tokenIds []int, batchSize int, callback func(logs []*Log) error) error {
 	var modelLikePattern string
 	if modelName != "" {
 		pattern, err := sanitizeLikePattern(modelName)
@@ -594,6 +599,9 @@ func ExportUserLogs(userId int, logType int, startTimestamp int64, endTimestamp 
 
 	applyFilters := func(tx *gorm.DB) *gorm.DB {
 		tx = tx.Where("logs.user_id = ?", userId)
+		if len(tokenIds) > 0 {
+			tx = tx.Where("logs.token_id IN ?", tokenIds)
+		}
 		if logType != LogTypeUnknown {
 			tx = tx.Where("logs.type = ?", logType)
 		}
@@ -631,7 +639,9 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channelIds []int, group string) (stat Stat, err error) {
+// SumUsedQuota 汇总消费统计。tokenIds 非空时额外限定 token_id ∈ 集合，
+// 供企业子账户自身看板/统计「仅算绑定 key」使用；其余调用方传 nil 即不过滤。
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channelIds []int, group string, tokenIds []int) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -640,6 +650,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if username != "" {
 		tx = tx.Where("username = ?", username)
 		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+	}
+	if len(tokenIds) > 0 {
+		tx = tx.Where("token_id IN ?", tokenIds)
+		rpmTpmQuery = rpmTpmQuery.Where("token_id IN ?", tokenIds)
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

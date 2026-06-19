@@ -277,7 +277,7 @@ export default function KYCPage() {
               </Button>
             </>
           )}
-          {(row.status === 2 || row.status === 3) && (
+          {(row.status === 2 || row.status === 3) && isRoot() && (
             <Button size='small' onClick={() => handleReset(row.id)}>
               {t('重置')}
             </Button>

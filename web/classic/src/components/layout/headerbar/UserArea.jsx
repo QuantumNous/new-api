@@ -59,20 +59,23 @@ const UserArea = ({
           getPopupContainer={() => dropdownRef.current}
           render={
             <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/personal');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconUserSetting
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('个人设置')}</span>
-                </div>
-              </Dropdown.Item>
+              {/* 子账户隐藏个人设置入口（配置项过多，凭证由企业管理） */}
+              {!((userState?.user?.parent_user_id || 0) > 0) && (
+                <Dropdown.Item
+                  onClick={() => {
+                    navigate('/console/personal');
+                  }}
+                  className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                >
+                  <div className='flex items-center gap-2'>
+                    <IconUserSetting
+                      size='small'
+                      className='text-gray-500 dark:text-gray-400'
+                    />
+                    <span>{t('个人设置')}</span>
+                  </div>
+                </Dropdown.Item>
+              )}
               <Dropdown.Item
                 onClick={() => {
                   navigate('/console/token');
@@ -87,20 +90,23 @@ const UserArea = ({
                   <span>{t('令牌管理')}</span>
                 </div>
               </Dropdown.Item>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/topup');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconCreditCard
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('钱包管理')}</span>
-                </div>
-              </Dropdown.Item>
+              {/* 子账户不能充值，隐藏钱包入口（与侧边栏覆盖一致；后端充值接口已 403 兜底） */}
+              {!((userState?.user?.parent_user_id || 0) > 0) && (
+                <Dropdown.Item
+                  onClick={() => {
+                    navigate('/console/topup');
+                  }}
+                  className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                >
+                  <div className='flex items-center gap-2'>
+                    <IconCreditCard
+                      size='small'
+                      className='text-gray-500 dark:text-gray-400'
+                    />
+                    <span>{t('钱包管理')}</span>
+                  </div>
+                </Dropdown.Item>
+              )}
               <Dropdown.Item
                 onClick={logout}
                 className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'

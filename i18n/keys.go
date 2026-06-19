@@ -332,6 +332,11 @@ const (
 	MsgKycImageUploadFailed     = "kyc.image_upload_failed"
 )
 
+// Sub-account related messages
+const (
+	MsgSubAccountForbidden = "sub_account.forbidden"
+)
+
 // Custom OAuth provider related messages
 const (
 	MsgCustomOAuthNotFound          = "custom_oauth.not_found"

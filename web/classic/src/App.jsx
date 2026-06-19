@@ -50,8 +50,10 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import KYCPage from './pages/KYC';
 import EnterprisePage from './pages/Enterprise';
+import BankTransferPage from './pages/BankTransfer';
 import FeedbackPage from './pages/Feedback';
 import MyFeedbackPage from './pages/Feedback/MyFeedback';
+import SubAccountPage from './pages/SubAccount';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
 
@@ -201,6 +203,14 @@ function App() {
           }
         />
         <Route
+          path='/console/bank-transfer'
+          element={
+            <AdminRoute>
+              <BankTransferPage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/console/feedback'
           element={
             <AdminRoute>
@@ -213,6 +223,14 @@ function App() {
           element={
             <PrivateRoute>
               <MyFeedbackPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/sub-accounts'
+          element={
+            <PrivateRoute>
+              <SubAccountPage />
             </PrivateRoute>
           }
         />

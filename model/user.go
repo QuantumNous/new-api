@@ -30,6 +30,8 @@ type User struct {
 	Status           int            `json:"status" gorm:"type:int;default:1"`                                     // enabled, disabled
 	KycStatus        int            `json:"kyc_status" gorm:"type:int;default:0;column:kyc_status"`               // 0=未认证 1=审核中 2=已通过 3=已拒绝
 	EnterpriseStatus int            `json:"enterprise_status" gorm:"type:int;default:0;column:enterprise_status"` // 0=未认证 1=审核中 2=已通过 3=已拒绝
+	ParentUserId     int            `json:"parent_user_id" gorm:"type:int;default:0;index;column:parent_user_id"` // >0 表示子账户，值为所属企业主账户 user_id；恒为只读视图，不参与计费
+	ParentUsername   string         `json:"parent_username,omitempty" gorm:"-:all"`                               // 瞬态：子账户所属企业主账户的用户名，仅管理员列表按需填充展示归属，不入库
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
@@ -38,9 +40,9 @@ type User struct {
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota            int            `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Quota            int            `json:"quota" gorm:"type:bigint;default:0"`                                // bigint：32 位列上限仅 ~$4294（¥3.1万），对公转账大额入账必溢出（PG 报错/MySQL 截断）
+	UsedQuota        int            `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"`         // used quota，同 Quota 升为 bigint
+	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`                          // request number
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -68,6 +70,7 @@ func (user *User) ToBaseUser() *UserBase {
 		Role:             user.Role,
 		KycStatus:        user.KycStatus,
 		EnterpriseStatus: user.EnterpriseStatus,
+		ParentUserId:     user.ParentUserId,
 	}
 	return cache
 }
@@ -193,6 +196,44 @@ func GetMaxUserId() int {
 	var user User
 	DB.Unscoped().Last(&user)
 	return user.Id
+}
+
+// FillParentUsernames 为子账户行（parent_user_id>0）批量填充其所属企业主账户的用户名，
+// 供管理员用户列表展示归属关系。一次 IN 查询解决，避免逐行查导致 N+1。瞬态字段不入库。
+func FillParentUsernames(users []*User) {
+	parentIds := make([]int, 0)
+	seen := make(map[int]struct{})
+	for _, u := range users {
+		if u != nil && u.ParentUserId > 0 {
+			if _, ok := seen[u.ParentUserId]; !ok {
+				seen[u.ParentUserId] = struct{}{}
+				parentIds = append(parentIds, u.ParentUserId)
+			}
+		}
+	}
+	if len(parentIds) == 0 {
+		return
+	}
+	type row struct {
+		Id       int
+		Username string
+	}
+	var rows []row
+	// Unscoped：企业主账户可能已软删（但子账户尚未级联清理的边缘态），仍展示其名便于追溯。
+	if err := DB.Unscoped().Model(&User{}).Select("id, username").
+		Where("id IN ?", parentIds).Scan(&rows).Error; err != nil {
+		common.SysLog("failed to fill parent usernames: " + err.Error())
+		return
+	}
+	nameMap := make(map[int]string, len(rows))
+	for _, r := range rows {
+		nameMap[r.Id] = r.Username
+	}
+	for _, u := range users {
+		if u != nil && u.ParentUserId > 0 {
+			u.ParentUsername = nameMap[u.ParentUserId]
+		}
+	}
 }
 
 func GetAllUsers(pageInfo *common.PageInfo, kycStatus int, enterpriseStatus int) (users []*User, total int64, err error) {
@@ -366,7 +407,16 @@ func HardDeleteUserById(id int) error {
 	}
 	DB.Unscoped().Where("user_id = ?", id).Delete(&UserEnterprise{})
 
-	return DB.Unscoped().Delete(&User{}, "id = ?", id).Error
+	// 子账户跟随处理（与 User.Delete 的软删路径同语义）：该用户若是企业主，
+	// 软删其全部子账户并清掉名下绑定；若其本身是子账户，清掉自己作为
+	// sub_user 的绑定。绑定表无软删列，残留记录会因 token_id 唯一索引
+	// 永久占用该令牌的绑定名额（无法再绑、删除保护拒删），必须随删号清理。
+	// 级联清理与主体硬删包裹在单事务内：避免进程中途崩溃残留「绑定已删、主账户还在」的半状态。
+	return DB.Transaction(func(tx *gorm.DB) error {
+		cascadeDeleteSubAccountsForParent(tx, id)
+		_ = tx.Where("sub_user_id = ?", id).Delete(&SubAccountTokenBinding{}).Error
+		return tx.Unscoped().Delete(&User{}, "id = ?", id).Error
+	})
 }
 
 func inviteUser(inviterId int) (err error) {
@@ -627,7 +677,14 @@ func (user *User) Delete() error {
 		_ = SoftDeleteEnterpriseImagesByEnterpriseId(ent.Id)
 	}
 	_ = DB.Where("user_id = ?", user.Id).Delete(&UserEnterprise{}).Error
-	if err := DB.Delete(user).Error; err != nil {
+	// 企业主账户删除跟随处理：软删其全部子账户、硬删名下绑定记录（设计 §4.3 异常路径，逃生通道）。
+	// 级联清理与主体软删包裹在单事务内：避免进程中途崩溃残留「绑定已删、主账户还在」的半状态。
+	// 该用户若本身是子账户，一并硬删其作为 sub_user 的绑定，避免悬空绑定。
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		cascadeDeleteSubAccountsForParent(tx, user.Id)
+		_ = tx.Where("sub_user_id = ?", user.Id).Delete(&SubAccountTokenBinding{}).Error
+		return tx.Delete(user).Error
+	}); err != nil {
 		return err
 	}
 

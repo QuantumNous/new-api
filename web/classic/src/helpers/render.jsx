@@ -84,6 +84,7 @@ import {
   IdCard,
   Building2,
   Ticket,
+  Users,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -163,6 +164,8 @@ export function getLucideIcon(key, selected = false) {
     case 'feedback':
     case 'myfeedback':
       return <Ticket {...commonProps} color={iconColor} />;
+    case 'subAccounts':
+      return <Users {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     default:

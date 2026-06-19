@@ -43,7 +43,11 @@ func GetQuotaDatesByUser(c *gin.Context) {
 }
 
 func GetUserQuotaDates(c *gin.Context) {
-	userId := c.GetInt("id")
+	scope, err := resolveSelfDataScope(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	// 判断时间跨度是否超过 1 个月
@@ -54,7 +58,17 @@ func GetUserQuotaDates(c *gin.Context) {
 		})
 		return
 	}
-	dates, err := model.GetQuotaDataByUserId(userId, startTimestamp, endTimestamp)
+	var dates []*model.QuotaData
+	if scope.isSubAccount {
+		// 子账户：无绑定返回空；否则从 logs 按绑定 token 集合实时聚合（不动 quota_data，设计 §4.5）。
+		if scope.emptyForSubAccount() {
+			dates = []*model.QuotaData{}
+		} else {
+			dates, err = model.GetQuotaDataFromLogsByTokenIds(scope.userId, scope.tokenIds, startTimestamp, endTimestamp)
+		}
+	} else {
+		dates, err = model.GetQuotaDataByUserId(scope.userId, startTimestamp, endTimestamp)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

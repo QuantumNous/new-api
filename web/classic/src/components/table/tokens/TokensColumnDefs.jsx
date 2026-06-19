@@ -358,7 +358,12 @@ const renderOperations = (
   manageToken,
   refresh,
   t,
+  readOnly = false,
 ) => {
+  // 子账户：令牌页只读，仅保留查看 + 复制（复制在密钥列），不展示任何写操作。
+  if (readOnly) {
+    return null;
+  }
   let chatsArray = [];
   try {
     const raw = localStorage.getItem('chats');
@@ -480,6 +485,7 @@ export const getTokensColumns = ({
   setShowEdit,
   refresh,
   groupRatios = {},
+  readOnly = false,
 }) => {
   return [
     {
@@ -568,6 +574,7 @@ export const getTokensColumns = ({
           manageToken,
           refresh,
           t,
+          readOnly,
         ),
     },
   ];

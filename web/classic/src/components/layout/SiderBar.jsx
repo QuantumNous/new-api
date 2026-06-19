@@ -17,15 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { UserContext } from '../../context/User';
 import { getLucideIcon } from '../../helpers/render';
 import { ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { useFeedbackUnread } from '../../hooks/common/useFeedbackUnread';
+import { useReviewPendingCounts } from '../../hooks/common/useReviewPendingCounts';
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
@@ -53,8 +55,10 @@ const routerMap = {
   personal: '/console/personal',
   kyc: '/console/kyc',
   enterprise: '/console/enterprise',
+  bankTransfer: '/console/bank-transfer',
   feedback: '/console/feedback',
   myfeedback: '/console/myfeedback',
+  subAccounts: '/console/sub-accounts',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -68,6 +72,15 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
   const { userUnread, adminUnread } = useFeedbackUnread();
+  const reviewCounts = useReviewPendingCounts();
+
+  // 子账户视图强制覆盖（设计 §4.6）：不依赖用户自己的 Setting JSON，按 parent_user_id 渲染层硬覆盖。
+  //   - 子账户（parent_user_id>0）：隐藏钱包/绘图日志/操练场/聊天，只保留看板·令牌(只读)·日志·任务·个人设置；
+  //   - 企业主账户（enterprise_status===2 且非子账户）：额外显示「子账户管理」入口。
+  const [userState] = useContext(UserContext);
+  const isSubAccount = (userState?.user?.parent_user_id || 0) > 0;
+  const isEnterpriseOwner =
+    userState?.user?.enterprise_status === 2 && !isSubAccount;
 
   // 给菜单文案附一个未读计数小红标
   const withUnreadBadge = (label, count) => {
@@ -142,6 +155,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
       const configVisible = isModuleVisible('console', item.itemKey);
+      // 子账户：绘图日志本期不开放（D10），强制隐藏
+      if (isSubAccount && item.itemKey === 'midjourney') return false;
       return configVisible;
     });
 
@@ -152,6 +167,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     localStorage.getItem('enable_task'),
     t,
     isModuleVisible,
+    isSubAccount,
   ]);
 
   const financeItems = useMemo(() => {
@@ -176,11 +192,25 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
       const configVisible = isModuleVisible('personal', item.itemKey);
+      // 子账户强制隐藏：钱包管理（不能充值）、个人设置（配置项过多，凭证由企业管理、
+      // 密码走企业重置）。只读子账户的个人中心仅保留剩余必要入口。
+      if (isSubAccount && (item.itemKey === 'topup' || item.itemKey === 'personal')) {
+        return false;
+      }
       return configVisible;
     });
 
+    // 企业主账户额外显示「子账户管理」入口（绕过 isModuleVisible，配置中无此模块）。
+    if (isEnterpriseOwner) {
+      filteredItems.push({
+        text: t('子账户管理'),
+        itemKey: 'subAccounts',
+        to: '/sub-accounts',
+      });
+    }
+
     return filteredItems;
-  }, [t, isModuleVisible, userUnread]);
+  }, [t, isModuleVisible, userUnread, isSubAccount, isEnterpriseOwner]);
 
   const adminItems = useMemo(() => {
     const items = [
@@ -233,15 +263,21 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('实名认证'),
+        text: withUnreadBadge(t('实名认证'), reviewCounts.kyc),
         itemKey: 'kyc',
         to: '/kyc',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('企业认证'),
+        text: withUnreadBadge(t('企业认证'), reviewCounts.enterprise),
         itemKey: 'enterprise',
         to: '/enterprise',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: withUnreadBadge(t('对公转账'), reviewCounts.bank_transfer_total),
+        itemKey: 'bankTransfer',
+        to: '/bank-transfer',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -259,7 +295,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [isAdmin(), isRoot(), t, isModuleVisible, adminUnread]);
+  }, [isAdmin(), isRoot(), t, isModuleVisible, adminUnread, reviewCounts]);
 
   const chatMenuItems = useMemo(() => {
     const items = [
@@ -275,6 +311,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       },
     ];
 
+    // 子账户：操练场/聊天强制隐藏（D9，子账户 quota=0 天然无法消费，前端同时隐藏入口）
+    if (isSubAccount) {
+      return [];
+    }
+
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
       const configVisible = isModuleVisible('chat', item.itemKey);
@@ -282,7 +323,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [chatItems, t, isModuleVisible]);
+  }, [chatItems, t, isModuleVisible, isSubAccount]);
 
   // 更新路由映射，添加聊天路由
   const updateRouterMapWithChats = (chats) => {
@@ -504,8 +545,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             setOpenedKeys(data.openKeys);
           }}
         >
-          {/* 聊天区域 */}
-          {hasSectionVisibleModules('chat') && (
+          {/* 聊天区域 —— 子账户整组隐藏（含「聊天」分组标签，菜单项已在 chatMenuItems 清空） */}
+          {!isSubAccount && hasSectionVisibleModules('chat') && (
             <div className='sidebar-section'>
               {!collapsed && (
                 <div className='sidebar-group-label'>{t('聊天')}</div>

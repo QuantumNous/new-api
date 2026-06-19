@@ -55,7 +55,7 @@ type UserEnterprise struct {
 	ContactName   string         `json:"contact_name,omitempty"   gorm:"type:varchar(64)"`
 	ContactPhone  string         `json:"contact_phone,omitempty"  gorm:"type:varchar(32)"`
 	SubmitCount   int            `json:"submit_count"             gorm:"type:int;not null;default:0"`
-	Status        int            `json:"status"                   gorm:"type:int;not null;default:1"`
+	Status        int            `json:"status"                   gorm:"type:int;not null;default:1;index"`
 	RejectReason  string         `json:"reject_reason,omitempty"  gorm:"type:varchar(255)"`
 	ReviewedBy    int            `json:"reviewed_by,omitempty"    gorm:"type:int;column:reviewed_by"`
 	SubmittedAt   *time.Time     `json:"submitted_at,omitempty"`
@@ -395,4 +395,12 @@ func GetEnterpriseList(status int, keyword string, page, pageSize int) ([]*Enter
 		return nil, 0, err
 	}
 	return rows, total, nil
+}
+
+// CountPendingEnterprise 待审核企业认证数（status=待审核）。
+func CountPendingEnterprise() (int64, error) {
+	var n int64
+	err := DB.Model(&UserEnterprise{}).
+		Where("status = ?", EnterpriseStatusPending).Count(&n).Error
+	return n, err
 }

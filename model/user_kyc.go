@@ -46,7 +46,7 @@ type UserKYC struct {
 	IdNumberEnc  string         `json:"-"                       gorm:"type:text;column:id_number_enc;not null"`
 	IdNumberHash string         `json:"-"                       gorm:"type:varchar(64);column:id_number_hash;not null"`
 	SubmitCount  int            `json:"submit_count"            gorm:"type:int;not null;default:0"`
-	Status       int            `json:"status"                  gorm:"type:int;not null;default:1"`
+	Status       int            `json:"status"                  gorm:"type:int;not null;default:1;index"`
 	RejectReason string         `json:"reject_reason,omitempty" gorm:"type:varchar(255)"`
 	ReviewedBy   int            `json:"reviewed_by,omitempty"   gorm:"type:int;column:reviewed_by"`
 	SubmittedAt  *time.Time     `json:"submitted_at,omitempty"`
@@ -386,4 +386,12 @@ func GetKYCList(status int, keyword string, page, pageSize int) ([]*KYCAdminRow,
 		return nil, 0, err
 	}
 	return rows, total, nil
+}
+
+// CountPendingKYC 待审核实名认证数（status=待审核）。
+func CountPendingKYC() (int64, error) {
+	var n int64
+	err := DB.Model(&UserKYC{}).
+		Where("status = ?", KYCStatusPending).Count(&n).Error
+	return n, err
 }

@@ -54,6 +54,7 @@ const PageLayout = () => {
     '/console/user',
     '/console/kyc',
     '/console/enterprise',
+    '/console/bank-transfer',
     '/console/token',
     '/console/midjourney',
     '/console/task',
@@ -83,6 +84,20 @@ const PageLayout = () => {
     if (user) {
       let data = JSON.parse(user);
       userDispatch({ type: 'login', payload: data });
+      // 后台拉一次 /self 刷新登录态快照：localStorage 里的登录响应可能缺
+      // parent_user_id / enterprise_status 等字段（旧版本登录的存量用户），
+      // 或管理员中途变更了认证/子账户状态。子账户的侧边栏强制覆盖、
+      // 企业主的「子账户管理」入口都依赖这些字段即时生效。
+      API.get('/api/user/self')
+        .then((res) => {
+          if (res.data?.success && res.data.data?.id) {
+            userDispatch({ type: 'login', payload: res.data.data });
+            localStorage.setItem('user', JSON.stringify(res.data.data));
+          }
+        })
+        .catch(() => {
+          // 401 由全局拦截器处理（清登录态并跳转）；其余失败保持本地快照
+        });
     }
   };
 

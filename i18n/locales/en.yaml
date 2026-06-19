@@ -287,3 +287,5 @@ kyc.images_incomplete: "Please upload both the front and back of the ID card."
 kyc.images_not_found: "No ID card images for this KYC record."
 kyc.sensitive_access_denied: "You are not allowed to view sensitive info at this KYC status."
 kyc.image_upload_failed: "Failed to upload ID card image."
+
+sub_account.forbidden: "Sub-accounts are not allowed to perform this action."

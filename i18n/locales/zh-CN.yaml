@@ -288,3 +288,5 @@ kyc.images_incomplete: "请同时上传身份证正面和背面图片。"
 kyc.images_not_found: "该 KYC 记录暂无身份证图片。"
 kyc.sensitive_access_denied: "当前 KYC 状态下您无权查看敏感信息。"
 kyc.image_upload_failed: "身份证图片上传失败。"
+
+sub_account.forbidden: "子账户无权进行此操作。"

@@ -113,6 +113,12 @@ func setupLogin(user *model.User, c *gin.Context) {
 			"role":         user.Role,
 			"status":       user.Status,
 			"group":        user.Group,
+			// 前端 userState 直接来源于本响应（localStorage 'user'）。侧边栏的子账户
+			// 视图覆盖与「子账户管理」入口依赖这三个字段，登录即下发，避免要等
+			// 个人设置/钱包页拉 /self 才生效。
+			"kyc_status":        user.KycStatus,
+			"enterprise_status": user.EnterpriseStatus,
+			"parent_user_id":    user.ParentUserId,
 		},
 	})
 }
@@ -247,6 +253,8 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
+	model.FillParentUsernames(users) // 子账户行补所属企业主用户名，展示归属关系
+
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 
@@ -269,6 +277,8 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	model.FillParentUsernames(users) // 子账户行补所属企业主用户名，展示归属关系
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -430,6 +440,7 @@ func GetSelf(c *gin.Context) {
 		"permissions":       permissions,
 		"kyc_status":        user.KycStatus,
 		"enterprise_status": user.EnterpriseStatus,
+		"parent_user_id":    user.ParentUserId,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -935,6 +946,12 @@ func ManageUser(c *gin.Context) {
 			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 		}
 	case "promote":
+		// 子账户是「隶属企业的只读视图」，恒为普通用户。提成管理员会绕过 SubAccountForbidden
+		// 却仍带 parent_user_id，造成可充值/建 key 但数据按子账户口径的矛盾态，故直接禁止。
+		if user.ParentUserId > 0 {
+			common.ApiErrorMsg(c, "子账户不支持角色变更")
+			return
+		}
 		if myRole != common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserAdminCannotPromote)
 			return
@@ -945,6 +962,10 @@ func ManageUser(c *gin.Context) {
 		}
 		user.Role = common.RoleAdminUser
 	case "demote":
+		if user.ParentUserId > 0 {
+			common.ApiErrorMsg(c, "子账户不支持角色变更")
+			return
+		}
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDemoteRootUser)
 			return
