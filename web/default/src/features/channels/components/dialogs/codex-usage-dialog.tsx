@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Copy, Check, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
+import { formatDateTimeStr, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -31,10 +32,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { getCodexResetCredits, type CodexResetCreditsResponse } from '../../api'
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -58,6 +72,26 @@ type CodexAdditionalRateLimit = {
   primary_window?: CodexRateLimitWindow
   secondary_window?: CodexRateLimitWindow
   plan_type?: string
+}
+
+type CodexResetCredit = {
+  id?: string
+  reset_type?: string
+  status?: string
+  granted_at?: string | null
+  expires_at?: string | null
+  redeem_started_at?: string | null
+  redeemed_at?: string | null
+  profile_image_url?: string
+  profile_user_id?: string
+  title?: string
+  description?: string
+}
+
+type CodexResetCreditsPayload = {
+  credits?: CodexResetCredit[]
+  available_count?: number
+  total_earned_count?: number
 }
 
 type CodexUsagePayload = {
@@ -101,12 +135,14 @@ function clampPercent(value: unknown): number {
 
 function formatUnixSeconds(unixSeconds: unknown): string {
   const v = Number(unixSeconds)
-  if (!Number.isFinite(v) || v <= 0) return '-'
-  try {
-    return dayjs(v * 1000).format('YYYY-MM-DD HH:mm:ss')
-  } catch {
-    return String(unixSeconds)
-  }
+  return Number.isFinite(v) && v > 0 ? formatTimestampToDate(v) : '-'
+}
+
+function formatIsoTimestamp(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') return '-'
+  const d = dayjs(value)
+  if (!d.isValid()) return value
+  return formatDateTimeStr(d.toDate())
 }
 
 function formatDurationSeconds(
@@ -126,9 +162,62 @@ function formatDurationSeconds(
   return `${secs}${t('s')}`
 }
 
+function formatTimeLeftUntil(
+  value: unknown,
+  t: (key: string) => string
+): string {
+  if (typeof value !== 'string' || value.trim() === '') return '-'
+  const expiresAt = dayjs(value)
+  if (!expiresAt.isValid()) return '-'
+
+  const secondsLeft = expiresAt.diff(dayjs(), 'second')
+  if (secondsLeft <= 0) return t('Expired')
+
+  const days = Math.floor(secondsLeft / (24 * 60 * 60))
+  const remainingSeconds = secondsLeft % (24 * 60 * 60)
+  if (days > 0) {
+    const hours = Math.floor(remainingSeconds / 3600)
+    return `${days} ${t('days')} ${hours}${t('h')}`
+  }
+
+  return formatDurationSeconds(secondsLeft, t)
+}
+
 function normalizePlanType(value: unknown): string {
   if (value == null) return ''
   return String(value).trim().toLowerCase()
+}
+
+function parseTimeValue(value: unknown): number {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return Number.POSITIVE_INFINITY
+  }
+  const d = dayjs(value)
+  return d.isValid() ? d.valueOf() : Number.POSITIVE_INFINITY
+}
+
+function normalizeResetCreditStatus(value: unknown): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+}
+
+function sortResetCredits(credits: CodexResetCredit[]): CodexResetCredit[] {
+  return [...credits].sort((a, b) => {
+    const aAvailable = normalizeResetCreditStatus(a.status) === 'available'
+    const bAvailable = normalizeResetCreditStatus(b.status) === 'available'
+    if (aAvailable !== bAvailable) return aAvailable ? -1 : 1
+
+    const expiresDiff =
+      parseTimeValue(a.expires_at) - parseTimeValue(b.expires_at)
+    if (expiresDiff !== 0) return expiresDiff
+
+    const grantedDiff =
+      parseTimeValue(a.granted_at) - parseTimeValue(b.granted_at)
+    if (grantedDiff !== 0) return grantedDiff
+
+    return String(a.id || '').localeCompare(String(b.id || ''))
+  })
 }
 
 function classifyWindowByDuration(
@@ -198,6 +287,15 @@ const PLAN_TYPE_BADGE: Record<
   free: { label: 'Free', variant: 'warning' },
 }
 
+const RESET_CREDIT_STATUS_BADGE: Record<
+  string,
+  { label: string; variant: StatusBadgeProps['variant'] }
+> = {
+  available: { label: 'Available', variant: 'success' },
+  redeemed: { label: 'Redeemed', variant: 'neutral' },
+  expired: { label: 'Expired', variant: 'warning' },
+}
+
 function getAccountTypeBadge(
   value: unknown,
   t: (key: string) => string
@@ -205,6 +303,19 @@ function getAccountTypeBadge(
   const normalized = normalizePlanType(value)
   return (
     PLAN_TYPE_BADGE[normalized] ?? {
+      label: String(value || '') || t('Unknown'),
+      variant: 'neutral' as const,
+    }
+  )
+}
+
+function getResetCreditStatusBadge(
+  value: unknown,
+  t: (key: string) => string
+): { label: string; variant: StatusBadgeProps['variant'] } {
+  const normalized = normalizeResetCreditStatus(value)
+  return (
+    RESET_CREDIT_STATUS_BADGE[normalized] ?? {
       label: String(value || '') || t('Unknown'),
       variant: 'neutral' as const,
     }
@@ -467,6 +578,190 @@ function InfoField(props: {
   )
 }
 
+function ResetCreditTimeField(props: {
+  label: string
+  value: string
+  emphasis?: boolean
+}) {
+  return (
+    <div className='min-w-0'>
+      <div className='text-muted-foreground text-[11px] font-medium'>
+        {props.label}
+      </div>
+      <div
+        className={cn(
+          'mt-1 text-xs leading-5 tabular-nums',
+          props.emphasis ? 'font-semibold' : 'text-foreground'
+        )}
+      >
+        {props.value}
+      </div>
+    </div>
+  )
+}
+
+function ResetCreditItem(props: { credit: CodexResetCredit; index: number }) {
+  const { t } = useTranslation()
+  const statusBadge = getResetCreditStatusBadge(props.credit.status, t)
+  const title =
+    props.credit.title?.trim() || `${t('Reset Credit')} ${props.index + 1}`
+  const expiresIn = formatTimeLeftUntil(props.credit.expires_at, t)
+  const isAvailable =
+    normalizeResetCreditStatus(props.credit.status) === 'available'
+
+  return (
+    <div className='bg-background rounded-lg border p-3'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='min-w-0'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <div className='min-w-0 text-sm font-medium break-words'>
+              {title}
+            </div>
+            <StatusBadge
+              label={t(statusBadge.label)}
+              variant={statusBadge.variant}
+              copyable={false}
+            />
+          </div>
+          {props.credit.description ? (
+            <div className='text-muted-foreground mt-1 text-xs leading-5'>
+              {props.credit.description}
+            </div>
+          ) : null}
+          {props.credit.id ? (
+            <div className='text-muted-foreground mt-1 font-mono text-[11px] break-all'>
+              {props.credit.id}
+            </div>
+          ) : null}
+        </div>
+        <div className='shrink-0 text-right'>
+          <div className='text-muted-foreground text-[11px] font-medium'>
+            {t('Expires in')}
+          </div>
+          <div
+            className={cn(
+              'mt-1 text-sm font-semibold tabular-nums',
+              isAvailable ? 'text-success' : 'text-muted-foreground'
+            )}
+          >
+            {expiresIn}
+          </div>
+        </div>
+      </div>
+      <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+        <ResetCreditTimeField
+          label={t('Granted at')}
+          value={formatIsoTimestamp(props.credit.granted_at)}
+        />
+        <ResetCreditTimeField
+          label={t('Expires at')}
+          value={formatIsoTimestamp(props.credit.expires_at)}
+        />
+        <ResetCreditTimeField
+          label={t('Redeemed at')}
+          value={formatIsoTimestamp(props.credit.redeemed_at)}
+          emphasis={Boolean(props.credit.redeemed_at)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ResetCreditsPanel(props: {
+  payload: CodexResetCreditsPayload | null
+  response: CodexResetCreditsResponse | null
+  usageAvailableCount: string
+  isLoading: boolean
+  errorMessage: string
+  onRefresh: () => void
+}) {
+  const { t } = useTranslation()
+  const credits = useMemo(
+    () => sortResetCredits(props.payload?.credits ?? []),
+    [props.payload?.credits]
+  )
+  const detailAvailableCount = props.payload?.available_count
+  const availableCount = Number.isFinite(Number(detailAvailableCount))
+    ? String(detailAvailableCount)
+    : props.usageAvailableCount
+  const totalEarnedCount = Number.isFinite(
+    Number(props.payload?.total_earned_count)
+  )
+    ? String(props.payload?.total_earned_count)
+    : '-'
+
+  return (
+    <div className='flex flex-col gap-3 p-3'>
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+        <InfoField
+          label={t('Available reset credits')}
+          value={availableCount}
+          mono
+          copyable={false}
+        />
+        <InfoField
+          label={t('Total earned')}
+          value={totalEarnedCount}
+          mono
+          copyable={false}
+        />
+        <InfoField
+          label='HTTP'
+          value={String(props.response?.upstream_status ?? '-')}
+          mono
+          copyable={false}
+        />
+      </div>
+
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <div className='text-muted-foreground text-xs leading-5'>
+          {t('Available credits are ordered by soonest expiration.')}
+        </div>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={props.onRefresh}
+          disabled={props.isLoading}
+        >
+          <RefreshCw data-icon='inline-start' />
+          {t('Refresh details')}
+        </Button>
+      </div>
+
+      {props.errorMessage ? (
+        <div className='border-destructive/40 bg-destructive/10 text-destructive rounded-lg border px-3 py-2 text-sm'>
+          {props.errorMessage}
+        </div>
+      ) : props.isLoading ? (
+        <div className='flex flex-col gap-2'>
+          <Skeleton className='h-24 w-full' />
+          <Skeleton className='h-24 w-full' />
+        </div>
+      ) : credits.length > 0 ? (
+        <div className='flex flex-col gap-2'>
+          {credits.map((credit, index) => (
+            <ResetCreditItem
+              key={`${credit.id ?? credit.expires_at ?? 'credit'}-${index}`}
+              credit={credit}
+              index={index}
+            />
+          ))}
+        </div>
+      ) : (
+        <Empty className='min-h-32 border'>
+          <EmptyHeader>
+            <EmptyTitle>{t('No reset credits')}</EmptyTitle>
+            <EmptyDescription>
+              {t('Upstream did not return reset credit details.')}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+    </div>
+  )
+}
+
 export function CodexUsageDialog({
   open,
   onOpenChange,
@@ -479,6 +774,11 @@ export function CodexUsageDialog({
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const [showRawJson, setShowRawJson] = useState(false)
+  const [showResetCredits, setShowResetCredits] = useState(false)
+  const [resetCreditsResponse, setResetCreditsResponse] =
+    useState<CodexResetCreditsResponse | null>(null)
+  const [isLoadingResetCredits, setIsLoadingResetCredits] = useState(false)
+  const [resetCreditsError, setResetCreditsError] = useState('')
 
   const payload: CodexUsagePayload | null = useMemo(() => {
     const raw = response?.data
@@ -486,13 +786,21 @@ export function CodexUsageDialog({
     return raw as CodexUsagePayload
   }, [response?.data])
 
+  const resetCreditsPayload: CodexResetCreditsPayload | null = useMemo(() => {
+    const raw = resetCreditsResponse?.data
+    if (!raw || typeof raw !== 'object') return null
+    return raw as CodexResetCreditsPayload
+  }, [resetCreditsResponse?.data])
+
   const rateLimit = payload?.rate_limit
   const accountType = payload?.plan_type ?? rateLimit?.plan_type
   const accountBadge = getAccountTypeBadge(accountType, t)
   const additionalRateLimits = (payload?.additional_rate_limits ?? []).filter(
     (item) => item && Object.keys(item).length > 0
   )
-  const resetCredits = payload?.rate_limit_reset_credits?.available_count
+  const resetCredits =
+    resetCreditsPayload?.available_count ??
+    payload?.rate_limit_reset_credits?.available_count
   const resetCreditsText = Number.isFinite(Number(resetCredits))
     ? String(resetCredits)
     : '-'
@@ -505,6 +813,55 @@ export function CodexUsageDialog({
     response?.success === false
       ? response?.message?.trim() || t('Failed to fetch usage')
       : ''
+
+  const loadResetCredits = useCallback(
+    async (force = false) => {
+      if (!channelId) {
+        setResetCreditsError(t('Channel ID is required'))
+        return
+      }
+      if (isLoadingResetCredits || (!force && resetCreditsResponse)) return
+
+      setIsLoadingResetCredits(true)
+      setResetCreditsError('')
+      try {
+        const res = await getCodexResetCredits(channelId)
+        if (!res.success) {
+          throw new Error(
+            res.message || t('Failed to fetch reset credit details')
+          )
+        }
+        setResetCreditsResponse(res)
+      } catch (error) {
+        setResetCreditsError(
+          error instanceof Error
+            ? error.message
+            : t('Failed to fetch reset credit details')
+        )
+      } finally {
+        setIsLoadingResetCredits(false)
+      }
+    },
+    [channelId, isLoadingResetCredits, resetCreditsResponse, t]
+  )
+
+  const handleResetCreditsOpenChange = (nextOpen: boolean) => {
+    setShowResetCredits(nextOpen)
+    if (nextOpen) {
+      void loadResetCredits(false)
+    }
+  }
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setShowRawJson(false)
+      setShowResetCredits(false)
+      setResetCreditsResponse(null)
+      setResetCreditsError('')
+      setIsLoadingResetCredits(false)
+    }
+    onOpenChange(nextOpen)
+  }
 
   const rawJsonText = useMemo(() => {
     if (!response) return ''
@@ -527,7 +884,7 @@ export function CodexUsageDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleDialogOpenChange}
       title={t('Codex Account & Usage')}
       contentClassName='sm:max-w-[900px]'
       titleClassName='flex items-center gap-2'
@@ -538,7 +895,7 @@ export function CodexUsageDialog({
           <Button
             type='button'
             variant='outline'
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleDialogOpenChange(false)}
           >
             {t('Close')}
           </Button>
@@ -626,6 +983,53 @@ export function CodexUsageDialog({
           </CardContent>
         </Card>
 
+        <Collapsible
+          open={showResetCredits}
+          onOpenChange={handleResetCreditsOpenChange}
+          className='rounded-lg border'
+        >
+          <CollapsibleTrigger
+            render={
+              <button
+                type='button'
+                className='hover:bg-muted/40 flex w-full items-start justify-between gap-3 p-3 text-left transition-colors'
+                aria-expanded={showResetCredits}
+              />
+            }
+          >
+            <div className='min-w-0'>
+              <div className='flex flex-wrap items-center gap-2'>
+                <div className='text-sm font-semibold'>
+                  {t('Reset Credits')}
+                </div>
+                <StatusBadge
+                  label={`${t('Available')} ${resetCreditsText}`}
+                  variant={Number(resetCredits) > 0 ? 'blue' : 'neutral'}
+                  copyable={false}
+                />
+              </div>
+              <div className='text-muted-foreground mt-1 text-xs leading-5'>
+                {t('View issued reset credits, grant dates, and expiration.')}
+              </div>
+            </div>
+            {showResetCredits ? (
+              <ChevronUp className='text-muted-foreground mt-0.5 shrink-0' />
+            ) : (
+              <ChevronDown className='text-muted-foreground mt-0.5 shrink-0' />
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className='border-t'>
+            <ResetCreditsPanel
+              payload={resetCreditsPayload}
+              response={resetCreditsResponse}
+              usageAvailableCount={resetCreditsText}
+              isLoading={isLoadingResetCredits}
+              errorMessage={resetCreditsError}
+              onRefresh={() => void loadResetCredits(true)}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className='flex flex-col gap-3'>
           <SectionHeading
             title={t('Base Limits')}
@@ -667,12 +1071,19 @@ export function CodexUsageDialog({
           </div>
         ) : null}
 
-        {/* Raw JSON collapsible */}
-        <div className='rounded-lg border'>
-          <button
-            type='button'
-            className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
-            onClick={() => setShowRawJson((v) => !v)}
+        <Collapsible
+          open={showRawJson}
+          onOpenChange={setShowRawJson}
+          className='rounded-lg border'
+        >
+          <CollapsibleTrigger
+            render={
+              <button
+                type='button'
+                className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
+                aria-expanded={showRawJson}
+              />
+            }
           >
             <div className='text-sm font-medium'>{t('Raw JSON')}</div>
             {showRawJson ? (
@@ -680,8 +1091,8 @@ export function CodexUsageDialog({
             ) : (
               <ChevronDown className='text-muted-foreground h-4 w-4' />
             )}
-          </button>
-          {showRawJson && (
+          </CollapsibleTrigger>
+          <CollapsibleContent>
             <>
               <div className='flex justify-end border-t px-3 py-2'>
                 <Button
@@ -705,8 +1116,8 @@ export function CodexUsageDialog({
                 </pre>
               </ScrollArea>
             </>
-          )}
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </Dialog>
   )
