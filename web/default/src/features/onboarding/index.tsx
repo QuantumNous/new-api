@@ -21,6 +21,7 @@ import { Gift, Loader2, Zap } from 'lucide-react'
 import { useTranslation, Trans } from 'react-i18next'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@/stores/onboarding-store'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { requestPromoTopup, isApiSuccess } from './api'
@@ -85,6 +86,8 @@ export function Onboarding() {
 
   useEffect(() => {
     if (!open) return
+    // Card-bind funnel step 1: the promo/bind dialog actually opened.
+    trackAdsFunnelEvent('flatkey_cardbind_dialog_open')
     const deadline = getPromoDeadline()
     const tick = () => setRemainingMs(Math.max(0, deadline - Date.now()))
     tick()
@@ -96,26 +99,45 @@ export function Onboarding() {
   const submitting = pendingAmount !== null
 
   const startTopup = async (amount: number) => {
+    // Funnel step 2: user picked a tier (this is the only way to bind a card — binding
+    // currently REQUIRES a real top-up payment, there is no free card-save path).
+    trackAdsFunnelEvent('flatkey_cardbind_tier_click', { amount })
     setPendingAmount(amount)
     try {
       const res = await requestPromoTopup(amount)
       if (isApiSuccess(res) && res.data?.pay_link) {
+        // Funnel step 3: redirecting to Stripe Checkout. Drop-off after this = abandoned on Stripe.
+        trackAdsFunnelEvent('flatkey_cardbind_stripe_redirect', { amount })
         window.location.assign(res.data.pay_link)
         return
       }
+      trackAdsFunnelEvent('flatkey_cardbind_start_error', {
+        amount,
+        reason: res.message || 'no_pay_link',
+      })
       toast.error(res.message || t('Failed to start payment'))
     } catch {
+      trackAdsFunnelEvent('flatkey_cardbind_start_error', {
+        amount,
+        reason: 'exception',
+      })
       toast.error(t('Failed to start payment'))
     } finally {
       setPendingAmount(null)
     }
   }
 
+  // Funnel: user dismissed the dialog without binding (the dominant drop-off to watch).
+  const handleSkip = () => {
+    trackAdsFunnelEvent('flatkey_cardbind_skip')
+    closeOnboarding()
+  }
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) closeOnboarding()
+        if (!next) handleSkip()
       }}
     >
       <DialogContent
@@ -213,7 +235,7 @@ export function Onboarding() {
           variant='ghost'
           size='sm'
           className='w-full'
-          onClick={closeOnboarding}
+          onClick={handleSkip}
           disabled={submitting}
         >
           {t('Skip for now')}

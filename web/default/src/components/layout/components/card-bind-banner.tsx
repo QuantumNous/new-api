@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { Sparkles, ChevronRight } from 'lucide-react'
 import { useTranslation, Trans } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { isCardBindEligible } from './card-bind-eligibility'
 
 /**
@@ -35,7 +37,18 @@ export function CardBindBanner() {
   const user = useAuthStore((s) => s.auth.user)
   const openOnboarding = useOnboardingStore((s) => s.openOnboarding)
 
-  if (!isCardBindEligible(user, config.enableStripeCardBind)) return null
+  const eligible = isCardBindEligible(user, config.enableStripeCardBind)
+  // Funnel step 0: the card-bind banner was actually shown to an eligible (un-bound) user.
+  useEffect(() => {
+    if (eligible) trackAdsFunnelEvent('flatkey_cardbind_banner_view')
+  }, [eligible])
+
+  if (!eligible) return null
+
+  const handleClick = () => {
+    trackAdsFunnelEvent('flatkey_cardbind_banner_click')
+    openOnboarding()
+  }
 
   return (
     // Outer padding mirrors SectionPageLayout's content gutters (px-3 sm:px-4) so the banner's
@@ -44,7 +57,7 @@ export function CardBindBanner() {
     <div className='shrink-0 px-3 pt-3 sm:px-4'>
       <button
         type='button'
-        onClick={openOnboarding}
+        onClick={handleClick}
         className='group relative mb-[15px] flex h-[50px] w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-fuchsia-500/50 hover:brightness-110'
       >
         {/* Periodic sheen sweep + a brighter one on hover. */}

@@ -21,6 +21,7 @@ import { PartyPopper } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import { getSelf } from '@/lib/api'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -300,6 +301,8 @@ export function Wallet(props: WalletProps) {
         try {
           const res = await getCardStatus()
           if (res?.success && res.data?.card_bound) {
+            // Funnel final step: card actually bound (the conversion we're chasing).
+            trackAdsFunnelEvent('flatkey_cardbind_success')
             toast.dismiss(pendingToast)
             await refreshAuthUser()
             await fetchUser()
@@ -313,6 +316,7 @@ export function Wallet(props: WalletProps) {
         await sleep(POLL_INTERVAL_MS)
       }
       // Webhook hasn't landed in time; reassure the user instead of claiming success.
+      trackAdsFunnelEvent('flatkey_cardbind_pending')
       toast.dismiss(pendingToast)
       toast.info(
         t(
