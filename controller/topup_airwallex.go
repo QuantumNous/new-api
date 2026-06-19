@@ -582,6 +582,16 @@ func AirwallexWebhook(c *gin.Context) {
 		return
 	}
 
+	// Consent lifecycle (revoked / expired / disabled) carries a consent object
+	// (no merchant_order_id), so handle it before the payment_intent parsing +
+	// merchant_order_id check below. Clears the saved consent so we stop
+	// off-session charging it.
+	if strings.HasPrefix(event.Name, "payment_consent.") {
+		handleAirwallexConsentEvent(ctx, &event)
+		c.Status(http.StatusOK)
+		return
+	}
+
 	var data AirwallexWebhookData
 	if err := json.Unmarshal(event.Data, &data); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Airwallex webhook data 解析失败 event_id=%s error=%q", event.ID, err.Error()))
@@ -605,6 +615,38 @@ func AirwallexWebhook(c *gin.Context) {
 		logger.LogInfo(ctx, fmt.Sprintf("Airwallex webhook 忽略事件 event_name=%s event_id=%s trade_no=%s", event.Name, event.ID, tradeNo))
 		c.Status(http.StatusOK)
 	}
+}
+
+// handleAirwallexConsentEvent reacts to payment_consent.* webhooks. On a
+// disable/revoke/expire it clears the saved consent so off-session auto-charge
+// stops attempting it. Other consent events are logged only.
+//
+// NOTE: the consent payload path (object.id = cst_...) is assumed — confirm
+// against a real webhook payload before relying on it in production.
+func handleAirwallexConsentEvent(ctx context.Context, event *AirwallexWebhookEvent) {
+	var payload struct {
+		Object struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"object"`
+	}
+	if err := json.Unmarshal(event.Data, &payload); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Airwallex consent 事件解析失败 event_name=%s error=%q", event.Name, err.Error()))
+		return
+	}
+	consentID := payload.Object.ID
+	terminal := strings.Contains(event.Name, "disabled") ||
+		strings.Contains(event.Name, "revoked") ||
+		strings.Contains(event.Name, "expired")
+	if consentID != "" && terminal {
+		if n, err := model.ClearAirwallexConsent(consentID); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("清除 Airwallex consent 失败 consent_id=%s error=%q", consentID, err.Error()))
+		} else {
+			logger.LogInfo(ctx, fmt.Sprintf("Airwallex consent 失效已清除 consent_id=%s affected=%d event_name=%s", consentID, n, event.Name))
+		}
+		return
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("Airwallex consent 事件(无需处理) event_name=%s consent_id=%s", event.Name, consentID))
 }
 
 func handleAirwallexSucceeded(c *gin.Context, event *AirwallexWebhookEvent, intent *AirwallexPaymentIntent) {

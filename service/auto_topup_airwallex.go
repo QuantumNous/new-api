@@ -44,6 +44,10 @@ type airwallexChargeRequest struct {
 // airwallexChargeFn is the seam PR-7 / tests override to avoid real API calls.
 var airwallexChargeFn = airwallexOffSessionCharge
 
+// airwallexAutoTopupMaxFailures disables a user's auto-topup after this many
+// consecutive charge failures (resets on any success).
+const airwallexAutoTopupMaxFailures = 3
+
 // airwallexAutoTopupPreconditions is the pure-decision input for the Airwallex
 // off-session path (parallel to autoTopupPreconditions for Stripe).
 type airwallexAutoTopupPreconditions struct {
@@ -246,7 +250,26 @@ func maybeAirwallexAutoTopup(ctx *gin.Context, user *model.User) AutoTopupResult
 		if ctx != nil {
 			logger.LogError(ctx, fmt.Sprintf("airwallex auto-topup charge failed for user %d: %v", user.Id, chargeErr))
 		}
+		// Failure backoff: after N consecutive failures, disable the user's
+		// auto-topup so we stop hammering a declining card (they can re-enable).
+		if common.RedisEnabled {
+			failKey := fmt.Sprintf("airwallex_autotopup_fail:%d", user.Id)
+			n, _ := common.RDB.Incr(context.Background(), failKey).Result()
+			common.RDB.Expire(context.Background(), failKey, 24*time.Hour)
+			if n >= airwallexAutoTopupMaxFailures {
+				user.AutoTopupEnabled = false
+				if derr := user.UpdateAutoTopup(); derr == nil && ctx != nil {
+					logger.LogWarn(ctx, fmt.Sprintf("airwallex auto-topup disabled for user %d after %d consecutive failures", user.Id, n))
+				}
+				common.RDB.Del(context.Background(), failKey)
+			}
+		}
 		return AutoTopupResult{Triggered: true, Err: chargeErr}
+	}
+
+	// Success → reset the failure counter.
+	if common.RedisEnabled {
+		common.RDB.Del(context.Background(), fmt.Sprintf("airwallex_autotopup_fail:%d", user.Id))
 	}
 
 	if err := model.IncreaseUserQuota(user.Id, user.AutoTopupAmount, true); err != nil {

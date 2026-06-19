@@ -709,6 +709,21 @@ func (user *User) UpdateAutoTopup() error {
 	}).Error
 }
 
+// ClearAirwallexConsent removes the saved off-session consent + payment method
+// from any user holding the given consent id — called when Airwallex reports the
+// consent disabled/revoked/expired, so auto-topup stops attempting to use it.
+// Returns the number of rows cleared.
+func ClearAirwallexConsent(consentID string) (int64, error) {
+	if consentID == "" {
+		return 0, nil
+	}
+	res := DB.Model(&User{}).Where("airwallex_consent_id = ?", consentID).Updates(map[string]interface{}{
+		"airwallex_consent_id":     "",
+		"airwallex_payment_method": "",
+	})
+	return res.RowsAffected, res.Error
+}
+
 func (user *User) FillUserByDiscordId() error {
 	if user.DiscordId == "" {
 		return errors.New("discord id 为空！")
