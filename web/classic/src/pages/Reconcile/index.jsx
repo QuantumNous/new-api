@@ -72,22 +72,22 @@ export default function ReconcilePage() {
             type='type1'
             className={STACKED_CARD_CLASS}
             descriptionArea={
-              <Text strong>{t('明细差异（按小时 × 模型）')}</Text>
+              <Text strong>{t('按模型汇总')}</Text>
             }
             t={t}
           >
-            <DiffTable rows={r.rows} />
+            <ByModelTable byModel={r.by_model} />
           </CardPro>
 
           <CardPro
             type='type1'
             className={STACKED_CARD_CLASS}
             descriptionArea={
-              <Text strong>{t('按模型汇总')}</Text>
+              <Text strong>{t('明细差异（仅真实差异，精确到小时）')}</Text>
             }
             t={t}
           >
-            <ByModelTable byModel={r.by_model} />
+            <DiffTable rows={r.rows} />
           </CardPro>
         </>
       )}

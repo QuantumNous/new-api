@@ -416,6 +416,12 @@ const MessageContent = ({
                       animated={isThinkingStatus}
                       previousContentLength={prevLength}
                     />
+                    {!isThinkingStatus && (
+                      <div className='not-prose mt-2 flex items-center gap-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'>
+                        <span>⚠️</span>
+                        <span>{t('以上内容均由AI生成，仅供参考和借鉴')}</span>
+                      </div>
+                    )}
                   </div>
                 );
               }

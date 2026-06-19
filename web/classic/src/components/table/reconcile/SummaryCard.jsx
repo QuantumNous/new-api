@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import { diffKindTag } from './diffKind';
 
 const { Text } = Typography;
 
@@ -38,6 +39,7 @@ export default function SummaryCard({ summary, drift }) {
   if (!summary) return null;
 
   const tag = VERDICT_TAGS[drift?.verdict] || { color: 'grey', textKey: '-' };
+  const breakdown = summary.diff_breakdown || [];
 
   return (
     <div className='flex flex-col gap-2'>
@@ -117,6 +119,23 @@ export default function SummaryCard({ summary, drift }) {
           </Tag>
         )}
       </div>
+
+      {breakdown.length > 0 && (
+        <div className='flex flex-wrap items-center gap-2 mt-1'>
+          <Text type='tertiary' size='small'>
+            {t('差异构成')}：
+          </Text>
+          {breakdown.map((b) => {
+            const kt = diffKindTag(b.diff_kind, t);
+            return (
+              <Tag key={b.model} color={kt ? kt.color : 'grey'}>
+                {b.model} {fmtCny(b.delta_amount_cny)}
+                {kt ? `（${kt.label}）` : ''}
+              </Tag>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

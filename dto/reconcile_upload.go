@@ -36,6 +36,17 @@ type ReconcileSummary struct {
 	LocalTotal       Totals  `json:"local_total"`
 	Delta            Totals  `json:"delta"`
 	DeltaAmountPct   float64 `json:"delta_amount_pct"`
+	// DiffBreakdown attributes the interval's total Δ¥ to its top contributing
+	// models (v3.1 §13.3). Sorted by |delta| desc; the tail collapses into a
+	// single {model:"其他"} item.
+	DiffBreakdown []DiffBreakdownItem `json:"diff_breakdown,omitempty"`
+}
+
+// DiffBreakdownItem is one row of the summary "差异构成" attribution.
+type DiffBreakdownItem struct {
+	Model          string  `json:"model"`
+	DeltaAmountCNY float64 `json:"delta_amount_cny"`
+	DiffKind       string  `json:"diff_kind,omitempty"`
 }
 
 // DriftAnalysis classifies the cumulative Δ¥ pattern across the hour series.
@@ -58,7 +69,11 @@ type DiffSide struct {
 	RequestCount     int     `json:"request_count,omitempty"`
 }
 
-// DiffRow is one (model, hour_bucket) cell.
+// DiffRow is one (model, hour_bucket) cell. In v3.1 the comparator only emits
+// rows that carry a *genuine* residual difference after drift alignment —
+// pure drift buckets are dropped, so HourBucket is the local anchor and the
+// supplier data (if any) may have come from SupplierBucket = HourBucket +
+// AlignShiftHours·3600.
 type ReconcileDiffRow struct {
 	HourBucket               int64     `json:"hour_bucket"`
 	Model                    string    `json:"model"`
@@ -67,7 +82,17 @@ type ReconcileDiffRow struct {
 	Delta                    Totals    `json:"delta"`
 	CumulativeDeltaAmountCNY float64   `json:"cumulative_delta_amount_cny"`
 	Status                   string    `json:"status"` // matched / supplier_only / local_only
-	Regions                  []string  `json:"regions,omitempty"`
+	// DiffKind localises *why* this row differs: price_only / usage /
+	// missing_local / missing_supplier (v3.1 §13.2).
+	DiffKind string `json:"diff_kind,omitempty"`
+	// AlignShiftHours is the integer-hour shift applied to this model's
+	// supplier series during alignment (supplier_bucket - hour_bucket, in
+	// hours). 0 when the supplier bucket already matched the local anchor.
+	AlignShiftHours int `json:"align_shift_hours,omitempty"`
+	// SupplierBucket is the supplier's original BucketEnd before alignment,
+	// for the "供方 19:00（对齐 −1h）" hint. 0 when there's no supplier side.
+	SupplierBucket int64    `json:"supplier_bucket,omitempty"`
+	Regions        []string `json:"regions,omitempty"`
 }
 
 // ByModelKind is one token-kind row inside ByModel.
@@ -86,6 +111,10 @@ type ByModelStat struct {
 	SupplierAmountCNY float64       `json:"supplier_amount_cny"`
 	LocalAmountCNY    float64       `json:"local_amount_cny"`
 	DeltaAmountCNY    float64       `json:"delta_amount_cny"`
+	// DiffKind summarises this model's significant detail rows (v3.1 §13.3):
+	// price_only / usage / missing_local / missing_supplier / mixed, or empty
+	// when the model has no significant difference.
+	DiffKind string `json:"diff_kind,omitempty"`
 }
 
 // ParseError describes one bad row inside the uploaded xlsx.

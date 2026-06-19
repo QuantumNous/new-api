@@ -37,6 +37,12 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	}
 	other := make(map[string]interface{})
 	other["is_task"] = true
+	// 仅「按次/按个」任务（TaskPricePatches 命中或固定价格）供方才按「个」计费，需打
+	// count_billing 供对账归类。token 计费任务（PerCallBilling=false，走轮询 token 重算）
+	// 必须保留 token 用量，不能标计件。此判定与 controller/relay.go 的 PerCallBilling 定义一致。
+	if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) || info.PriceData.UsePrice {
+		other["count_billing"] = true
+	}
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
 	if info.PriceData.ModelRatio > 0 {
@@ -136,7 +142,12 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
-	other["count_billing"] = true
+	// 只有按次/按个任务才标计件。token 计费任务（PerCallBilling=false，差额结算走
+	// RecalculateTaskQuotaByTokens）保留 token 用量，避免对账把它误当 1 个计件。
+	// BillingContext 缺失时无从判定，保守沿用旧行为（视为按次）。
+	if bc := task.PrivateData.BillingContext; bc == nil || bc.PerCallBilling {
+		other["count_billing"] = true
+	}
 	return other
 }
 

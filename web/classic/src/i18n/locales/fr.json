@@ -3852,6 +3852,7 @@
     "确认重置该认证？用户认证状态将清空，需重新提交所有信息（含营业执照与法人证件图片）。": "Réinitialiser cette certification ? Le statut de l'utilisateur sera effacé et toutes les informations (y compris la licence commerciale et les pièces d'identité du représentant légal) devront être resoumises.",
     "企业认证状态": "Statut de certification d'entreprise",
     "企业认证审核管理": "Gestion de l'examen de la certification d'entreprise",
+    "留空则使用内置默认拒绝文案": "Laisser vide pour utiliser le message de refus par défaut intégré",
     "对公转账": "Virement bancaire",
     "对公转账设置": "Paramètres de virement bancaire",
     "对公转账仅对已通过企业认证的用户展示。用户线下转账后上传回执，由管理员在「对公转账」审核页人工核对入账。": "Le virement bancaire n'est visible que pour les utilisateurs certifiés entreprise. Après le virement, l'utilisateur téléverse le reçu et l'administrateur vérifie et crédite manuellement sur la page « Virement bancaire ».",
