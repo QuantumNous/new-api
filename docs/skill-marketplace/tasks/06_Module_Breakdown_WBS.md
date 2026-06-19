@@ -19,22 +19,19 @@
 
 ### 1.1 Product Baseline
 
-V1 是官方托管的 AI Tool 平台。**V1 核心范式：Skills 是可安装的 API Tool，不是 Prompt 模板。** 用户可以下载 Skill 的 tool spec（OpenAPI / MCP 格式）并安装到自己的 ChatGPT、Gemini、Claude 等 AI 客户端中直接调用。执行逻辑永不离开服务端，API Key 绑定用户帐号。
+V1 是官方 curated 的 Skill Marketplace，作为 DeepRouter **订阅的内容附加价值层**交付（见 `00_Overview.md` §0 与决策 `D-09`）。zip 包采用 **Claude Code 原生格式**（SKILL.md + manifest.json + 可选 scripts/references/sub-agents），解压到 `.claude/skills/` 即可用 `/skillname` 调用。DeepRouter 不参与执行、不计执行 token。每个 Skill 发布前须通过 **Evaluation Pipeline**（格式/任务完成度/违规/完整性），evaluation failed 不能发布。
 
 V1 P0 闭环：
 
 ```text
-Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑）
-→ Skill is published to Marketplace
-→ User browses detail and enables Skill
-→ User downloads tool spec (OpenAPI / MCP) and installs into their AI client
-  OR selects one enabled Skill in Playground
-→ External AI client calls DeepRouter Skill API with user's API Key
-  OR Playground passes skill_id to Relay
-→ Relay authenticates API Key, validates use-time entitlement and safety
-→ Relay executes Skill logic server-side; returns tool_result
-→ Execution emits usage, billing attribution, analytics, audit where applicable
-→ Operations monitors adoption, blocked usage, revenue, and safety
+Super Admin 创建 Skill（SKILL.md + 可选 scripts/references/sub-agents）
+→ 触发 Evaluation Pipeline（格式 / 任务完成度 / 违规 / 完整性）
+→ Evaluation passed → 发布，打包为 SKILL.md 兼容 zip
+→ 用户浏览 / 搜索 / 收藏 / 查看详情（Tier 1 tracking）
+→ 下载时校验订阅级别（一次性）→ 下载 zip
+→ 用户本地解压，用任意 LLM 运行（DeepRouter 不参与）
+→ 授权用户回传 installed / used（Tier 2 tracking，opt-in）
+→ Operations 监控下载量、转化率、评分、Evaluation 结果，优化内容质量
 ```
 
 ### 1.2 Locked V1 Decisions
@@ -42,14 +39,14 @@ Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑�
 | Area | Decision |
 |---|---|
 | Skill supply | Official curated Skills only |
-| Tool spec download | P0 — 下载 tool spec 是用户使用 Skill 的唯一路径；spec 只含 schema + endpoint，不含执行逻辑 |
-| External AI client invocation | P0 — DeepRouter Skill API 接受来自 ChatGPT / Gemini / Claude 的 tool call，携带用户 API Key |
-| User Playground Skill execution | **移除** — 普通用户没有 Playground Skill 执行路径；Playground 保持通用聊天界面 |
-| Execution logic download | Never — `instruction_template` and execution handlers are never exportable |
-| Multi-Skill stacking | Out of scope; zero or one active Skill per request |
+| Distribution | SKILL.md 兼容 zip（manifest + SKILL.md + 可选 scripts/references/sub-agents）；解压即用 |
+| Public Skill routing/execution API | **Not in scope**；DeepRouter 不执行 Skill；本地运行，任意 LLM |
+| Evaluation Pipeline | **In scope P0**；格式/任务完成度/违规/完整性；passed 才能发布 |
+| Multi-Skill stacking | Out of scope |
 | User-created Skills | Out of scope |
 | Creator marketplace/revenue share | Out of scope |
-| Local MCP server code download | V2 — V1 only supports cloud-hosted tool spec |
+| Per-execution billing | **Not in scope**；Entitlement 在下载时一次性校验；无 execution token 计费 |
+| Prompt confidentiality | **Not a control**；published SKILL.md 随包分发可读 |
 | Recommendation rails | P1; P0 Marketplace can launch with All Skills list and optional Featured only |
 | Review workflow | P1; P0 Ops Dashboard can launch without full assign/resolve workflow |
 | CSV export | P1 aggregate-only; hidden in P0 unless approved |
@@ -65,9 +62,10 @@ Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑�
 | D-03 | Kids release mode | Feature-flagged closed beta unless GA controls pass | Product + Safety + Legal | M02, M05, M10, M15 |
 | D-04 | Streaming launch scope | P1 by default | Product + Engineering + Finance | M05, M07, M10, M12 |
 | D-05 | Provider system-boundary allowlist | Maintain explicit approved provider/model list | Security + Engineering | M05, M10, M11 |
-| D-06 | `instruction_template` encryption mechanism | DB/storage encryption; field encryption if available | Security + Backend | M01, M11 |
+| D-06 | `instruction_template` encryption mechanism | **Re-scoped under D-09**: published templates ship in the package and need no confidentiality encryption; encryption-at-rest still applies to drafts and to genuinely sensitive server-side config (provider creds, routing logic) | Security + Backend | M01, M11 |
 | D-07 | Revenue counting statuses | Gross uses positive `charged`; net/reconciliation includes negative refund/void compensation rows | Finance + Data | M07, M09 |
 | D-08 | Initial official Skill catalog | 3-5 launch Skills with examples | Product + Ops | M02, M14, M15 |
+| D-09 | Skill distribution model | Content marketplace, no runtime binding：SKILL.md 兼容 zip；护城河 = Marketplace 平台粘性（发现/策展/Evaluation/评分）；DeepRouter 不执行 Skill；Entitlement 在下载时校验；Tier 2 遥测须用户显式授权 | Product + Architecture | M02, M03, M04, M08, M15 |
 
 ---
 
@@ -79,9 +77,9 @@ Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑�
 |---|---|---|---|---|
 | M00 | Scope, Decision, and Architecture Freeze | P0 | Product/Architecture Agent | Sprint 0 |
 | M01 | Data Model, Migration, and API Foundation | P0 | Data/API Agent | Sprint 1a |
-| M02 | Admin Skill Management and Lifecycle | P0 | Admin Supply Agent | Sprint 1a-2 |
-| M03 | Marketplace and My Skills Experience | P0 | Marketplace UX/API Agent | Sprint 2 |
-| M04 | ~~Playground Skill Picker~~ — V1 移除 | N/A | N/A | N/A |
+| M02 | Admin Skill Management, Lifecycle, and Packaging | P0 | Admin Supply Agent | Sprint 1a-2 |
+| M03 | Marketplace, My Skills, and Download Experience | P0 | Marketplace UX/API Agent | Sprint 2 |
+| M04 | Skill Package & Download Client | P0 | Packaging/Client Agent | Sprint 2 |
 | M05 | Relay Execution Core | P0 | Gateway/Relay Agent | Sprint 1b-2 |
 | M06 | Entitlement, Membership, and Quota | P0 | Entitlement Agent | Sprint 1b |
 | M07 | Billing Attribution and Finance Controls | P0 | Billing Agent | Sprint 1b-2 |
@@ -93,8 +91,6 @@ Super Admin creates official Skill（定义 tool schema + 服务端执行逻辑�
 | M13 | Discovery Rails and Growth Surfaces | P1 | Growth Agent | Sprint 4 |
 | M14 | i18n, Content Operations, and Launch Skills | P1/P0 content | Content Ops Agent | Sprint 3-4 |
 | M15 | Release, QA, Rollout, and Runbook | P0 | Release Agent | Sprint 4 |
-| M16 | Tool Spec Generation and Distribution | P0 | Tool Spec Agent | Sprint 2-3 |
-| M17 | API Key Management and Copy Protection | P0 | API Key Agent | Sprint 1b-2 |
 
 ### 2.2 Agent Contract Template
 
@@ -127,7 +123,7 @@ Each module must be implemented with this contract:
 
 **Work Items**
 
-- Freeze V1 execution model: downloadable tool spec + external AI client invocation (`POST /v1/skills/execute/{skill_id}` with API Key) is the only user-facing Skill execution path; Admin preview endpoint is the only server-side Skill test path for Super Admins.
+- Freeze V1 as downloadable-package execution via the public routing API (R2/D-09); Admin Preview retained for testing.
 - Freeze plan matrix, free quota, monetization defaults, and Enterprise contact-sales semantics.
 - Decide Kids mode GA vs closed beta vs disabled.
 - Decide streaming launch scope.
@@ -171,7 +167,7 @@ Each module must be implemented with this contract:
 - Implement indexes specified in Data/API.
 - Implement public search indexes for `skills` and `skills_i18n`; search must never inspect prompt or internal execution fields.
 - Implement common API response and error envelope.
-- Ensure public/user/ops queries never select `instruction_template`.
+- Public APIs may expose the **published** `instruction_template` (it ships in the package); ensure no query ever returns provider credentials, server routing/model-selection config, or draft templates to non-Super-Admin surfaces.
 - Implement migration order and rollback plan.
 - Reuse existing feature flag/config system; create new `platform_configs` only if the platform lacks one and Data/API is updated.
 
@@ -185,8 +181,8 @@ Each module must be implemented with this contract:
 
 - Migration runs cleanly in staging from empty state.
 - Rollback is documented and tested before GA traffic.
-- `instruction_template` appears only in `skill_versions` and allowed Super Admin/Relay paths.
-- Public/user/ops response examples exclude hidden prompt fields.
+- Provider credentials and server routing/model-selection config appear only in restricted server-side stores, never in any public/user/ops query or the package.
+- Public/user/ops response examples may include the published template but exclude provider secrets and routing internals.
 - Shared enum/error constants are available for M02-M12.
 
 **Risks**
@@ -203,8 +199,8 @@ Each module must be implemented with this contract:
 | Priority | P0 |
 | Primary Agent | Admin Supply Agent |
 | Inputs | `01_Functional_Requirements.md`, `02_UX_Design.md`, `03_Data_Model_and_API_Spec.md`, `05_Security_and_NFR.md` |
-| Owns | Admin APIs/UI for official Skill creation, versioning, preview, publish, deprecate, archive |
-| Does Not Own | End-user Marketplace, Relay runtime, Ops dashboard |
+| Owns | Admin APIs/UI for official Skill creation, versioning, preview, publish, deprecate, archive, and downloadable package build |
+| Does Not Own | End-user Marketplace, Relay runtime, Ops dashboard, the runtime client logic inside the package (M04) |
 | Dependencies | M01, M11 audit/redaction baseline |
 
 **Work Items**
@@ -217,6 +213,7 @@ Each module must be implemented with this contract:
 - Admin Preview emits audit/security telemetry outside business analytics and revenue.
 - Publish checklist with metadata, examples, entitlement, model whitelist, preview, and Kids approval checks.
 - Lifecycle actions: publish, deprecate, archive.
+- **Package build on publish (FR-A19/FR-A20)**: produce a versioned zip (manifest + `instruction_template` + thin client calling the DeepRouter routing API), pinned to `skill_version_id`; build-time check that no provider credentials / server routing logic are embedded and that the work step calls DeepRouter (runtime-dependency guard).
 - Featured flag and featured rank management.
 - Required plan, monetization, free quota, timeout, model whitelist settings.
 - Audit log writes for all sensitive actions and prompt access.
@@ -228,6 +225,7 @@ Each module must be implemented with this contract:
 - `/api/v1/admin/skills/{skill_id}/preview`
 - `/api/v1/admin/skills/{skill_id}/publish-checklist`
 - `/api/v1/admin/skills/{skill_id}/publish`
+- `/api/v1/admin/skills/{skill_id}/package` (build/rebuild downloadable zip for the active version)
 - `/api/v1/admin/skills/{skill_id}/deprecate`
 - `/api/v1/admin/skills/{skill_id}/archive`
 - `/api/v1/admin/skills/{skill_id}/audit-log`
@@ -243,7 +241,7 @@ Each module must be implemented with this contract:
 
 **Risks**
 
-- Admin preview must not echo hidden prompt in output or diagnostics.
+- Package build must never embed provider credentials, server routing/model-selection logic, or any secret that would let the package bypass DeepRouter.
 - Kids approval APIs are required only if Kids feature can be enabled.
 
 ---
@@ -255,7 +253,7 @@ Each module must be implemented with this contract:
 | Priority | P0 |
 | Primary Agent | Marketplace UX/API Agent |
 | Inputs | `01_Functional_Requirements.md`, `02_UX_Design.md`, `03_Data_Model_and_API_Spec.md` |
-| Owns | Marketplace list/detail, enable/disable, My Skills, availability/lock states |
+| Owns | Marketplace list/detail, package download, My Skills, availability/lock states |
 | Does Not Own | Playground execution, recommendation algorithms, Ops dashboards |
 | Dependencies | M01, M06, M08 instrumentation baseline |
 
@@ -264,9 +262,9 @@ Each module must be implemented with this contract:
 - Marketplace list with public fields only.
 - Search by public name/description only.
 - Category and plan filters.
-- Skill Detail with examples, input hints, plan, availability, hosted prompt copy, AI disclosure.
-- Enable/disable flows.
-- My Skills with executable, locked, deprecated, archived states.
+- Skill Detail with examples, input hints, plan, availability, runtime-dependency note (needs a DeepRouter key to run), Download CTA, AI disclosure.
+- Download / remove-from-My-Skills flows (download record = `user_enabled_skills`).
+- My Skills with downloaded, executable, locked, deprecated, archived states.
 - Error-code-to-UX-state mapping.
 - Anonymous browsing with login CTA.
 - Hide Kids UI when Kids flag is off.
@@ -289,9 +287,9 @@ Each module must be implemented with this contract:
 
 - Draft/archived Skills are not discoverable.
 - Deprecated Skills are not shown in Marketplace to new users.
-- Pro Skill enable before upgrade is not allowed in V1 baseline.
-- UI never exposes `instruction_template` or internal prompt terminology to normal users.
-- Enable/disable emits required events through M08 contract.
+- Pro Skill download before upgrade is not allowed in V1 baseline.
+- UI never exposes provider credentials or server routing internals (the published template itself is allowed, since it ships in the package).
+- Download/remove emits required events through M08 contract.
 
 **Risks**
 
@@ -299,15 +297,48 @@ Each module must be implemented with this contract:
 
 ---
 
-### M04. ~~Playground Skill Picker~~ — V1 移除
+### M04. Skill Package & Download Client
 
-> **本模块已从 V1 移除。**
->
-> 原决策：普通用户在 DeepRouter Playground 内选择并执行 Skill（通过 `deeprouter.skill_id` request body 注入）。
->
-> **变更原因**：V1 Skills 重新定义为可安装的 API Tool。用户使用 Skill 的唯一路径是：下载 tool spec（OpenAPI / MCP 格式）→ 安装到外部 AI 客户端（ChatGPT / Gemini / Claude）→ 在外部客户端中调用，DeepRouter 作为后端 API 执行。Playground 保持通用聊天界面，不暴露 Skill Picker 或 Skill 执行入口给普通用户。
->
-> **替代模块**：M16（Tool Spec Generation and Distribution）、M17（API Key Management and Copy Protection）。Admin 测试 Skill 使用 M02 的 `/api/v1/admin/skills/{skill_id}/preview` 端点（`entry_point=admin_preview`）。
+| Field | Definition |
+|---|---|
+| Priority | P0 |
+| Primary Agent | Packaging/Client Agent |
+| Inputs | `01_Functional_Requirements.md`, `02_UX_Design.md`, `03_Data_Model_and_API_Spec.md`, `05_Security_and_NFR.md` |
+| Owns | Package format/manifest schema, the thin runtime client bundled in the package, the public routing API client contract |
+| Does Not Own | Relay authorization, routing/model selection, billing (all server-side in M05/M06/M07) |
+| Dependencies | M02 (package build), M05 (public routing API), M06 |
+
+**Work Items**
+
+- Define the package format: zip containing manifest, `instruction_template`, and the thin runtime client.
+- Implement the runtime client whose core work step calls the DeepRouter public routing/execution API with `skill_id`, user input, and the runner's own credential.
+- Read the runner's DeepRouter credential from the runner's environment; on missing/invalid credential surface `AUTH_REQUIRED` with a signup/onboarding prompt; no offline fallback execution.
+- Send exactly one `skill_id`; never send trusted Kids state, `user_id`, or `tenant_id` (Relay derives identity from the credential).
+- Map standard error codes to friendly client-side messages.
+- Ensure the package carries no provider credentials, server routing logic, or billing policy.
+
+**Public Routing API Call Contract**
+
+```json
+{
+  "model": "model_id",
+  "messages": [{"role": "user", "content": "..."}],
+  "deeprouter": {
+    "skill_id": "6e3f...",
+    "skill_version_id": "..."
+  }
+}
+```
+
+Headers: `Authorization: Bearer <runner DeepRouter key>` (identity/billing bound to this credential, server-side).
+
+**Acceptance**
+
+- A downloaded package runs only when the runner provides a valid DeepRouter credential; otherwise it fails with `AUTH_REQUIRED` and prompts signup.
+- The package's real work goes through the DeepRouter routing API; removing that call removes the Skill's routing capability (runtime-dependency moat holds).
+- Each call is attributed/billed to the runner's credential, not to the original downloader.
+- Locked, disabled, unauthorized, archived, quota, and Kids states return a Relay block response surfaced by the client.
+- Client-provided `is_kids_session`/identity is never trusted and is ignored by Relay.
 
 ---
 
@@ -324,29 +355,27 @@ Each module must be implemented with this contract:
 
 **Work Items**
 
-- Accept Skill execution requests from external AI clients via `POST /v1/skills/execute/{skill_id}` with `Authorization: Bearer <api_key>`; `skill_id` must come from URL path only — request body `skill_id` fields are discarded (T-24).
-- Accept Admin preview requests via `/api/v1/admin/skills/{skill_id}/preview`; Super Admin session token required; `entry_point=admin_preview`.
-- Do NOT accept `deeprouter.skill_id` from Playground request body as a user execution path — this contract is removed in V1.
-- Resolve authenticated user, tenant, session, subscription, plan, and server-derived Kids state.
+- Expose the public routing/execution API and accept `deeprouter.skill_id` from the downloaded package (and Admin Preview) in V1.
+- Resolve authenticated runner (user, tenant, session, subscription, plan) from the validated credential, plus server-derived Kids state.
 - Apply feature flag and kill switch checks.
 - Validate lifecycle, enabled state, entitlement, quota, rate limit, Kids policy, model whitelist, provider capability, context size, and timeout before provider call.
 - Compute `effective_allowed_models = intersection(user_plan_allowed_models, skill model whitelist snapshot)` and route only within that set.
 - Enforce the immutable `max_input_tokens_snapshot` selected at request entry for Free Skills and free-quota paths before provider call, in addition to provider context limits.
 - **Stateless single-turn enforcement (FR-G19)**: Strip any client-supplied conversation history fields at Relay entry. Provider call must include only `instruction_template` + current user input. No prior-turn messages may be forwarded to the provider.
 - **Identity immutability (T-21)**: Extract `user_id` and `tenant_id` exclusively from validated auth token claims. Discard and overwrite any client-supplied `tenant_id`, `user_id`, or equivalent fields in request body, query params, or non-auth headers before constructing any analytics event, billing record, quota key, or cache key.
-- Load immutable execution snapshot and `skill_version_id`.
-- Inject `instruction_template` server-side only.
+- Load immutable execution snapshot and `skill_version_id` (server-authoritative; package-supplied template/routing hints are not trusted over the server snapshot).
+- Perform routing/model selection server-side and construct the provider call (the proprietary capability the package depends on).
 - Execute provider/model HTTP calls outside database transactions and without holding pooled DB connections.
 - Use conservative token/context estimation across all allowed fallback models, with at least 20% safety buffer for cross-provider fallback.
 - Preserve policy precedence: Kids hard constraints > platform policy > tenant policy > Skill instruction > user message.
-- Keep smart-router blind to `instruction_template`, billing policy, and sensitive Skill details.
+- Keep smart-router blind to billing policy, provider credentials, and tenant-sensitive details (the published `instruction_template` is no longer secret).
 - For Kids Session, keep real `user_id` in runtime context for auth/quota/rate-limit/billing while emitting analytics with `user_id=NULL` and `session_id=kids_session_pseudo_id`.
 - Emit usage, blocked, timeout, safety, and billing attribution events through the appropriate modules.
 
 **Acceptance**
 
-- Relay never loads/injects prompt if a pre-injection check fails.
-- User APIs, UI, logs, errors, billing, analytics, audit, and provider logs do not leak prompt text.
+- Relay never performs provider execution if a pre-execution check fails.
+- User APIs, UI, logs, errors, billing, analytics, audit, and provider logs do not leak provider credentials, provider raw payloads, raw user input, PII, or Kids sensitive input.
 - Model routing never falls back outside the Skill whitelist.
 - Model routing never falls back outside the user's plan-allowed model set.
 - Model routing never falls back to a provider/model whose conservative context budget would overflow.
@@ -356,7 +385,7 @@ Each module must be implemented with this contract:
 
 **Risks**
 
-- Provider adapters without reliable system boundary cannot run Kids, Pro-gated, high-sensitivity, or prompt-protected Skills unless Security approves.
+- Provider adapters without reliable system boundary cannot run Kids, Pro-gated, or high-sensitivity Skills unless Security approves.
 - Streaming support is P1 unless declared launch P0.
 
 ---
@@ -548,32 +577,37 @@ Each module must be implemented with this contract:
 
 ---
 
-### M11. Security, Prompt Protection, and Audit
+### M11. Security, Package Boundary, and Audit
+
+> **R2 reframe (D-09)**: prompt confidentiality is no longer the security boundary — the published `instruction_template` ships inside the downloadable package and is expected to be readable/copyable. The moat is now **(a)** keeping provider credentials and the server-side routing/model-selection logic off the package and off all non-Super-Admin surfaces, and **(b)** per-call authentication + billing integrity so every run is attributed to a real, billable runner credential.
 
 | Field | Definition |
 |---|---|
 | Priority | P0 |
 | Primary Agent | Security Agent |
-| Inputs | `05_Security_and_NFR.md`, `03_Data_Model_and_API_Spec.md`, all modules touching prompt/logs/events |
-| Owns | Prompt protection controls, telemetry redaction, RBAC hardening, audit policy, security tests |
+| Inputs | `05_Security_and_NFR.md`, `03_Data_Model_and_API_Spec.md`, all modules touching secrets/logs/events/package build |
+| Owns | Package-content boundary, provider-secret protection, telemetry redaction (non-template), credential/identity integrity, RBAC hardening, audit policy, security tests |
 | Does Not Own | Product copy, dashboard metric formulas, billing reconciliation |
-| Dependencies | M01, M02, M05, M08, M09 |
+| Dependencies | M01, M02, M04, M05, M08, M09 |
 
 **Work Items**
 
-- Enforce prompt absence across APIs, logs, errors, analytics, billing, audit, exports, support views, provider logs, and streaming output.
-- Implement or specify output leakage guard and prompt extraction tests.
-- Enforce structured user input separation; no user input interpolation into system prompt.
-- Implement admin prompt access audit.
+- Enforce that the package and all non-Super-Admin surfaces never contain provider credentials, server routing/model-selection logic, or draft templates.
+- Enforce identity/billing integrity: runner identity comes only from the validated credential; package-supplied `user_id`/`tenant_id`/Kids fields are discarded (T-21 immutability).
+- Enforce telemetry redaction for provider raw payloads, raw user input, PII, and Kids sensitive input (no longer for `instruction_template`).
+- Enforce structured user input separation; no user input interpolation into the system prompt.
+- Implement admin audit for template edits, version creation, and package builds.
 - Enforce tenant isolation tests across API, Relay, cache, analytics, and audit.
 - Define provider SDK logging restrictions.
 - Define telemetry restricted-key rejection rules.
+- Define abuse controls for the public routing API (key abuse, credential sharing, runaway packages).
 
 **Acceptance**
 
-- No non-Super-Admin surface returns `instruction_template`.
-- Audit records use hashes and changed field names, not prompt text.
-- Jailbreak/prompt extraction corpus passes launch threshold.
+- No surface and no package ever expose provider credentials or server routing internals.
+- Identity/billing cannot be spoofed by package-supplied fields; runner credential is authoritative.
+- Audit records use hashes and changed field names for sensitive server-side config; template edits and package builds are audited.
+- Public routing API abuse and credential-sharing controls pass launch threshold.
 - Cross-tenant access tests pass.
 - Security sign-off is required before M15 GA.
 
@@ -684,7 +718,7 @@ Each module must be implemented with this contract:
 - Every launch Skill has at least one example input and output.
 - Skill Detail renders correct locale fallback.
 - User-facing copy does not expose internal implementation terms.
-- Prompt text is never included in public content, examples, or exports.
+- Provider credentials and server routing internals are never included in public content, examples, exports, or the package; the published template may appear in the package by design.
 
 ---
 
@@ -708,7 +742,7 @@ Each module must be implemented with this contract:
 - Stage 2 GA.
 - E2E acceptance suite across Admin -> Marketplace -> Playground -> Relay -> Billing/Analytics/Ops.
 - Load and NFR test.
-- Security regression: prompt leakage, RBAC, tenant isolation, jailbreak, Kids spoof.
+- Security regression: provider-secret/routing-logic leakage, package-content boundary, identity/billing spoofing, RBAC, tenant isolation, public routing API abuse, Kids spoof.
 - Legal/Privacy release gates: provider DPA/security terms, data retention, output/IP/copyright terms.
 - Finance reconciliation test if charging enabled.
 - Incident runbook and support training.
@@ -728,8 +762,8 @@ Each module must be implemented with this contract:
 - All enabled P0 module acceptance criteria pass.
 - Marketplace feature flag can disable public entry without deleting data.
 - Emergency archive and kill switches prevent new Skill execution after urgent cache invalidation/broadcast.
-- Prompt leakage, Kids safety, rate limit, timeout, billing idempotency, and alert tests pass.
-- Support can diagnose common lock/error states by request id without prompt exposure.
+- Provider-secret/routing-logic leakage, identity/billing spoofing, Kids safety, rate limit, timeout, billing idempotency, and alert tests pass.
+- Support can diagnose common lock/error states by request id without exposing provider payloads or raw user input.
 
 ---
 
@@ -741,15 +775,15 @@ Each module must be implemented with this contract:
 |---|---|---|
 | M00 | None | All modules |
 | M01 | M00 | M02-M12 |
-| M02 | M01, M11 | M03, M05, M10, M14 |
-| M03 | M01, M06, M08 | M13 |
-| M04 | V1 移除 — N/A | N/A |
+| M02 | M01, M11 | M03, M04, M05, M10, M14 |
+| M03 | M01, M06, M08 | M04, M13 |
+| M04 | M02, M05, M06 | M05, M08 |
 | M05 | M01, M06, M11, M12 | M07, M08, M10 |
-| M06 | M00, M01, M05 | M03, M05, M08 |
+| M06 | M00, M01, M05 | M03, M04, M05, M08 |
 | M07 | M01, M05, M06 | M09, M15 |
 | M08 | M01, M03, M05, M06, M07, M11 | M09, M13, M15 |
 | M09 | M07, M08, M11 | M15 |
-| M10 | M00, M02, M05, M06, M11, M12 | M03, M08, M15 |
+| M10 | M00, M02, M05, M06, M11, M12 | M03, M04, M08, M15 |
 | M11 | M01, M02, M05, M08, M09 | All modules touching sensitive data |
 | M12 | M05, M06, M07, M08, M11 | M15 |
 | M13 | M03, M08, M09 | M15 |
@@ -765,8 +799,9 @@ M00
 M01 ---------------------> M08 -----> M09 ----+
  |                         ^         ^        |
  |                         |         |        |
- +-> M02 -----> M03 -----> M13 ------+        |
- |     |          |                            |
+ +-> M02 -----> M03 -----> M04       |        |
+ |     |          |         |         |        |
+ |     |          +-------> M13 ------+        |
  |     |                                      |
  |     +-------> M10 <----------------+       |
  |                ^                   |       |
@@ -789,10 +824,10 @@ All enabled P0 modules -> M15 -> Launch
 |---|---|---|
 | Epic A. Foundation and Data | M00, M01 | Sprint 0 decisions and schema/API foundation |
 | Epic B. Admin Supply | M02, M14 | Official Skill creation and launch content |
-| Epic C. User Marketplace | M03, M16 | Browse, enable, My Skills, Tool Spec Download |
+| Epic C. User Marketplace | M03, M04 | Browse, download, My Skills, package & runtime client |
 | Epic D. Gateway Execution | M05, M06 | Relay, entitlement, quota, provider boundary |
 | Epic E. Billing and Business Loop | M07, M08, M09 | Billing attribution, events, dashboards |
-| Epic F. Safety and Trust | M10, M11 | Kids safety, prompt protection, RBAC, audit |
+| Epic F. Safety and Trust | M10, M11 | Kids safety, package boundary & provider-secret protection, identity/billing integrity, RBAC, audit |
 | Epic G. Reliability and Release | M12, M15 | NFR, rollout, runbook, launch gates |
 | Epic H. Growth P1 | M13 | Rails and growth entry points after P0 closure |
 
@@ -803,9 +838,9 @@ All enabled P0 modules -> M15 -> Launch
 | Sprint | Goal | Modules |
 |---|---|---|
 | Sprint 0 | Scope and architecture freeze | M00 |
-| Sprint 1a | Data/API and admin foundation | M01, M02 skeleton, M11 prompt/audit baseline |
+| Sprint 1a | Data/API and admin foundation | M01, M02 skeleton incl. package build, M11 package-boundary/audit baseline |
 | Sprint 1b | Execution and authorization core | M05, M06, M07 baseline, M12 timeout/rate/context |
-| Sprint 2 | User flow closure | M03, M16, M02 publish/preview completion, M08 event instrumentation |
+| Sprint 2 | User flow closure | M03, M04, M02 publish/preview completion, M08 event instrumentation |
 | Sprint 3 | Ops, safety, and data quality | M08 data quality, M09 P0 dashboards, M10 if enabled, M14 launch content |
 | Sprint 4 | Hardening and launch | M12 load/alerts/cache, M15, M13 only if P0 is stable |
 
@@ -816,16 +851,16 @@ All enabled P0 modules -> M15 -> Launch
 If scope must be compressed, retain only this P0 loop:
 
 1. Super Admin creates, previews, and publishes official Skill.
-2. Public/user APIs expose only public Skill metadata.
-3. User browses Marketplace, views Detail, enables/disables allowed Skill.
-4. My Skills shows executable, locked, deprecated, and unavailable states.
-5. User downloads tool spec (OpenAPI / MCP) from Skill Detail and installs into external AI client (ChatGPT / Gemini / Claude); external AI client calls `POST /v1/skills/execute/{skill_id}` with user's API Key.
-6. Relay validates auth, tenant, lifecycle, enabled state, entitlement, quota, Kids state if enabled, model whitelist, rate limit, timeout, and context before prompt injection.
-7. Relay injects `instruction_template` server-side only.
+2. Publish produces a versioned downloadable package (manifest + template + thin client) with no provider secrets.
+3. User browses Marketplace, views Detail, downloads allowed Skill package.
+4. My Skills shows downloaded, executable, locked, deprecated, and unavailable states.
+5. The downloaded package calls the DeepRouter public routing API with the runner's own credential; one `skill_id` per call.
+6. Relay validates credential, tenant, lifecycle, download/entitlement state, quota, Kids state if enabled, model whitelist, rate limit, timeout, and context before provider execution.
+7. Relay performs routing/model selection and executes server-side; provider credentials never leave the server.
 8. Billing attribution is recorded for successful billable executions only.
 9. Analytics records impression, detail, enable, disable, first use, use, repeat use, blocked, timeout, admin action, and safety events where applicable.
 10. Ops Dashboard shows Top Skills, funnel, blocked attempts, and revenue attribution.
-11. Prompt is absent from all non-Super-Admin surfaces and telemetry.
+11. Provider credentials, server routing logic, provider raw payloads, raw user input, and PII are absent from all non-Super-Admin surfaces and telemetry (the published template may appear in the package by design).
 12. Kids safety hard block is enabled if Kids feature is enabled; otherwise Kids feature flag remains off.
 13. Rate limit, timeout, token/context overflow, cache invalidation, circuit breaker, and alerts pass launch tests.
 14. Feature flags and kill switches can disable Marketplace, execution, one Skill, Kids mode, provider path, billing path, and recommendation rails.

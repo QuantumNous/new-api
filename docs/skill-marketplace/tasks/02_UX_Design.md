@@ -12,11 +12,8 @@
 
 | Decision | V1 UX Baseline |
 |---|---|
-| Skill 使用路径 | 下载 tool spec 是唯一路径；普通用户没有 Playground Skill 执行入口 |
-| Tool Spec Download | P0 — Skill Detail 和 My Skills 页面提供 tool spec 下载（OpenAPI / MCP）和平台安装引导 |
-| External AI Client Invocation | P0 — 外部 AI 客户端用 API Key 调用 DeepRouter Skill API |
-| Playground Skill Picker | 不对用户暴露；Playground 保持通用聊天界面 |
-| Unauthenticated Public Skill API | 不支持；所有 Skill API 调用需要有效 API Key |
+| Distribution & execution (D-09) | Marketplace offers downloadable SKILL.md-compatible zip packages; Detail shows a Download CTA with installation instructions ("Extract to .claude/skills/ and use /skillname"). DeepRouter does not execute Skills. Admin Preview retained for Admin testing only |
+| No runtime dependency | Skills run locally with any LLM; Detail page must NOT state "requires DeepRouter key to run"; instead show "Works with Claude Code and other compatible tools" |
 | Kids Mode | Closed beta / feature-flagged by default until Product + Safety declare GA |
 | Kids UI when flag off | Hide Kids filters and Kids-exclusive browsing entry from normal users |
 | Kids UI when flag on | Apply all Kids blocked, Kids Safe, Kids Exclusive states in this spec |
@@ -33,8 +30,8 @@
 
 | Principle | Requirement |
 |---|---|
-| Hosted Execution, Tool Spec Available | UI 提供 tool spec（schema + endpoint）下载和平台安装引导；不得暗示执行逻辑（instruction_template / execution_handler）可查看或下载 |
-| Use-Time Entitlement | 启用不等于永久可用；UI 必须显示当前执行可用性 |
+| Downloadable Capability, Server-Side Moat | UI 鼓励下载 Skill 包；可读模板不是机密，但 UI 不得暗示用户可获得 provider 凭证或绕过 DeepRouter 运行 |
+| Use-Time Entitlement | 下载不等于永久可用；UI 必须显示当前执行可用性，并提示运行需 DeepRouter key |
 | Safety First | Kids / policy / entitlement block 必须清晰、克制、不可绕过 |
 | Operations Ready | Admin / Ops 页面必须支持排查、审计、筛选和追踪 |
 | Clear State Over Clever UI | 所有 locked、expired、deprecated、archived、quota、error 状态必须明确 |
@@ -51,7 +48,7 @@
 |---|---|---|---|
 | Skills / Marketplace | `/skills` | Anonymous, User, Admin, Ops | Browse and discover Skills |
 | My Skills | `/skills/my` | Logged-in users | Manage enabled Skills |
-| Playground | `/playground` | Logged-in users | General chat only — no Skill execution for normal users; Admin uses admin_preview endpoint separately |
+| Playground | `/playground` | Logged-in users | Execute Skills |
 | Admin Skills | `/admin/skills` | Super Admin | Create and operate official Skills |
 | Skill Analytics | `/admin/skill-analytics` or `/ops/skills` | Operation, Product/Growth, Super Admin | Monitor usage and revenue |
 | Skill Reviews | `/ops/skill-reviews` | Operation, Super Admin | Review quality, safety, blocked issues |
@@ -63,7 +60,7 @@
 | Marketplace | Public fields | Full user view | Full user view | Full user view | Full user view | Full user view | Full user view |
 | Skill Detail | Public fields | Full user view | Full user view | Full user view | Full user view | Full user view | Full user view |
 | My Skills | No | Own only | No | No | No | Assisted user read-only | Any user if audited |
-| Playground Skill Picker | No | No（用户无此功能） | No | No | No | No | Admin preview only |
+| Playground Skill Picker | No | Yes | No | No | No | No | Preview/test only |
 | Admin Skill Management | No | No | No | No | No | No | Yes |
 | Skill Analytics | No | No | Aggregate view | Aggregate view | Safety subset | Limited diagnostic | Full |
 | Skill Reviews | No | No | Yes | Read-only | Safety subset | No | Yes |
@@ -140,14 +137,14 @@ Help users discover official Skills and understand whether each Skill is usable 
 | Anonymous + Free Skill | Public card, no enabled state | Log in to enable |
 | Anonymous + Pro Skill | Public card with Pro badge | Log in to continue |
 | Logged-in + Free + not enabled | Available | Enable |
-| Logged-in + Free + enabled | Enabled badge | Download Tool Spec |
+| Logged-in + Free + enabled | Enabled badge | Use in Playground |
 | Logged-in + Pro + Free user | Locked with Pro badge | Upgrade |
-| Logged-in + Pro + Pro user | Available | Enable or Get Tool Spec |
+| Logged-in + Pro + Pro user | Available | Enable or Use |
 | Subscription expired | Locked with renewal reason | Renew |
 | Enterprise Skill + non-enterprise | Enterprise badge | Contact sales |
 | Quota exceeded | Locked state with quota message and reset time when available | Upgrade |
 | Deprecated + not enabled | Hidden from Marketplace | None |
-| Deprecated + enabled | Not in Marketplace; visible in My Skills | Get Tool Spec (deprecated) |
+| Deprecated + enabled | Not in Marketplace; visible in My Skills | Use with warning |
 | Archived | Hidden from Marketplace | None |
 | Kids Session + unsafe Skill | Hidden from discovery; direct access shows Kids blocked state | None |
 
@@ -185,8 +182,7 @@ Help users understand what the Skill does, what input it needs, what output to e
 | Input Hints | Structured examples and suggested fields |
 | Example Input / Output | At least one representative example |
 | Pricing / Entitlement | Free/Pro/Enterprise, quota message when quota is enabled |
-| Safety & Privacy | Hosted execution statement, AI-generated disclosure, data note |
-| Tool Spec Download | Download tool spec (OpenAPI / MCP) and one-click install guides for ChatGPT, Gemini, Claude — visible only to enabled users |
+| Safety & Privacy | Hosted prompt statement, AI-generated disclosure, data note |
 | Kids Mode | Kids Safe / Kids Exclusive explanation when Kids feature flag is enabled |
 | CTA Bar | Primary and secondary actions based on CTA decision table |
 | Related Skills | P1; excludes archived/deprecated |
@@ -196,25 +192,32 @@ Help users understand what the Skill does, what input it needs, what output to e
 | User / Skill State | Primary CTA | Secondary CTA | Notes |
 |---|---|---|---|
 | Anonymous | Log in to enable | Back to Marketplace | Preserve return URL |
-| Logged-in + not enabled + allowed | Enable Skill | Back | After enable, show Download Tool Spec CTA immediately |
-| Enabled + executable | Download Tool Spec | Disable | Download shows format selector (OpenAPI / MCP) and platform install guides |
+| Logged-in + not enabled + allowed | Enable Skill | Back | After enable, show Use in Playground |
+| Enabled + executable | Use in Playground | Disable | Preselect Skill in Playground |
 | Free user + Pro Skill | Upgrade to Pro | Back | Do not enable automatically unless Product decides |
 | Expired subscription | Renew membership | Back | Skill remains in My Skills |
 | Enterprise Skill + not entitled | Contact sales | Back | No fake enable state |
 | Quota exceeded | Upgrade | Back | Show quota reset if available; may preview Pro value without implying entitlement |
-| Deprecated + enabled | Get Tool Spec (deprecated) | Disable | Show deprecation notice; warn that Skill may be removed |
+| Deprecated + enabled | Use with warning | Disable | Show deprecation notice |
 | Deprecated + not enabled | Unavailable | Back | No enable CTA |
 | Archived | Unavailable | Back | No execution CTA |
 | Kids blocked | Not available in Kids Mode | Back | No switch-mode CTA in V1 |
 
-#### 4.2.4 Privacy and Hosted Prompt Copy
+#### 4.2.4 Privacy and Runtime-Dependency Copy
 
 Use concise user-facing copy:
 
 ```text
-This Skill is hosted by DeepRouter. Its execution instructions are not visible or downloadable.
-The tool schema (input/output format) is available as a downloadable spec file for installation
-into ChatGPT, Gemini, or Claude. Generated results are AI-assisted and should be reviewed before use.
+Download this Skill to use it in your own environment.
+Extract the zip to .claude/skills/ and use /skillname in Claude Code — or any compatible tool.
+Generated results are AI-assisted and should be reviewed before use.
+```
+
+Installation instruction block (shown after download):
+```text
+1. Extract the zip to your .claude/skills/ directory
+2. Type /skillname in Claude Code to use it
+3. Works with any Claude Code-compatible tool
 ```
 
 For China-facing surfaces, include required AI-generated content disclosure as product UI text, not model output.
@@ -233,17 +236,17 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 |---|---|
 | Header | Title, count of enabled Skills |
 | Filters | All, Available, Locked, Deprecated |
-| List/Table | Skill, status, required plan, last used, enabled date, actions（Get Tool Spec / Disable）— 按行状态详见 §4.3.3 |
+| List/Table | Skill, status, required plan, last used, enabled date, actions |
 | Empty State | Prompt user to explore Marketplace |
 
 #### 4.3.3 Row States
 
 | State | UX | Actions |
 |---|---|---|
-| Enabled + executable | Normal row | Get Tool Spec, Disable |
+| Enabled + executable | Normal row | Use, Disable |
 | Enabled + plan locked | Locked badge and reason | Upgrade/Renew, Disable |
 | Enabled + quota exceeded | Quota badge with reset time if available | Upgrade, Disable |
-| Deprecated enabled | Warning badge | Get Tool Spec (deprecated), Disable |
+| Deprecated enabled | Warning badge | Use with warning, Disable |
 | Archived | Unavailable badge | Remove/Disable |
 | Kids blocked | Kids unavailable badge | Disable |
 
@@ -251,50 +254,56 @@ Let users manage enabled Skills and understand which Skills can be executed now.
 
 ```text
 No Skills enabled yet.
-Explore Marketplace to find and enable Skills, then download and install them in ChatGPT, Gemini, or Claude.
+Explore Marketplace to add Skills to your Playground.
 ```
 
 Primary action: `Explore Skills`.
 
 ---
 
-### 4.4 ~~Playground Skill Picker~~ — V1 不适用
+### 4.4 Playground Skill Picker (Legacy — Removed in D-09)
 
-> 普通用户没有在 DeepRouter Playground 内执行 Skill 的 UI。Playground 保持原有的通用聊天界面，不显示 Skill Picker。用户使用 Skill 的唯一路径是从 Skill Detail / My Skills 下载 tool spec，安装到自己的 ChatGPT / Gemini / Claude 中使用。
+> **Note:** In-platform Playground execution is not the V1 end-user execution surface. Users run downloaded Skill packages locally with any LLM. Admin Preview is retained for Admin testing only. This section is retained for historical reference; do not implement as end-user flow.
 
-### 4.4a Tool Spec Download Flow（V1 P0）
+---
 
-#### Goal
+### 4.4-Legacy Playground Skill Picker
 
-用户启用 Skill 后，引导其下载 tool spec 并安装到外部 AI 客户端。
+#### 4.4.1 Goal
 
-#### Download Dialog
+Allow users to apply exactly one enabled Skill to a Playground request while making entitlement and safety state clear before submission.
 
-用户点击「Download Tool Spec」后弹出对话框，包含：
+#### 4.4.2 Placement
 
-| 区域 | 内容 |
-|---|---|
-| 格式选择 | OpenAPI 3.1（适用 ChatGPT / Gemini）/ MCP（适用 Claude） |
-| 平台安装引导 | 根据选择展示对应平台的分步安装说明 |
-| API Key 提示 | 提示用户在 AI 客户端的 tool 配置中填入自己的 DeepRouter API Key |
-| 下载按钮 | 下载对应格式的 spec 文件 |
-| 复制端点 URL | 一键复制 DeepRouter Skill API endpoint |
+- Desktop: near model selector and above input composer.
+- Mobile: collapsible selector above composer; selected Skill remains visible.
+- Picker must not resize the message composer unexpectedly.
 
-#### Platform Install Guides
+#### 4.4.3 Picker States
 
-| 平台 | 安装方式 |
-|---|---|
-| ChatGPT | Custom Actions → Import from URL 或上传 OpenAPI JSON |
-| Gemini | Google AI Studio Function Tools → 导入 OpenAPI spec |
-| Claude | MCP config → 添加 tool spec JSON |
+| State | UI Behavior | Submit Behavior |
+|---|---|---|
+| No Skill selected | Compact empty selector | Normal non-Skill request |
+| Skill selected + executable | Selected chip/card with clear button | Submit with `skill_id` |
+| Skill selected + locked | Error/locked inline state | Submit disabled or blocked with error |
+| Skill not enabled | Show Enable action | Submit blocked until enabled |
+| Plan required | Lock badge + Upgrade CTA | Submit blocked |
+| Subscription expired | Renew CTA | Submit blocked |
+| Quota exceeded | Quota message with reset time if available | Submit blocked; show upgrade CTA outside prompt input |
+| Kids blocked | Kids Mode unavailable message | Submit blocked |
+| Deprecated enabled | Warning badge | Submit allowed |
+| Archived | Unavailable state | Submit blocked; prompt user to clear |
+| Context too long | Inline warning after estimate | Submit blocked or requires shorten input |
+| Rate limited | Retry-after message | Submit blocked until retry |
+| Timeout after submit | Error banner with retry | Retry allowed |
 
-#### States
+#### 4.4.4 Interaction Rules
 
-| 状态 | UI |
-|---|---|
-| Skill 已启用 | Download Tool Spec 为主 CTA |
-| Skill 未启用 | 先完成 Enable 流程再进入下载 |
-| Skill deprecated | 下载可用，附带「此 Skill 已废弃」提示 |
+- Selecting a Skill clears any previously selected Skill.
+- Clearing a Skill returns to normal Playground request mode.
+- Skill Detail deep link can preselect Skill only after enable flow succeeds.
+- Client-provided Kids flags are never shown as trusted state.
+- Relay errors must map to UX error states using stable error codes.
 
 ---
 
@@ -310,7 +319,7 @@ Primary action: `Explore Skills`.
 
 Rules:
 - Do not imply payment if the action only records interest or opens contact-sales.
-- Return path must preserve the Skill Detail or My Skills context.
+- Return path must preserve the Skill Detail or Playground context.
 - Blocked requests must not show success-like toast messages.
 
 ---
@@ -380,7 +389,7 @@ Publish button is disabled until all required checks pass:
 - `max_input_tokens` set when `required_plan='free'`, `monetization_type='free'`, or `free_quota_per_month` is configured. The field must appear in the Editor and show a validation error if blank for these configurations.
 - Model whitelist set.
 - Preview test completed successfully.
-- No visible prompt leakage in preview.
+- Package build succeeds and contains no provider credentials or server routing logic (R2).
 - Kids approval complete if Kids flags are set.
 - Reason captured for publish.
 
@@ -461,7 +470,11 @@ Support internal review workflows for quality, low activation, safety signals, a
 | `PlanBadge` | Free, Pro, Enterprise |
 | `KidsBadge` | Kids Safe, Kids Exclusive, Pending, Blocked |
 | `LockState` | plan_required, subscription_inactive, quota_exceeded, kids_blocked |
-| `SkillCTA` | view, enable, use, upgrade, renew, contact_sales, unavailable |
+| `SkillCTA` | view, download, upgrade, renew, contact_sales, unavailable |
+| `SkillActions` | save, unsave, favorite, unfavorite, rate, report |
+| `RatingWidget` | 1-5 stars, optional comment (280 chars max), submit/update |
+| `EvaluationBadge` | passed, failed, warning, pending; separate from verified badge |
+| `VerifiedBadge` | human-reviewed, shown on detail and card |
 | `SkillPicker` | empty, selected, locked, error, loading |
 | `EmptyState` | search, category, my-skills, analytics, feature-off |
 | `ErrorBanner` | retryable, non-retryable, request-id |
@@ -537,7 +550,8 @@ Support internal review workflows for quality, low activation, safety signals, a
 
 | State | Example Copy |
 |---|---|
-| Hosted prompt | This Skill is hosted by DeepRouter. Its internal instructions are not visible or downloadable. |
+| Runtime dependency | Download to use. Running this Skill requires a DeepRouter API key; it routes its work through DeepRouter. |
+| Needs key | You need a DeepRouter API key to run this Skill. Sign up or add your key to continue. |
 | AI generated disclosure | Generated by AI. Review before use. |
 | Pro locked | This Skill requires Pro. |
 | Enterprise locked | This Skill requires Enterprise access. |
@@ -558,9 +572,8 @@ Quota-exceeded copy may add a reset date/time and a Pro upgrade CTA only when th
 | Marketplace Card | `skill_impression`, `entry_point=marketplace_card` |
 | Marketplace CTA | `skill_detail_view` or `skill_enabled` with source |
 | Skill Detail CTA | Existing events only: `skill_enabled`, `skill_blocked`; upgrade clicks use billing/growth event only if already defined |
-| My Skills Tool Spec Download | `skill_spec_downloaded` with `entry_point=my_skills`（普通用户从 My Skills 下载 tool spec；实际执行在外部 AI 客户端，触发 `entry_point=external_ai_client`）|
-| Tool Spec Download | `skill_spec_downloaded` with `format`（openapi/mcp）和 `platform` hint（P1）|
-| External AI Client Execution | `skill_used` / `skill_blocked` with `entry_point=external_ai_client`（P0）|
+| My Skills Use | `skill_used` with `entry_point=my_skills` after execution |
+| Playground Picker | Do not introduce `skill_selected` in P0; include `entry_point=playground_picker` in execution/block events |
 | Locked CTA | `skill_blocked` and upgrade/contact-sales click |
 | Admin Publish | `skill_admin_action` |
 | Review Action | P1; requires Analytics event approval |
@@ -574,11 +587,11 @@ No tracking payload may include `instruction_template` or Kids sensitive raw inp
 
 ### 10.1 P0 UX Acceptance
 
-1. Anonymous users can browse public Marketplace and Skill Detail, but cannot enable or execute.
-2. Logged-in users can enable, disable, and view My Skills.
+1. Anonymous users can browse public Marketplace and Skill Detail, but cannot download (Download CTA routes to login/signup).
+2. Logged-in users can download, remove from My Skills, and view My Skills.
 3. Marketplace cards show plan, availability, and correct CTA for Free/Pro/Enterprise states.
-4. Skill Detail shows examples, hosted prompt copy, AI disclosure, and correct CTA.
-5. Playground Picker supports zero or one selected Skill and shows lock/error states.
+4. Skill Detail shows examples, runtime-dependency copy (needs a DeepRouter key), AI disclosure, and correct Download CTA.
+5. The downloaded package surfaces lock/error states and prompts signup on `AUTH_REQUIRED`.
 6. Archived Skills have no enable/use CTA.
 7. Deprecated enabled Skills appear only in My Skills and show warning; execution CTA appears only when backend returns executable state.
 8. Kids UI is hidden when Kids feature flag is off; Kids blocked state is visible and non-bypassable when Kids feature flag is on.

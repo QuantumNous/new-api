@@ -20,7 +20,7 @@
 
 | Area | CTO Verdict | Notes |
 |---|---|---|
-| Product Direction | GO | Official hosted Skill Marketplace positioning is clear |
+| Product Direction | GO (R2 re-scoped) | Downloadable Skill-package marketplace; moat = runtime DeepRouter dependency + own-key auth/billing (D-09). Prompt confidentiality dropped |
 | Module PRD Quality | GO | `01-07` are now enterprise-level modular specs |
 | Sprint Planning | GO with defaults | Sprint 0 decisions are defaulted for planning; owner sign-off still required before affected implementation starts |
 | Implementation | CONDITIONAL GO | Per-module implementation can start when that module's defaulted decisions, dependencies, and security gates are accepted |
@@ -61,9 +61,9 @@ No module may be marked Sprint Ready unless:
 
 | Topic | Required Unified Decision | Current Status | Owner | Source |
 |---|---|---|---|---|
-| V1 execution surface | External AI clients only (ChatGPT / Gemini / Claude via tool call with API Key); tool spec download P0; normal user Playground Skill execution **移除**; Admin 仅可用 `admin_preview` 端点测试; unauthenticated public Skill API not supported | **Aligned** | Product + Backend | FRD, UX, Data/API, Security, WBS |
+| V1 execution surface | Downloaded package → public routing API (R2/D-09); Admin Preview retained; in-platform Playground execution replaced | Aligned | Product + Backend | FRD, UX, Data/API, WBS |
 | Skill supply | Official curated Skills only | Aligned | Product | FRD, WBS |
-| Prompt protection | `instruction_template` server-side only; never in user/ops/log/analytics/billing/export | Aligned | Security + Backend | FRD, Data/API, Security |
+| Platform IP protection (R2) | Published `instruction_template` ships in package (not protected); provider credentials + server routing/model-selection logic + identity/billing integrity are the protected boundary | Aligned | Security + Backend | FRD, Data/API, Security |
 | Lifecycle status | `draft`, `published`, `deprecated`, `archived`; `featured` is a flag | Aligned | Backend + Product | FRD, Data/API |
 | Featured/rails | P1 except optional configured Featured | Aligned | Product + Growth | UX, Analytics, WBS |
 | Kids mode | Conditional P0 if enabled; otherwise closed beta/off by default | Defaulted for Sprint Planning | Product + Safety + Legal | FRD, UX, Security, WBS |
@@ -78,7 +78,7 @@ No module may be marked Sprint Ready unless:
 | Rate limit vs quota | Business quota may be compensated; rate-limit buckets, concurrency tokens, and abuse counters are never refunded | Aligned | SRE + Security + Backend | Security, WBS, Compliance |
 | Error codes | Stable `SKILL_*` codes plus `AUTH_REQUIRED` | Aligned | Backend + Frontend | FRD, Data/API, UX |
 | Block reasons | Lowercase enum in data model; API exposes stable error code | Aligned with implementation note | Backend + Data | FRD, Data/API |
-| Entry points | `marketplace_card`, `skill_detail`, `my_skills`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `external_ai_client`, `api_direct`（`playground_picker` 已移除，用户无 Playground Skill 执行路径） | **Updated** | Data + Frontend | Data/API, Analytics, UX |
+| Entry points | `marketplace_card`, `skill_detail`, `my_skills`, `playground_picker`, `featured`, `popular`, `new`, `recommended`, `admin_preview` | Aligned | Data + Frontend | Data/API, Analytics, UX |
 | Analytics timestamp | Event `timestamp` maps to DB `occurred_at` | Aligned | Data | Data/API, Analytics, WBS |
 | Metadata privacy | `metadata` allowlist; reject restricted keys | Aligned | Data + Security | Analytics, Security |
 | RBAC | `/admin/*` Super Admin; `/ops/*` aggregate Ops/Product views | Aligned | Security + Backend | FRD, Data/API, Security |
@@ -99,8 +99,6 @@ No module may be marked Sprint Ready unless:
 | Analytics extended fields | `source_entry_point` and `repeat_index` stored in allowlisted metadata | Aligned | Data | Data/API, Analytics |
 | Kids approval event | `skill_audit_log` is system-of-record; analytics event is derived | Aligned | Data + Safety | Data/API, Analytics, Security |
 | Upgrade intent | `upgrade_clicked` and Upgrade Intent Rate are P1 | Aligned | Product + Data | Analytics |
-| Tool spec distribution | Tool spec (OpenAPI / MCP) is downloadable; contains schema + endpoint only; never contains instruction_template or execution logic; download requires enabled state; spec fields added to `skills` table | **New V1 P0 decision — aligned in FRD, Data/API, WBS (M16); UX, Analytics, Security, Release Checklist updated** | Product + Security + Backend | FRD §4.11, Data/API §8.X + skills DDL, WBS M16, Security T-23/T-24/T-25 |
-| API Key binding for external clients | API Key is account-bound; external AI clients must include valid API Key in Authorization header; entitlement checked against Key owner; Key revocable immediately; Key scope restriction P1 | **New V1 P0 decision — aligned in FRD, Data/API, WBS (M17); Security updated** | Product + Security + Backend | FRD §4.12, Data/API §9.2, WBS M17, Security T-23/T-25 |
 | Stateless single-turn execution | V1 Relay strips prior-turn conversation history before every provider call; each request is independent; token billing reflects single-turn cost only (FR-G19) | Aligned | Backend + Security | FRD FR-G19, Security T-22 + §4.3, WBS M05, Release Checklist §6 |
 | Model alias requirement | `skills.model_whitelist` and `skill_versions.model_whitelist_snapshot` must contain only platform-registered alias names (e.g., `"smart-tier"`); hardcoded versioned IDs (e.g., `"gpt-4-0613"`) are prohibited; Admin API rejects unregistered values | Aligned | Security + Product | Data/API DDL Note, Security NFR §5.4, WBS M05, Release Checklist §5 |
 | Tenant identity immutability | `user_id` and `tenant_id` extracted exclusively from validated JWT/Auth token claims; client-supplied values in request body, headers, or query extensions are discarded before analytics, billing, quota, and audit processing | Aligned | Backend + Security | Security NFR §4.3 + T-21, WBS M05, Release Checklist §6 |
@@ -125,9 +123,10 @@ Sprint 0 is complete only when the following decisions are signed off or explici
 | D-03 | Kids release mode | Closed beta/off unless GA controls pass | Product + Safety + Legal | M02, M05, M10, M15 | Required before any Kids launch path |
 | D-04 | Streaming launch scope | P1 by default | Product + Engineering + Finance | M05, M07, M10, M12 | Required before streaming implementation |
 | D-05 | Provider system-boundary allowlist and legal/security terms | Explicit allowlist plus provider DPA/security terms before production traffic | Security + Engineering + Legal/Privacy | M05, M10, M11, M15 | Required before production Relay provider integration |
-| D-06 | `instruction_template` encryption mechanism | DB/storage encryption; field encryption if available | Security + Backend | M01, M11 | Required before production data |
+| D-06 | `instruction_template` encryption mechanism | Re-scoped under D-09: encryption only for drafts + sensitive server-side config (provider creds, routing logic); published templates ship in package | Security + Backend | M01, M11 | Required before production data |
 | D-07 | Revenue counting statuses | Gross attribution uses positive `charged`; net/reconciliation includes negative refund/void compensation rows | Finance + Data | M07, M09 | Required before revenue dashboard |
 | D-08 | Initial official Skill catalog | 3-5 launch Skills | Product + Ops | M02, M14, M15 | Required before launch content QA |
+| D-09 | Skill distribution & runtime dependency model (R2) | Enabled: downloadable zip packages; template public in package; runtime-dependency + own-key auth/billing moat; public routing API is the execution entry; Playground execution replaced (Admin Preview retained) | Product + Architecture | M02, M03, M04, M05, M11, M15 | Foundational; gates packaging, routing API, and security reframe |
 
 ### 4.1 Decision Status
 
@@ -151,16 +150,16 @@ The following earlier review findings have been resolved or absorbed into the mo
 | Earlier Issue | Resolution | Source |
 |---|---|---|
 | P0/P1 scope overload | WBS now separates P0, P1, Conditional P0 | `06_Module_Breakdown_WBS.md` |
-| Skill 执行路径 | V1 唯一用户路径为下载 tool spec 安装到外部 AI 客户端；Playground Skill Picker 已移除；Admin 使用 admin_preview 端点测试 | FRD §1.1, UX §0, Data/API §9, WBS |
+| Execution surface (R2/D-09) | Public routing API is the V1 execution entry, called by the downloaded package; Playground execution replaced; Admin Preview retained | FRD, UX, Data/API, WBS, Security |
 | `featured` as lifecycle status | Resolved as `featured_flag`/`featured_rank` | FRD, Data/API |
-| Prompt leakage scope too narrow | Expanded across API/logs/events/billing/audit/export/provider/streaming | Security/NFR |
+| Leakage scope (R2 reframe) | Protected set is now provider credentials + server routing logic + raw input/PII/provider payloads (published template excluded); package-content boundary added | Security/NFR §0, §3.2 |
 | Kids absolute safety promise risk | Reframed as conditional P0 / closed beta unless controls pass | FRD, UX, Security, WBS |
 | Streaming billing ambiguity | Default P1; safety/no-output partials not charged by default; timeout or client disconnect after usable partial output settles by actual tokens | FRD, Data/API, Analytics, Security, WBS |
 | RBAC ambiguity | Admin/Ops/Support/Safety/Super Admin split defined | FRD, UX, Data/API, Security |
 | Error JSON invalidity | Standard envelope defined | Data/API |
 | Anonymous response ambiguity | Anonymous list/detail semantics defined | Data/API, UX |
 | `user_enabled_skills` state model | Composite PK current-state model defined | Data/API |
-| Prompt leakage test gaps | Security tests matrix defined | Security/NFR |
+| Secret leakage / spoofing test gaps | Security tests matrix redefined for provider-secret/routing leakage, identity/billing spoofing (T-23), runtime-dependency integrity (T-24), credential abuse (T-25) | Security/NFR |
 | Module/Agent ambiguity | Agent-based WBS defined | WBS |
 | Multi-turn System Prompt Tax | FR-G19 added; V1 Relay enforces stateless single-turn; prior-turn history stripped; T-22 added to threat model | FRD §1.2 + FR-G19 + §3.3, Security NFR §4.3 + T-22, WBS M05, Release Checklist §6 |
 | Dangling Quota Reservation | Redis TTL `max(timeout_seconds + 10, 60)` added as safety net; compensation rule changed from enumeration-based to principle-based (no usable provider output → restore quota) | Security NFR §8.1.1, WBS M06, Release Checklist §6 + §9 |
@@ -237,7 +236,7 @@ The following earlier review findings have been resolved or absorbed into the mo
 | M01 Data/API | Sprint Planning Ready | D-06 encryption sign-off before production data |
 | M02 Admin | Sprint Planning Ready | D-03 only if Kids paths enabled; M11 audit baseline before sensitive prompt access |
 | M03 Marketplace | Sprint Planning Ready with D-01 dependency | Plan/quota copy and lock states finalize before affected UI implementation |
-| M04 Playground Skill Picker | **V1 移除 — N/A** | 本模块已从 V1 移除；无需执行 QA；替代：M16 Tool Spec, M17 API Key, M02 admin_preview |
+| M04 Playground | Sprint Planning Ready | M05/M06 contracts must land before full execution QA |
 | M05 Relay | Sprint Planning Ready with gated implementation | D-05 provider allowlist before provider integration; provider DPA/security terms before production provider traffic; D-03 if Kids; D-04 if streaming |
 | M06 Entitlement | Sprint Planning Ready with D-01 dependency | Plan/quota finalization before quota/lock implementation |
 | M07 Billing | Sprint Planning Ready with D-01/D-07 dependency | Finance sign-off before charging/revenue launch; D-04 if streaming |
@@ -294,4 +293,4 @@ Engineering may begin isolated foundation work only where decisions are not bloc
 - Relay non-streaming execution skeleton behind feature flag.
 - Analytics schema validation skeleton without dashboard source lock-in.
 
-Do not implement public Skill API, user-created Skills, recommendation ML, full streaming billing, or Kids GA behavior until explicitly approved.
+Do not implement user-created Skills, recommendation ML, full streaming billing, or Kids GA behavior until explicitly approved. (The public routing/execution API is now in V1 scope under D-09 as the package execution entry point.)

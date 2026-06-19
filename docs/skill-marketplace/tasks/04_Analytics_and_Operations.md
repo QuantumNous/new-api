@@ -22,12 +22,11 @@ V1 analytics must answer:
 
 | Item | Decision |
 |---|---|
-| Unauthenticated Public Skill API analytics | Not in V1; unauthenticated `api_direct` entry point is not used |
-| External AI client analytics | **In V1 P0** — `external_ai_client` entry point is required; skill_used / skill_blocked events from external AI clients must be captured with this entry point |
+| Execution analytics (server-side) | Not in scope；DeepRouter 不执行 Skill，无服务端执行事件 |
+| Per-execution billing analytics | Not in scope；无 per-execution 计费 |
 | Full referral attribution | V1.1 |
-| Community rating/review analytics | V2 |
 | A/B experiment dashboard | P1/V1.1 |
-| Streaming-specific billing analytics | P1 unless D-04 promotes streaming to launch P0 |
+| Tier 2 aggregated dashboard | P1；须 Tier 2 数据量达统计意义后启用 |
 | ML recommendation ranking | V2 |
 | User-level analytics export for Ops/Product | Not allowed in P0 |
 
@@ -38,9 +37,12 @@ V1 analytics must answer:
 | Source | Table / System | Purpose | Owner |
 |---|---|---|---|
 | Skill metadata | `skills`, `skill_versions`, `skills_i18n` | Status, plan, category, version, Kids flags | Backend |
-| User enablement | `user_enabled_skills` | Enable/disable state, enabled date, last used | Backend |
-| Usage events | `skill_usage_events` | Lifecycle and execution analytics | Backend/Data |
-| Billing attribution | `skill_billing_events` | Skill-level monetization attribution | Backend/Finance |
+| User downloads | `user_enabled_skills` | Download state, enabled date, last used | Backend |
+| Usage events (Tier 1) | `skill_usage_events` | Marketplace behavior analytics (impression/view/save/download/rate/report) | Backend/Data |
+| Usage events (Tier 2) | `skill_usage_events` (Tier 2 subset) | Local installed/used events（opt-in 授权用户） | Backend/Data |
+| Evaluation results | `skill_evaluations` | Per-version evaluation status, score, issues | Backend/Data |
+| Ratings | `skill_ratings` | Star ratings and comments per user per skill | Backend |
+| Saves / Favorites | `skill_saves` | User save and favorite records | Backend |
 | Reviews | `skill_reviews` | Operational quality workflow | Operations |
 | Audit | `skill_audit_log` | Admin action system-of-record | Security/Backend |
 | Subscription state | Existing billing/subscription system | Plan and active/inactive state | Billing |
@@ -54,32 +56,38 @@ Analytics dashboards must not read or expose `instruction_template`, `prompt_gua
 
 ### 3.1 P0 Events
 
+**Tier 1 事件（平台侧，无需用户授权）**
+
 | Event | Producer | Trigger | Storage Target | Required Core Properties |
 |---|---|---|---|---|
 | `skill_impression` | Frontend | Skill card or rail item becomes visible | `skill_usage_events` | `event_id`, `timestamp`, `schema_version`, `user_id` nullable, `session_id`, `skill_id`, `entry_point` |
 | `skill_detail_view` | Frontend | Skill Detail opened | `skill_usage_events` | Core + `metadata.source_entry_point` |
-| `skill_enabled` | Backend | Enable succeeds | `skill_usage_events` | Core + `tenant_id`, `request_id`, `source` in metadata |
-| `skill_disabled` | Backend | Disable succeeds | `skill_usage_events` | Core + `tenant_id`, `request_id`, `source` in metadata |
-| `skill_first_use` | Backend/Relay | First successful use for user+skill | `skill_usage_events` | Core + `skill_version_id`, `request_id`, `model`, `latency_ms`, token fields |
-| `skill_used` | Backend/Relay | Every successful Skill execution | `skill_usage_events` | Core + `skill_version_id`, `request_id`, `model`, `latency_ms`, token fields |
-| `skill_repeat_use` | Backend/Relay | Successful non-first use | `skill_usage_events` | Core + `skill_version_id`, `request_id`, `metadata.repeat_index` |
-| `skill_blocked` | Backend/Relay | Execution blocked before successful provider completion | `skill_usage_events` | Core + `request_id`, `block_reason`, `error_code` |
-| `skill_timeout_error` | Backend/Relay | Execution timeout | `skill_usage_events` | Core + `request_id`, `skill_version_id`, `latency_ms`, `error_code=SKILL_TIMEOUT` |
+| `skill_saved` | Frontend/Backend | User saves or unsaves Skill | `skill_usage_events` + `skill_saves` | Core + `save_type` ('saved'/'unsaved') |
+| `skill_favorited` | Frontend/Backend | User favorites or unfavorites Skill | `skill_usage_events` + `skill_saves` | Core + `favorite_flag` (true/false) |
+| `skill_downloaded` | Backend | Download zip succeeds | `skill_usage_events` + `user_enabled_skills` | Core + `skill_version_id`, `plan`, `required_plan` |
+| `skill_rated` | Frontend/Backend | User submits or updates rating | `skill_usage_events` + `skill_ratings` | Core + `stars` (1-5), `has_comment` |
+| `skill_reported` | Frontend/Backend | User submits report | `skill_usage_events` | Core + `report_reason` |
+| `skill_evaluation_completed` | Backend/Evaluation Pipeline | Evaluation run finishes | `skill_usage_events` + `skill_evaluations` | Core + `evaluation_status`, `score`, `triggered_by` |
 | `skill_admin_action` | Backend/Admin | Admin writes Skill state/config | `skill_audit_log` and derived `skill_usage_events` if dashboarded | `event_id`, `timestamp`, `actor_id`, `actor_role`, `skill_id`, `action`, `request_id` |
-| `skill_safety_violation` | Backend/Relay/Safety | Safety issue detected | `skill_usage_events`; incident/audit where required | Core + `request_id`, `violation_stage`, `error_code` |
 | `skill_kids_approved` | Backend/Admin | Kids approval granted | `skill_audit_log` as source; derived analytics event optional | `event_id`, `timestamp`, `actor_id`, `actor_role`, `skill_id`, `approval_status`, `request_id` |
+
+**Tier 2 事件（用户账号设置授权后，本地工具回传）**
+
+| Event | Producer | Trigger | Storage Target | Required Core Properties |
+|---|---|---|---|---|
+| `skill_installed` | Local tool (opt-in) | 用户解压 zip 到 .claude/skills/ | `skill_usage_events` (Tier 2) | Core + `skill_version_id`, `client_tool`, `client_version` |
+| `skill_used_local` | Local tool (opt-in) | /skillname 被调用 | `skill_usage_events` (Tier 2) | Core + `skill_id`（无 raw input）|
 
 ### 3.2 P1 Events
 
 | Event | Trigger | Notes |
 |---|---|---|
-| `skill_spec_downloaded` | User downloads tool spec (OpenAPI / MCP) from Skill Detail | Includes `format` (openapi/mcp), `platform` hint if provided, `skill_id`, `user_id`; P1 but recommended before launch |
-| `skill_version_created` | New execution version created | Audit source, analytics derived if needed |
-| `skill_feedback_submitted` | User submits output feedback | No raw full output by default |
+| `skill_version_created` | New version created | Audit source, analytics derived if needed |
 | `skill_review_action` | Ops assign/resolve/escalate | Review workflow P1 |
 | `upgrade_clicked` | User clicks upgrade from Skill lock state | P1; therefore Upgrade Intent Rate is P1 |
 | `contact_sales_clicked` | User clicks Enterprise CTA | P1 |
 | `recommendation_clicked` | User clicks P1 recommendation rail | P1 |
+| `skill_verified` | Admin grants Verified badge | P1; audit-sourced |
 
 ### 3.3 Future Events
 
@@ -175,17 +183,17 @@ Use the same enum as Data/API Spec.
 | Entry Point | Meaning |
 |---|---|
 | `marketplace_card` | Card impression or action from Marketplace |
-| `skill_detail` | Detail page CTA（含 tool spec download）|
-| `my_skills` | My Skills page（含 Get Tool Spec）|
+| `skill_detail` | Detail page CTA |
+| `my_skills` | My Skills page |
+| `skill_package` | Execution from a downloaded Skill package via the public routing API (R2 primary execution entry) |
+| `playground_picker` | Legacy: in-platform Playground Skill Picker (historical events only) |
 | `featured` | Featured rail |
 | `popular` | Popular rail |
 | `new` | New rail |
 | `recommended` | Recommended Lite rail |
 | `admin_preview` | Admin preview/test execution |
-| `external_ai_client` | Skill execution triggered by an external AI client (ChatGPT / Gemini / Claude) via tool call with user API Key |
-| `api_direct` | Reserved for future authenticated direct API calls; not used in V1 |
 
-`external_ai_client` is a P0 V1 entry point. All skill execution events from external AI clients must use this value. Unauthenticated API calls are not permitted in V1 and do not have an entry point value.
+V1 execution events primarily use `entry_point=skill_package` (downloaded package via the public routing API). `playground_picker` is retained only for historical events and is not produced by new V1 execution.
 
 ---
 
@@ -563,7 +571,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_789",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": "66666666-6666-4666-8666-666666666666",
-  "entry_point": "external_ai_client",
+  "entry_point": "playground_picker",
   "plan": "pro",
   "subscription_status": "active",
   "persona": "developer",
@@ -599,7 +607,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_blocked_123",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": null,
-  "entry_point": "external_ai_client",
+  "entry_point": "playground_picker",
   "plan": "free",
   "subscription_status": "active",
   "is_kids_session": false,
