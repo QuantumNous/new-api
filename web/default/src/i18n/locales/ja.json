@@ -3,6 +3,8 @@
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "$10 チャージ → <z>全額 $10 反映、手数料ゼロ</z> + ボーナス。OpenRouter では $10 で $9.45 しか反映されません。",
+    "Top up — zero fee →": "チャージ — 手数料ゼロ →",
     "_copy": "_copy",
     "，": ", ",
     ", and": "、および",

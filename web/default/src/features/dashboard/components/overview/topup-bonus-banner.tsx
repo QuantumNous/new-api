@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
+import { useTranslation, Trans } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { Zap } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
@@ -34,8 +34,11 @@ const LOW_BALANCE_QUOTA = 0.5 * QUOTA_PER_UNIT // < $0.50
 
 /**
  * Activation banner: catches the "trial running out → continue with Claude/GPT"
- * moment with the recharge bonus + the cheaper-than-official value, turning a
- * stalled signup into a paying customer. Shows only for low-balance users.
+ * moment and converts it to a first top-up. The wedge is the cheaper-than-OpenRouter
+ * angle: OpenRouter skims a 5.5% credit-purchase fee ($0.80 min), so $10 only loads
+ * $9.45 there; here $10 lands in full (zero fee) plus a bonus. Shows only for
+ * low-balance users. NOTE: OpenRouter's fee is from their public pricing — re-verify
+ * the 5.5% / $9.45 figures before each campaign as they can change.
  */
 export function TopupBonusBanner() {
   const { t } = useTranslation()
@@ -64,11 +67,14 @@ export function TopupBonusBanner() {
           })}
         </div>
         <div className='text-muted-foreground mt-0.5 text-[13px]'>
-          {t('Top up and')}{' '}
-          <b className='text-emerald-600 dark:text-emerald-400'>
-            {t('get a 50% bonus')}
-          </b>{' '}
-          {t('— the same models already cost 30–50% less than official.')}
+          <Trans
+            i18nKey='Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.'
+            components={{
+              z: (
+                <b className='text-emerald-600 dark:text-emerald-400' />
+              ),
+            }}
+          />
         </div>
       </div>
       <Button
@@ -80,12 +86,13 @@ export function TopupBonusBanner() {
             onClick={() =>
               trackAdsFunnelEvent('flatkey_topup_banner_click', {
                 balance_quota: remainQuota,
+                wedge: 'openrouter_zero_fee',
               })
             }
           />
         }
       >
-        {t('Top up, get 50% →')}
+        {t('Top up — zero fee →')}
       </Button>
     </div>
   )
