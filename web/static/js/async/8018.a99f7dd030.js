@@ -1,0 +1,1 @@
+"use strict";(self.rspackChunknewapi_web=self.rspackChunknewapi_web||[]).push([[8018],{44201(e,s,a){a.r(s);var r=a(56030);a.d(s,{Mermaid:()=>r.l})}}]);

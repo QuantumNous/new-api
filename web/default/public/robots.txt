@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /v1/
+Disallow: /system-settings/
+Disallow: /dashboard/
+
+Sitemap: https://topapimodel.com/sitemap.xml

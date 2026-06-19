@@ -101,6 +101,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_crypto_deposit":            service.IsCryptoDepositEnabled(),
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -121,6 +122,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"topup_link":              common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
+
 }
 
 type EpayRequest struct {

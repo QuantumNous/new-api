@@ -1,0 +1,7 @@
+/*!
+ * wordcloud2.js
+ * http://timdream.org/wordcloud2.js/
+ *
+ * Copyright 2011 - 2019 Tim Guan-tin Chien and contributors.
+ * Released under the MIT license
+ */

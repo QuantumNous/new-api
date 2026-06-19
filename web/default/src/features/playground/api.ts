@@ -75,3 +75,133 @@ export async function getUserGroups(): Promise<GroupOption[]> {
     desc: info.desc,
   }))
 }
+
+export interface UploadResult {
+  success: boolean
+  message?: string
+  data?: {
+    url: string
+    filename: string
+    content_type: string
+    is_image: boolean
+    size: number
+  }
+}
+
+/**
+ * Upload a file to R2 storage
+ */
+export async function uploadFile(file: File): Promise<UploadResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const res = await api.post('/api/user/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      skipErrorHandler: true,
+    } as Record<string, unknown>)
+    return res.data
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: UploadResult } }
+    return err?.response?.data || { success: false, message: 'Upload failed' }
+  }
+}
+
+// ─── Chat History API ───
+
+export interface ChatSession {
+  id: string
+  user_id: number
+  title: string
+  model: string
+  group_name: string
+  message_count: number
+  created_at: number
+  updated_at: number
+}
+
+export interface ChatMessageData {
+  id: string
+  session_id: string
+  role: string
+  content: string
+  image_urls?: string
+  reasoning?: string
+  created_at: number
+}
+
+export async function getChatSessions(): Promise<ChatSession[]> {
+  try {
+    const res = await api.get('/api/user/chats')
+    return res.data?.success ? res.data.data : []
+  } catch {
+    return []
+  }
+}
+
+export async function createChatSession(
+  title: string,
+  model: string,
+  group: string
+): Promise<ChatSession | null> {
+  try {
+    const res = await api.post('/api/user/chats', { title, model, group })
+    return res.data?.success ? res.data.data : null
+  } catch {
+    return null
+  }
+}
+
+export async function getChatMessages(
+  sessionId: string
+): Promise<ChatMessageData[]> {
+  try {
+    const res = await api.get(`/api/user/chats/${sessionId}`)
+    return res.data?.success ? res.data.data : []
+  } catch {
+    return []
+  }
+}
+
+export async function updateChatTitle(
+  sessionId: string,
+  title: string
+): Promise<boolean> {
+  try {
+    const res = await api.put(`/api/user/chats/${sessionId}`, { title })
+    return res.data?.success ?? false
+  } catch {
+    return false
+  }
+}
+
+export async function deleteChatSession(
+  sessionId: string
+): Promise<boolean> {
+  try {
+    const res = await api.delete(`/api/user/chats/${sessionId}`)
+    return res.data?.success ?? false
+  } catch {
+    return false
+  }
+}
+
+export async function saveChatMessage(
+  sessionId: string,
+  role: string,
+  content: string,
+  imageUrls?: string,
+  reasoning?: string
+): Promise<ChatMessageData | null> {
+  try {
+    const res = await api.post(`/api/user/chats/${sessionId}/messages`, {
+      role,
+      content,
+      image_urls: imageUrls || '',
+      reasoning: reasoning || '',
+    })
+    return res.data?.success ? res.data.data : null
+  } catch {
+    return null
+  }
+}
