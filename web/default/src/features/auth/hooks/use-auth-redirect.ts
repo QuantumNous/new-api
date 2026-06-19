@@ -116,19 +116,26 @@ export function useAuthRedirect() {
         useOnboardingStore.getState().openOnboarding()
       }
     }
-    // targetPath may carry a query string (e.g. '/playground?first=1' for the
-    // post-registration first-run onboarding). TanStack's navigate does NOT parse
-    // a query out of `to`, so split it into pathname + structured search params
-    // explicitly. Without a query, behavior is identical to before.
-    const [toPathname, toQuery] = targetPath.split('?')
-    if (toQuery) {
+    // targetPath may carry a query string and/or hash (e.g. '/playground?first=1'
+    // for the post-registration first-run onboarding, or a nested redirect like
+    // '/callback?redirect=/playground?first=1'). TanStack's navigate does NOT parse
+    // a query/hash out of `to`, so parse with the URL API: it splits on the FIRST
+    // '?' only — preserving any nested '?' inside a value — and isolates a trailing
+    // '#hash'. Without a query/hash, behavior is identical to before.
+    const parsed = new URL(targetPath, window.location.origin)
+    const toSearch = parsed.search
+      ? Object.fromEntries(parsed.searchParams)
+      : undefined
+    const toHash = parsed.hash ? parsed.hash.slice(1) : undefined
+    if (toSearch || toHash) {
       navigate({
-        to: toPathname,
-        search: Object.fromEntries(new URLSearchParams(toQuery)),
+        to: parsed.pathname,
+        search: toSearch,
+        hash: toHash,
         replace: true,
       })
     } else {
-      navigate({ to: toPathname, replace: true })
+      navigate({ to: parsed.pathname, replace: true })
     }
   }
 

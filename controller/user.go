@@ -153,8 +153,9 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 		"group":         user.Group,
 		"is_enterprise": user.IsEnterprise,
 	}
-	// Surfaced only for brand-new registrations (currently OAuth sign-up) so the frontend can
-	// trigger first-login onboarding. Omitted for normal logins (back-compat).
+	// Surfaced only for brand-new registrations (OAuth sign-up and password-register
+	// auto-login) so the frontend can trigger first-login onboarding. Omitted for
+	// normal logins (back-compat).
 	if len(isNewUser) > 0 && isNewUser[0] {
 		data["is_new_user"] = true
 	}

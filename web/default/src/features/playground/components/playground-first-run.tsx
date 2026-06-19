@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 // Example prompts shown as one-click chips during the first run. They fill the
@@ -111,9 +110,7 @@ export function GetKeyCard({ onDismiss }: GetKeyCardProps) {
             <Button
               size='sm'
               onClick={() => navigate({ to: '/keys' })}
-              className={cn(
-                'gap-1 rounded-full bg-white text-violet-700 hover:bg-violet-50'
-              )}
+              className='gap-1 rounded-full bg-white text-violet-700 hover:bg-violet-50'
             >
               {t('Get my API key')}
               <ArrowRight className='size-4' />

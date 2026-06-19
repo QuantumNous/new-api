@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useIsEnterprise } from '@/hooks/use-enterprise'
@@ -43,6 +44,7 @@ const FIRST_RUN_DEFAULT_MODEL = 'claude-haiku-4-5'
 
 export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const isEnterprise = useIsEnterprise()
   const {
     config,
@@ -71,21 +73,29 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   // Whether the "get your API key" card is currently visible. Shown once per
   // session after the first successful assistant response, then dismissed.
   const [showGetKeyCard, setShowGetKeyCard] = useState(false)
+  // Whether the user has actually sent a message during THIS first-run session.
+  // The get-key card keys off this (not raw messages) so a stale localStorage
+  // conversation can't prematurely surface it.
+  const [sentThisSession, setSentThisSession] = useState(false)
   // Guards so the cheap-model override and the get-key card each fire at most
   // once per session (refs survive re-renders without retriggering effects).
   const appliedFirstRunModelRef = useRef(false)
   const getKeyCardShownRef = useRef(false)
   const userPickedModelRef = useRef(false)
 
-  // Force a cheap default model for the first run, but only when the user has
-  // not yet picked a model themselves. Runs once on mount in first-run mode.
+  // Initialize first-run mode once on mount: start from a clean slate and force a
+  // cheap default model (unless the user already picked one). The clean slate
+  // matters because a just-registered user may be in a browser that still holds a
+  // previous account's persisted conversation, which would otherwise suppress the
+  // welcome banner (gated on messages.length === 0).
   useEffect(() => {
     if (!firstRun) return
     if (appliedFirstRunModelRef.current) return
     if (userPickedModelRef.current) return
     appliedFirstRunModelRef.current = true
+    if (messages.length > 0) updateMessages([])
     updateConfig('model', FIRST_RUN_DEFAULT_MODEL)
-  }, [firstRun, updateConfig])
+  }, [firstRun, messages.length, updateConfig, updateMessages])
 
   // Whether the empty-state welcome/example chips should show: first-run mode
   // with no conversation yet.
@@ -177,12 +187,20 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   useEffect(() => {
     if (!firstRun) return
     if (getKeyCardShownRef.current) return
+    // Require a real send this session so a restored conversation can't trigger
+    // the card before the user has actually made a call.
+    if (!sentThisSession) return
     if (!hasCompletedAssistant) return
     getKeyCardShownRef.current = true
     setShowGetKeyCard(true)
-  }, [firstRun, hasCompletedAssistant])
+    // First call succeeded — drop `?first=1` from the URL so a reload/back-nav
+    // doesn't replay the one-shot onboarding (welcome banner + cheap-model force).
+    // The card is driven by showGetKeyCard state, so it stays after firstRun flips.
+    navigate({ to: '/playground', replace: true })
+  }, [firstRun, sentThisSession, hasCompletedAssistant, navigate])
 
   const handleSendMessage = (text: string) => {
+    if (firstRun) setSentThisSession(true)
     const userMessage = createUserMessage(text)
     const assistantMessage = createLoadingAssistantMessage()
 
