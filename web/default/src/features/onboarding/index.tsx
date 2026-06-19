@@ -47,17 +47,19 @@ function getPromoDeadline(): number {
   }
 }
 
-// Promo recharge tiers. amount = USD charged; usage/off labels are
-// marketing copy (actual discount lives in group ratios). $10 is the
-// low-friction entry tier to lift first-topup conversion.
+// Promo recharge tiers. amount = USD charged. off/usage are OPTIONAL marketing
+// labels; only attach a specific discount/multiplier number when it is actually
+// backed by operation_setting (AmountDiscount/AmountBonus) for that amount —
+// otherwise the badge would promise a discount the backend won't deliver. The
+// $10 entry tier intentionally carries no numeric claim (low-friction entry).
 interface PromoTier {
   amount: number
-  off: string // e.g. "40% OFF"
-  usage: string // e.g. "3X"
+  off?: string // e.g. "40% OFF" — omit if not config-backed
+  usage?: string // e.g. "3X" — omit if not config-backed
   highlight?: boolean
 }
 const TIERS: PromoTier[] = [
-  { amount: 10, off: '10% OFF', usage: '1.5X' },
+  { amount: 10 },
   { amount: 20, off: '40% OFF', usage: '3X' },
   { amount: 200, off: '50% OFF', usage: '40X', highlight: true },
 ]
@@ -179,15 +181,19 @@ export function Onboarding() {
                   })}
                 </span>
                 <span className='text-muted-foreground text-xs'>
-                  {t('{{usage}} more usage than the official plan', {
-                    usage: tier.usage,
-                  })}
+                  {tier.usage
+                    ? t('{{usage}} more usage than the official plan', {
+                        usage: tier.usage,
+                      })
+                    : t('Lowest entry to get started')}
                 </span>
               </div>
               <div className='flex flex-col items-end gap-1'>
-                <span className='text-sm font-extrabold text-[#FF2D78]'>
-                  {tier.off}
-                </span>
+                {tier.off && (
+                  <span className='text-sm font-extrabold text-[#FF2D78]'>
+                    {tier.off}
+                  </span>
+                )}
                 {submitting && pendingAmount === tier.amount ? (
                   <Loader2 className='size-4 animate-spin' aria-hidden='true' />
                 ) : (
