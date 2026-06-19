@@ -20,7 +20,7 @@
 | UI 与样式 | Base UI、Hugeicons、Tailwind CSS、clsx / class-variance-authority |
 | 表单     | React Hook Form、Zod |
 | 图表     | @visactor/vchart、@visactor/react-vchart |
-| 工具     | qrcode.react、prettier、eslint、vitest（可选）|
+| 工具     | qrcode.react、oxfmt、oxlint、vitest（可选）|
 
 优先选用成熟、维护良好的开源库；仅在现有库无法满足或需特殊适配时自行实现，并评估可维护性与通用性。
 

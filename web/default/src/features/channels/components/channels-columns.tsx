@@ -30,7 +30,11 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyLabel } from '@/lib/currency'
+import {
+  formatCurrencyFromUSD,
+  formatQuotaWithCurrency,
+  getCurrencyLabel,
+} from '@/lib/currency'
 import {
   formatTimestampToDate,
   formatQuota as formatQuotaValue,
@@ -267,10 +271,16 @@ function WeightCell({ channel }: { channel: Channel }) {
 }
 
 /**
+ * Inline balance/used values longer than this switch to locale-aware compact
+ * notation (e.g. "$28万"); the precise value stays available in the tooltip.
+ */
+const MAX_INLINE_BALANCE_CHARS = 8
+
+/**
  * Balance cell component with click to update
  */
 function BalanceCell({ channel }: { channel: Channel }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
@@ -284,22 +294,43 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const withSuffix = (value: string) =>
     tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
 
-  const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
-  const remainingDisplay = withSuffix(formatBalance(balance))
-  const usedLabel = `${t('Used:')} ${usedDisplay}`
-  const remainingLabel = `${t('Remaining:')} ${remainingDisplay}`
+  const locale = i18n.resolvedLanguage || i18n.language
+  // Precise values are kept for the tooltip; long values are shown compactly inline.
+  const usedFull = withSuffix(formatQuotaValue(usedQuota))
+  const remainingFull = withSuffix(formatBalance(balance))
+  const usedDisplay =
+    usedFull.length > MAX_INLINE_BALANCE_CHARS
+      ? withSuffix(formatQuotaWithCurrency(usedQuota, { compact: true, locale }))
+      : usedFull
+  const remainingDisplay =
+    remainingFull.length > MAX_INLINE_BALANCE_CHARS
+      ? withSuffix(formatCurrencyFromUSD(balance, { compact: true, locale }))
+      : remainingFull
+  const usedLabel = `${t('Used:')} ${usedFull}`
+  const remainingLabel = `${t('Remaining:')} ${remainingFull}`
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
     return (
-      <StatusBadge
-        label={usedLabel}
-        variant='neutral'
-        size='sm'
-        copyable={false}
-        showDot={false}
-        className='-ml-1.5'
-      />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <StatusBadge
+                label={`${t('Used:')} ${usedDisplay}`}
+                variant='neutral'
+                size='sm'
+                copyable={false}
+                showDot={false}
+                className='-ml-1.5 cursor-help'
+              />
+            }
+          />
+          <TooltipContent>
+            <p>{usedLabel}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -424,7 +455,8 @@ function BalanceCell({ channel }: { channel: Channel }) {
  * Generate channels columns configuration
  */
 export function useChannelsColumns(): ColumnDef<Channel>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage || i18n.language
   return [
     // Checkbox column
     {
@@ -645,8 +677,10 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                   }
                 >
                   <ProviderBadge
-                    iconKey={iconName}
+                    iconKey={`${iconName}.Color`}
+                    iconSize={18}
                     label={typeName}
+                    colorText={false}
                     copyable={false}
                     showDot={false}
                     className='max-w-full min-w-0 overflow-hidden'
@@ -818,7 +852,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             variant={config.variant}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
           />
         )
       },
@@ -970,7 +1003,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
-        const timeText = formatRelativeTime(testTime)
+        const timeText = formatRelativeTime(testTime, locale)
         const fullDate = formatTimestampToDate(testTime)
 
         // For valid timestamps, show tooltip with full date

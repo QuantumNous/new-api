@@ -27,7 +27,7 @@ import type { LogCategory } from '../types'
 
 /**
  * Get column definitions based on log category
- * Returns any[] due to different log types (UsageLog, MidjourneyLog, TaskLog)
+ * Returns any[] due to different log types (UsageLog, MjProxy log, TaskLog)
  */
 export function useColumnsByCategory(
   logCategory: LogCategory,

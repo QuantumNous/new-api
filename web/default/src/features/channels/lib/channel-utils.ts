@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
-import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
 import {
   CHANNEL_STATUS_CONFIG,
@@ -51,6 +50,7 @@ export function getChannelTypeIcon(type: number): string {
     6: 'OpenAI', // OpenAIMax
     7: 'OpenAI', // OhMyGPT
     8: 'OpenAI', // Custom
+    58: 'OpenAI', // Advanced Custom
     3: 'Azure', // Azure
 
     // Anthropic
@@ -92,8 +92,8 @@ export function getChannelTypeIcon(type: number): string {
     20: 'OpenRouter', // OpenRouter
 
     // Image/Video generation
-    2: 'Midjourney', // Midjourney
-    5: 'Midjourney', // MidjourneyPlus
+    2: 'Midjourney', // MjProxy
+    5: 'Midjourney', // MjProxyPlus
     50: 'Kling', // Kling
     51: 'Jimeng', // Jimeng
     52: 'Vidu', // Vidu
@@ -360,14 +360,37 @@ export function getResponseTimeConfig(timeMs: number) {
 // ============================================================================
 
 /**
- * Format Unix timestamp to relative time
- * e.g., "2 hours ago", "3 days ago"
+ * Format a Unix timestamp (seconds) as a compact, locale-aware relative time.
+ * Uses `Intl.RelativeTimeFormat` with the `narrow` style so the label stays
+ * short inside table cells, e.g. "4h ago" / "42m ago" (en) or "4小时前" (zh),
+ * instead of the verbose "4 hours ago".
  */
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(
+  timestamp: number,
+  locale?: Intl.LocalesArgument
+): string {
   if (!timestamp || timestamp === 0) return 'Never'
 
   try {
-    return dayjs(timestamp * 1000).fromNow()
+    const diffSec = timestamp - Date.now() / 1000
+    const absSec = Math.abs(diffSec)
+    const rtf = new Intl.RelativeTimeFormat(locale, {
+      numeric: 'always',
+      style: 'narrow',
+    })
+
+    const MINUTE = 60
+    const HOUR = 60 * MINUTE
+    const DAY = 24 * HOUR
+    const MONTH = 30 * DAY
+    const YEAR = 365 * DAY
+
+    if (absSec < MINUTE) return rtf.format(Math.round(diffSec), 'second')
+    if (absSec < HOUR) return rtf.format(Math.round(diffSec / MINUTE), 'minute')
+    if (absSec < DAY) return rtf.format(Math.round(diffSec / HOUR), 'hour')
+    if (absSec < MONTH) return rtf.format(Math.round(diffSec / DAY), 'day')
+    if (absSec < YEAR) return rtf.format(Math.round(diffSec / MONTH), 'month')
+    return rtf.format(Math.round(diffSec / YEAR), 'year')
   } catch {
     return 'Unknown'
   }

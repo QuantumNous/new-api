@@ -31,21 +31,21 @@ import {
 import { createStatusMapper } from './status'
 
 // ============================================================================
-// Midjourney (Drawing) Logs Mappers
+// MjProxy (Drawing) Logs Mappers
 // ============================================================================
 
 /**
- * Midjourney task type mapper
+ * MjProxy task type mapper
  */
 export const mjTaskTypeMapper = createStatusMapper(MJ_TASK_TYPE_MAPPINGS)
 
 /**
- * Midjourney task status mapper
+ * MjProxy task status mapper
  */
 export const mjStatusMapper = createStatusMapper(MJ_STATUS_MAPPINGS)
 
 /**
- * Midjourney submit result mapper
+ * MjProxy submit result mapper
  */
 export const mjSubmitResultMapper = createStatusMapper(
   MJ_SUBMIT_RESULT_MAPPINGS

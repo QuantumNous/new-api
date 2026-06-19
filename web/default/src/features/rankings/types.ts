@@ -22,7 +22,7 @@ For commercial licensing, please contact support@quantumnous.com
 //
 // Shape of the real data shown on the /rankings page.
 
-export type RankingPeriod = 'today' | 'week' | 'month' | 'year' | 'all'
+export type RankingPeriod = 'today' | 'week' | 'month' | 'year'
 
 export type RankingCategoryId =
   | 'all'

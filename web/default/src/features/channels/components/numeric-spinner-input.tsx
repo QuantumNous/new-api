@@ -126,7 +126,7 @@ export function NumericSpinnerInput({
       )}
       <div
         className={cn(
-          'group/spinner inline-flex h-7 items-center gap-0 rounded-md transition-colors',
+          'group/spinner border-input inline-flex h-7 items-center gap-0 rounded-md border transition-colors',
           !disabled && 'hover:bg-muted/60',
           editing && 'bg-muted/60 ring-primary/30 ring-1'
         )}

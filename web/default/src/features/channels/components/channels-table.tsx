@@ -51,10 +51,14 @@ import {
 } from '../lib'
 import type { Channel, ChannelSortBy } from '../types'
 import { useChannelsColumns } from './channels-columns'
+import { ChannelCard } from './channel-card'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
+const CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY =
+  'channels:column-visibility'
+const CHANNELS_VIEW_MODE_STORAGE_KEY = 'channels:view-mode'
 
 const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'id',
@@ -268,6 +272,7 @@ export function ChannelsTable() {
       models: false,
       tag: false,
     },
+    columnVisibilityStorageKey: CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY,
     columnFilters,
     pagination,
     globalFilter,
@@ -352,6 +357,11 @@ export function ChannelsTable() {
         'No channels available. Create your first channel to get started.'
       )}
       skeletonKeyPrefix='channel-skeleton'
+      enableCardView
+      viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
+      renderCard={(row) => <ChannelCard row={row} />}
+      cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2 2xl:grid-cols-3'
+      mobileCardView
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),

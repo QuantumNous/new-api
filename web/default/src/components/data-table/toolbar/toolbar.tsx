@@ -116,6 +116,12 @@ export type DataTableToolbarProps<TData> = {
    */
   hideViewOptions?: boolean
   /**
+   * Optional view-mode toggle (e.g. table vs. card) rendered in the right
+   * action cluster, before the View Options dropdown. Typically a
+   * {@link DataTableViewModeToggle}. Omitted by default.
+   */
+  viewToggle?: ReactNode
+  /**
    * Content rendered on the LEFT side of the secondary action row. When
    * provided the toolbar splits into two visual rows:
    *   Row 1: search inputs / filter chips …… Expand
@@ -302,6 +308,8 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     <DataTableViewOptions table={props.table} />
   ) : null
 
+  const viewToggleNode = props.viewToggle ?? null
+
   const expandToggle = hasExpandable ? (
     <Button
       variant='ghost'
@@ -350,6 +358,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
             {props.preActions}
             {resetButton}
             {searchButton}
+            {viewToggleNode}
             {viewOptionsNode}
           </div>
         </div>
@@ -373,6 +382,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
         {props.preActions}
         {resetButton}
         {searchButton}
+        {viewToggleNode}
         {viewOptionsNode}
         {expandToggle}
       </div>

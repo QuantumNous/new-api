@@ -108,7 +108,7 @@ export function SidebarModulesSection({
       },
       midjourney: {
         title: t('Drawing logs'),
-        description: t('History of Midjourney-style image tasks.'),
+        description: t('History of MjProxy-style image tasks.'),
       },
       task: {
         title: t('Task logs'),
