@@ -1,6 +1,10 @@
 package router
 
 import (
+	"bytes"
+	"io"
+
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
@@ -110,8 +114,14 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
 		httpRouter.POST("/images/generations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
+			// Check for async mode by peeking at the request body
+			if isAsyncImageRequest(c) {
+				controller.RelayAsyncImage(c)
+			} else {
+				controller.Relay(c, types.RelayFormatOpenAIImage)
+			}
 		})
+		httpRouter.GET("/images/generations/:task_id", controller.RelayAsyncImageFetch)
 		httpRouter.POST("/images/edits", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
@@ -221,4 +231,26 @@ func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 		relayMjRouter.POST("/insight-face/swap", controller.RelayMidjourney)
 		relayMjRouter.POST("/submit/upload-discord-images", controller.RelayMidjourney)
 	}
+}
+
+// isAsyncImageRequest peeks at the request body to check if "async": true
+// is set. It restores the body so subsequent handlers can read it.
+func isAsyncImageRequest(c *gin.Context) bool {
+	if c.Request.Body == nil {
+		return false
+	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return false
+	}
+	// Restore the body for subsequent handlers
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+	var req struct {
+		Async *bool `json:"async"`
+	}
+	if err := common.Unmarshal(body, &req); err != nil {
+		return false
+	}
+	return req.Async != nil && *req.Async
 }

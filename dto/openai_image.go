@@ -27,6 +27,7 @@ type ImageRequest struct {
 	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
 	Stream            *bool           `json:"stream,omitempty"`
+	Async             *bool           `json:"async,omitempty"`
 	Images            json.RawMessage `json:"images,omitempty"`
 	Mask              json.RawMessage `json:"mask,omitempty"`
 	InputFidelity     json.RawMessage `json:"input_fidelity,omitempty"`
@@ -37,6 +38,10 @@ type ImageRequest struct {
 	Image            json.RawMessage `json:"image,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
+}
+
+func (i *ImageRequest) IsAsync() bool {
+	return i.Async != nil && *i.Async
 }
 
 func (i *ImageRequest) UnmarshalJSON(data []byte) error {
