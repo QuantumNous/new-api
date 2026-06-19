@@ -4476,7 +4476,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -4678,6 +4678,11 @@
     "Dismiss": "关闭",
     "Your balance is low — top up to get started": "余额不足 — 充值即可开始使用",
     "Add credit to start calling Claude, GPT, Gemini and more — it only takes a few seconds.": "充值后即可调用 Claude、GPT、Gemini 等模型,几秒搞定。",
-    "Top up now": "立即充值"
+    "Top up now": "立即充值",
+    "Auto-recharge is on": "自动充值已开启",
+    "Not now": "暂不",
+    "Your card is saved 🎉": "银行卡已保存 🎉",
+    "Enable auto-recharge": "开启自动充值",
+    "Turn on auto-recharge so you never run out — we top up $10 to your balance automatically when it gets low. Change or cancel it anytime in your wallet.": "开启自动充值,余额永不耗尽——余额不足时自动为你充值 $10。可随时在钱包修改或关闭。"
   }
 }

@@ -24,6 +24,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { AutoTopupCard } from './components/auto-topup-card'
+import { AutoTopupPromptDialog } from './components/dialogs/auto-topup-prompt-dialog'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
@@ -72,6 +73,7 @@ export function Wallet(props: WalletProps) {
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
+  const [autoTopupPromptOpen, setAutoTopupPromptOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
@@ -126,6 +128,18 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  // One-time prompt right after the first card top-up: card saved but
+  // auto-recharge not yet enabled → offer to turn it on.
+  useEffect(() => {
+    if (
+      user?.stripe_customer &&
+      !user.auto_topup_enabled &&
+      !localStorage.getItem('auto_topup_prompt_seen')
+    ) {
+      setAutoTopupPromptOpen(true)
+    }
+  }, [user])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -369,6 +383,18 @@ export function Wallet(props: WalletProps) {
       <BillingHistoryDialog
         open={billingDialogOpen}
         onOpenChange={setBillingDialogOpen}
+      />
+
+      <AutoTopupPromptDialog
+        open={autoTopupPromptOpen}
+        onOpenChange={(open) => {
+          setAutoTopupPromptOpen(open)
+          if (!open) localStorage.setItem('auto_topup_prompt_seen', '1')
+        }}
+        onEnabled={() => {
+          localStorage.setItem('auto_topup_prompt_seen', '1')
+          fetchUser()
+        }}
       />
 
       <CreemConfirmDialog
