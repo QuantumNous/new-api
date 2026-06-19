@@ -548,7 +548,9 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	}
 	// 1. 优先让 adaptor 决定最终额度
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+		// adaptor 路径若上游也给出了 totalTokens（例如 Doubao seedance 的 usage.total_tokens），
+		// 一并透传到统计，否则传 0 不影响。
+		RecalculateTaskQuota(ctx, task, actualQuota, taskResult.TotalTokens, "adaptor计费调整")
 		return
 	}
 	// 2. 回退到 token 重算
