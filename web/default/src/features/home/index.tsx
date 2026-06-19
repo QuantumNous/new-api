@@ -21,7 +21,15 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
-import { CTA, Features, Hero, HowItWorks, SmartRouting, Stats } from './components'
+import {
+  CTA,
+  Features,
+  Hero,
+  HowItWorks,
+  SmartRouting,
+  Stats,
+  ValueCalculator,
+} from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -66,6 +74,7 @@ export function Home() {
       <SmartRouting />
       <Stats />
       <Features />
+      <ValueCalculator />
       <HowItWorks />
       <CTA isAuthenticated={isAuthenticated} />
       <Footer />
