@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { useAuthStore } from '@/stores/auth-store'
 import {
   DataTablePage,
   DataTableRow,
@@ -61,6 +62,21 @@ function deserializeLogTypeFilter(value: unknown): unknown[] {
   return values.filter((item) => String(item) !== LOG_TYPE_ALL_VALUE)
 }
 
+function getShowIpInLogsSetting(setting: unknown): boolean {
+  if (!setting) return false
+  if (typeof setting === 'object') {
+    return Boolean((setting as Record<string, unknown>).show_ip_in_logs)
+  }
+  if (typeof setting !== 'string') return false
+
+  try {
+    const parsed = JSON.parse(setting) as Record<string, unknown>
+    return Boolean(parsed.show_ip_in_logs)
+  } catch {
+    return false
+  }
+}
+
 interface UsageLogsTableProps {
   logCategory: LogCategory
 }
@@ -70,6 +86,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
+  const userSetting = useAuthStore((state) => state.auth.user?.setting)
+  const showIpInLogs = getShowIpInLogsSetting(userSetting)
 
   const {
     columnFilters,
@@ -146,7 +164,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   const logs = data?.items || []
-  const columns = useColumnsByCategory(logCategory, isAdmin)
+  const columns = useColumnsByCategory(logCategory, isAdmin, showIpInLogs)
   const isLoadingData = isLoading || (isFetching && !data)
 
   const { table } = useDataTable({
