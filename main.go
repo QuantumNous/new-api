@@ -181,14 +181,8 @@ func main() {
 		Path:     "/",
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
-		// SameSite=None + Secure so the session cookie is sent on cross-origin
-		// requests from the browser-based JINN Excel taskpane (localhost:3000 /
-		// hosted taskpane → apijinn). With Strict/Lax the browser withholds the
-		// cookie cross-origin, so the post-login token-mint calls (/api/token/*,
-		// /api/user/self) come through unauthenticated. Secure is required for
-		// SameSite=None and is satisfied in prod (HTTPS via Caddy).
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
 	})
 	server.Use(sessions.Sessions("session", store))
 
