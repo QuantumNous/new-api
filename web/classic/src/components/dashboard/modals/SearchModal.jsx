@@ -42,7 +42,7 @@ const SearchModal = ({
     <Component {...FORM_FIELD_PROPS} {...props} />
   );
 
-  const { start_timestamp, end_timestamp, username } = inputs;
+  const { start_timestamp, end_timestamp, username, model_name } = inputs;
 
   return (
     <Modal
@@ -84,6 +84,15 @@ const SearchModal = ({
           optionList: timeOptions,
           onChange: (value) =>
             handleInputChange(value, 'data_export_default_time'),
+        })}
+
+        {createFormField(Form.Input, {
+          field: 'model_name',
+          label: t('模型名称'),
+          value: model_name,
+          placeholder: t('可选值'),
+          name: 'model_name',
+          onChange: (value) => handleInputChange(value, 'model_name'),
         })}
 
         {isAdminUser &&

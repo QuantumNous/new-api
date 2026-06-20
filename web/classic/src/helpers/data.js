@@ -35,6 +35,10 @@ export function setStatusData(data) {
     data.data_export_default_time,
   );
   localStorage.setItem(
+    'data_dashboard_chart_tabs',
+    data.data_dashboard_chart_tabs || '',
+  );
+  localStorage.setItem(
     'default_collapse_sidebar',
     data.default_collapse_sidebar,
   );

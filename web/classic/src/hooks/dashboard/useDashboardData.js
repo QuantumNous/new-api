@@ -164,10 +164,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
+      const modelNameParam = inputs.model_name ? `&model_name=${encodeURIComponent(inputs.model_name)}` : '';
       if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}${modelNameParam}`;
       } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}${modelNameParam}`;
       }
 
       const res = await API.get(url);
@@ -219,7 +220,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const { start_timestamp, end_timestamp } = inputs;
       const localStartTimestamp = Date.parse(start_timestamp) / 1000;
       const localEndTimestamp = Date.parse(end_timestamp) / 1000;
-      const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      const modelNameParam = inputs.model_name ? `&model_name=${encodeURIComponent(inputs.model_name)}` : '';
+      const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}${modelNameParam}`;
       const res = await API.get(url);
       const { success, message, data } = res.data;
       if (success) {
