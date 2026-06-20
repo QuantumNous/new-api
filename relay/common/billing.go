@@ -11,7 +11,11 @@ type BillingSettler interface {
 
 	// Refund 退还所有预扣费额度（资金来源 + 令牌），幂等安全。
 	// 通过 gopool 异步执行。如果已经结算或退款则不做任何操作。
+	// 新代码应优先使用 RefundSync（确认上游未计费场景）。
 	Refund(c *gin.Context)
+
+	// RefundSync 同步退还预扣费；仅在 ClassifyUpstreamChargeConfidence 为 ConfirmedNot 时调用。
+	RefundSync(c *gin.Context) error
 
 	// NeedsRefund 返回会话是否存在需要退还的预扣状态（未结算且未退款）。
 	NeedsRefund() bool

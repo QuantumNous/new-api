@@ -196,7 +196,10 @@ func finalizeImageReconcileFailure(job imageReconcileJob, reason string) {
 
 	bg := reconcileBackgroundContext(job.relayInfo.UserId, job.tokenName)
 	if job.relayInfo.Billing != nil && job.relayInfo.Billing.NeedsRefund() {
-		job.relayInfo.Billing.Refund(bg)
+		if err := job.relayInfo.Billing.RefundSync(bg); err != nil {
+			common.SysLog(fmt.Sprintf("image reconcile refund failed task=%s user=%d: %s",
+				job.taskID, job.relayInfo.UserId, err.Error()))
+		}
 	}
 
 	channelId := 0

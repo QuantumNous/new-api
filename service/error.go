@@ -219,3 +219,27 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 		Error:      apiErr.Err,
 	}
 }
+
+// TaskErrorToNewAPIError 将 TaskError 转回 NewAPIError，供预扣费退还分类使用。
+func TaskErrorToNewAPIError(taskErr *dto.TaskError) *types.NewAPIError {
+	if taskErr == nil {
+		return nil
+	}
+	if taskErr.Error != nil {
+		if apiErr, ok := taskErr.Error.(*types.NewAPIError); ok {
+			return apiErr
+		}
+	}
+	code := types.ErrorCode(taskErr.Code)
+	if taskErr.Code == "" {
+		code = types.ErrorCodeBadResponseStatusCode
+	}
+	err := fmt.Errorf("%s", taskErr.Message)
+	if taskErr.Error != nil {
+		err = taskErr.Error
+	}
+	if taskErr.StatusCode > 0 {
+		return types.NewErrorWithStatusCode(err, code, taskErr.StatusCode)
+	}
+	return types.NewError(err, code)
+}
