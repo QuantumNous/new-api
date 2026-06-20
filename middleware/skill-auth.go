@@ -98,6 +98,12 @@ func abortSkillAuth(c *gin.Context, message string, detail any, code errcodes.Er
 	c.Abort()
 }
 
+func SkillUserAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		skillAuthHelper(c, common.RoleCommonUser)
+	}
+}
+
 func SkillAdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		skillAuthHelper(c, common.RoleAdminUser)

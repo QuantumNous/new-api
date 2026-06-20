@@ -1,0 +1,211 @@
+package handler
+
+import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/QuantumNous/new-api/internal/skill/enums"
+	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+)
+
+// testDownloadDB migrates skills + user_enabled_skills for download handler tests.
+func testDownloadDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db := testSkillDB(t)
+	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	return db
+}
+
+// testDownloadCtx builds a gin.Context pre-loaded with authenticated user fields
+// (id, group) to simulate a user that has passed SkillUserAuth middleware.
+func testDownloadCtx(skillID string, userID int, group string) (*gin.Context, *httptest.ResponseRecorder) {
+	c, w := testContext("/api/v1/marketplace/skills/" + skillID + "/download")
+	c.Params = gin.Params{{Key: "id", Value: skillID}}
+	c.Set("id", userID)
+	c.Set("group", group)
+	return c, w
+}
+
+// TestDownloadSkillPackage_HappyPath verifies that a free skill can be downloaded
+// by a free user: HTTP 200, Content-Type application/zip, UES row upserted.
+func TestDownloadSkillPackage_HappyPath(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	require.NoError(t, db.Create(ptr(testSkill("cool-skill", "published"))).Error)
+
+	c, w := testDownloadCtx("cool-skill", 42, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "cool-skill.zip")
+	assert.NotEmpty(t, w.Body.Bytes())
+
+	// UES row must be upserted on download.
+	var ues skillmodel.UserEnabledSkill
+	err := db.Where("user_id = ? AND skill_id IN (SELECT id FROM skills WHERE slug = ?)", 42, "cool-skill").
+		First(&ues).Error
+	require.NoError(t, err, "user_enabled_skills row must be created on download")
+	assert.True(t, ues.Enabled)
+}
+
+// TestDownloadSkillPackage_ZipContainsManifestAndSkillMD verifies that the zip
+// includes both manifest.json and SKILL.md with the expected fields.
+func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("zip-skill", "published")
+	s.Name = "Zip Skill"
+	s.ShortDescription = "Does zip things"
+	s.Description = "A full description."
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("zip-skill", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	require.NoError(t, err)
+
+	files := map[string][]byte{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(rc)
+		rc.Close()
+		files[f.Name] = buf.Bytes()
+	}
+
+	require.Contains(t, files, "manifest.json", "zip must contain manifest.json")
+	require.Contains(t, files, "SKILL.md", "zip must contain SKILL.md")
+
+	var m skillManifest
+	require.NoError(t, json.Unmarshal(files["manifest.json"], &m))
+	assert.Equal(t, "1.0", m.SchemaVersion)
+	assert.Equal(t, "zip-skill", m.Slug)
+	assert.Equal(t, "Zip Skill", m.Name)
+	assert.True(t, m.RequiresDeepRouterKey, "manifest must advertise requires_deeprouter_key: true")
+
+	skillMD := string(files["SKILL.md"])
+	assert.Contains(t, skillMD, "name: zip-skill")
+	assert.Contains(t, skillMD, "Zip Skill")
+	assert.Contains(t, skillMD, "A full description.")
+}
+
+// TestDownloadSkillPackage_NotFound verifies that a non-existent skill returns 404.
+func TestDownloadSkillPackage_NotFound(t *testing.T) {
+	SetDB(testDownloadDB(t))
+
+	c, w := testDownloadCtx("ghost-skill", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_NOT_FOUND"`)
+}
+
+// TestDownloadSkillPackage_NonPublishedReturns404 verifies that draft and archived
+// skills are not downloadable (same 404 behavior as GetMarketplaceSkill).
+func TestDownloadSkillPackage_NonPublishedReturns404(t *testing.T) {
+	for _, status := range []string{"draft", "archived"} {
+		t.Run("status="+status, func(t *testing.T) {
+			db := testDownloadDB(t)
+			SetDB(db)
+			require.NoError(t, db.Create(ptr(testSkill("hidden-"+status, status))).Error)
+
+			c, w := testDownloadCtx("hidden-"+status, 1, "default")
+			DownloadSkillPackage(c)
+
+			require.Equal(t, http.StatusNotFound, w.Code)
+			assert.Contains(t, w.Body.String(), `"code":"SKILL_NOT_FOUND"`)
+		})
+	}
+}
+
+// TestDownloadSkillPackage_PlanRequired verifies that a free user cannot download
+// a pro skill: 403 SKILL_PLAN_REQUIRED.
+func TestDownloadSkillPackage_PlanRequired(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("pro-skill", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("pro-skill", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_PLAN_REQUIRED"`)
+}
+
+// TestDownloadSkillPackage_ProUserCanDownloadProSkill verifies that a pro user
+// can download a pro skill.
+func TestDownloadSkillPackage_ProUserCanDownloadProSkill(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("pro-only", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("pro-only", 7, "pro")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+}
+
+// TestDownloadSkillPackage_EnterpriseUserCanDownloadProSkill verifies that
+// enterprise satisfies the pro requirement (hierarchy: enterprise > pro > free).
+func TestDownloadSkillPackage_EnterpriseUserCanDownloadProSkill(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("pro-skill-2", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("pro-skill-2", 8, "enterprise")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestDownloadSkillPackage_LookupByUUID verifies that the :id path parameter
+// accepts a UUID as well as a slug.
+func TestDownloadSkillPackage_LookupByUUID(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("uuid-lookup", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx(s.ID, 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "uuid-lookup.zip")
+}
+
+// TestDownloadSkillPackage_NoProviderCredentialsInZip verifies that the zip
+// package does not contain any provider credential fields.
+func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	require.NoError(t, db.Create(ptr(testSkill("clean-skill", "published"))).Error)
+
+	c, w := testDownloadCtx("clean-skill", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.NotContains(t, body, "price_markup")
+	assert.NotContains(t, body, "monetization_type")
+	assert.NotContains(t, body, "model_whitelist")
+}
