@@ -29,6 +29,15 @@ func SetSkillRouter(router *gin.Engine) {
 			marketplaceRoute.GET("/skills/:id", skillhandler.GetMarketplaceSkill)
 		}
 
+		downloadRoute := v1.Group("/marketplace")
+		downloadRoute.Use(middleware.SkillUserAuth())
+		if common.GlobalApiRateLimitEnable {
+			downloadRoute.Use(middleware.SkillRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKD"))
+		}
+		{
+			downloadRoute.GET("/skills/:id/download", skillhandler.DownloadSkillPackage)
+		}
+
 		adminRoute := v1.Group("/admin")
 		adminRoute.Use(middleware.SkillRootAuth())
 		if common.GlobalApiRateLimitEnable {

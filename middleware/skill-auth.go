@@ -83,12 +83,24 @@ func skillAuthHelper(c *gin.Context, minRole int) {
 		return
 	}
 
+	// For session-based auth, group is carried by the session directly.
+	// For access-token auth, the session is empty; load group from user cache/DB
+	// so that plan-entitlement checks (e.g., skill download) use the correct tier.
+	var group interface{}
+	if useAccessToken {
+		if g, err := model.GetUserGroup(apiUserId, false); err == nil {
+			group = g
+		}
+	} else {
+		group = session.Get("group")
+	}
+
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("group", group)
+	c.Set("user_group", group)
 	c.Set("use_access_token", useAccessToken)
 	c.Next()
 }
@@ -96,6 +108,12 @@ func skillAuthHelper(c *gin.Context, minRole int) {
 func abortSkillAuth(c *gin.Context, message string, detail any, code errcodes.ErrorCode) {
 	skillapi.Error(c, code, message, detail)
 	c.Abort()
+}
+
+func SkillUserAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		skillAuthHelper(c, common.RoleCommonUser)
+	}
 }
 
 func SkillAdminAuth() func(c *gin.Context) {
