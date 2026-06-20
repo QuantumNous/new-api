@@ -35,6 +35,10 @@ func MigrateSkillVersions(db *gorm.DB) error {
 		if err := createSkillVersionsSQLiteTable(db); err != nil {
 			return err
 		}
+	} else if db.Dialector.Name() == "mysql" {
+		if err := createSkillVersionsMySQLTable(db); err != nil {
+			return err
+		}
 	} else {
 		if err := db.AutoMigrate(&SkillVersion{}); err != nil {
 			return err
@@ -82,6 +86,35 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			CONSTRAINT chk_skill_versions_max_input_tokens_snapshot CHECK (max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0),
 			CONSTRAINT chk_skill_versions_rollout_percentage CHECK (rollout_percentage BETWEEN 0 AND 100),
 			CONSTRAINT uni_skill_versions_skill_version UNIQUE (skill_id, version_number)
+		)
+	`).Error
+}
+
+func createSkillVersionsMySQLTable(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE TABLE IF NOT EXISTS skill_versions (
+			id char(36) NOT NULL,
+			skill_id char(36) NOT NULL,
+			version_number bigint NOT NULL,
+			status varchar(32) NOT NULL DEFAULT 'draft',
+			instruction_template text NOT NULL,
+			instruction_template_sha256 char(64) NOT NULL,
+			prompt_guard_template text,
+			output_schema text NOT NULL,
+			model_whitelist_snapshot text NOT NULL,
+			required_plan_snapshot varchar(32) NOT NULL,
+			monetization_snapshot text NOT NULL,
+			max_input_tokens_snapshot bigint,
+			rollout_percentage bigint NOT NULL DEFAULT 100,
+			experiment_name varchar(128),
+			created_by bigint NOT NULL,
+			created_at datetime(3) NOT NULL,
+			activated_at datetime(3),
+			archived_at datetime(3),
+			active_skill_id char(36) GENERATED ALWAYS AS (CASE WHEN status = 'active' THEN skill_id ELSE NULL END) STORED,
+			PRIMARY KEY (id),
+			KEY idx_skill_versions_skill_id (skill_id),
+			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE CASCADE ON DELETE RESTRICT
 		)
 	`).Error
 }
