@@ -219,6 +219,37 @@ func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T
 		"missing entry_point must default to playground_picker per §9")
 }
 
+// TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400 verifies that an unknown
+// entry_point value is rejected with HTTP 400 before SkillRelayContext is stored.
+// This prevents arbitrary strings from poisoning downstream analytics events.
+func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "ep-invalid", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "EP Invalid", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 10)
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model: "gpt-4o",
+		Deeprouter: &dto.DeepRouterExtension{
+			SkillID:    skill.ID,
+			EntryPoint: "not_a_real_entry_point",
+		},
+	}))
+
+	require.NotNil(t, apiErr, "invalid entry_point must be rejected")
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode,
+		"invalid entry_point must return HTTP 400")
+
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "SkillRelayContext must NOT be stored when entry_point is invalid")
+}
+
 // TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField verifies that when
 // deeprouter.entry_point is set (e.g. "skill_package" by an external package client),
 // SkillRelayContext.EntryPoint carries that value through for analytics.

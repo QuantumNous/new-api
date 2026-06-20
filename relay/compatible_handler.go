@@ -61,7 +61,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		// Default to playground_picker per V1 spec; package clients set skill_package explicitly.
 		skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
 		if request.Deeprouter.EntryPoint != "" {
-			skillCtx.EntryPoint = request.Deeprouter.EntryPoint
+			ep := enums.EntryPoint(request.Deeprouter.EntryPoint)
+			if !ep.Valid() {
+				return types.NewErrorWithStatusCode(
+					fmt.Errorf("invalid entry_point: %q", request.Deeprouter.EntryPoint),
+					types.ErrorCodeInvalidRequest,
+					http.StatusBadRequest,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			skillCtx.EntryPoint = string(ep)
 		}
 		skillrelay.Set(c, skillCtx)
 		request.Deeprouter = nil // strip vendor extension before provider forwarding
