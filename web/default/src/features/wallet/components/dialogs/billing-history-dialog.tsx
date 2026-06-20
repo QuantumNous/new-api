@@ -35,7 +35,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -145,7 +144,7 @@ export function BillingHistoryDialog({
           </div>
 
           {/* Records List */}
-          <ScrollArea className='max-h-[min(54vh,520px)] pr-3 sm:pr-4'>
+          <div className='max-h-[min(54vh,520px)] overflow-y-auto pr-1'>
             {loading ? (
               <div className='space-y-3'>
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -275,7 +274,7 @@ export function BillingHistoryDialog({
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Pagination */}
           {!loading && records.length > 0 && (
