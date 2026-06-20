@@ -64,9 +64,9 @@ func TestSkillVersions_InsertRequiredFieldsAndNormalizeJSON_SQLite(t *testing.T)
 	db := openSQLiteDB(t)
 	skill := createSkillForVersionTest(t, db, "version-json")
 	version := validSkillVersion(skill.ID, 1)
-	version.OutputSchema = nil
-	version.ModelWhitelistSnapshot = nil
-	version.MonetizationSnapshot = nil
+	version.OutputSchema = nil           // nil → NULL in DB (PRD §4.2: no schema = NULL)
+	version.ModelWhitelistSnapshot = nil // nil → normalized to []
+	version.MonetizationSnapshot = nil   // nil → normalized to {}
 
 	if err := db.Create(&version).Error; err != nil {
 		t.Fatalf("create skill version: %v", err)
@@ -79,14 +79,18 @@ func TestSkillVersions_InsertRequiredFieldsAndNormalizeJSON_SQLite(t *testing.T)
 	if err := db.First(&got, "id = ?", version.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	for name, field := range map[string]SkillJSONB{
-		"OutputSchema":           got.OutputSchema,
-		"ModelWhitelistSnapshot": got.ModelWhitelistSnapshot,
-		"MonetizationSnapshot":   got.MonetizationSnapshot,
-	} {
-		if string(field) != "[]" {
-			t.Errorf("%s: expected '[]', got %q", name, string(field))
-		}
+
+	// output_schema: nullable — nil input stays NULL in DB.
+	if got.OutputSchema != nil {
+		t.Errorf("OutputSchema: expected nil (NULL in DB), got %q", string(*got.OutputSchema))
+	}
+	// model_whitelist_snapshot: array shape, normalized to [].
+	if string(got.ModelWhitelistSnapshot) != "[]" {
+		t.Errorf("ModelWhitelistSnapshot: expected '[]', got %q", string(got.ModelWhitelistSnapshot))
+	}
+	// monetization_snapshot: object shape, normalized to {} (NOT []).
+	if string(got.MonetizationSnapshot) != "{}" {
+		t.Errorf("MonetizationSnapshot: expected '{}', got %q", string(got.MonetizationSnapshot))
 	}
 }
 
@@ -206,13 +210,14 @@ func createSkillForVersionTest(t *testing.T, db *gorm.DB, slug string) Skill {
 
 func validSkillVersion(skillID string, versionNumber int) SkillVersion {
 	maxInput := 4000
+	schema := SkillJSONB(`{"type":"object"}`)
 	return SkillVersion{
 		SkillID:                   skillID,
 		VersionNumber:             versionNumber,
 		Status:                    "draft",
 		InstructionTemplate:       "You are a helpful skill executor.",
 		InstructionTemplateSHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		OutputSchema:              SkillJSONB(`{"type":"object"}`),
+		OutputSchema:              &schema, // *SkillJSONB: nullable per PRD §4.2
 		ModelWhitelistSnapshot:    SkillJSONB(`["gpt-4o-mini"]`),
 		RequiredPlanSnapshot:      "free",
 		MonetizationSnapshot:      SkillJSONB(`{"type":"free"}`),

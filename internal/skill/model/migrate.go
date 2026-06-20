@@ -69,7 +69,7 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			instruction_template text NOT NULL,
 			instruction_template_sha256 char(64) NOT NULL,
 			prompt_guard_template text,
-			output_schema text NOT NULL,
+			output_schema text,
 			model_whitelist_snapshot text NOT NULL,
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
@@ -77,7 +77,7 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			rollout_percentage integer NOT NULL DEFAULT 100,
 			experiment_name varchar(128),
 			created_by bigint NOT NULL,
-			created_at datetime NOT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			activated_at datetime,
 			archived_at datetime,
 			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
@@ -100,7 +100,7 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			instruction_template text NOT NULL,
 			instruction_template_sha256 char(64) NOT NULL,
 			prompt_guard_template text,
-			output_schema text NOT NULL,
+			output_schema text,
 			model_whitelist_snapshot text NOT NULL,
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
@@ -108,7 +108,7 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			rollout_percentage bigint NOT NULL DEFAULT 100,
 			experiment_name varchar(128),
 			created_by bigint NOT NULL,
-			created_at datetime(3) NOT NULL,
+			created_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 			activated_at datetime(3),
 			archived_at datetime(3),
 			active_skill_id char(36) GENERATED ALWAYS AS (CASE WHEN status = 'active' THEN skill_id ELSE NULL END) STORED,
@@ -216,23 +216,33 @@ func createSkillVersionsJSONBColumns(db *gorm.DB) error {
 		return nil
 	}
 
-	cols := []string{"output_schema", "model_whitelist_snapshot", "monetization_snapshot"}
-	for _, col := range cols {
-		already, err := isPGColumnJSONB(db, "skill_versions", col)
+	// col → PG default after jsonb upgrade; empty string = nullable, no default (PRD §4.2).
+	colDefaults := []struct {
+		col        string
+		defaultVal string
+	}{
+		{"output_schema", ""},              // NULL = no output schema (PRD §4.2)
+		{"model_whitelist_snapshot", "'[]'::jsonb"},
+		{"monetization_snapshot", "'{}'::jsonb"}, // object shape, not array
+	}
+	for _, cd := range colDefaults {
+		already, err := isPGColumnJSONB(db, "skill_versions", cd.col)
 		if err != nil {
-			return fmt.Errorf("check skill_versions jsonb column %s: %w", col, err)
+			return fmt.Errorf("check skill_versions jsonb column %s: %w", cd.col, err)
 		}
 		if already {
 			continue
 		}
 		steps := []string{
-			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s DROP DEFAULT", col),
-			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s TYPE jsonb USING %s::jsonb", col, col),
-			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s SET DEFAULT '[]'::jsonb", col),
+			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s DROP DEFAULT", cd.col),
+			fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s TYPE jsonb USING %s::jsonb", cd.col, cd.col),
+		}
+		if cd.defaultVal != "" {
+			steps = append(steps, fmt.Sprintf("ALTER TABLE skill_versions ALTER COLUMN %s SET DEFAULT %s", cd.col, cd.defaultVal))
 		}
 		for _, sql := range steps {
 			if err := db.Exec(sql).Error; err != nil {
-				return fmt.Errorf("skill_versions jsonb upgrade %s: %w", col, err)
+				return fmt.Errorf("skill_versions jsonb upgrade %s: %w", cd.col, err)
 			}
 		}
 	}

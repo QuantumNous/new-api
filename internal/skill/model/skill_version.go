@@ -21,10 +21,13 @@ type SkillVersion struct {
 	InstructionTemplateSHA256 string `gorm:"column:instruction_template_sha256;type:char(64);not null"`
 
 	PromptGuardTemplate *string    `gorm:"column:prompt_guard_template;type:text"`
-	OutputSchema        SkillJSONB `gorm:"column:output_schema;type:text;not null"`
+	// OutputSchema is nullable: NULL means "no structured output schema" (PRD §4.2).
+	// Callers must handle nil before unmarshaling.
+	OutputSchema *SkillJSONB `gorm:"column:output_schema;type:text"`
 
 	ModelWhitelistSnapshot SkillJSONB         `gorm:"column:model_whitelist_snapshot;type:text;not null"`
 	RequiredPlanSnapshot   enums.RequiredPlan `gorm:"column:required_plan_snapshot;type:varchar(32);not null;check:chk_skill_versions_required_plan_snapshot,required_plan_snapshot IN ('free','pro','enterprise')"`
+	// MonetizationSnapshot is an object (not an array): {} means "no monetization config".
 	MonetizationSnapshot   SkillJSONB         `gorm:"column:monetization_snapshot;type:text;not null"`
 	MaxInputTokensSnapshot *int               `gorm:"column:max_input_tokens_snapshot;type:integer;check:chk_skill_versions_max_input_tokens_snapshot,max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0"`
 
@@ -45,8 +48,8 @@ func (v *SkillVersion) BeforeCreate(tx *gorm.DB) error {
 	if v.ID == "" {
 		v.ID = uuid.New().String()
 	}
-	normalizeSkillJSONB(&v.OutputSchema)
+	// output_schema: intentionally not normalized — nil stays nil (NULL in DB = no schema, PRD §4.2)
 	normalizeSkillJSONB(&v.ModelWhitelistSnapshot)
-	normalizeSkillJSONB(&v.MonetizationSnapshot)
+	normalizeSkillJSONBObject(&v.MonetizationSnapshot) // object shape, not array
 	return nil
 }

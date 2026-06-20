@@ -56,6 +56,13 @@ func normalizeSkillJSONB(j *SkillJSONB) {
 	}
 }
 
+// normalizeSkillJSONBObject sets j to {} if nil or empty — for object-shaped columns.
+func normalizeSkillJSONBObject(j *SkillJSONB) {
+	if len(*j) == 0 {
+		*j = SkillJSONB("{}")
+	}
+}
+
 // Skill is the DB model for the skills table.
 // Schema deviations from PRD (see DR-40-PR-description.md §D1-D8):
 //   - id: CHAR(36) not PG uuid (D1)

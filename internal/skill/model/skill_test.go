@@ -57,14 +57,21 @@ func TestSkillVersionBeforeCreate_NormalizesJSONFields(t *testing.T) {
 	if err := v.BeforeCreate(&gorm.DB{}); err != nil {
 		t.Fatal(err)
 	}
-	for name, field := range map[string]SkillJSONB{
-		"OutputSchema":           v.OutputSchema,
-		"ModelWhitelistSnapshot": v.ModelWhitelistSnapshot,
-		"MonetizationSnapshot":   v.MonetizationSnapshot,
-	} {
-		if string(field) != "[]" {
-			t.Errorf("%s: expected '[]', got %q", name, string(field))
-		}
+	// output_schema: nullable per PRD §4.2; nil input must stay nil (NULL in DB = no schema).
+	if v.OutputSchema != nil {
+		t.Errorf("OutputSchema: expected nil (NULL), got %q", string(*v.OutputSchema))
+	}
+	// model_whitelist_snapshot: array shape, normalized to [].
+	if string(v.ModelWhitelistSnapshot) != "[]" {
+		t.Errorf("ModelWhitelistSnapshot: expected '[]', got %q", string(v.ModelWhitelistSnapshot))
+	}
+	// monetization_snapshot: object shape per PRD §4.2, normalized to {}.
+	if string(v.MonetizationSnapshot) != "{}" {
+		t.Errorf("MonetizationSnapshot: expected '{}', got %q", string(v.MonetizationSnapshot))
+	}
+	// sentinel: make sure the old wrong default [] is not present for monetization
+	if string(v.MonetizationSnapshot) == "[]" {
+		t.Errorf("MonetizationSnapshot must NOT be '[]' — it is an object, not an array")
 	}
 }
 
