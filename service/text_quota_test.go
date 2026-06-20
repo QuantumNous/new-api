@@ -439,3 +439,214 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
 	require.Equal(t, 14500, quota)
 }
+
+// ── PostTextConsumeQuota — billing webhook dispatch gate (V4.3) ─────────────
+//
+// PostTextConsumeQuota dispatches the per-tenant billing webhook
+// (dispatchAirbotixBilling) only when SettleBilling succeeds AND
+// summary.TotalTokens > 0. For usage == nil, calculateTextQuotaSummary falls
+// back to relayInfo.GetEstimatePromptTokens() for its summary, but that
+// fallback usage is local to calculateTextQuotaSummary and does not propagate
+// back to PostTextConsumeQuota's usage variable — so PostTextConsumeQuota must
+// build its own billingUsage from summary in that case.
+//
+// Test infrastructure reused from airbotix_billing_test.go (same package):
+// billingTestCtx, newWebhookServer, testUsage, decodeEvent, testSecret.
+
+// TestPostTextConsumeQuota_DispatchesBillingWebhookForEstimatedUsageWhenUsageNil
+// verifies that when usage == nil but the estimated prompt tokens are > 0, the
+// webhook fires with prompt_tokens/completion_tokens taken from the summary's
+// estimate (not from usage, which remains nil).
+func TestPostTextConsumeQuota_DispatchesBillingWebhookForEstimatedUsageWhenUsageNil(t *testing.T) {
+	ws := newWebhookServer(t, 200)
+	ctx := billingTestCtx(ws.URL, testSecret, "")
+
+	relayInfo := &relaycommon.RelayInfo{
+		RequestId:       "req-nil-usage-estimate",
+		OriginModelName: "gpt-4o-mini",
+		StartTime:       time.Now().Add(-2 * time.Second),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+		PriceData:             types.PriceData{},
+		FinalPreConsumedQuota: 0,
+	}
+	relayInfo.SetEstimatePromptTokens(120)
+
+	PostTextConsumeQuota(ctx, relayInfo, nil, nil)
+
+	if !ws.waitHits(1, 2*time.Second) {
+		t.Fatal("webhook was not called for usage == nil with estimated tokens > 0")
+	}
+
+	ev := decodeEvent(t, ws)
+	if ev.PromptTokens != 120 {
+		t.Errorf("PromptTokens: want 120 (estimate), got %d", ev.PromptTokens)
+	}
+	if ev.CompletionTokens != 0 {
+		t.Errorf("CompletionTokens: want 0, got %d", ev.CompletionTokens)
+	}
+}
+
+// TestPostTextConsumeQuota_SkipsBillingWebhookWhenTotalTokensZero verifies that
+// the webhook does not fire when summary.TotalTokens == 0, even though
+// SettleBilling succeeds.
+func TestPostTextConsumeQuota_SkipsBillingWebhookWhenTotalTokensZero(t *testing.T) {
+	ws := newWebhookServer(t, 200)
+	ctx := billingTestCtx(ws.URL, testSecret, "")
+
+	relayInfo := &relaycommon.RelayInfo{
+		RequestId:       "req-zero-tokens",
+		OriginModelName: "gpt-4o-mini",
+		StartTime:       time.Now().Add(-2 * time.Second),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+		PriceData:             types.PriceData{},
+		FinalPreConsumedQuota: 0,
+	}
+
+	PostTextConsumeQuota(ctx, relayInfo, testUsage(0, 0), nil)
+
+	time.Sleep(150 * time.Millisecond)
+	if got := ws.hits.Load(); got != 0 {
+		t.Errorf("expected no webhook call for zero total tokens, got %d", got)
+	}
+}
+
+// TestPostTextConsumeQuota_DispatchesBillingWebhookWhenSettleBillingSucceeds
+// verifies the ordinary non-nil-usage path: SettleBilling succeeds, TotalTokens
+// > 0, and the webhook payload reflects the original usage (not an estimate).
+func TestPostTextConsumeQuota_DispatchesBillingWebhookWhenSettleBillingSucceeds(t *testing.T) {
+	ws := newWebhookServer(t, 200)
+	ctx := billingTestCtx(ws.URL, testSecret, "")
+
+	relayInfo := &relaycommon.RelayInfo{
+		RequestId:       "req-settle-success",
+		OriginModelName: "gpt-4o-mini",
+		StartTime:       time.Now().Add(-2 * time.Second),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+		PriceData:             types.PriceData{},
+		FinalPreConsumedQuota: 0,
+	}
+
+	PostTextConsumeQuota(ctx, relayInfo, testUsage(150, 80), nil)
+
+	if !ws.waitHits(1, 2*time.Second) {
+		t.Fatal("webhook was not called when SettleBilling succeeds")
+	}
+
+	ev := decodeEvent(t, ws)
+	if ev.PromptTokens != 150 {
+		t.Errorf("PromptTokens: want 150 (from usage), got %d", ev.PromptTokens)
+	}
+	if ev.CompletionTokens != 80 {
+		t.Errorf("CompletionTokens: want 80 (from usage), got %d", ev.CompletionTokens)
+	}
+}
+
+// TestPostTextConsumeQuota_SkipsBillingWebhookWhenSettleBillingFails verifies
+// that the webhook does not fire when SettleBilling returns an error, even
+// though TotalTokens > 0.
+func TestPostTextConsumeQuota_SkipsBillingWebhookWhenSettleBillingFails(t *testing.T) {
+	ws := newWebhookServer(t, 200)
+	ctx := billingTestCtx(ws.URL, testSecret, "")
+
+	relayInfo := &relaycommon.RelayInfo{
+		RequestId:       "req-settle-fail",
+		OriginModelName: "gpt-4o-mini",
+		StartTime:       time.Now().Add(-2 * time.Second),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+		PriceData: types.PriceData{},
+		// FinalPreConsumedQuota != settled quota (0), so SettleBilling falls
+		// through to PostConsumeQuota instead of short-circuiting on
+		// quotaDelta == 0.
+		FinalPreConsumedQuota: 100,
+		BillingSource:         BillingSourceSubscription,
+		SubscriptionId:        0, // PostConsumeQuota returns "subscription id is missing"
+	}
+
+	PostTextConsumeQuota(ctx, relayInfo, testUsage(150, 80), nil)
+
+	time.Sleep(150 * time.Millisecond)
+	if got := ws.hits.Load(); got != 0 {
+		t.Errorf("expected no webhook call when SettleBilling fails, got %d", got)
+	}
+}
+
+// TestPostTextConsumeQuota_FallbackDispatchesBillingWebhookOnSuccess covers the
+// usage == nil / SettleBilling-succeeds combination with a non-zero settled
+// quota (unlike TestPostTextConsumeQuota_DispatchesBillingWebhookForEstimatedUsageWhenUsageNil,
+// which uses a zero PriceData), verifying the billingUsage fallback also
+// produces a correct non-zero cost_usd.
+func TestPostTextConsumeQuota_FallbackDispatchesBillingWebhookOnSuccess(t *testing.T) {
+	ws := newWebhookServer(t, 200)
+	ctx := billingTestCtx(ws.URL, testSecret, "")
+
+	relayInfo := &relaycommon.RelayInfo{
+		RequestId:       "req-nil-usage-nonzero-quota",
+		OriginModelName: "gpt-4o-mini",
+		StartTime:       time.Now().Add(-2 * time.Second),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+		PriceData: types.PriceData{
+			ModelRatio:     1,
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1},
+		},
+		// Matches the settled quota for 1000 estimated prompt tokens at
+		// ModelRatio * GroupRatio == 1, so quotaDelta == 0 (SettleBilling
+		// succeeds) while summary.Quota != 0.
+		FinalPreConsumedQuota: 1000,
+	}
+	relayInfo.SetEstimatePromptTokens(1000)
+
+	PostTextConsumeQuota(ctx, relayInfo, nil, nil)
+
+	if !ws.waitHits(1, 2*time.Second) {
+		t.Fatal("webhook was not called for usage == nil with non-zero settled quota")
+	}
+
+	ev := decodeEvent(t, ws)
+	if ev.PromptTokens != 1000 {
+		t.Errorf("PromptTokens: want 1000 (estimate), got %d", ev.PromptTokens)
+	}
+	if ev.CostUSD == 0 {
+		t.Error("CostUSD: want non-zero for a non-zero settled quota, got 0")
+	}
+}
+
+// TestPostTextConsumeQuota_FallbackSkipsBillingWebhookOnError covers the
+// usage == nil / SettleBilling-fails combination (the counterpart to
+// TestPostTextConsumeQuota_SkipsBillingWebhookWhenSettleBillingFails, which
+// uses non-nil usage): the webhook must not fire regardless of the estimated
+// TotalTokens.
+func TestPostTextConsumeQuota_FallbackSkipsBillingWebhookOnError(t *testing.T) {
+	ws := newWebhookServer(t, 200)
+	ctx := billingTestCtx(ws.URL, testSecret, "")
+
+	relayInfo := &relaycommon.RelayInfo{
+		RequestId:       "req-nil-usage-settle-fail",
+		OriginModelName: "gpt-4o-mini",
+		StartTime:       time.Now().Add(-2 * time.Second),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenAI,
+		},
+		PriceData:             types.PriceData{},
+		FinalPreConsumedQuota: 100,
+		BillingSource:         BillingSourceSubscription,
+		SubscriptionId:        0,
+	}
+	relayInfo.SetEstimatePromptTokens(120)
+
+	PostTextConsumeQuota(ctx, relayInfo, nil, nil)
+
+	time.Sleep(150 * time.Millisecond)
+	if got := ws.hits.Load(); got != 0 {
+		t.Errorf("expected no webhook call when SettleBilling fails for usage == nil, got %d", got)
+	}
+}

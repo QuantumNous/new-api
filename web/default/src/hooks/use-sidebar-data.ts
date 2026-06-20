@@ -34,6 +34,8 @@ import {
   ListTodo,
   Settings,
   HelpCircle,
+  Store,
+  Sparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -116,6 +118,22 @@ export function useSidebarData(): SidebarData {
             title: t('Profile'),
             url: '/profile',
             icon: User,
+          },
+        ],
+      },
+      {
+        id: 'marketplace',
+        title: t('Marketplace'),
+        items: [
+          {
+            title: t('Skills'),
+            url: '/skills',
+            icon: Store,
+          },
+          {
+            title: t('My Skills'),
+            url: '/skills/my',
+            icon: Sparkles,
           },
         ],
       },

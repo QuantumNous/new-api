@@ -98,6 +98,9 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_waffo_pancake_topup": enableWaffoPancake,
 		"enable_airwallex_topup":     isAirwallexTopUpEnabled(),
 		"airwallex_currencies":       parseAirwallexCurrencies(),
+		// Whether off-session Airwallex auto-recharge is enabled by the operator.
+		// Drives the "save card for auto-recharge" checkbox on the Airwallex form.
+		"airwallex_autotopup_enabled": operation_setting.AutoTopupAirwallexEnabled(),
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()

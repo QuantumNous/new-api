@@ -50,8 +50,16 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	// Airwallex off-session auto-charge handles (saved on first manual top-up
+	// once the user opts in). Unlike Stripe (which resolves the default card
+	// server-side from the customer), Airwallex off-session charging is driven
+	// by the PaymentConsent id, so AirwallexConsentID is the core handle.
+	AirwallexCustomer      string `json:"airwallex_customer" gorm:"type:varchar(64);column:airwallex_customer;index"`
+	AirwallexConsentID     string `json:"airwallex_consent_id" gorm:"type:varchar(64);column:airwallex_consent_id"`
+	AirwallexPaymentMethod string `json:"airwallex_payment_method" gorm:"type:varchar(64);column:airwallex_payment_method"`
+	AirwallexOriginalTxnID string `json:"airwallex_original_txn_id" gorm:"type:varchar(128);column:airwallex_original_txn_id"`
+	CreatedAt              int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt            int64  `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 
 	// === Airbotix / DeepRouter additions ===
 	// These extend NewAPI's User model so each tenant (= NewAPI user) can carry
@@ -685,6 +693,35 @@ func (user *User) UpdateGitHubId(newGitHubId string) error {
 		return errors.New("user id is empty")
 	}
 	return DB.Model(user).Update("github_id", newGitHubId).Error
+}
+
+// UpdateAutoTopup persists only the three auto-topup columns. A map (not a
+// struct) is used so that turning the feature OFF (enabled=false, a zero value)
+// is actually written — a plain Updates(struct) would silently skip the false.
+func (user *User) UpdateAutoTopup() error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	return DB.Model(user).Updates(map[string]interface{}{
+		"auto_topup_enabled":   user.AutoTopupEnabled,
+		"auto_topup_threshold": user.AutoTopupThreshold,
+		"auto_topup_amount":    user.AutoTopupAmount,
+	}).Error
+}
+
+// ClearAirwallexConsent removes the saved off-session consent + payment method
+// from any user holding the given consent id — called when Airwallex reports the
+// consent disabled/revoked/expired, so auto-topup stops attempting to use it.
+// Returns the number of rows cleared.
+func ClearAirwallexConsent(consentID string) (int64, error) {
+	if consentID == "" {
+		return 0, nil
+	}
+	res := DB.Model(&User{}).Where("airwallex_consent_id = ?", consentID).Updates(map[string]interface{}{
+		"airwallex_consent_id":     "",
+		"airwallex_payment_method": "",
+	})
+	return res.RowsAffected, res.Error
 }
 
 func (user *User) FillUserByDiscordId() error {

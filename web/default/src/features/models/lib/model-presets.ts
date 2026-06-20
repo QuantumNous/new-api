@@ -45,6 +45,13 @@ export const MODEL_PRESETS: ModelPreset[] = [
     endpoints: 'chat',
   },
   {
+    model_name: 'claude-opus-4-8',
+    description: 'Anthropic Opus 4.8 — adaptive thinking, top-tier reasoning.',
+    group: 'reasoning',
+    tags: ['reasoning', 'thinking', 'long-context'],
+    endpoints: 'chat',
+  },
+  {
     model_name: 'claude-opus-4-7',
     description: 'Anthropic Opus 4.7 — adaptive thinking, top-tier reasoning.',
     group: 'reasoning',

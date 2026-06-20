@@ -18,12 +18,14 @@ new-api
 /__debug_bin*
 .DS_Store
 tiktoken_cache
+bin/seed-output-*.txt
 .eslintcache
 .gocache
 .gomodcache/
 .cache
 plans
 .claude
+!.claude/commands/
 .cursor
 
 electron/node_modules
@@ -38,3 +40,7 @@ skills-lock.json
 
 # playwright-mcp tool runs leave logs/snapshots here — not source
 .playwright-mcp/
+
+# Local env files with real API keys / secrets — never commit
+bin/.env.*
+!bin/.env.*.example

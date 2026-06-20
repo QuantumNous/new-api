@@ -792,6 +792,38 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
+	// 自动充值自助设置：用户自己开关/设阈值/设金额（金额单位为 quota，由前端按售价换算）
+	if _, ok := requestData["auto_topup_enabled"]; ok {
+		userId := c.GetInt("id")
+		u, err := model.GetUserById(userId, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if v, ok := requestData["auto_topup_enabled"].(bool); ok {
+			u.AutoTopupEnabled = v
+		}
+		if v, ok := requestData["auto_topup_threshold"].(float64); ok && v >= 0 {
+			u.AutoTopupThreshold = int(v)
+		}
+		if v, ok := requestData["auto_topup_amount"].(float64); ok {
+			amt := int(v)
+			if amt < 0 {
+				amt = 0
+			}
+			if amt > 100000000 { // cap ≈ $1000 charge to prevent abuse
+				amt = 100000000
+			}
+			u.AutoTopupAmount = amt
+		}
+		if err := u.UpdateAutoTopup(); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
+			return
+		}
+		common.ApiSuccessI18n(c, i18n.MsgUpdateSuccess, nil)
+		return
+	}
+
 	// 原有的用户信息更新逻辑
 	var user model.User
 	requestDataBytes, err := json.Marshal(requestData)

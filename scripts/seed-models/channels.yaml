@@ -75,6 +75,7 @@ channels:
     tag: anthropic
     models:
       # Claude 4.x 最新主力
+      - claude-opus-4-8
       - claude-opus-4-7
       - claude-opus-4-6
       - claude-opus-4-5-20251101
@@ -89,6 +90,12 @@ channels:
       - claude-3-5-haiku-20241022
       - claude-3-opus-20240229
       - claude-3-haiku-20240307
+      # Opus 4.8 思维深度变体
+      - claude-opus-4-8-max
+      - claude-opus-4-8-xhigh
+      - claude-opus-4-8-high
+      - claude-opus-4-8-medium
+      - claude-opus-4-8-low
       # Opus 4.7 思维深度变体
       - claude-opus-4-7-max
       - claude-opus-4-7-xhigh

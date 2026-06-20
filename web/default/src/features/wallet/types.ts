@@ -56,6 +56,8 @@ export interface AirwallexPaymentRequest {
   payment_method: 'airwallex'
   success_url?: string
   cancel_url?: string
+  /** Save the card for off-session auto-recharge. */
+  save_for_future?: boolean
 }
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -162,6 +164,8 @@ export interface TopupInfo {
   waffo_pancake_min_topup?: number
   /** Whether Airwallex topup is enabled */
   enable_airwallex_topup?: boolean
+  /** Off-session Airwallex auto-recharge enabled by the operator */
+  airwallex_autotopup_enabled?: boolean
   /** Enabled currencies for Airwallex (admin-configured) */
   airwallex_currencies?: AirwallexCurrency[]
 }
@@ -259,6 +263,14 @@ export interface UserWalletData {
   aff_count: number
   /** User group */
   group: string
+  /** Saved Stripe customer id — non-empty once a card has been saved */
+  stripe_customer?: string
+  /** Auto-topup: charge saved card when balance runs low */
+  auto_topup_enabled?: boolean
+  /** Auto-topup: trigger when quota drops below this (quota units) */
+  auto_topup_threshold?: number
+  /** Auto-topup: quota credited per auto-recharge (quota units) */
+  auto_topup_amount?: number
 }
 
 /**

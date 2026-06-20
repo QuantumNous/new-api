@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
 import {
   Command,
@@ -43,9 +46,20 @@ export function CommandMenu() {
   const { open, setOpen } = useSearch()
   const { pathname } = useLocation()
   const sidebarData = useSidebarData()
+  const userRole = useAuthStore((state) => state.auth.user?.role)
 
   // 根据当前路径从工作区注册表获取对应的侧边栏配置
-  const navGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  const rawNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
+  // 应用与侧边栏相同的 admin x user feature-flag 过滤，避免关闭的模块仍能被搜到
+  const configFilteredNavGroups = useSidebarConfig(rawNavGroups)
+  // 应用与 AppSidebar 相同的 role 过滤，非 Admin 用户不应在 Cmd+K 中看到 admin 导航项
+  const navGroups = useMemo(() => {
+    const isAdmin = userRole && userRole >= ROLE.ADMIN
+    return configFilteredNavGroups.filter((group) => {
+      if (group.id === 'admin') return isAdmin
+      return true
+    })
+  }, [configFilteredNavGroups, userRole])
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {

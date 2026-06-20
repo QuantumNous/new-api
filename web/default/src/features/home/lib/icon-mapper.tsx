@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Zap,
   Shield,
+  Lock,
   Globe,
   Code,
   Gauge,
@@ -34,6 +35,7 @@ import {
 const ICON_MAP: Record<string, LucideIcon> = {
   Zap,
   Shield,
+  Lock,
   Globe,
   Code,
   Gauge,

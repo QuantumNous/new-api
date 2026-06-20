@@ -24,14 +24,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// userLookupFn is the signature of model.GetUserById, extracted so tests can
+// inject a stub without a real database.
+type userLookupFn func(id int, cache bool) (*model.User, error)
+
+// AirbotixPolicy is the production middleware; it delegates to airbotixPolicyWith
+// with the real DB lookup.
 func AirbotixPolicy() gin.HandlerFunc {
+	return airbotixPolicyWith(model.GetUserById)
+}
+
+// airbotixPolicyWith is the testable core: accepts an injected lookup so unit
+// tests can simulate DB errors without a real database.
+func airbotixPolicyWith(lookup userLookupFn) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.GetInt("id")
 		if userId == 0 {
 			c.Next()
 			return
 		}
-		user, err := model.GetUserById(userId, false)
+		user, err := lookup(userId, false)
 		if err != nil || user == nil {
 			// Don't fail the request — fall through with a passthrough decision so
 			// existing non-Airbotix traffic is unaffected on transient DB errors.

@@ -96,6 +96,12 @@ export const DEFAULT_FEATURES = [
     iconName: 'Shield',
   },
   {
+    title: 'Privacy-First',
+    description:
+      'We never sell your data; your prompts are used only to fulfil your requests',
+    iconName: 'Lock',
+  },
+  {
     title: 'Global Coverage',
     description: 'Multi-region deployment for stable global access',
     iconName: 'Globe',

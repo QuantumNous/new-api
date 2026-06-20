@@ -4,7 +4,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
@@ -173,4 +175,18 @@ func TestAirwallexApiBaseURL(t *testing.T) {
 
 	setting.AirwallexSandbox = false
 	require.Equal(t, "https://api.airwallex.com", setting.AirwallexApiBaseURL())
+}
+
+func TestAirwallexTimestampFresh(t *testing.T) {
+	nowS := time.Now().Unix()
+	nowMs := time.Now().UnixMilli()
+
+	require.True(t, airwallexTimestampFresh(strconv.FormatInt(nowS, 10)), "fresh seconds")
+	require.True(t, airwallexTimestampFresh(strconv.FormatInt(nowMs, 10)), "fresh millis")
+	// stale (10 min ago) → blocked
+	require.False(t, airwallexTimestampFresh(strconv.FormatInt(nowS-600, 10)), "stale seconds")
+	require.False(t, airwallexTimestampFresh(strconv.FormatInt(nowMs-600_000, 10)), "stale millis")
+	// unparseable / empty → fail-open (don't block live webhooks)
+	require.True(t, airwallexTimestampFresh("not-a-number"), "garbage fails open")
+	require.True(t, airwallexTimestampFresh(""), "empty fails open")
 }

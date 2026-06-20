@@ -26,7 +26,7 @@ import {
   Features,
   Hero,
   HowItWorks,
-  SmartRoutingDemo,
+  SmartRouting,
   Stats,
   ValueCalculator,
 } from './components'
@@ -71,8 +71,8 @@ export function Home() {
   return (
     <PublicLayout showMainContainer={false}>
       <Hero isAuthenticated={isAuthenticated} />
+      <SmartRouting />
       <Stats />
-      <SmartRoutingDemo />
       <Features />
       <ValueCalculator />
       <HowItWorks />

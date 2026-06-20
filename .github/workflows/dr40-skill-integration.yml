@@ -1,0 +1,82 @@
+name: DR-40 / DR-42 Skill Model Integration Tests
+
+on:
+  pull_request:
+    paths:
+      - 'internal/skill/**'
+      - 'model/main.go'
+      - '.github/workflows/dr40-skill-integration.yml'
+
+jobs:
+  unit-sqlite:
+    name: Unit + SQLite (no external services)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: go vet
+        run: go vet ./internal/skill/...
+      - name: gofmt
+        run: test -z "$(gofmt -l ./internal/skill/model/)"
+      - name: go test (unit + SQLite)
+        run: go test -count=1 -v ./internal/skill/model/
+
+  pg-mysql-integration:
+    name: DR-40 / DR-42 PG + MySQL integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: dr40
+          POSTGRES_PASSWORD: dr40pass
+          POSTGRES_DB: dr40test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_USER: dr40
+          MYSQL_PASSWORD: dr40pass
+          MYSQL_DATABASE: dr40test
+          MYSQL_ROOT_PASSWORD: rootpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -u root -prootpass --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Create DR-42 dedicated test databases
+        run: |
+          # PG: dr40 is a superuser on its own cluster; CREATE DATABASE succeeds.
+          PGPASSWORD=dr40pass psql -h localhost -U dr40 -d dr40test \
+            -c "CREATE DATABASE dr42test;"
+          # MySQL: MYSQL_USER=dr40 only has privileges on MYSQL_DATABASE=dr40test,
+          # not global CREATE DATABASE. Use root to create dr42test and grant dr40.
+          mysql -h 127.0.0.1 -u root -prootpass <<'SQL'
+          CREATE DATABASE IF NOT EXISTS dr42test;
+          GRANT ALL PRIVILEGES ON dr42test.* TO 'dr40'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+      - name: go test (full suite — unit + SQLite + PG + MySQL)
+        env:
+          DR40_PG_DSN: postgres://dr40:dr40pass@localhost:5432/dr40test?sslmode=disable
+          DR40_MYSQL_DSN: dr40:dr40pass@tcp(localhost:3306)/dr40test?parseTime=true&multiStatements=true
+          DR42_PG_DSN: postgres://dr40:dr40pass@localhost:5432/dr42test?sslmode=disable
+          DR42_MYSQL_DSN: dr40:dr40pass@tcp(localhost:3306)/dr42test?parseTime=true&multiStatements=true
+        run: go test -count=1 -v ./internal/skill/model/

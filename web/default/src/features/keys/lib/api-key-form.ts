@@ -66,6 +66,10 @@ export const apiKeyFormSchema = z
     simple_purpose: z.enum(SIMPLE_PURPOSE_IDS).optional(),
     simple_brand: z.enum(SIMPLE_BRANDS).optional(),
     simple_price_tier: z.enum(SIMPLE_PRICE_TIERS).optional(),
+    // DR-13: per-token rate limits (0 = unlimited)
+    rpm_limit: z.number().min(0).optional(),
+    tpm_limit: z.number().min(0).optional(),
+    monthly_limit: z.number().min(0).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.mode === 'simple') {
@@ -114,6 +118,9 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   simple_purpose: undefined,
   simple_brand: undefined,
   simple_price_tier: undefined,
+  rpm_limit: 0,
+  tpm_limit: 0,
+  monthly_limit: 0,
 }
 
 export function getApiKeyFormDefaultValues(
@@ -164,6 +171,9 @@ export function transformFormDataToPayload(
     simple_purpose: isSimple ? data.simple_purpose : '',
     simple_brand: isSimple ? data.simple_brand : '',
     simple_price_tier: isSimple ? data.simple_price_tier : '',
+    rpm_limit: data.rpm_limit ?? 0,
+    tpm_limit: data.tpm_limit ?? 0,
+    monthly_limit: data.monthly_limit ?? 0,
   }
 }
 
@@ -199,6 +209,9 @@ export function transformApiKeyToFormDefaults(
     simple_purpose: purpose || undefined,
     simple_brand: brand || undefined,
     simple_price_tier: tier || undefined,
+    rpm_limit: apiKey.rpm_limit ?? 0,
+    tpm_limit: apiKey.tpm_limit ?? 0,
+    monthly_limit: apiKey.monthly_limit ?? 0,
   }
 }
 
@@ -234,6 +247,9 @@ export function detectAdvancedMode(
   if (apiKey.group === 'auto' && apiKey.cross_group_retry === false) {
     return true
   }
+  if (apiKey.rpm_limit && apiKey.rpm_limit > 0) return true
+  if (apiKey.tpm_limit && apiKey.tpm_limit > 0) return true
+  if (apiKey.monthly_limit && apiKey.monthly_limit > 0) return true
   return false
 }
 

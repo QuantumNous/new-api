@@ -262,3 +262,16 @@ export async function completeOrder(
   const res = await api.post('/api/user/topup/complete', request)
   return res.data
 }
+
+/**
+ * Update the current user's auto-topup settings (self-service).
+ * amount/threshold are in quota units.
+ */
+export async function updateAutoTopup(payload: {
+  auto_topup_enabled: boolean
+  auto_topup_amount: number
+  auto_topup_threshold: number
+}): Promise<ApiResponse> {
+  const res = await api.put('/api/user/self', payload)
+  return res.data
+}

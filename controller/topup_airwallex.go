@@ -64,6 +64,9 @@ type AirwallexPayRequest struct {
 	PaymentMethod string `json:"payment_method"`
 	SuccessURL    string `json:"success_url,omitempty"`
 	CancelURL     string `json:"cancel_url,omitempty"`
+	// SaveForFuture: user opted to save this card for auto-recharge. We then
+	// create/attach an Airwallex Customer so the consent + card can be reused.
+	SaveForFuture bool `json:"save_for_future,omitempty"`
 }
 
 // AirwallexWebhookEvent is the subset of the webhook payload we depend on.
@@ -84,6 +87,17 @@ type AirwallexPaymentIntent struct {
 	Amount          float64 `json:"amount"`
 	Currency        string  `json:"currency"`
 	Status          string  `json:"status"`
+	// Saved-card / off-session handles, populated when a first top-up opts in to
+	// save the card. Exact JSON paths vary by account API version — confirm
+	// against a real webhook payload before relying on them in PR-3.
+	CustomerID           string `json:"customer_id"`
+	PaymentConsentID     string `json:"payment_consent_id"`
+	LatestPaymentAttempt struct {
+		PaymentMethod struct {
+			ID string `json:"id"`
+		} `json:"payment_method"`
+		PaymentMethodTransactionID string `json:"payment_method_transaction_id"`
+	} `json:"latest_payment_attempt"`
 }
 
 // ---------- Token cache ----------
@@ -323,7 +337,21 @@ func RequestAirwallexPay(c *gin.Context) {
 		return
 	}
 
-	intent, err := createAirwallexPaymentIntent(c.Request.Context(), tradeNo, payMoney, strings.ToUpper(ccy.Currency), user.Email)
+	// If the user opted to save the card for auto-recharge, ensure an Airwallex
+	// Customer and attach the intent to it (so the card/consent can be reused
+	// off-session). Failure here falls back to a normal one-time payment.
+	customerID := ""
+	if req.SaveForFuture {
+		if user.AirwallexCustomer != "" {
+			customerID = user.AirwallexCustomer
+		} else if cus, cerr := ensureAirwallexCustomer(c.Request.Context(), id); cerr == nil {
+			customerID = cus
+		} else {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Airwallex 创建 customer 失败(降级为一次性支付) user_id=%d error=%q", id, cerr.Error()))
+		}
+	}
+
+	intent, err := createAirwallexPaymentIntent(c.Request.Context(), tradeNo, payMoney, strings.ToUpper(ccy.Currency), user.Email, customerID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 创建 PaymentIntent 失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -359,7 +387,46 @@ type airwallexIntentResp struct {
 	Status       string `json:"status"`
 }
 
-func createAirwallexPaymentIntent(ctx context.Context, tradeNo string, amount float64, currency string, email string) (*airwallexIntentResp, error) {
+// ensureAirwallexCustomer creates an Airwallex Customer (POST /pa/customers/
+// create) and returns its id (cus_...), so a saved card can be attached for
+// off-session auto-charge. merchant_customer_id = our userId for traceability.
+// Used by the save-for-future flow (PR-4); not called by the one-time path.
+func ensureAirwallexCustomer(ctx context.Context, userID int) (string, error) {
+	token, err := getAirwallexAccessToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	body, _ := json.Marshal(map[string]interface{}{
+		"request_id":           common.GetUUID(),
+		"merchant_customer_id": fmt.Sprintf("user-%d", userID),
+	})
+	url := setting.AirwallexApiBaseURL() + "/api/v1/pa/customers/create"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		return "", fmt.Errorf("创建 Airwallex Customer HTTP 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("创建 Airwallex Customer 返回 %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(respBody, &parsed); err != nil || parsed.ID == "" {
+		return "", fmt.Errorf("解析 Airwallex Customer 响应失败: %s", string(respBody))
+	}
+	return parsed.ID, nil
+}
+
+func createAirwallexPaymentIntent(ctx context.Context, tradeNo string, amount float64, currency string, email string, customerID string) (*airwallexIntentResp, error) {
 	token, err := getAirwallexAccessToken(ctx)
 	if err != nil {
 		return nil, err
@@ -371,6 +438,11 @@ func createAirwallexPaymentIntent(ctx context.Context, tradeNo string, amount fl
 		"amount":            amount,
 		"currency":          currency,
 		"descriptor":        "DeepRouter Credit",
+	}
+	// Attach to a customer so the card can be saved for off-session auto-charge
+	// (only when the caller opted in to save-for-future). Empty = one-time.
+	if customerID != "" {
+		body["customer_id"] = customerID
 	}
 	if email != "" {
 		body["order"] = map[string]interface{}{
@@ -459,6 +531,36 @@ func verifyAirwallexSignature(timestamp, body, signature, secret string) bool {
 	return hmac.Equal([]byte(expected), []byte(signature))
 }
 
+// airwallexWebhookMaxSkew bounds how old a webhook timestamp may be. Once
+// webhooks can trigger saved-consent side effects (PR-3+), a replay window is
+// required — a valid signature alone doesn't stop a captured request being
+// resent later.
+const airwallexWebhookMaxSkew = 5 * time.Minute
+
+// airwallexTimestampFresh reports whether the x-timestamp is within the allowed
+// skew of now. Airwallex sends Unix epoch; tolerate both seconds and ms.
+func airwallexTimestampFresh(timestamp string) bool {
+	n, err := strconv.ParseInt(strings.TrimSpace(timestamp), 10, 64)
+	if err != nil || n <= 0 {
+		// Unknown timestamp format → fail-OPEN. The HMAC already covers the
+		// timestamp, so a genuine replay carries a valid-but-old value caught
+		// by the parseable path below; failing open here avoids breaking live
+		// webhooks if the epoch format differs from what we assume.
+		return true
+	}
+	var t time.Time
+	if n > 1e12 { // milliseconds
+		t = time.UnixMilli(n)
+	} else {
+		t = time.Unix(n, 0)
+	}
+	diff := time.Since(t)
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= airwallexWebhookMaxSkew
+}
+
 func AirwallexWebhook(c *gin.Context) {
 	ctx := c.Request.Context()
 	if !isAirwallexWebhookEnabled() {
@@ -484,10 +586,26 @@ func AirwallexWebhook(c *gin.Context) {
 		return
 	}
 
+	if !airwallexTimestampFresh(timestamp) {
+		logger.LogWarn(ctx, fmt.Sprintf("Airwallex webhook 时间戳超出容许窗口(防重放) path=%q client_ip=%s timestamp=%q", c.Request.RequestURI, c.ClientIP(), timestamp))
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
 	var event AirwallexWebhookEvent
 	if err := json.Unmarshal(bodyBytes, &event); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Airwallex webhook 解析失败 error=%q body=%q", err.Error(), string(bodyBytes)))
 		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
+	// Consent lifecycle (revoked / expired / disabled) carries a consent object
+	// (no merchant_order_id), so handle it before the payment_intent parsing +
+	// merchant_order_id check below. Clears the saved consent so we stop
+	// off-session charging it.
+	if strings.HasPrefix(event.Name, "payment_consent.") {
+		handleAirwallexConsentEvent(ctx, &event)
+		c.Status(http.StatusOK)
 		return
 	}
 
@@ -516,6 +634,38 @@ func AirwallexWebhook(c *gin.Context) {
 	}
 }
 
+// handleAirwallexConsentEvent reacts to payment_consent.* webhooks. On a
+// disable/revoke/expire it clears the saved consent so off-session auto-charge
+// stops attempting it. Other consent events are logged only.
+//
+// NOTE: the consent payload path (object.id = cst_...) is assumed — confirm
+// against a real webhook payload before relying on it in production.
+func handleAirwallexConsentEvent(ctx context.Context, event *AirwallexWebhookEvent) {
+	var payload struct {
+		Object struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"object"`
+	}
+	if err := json.Unmarshal(event.Data, &payload); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Airwallex consent 事件解析失败 event_name=%s error=%q", event.Name, err.Error()))
+		return
+	}
+	consentID := payload.Object.ID
+	terminal := strings.Contains(event.Name, "disabled") ||
+		strings.Contains(event.Name, "revoked") ||
+		strings.Contains(event.Name, "expired")
+	if consentID != "" && terminal {
+		if n, err := model.ClearAirwallexConsent(consentID); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("清除 Airwallex consent 失败 consent_id=%s error=%q", consentID, err.Error()))
+		} else {
+			logger.LogInfo(ctx, fmt.Sprintf("Airwallex consent 失效已清除 consent_id=%s affected=%d event_name=%s", consentID, n, event.Name))
+		}
+		return
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("Airwallex consent 事件(无需处理) event_name=%s consent_id=%s", event.Name, consentID))
+}
+
 func handleAirwallexSucceeded(c *gin.Context, event *AirwallexWebhookEvent, intent *AirwallexPaymentIntent) {
 	ctx := c.Request.Context()
 	tradeNo := intent.MerchantOrderID
@@ -542,7 +692,12 @@ func handleAirwallexSucceeded(c *gin.Context, event *AirwallexWebhookEvent, inte
 		return
 	}
 
-	if err := model.RechargeAirwallex(tradeNo, c.ClientIP()); err != nil {
+	if err := model.RechargeAirwallex(tradeNo, c.ClientIP(),
+		intent.CustomerID,
+		intent.PaymentConsentID,
+		intent.LatestPaymentAttempt.PaymentMethod.ID,
+		intent.LatestPaymentAttempt.PaymentMethodTransactionID,
+	); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Airwallex webhook 充值失败 trade_no=%s intent_id=%s error=%q", tradeNo, intent.ID, err.Error()))
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return

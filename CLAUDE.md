@@ -12,7 +12,10 @@ This file orients Claude before edits. Read top-to-bottom before working in this
 - `docs/BUSINESS-LOGIC.md` — consolidated business/commercial logic + open decisions (read for any customer-facing or pricing/billing work).
 - `docs/DeepRouter-BP.md` — 融资商业计划书 (investor-facing; revenue/pricing/margins/financials). Imported from `jr-academy-ai/deeprouter-brand/`.
 - `docs/DeepRouter-PRD-brand.md` — brand/product PRD (companion to the BP).
+- `docs/system-settings-guide.md` — operator-facing Chinese guide to every admin System Settings section (what each does, DeepRouter-recommended values, which fields need operator-supplied secrets).
 - `../CLAUDE.md` — umbrella file covering the AGPL/Apache process boundary between this repo and `../smart-router/`.
+
+**Operator config tooling** (`scripts/seed-models/`): `seed.py` upserts all upstream channels + model lists from `channels.yaml`; `seed_options.py` pushes a curated set of safe system-settings defaults. Both are idempotent, talk to the admin API (`Authorization: Bearer <access-token>` **plus** a `New-Api-User: <user-id>` header — admin endpoints require both), and read config from a gitignored `.env`. See `scripts/seed-models/README.md`.
 
 ## 0. Who you are building for — READ BEFORE ANY CUSTOMER-FACING CHANGE
 
@@ -75,7 +78,7 @@ This fork adds 4 Airbotix-specific things on top of upstream:
 | `internal/policy/` | Per-tenant policy decision engine (kids_mode / passthrough / adult). Pure function. |
 | `internal/kids/` | Hard constraints for kids_mode (model whitelist, metadata stripping, OpenAI ZDR, child-safe system prompt). |
 | `internal/smart_router_client/` | HTTP client that calls the `smart-router` sidecar for `deeprouter-auto` virtual-model routing. |
-| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher. Implemented + tested, **not yet wired into the relay path** (Phase 2 work). |
+| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher. Implemented, tested, and **wired into the relay completion path** (DR-25 / Phase 2). Fires for every successful, metered relay request by a tenant with `BillingWebhookURL` configured. |
 | `relay/airbotix_policy.go` | The one upstream-adjacent file — stitches policy + kids enforcement into the relay request lifecycle for OpenAI / Claude / Gemini / Responses request shapes. |
 | `model/user.go` | Extended with 5 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret`. |
 | `middleware/smart_router.go` | Detects `deeprouter-auto`, calls smart_router_client, rewrites the model name before relay. |
@@ -89,7 +92,7 @@ Each `internal/` subpackage has its own README — read it before editing.
 - **Reading `channel.key` plaintext via API requires `RootAuth()` + `SecureVerificationRequired()`** (`router/api-router.go:230` — `POST /api/channel/:id/key`). Regular admins see masked values only. Adding/updating channels works with `AdminAuth()`.
 - **AWS Bedrock channel does NOT support IAM role / instance profile.** `relay/channel/aws/` only implements `ApiKey` (`key|region` bearer) and `AKSK` (`ak|sk|region` static). Don't promise users that EC2 IAM role works for Bedrock — file a feature request instead.
 - **Provider count is 37**, not "40+". Subdirectories under `relay/channel/`.
-- **`internal/billing/` compiles + tests pass, but no relay code calls it yet.** Wiring is Phase 2 in `PLAN.md`. Don't claim billing webhooks fire today.
+- **`internal/billing/` is wired into the relay completion path (DR-25).** `service/airbotix_billing.go` orchestrates dispatch from `PostTextConsumeQuota`. Webhooks fire for every successful, metered request by tenants with `BillingWebhookURL` set.
 - **Channel selection (`model/channel_cache.go:GetRandomSatisfiedChannel`)**: priority-tier stratification → weight-based random within tier. On retry N, jump to Nth priority tier. Health/retry orchestration is at the controller layer, not in this function.
 
 ## 3. Where things live
@@ -108,7 +111,7 @@ deeprouter/
 │   └── channel/                  — 37 provider adapters; see relay/channel/README.md
 ├── middleware/                   — Auth, rate-limit, distributor, CORS, log, smart_router (Airbotix)
 ├── internal/                     — Airbotix-private packages (clean-keep zone for upstream rebase)
-│   ├── billing/                  — HMAC webhook dispatcher (NOT yet wired)
+│   ├── billing/                  — HMAC webhook dispatcher (wired via service/airbotix_billing.go, DR-25)
 │   ├── kids/                     — kids_mode constraint helpers
 │   ├── policy/                   — DecisionFor(kidsMode, profile) → Decision
 │   └── smart_router_client/      — HTTP client for ../smart-router
@@ -141,10 +144,11 @@ deeprouter/
 - Extend `relay/airbotix_policy.go` with a new `Apply<Shape>` variant
 - Add test in `relay/airbotix_policy_test.go`
 
-**Wiring `internal/billing/` into relay completion** (Phase 2):
-- Find the relay completion path where tokens are tallied (search for log-write / quota-deduct)
-- Build `billing.Event`, call `billing.NewDispatcher().Send(...)` in a goroutine
-- Need a per-tenant webhook secret — currently no field for it; coordinate with `model/user.go` change
+**`internal/billing/` relay wiring** (DR-25 / Phase 2, complete):
+- `service/airbotix_billing.go` is the 4th sanctioned upstream-adjacent file (ADR-0006).
+- `PostTextConsumeQuota` (service/text_quota.go:379) calls `dispatchAirbotixBilling` after `SettleBilling`.
+- Event schema: `started_at`/`finished_at`/`routed_from`/`policy_violations` per PRD §7.3.
+- `User.WebhookSecret` (varchar 128, plaintext) is the HMAC key; `User.BillingWebhookURL` is the target.
 
 **Changing the smart-router contract**:
 - This is a cross-repo change. Touch BOTH `internal/smart_router_client/client.go` (deeprouter side) AND `smart-router/internal/api/handler.go` (smart-router side).
@@ -178,7 +182,7 @@ go test ./internal/...            # only Airbotix-internal packages
 go test -run TestName ./path/to/pkg
 
 # Frontend
-cd web/default && bun install && bun run dev    # :3001
+cd web/default && bun install && bun run dev    # :17231
 cd web/default && bun run i18n:sync             # sync translation strings
 ```
 
@@ -199,4 +203,4 @@ Bun is the frontend package manager (AGENTS.md Rule 3) — don't switch to npm/y
 
 ## 8. Upstream sync etiquette
 
-Custom logic belongs in `internal/`. The only acceptable upstream-adjacent fork file is `relay/airbotix_policy.go` (+ test) — named so rebase conflicts are obvious. Avoid editing upstream files (`controller/`, `model/`, `web/`) when an `internal/` subpackage is the right home. See `AIRBOTIX.md` for the cherry-pick / merge workflow.
+Custom logic belongs in `internal/`. Upstream-adjacent fork files are limited to the 4 sanctioned files (ADR-0006): `relay/airbotix_policy.go` (+ test, policy/kids enforcement per request shape) and `service/airbotix_billing.go` (DR-25, billing webhook dispatch from `PostTextConsumeQuota`). Both are named so rebase conflicts are obvious. Avoid editing upstream files (`controller/`, `model/`, `web/`) when an `internal/` subpackage is the right home. See `AIRBOTIX.md` for the cherry-pick / merge workflow.

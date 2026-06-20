@@ -54,6 +54,11 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     topup: true,
     personal: true,
   },
+  marketplace: {
+    enabled: true,
+    skills: true,
+    mySkills: true,
+  },
   admin: {
     enabled: true,
     channel: true,
@@ -106,6 +111,8 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/task': { section: 'console', module: 'task' },
   '/wallet': { section: 'personal', module: 'topup' },
   '/profile': { section: 'personal', module: 'personal' },
+  '/skills': { section: 'marketplace', module: 'skills' },
+  '/skills/my': { section: 'marketplace', module: 'mySkills' },
   '/channels': { section: 'admin', module: 'channel' },
   '/models': { section: 'admin', module: 'models' },
   '/models/metadata': { section: 'admin', module: 'models' },

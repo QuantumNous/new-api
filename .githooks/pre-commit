@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Pre-commit secret scanner — blocks commits containing credential patterns.
+#
+# Patterns caught:
+#   sk-[A-Za-z0-9]{30,}   DeepRouter / OpenAI-style bearer tokens
+#   sk-ant-...             Anthropic API keys
+#   AIzaSy...              Google / Gemini API keys
+#   AKIA...                AWS access key IDs
+#
+# To bypass in a genuine emergency (e.g. committing a test fixture with a
+# clearly-fake token):
+#   git commit --no-verify   ← requires explicit flag, not a default
+
+set -euo pipefail
+
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+RESET='\033[0m'
+
+# Patterns: each entry is "LABEL|REGEX"
+PATTERNS=(
+  "DeepRouter/OpenAI bearer token|sk-[A-Za-z0-9]{30,}"
+  "Anthropic API key|sk-ant-[A-Za-z0-9\-]{20,}"
+  "Google/Gemini API key|AIzaSy[A-Za-z0-9\-_]{30,}"
+  "AWS access key ID|AKIA[A-Z0-9]{16}"
+)
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)
+[[ -z "$STAGED" ]] && exit 0
+
+FOUND=0
+for entry in "${PATTERNS[@]}"; do
+  label="${entry%%|*}"
+  regex="${entry##*|}"
+  matches=$(git diff --cached -U0 -- $STAGED 2>/dev/null \
+    | grep '^+' \
+    | grep -v '^+++' \
+    | grep -E "$regex" || true)
+  if [[ -n "$matches" ]]; then
+    echo -e "${RED}[SECRET SCAN] Potential credential blocked: ${label}${RESET}"
+    echo -e "${YELLOW}${matches}${RESET}"
+    FOUND=1
+  fi
+done
+
+if [[ $FOUND -ne 0 ]]; then
+  echo ""
+  echo -e "${RED}Commit blocked. Remove the credential and use an environment variable instead.${RESET}"
+  echo "To bypass (only for clearly fake test fixtures): git commit --no-verify"
+  exit 1
+fi
+
+exit 0

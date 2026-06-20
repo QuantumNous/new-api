@@ -88,7 +88,8 @@ func TestDecideAutoTopup_NoRedis(t *testing.T) {
 }
 
 func TestDecideAutoTopup_BelowStripeMinimum(t *testing.T) {
-	// At default QuotaPerUnit=500000, 200000 quota = $0.40 = 40 cents < $0.50 min
+	// 200000 quota → cost $0.40 × autoTopupSellMultiplier(5) = $2.00 = 200 cents,
+	// still below the $5.00 (500 cents) platform minimum.
 	ok, cents, reason := decideAutoTopup(autoTopupPreconditions{
 		Enabled: true, Amount: 200000, Threshold: 1000000, Quota: 50000,
 		StripeCustomer: "cus_x", StripeKey: "sk_test", RedisEnabled: true,
@@ -96,13 +97,13 @@ func TestDecideAutoTopup_BelowStripeMinimum(t *testing.T) {
 	if ok || reason != "amount_below_stripe_minimum" {
 		t.Fatalf("expected skip=amount_below_stripe_minimum; got ok=%v reason=%q cents=%d", ok, reason, cents)
 	}
-	if cents != 40 {
-		t.Fatalf("expected 40 cents (=$0.40); got %d", cents)
+	if cents != 200 {
+		t.Fatalf("expected 200 cents (=$2.00); got %d", cents)
 	}
 }
 
 func TestDecideAutoTopup_HappyPath(t *testing.T) {
-	// 5,000,000 quota = $10 = 1000 cents at QuotaPerUnit=500000
+	// 5,000,000 quota → cost $10 × autoTopupSellMultiplier(5) = $50 = 5000 cents
 	ok, cents, reason := decideAutoTopup(autoTopupPreconditions{
 		Enabled: true, Amount: 5000000, Threshold: 1000000, Quota: 500000,
 		StripeCustomer: "cus_x", StripeKey: "sk_live_xxx", RedisEnabled: true,
@@ -110,8 +111,8 @@ func TestDecideAutoTopup_HappyPath(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected charge; got skip reason=%q", reason)
 	}
-	if cents != 1000 {
-		t.Fatalf("expected 1000 cents; got %d", cents)
+	if cents != 5000 {
+		t.Fatalf("expected 5000 cents; got %d", cents)
 	}
 	if reason != "" {
 		t.Fatalf("expected empty skip reason on success; got %q", reason)
@@ -165,6 +166,24 @@ func TestQuotaUnitsToStripeCents_ZeroQuotaPerUnit(t *testing.T) {
 	common.QuotaPerUnit = 0
 	if got := quotaUnitsToStripeCents(5000000); got != 0 {
 		t.Errorf("QuotaPerUnit=0 should return 0 cents, got %d", got)
+	}
+}
+
+func TestQuotaUnitsToMajorAmount(t *testing.T) {
+	saved := common.QuotaPerUnit
+	defer func() { common.QuotaPerUnit = saved }()
+	common.QuotaPerUnit = 500000 // canonical default; SellMultiplier default 5
+
+	// 500000 units = $1 cost × 5 = 5.00 major; 1,000,000 = 10.00
+	if got := quotaUnitsToMajorAmount(500000); got != 5.0 {
+		t.Errorf("quotaUnitsToMajorAmount(500000) = %v, want 5.0", got)
+	}
+	if got := quotaUnitsToMajorAmount(1000000); got != 10.0 {
+		t.Errorf("quotaUnitsToMajorAmount(1000000) = %v, want 10.0", got)
+	}
+	common.QuotaPerUnit = 0
+	if got := quotaUnitsToMajorAmount(500000); got != 0 {
+		t.Errorf("QuotaPerUnit=0 should return 0, got %v", got)
 	}
 }
 
@@ -254,7 +273,7 @@ func TestLooksLikeStripeKey(t *testing.T) {
 		{"rk_live_restricted", true},
 		{"pk_live_public_dont_use", false}, // publishable key is NOT a server-side secret
 		{"", false},
-		{"sk", false},     // too short
+		{"sk", false}, // too short
 		{"random", false},
 	}
 	for _, tc := range cases {
