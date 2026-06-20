@@ -146,3 +146,27 @@ edit to a `web/default/` visual file. Don't ignore it.
 - Test scripts that need real tokens: use env vars and fail loudly when unset (see `bin/run-dr13-human-test.sh` as the reference pattern).
 - For local convenience wrappers that export your personal dev tokens, name the file `*.local.sh` — it is gitignored and will never be committed.
 - The pre-commit hook in `.githooks/pre-commit` enforces this automatically. New contributors must activate it once with: `git config core.hooksPath .githooks`
+
+### Rule 10: Changelog — Record Every Change in `CHANGELOG.md`
+
+Every meaningful change MUST append an entry to the repo-root `CHANGELOG.md`. No entry = the change is invisible to the team and to upstream-sync review.
+
+```markdown
+## YYYY-MM-DD
+
+- 一句话描述做了什么 (`涉及的包/文件/模块`)
+```
+
+- New date heading goes at the top (right under `# Changelog`); same-day entries group under one heading.
+- Start with a verb: 新增 / 修复 / 重构 / 优化 / 删除 / 更新 / 配置 (or Add/Fix/Refactor/…).
+- Record only real code/config/doc changes; pure research or discussion does not get an entry.
+- Self-check before commit: did this change add a `CHANGELOG.md` line? If not, add one before committing. The `.githooks/pre-commit` is the place to enforce this if drift recurs.
+
+### Rule 11: PRD-First — Every Task Needs a PRD
+
+Every task (feature / behavioral change / investigation that lands code) MUST have a PRD written or updated **before** implementation starts. No PRD, no code — this prevents "built something other than what was intended" drift and keeps teammates/investors able to see what's in flight.
+
+- **Location**: per-task PRDs live in `docs/tasks/{kebab-case-name}-prd.md` (the existing pattern — see `casual-ux-prd.md`, `api-key-simple-advanced-prd.md`, …). Cross-cutting/product-level PRDs live in `docs/` (`docs/PRD.md`, `docs/onboarding-v2-prd.md`, …). A task PRD references the relevant product PRD; it does not duplicate it.
+- **Status lifecycle** in the PRD header: `spec` (written, not started) → `build` (switch on the FIRST code change, not when finished) → `eval` (awaiting review / live verification) → `ship` (merged / done) → `blocked` (stuck — write the blocker in the body). Changed the implementation but not the PRD status? Stop and update the PRD first.
+- **Skip only for**: typo / changelog backfill / dependency bump — changes with no scope impact. Anything touching product scope, architecture, pricing/billing, policy/kids, or customer-facing surfaces requires a PRD first.
+- Writing or updating a PRD is itself a change → also record it in `CHANGELOG.md` (Rule 10).

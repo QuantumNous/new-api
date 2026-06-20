@@ -3,7 +3,8 @@
 This file orients Claude before edits. Read top-to-bottom before working in this repo.
 
 **Sister files**:
-- `AGENTS.md` — coding rules (JSON wrapper, cross-DB, branding lock, billing expression, pointer omitempty). Treat those rules as mandatory; this file does not repeat them.
+- `AGENTS.md` — coding rules (JSON wrapper, cross-DB, branding lock, billing expression, pointer omitempty, **Rule 10 changelog-every-change, Rule 11 PRD-first-per-task**). Treat those rules as mandatory; this file does not repeat them.
+- `CHANGELOG.md` — every meaningful change gets an entry (AGENTS.md Rule 10).
 - `ARCHITECTURE.md` — upstream-derived module tour (`router/` → `controller/` → `service/` → `model/`).
 - `AIRBOTIX.md` — what the fork customises vs upstream + upstream-sync workflow.
 - `DEV.md` — 5-minute local quickstart.
