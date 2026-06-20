@@ -43,6 +43,22 @@ are not cold-start — they already know what they want AI for.
 **DeepRouter is a utility (account + wallet), not a destination (chat /
 assistant).** "不做 chat 是红线" (onboarding-v2-prd.md §2 insight #1).
 
+**Payment is multi-currency. Pricing is USD-denominated** (top-ups quoted in
+USD, min $5); the user pays in **USD / AUD (via Airwallex) / CNY (WeChat &
+Alipay)**. CNY/AUD are *payment methods*, not the pricing unit — never describe
+DeepRouter as "RMB-only" or "RMB-priced." See `value-calculator.tsx` /
+`stats.tsx` ("pricing is USD-denominated; CNY is just one accepted payment
+method") and `docs/tasks/airwallex-autocharge-design.md`.
+
+**The product's core job is to hand-hold a non-technical user through
+configuring it and actually using it well — including which model to use for
+what** (写作 / 代码 / 翻译 / 图像 / 语音 …). The win is not "we have a gateway";
+it is "a 小白 got set up in 2 minutes and knows which model to point at their
+task." Keep onboarding, the key-setup guide, and model-purpose guidance as the
+center of gravity (`docs/onboarding-v2-prd.md`,
+`docs/tasks/key-setup-guide-prd.md`,
+`docs/tasks/casual-journey-readiness-prd.md`).
+
 **Golden path = 2 minutes, zero support:** 注册 → 充值 → 拿密钥 → 确认能用.
 On the key page the real final step is the **self-check (自检)** that proves
 "我的钱变成了 AI 算力" (§7.6) — NOT a code snippet.

@@ -17,6 +17,13 @@ func TestTableName(t *testing.T) {
 	}
 }
 
+func TestSkillVersionTableName(t *testing.T) {
+	v := SkillVersion{}
+	if v.TableName() != "skill_versions" {
+		t.Fatal("TableName() must return 'skill_versions'")
+	}
+}
+
 func TestBeforeCreate_UUID(t *testing.T) {
 	s := &Skill{}
 	if err := s.BeforeCreate(&gorm.DB{}); err != nil {
@@ -28,6 +35,43 @@ func TestBeforeCreate_UUID(t *testing.T) {
 	parts := strings.Split(s.ID, "-")
 	if len(parts) != 5 {
 		t.Fatalf("expected UUID with 4 hyphens, got %q", s.ID)
+	}
+}
+
+func TestSkillVersionBeforeCreate_UUID(t *testing.T) {
+	v := &SkillVersion{}
+	if err := v.BeforeCreate(&gorm.DB{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.ID) != 36 {
+		t.Fatalf("expected 36-char UUID, got %q (len=%d)", v.ID, len(v.ID))
+	}
+	parts := strings.Split(v.ID, "-")
+	if len(parts) != 5 {
+		t.Fatalf("expected UUID with 4 hyphens, got %q", v.ID)
+	}
+}
+
+func TestSkillVersionBeforeCreate_NormalizesJSONFields(t *testing.T) {
+	v := &SkillVersion{}
+	if err := v.BeforeCreate(&gorm.DB{}); err != nil {
+		t.Fatal(err)
+	}
+	// output_schema: nullable per PRD §4.2; nil input must stay nil (NULL in DB = no schema).
+	if v.OutputSchema != nil {
+		t.Errorf("OutputSchema: expected nil (NULL), got %q", string(*v.OutputSchema))
+	}
+	// model_whitelist_snapshot: array shape, normalized to [].
+	if string(v.ModelWhitelistSnapshot) != "[]" {
+		t.Errorf("ModelWhitelistSnapshot: expected '[]', got %q", string(v.ModelWhitelistSnapshot))
+	}
+	// monetization_snapshot: object shape per PRD §4.2, normalized to {}.
+	if string(v.MonetizationSnapshot) != "{}" {
+		t.Errorf("MonetizationSnapshot: expected '{}', got %q", string(v.MonetizationSnapshot))
+	}
+	// sentinel: make sure the old wrong default [] is not present for monetization
+	if string(v.MonetizationSnapshot) == "[]" {
+		t.Errorf("MonetizationSnapshot must NOT be '[]' — it is an object, not an array")
 	}
 }
 
@@ -196,6 +240,10 @@ func TestEnumDBValues_MatchCheckConstraints(t *testing.T) {
 		{"SkillStatusPublished", string(enums.SkillStatusPublished), "published"},
 		{"SkillStatusDeprecated", string(enums.SkillStatusDeprecated), "deprecated"},
 		{"SkillStatusArchived", string(enums.SkillStatusArchived), "archived"},
+		{"SkillVersionStatusDraft", string(enums.SkillVersionStatusDraft), "draft"},
+		{"SkillVersionStatusActive", string(enums.SkillVersionStatusActive), "active"},
+		{"SkillVersionStatusInactive", string(enums.SkillVersionStatusInactive), "inactive"},
+		{"SkillVersionStatusArchived", string(enums.SkillVersionStatusArchived), "archived"},
 		{"RequiredPlanFree", string(enums.RequiredPlanFree), "free"},
 		{"RequiredPlanPro", string(enums.RequiredPlanPro), "pro"},
 		{"RequiredPlanEnterprise", string(enums.RequiredPlanEnterprise), "enterprise"},

@@ -37,7 +37,7 @@ export function Features(_props: FeaturesProps) {
       num: '01',
       title: t('Pay in CNY'),
       desc: t(
-        'WeChat or Alipay, from ¥5. No overseas credit card. No exchange-rate guesswork.'
+        'WeChat or Alipay, from $5. No overseas credit card. No exchange-rate guesswork.'
       ),
       span: 'md:col-span-1',
       icon: <Wallet className='text-accent size-4' />,
@@ -94,7 +94,7 @@ export function Features(_props: FeaturesProps) {
       icon: <Gauge className='text-accent size-4' />,
       visual: (
         <div className='mt-4 space-y-2'>
-          {[t('Top up ¥5'), t('Call any model'), t('See per-call charge')].map(
+          {[t('Top up $5'), t('Call any model'), t('See per-call charge')].map(
             (step, i) => (
               <div key={step} className='flex items-center gap-2'>
                 <div
