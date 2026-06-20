@@ -189,6 +189,29 @@ func TestResolve_Success_FreePlan(t *testing.T) {
 	assert.Equal(t, enums.RequiredPlanFree, skillCtx.Plan)
 }
 
+// TestResolve_FreePlan_UserNotSkill is the cross-source guard for the Plan field.
+// A free user downloads a pro skill — Plan must be "free" (from user.Group),
+// NOT "pro" (from skill.RequiredPlan). If resolve() ever accidentally used
+// skill.RequiredPlan, this test would catch it (DR-81 anti-pattern: coincidentally
+// equal values in TestResolve_Success_FreePlan would mask the bug).
+func TestResolve_FreePlan_UserNotSkill(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(20)
+	user.Group = "default"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	proSkill := defaultSkill()
+	proSkill.RequiredPlan = enums.RequiredPlanPro
+	skill := insertSkill(t, database, proSkill)
+
+	skillCtx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	assert.Equal(t, enums.RequiredPlanFree, skillCtx.Plan,
+		"Plan must come from user.Group (free), not skill.RequiredPlan (pro)")
+}
+
 func TestResolve_Success_ProPlan(t *testing.T) {
 	c := newTestContext(t)
 	user := enabledUser(21)

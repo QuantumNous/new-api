@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/policy"
+	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/logger"
@@ -46,19 +47,24 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	// DR-64: skill relay entry point — resolve user identity and load the target Skill
 	// for requests that carry deeprouter.skill_id (tasks/05 §5.1 steps 1-6).
 	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
-	// The deeprouter field is stripped from request after extraction (T-21 security).
 	if request.Deeprouter != nil && request.Deeprouter.SkillID != "" {
 		skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
 		if errCode != "" {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("%s", errCode),
-				types.ErrorCodeAccessDenied,
+				skillRelayErrType(errCode),
 				errcodes.HTTPStatusFor(errCode),
 				types.ErrOptionWithSkipRetry(),
 			)
 		}
+		// Carry entry_point into relay context for analytics (tasks/03 §9).
+		// Default to playground_picker per V1 spec; package clients set skill_package explicitly.
+		skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
+		if request.Deeprouter.EntryPoint != "" {
+			skillCtx.EntryPoint = request.Deeprouter.EntryPoint
+		}
 		skillrelay.Set(c, skillCtx)
-		request.Deeprouter = nil // T-21: strip vendor extension before provider forwarding
+		request.Deeprouter = nil // strip vendor extension before provider forwarding
 	}
 
 	// Airbotix / DeepRouter policy: checked against the client-requested model
@@ -128,13 +134,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	var requestBody io.Reader
 
-	// T-21 note: pass-through mode reads the raw request body from BodyStorage,
-	// bypassing the Go struct. When a skill request (deeprouter.skill_id present)
-	// reaches a pass-through channel, request.Deeprouter = nil above has no effect
-	// on the forwarded body — providers will see the deeprouter field. Providers
-	// ignore unknown vendor extensions, so there is no security exposure for V1.
-	// Skill channels must not have PassThroughBodyEnabled set.
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
+		// Pass-through sends raw BodyStorage bytes directly to the provider, bypassing
+		// the Go struct. For skill requests, request.Deeprouter = nil has no effect on
+		// the already-buffered raw body, so deeprouter.skill_id would be forwarded.
+		// Reject early: skill channels must never have PassThroughBodyEnabled set.
+		if _, isSkill := skillrelay.Get(c); isSkill {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", errcodes.ErrSkillInternalError),
+				types.ErrorCodeDoRequestFailed,
+				http.StatusInternalServerError,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -253,4 +265,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
 	return nil
+}
+
+// skillRelayErrType maps a skill errcodes.ErrorCode to the appropriate
+// types.ErrorCode (OpenAI error envelope "type" field), keyed by HTTP status
+// category. Using access_denied for 404 or 500 would mislead OpenAI-compatible
+// clients that inspect the type field to categorise errors.
+func skillRelayErrType(errCode errcodes.ErrorCode) types.ErrorCode {
+	switch errcodes.HTTPStatusFor(errCode) {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return types.ErrorCodeAccessDenied
+	case http.StatusNotFound, http.StatusBadRequest:
+		return types.ErrorCodeInvalidRequest
+	default: // 429, 500, 504, …
+		return types.ErrorCodeDoRequestFailed
+	}
 }

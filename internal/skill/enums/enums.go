@@ -179,6 +179,7 @@ const (
 	EntryPointNew              EntryPoint = "new"
 	EntryPointRecommended      EntryPoint = "recommended"
 	EntryPointAdminPreview     EntryPoint = "admin_preview"
+	EntryPointSkillPackage     EntryPoint = "skill_package"
 )
 
 var validEntryPoints = map[EntryPoint]struct{}{
@@ -191,6 +192,7 @@ var validEntryPoints = map[EntryPoint]struct{}{
 	EntryPointNew:              {},
 	EntryPointRecommended:      {},
 	EntryPointAdminPreview:     {},
+	EntryPointSkillPackage:     {},
 }
 
 func (e EntryPoint) Valid() bool { _, ok := validEntryPoints[e]; return ok }

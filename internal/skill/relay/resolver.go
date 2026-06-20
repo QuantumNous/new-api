@@ -61,12 +61,15 @@ func resolve(c *gin.Context, database *gorm.DB, skillID string) (*SkillRelayCont
 		return nil, errcodes.ErrAuthRequired
 	}
 
-	// Load skill from DB.
+	// Load skill from DB — only fetch the columns needed for relay entry;
+	// large text fields (description, example_inputs, etc.) are not read here.
 	if database == nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
 	var skill skillmodel.Skill
-	if err := database.Where("id = ?", skillID).First(&skill).Error; err != nil {
+	if err := database.
+		Select([]string{"id", "status", "required_plan", "active_version_id", "slug", "name", "timeout_seconds", "max_input_tokens", "model_whitelist", "is_kids_safe", "is_kids_exclusive"}).
+		Where("id = ?", skillID).Take(&skill).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errcodes.ErrSkillNotFound
 		}
@@ -79,7 +82,7 @@ func resolve(c *gin.Context, database *gorm.DB, skillID string) (*SkillRelayCont
 		UserID:        userID,
 		IsKidsSession: user.KidsMode,
 		Plan:          groupToPlan(user.Group),
-		SubActive:     true, // V1: no subscription table; all authenticated users are active
+		SubActive:     true, // TODO(DR-subscription): replace with subscription table lookup
 		Skill:         &skill,
 	}, ""
 }

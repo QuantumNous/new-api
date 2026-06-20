@@ -55,8 +55,8 @@ func newSkillTestCtx(t *testing.T, userID int) *gin.Context {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	// 21 = ChannelTypeAIProxyLibrary → APITypeAIProxyLibrary → GetAdaptor returns nil.
-	common.SetContextKey(c, constant.ContextKeyChannelType, 21)
+	// ChannelTypeAIProxyLibrary → APITypeAIProxyLibrary → GetAdaptor returns nil.
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAIProxyLibrary)
 	if userID != 0 {
 		user := &platformmodel.User{
 			Id:     userID,
@@ -190,4 +190,60 @@ func TestTextHelper_SkillRelay_EmptySkillID_NotAffected(t *testing.T) {
 
 	_, hasCtx := skillrelay.Get(c)
 	assert.False(t, hasCtx, "empty skill_id must not activate skill relay (guard must check SkillID != \"\")")
+}
+
+// TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker verifies that
+// when deeprouter.entry_point is absent, SkillRelayContext.EntryPoint defaults
+// to "playground_picker" per tasks/03 §9 V1 spec (Playground-only execution).
+func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "ep-default", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "EP Default", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 8)
+	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
+		// EntryPoint intentionally absent
+	}))
+
+	sCtx, ok := skillrelay.Get(c)
+	require.True(t, ok)
+	assert.Equal(t, string(enums.EntryPointPlaygroundPicker), sCtx.EntryPoint,
+		"missing entry_point must default to playground_picker per §9")
+}
+
+// TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField verifies that when
+// deeprouter.entry_point is set (e.g. "skill_package" by an external package client),
+// SkillRelayContext.EntryPoint carries that value through for analytics.
+func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "ep-explicit", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "EP Explicit", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 9)
+	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model: "gpt-4o",
+		Deeprouter: &dto.DeepRouterExtension{
+			SkillID:    skill.ID,
+			EntryPoint: string(enums.EntryPointSkillPackage),
+		},
+	}))
+
+	sCtx, ok := skillrelay.Get(c)
+	require.True(t, ok)
+	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
+		"explicit entry_point from deeprouter field must be preserved in SkillRelayContext")
 }

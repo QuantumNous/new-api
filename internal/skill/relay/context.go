@@ -14,6 +14,7 @@ import (
 // Downstream handlers read from this context:
 //   - DR-67 (entitlement): calls availability.Resolve with Skill + identity fields
 //   - DR-88 (prompt injection): reads Skill.ActiveVersionID to load instruction template
+//     and EntryPoint to record the correct analytics entry_point (tasks/03 §9)
 type SkillRelayContext struct {
 	RequestID     string
 	SkillID       string
@@ -22,6 +23,7 @@ type SkillRelayContext struct {
 	Plan          enums.RequiredPlan
 	SubActive     bool
 	Skill         *skillmodel.Skill
+	EntryPoint    string // enums.EntryPoint value; set by TextHelper from deeprouter.entry_point
 }
 
 // Set stores ctx in the gin context under ContextKeySkillRelayCtx.
