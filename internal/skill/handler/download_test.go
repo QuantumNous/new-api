@@ -113,10 +113,10 @@ func TestDownloadSkillPackage_NotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"code":"SKILL_NOT_FOUND"`)
 }
 
-// TestDownloadSkillPackage_NonPublishedReturns404 verifies that draft and archived
-// skills are not downloadable (same 404 behavior as GetMarketplaceSkill).
+// TestDownloadSkillPackage_NonPublishedReturns404 verifies that draft, archived,
+// and deprecated skills are not downloadable (handler query matches published only).
 func TestDownloadSkillPackage_NonPublishedReturns404(t *testing.T) {
-	for _, status := range []string{"draft", "archived"} {
+	for _, status := range []string{"draft", "archived", "deprecated"} {
 		t.Run("status="+status, func(t *testing.T) {
 			db := testDownloadDB(t)
 			SetDB(db)
@@ -193,8 +193,10 @@ func TestDownloadSkillPackage_LookupByUUID(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Disposition"), "uuid-lookup.zip")
 }
 
-// TestDownloadSkillPackage_NoProviderCredentialsInZip verifies that the zip
-// package does not contain any provider credential fields.
+// TestDownloadSkillPackage_NoProviderCredentialsInZip verifies that no provider
+// credential or server-internal fields appear in any file inside the zip.
+// Checks each zip entry individually (not raw bytes) to avoid false negatives
+// from zip metadata coincidentally containing the field names.
 func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
@@ -204,8 +206,21 @@ func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 	DownloadSkillPackage(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	body := w.Body.String()
-	assert.NotContains(t, body, "price_markup")
-	assert.NotContains(t, body, "monetization_type")
-	assert.NotContains(t, body, "model_whitelist")
+
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	require.NoError(t, err)
+
+	forbidden := []string{"price_markup", "monetization_type", "model_whitelist", "instruction_template"}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(rc)
+		rc.Close()
+		content := buf.String()
+		for _, field := range forbidden {
+			assert.NotContains(t, content, field,
+				"file %s must not expose provider-internal field %q", f.Name, field)
+		}
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -54,7 +55,9 @@ func DownloadSkillPackage(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Disposition", `attachment; filename="`+s.Slug+`.zip"`)
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
+		"filename": s.Slug + ".zip",
+	}))
 	c.Data(http.StatusOK, "application/zip", zipBytes)
 }
 
@@ -148,7 +151,8 @@ func buildSkillMD(s skillmodel.Skill) string {
 
 	sb.WriteString("---\n")
 	sb.WriteString("name: " + s.Slug + "\n")
-	sb.WriteString(`description: "` + s.ShortDescription + `"` + "\n")
+	escapedDesc := strings.NewReplacer(`"`, `\"`, "\n", `\n`, "\r", "").Replace(s.ShortDescription)
+	sb.WriteString(`description: "` + escapedDesc + `"` + "\n")
 	sb.WriteString("---\n\n")
 
 	sb.WriteString("## " + s.Name + "\n\n")
