@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -602,8 +603,13 @@ func GetUserModels(c *gin.Context) {
 }
 
 func UpdateUser(c *gin.Context) {
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
+	err = common.Unmarshal(bodyBytes, &updatedUser)
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -628,6 +634,13 @@ func UpdateUser(c *gin.Context) {
 	if !canManageTargetRole(myRole, updatedUser.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
+	}
+	// Preserve original quota if not explicitly provided in the request
+	var rawMap map[string]json.RawMessage
+	if common.Unmarshal(bodyBytes, &rawMap) == nil {
+		if _, hasQuota := rawMap["quota"]; !hasQuota {
+			updatedUser.Quota = originUser.Quota
+		}
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
