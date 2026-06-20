@@ -50,6 +50,12 @@ func DownloadSkillPackage(c *gin.Context) {
 	}
 
 	userID := int64(c.GetInt("id"))
+	// DR-55 contract: download creates a download/enablement state record, NOT a
+	// standalone execution grant. This row may be used by Relay as one runtime
+	// eligibility input, but is never sufficient to authorize execution by itself
+	// — runner key + current subscription/entitlement + quota + Kids + lifecycle
+	// are all still checked at use time (owned by DR-64/DR-68/M05). No runtime
+	// grant / runner token / entitlement override / credential is issued here.
 	if err := skillmodel.EnableSkillForUser(db, userID, userID, s.ID, "skill_package"); err != nil {
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Failed to record download.", nil)
 		return
@@ -103,8 +109,8 @@ func downloadPlanLevel(p enums.RequiredPlan) int {
 // ─── Zip builder ─────────────────────────────────────────────────────────────
 
 type skillManifest struct {
-	SchemaVersion         string  `json:"schema_version"`
-	SkillID               string  `json:"skill_id"`
+	SchemaVersion string `json:"schema_version"`
+	SkillID       string `json:"skill_id"`
 	// SkillVersionID is nil until DR-41 (skill_versions table) is implemented.
 	// When non-nil it pins the zip to the published version at download time.
 	SkillVersionID        *string `json:"skill_version_id,omitempty"`
