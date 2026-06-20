@@ -59,7 +59,7 @@ type SkillUsageEvent struct {
 	PromptInjectionDetected bool `gorm:"column:prompt_injection_detected;not null;default:false"`
 	SafetyViolationDetected bool `gorm:"column:safety_violation_detected;not null;default:false"`
 
-	Metadata SkillJSONB `gorm:"column:metadata;type:text;not null;default:{}"`
+	Metadata SkillJSONB `gorm:"column:metadata;type:text;not null"`
 }
 
 var restrictedSUEMetadataKeys = map[string]struct{}{

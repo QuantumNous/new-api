@@ -148,8 +148,8 @@ func migrateSUEConstraints(db *gorm.DB) error {
 			name string
 			expr string
 		}{
-			{"chk_sue_metadata_object", "jsonb_typeof(metadata) = 'object'"},
-			{"chk_sue_metadata_no_restricted_keys", "NOT (metadata ?| array['instruction_template','prompt','system_prompt','raw_messages','provider_payload','kids_raw_input','full_user_input','raw_output','model_output'])"},
+			{"chk_sue_metadata_object", "jsonb_typeof(metadata::jsonb) = 'object'"},
+			{"chk_sue_metadata_no_restricted_keys", "NOT (metadata::jsonb ?| array['instruction_template','prompt','system_prompt','raw_messages','provider_payload','kids_raw_input','full_user_input','raw_output','model_output'])"},
 		}
 	case "mysql":
 		metadataConstraints = []struct {
