@@ -31,6 +31,13 @@ export interface ModelPreset {
 export const MODEL_PRESETS: ModelPreset[] = [
   // ── Chat / Text Completion (default-grade) ───────────────────────────
   {
+    model_name: 'gpt-5.5',
+    description: 'OpenAI GPT-5.5 — flagship reasoning + chat.',
+    group: 'reasoning',
+    tags: ['reasoning', 'thinking', 'tools'],
+    endpoints: 'chat',
+  },
+  {
     model_name: 'gpt-4o',
     description: 'OpenAI flagship multimodal chat model — vision + tools.',
     group: 'chat',
@@ -42,6 +49,13 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'OpenAI cost-efficient small model — fast, cheap, vision.',
     group: 'chat',
     tags: ['vision', 'tools', 'cheap'],
+    endpoints: 'chat',
+  },
+  {
+    model_name: 'claude-fable-5',
+    description: 'Anthropic Fable 5 — top tier above Opus, maximum capability.',
+    group: 'reasoning',
+    tags: ['reasoning', 'thinking', 'long-context'],
     endpoints: 'chat',
   },
   {
@@ -73,6 +87,13 @@ export const MODEL_PRESETS: ModelPreset[] = [
     endpoints: 'chat',
   },
   {
+    model_name: 'gemini-3.1-pro',
+    description: 'Google Gemini 3.1 Pro — flagship long-context multimodal.',
+    group: 'chat',
+    tags: ['vision', 'long-context', 'multimodal'],
+    endpoints: 'chat',
+  },
+  {
     model_name: 'gemini-2.5-pro',
     description: 'Google Gemini 2.5 Pro — long context, multimodal.',
     group: 'chat',
@@ -87,8 +108,15 @@ export const MODEL_PRESETS: ModelPreset[] = [
     endpoints: 'chat',
   },
   {
+    model_name: 'deepseek-v4-pro',
+    description: 'DeepSeek V4 Pro — flagship, 1M context.',
+    group: 'chat',
+    tags: ['open-source', 'coder', 'long-context'],
+    endpoints: 'chat',
+  },
+  {
     model_name: 'deepseek-chat',
-    description: 'DeepSeek V3.x — open weights, MIT, strong code.',
+    description: 'DeepSeek V4 (chat alias) — open weights, strong code.',
     group: 'chat',
     tags: ['open-source', 'coder'],
     endpoints: 'chat',
@@ -98,6 +126,13 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'DeepSeek R1 — open-weights reasoning model.',
     group: 'reasoning',
     tags: ['reasoning', 'thinking', 'open-source'],
+    endpoints: 'chat',
+  },
+  {
+    model_name: 'qwen3-max',
+    description: '阿里 Qwen3-Max — current domestic flagship, strong Chinese.',
+    group: 'chat',
+    tags: ['chinese', 'tools'],
     endpoints: 'chat',
   },
   {
