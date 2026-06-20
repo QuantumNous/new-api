@@ -16,11 +16,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// testDownloadDB migrates skills + user_enabled_skills for download handler tests.
+// testDownloadDB migrates skills + user_enabled_skills + skill_usage_events for download handler tests.
 func testDownloadDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := testSkillDB(t)
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	return db
 }
 
@@ -257,4 +258,28 @@ func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 				"file %s must not expose provider-internal field %q", f.Name, field)
 		}
 	}
+}
+
+// TestDownloadSkillPackage_EmitsSkillEnabledEvent verifies that a successful download
+// writes a skill_enabled event to skill_usage_events with the correct entry_point,
+// event_type, user_id, and skill_id.
+func TestDownloadSkillPackage_EmitsSkillEnabledEvent(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("emit-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("emit-skill", 99, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var evt skillmodel.SkillUsageEvent
+	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
+	require.NoError(t, err, "skill_usage_events must have a skill_enabled row after download")
+	assert.Equal(t, "skill_package", evt.EntryPoint)
+	require.NotNil(t, evt.UserID)
+	assert.Equal(t, int64(99), *evt.UserID)
+	require.NotNil(t, evt.Plan)
+	assert.Equal(t, "free", *evt.Plan)
 }

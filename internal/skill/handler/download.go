@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
@@ -53,6 +54,12 @@ func DownloadSkillPackage(c *gin.Context) {
 	if err := skillmodel.EnableSkillForUser(db, userID, userID, s.ID, "skill_package"); err != nil {
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Failed to record download.", nil)
 		return
+	}
+
+	// Emit analytics event; log on failure but do not block the download response.
+	if err := skillmodel.EmitSkillEnabled(db, userID, s.ID, s.ActiveVersionID,
+		string(enums.EntryPointSkillPackage), string(s.RequiredPlan)); err != nil {
+		common.SysLog("EmitSkillEnabled failed for skill " + s.ID + ": " + err.Error())
 	}
 
 	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{

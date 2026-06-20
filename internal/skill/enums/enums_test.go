@@ -197,6 +197,7 @@ func TestEntryPoint_Valid(t *testing.T) {
 		EntryPointMarketplaceCard, EntryPointSkillDetail, EntryPointMySkills,
 		EntryPointPlaygroundPicker, EntryPointFeatured, EntryPointPopular,
 		EntryPointNew, EntryPointRecommended, EntryPointAdminPreview,
+		EntryPointSkillPackage,
 	}
 	for _, e := range valid {
 		assert.True(t, e.Valid(), "expected %q to be valid", e)
@@ -218,4 +219,5 @@ func TestEntryPoint_StringValues(t *testing.T) {
 	assert.Equal(t, "new", string(EntryPointNew))
 	assert.Equal(t, "recommended", string(EntryPointRecommended))
 	assert.Equal(t, "admin_preview", string(EntryPointAdminPreview))
+	assert.Equal(t, "skill_package", string(EntryPointSkillPackage))
 }
