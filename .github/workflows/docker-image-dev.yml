@@ -1,9 +1,10 @@
 name: Publish Docker image (dev)
 
-# Builds the backend-only dev image (Dockerfile.dev) and pushes it to the
-# GitHub Container Registry (ghcr.io) under this repo's owner namespace.
-# Authenticates with the built-in GITHUB_TOKEN, so no Docker Hub secrets
-# are required.
+# Builds the full image (Dockerfile): frontend (web/default + classic) is
+# built with bun and embedded into the Go binary, so a single port (:3000)
+# serves both the API and the frontend. Pushed to the GitHub Container
+# Registry (ghcr.io) under this repo's owner namespace. Authenticates with
+# the built-in GITHUB_TOKEN, so no Docker Hub secrets are required.
 #
 # Each architecture is built natively in parallel (no QEMU emulation), then
 # merged into a single multi-arch manifest — much faster than a single
@@ -18,7 +19,6 @@ on:
     branches:
       - feat/image-aware-model-routing
     paths-ignore:
-      - 'web/**'
       - '*.md'
       - 'docs/**'
   workflow_dispatch:
@@ -78,7 +78,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.dev
+          file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
