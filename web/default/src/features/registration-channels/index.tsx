@@ -188,114 +188,122 @@ export function RegistrationChannels() {
   }
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title>
-        {t('Registration Channels')}
-      </SectionPageLayout.Title>
-      <SectionPageLayout.Description>
-        {t('Create channel-coded registration links and review user sources.')}
-      </SectionPageLayout.Description>
-      <SectionPageLayout.Actions>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' onClick={fetchChannels} disabled={loading}>
-            <RefreshCcw className={cn(loading && 'animate-spin')} />
-            {t('Refresh')}
-          </Button>
-          <Button onClick={openCreateDialog}>
-            <Plus />
-            {t('New Channel')}
-          </Button>
-        </div>
-      </SectionPageLayout.Actions>
-      <SectionPageLayout.Content>
-        <div className='mb-3 flex flex-wrap items-center gap-2 text-sm'>
-          <Badge variant='secondary'>
-            {t('Total')}: {channels.length}
-          </Badge>
-          <Badge variant='outline'>
-            {t('Enabled')}: {activeCount}
-          </Badge>
-        </div>
-        <div className='rounded-lg border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Channel')}</TableHead>
-                <TableHead>{t('Registration Link')}</TableHead>
-                <TableHead>{t('Registered Users')}</TableHead>
-                <TableHead>{t('Status')}</TableHead>
-                <TableHead className='text-right'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {channels.length === 0 && (
+    <>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>
+          {t('Registration Channels')}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t(
+            'Create channel-coded registration links and review user sources.'
+          )}
+        </SectionPageLayout.Description>
+        <SectionPageLayout.Actions>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              onClick={fetchChannels}
+              disabled={loading}
+            >
+              <RefreshCcw className={cn(loading && 'animate-spin')} />
+              {t('Refresh')}
+            </Button>
+            <Button onClick={openCreateDialog}>
+              <Plus />
+              {t('New Channel')}
+            </Button>
+          </div>
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          <div className='mb-3 flex flex-wrap items-center gap-2 text-sm'>
+            <Badge variant='secondary'>
+              {t('Total')}: {channels.length}
+            </Badge>
+            <Badge variant='outline'>
+              {t('Enabled')}: {activeCount}
+            </Badge>
+          </div>
+          <div className='rounded-lg border'>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className='text-muted-foreground h-24 text-center'
-                  >
-                    {loading ? t('Loading...') : t('No data')}
-                  </TableCell>
+                  <TableHead>{t('Channel')}</TableHead>
+                  <TableHead>{t('Registration Link')}</TableHead>
+                  <TableHead>{t('Registered Users')}</TableHead>
+                  <TableHead>{t('Status')}</TableHead>
+                  <TableHead className='text-right'>{t('Actions')}</TableHead>
                 </TableRow>
-              )}
-              {channels.map((channel) => (
-                <TableRow key={channel.code}>
-                  <TableCell>
-                    <div className='flex min-w-[180px] flex-col gap-1'>
-                      <div className='font-medium'>{channel.name}</div>
-                      <code className='text-muted-foreground text-xs'>
-                        {channel.code}
-                      </code>
-                      {channel.description && (
-                        <div className='text-muted-foreground max-w-[260px] truncate text-xs'>
-                          {channel.description}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className='flex max-w-[360px] items-center gap-2'>
-                      <code className='bg-muted min-w-0 truncate rounded px-2 py-1 text-xs'>
-                        {buildChannelUrl(channel)}
-                      </code>
-                      <Button
-                        variant='ghost'
-                        size='icon-sm'
-                        onClick={() => copyChannelUrl(channel)}
-                        aria-label={t('Copy')}
-                      >
-                        <Copy />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell>{channel.registered_count}</TableCell>
-                  <TableCell>
-                    <div className='flex items-center gap-2'>
-                      <Switch
-                        checked={channel.enabled}
-                        onCheckedChange={() => toggleChannel(channel)}
-                      />
-                      <span className='text-sm'>
-                        {channel.enabled ? t('Enabled') : t('Disabled')}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => openEditDialog(channel)}
+              </TableHeader>
+              <TableBody>
+                {channels.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className='text-muted-foreground h-24 text-center'
                     >
-                      <Pencil />
-                      {t('Edit')}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </SectionPageLayout.Content>
+                      {loading ? t('Loading...') : t('No data')}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {channels.map((channel) => (
+                  <TableRow key={channel.code}>
+                    <TableCell>
+                      <div className='flex min-w-[180px] flex-col gap-1'>
+                        <div className='font-medium'>{channel.name}</div>
+                        <code className='text-muted-foreground text-xs'>
+                          {channel.code}
+                        </code>
+                        {channel.description && (
+                          <div className='text-muted-foreground max-w-[260px] truncate text-xs'>
+                            {channel.description}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex max-w-[360px] items-center gap-2'>
+                        <code className='bg-muted min-w-0 truncate rounded px-2 py-1 text-xs'>
+                          {buildChannelUrl(channel)}
+                        </code>
+                        <Button
+                          variant='ghost'
+                          size='icon-sm'
+                          onClick={() => copyChannelUrl(channel)}
+                          aria-label={t('Copy')}
+                        >
+                          <Copy />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>{channel.registered_count}</TableCell>
+                    <TableCell>
+                      <div className='flex items-center gap-2'>
+                        <Switch
+                          checked={channel.enabled}
+                          onCheckedChange={() => toggleChannel(channel)}
+                        />
+                        <span className='text-sm'>
+                          {channel.enabled ? t('Enabled') : t('Disabled')}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => openEditDialog(channel)}
+                      >
+                        <Pencil />
+                        {t('Edit')}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className='sm:max-w-lg'>
@@ -399,6 +407,6 @@ export function RegistrationChannels() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SectionPageLayout>
+    </>
   )
 }
