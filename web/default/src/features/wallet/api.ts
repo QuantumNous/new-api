@@ -28,6 +28,7 @@ import type {
   AmountResponse,
   PaymentResponse,
   StripePaymentResponse,
+  PayPalPaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
   BillingHistoryResponse,
@@ -38,6 +39,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  PlategaPaymentRequest,
+  PlategaPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -121,6 +124,30 @@ export async function requestStripePayment(
 }
 
 /**
+ * Calculate payment amount for PayPal payment
+ */
+export async function calculatePayPalAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/paypal/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request PayPal payment
+ */
+export async function requestPayPalPayment(
+  request: PaymentRequest
+): Promise<PayPalPaymentResponse> {
+  const res = await api.post('/api/user/paypal/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Request Creem payment
  */
 export async function requestCreemPayment(
@@ -169,6 +196,30 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
+ * Calculate RUB amount for Platega SBP QR payment
+ */
+export async function calculatePlategaAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/platega/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Platega SBP QR payment
+ */
+export async function requestPlategaPayment(
+  request: PlategaPaymentRequest
+): Promise<PlategaPaymentResponse> {
+  const res = await api.post('/api/user/platega/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Get affiliate code (apimaster referral_code, for the /register?ref= link).
  * Tries /api/auth/me (apimaster session) first — works for all users including admin.
  * Falls back to /api/user/referral_code (new-api, UUID-prefix lookup) if unavailable.
@@ -205,7 +256,8 @@ export async function transferAffiliateQuota(
 export async function getUserBillingHistory(
   page: number,
   pageSize: number,
-  keyword?: string
+  keyword?: string,
+  status?: string
 ): Promise<ApiResponse<BillingHistoryResponse>> {
   const params = new URLSearchParams({
     p: page.toString(),
@@ -213,6 +265,9 @@ export async function getUserBillingHistory(
   })
   if (keyword) {
     params.append('keyword', keyword)
+  }
+  if (status) {
+    params.append('status', status)
   }
   const res = await api.get(`/api/user/topup/self?${params.toString()}`)
   return res.data
@@ -224,7 +279,8 @@ export async function getUserBillingHistory(
 export async function getAllBillingHistory(
   page: number,
   pageSize: number,
-  keyword?: string
+  keyword?: string,
+  status?: string
 ): Promise<ApiResponse<BillingHistoryResponse>> {
   const params = new URLSearchParams({
     p: page.toString(),
@@ -232,6 +288,9 @@ export async function getAllBillingHistory(
   })
   if (keyword) {
     params.append('keyword', keyword)
+  }
+  if (status) {
+    params.append('status', status)
   }
   const res = await api.get(`/api/user/topup?${params.toString()}`)
   return res.data
@@ -274,4 +333,22 @@ export async function getCryptoDepositStatus(
 ): Promise<{ status: 'pending' | 'confirmed' | 'failed'; usdAdded?: number }> {
   const res = await api.get(`/api/user/crypto/deposit/${depositId}`)
   return res.data
+}
+
+export interface FirstTopupPromoInfo {
+  enabled: boolean
+  eligible: boolean
+  never_recharged: boolean
+  discount: number
+  amount: number
+  pay_amount: number
+  expires_at: number
+}
+
+export async function getFirstTopupPromo(): Promise<FirstTopupPromoInfo | null> {
+  try {
+    const res = await api.get('/api/user/first_topup_promo')
+    if (res.data?.success && res.data?.data) return res.data.data as FirstTopupPromoInfo
+  } catch { /* ignore */ }
+  return null
 }

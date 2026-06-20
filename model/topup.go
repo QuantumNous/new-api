@@ -22,21 +22,30 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+	// Admin-only computed fields — not stored in DB
+	Username string `json:"username,omitempty" gorm:"-"`
+	Email    string `json:"email,omitempty" gorm:"-"`
+	Country  string `json:"country,omitempty" gorm:"-"`
+	Language string `json:"language,omitempty" gorm:"-"`
 }
 
 const (
 	PaymentMethodStripe       = "stripe"
+	PaymentMethodPayPal       = "paypal"
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodPlatega      = "platega"
 )
 
 const (
 	PaymentProviderEpay         = "epay"
 	PaymentProviderStripe       = "stripe"
+	PaymentProviderPayPal       = "paypal"
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	PaymentProviderPlatega      = "platega"
 )
 
 var (
@@ -44,6 +53,39 @@ var (
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
+
+// FormatPaymentMethodLabel returns a human-readable payment method name for ops notifications.
+func FormatPaymentMethodLabel(method string) string {
+	switch method {
+	case PaymentMethodPayPal:
+		return "PayPal"
+	case PaymentMethodStripe:
+		return "Stripe"
+	case "alipay":
+		return "支付宝"
+	case "wxpay":
+		return "微信支付"
+	case PaymentMethodCreem:
+		return "Creem"
+	case PaymentMethodWaffo:
+		return "Waffo"
+	case PaymentMethodWaffoPancake:
+		return "Waffo Pancake"
+	case PaymentMethodPlatega:
+		return "Russian SBP QR"
+	case "crypto":
+		return "加密货币"
+	case "epay":
+		return "易支付"
+	case "admin":
+		return "管理员补单"
+	default:
+		if method == "" {
+			return "未知"
+		}
+		return method
+	}
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error
@@ -170,9 +212,84 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
-	ProcessAffCommission(topUp.UserId, int(quota))
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodStripe)
 
 	return nil
+}
+
+func RechargePayPal(referenceId string, callerIp string) (err error) {
+	if referenceId == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	var quota float64
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
+		if err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentProvider != PaymentProviderPayPal {
+			return ErrPaymentMethodMismatch
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		err = tx.Save(topUp).Error
+		if err != nil {
+			return err
+		}
+
+		quota = topUp.Money * common.QuotaPerUnit
+		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quota)).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		common.SysError("paypal topup failed: " + err.Error())
+		return errors.New("充值失败，请稍后重试")
+	}
+
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 PayPal 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPayPal)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodPayPal)
+
+	return nil
+}
+
+func containsAt(s string) bool {
+	for _, c := range s {
+		if c == '@' {
+			return true
+		}
+	}
+	return false
+}
+
+func isDigitOnly(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // topUpQueryWindowSeconds 限制充值记录查询的时间窗口（秒）。
@@ -183,7 +300,7 @@ func topUpQueryCutoff() int64 {
 	return common.GetTimestamp() - topUpQueryWindowSeconds
 }
 
-func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func GetUserTopUps(userId int, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -197,21 +314,23 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 
 	cutoff := topUpQueryCutoff()
 
-	// Get total count within transaction
-	err = tx.Model(&TopUp{}).Where("user_id = ? AND create_time >= ?", userId, cutoff).Count(&total).Error
+	query := tx.Model(&TopUp{}).Where("user_id = ? AND create_time >= ?", userId, cutoff)
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	err = query.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	// Get paginated topups within same transaction
-	err = tx.Where("user_id = ? AND create_time >= ?", userId, cutoff).Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
+	err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	// Commit transaction
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
@@ -220,7 +339,8 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 }
 
 // GetAllTopUps 获取全平台的充值记录（管理员使用，不限制时间窗口）
-func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+// status 为空字符串时不过滤状态
+func GetAllTopUps(status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -231,12 +351,17 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 		}
 	}()
 
-	if err = tx.Model(&TopUp{}).Count(&total).Error; err != nil {
+	query := tx.Model(&TopUp{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	if err = query.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	if err = tx.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
+	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -292,8 +417,9 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 	return topups, total, nil
 }
 
-// SearchAllTopUps 按订单号搜索全平台充值记录（管理员使用，不限制时间窗口）
-func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+// SearchAllTopUps 按订单号 / 邮箱 / UID 搜索全平台充值记录（管理员使用，不限制时间窗口）
+// keyword 可以是订单号前缀、用户邮箱（含 @）、或纯数字 UID
+func SearchAllTopUps(keyword string, status string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -311,7 +437,21 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 			tx.Rollback()
 			return nil, 0, perr
 		}
-		query = query.Where("trade_no LIKE ? ESCAPE '!'", pattern)
+		// Search by email: join users table when keyword contains '@'
+		if len(keyword) > 1 && keyword[0] != '@' && (containsAt(keyword) || isDigitOnly(keyword)) {
+			if isDigitOnly(keyword) {
+				// UID search
+				query = query.Where("user_id = ?", keyword)
+			} else {
+				// Email search via subquery
+				query = query.Where("user_id IN (SELECT id FROM users WHERE email LIKE ? ESCAPE '!')", pattern)
+			}
+		} else {
+			query = query.Where("trade_no LIKE ? ESCAPE '!'", pattern)
+		}
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
 	}
 
 	if err = query.Limit(searchTopUpCountHardLimit).Count(&total).Error; err != nil {
@@ -367,7 +507,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		// 计算应充值额度：
 		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
-		if topUp.PaymentProvider == PaymentProviderStripe {
+		if topUp.PaymentProvider == PaymentProviderStripe || topUp.PaymentProvider == PaymentProviderPayPal {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
 		} else {
@@ -476,7 +616,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
-	ProcessAffCommission(topUp.UserId, int(quota))
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodCreem)
 
 	return nil
 }
@@ -539,13 +679,13 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
-		ProcessAffCommission(topUp.UserId, quotaToAdd)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
 	}
 
 	return nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -600,8 +740,115 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
 	}
 
 	return nil
+}
+
+// OnTopupSucceeded is the single hook called after every successful topup.
+// Centralises affiliate commission + Feishu notification so new payment methods
+// only need one call here instead of wiring each individually.
+func OnTopupSucceeded(userId int, quotaAdded int, paymentMethod string) {
+	ProcessAffCommission(userId, quotaAdded)
+	NotifyPaymentSuccess(userId, quotaAdded, paymentMethod)
+}
+
+// HasSuccessfulTopUp 该用户是否有过成功充值（用于「首次充值」判定）。
+func HasSuccessfulTopUp(userId int) bool {
+	var count int64
+	DB.Model(&TopUp{}).Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).Limit(1).Count(&count)
+	return count > 0
+}
+
+// IsFirstTopupPromoEligible 新用户首充优惠资格：开关开 + 折扣合法 + 注册在窗口内 + 还没成功充值过。
+// 返回 (是否符合, 优惠窗口到期时间戳秒)。注意：crypto 路径须在本次 TopUp 写入 success 之前调用。
+func IsFirstTopupPromoEligible(userId int) (bool, int64) {
+	if !common.FirstTopupPromoEnabled {
+		return false, 0
+	}
+	if common.FirstTopupPromoDiscount <= 0 || common.FirstTopupPromoDiscount >= 1 {
+		return false, 0
+	}
+	user, err := GetUserById(userId, false)
+	if err != nil || user == nil {
+		return false, 0
+	}
+	expiresAt := user.CreatedAt + int64(common.FirstTopupPromoWindowDays)*86400
+	if common.GetTimestamp() > expiresAt {
+		return false, expiresAt
+	}
+	if HasSuccessfulTopUp(userId) {
+		return false, expiresAt
+	}
+	return true, expiresAt
+}
+
+// NotifyPaymentSuccess sends a Feishu card to the ops group on successful payment.
+// quotaAdded is the quota units credited; USD amount is derived via QuotaPerUnit.
+// Runs in a goroutine so it never blocks the caller.
+func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
+	chatID := common.FeishuOpsChatID()
+	if chatID == "" {
+		return
+	}
+	go func() {
+		var user User
+		if err := DB.Select("email, country").Where("id = ?", userId).First(&user).Error; err != nil {
+			user.Email = fmt.Sprintf("user#%d", userId)
+		}
+		email := user.Email
+		if email == "" {
+			email = fmt.Sprintf("user#%d", userId)
+		}
+		country := user.Country
+		if country == "" {
+			country = "—"
+		}
+		usdAmount := float64(quotaAdded) / common.QuotaPerUnit
+		methodLabel := FormatPaymentMethodLabel(paymentMethod)
+		lines := []string{
+			fmt.Sprintf("用户：%s", email),
+			fmt.Sprintf("金额：$%.2f", usdAmount),
+			fmt.Sprintf("国家：%s", country),
+			fmt.Sprintf("方式：%s", methodLabel),
+		}
+		_ = common.SendFeishuCard(chatID, "💰 付款成功", lines)
+	}()
+}
+
+// EnrichTopupsWithUserInfo batch-fills Username and Country on each TopUp
+// by joining the users table. One extra query for the whole page — not per row.
+func EnrichTopupsWithUserInfo(topups []*TopUp) {
+	if len(topups) == 0 {
+		return
+	}
+	ids := make([]int, len(topups))
+	for i, t := range topups {
+		ids[i] = t.UserId
+	}
+	type row struct {
+		Id       int
+		Username string
+		Email    string
+		Country  string
+		Language string
+	}
+	var rows []row
+	if err := DB.Model(&User{}).Select("id, username, email, country, language").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return
+	}
+	m := make(map[int]row, len(rows))
+	for _, r := range rows {
+		m[r.Id] = r
+	}
+	for _, t := range topups {
+		if u, ok := m[t.UserId]; ok {
+			t.Username = u.Username
+			t.Email = u.Email
+			t.Country = u.Country
+			t.Language = u.Language
+		}
+	}
 }

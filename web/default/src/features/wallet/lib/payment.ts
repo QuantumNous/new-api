@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import {
   PAYMENT_TYPES,
   DEFAULT_PRESET_MULTIPLIERS,
@@ -75,6 +76,10 @@ export function isStripePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.STRIPE
 }
 
+export function isPayPalPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.PAYPAL
+}
+
 /**
  * Check if payment method is Waffo Pancake
  *
@@ -103,6 +108,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return PAYMENT_TYPES.STRIPE
   }
 
+  if (topupInfo.enable_paypal_topup) {
+    return PAYMENT_TYPES.PAYPAL
+  }
+
   if (topupInfo.enable_waffo_topup) {
     return PAYMENT_TYPES.WAFFO
   }
@@ -124,6 +133,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_online_topup) {
     return topupInfo.min_topup
+  }
+
+  if (topupInfo.enable_paypal_topup) {
+    return topupInfo.paypal_min_topup || DEFAULT_MIN_TOPUP
   }
 
   if (topupInfo.enable_stripe_topup) {
@@ -165,4 +178,9 @@ export function mergePresetAmounts(
     value: amount,
     discount: discounts[amount] || 1.0,
   }))
+}
+
+/** User-facing payment errors — always use frontend i18n, not raw backend strings. */
+export function paymentErrorMessage(messageKey = 'Payment failed'): string {
+  return i18next.t(messageKey)
 }

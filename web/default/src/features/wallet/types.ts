@@ -39,6 +39,7 @@ export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
+export type PayPalPaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
@@ -119,12 +120,16 @@ export interface TopupInfo {
   enable_online_topup: boolean
   /** Whether Stripe topup is enabled */
   enable_stripe_topup: boolean
+  /** Whether PayPal topup is enabled */
+  enable_paypal_topup?: boolean
   /** Available payment methods */
   pay_methods: PaymentMethod[]
   /** Minimum topup amount for online topup */
   min_topup: number
   /** Minimum topup amount for Stripe */
   stripe_min_topup: number
+  /** Minimum topup amount for PayPal */
+  paypal_min_topup?: number
   /** Preset amount options */
   amount_options: number[]
   /** Discount rates by amount */
@@ -145,6 +150,12 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Platega SBP QR topup is enabled */
+  enable_platega_topup?: boolean
+  /** Minimum topup amount for Platega */
+  platega_min_topup?: number
+  /** USD to RUB rate for Platega */
+  platega_usd_rate?: number
 }
 
 /**
@@ -192,6 +203,21 @@ export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number
 }
+
+/**
+ * Platega SBP QR payment request parameters
+ */
+export interface PlategaPaymentRequest {
+  amount: number
+}
+
+export type PlategaPaymentResponse = ApiResponse<{
+  redirect_url: string
+  transaction_id: string
+  order_id: string
+  rub_amount: number
+  status: string
+}>
 
 /**
  * Amount calculation request
@@ -260,6 +286,14 @@ export interface TopupRecord {
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  /** Admin-only: username of the paying user */
+  username?: string
+  /** Admin-only: email of the paying user */
+  email?: string
+  /** Admin-only: 2-letter country code from login IP */
+  country?: string
+  /** Admin-only: browser language from registration */
+  language?: string
 }
 
 /**

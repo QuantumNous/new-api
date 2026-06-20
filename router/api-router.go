@@ -59,6 +59,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)
 		apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
+		apiRouter.POST("/payment/platega/callback", controller.PlategaCallback)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
@@ -75,6 +76,7 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/groups", controller.GetUserGroups)
+			userRoute.GET("/first_topup_promo", middleware.TryUserAuth(), controller.GetFirstTopupPromo)
 
 			selfRoute := userRoute.Group("/")
 			selfRoute.Use(middleware.UserAuth())
@@ -97,6 +99,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/invite_list", controller.GetInviteList)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				// first_topup_promo is below in the public userRoute section
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)
@@ -109,6 +112,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
+				selfRoute.POST("/platega/amount", controller.RequestPlategaAmount)
+				selfRoute.POST("/platega/pay", middleware.CriticalRateLimit(), controller.RequestPlategaPay)
 				selfRoute.POST("/crypto/submit", middleware.CriticalRateLimit(), controller.SubmitCryptoDeposit)
 				selfRoute.GET("/crypto/deposit/:id", controller.GetCryptoDeposit)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
@@ -136,6 +141,9 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/", controller.GetAllUsers)
 				adminRoute.GET("/topup", controller.GetAllTopUps)
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
+				adminRoute.GET("/platega/orders", controller.AdminListPlategaOrders)
+				adminRoute.POST("/platega/query-status", controller.AdminQueryPlategaStatus)
+				adminRoute.POST("/platega/retry-callback", controller.AdminRetryPlategaCallback)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)

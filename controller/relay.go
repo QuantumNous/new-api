@@ -222,6 +222,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			service.RecordChannelSuccess(channel.Id)
 			return
 		}
 
@@ -339,6 +340,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}
+	if types.IsContextOverflowError(openaiErr) {
+		return false
+	}
 	if retryTimes <= 0 {
 		return false
 	}
@@ -362,9 +366,16 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldDisableChannel(err) && channelError.AutoBan {
+	action, reason := service.EvaluateChannelHealth(channelError, err)
+	if action != service.HealthSkip {
 		gopool.Go(func() {
-			service.DisableChannel(channelError, err.ErrorWithStatusCode())
+			switch action {
+			case service.HealthNotifyRecharge:
+				service.NotifyUpstreamRecharge(channelError, err)
+				service.DisableChannel(channelError, reason)
+			case service.HealthDisableImmediate, service.HealthDisableWindow:
+				service.DisableChannel(channelError, reason)
+			}
 		})
 	}
 
@@ -386,6 +397,9 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
+		if taskID := c.GetString("image_poll_task_id"); taskID != "" {
+			other["task_id"] = taskID
+		}
 		adminInfo := make(map[string]interface{})
 		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
 		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)

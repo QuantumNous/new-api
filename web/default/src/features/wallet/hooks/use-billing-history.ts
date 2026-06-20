@@ -48,6 +48,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const [page, setPage] = useState(initialPage)
   const [pageSize, setPageSize] = useState(initialPageSize)
   const [keyword, setKeyword] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [completing, setCompleting] = useState(false)
 
@@ -58,7 +59,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     setLoading(true)
     try {
       const response = isAdmin
-        ? await getAllBillingHistory(page, pageSize, keyword)
+        ? await getAllBillingHistory(page, pageSize, keyword, statusFilter)
         : await getUserBillingHistory(page, pageSize, keyword)
 
       if (isApiSuccess(response) && response.data) {
@@ -80,7 +81,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, page, pageSize, keyword])
+  }, [isAdmin, page, pageSize, keyword, statusFilter])
 
   /**
    * Complete a pending order (admin only)
@@ -136,7 +137,15 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
    */
   const handleSearch = useCallback((newKeyword: string) => {
     setKeyword(newKeyword)
-    setPage(1) // Reset to first page when searching
+    setPage(1)
+  }, [])
+
+  /**
+   * Filter by status
+   */
+  const handleStatusChange = useCallback((newStatus: string) => {
+    setStatusFilter(newStatus)
+    setPage(1)
   }, [])
 
   // Fetch data when dependencies change
@@ -150,12 +159,14 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     page,
     pageSize,
     keyword,
+    statusFilter,
     loading,
     completing,
     isAdmin,
     handlePageChange,
     handlePageSizeChange,
     handleSearch,
+    handleStatusChange,
     handleCompleteOrder,
     refresh: fetchBillingHistory,
   }

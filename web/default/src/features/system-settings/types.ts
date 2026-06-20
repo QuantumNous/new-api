@@ -178,6 +178,10 @@ export type BillingSettings = {
   QuotaForInviter: number
   QuotaForInvitee: number
   AffRatio: number
+  FirstTopupPromoEnabled: boolean
+  FirstTopupPromoDiscount: number
+  FirstTopupPromoAmount: number
+  FirstTopupPromoWindowDays: number
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
@@ -222,6 +226,11 @@ export type BillingSettings = {
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
+  PayPalClientID: string
+  PayPalClientSecret: string
+  PayPalWebhookID: string
+  PayPalSandbox: boolean
+  PayPalMinTopUp: number
   CreemApiKey: string
   CreemWebhookSecret: string
   CreemTestMode: boolean
@@ -253,6 +262,12 @@ export type BillingSettings = {
   WaffoPancakeCurrency: string
   WaffoPancakeUnitPrice: number
   WaffoPancakeMinTopUp: number
+  PlategaEnabled: boolean
+  PlategaMinTopUp: number
+  PlategaUSDRate: number
+  PlategaReturnURL: string
+  PlategaFailedURL: string
+  PlategaFeePercent: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

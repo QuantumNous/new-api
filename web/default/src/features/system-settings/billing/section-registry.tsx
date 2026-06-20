@@ -63,6 +63,10 @@ const BILLING_SECTIONS = [
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInvitee: settings.QuotaForInvitee,
           AffRatio: settings.AffRatio,
+          FirstTopupPromoEnabled: settings.FirstTopupPromoEnabled,
+          FirstTopupPromoDiscount: settings.FirstTopupPromoDiscount,
+          FirstTopupPromoAmount: settings.FirstTopupPromoAmount,
+          FirstTopupPromoWindowDays: settings.FirstTopupPromoWindowDays,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
@@ -151,6 +155,11 @@ const BILLING_SECTIONS = [
           StripeUnitPrice: settings.StripeUnitPrice,
           StripeMinTopUp: settings.StripeMinTopUp,
           StripePromotionCodesEnabled: settings.StripePromotionCodesEnabled,
+          PayPalClientID: settings.PayPalClientID,
+          PayPalClientSecret: settings.PayPalClientSecret,
+          PayPalWebhookID: settings.PayPalWebhookID,
+          PayPalSandbox: settings.PayPalSandbox,
+          PayPalMinTopUp: settings.PayPalMinTopUp,
           CreemApiKey: settings.CreemApiKey,
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
@@ -187,6 +196,14 @@ const BILLING_SECTIONS = [
           WaffoPancakeCurrency: settings.WaffoPancakeCurrency ?? 'USD',
           WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
           WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
+        }}
+        plategaDefaultValues={{
+          PlategaEnabled: settings.PlategaEnabled ?? false,
+          PlategaMinTopUp: settings.PlategaMinTopUp ?? 1,
+          PlategaUSDRate: settings.PlategaUSDRate ?? 90,
+          PlategaReturnURL: settings.PlategaReturnURL ?? '',
+          PlategaFailedURL: settings.PlategaFailedURL ?? '',
+          PlategaFeePercent: settings.PlategaFeePercent ?? 8.5,
         }}
       />
     ),

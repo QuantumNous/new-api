@@ -114,6 +114,10 @@ export type DataTableToolbarProps<TData> = {
    */
   leftActions?: ReactNode
   /**
+   * Whether the expandable section should be expanded on first render.
+   */
+  initialExpanded?: boolean
+  /**
    * Outer wrapper className override.
    */
   className?: string
@@ -135,7 +139,7 @@ export type DataTableToolbarProps<TData> = {
  */
 export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(props.initialExpanded ?? false)
 
   const filters = props.filters ?? []
   const hasExpandable = props.expandable != null

@@ -137,6 +137,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const table = useReactTable({
     data: logs as Record<string, unknown>[],
     columns: columns as ColumnDef<Record<string, unknown>>[],
+    rowCount: data !== undefined ? data.total : undefined,
     state: {
       columnFilters,
       pagination,
@@ -150,6 +151,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     manualPagination: true,
+    manualFiltering: true,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 

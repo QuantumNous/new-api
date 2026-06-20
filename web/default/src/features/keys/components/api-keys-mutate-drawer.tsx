@@ -295,7 +295,17 @@ export function ApiKeysMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Name')}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder={t('Enter a name')} />
+                      <Input
+                        {...field}
+                        placeholder={t('Enter a name')}
+                        onValueChange={(value) => {
+                          form.setValue('name', value, {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                            shouldValidate: true,
+                          })
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

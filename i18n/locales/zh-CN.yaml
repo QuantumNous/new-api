@@ -135,8 +135,12 @@ payment.stripe_not_configured: "Stripe 未配置或密钥无效"
 payment.webhook_not_configured: "Webhook 未配置"
 payment.price_id_not_configured: "该套餐未配置 StripePriceId"
 payment.creem_not_configured: "该套餐未配置 CreemProductId"
+payment.redirect_untrusted: "支付重定向 URL 不在可信任域名列表中"
 
 # Topup messages
+topup.amount_too_low: "充值金额过低"
+topup.amount_min: "充值数量不能小于 {{.Min}}"
+topup.amount_max: "充值数量不能大于 {{.Max}}"
 topup.not_provided: "未提供支付单号"
 topup.order_not_exists: "充值订单不存在"
 topup.order_status: "充值订单状态错误"

@@ -91,6 +91,18 @@ function timestampToSeconds(ms: number): number {
   return Math.floor(ms / 1000)
 }
 
+/** Parse channel id from URL/search (handles TanStack JSON `"33"` quoting). */
+export function parseChannelId(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value
+  }
+  const normalized = String(value).replace(/^["']|["']$/g, '').trim()
+  if (!normalized) return undefined
+  const parsed = Number.parseInt(normalized, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
 /**
  * Build query parameters from filters
  */
@@ -154,15 +166,12 @@ export function buildBaseParams(config: {
   end_timestamp?: number
 } {
   const { page, pageSize, searchParams, useMilliseconds = false } = config
+  const channelId = parseChannelId(searchParams.channel)
 
   return {
     p: page,
     page_size: pageSize,
-    ...(searchParams.channel
-      ? {
-          channel_id: String(searchParams.channel),
-        }
-      : {}),
+    ...(channelId ? { channel_id: String(channelId) } : {}),
     ...buildTimeRangeParams(searchParams, useMilliseconds),
   }
 }
@@ -195,11 +204,14 @@ export function buildApiParams(config: {
     ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
     ...(searchParams.group ? { group: String(searchParams.group) } : {}),
-    ...(isAdmin && searchParams.channel
-      ? { channel: Number(searchParams.channel) || 0 }
+    ...(isAdmin && parseChannelId(searchParams.channel)
+      ? { channel: parseChannelId(searchParams.channel)! }
       : {}),
     ...(isAdmin && searchParams.username
       ? { username: String(searchParams.username) }
+      : {}),
+    ...(isAdmin && searchParams.email
+      ? { email: String(searchParams.email) }
       : {}),
     ...(searchParams.requestId
       ? { request_id: String(searchParams.requestId) }
@@ -225,9 +237,11 @@ export function buildApiParams(config: {
         case 'group':
           params.group = String(value)
           break
-        case 'channel':
-          if (isAdmin) params.channel = Number(value) || 0
+        case 'channel': {
+          const channelId = parseChannelId(value)
+          if (isAdmin && channelId) params.channel = channelId
           break
+        }
         case 'username':
           if (isAdmin) params.username = String(value)
           break

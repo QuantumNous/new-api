@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 )
@@ -30,6 +31,14 @@ var (
 func FetchChannelPricing(channel *model.Channel) {
 	ctx := context.Background()
 	if channel == nil || channel.BaseURL == nil || *channel.BaseURL == "" {
+		return
+	}
+
+	if channel.Type == constant.ChannelTypeOpenRouter {
+		if fetchOpenRouterChannelPricing(ctx, channel) {
+			return
+		}
+		fetchModelPriceRatioFallback(ctx, channel)
 		return
 	}
 
@@ -250,18 +259,11 @@ func RefreshPublicModelPrices() error {
 //
 // groupMul priority: manual_group_ratio > 1.0 default
 func fetchModelPriceRatioFallback(ctx context.Context, channel *model.Channel) {
-	ratio := ExtractModelPriceRatio(channel.Setting)
-	if ratio <= 0 {
-		return
-	}
-
-	// Both model_price_ratio AND manual_group_ratio must be set for the fallback
-	// to produce pricing data. If group_ratio is missing, actual_price would be
-	// computed as 0, which is worse than showing "—".
 	groupMul := ExtractManualGroupRatio(channel.Setting)
 	if groupMul <= 0 {
 		return
 	}
+	ratio := effectiveModelPriceRatio(channel.Setting, groupMul)
 
 	// Read from DB cache; if empty try a one-time live fetch.
 	pubPrices, err := model.GetAllPublicModelPrices()
@@ -532,9 +534,66 @@ func ExtractManualGroupRatio(setting *string) float64 {
 	return s.ManualGroupRatio
 }
 
+// effectiveModelPriceRatio returns the multiplier for public_model_prices fallback.
+// manual_group_ratio must already be > 0. model_price_ratio 0/absent defaults to 1.0
+// when manual group is configured (operator expects manual fallback, not "disabled").
+func effectiveModelPriceRatio(setting *string, manualGroupRatio float64) float64 {
+	if manualGroupRatio <= 0 {
+		return 0
+	}
+	ratio := ExtractModelPriceRatio(setting)
+	if ratio <= 0 {
+		return 1.0
+	}
+	return ratio
+}
+
+// PublicManualPricing holds USD/1M prices derived from public_model_prices ×
+// model_price_ratio × manual_group_ratio (used when upstream /api/pricing is unavailable).
+type PublicManualPricing struct {
+	InputPrice         float64
+	OutputPrice        float64
+	CachePrice         float64
+	CacheCreationPrice float64
+	GroupRatio         float64
+	ModelPriceRatio    float64
+}
+
+// LookupPublicManualPricing resolves pricing for one model from romaapi public prices
+// and the channel's manual_group_ratio (+ optional model_price_ratio) settings.
+func LookupPublicManualPricing(setting *string, modelName string) (PublicManualPricing, bool) {
+	groupMul := ExtractManualGroupRatio(setting)
+	if groupMul <= 0 {
+		return PublicManualPricing{}, false
+	}
+	ratio := effectiveModelPriceRatio(setting, groupMul)
+
+	pub, ok := lookupPublicModelPrice(modelName)
+	if !ok {
+		return PublicManualPricing{}, false
+	}
+	return PublicManualPricing{
+		InputPrice:         pub.InputPrice * ratio * groupMul,
+		OutputPrice:        pub.OutputPrice * ratio * groupMul,
+		CachePrice:         pub.CachePrice * ratio * groupMul,
+		CacheCreationPrice: pub.CacheCreationPrice * ratio * groupMul,
+		GroupRatio:         groupMul,
+		ModelPriceRatio:    ratio,
+	}, true
+}
+
+func lookupPublicModelPrice(modelName string) (model.PublicModelPrice, bool) {
+	names := modelPricingLookupNames(modelName)
+	pub, err := model.GetPublicModelPriceByNames(names)
+	if err != nil || pub == nil || pub.InputPrice <= 0 {
+		return model.PublicModelPrice{}, false
+	}
+	return *pub, true
+}
+
 // ExtractModelPriceRatio reads the model_price_ratio fallback from channel.Setting JSON.
 // When > 0 and upstream has no /api/pricing, romaapi public prices × this ratio are used.
-// Returns 0 when absent — callers treat 0 as "disabled".
+// Returns 0 when absent — use effectiveModelPriceRatio when manual_group_ratio is set.
 func ExtractModelPriceRatio(setting *string) float64 {
 	if setting == nil || *setting == "" {
 		return 0

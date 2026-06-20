@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -596,6 +597,112 @@ func cacheImageLocally(imageURL string) string {
 	return publicBase + filename
 }
 
+// imagePollDeadlineContextKey stores server-side poll budget (seconds) for async image tasks.
+const imagePollDeadlineContextKey = "image_poll_deadline_sec"
+
+// imagePollTaskIDContextKey stores upstream task id for error logs when sync poll times out.
+const imagePollTaskIDContextKey = "image_poll_task_id"
+
+const (
+	imagePollMaxDeadlineSec   = 900 // align with nginx proxy_read_timeout for /v1/
+	imagePollDefaultDeadline  = 180
+	imagePollTier2KDeadline   = 300
+	imagePollTierHighDeadline = 900 // 4k / high / hd — upstream can exceed 600s
+)
+
+// SetImagePollDeadline stores how long the relay may poll upstream before returning timeout.
+func SetImagePollDeadline(c *gin.Context, req dto.ImageRequest) {
+	c.Set(imagePollDeadlineContextKey, imagePollDeadlineSeconds(req))
+}
+
+// imagePollTierFromSize infers poll tier from explicit pixel size (e.g. 1792x1024).
+// Returns 0=default, 1=2k-class, 2=4k-class.
+func imagePollTierFromSize(size string) int {
+	size = strings.TrimSpace(strings.ToLower(size))
+	parts := strings.Split(size, "x")
+	if len(parts) != 2 {
+		return 0
+	}
+	w, errW := strconv.Atoi(strings.TrimSpace(parts[0]))
+	h, errH := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if errW != nil || errH != nil || w <= 0 || h <= 0 {
+		return 0
+	}
+	longEdge := w
+	if h > longEdge {
+		longEdge = h
+	}
+	switch {
+	case longEdge >= 3840:
+		return 2
+	case longEdge >= 1536:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func imagePollDeadlineSeconds(req dto.ImageRequest) int {
+	tier := imagePollTierFromSize(req.Size)
+
+	resolution := ""
+	quality := strings.ToLower(strings.TrimSpace(req.Quality))
+	for key, raw := range req.Extra {
+		if strings.EqualFold(key, "resolution") {
+			var s string
+			if common.Unmarshal(raw, &s) == nil {
+				resolution = strings.ToLower(s)
+			}
+			break
+		}
+	}
+
+	switch resolution {
+	case "4k":
+		if tier < 2 {
+			tier = 2
+		}
+	case "2k":
+		if tier < 1 {
+			tier = 1
+		}
+	}
+
+	switch quality {
+	case "high", "hd":
+		if tier < 2 {
+			tier = 2
+		}
+	case "medium":
+		if tier < 1 {
+			tier = 1
+		}
+	}
+
+	var sec int
+	switch tier {
+	case 2:
+		sec = imagePollTierHighDeadline
+	case 1:
+		sec = imagePollTier2KDeadline
+	default:
+		sec = imagePollDefaultDeadline
+	}
+	if sec > imagePollMaxDeadlineSec {
+		sec = imagePollMaxDeadlineSec
+	}
+	return sec
+}
+
+func imagePollDeadlineFromContext(c *gin.Context) time.Duration {
+	if v, ok := c.Get(imagePollDeadlineContextKey); ok {
+		if sec, ok := v.(int); ok && sec > 0 {
+			return time.Duration(sec) * time.Second
+		}
+	}
+	return 180 * time.Second
+}
+
 // pollAsyncImageTask polls the upstream /v1/tasks/{id} until done, then returns OpenAI-compatible image JSON.
 func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
 	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
@@ -606,9 +713,9 @@ func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
 	pollURL := fmt.Sprintf("%s/v1/tasks/%s", baseURL, taskID)
 
 	client := &http.Client{Timeout: 15 * time.Second}
-	deadline := time.Now().Add(180 * time.Second)
+	deadline := time.Now().Add(imagePollDeadlineFromContext(c))
 
-	time.Sleep(8 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	for time.Now().Before(deadline) {
 		req, err := http.NewRequest("GET", pollURL, nil)
@@ -637,8 +744,8 @@ func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
 					} `json:"images"`
 				} `json:"result"`
 				// fallback flat fields
-				URL    string `json:"url"`
-				B64    string `json:"b64_json"`
+				URL string `json:"url"`
+				B64 string `json:"b64_json"`
 			} `json:"data"`
 		}
 		if common.Unmarshal(body, &result) != nil {
@@ -688,6 +795,12 @@ func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
 	return nil
 }
 
+// isClientAsyncImageGenerationsPath reports POST /v1/images/generations/async:
+// return upstream task_id immediately without server-side polling.
+func isClientAsyncImageGenerationsPath(c *gin.Context) bool {
+	return strings.HasSuffix(c.Request.URL.Path, "/images/generations/async")
+}
+
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -696,8 +809,8 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 
-	// Detect async image task response and poll upstream until done
-	{
+	// Detect async image task response and poll upstream until done (sync API only).
+	if !isClientAsyncImageGenerationsPath(c) {
 		var asyncCheck struct {
 			Data []struct {
 				Status string `json:"status"`
@@ -712,6 +825,18 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, polling task_id=%s", taskID))
 			if finalBody := pollAsyncImageTask(c, taskID); finalBody != nil {
 				responseBody = finalBody
+			} else {
+				c.Set(imagePollTaskIDContextKey, taskID)
+				service.ScheduleImageTaskReconcile(c, info, taskID)
+				deadlineSec := int(imagePollDeadlineFromContext(c).Seconds())
+				return nil, types.WithOpenAIError(types.OpenAIError{
+					Message: fmt.Sprintf(
+						"Image generation timed out after %d seconds. Retry with lower resolution or quality.",
+						deadlineSec,
+					),
+					Type: "server_error",
+					Code: "image_generation_timeout",
+				}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipRetry())
 			}
 		}
 	}

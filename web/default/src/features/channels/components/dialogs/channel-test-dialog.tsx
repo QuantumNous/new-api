@@ -28,6 +28,7 @@ import {
 } from '@tanstack/react-table'
 import { Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { openModelPricingSettingsInNewTab } from '@/features/system-settings/billing/model-pricing-link'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -263,6 +264,10 @@ export function ChannelTestDialog({
     onOpenChange(false)
   }
 
+  const handleGoToModelPricing = useCallback(() => {
+    openModelPricingSettingsInNewTab()
+  }, [])
+
   const isAnyTesting = testingModels.size > 0 || isBatchTesting
 
   const columns = useMemo<ColumnDef<ModelRow>[]>(
@@ -368,9 +373,7 @@ export function ChannelTestDialog({
                   variant='outline'
                   size='sm'
                   className='w-fit'
-                  onClick={() =>
-                    window.open('/console/setting?tab=ratio', '_blank')
-                  }
+                  onClick={handleGoToModelPricing}
                 >
                   <Settings className='mr-1 h-3 w-3' />
                   {t('Go to Settings')}
@@ -414,6 +417,7 @@ export function ChannelTestDialog({
       testResults,
       testingModels,
       testSingleModel,
+      handleGoToModelPricing,
     ]
   )
 

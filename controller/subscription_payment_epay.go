@@ -9,6 +9,7 @@ import (
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -106,7 +107,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	})
 	if err != nil {
 		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderEpay)
-		common.ApiErrorMsg(c, "拉起支付失败")
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgPaymentStartFailed))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})

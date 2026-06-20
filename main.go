@@ -171,6 +171,8 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	// Trust X-Real-IP / X-Forwarded-For from localhost (apimaster server-to-server calls).
+	_ = server.SetTrustedProxies([]string{"127.0.0.1", "::1", "172.16.0.0/12"})
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{

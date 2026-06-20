@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableToolbar } from '@/components/data-table'
+import { getEnabledModels } from '@/features/channels/api'
 import { LOG_TYPES } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -51,6 +52,51 @@ const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
 
 type LogTypeValue = (typeof logTypeValues)[number]
+
+const SUGGEST_MAX = 8
+
+function getSuggestions(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(`logs_suggest_${key}`)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSuggestion(key: string, value: string) {
+  if (!value.trim()) return
+  try {
+    const prev = getSuggestions(key).filter((v) => v !== value)
+    localStorage.setItem(
+      `logs_suggest_${key}`,
+      JSON.stringify([value, ...prev].slice(0, SUGGEST_MAX))
+    )
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+interface SuggestInputProps extends React.ComponentProps<typeof Input> {
+  suggestKey: string
+}
+
+function SuggestInput({ suggestKey, ...props }: SuggestInputProps) {
+  const listId = `suggest-list-${suggestKey}`
+  const suggestions = getSuggestions(suggestKey)
+  return (
+    <>
+      <Input list={listId} {...props} />
+      {suggestions.length > 0 && (
+        <datalist id={listId}>
+          {suggestions.map((v) => (
+            <option key={v} value={v} />
+          ))}
+        </datalist>
+      )}
+    </>
+  )
+}
 
 function isLogTypeValue(value: string): value is LogTypeValue {
   return (logTypeValues as readonly string[]).includes(value)
@@ -76,6 +122,17 @@ export function CommonLogsFilterBar<TData>(
     return { startTime: start, endTime: end }
   })
   const [logType, setLogType] = useState<LogTypeValue | ''>('')
+  const [enabledModels, setEnabledModels] = useState<string[]>([])
+
+  useEffect(() => {
+    getEnabledModels()
+      .then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          setEnabledModels(res.data.sort())
+        }
+      })
+      .catch(() => {/* fallback to text input if fetch fails */})
+  }, [])
 
   useEffect(() => {
     const next: Partial<CommonLogFilters> = {}
@@ -87,6 +144,7 @@ export function CommonLogsFilterBar<TData>(
     if (searchParams.token) next.token = searchParams.token
     if (searchParams.group) next.group = searchParams.group
     if (searchParams.username) next.username = searchParams.username
+    if (searchParams.email) next.email = searchParams.email
     if (searchParams.requestId) next.requestId = searchParams.requestId
 
     if (Object.keys(next).length > 0) {
@@ -105,6 +163,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.token,
     searchParams.group,
     searchParams.username,
+    searchParams.email,
     searchParams.requestId,
     searchParams.type,
   ])
@@ -117,6 +176,11 @@ export function CommonLogsFilterBar<TData>(
   )
 
   const handleApply = useCallback(() => {
+    if (filters.email) saveSuggestion('email', filters.email)
+    if (filters.username) saveSuggestion('username', filters.username)
+    if (filters.token) saveSuggestion('token', filters.token)
+    if (filters.channel) saveSuggestion('channel', filters.channel)
+    if (filters.requestId) saveSuggestion('requestId', filters.requestId)
     const filterParams = buildSearchParams(filters, 'common')
     navigate({
       to: '/usage-logs/$section',
@@ -160,6 +224,7 @@ export function CommonLogsFilterBar<TData>(
   const hasExpandedFilters =
     !!filters.token ||
     !!filters.username ||
+    !!filters.email ||
     !!filters.channel ||
     !!filters.requestId
 
@@ -172,6 +237,19 @@ export function CommonLogsFilterBar<TData>(
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      {(() => {
+        const total = props.table.options.rowCount
+        const current = props.table.getRowModel().rows.length
+        if (total == null) return null
+        return (
+          <span className='text-muted-foreground shrink-0 rounded-full border px-2.5 py-0.5 text-xs'>
+            {t('{{current}} on this page · {{total}} total', {
+              current: current.toLocaleString(),
+              total: total.toLocaleString(),
+            })}
+          </span>
+        )
+      })()}
       <Tooltip>
         <TooltipTrigger
           render={
@@ -196,6 +274,7 @@ export function CommonLogsFilterBar<TData>(
   return (
     <DataTableToolbar
       table={props.table}
+      initialExpanded={true}
       leftActions={statsBar}
       customSearch={
         <CompactDateTimeRangePicker
@@ -210,13 +289,36 @@ export function CommonLogsFilterBar<TData>(
       }
       additionalSearch={
         <>
-          <Input
-            placeholder={t('Model Name')}
-            value={filters.model || ''}
-            onChange={(e) => handleChange('model', e.target.value)}
-            onKeyDown={handleKeyDown}
-            className={inputClass}
-          />
+          {enabledModels.length > 0 ? (
+            <Select
+              value={filters.model || ''}
+              onValueChange={(value) =>
+                handleChange('model', value === 'all' ? undefined : value)
+              }
+            >
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder={t('Model Name')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  <SelectItem value='all'>{t('All Models')}</SelectItem>
+                  {enabledModels.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              placeholder={t('Model Name')}
+              value={filters.model || ''}
+              onChange={(e) => handleChange('model', e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={inputClass}
+            />
+          )}
           <Input
             placeholder={t('Group')}
             type={sensitiveType}
@@ -256,7 +358,8 @@ export function CommonLogsFilterBar<TData>(
       }
       expandable={
         <>
-          <Input
+          <SuggestInput
+            suggestKey='token'
             placeholder={t('Token Name')}
             type={sensitiveType}
             value={filters.token || ''}
@@ -265,7 +368,8 @@ export function CommonLogsFilterBar<TData>(
             className={inputClass}
           />
           {isAdmin && (
-            <Input
+            <SuggestInput
+              suggestKey='username'
               placeholder={t('Username')}
               type={sensitiveType}
               value={filters.username || ''}
@@ -275,7 +379,19 @@ export function CommonLogsFilterBar<TData>(
             />
           )}
           {isAdmin && (
-            <Input
+            <SuggestInput
+              suggestKey='email'
+              placeholder={t('Email')}
+              type={sensitiveType}
+              value={filters.email || ''}
+              onChange={(e) => handleChange('email', e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={inputClass}
+            />
+          )}
+          {isAdmin && (
+            <SuggestInput
+              suggestKey='channel'
               placeholder={t('Channel ID')}
               value={filters.channel || ''}
               onChange={(e) => handleChange('channel', e.target.value)}
@@ -283,7 +399,8 @@ export function CommonLogsFilterBar<TData>(
               className={inputClass}
             />
           )}
-          <Input
+          <SuggestInput
+            suggestKey='requestId'
             placeholder={t('Request ID')}
             value={filters.requestId || ''}
             onChange={(e) => handleChange('requestId', e.target.value)}

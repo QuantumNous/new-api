@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -90,12 +91,16 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enablePlatega := isPlategaTopUpEnabled()
+
 	data := gin.H{
 		"enable_online_topup":        isEpayTopUpEnabled(),
 		"enable_stripe_topup":        isStripeTopUpEnabled(),
+		"enable_paypal_topup":        isPayPalTopUpEnabled(),
 		"enable_creem_topup":         isCreemTopUpEnabled(),
 		"enable_waffo_topup":         enableWaffo,
 		"enable_waffo_pancake_topup": enableWaffoPancake,
+		"enable_platega_topup":       enablePlatega,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -106,8 +111,11 @@ func GetTopUpInfo(c *gin.Context) {
 		"pay_methods":             payMethods,
 		"min_topup":               operation_setting.MinTopUp,
 		"stripe_min_topup":        setting.StripeMinTopUp,
+		"paypal_min_topup":        setting.PayPalMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"platega_min_topup":       setting.PlategaMinTopUp,
+		"platega_usd_rate":        setting.PlategaUSDRate,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
@@ -138,7 +146,7 @@ func GetEpayClient() *epay.Client {
 	return withUrl
 }
 
-func getPayMoney(amount int64, group string) float64 {
+func getPayMoney(amount int64, group string, userId int) float64 {
 	dAmount := decimal.NewFromInt(amount)
 	// 充值金额以“展示类型”为准：
 	// - USD/CNY: 前端传 amount 为金额单位；TOKENS: 前端传 tokens，需要换成 USD 金额
@@ -165,7 +173,56 @@ func getPayMoney(amount int64, group string) float64 {
 
 	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
 
+	// 新用户首充优惠：仅 FirstTopupPromoAmount 这一档打折（crypto 不走此函数，在上账层按比例补）。
+	payMoney = payMoney.Mul(decimal.NewFromFloat(firstTopupPromoFactor(userId, amount)))
+
 	return payMoney.InexactFloat64()
+}
+
+// firstTopupPromoFactor 符合新用户首充资格 + 命中 FirstTopupPromoAmount 档位时返回折扣率（如 0.75），否则 1.0。
+func firstTopupPromoFactor(userId int, amount int64) float64 {
+	if common.FirstTopupPromoEnabled && int(amount) == common.FirstTopupPromoAmount {
+		if eligible, _ := model.IsFirstTopupPromoEligible(userId); eligible {
+			return common.FirstTopupPromoDiscount
+		}
+	}
+	return 1.0
+}
+
+// GetFirstTopupPromo 返回当前用户的新用户首充优惠资格 + 参数，供充值页/弹窗展示折扣角标与倒计时。
+// 未登录访客（userId=0）视为 eligible=true，引导注册后充值。
+func GetFirstTopupPromo(c *gin.Context) {
+	amount := common.FirstTopupPromoAmount
+	discount := common.FirstTopupPromoDiscount
+	userId := c.GetInt("id")
+	// never_recharged: 只判断是否曾经充值成功，不受时间窗口限制，用于始终展示 $1 档位
+	neverRecharged := userId == 0 || !model.HasSuccessfulTopUp(userId)
+	if !common.FirstTopupPromoEnabled {
+		common.ApiSuccess(c, gin.H{
+			"enabled":         false,
+			"eligible":        false,
+			"never_recharged": neverRecharged,
+		})
+		return
+	}
+	var eligible bool
+	var expiresAt int64
+	if userId == 0 {
+		// 未登录访客：优惠开启中，且尚未注册，视为 eligible
+		eligible = true
+		expiresAt = 0
+	} else {
+		eligible, expiresAt = model.IsFirstTopupPromoEligible(userId)
+	}
+	common.ApiSuccess(c, gin.H{
+		"enabled":         true,
+		"eligible":        eligible,
+		"never_recharged": neverRecharged,
+		"discount":        discount,
+		"amount":          amount,
+		"pay_amount":      float64(amount) * discount,
+		"expires_at":      expiresAt,
+	})
 }
 
 func getMinTopup() int64 {
@@ -182,7 +239,7 @@ func RequestEpay(c *gin.Context) {
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgInvalidParams)})
 		return
 	}
 	if req.Amount < getMinTopup() {
@@ -191,19 +248,20 @@ func RequestEpay(c *gin.Context) {
 	}
 
 	id := c.GetInt("id")
+	TouchUserCountry(id, c.ClientIP())
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney := getPayMoney(req.Amount, group, id)
 	if payMoney < 0.01 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow)})
 		return
 	}
 
 	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentMethodNotExists)})
 		return
 	}
 
@@ -214,7 +272,7 @@ func RequestEpay(c *gin.Context) {
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
 	client := GetEpayClient()
 	if client == nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "当前管理员未配置支付信息"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentNotConfigured)})
 		return
 	}
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
@@ -228,7 +286,7 @@ func RequestEpay(c *gin.Context) {
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 拉起支付失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
 		return
 	}
 	amount := req.Amount
@@ -250,7 +308,7 @@ func RequestEpay(c *gin.Context) {
 	err = topUp.Insert()
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentCreateFailed)})
 		return
 	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值订单创建成功 user_id=%d trade_no=%s payment_method=%s amount=%d money=%.2f uri=%q params=%q", id, tradeNo, req.PaymentMethod, req.Amount, payMoney, uri, common.GetJsonString(params)))
@@ -397,7 +455,7 @@ func EpayNotify(c *gin.Context) {
 			}
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%.2f topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, topUp.Money, common.GetJsonString(topUp)))
 			model.RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), c.ClientIP(), topUp.PaymentMethod, "epay")
-			model.ProcessAffCommission(topUp.UserId, quotaToAdd)
+			model.OnTopupSucceeded(topUp.UserId, quotaToAdd, topUp.PaymentMethod)
 		}
 	} else {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 忽略事件 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
@@ -408,7 +466,7 @@ func RequestAmount(c *gin.Context) {
 	var req AmountRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgInvalidParams)})
 		return
 	}
 
@@ -422,9 +480,9 @@ func RequestAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney := getPayMoney(req.Amount, group, id)
 	if payMoney <= 0.01 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": strconv.FormatFloat(payMoney, 'f', 2, 64)})
@@ -434,6 +492,7 @@ func GetUserTopUps(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
+	status := c.Query("status")
 
 	var (
 		topups []*model.TopUp
@@ -443,7 +502,7 @@ func GetUserTopUps(c *gin.Context) {
 	if keyword != "" {
 		topups, total, err = model.SearchUserTopUps(userId, keyword, pageInfo)
 	} else {
-		topups, total, err = model.GetUserTopUps(userId, pageInfo)
+		topups, total, err = model.GetUserTopUps(userId, status, pageInfo)
 	}
 	if err != nil {
 		common.ApiError(c, err)
@@ -455,10 +514,11 @@ func GetUserTopUps(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
-// GetAllTopUps 管理员获取全平台充值记录
+// GetAllTopUps 管理员获取全平台充值记录（含用户名和国家）
 func GetAllTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
+	status := c.Query("status")
 
 	var (
 		topups []*model.TopUp
@@ -466,14 +526,16 @@ func GetAllTopUps(c *gin.Context) {
 		err    error
 	)
 	if keyword != "" {
-		topups, total, err = model.SearchAllTopUps(keyword, pageInfo)
+		topups, total, err = model.SearchAllTopUps(keyword, status, pageInfo)
 	} else {
-		topups, total, err = model.GetAllTopUps(pageInfo)
+		topups, total, err = model.GetAllTopUps(status, pageInfo)
 	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	model.EnrichTopupsWithUserInfo(topups)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)

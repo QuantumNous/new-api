@@ -152,6 +152,8 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-7-high":                      2.5,
 	"claude-opus-4-7-medium":                    2.5,
 	"claude-opus-4-7-low":                       2.5,
+	"claude-opus-4-8":                           2.5,
+	"claude-fable-5":                            5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
@@ -367,7 +369,7 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
-	if price, ok := modelPriceMap.Get(name); ok {
+	if price, ok := lookupRatioMap(modelPriceMap, name); ok {
 		return price, true
 	}
 
@@ -400,10 +402,24 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	return name
 }
 
+// lookupRatioMap tries exact key then lowercase (MiniMax-M3 → minimax-m3).
+func lookupRatioMap(m *types.RWMap[string, float64], name string) (float64, bool) {
+	if ratio, ok := m.Get(name); ok {
+		return ratio, true
+	}
+	lower := strings.ToLower(name)
+	if lower != name {
+		if ratio, ok := m.Get(lower); ok {
+			return ratio, true
+		}
+	}
+	return 0, false
+}
+
 func GetModelRatio(name string) (float64, bool, string) {
 	name = FormatMatchingModelName(name)
 
-	ratio, ok := modelRatioMap.Get(name)
+	ratio, ok := lookupRatioMap(modelRatioMap, name)
 	if !ok {
 		if strings.HasSuffix(name, CompactModelSuffix) {
 			if wildcardRatio, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
@@ -444,7 +460,7 @@ func GetCompletionRatio(name string) float64 {
 	name = FormatMatchingModelName(name)
 
 	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
+		if ratio, ok := lookupRatioMap(completionRatioMap, name); ok {
 			return ratio
 		}
 	}
@@ -452,7 +468,7 @@ func GetCompletionRatio(name string) float64 {
 	if contain {
 		return hardCodedRatio
 	}
-	if ratio, ok := completionRatioMap.Get(name); ok {
+	if ratio, ok := lookupRatioMap(completionRatioMap, name); ok {
 		return ratio
 	}
 	return hardCodedRatio
@@ -545,7 +561,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 
 	if strings.Contains(name, "claude-3") {
 		return 5, true
-	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") || strings.Contains(name, "claude-haiku-4") {
+	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") || strings.Contains(name, "claude-haiku-4") || strings.Contains(name, "claude-fable") {
 		return 5, true
 	}
 

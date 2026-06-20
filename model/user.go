@@ -52,6 +52,8 @@ type User struct {
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	Country          string         `json:"country,omitempty" gorm:"type:varchar(10);default:''"`
+	Language         string         `json:"language,omitempty" gorm:"type:varchar(10);default:''"`
 
 	RegistrationChannelCode string `json:"registration_channel_code,omitempty" gorm:"-:all"`
 	RegistrationChannelName string `json:"registration_channel_name,omitempty" gorm:"-:all"`

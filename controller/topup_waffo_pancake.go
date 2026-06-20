@@ -107,7 +107,7 @@ func getWaffoPancakeReturnURL() string {
 	if strings.TrimSpace(setting.WaffoPancakeReturnURL) != "" {
 		return setting.WaffoPancakeReturnURL
 	}
-	return strings.TrimRight(system_setting.ServerAddress, "/") + "/console/topup?show_history=true"
+	return strings.TrimRight(system_setting.ServerAddress, "/") + "/console/wallet?show_history=true"
 }
 
 func RequestWaffoPancakePay(c *gin.Context) {
@@ -253,7 +253,7 @@ func WaffoPancakeWebhook(c *gin.Context) {
 	LockOrder(tradeNo)
 	defer UnlockOrder(tradeNo)
 
-	if err := model.RechargeWaffoPancake(tradeNo); err != nil {
+	if err := model.RechargeWaffoPancake(tradeNo, c.ClientIP()); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 充值处理失败 trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
 		c.String(http.StatusInternalServerError, "retry")
 		return

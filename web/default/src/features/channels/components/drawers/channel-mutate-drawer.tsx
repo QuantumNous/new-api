@@ -372,7 +372,7 @@ function KeyGroupField({
               ) : (
                 <RefreshCw className='h-4 w-4' />
               )}
-              <span className='ml-1'>{t('获取分组')}</span>
+              <span className='ml-1'>{t('Fetch Groups')}</span>
             </Button>
           </div>
           {fetchError && (
@@ -380,6 +380,59 @@ function KeyGroupField({
           )}
           <FormDescription>
             {t('The pricing group this API key belongs to on the supplier station (e.g. aws-q, cc-sale)')}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
+const CLIENT_EXCLUSIVE_OPTIONS = [
+  { value: 'none', label: '通用（任何客户端）' },
+  { value: 'codex', label: 'Codex 专属' },
+  { value: 'claude_code', label: 'Claude Code 专属' },
+] as const
+
+function ClientExclusiveField({
+  control,
+}: {
+  control: ReturnType<typeof useForm<ChannelFormValues>>['control']
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={control}
+      name='client_exclusive'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Client Exclusive')}</FormLabel>
+          <Select
+            items={CLIENT_EXCLUSIVE_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.label),
+            }))}
+            value={field.value && field.value !== '' ? field.value : 'none'}
+            onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue placeholder={t('通用（任何客户端）')} />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {CLIENT_EXCLUSIVE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {t(opt.label)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            {t('Restrict this channel to Codex or Claude Code clients. Pricing key_group is unchanged.')}
           </FormDescription>
           <FormMessage />
         </FormItem>
@@ -475,14 +528,14 @@ function RechargeRateField({
 
   return (
     <FormItem>
-      <FormLabel>{t('充值汇率')}</FormLabel>
+      <FormLabel>{t('Recharge Rate')}</FormLabel>
       <div className='flex gap-2'>
         <Select value={preset} onValueChange={applyPreset}>
           <SelectTrigger className='w-52 shrink-0'>
             <span className='truncate'>
               {preset === RECHARGE_PRESET_USD && '1 USDT = 1 USDT'}
               {preset === RECHARGE_PRESET_RMB && `1 RMB = 1 USDT (≈${(1 / cnyRate).toFixed(4)})`}
-              {preset === RECHARGE_PRESET_CUSTOM && t('自定义')}
+              {preset === RECHARGE_PRESET_CUSTOM && t('Custom')}
             </span>
           </SelectTrigger>
           <SelectContent>
@@ -491,7 +544,7 @@ function RechargeRateField({
               <SelectItem value={RECHARGE_PRESET_RMB}>
                 1 RMB = 1 USDT <span className='text-muted-foreground ml-1 text-xs'>(≈{(1 / cnyRate).toFixed(4)})</span>
               </SelectItem>
-              <SelectItem value={RECHARGE_PRESET_CUSTOM}>{t('自定义')}</SelectItem>
+              <SelectItem value={RECHARGE_PRESET_CUSTOM}>{t('Custom')}</SelectItem>
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -533,7 +586,32 @@ function ModelPriceRatioField({ control }: { control: Control<ChannelFormValues>
         />
       </FormControl>
       <FormDescription>
-        {t('当上游无 /api/pricing 时，用 romaapi 公开模型价格 × 此倍率作为回退定价；留空或 0 表示不启用')}
+        {t('When upstream has no /api/pricing, use romaapi public model price × this ratio as fallback; leave blank or 0 to disable')}
+      </FormDescription>
+      {fieldState.error && <p className='text-destructive text-xs'>{fieldState.error.message}</p>}
+    </FormItem>
+  )
+}
+
+function ApimasterPriceRatioField({ control }: { control: Control<ChannelFormValues> }) {
+  const { t } = useTranslation()
+  const { field, fieldState } = useController({ control, name: 'apimaster_price_ratio' })
+
+  return (
+    <FormItem>
+      <FormLabel>{t('User Price Ratio')}</FormLabel>
+      <FormControl>
+        <Input
+          type='number'
+          step='0.01'
+          min='0'
+          placeholder='e.g. 1.0'
+          value={field.value ?? ''}
+          onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseFloat(parseFloat(e.target.value).toPrecision(10)))}
+        />
+      </FormControl>
+      <FormDescription>
+        {t('User final price = procurement price × this ratio. Leave blank or 1.0 for no markup. Affects actual billing and marketplace display.')}
       </FormDescription>
       {fieldState.error && <p className='text-destructive text-xs'>{fieldState.error.message}</p>}
     </FormItem>
@@ -2732,11 +2810,15 @@ export function ChannelMutateDrawer({
                   channelId={channelId}
                 />
 
+                <ClientExclusiveField control={form.control} />
+
                 <ManualGroupRatioField control={form.control} />
 
                 <RechargeRateField control={form.control} />
 
                 <ModelPriceRatioField control={form.control} />
+
+                <ApimasterPriceRatioField control={form.control} />
               </div>
 
               <Collapsible

@@ -168,7 +168,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.RelayMode != relayconstant.RelayModeResponsesCompact {
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		}
-		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
+		requestPath := info.RequestURLPath
+		if info.RelayMode == relayconstant.RelayModeImagesGenerations &&
+			common.UsesAsyncImageTaskUpstream(info.OriginModelName) &&
+			strings.HasSuffix(requestPath, "/images/generations") &&
+			!strings.HasSuffix(requestPath, "/images/generations/async") {
+			requestPath = requestPath + "/async"
+		}
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestPath, info.ChannelType), nil
 	}
 }
 

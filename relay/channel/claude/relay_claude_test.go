@@ -380,3 +380,44 @@ func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T)
 	require.NotNil(t, content[0].Text)
 	require.Equal(t, "alpha\nbeta", *content[0].Text)
 }
+
+func TestRequestOpenAI2ClaudeMessage_PreservesCacheControl(t *testing.T) {
+	cacheControl := []byte(`{"type":"ephemeral"}`)
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-opus-4-7",
+		Messages: []dto.Message{
+			{
+				Role: "system",
+				Content: []any{
+					dto.MediaContent{
+						Type:         dto.ContentTypeText,
+						Text:         "stable system prefix",
+						CacheControl: cacheControl,
+					},
+				},
+			},
+			{
+				Role: "user",
+				Content: []any{
+					dto.MediaContent{
+						Type:         dto.ContentTypeText,
+						Text:         "hello",
+						CacheControl: cacheControl,
+					},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	systemBlocks := claudeRequest.ParseSystem()
+	require.Len(t, systemBlocks, 1)
+	require.JSONEq(t, string(cacheControl), string(systemBlocks[0].CacheControl))
+
+	require.Len(t, claudeRequest.Messages, 1)
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 1)
+	require.JSONEq(t, string(cacheControl), string(content[0].CacheControl))
+}

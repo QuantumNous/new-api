@@ -17,33 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Check, Globe } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { parseCountry } from '@/lib/country'
 import { useBillingHistory } from '../hooks/use-billing-history'
 import { GLASS_CARD_CLS } from '../constants'
-import { getPaymentMethodName, formatTimestamp } from '../lib/billing'
+import { getPaymentMethodName, formatTimestamp, formatPaidAmount } from '../lib/billing'
 import type { TopupStatus } from '../types'
 
-// Epay methods store money in CNY; everything else is USD
-const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
+const STATUS_TABS = [
+  { value: '', labelKey: 'All' },
+  { value: 'success', labelKey: 'Success' },
+  { value: 'pending', labelKey: 'Awaiting Payment' },
+] as const
 
-// Crypto path stores amount as raw quota units; Epay stores USD dollar integer
-const QUOTA_PER_USD = 500_000
-
-function formatRechargeAmount(amount: number, method: string): string {
-  if (method === 'crypto') return `$${(amount / QUOTA_PER_USD).toFixed(2)}`
+// All payment methods (crypto / epay / paypal) store the recharge amount as a
+// USD dollar value. (Backend topup_crypto.go writes Amount = round(usdValue).)
+function formatRechargeAmount(amount: number): string {
   return `$${amount}`
-}
-
-function formatMoney(money: number, method: string): string {
-  if (money <= 0) return '—'
-  return CNY_METHODS.has(method)
-    ? `¥${money.toFixed(2)}`
-    : `$${money.toFixed(2)}`
 }
 
 function CopyBtn({ text }: { text: string }) {
@@ -96,10 +91,14 @@ export function TransactionHistory() {
     page,
     pageSize,
     keyword,
+    statusFilter,
     loading,
+    isAdmin,
     handlePageChange,
     handleSearch,
+    handleStatusChange,
   } = useBillingHistory({ initialPageSize: 10 })
+  const colCount = isAdmin ? 9 : 6
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -118,13 +117,30 @@ export function TransactionHistory() {
               </span>
             )}
             <Input
-              placeholder={t('Search by order number...')}
+              placeholder={isAdmin ? t('Order No. / Email / UID') : t('Search by order number...')}
               value={keyword}
               onChange={(e) => handleSearch(e.target.value)}
               className='h-8 w-full sm:w-52 text-sm'
             />
           </div>
         </div>
+        {isAdmin && (
+          <div className='mt-2 flex gap-1'>
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => handleStatusChange(tab.value)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  statusFilter === tab.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {t(tab.labelKey)}
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className='p-0'>
@@ -133,6 +149,9 @@ export function TransactionHistory() {
             <thead>
               <tr className='border-y bg-muted/30 text-xs text-muted-foreground'>
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Order No.')}</th>
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>{t('Username')}</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'><Globe className='inline size-3 mr-1 opacity-60' />{t('Country')}</th>}
+                {isAdmin && <th className='px-4 py-2.5 text-left font-medium'>{t('Language')}</th>}
                 <th className='px-4 py-2.5 text-left font-medium'>{t('Payment Method')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Recharge Amount')}</th>
                 <th className='px-4 py-2.5 text-right font-medium'>{t('Amount Paid')}</th>
@@ -145,6 +164,9 @@ export function TransactionHistory() {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
                       <td className='px-4 py-3'><Skeleton className='h-4 w-44' /></td>
+                      {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-24' /></td>}
+                      {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-8' /></td>}
+                      {isAdmin && <td className='px-4 py-3'><Skeleton className='h-4 w-10' /></td>}
                       <td className='px-4 py-3'><Skeleton className='h-4 w-16' /></td>
                       <td className='px-4 py-3'><Skeleton className='ml-auto h-4 w-12' /></td>
                       <td className='px-4 py-3'><Skeleton className='ml-auto h-4 w-16' /></td>
@@ -155,7 +177,7 @@ export function TransactionHistory() {
                 : records.length === 0
                   ? (
                     <tr>
-                      <td colSpan={6} className='px-4 py-12 text-center'>
+                      <td colSpan={colCount} className='px-4 py-12 text-center'>
                         <p className='text-muted-foreground text-sm'>
                           {keyword ? t('Try adjusting your search') : t('No billing records found')}
                         </p>
@@ -172,14 +194,52 @@ export function TransactionHistory() {
                           <CopyBtn text={record.trade_no || String(record.id)} />
                         </div>
                       </td>
+                      {isAdmin && (
+                        <td className='px-4 py-3'>
+                          {record.username
+                            ? <div className='flex flex-col gap-0.5'>
+                                <div className='flex items-center gap-1'>
+                                  <span className='font-mono text-xs text-foreground max-w-[160px] truncate'>{record.username}</span>
+                                  <CopyBtn text={record.username} />
+                                </div>
+                                {record.email && (
+                                  <div className='flex items-center gap-1'>
+                                    <span className='text-muted-foreground text-xs max-w-[200px] truncate'>{record.email}</span>
+                                    <CopyBtn text={record.email} />
+                                  </div>
+                                )}
+                              </div>
+                            : <span className='text-muted-foreground text-xs'>—</span>}
+                        </td>
+                      )}
+                      {isAdmin && (
+                        <td className='px-4 py-3'>
+                          {(() => {
+                            const c = parseCountry(record.country)
+                            return c
+                              ? <div className='flex flex-col gap-0.5'>
+                                  <span className='text-xs font-medium'>{c.code}</span>
+                                  {c.name && <span className='text-muted-foreground text-xs'>{c.name}</span>}
+                                </div>
+                              : <span className='text-muted-foreground text-xs'>—</span>
+                          })()}
+                        </td>
+                      )}
+                      {isAdmin && (
+                        <td className='px-4 py-3'>
+                          {record.language
+                            ? <span className='text-xs font-medium'>{record.language}</span>
+                            : <span className='text-muted-foreground text-xs'>—</span>}
+                        </td>
+                      )}
                       <td className='px-4 py-3 text-muted-foreground'>
                         {getPaymentMethodName(record.payment_method, t)}
                       </td>
                       <td className='px-4 py-3 text-right font-mono'>
-                        {formatRechargeAmount(record.amount, record.payment_method)}
+                        {formatRechargeAmount(record.amount)}
                       </td>
                       <td className='px-4 py-3 text-right font-mono font-medium'>
-                        {formatMoney(record.money, record.payment_method)}
+                        {formatPaidAmount(record.money, record.payment_method, record.amount)}
                       </td>
                       <td className='px-4 py-3 text-center'>
                         <StatusChip status={record.status} />

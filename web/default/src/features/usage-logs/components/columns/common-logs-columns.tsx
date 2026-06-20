@@ -191,13 +191,13 @@ function buildDetailSegments(
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
       })
     } else if (other.ch_input_price != null && other.ch_input_price > 0) {
-      // Actual channel procurement price archived at billing time
+      // User-facing unit price (采购价 × apimaster_ratio) archived at billing time
       const baseEntries = [formatPriceCompact(other.ch_input_price)]
       if (other.ch_output_price != null && other.ch_output_price > 0) {
         baseEntries.push(formatPriceCompact(other.ch_output_price))
       }
       segments.push({
-        text: `采购 · ${formatPriceList(baseEntries, true)}`,
+        text: formatPriceList(baseEntries, true),
       })
       if (hasAnyCacheTokens(other)) {
         const cacheEntries = [
@@ -452,8 +452,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
             useUsageLogsContext()
           const log = row.original
+          const displayName = log.username || (log.user_id ? String(log.user_id) : '')
 
-          if (!log.username) return null
+          if (!displayName) return null
 
           return (
             <button
@@ -473,16 +474,23 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   )}
                   style={
                     sensitiveVisible
-                      ? getUserAvatarStyle(log.username)
+                      ? getUserAvatarStyle(displayName)
                       : undefined
                   }
                 >
-                  {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
+                  {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
                 </AvatarFallback>
               </Avatar>
-              <span className='text-muted-foreground truncate text-sm hover:underline'>
-                {sensitiveVisible ? log.username : '••••'}
-              </span>
+              <div className='flex min-w-0 flex-col'>
+                <span className='text-muted-foreground truncate text-sm hover:underline'>
+                  {sensitiveVisible ? displayName : '••••'}
+                </span>
+                {log.user_email && (
+                  <span className='text-muted-foreground/60 truncate text-[11px]'>
+                    {sensitiveVisible ? log.user_email : '••••'}
+                  </span>
+                )}
+              </div>
             </button>
           )
         },

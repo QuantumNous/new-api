@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -341,13 +342,25 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 	}
 
 	// ── Credit user ───────────────────────────────────────────────────────────
-	quotaToAdd := int(decimal.NewFromFloat(usdValue).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+	// 新用户首充优惠（crypto 按比例补）：到账 = 实付 + bonus，bonus = (1/折扣 − 1) × min(实付, 档位)。
+	// 必须在本次 TopUp 写入 success 之前判定资格（否则 HasSuccessfulTopUp 会把本次算进去）。
+	creditUsd := usdValue
+	if eligible, _ := model.IsFirstTopupPromoEligible(rec.UserId); eligible {
+		bonusBase := usdValue
+		if capUsd := float64(common.FirstTopupPromoAmount); bonusBase > capUsd {
+			bonusBase = capUsd
+		}
+		bonus := bonusBase * (1/common.FirstTopupPromoDiscount - 1)
+		creditUsd = usdValue + bonus
+		common.SysLog(fmt.Sprintf("crypto: first-topup promo userId=%d paid=%.4f bonus=%.4f credit=%.4f", rec.UserId, usdValue, bonus, creditUsd))
+	}
+	quotaToAdd := int(decimal.NewFromFloat(creditUsd).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
 	tradeNo := fmt.Sprintf("CRYPTO%dTX%s", rec.UserId, rec.TxHash[2:14])
 
 	topUp := &model.TopUp{
 		UserId:          rec.UserId,
-		Amount:          int64(math.Round(usdValue)), // USD dollars, consistent with epay
-		Money:           usdValue,
+		Amount:          int64(math.Round(creditUsd)), // 到账美元（含 bonus），与 epay 一致
+		Money:           usdValue,                      // 实付（链上实收）
 		TradeNo:         tradeNo,
 		PaymentMethod:   "crypto",
 		PaymentProvider: "crypto",
@@ -369,7 +382,8 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 	rec.UsdAdded = usdValue
 	rec.Status = "confirmed"
 	common.SysLog(fmt.Sprintf("crypto: confirmed userId=%d txHash=%s usd=%.4f quota=%d", rec.UserId, rec.TxHash, usdValue, quotaToAdd))
-	model.ProcessAffCommission(rec.UserId, quotaToAdd)
+	model.RecordTopupLog(rec.UserId, fmt.Sprintf("使用加密货币充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), usdValue), "", "crypto", "crypto")
+	model.OnTopupSucceeded(rec.UserId, quotaToAdd, "crypto")
 }
 
 // ============================================================================
@@ -387,6 +401,7 @@ func SubmitCryptoDeposit(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "unauthorized"})
 		return
 	}
+	TouchUserCountry(userId, c.ClientIP())
 
 	var req submitCryptoRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.TxHash == "" || req.Chain == "" {

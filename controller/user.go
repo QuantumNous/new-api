@@ -92,6 +92,7 @@ func Login(c *gin.Context) {
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
 	model.UpdateUserLastLoginAt(user.Id)
+	updateUserCountryAsync(user.Id, c.ClientIP())
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
@@ -945,6 +946,7 @@ func CreateUser(c *gin.Context) {
 		Role:        user.Role, // 保持管理员设置的角色
 		Group:       user.Group,
 		InviterId:   user.InviterId,
+		Email:       user.Email,
 	}
 	if err := cleanUser.Insert(user.InviterId); err != nil {
 		common.ApiError(c, err)
@@ -1382,4 +1384,30 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
+}
+
+// SetUserLanguage sets language and/or country on a user account.
+// Called by the apimaster Next.js layer on login to sync browser language and geo.
+func SetUserLanguage(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Language string `json:"language"`
+		Country  string `json:"country"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Username == "" || (req.Language == "" && req.Country == "") {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	updates := map[string]interface{}{}
+	if req.Language != "" {
+		updates["language"] = req.Language
+	}
+	if req.Country != "" {
+		updates["country"] = strings.ToUpper(req.Country)
+	}
+	if err := model.DB.Model(&model.User{}).Where("username = ?", req.Username).Updates(updates).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }

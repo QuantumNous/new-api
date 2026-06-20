@@ -27,6 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { parseCountry } from '@/lib/country'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
@@ -116,6 +117,37 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       enableHiding: false,
       meta: { label: t('Username'), mobileTitle: true },
+    },
+    {
+      accessorKey: 'country',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title='国家' />
+      ),
+      cell: ({ row }) => {
+        const c = parseCountry(row.getValue('country') as string | undefined)
+        return c
+          ? <div className='flex flex-col gap-0.5'>
+              <span className='text-xs font-medium'>{c.code}</span>
+              {c.name && <span className='text-muted-foreground text-xs'>{c.name}</span>}
+            </div>
+          : <span className='text-muted-foreground text-xs'>—</span>
+      },
+      enableSorting: false,
+      meta: { label: '国家', mobileHidden: true },
+    },
+    {
+      accessorKey: 'language',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Language')} />
+      ),
+      cell: ({ row }) => {
+        const lang = row.getValue('language') as string | undefined
+        return lang
+          ? <span className='text-xs font-medium'>{lang}</span>
+          : <span className='text-muted-foreground text-xs'>—</span>
+      },
+      enableSorting: false,
+      meta: { label: '语言', mobileHidden: true },
     },
     {
       accessorKey: 'status',

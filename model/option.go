@@ -86,6 +86,11 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["PayPalClientID"] = setting.PayPalClientID
+	common.OptionMap["PayPalClientSecret"] = setting.PayPalClientSecret
+	common.OptionMap["PayPalWebhookID"] = setting.PayPalWebhookID
+	common.OptionMap["PayPalSandbox"] = strconv.FormatBool(setting.PayPalSandbox)
+	common.OptionMap["PayPalMinTopUp"] = strconv.Itoa(setting.PayPalMinTopUp)
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -118,6 +123,12 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeCurrency"] = setting.WaffoPancakeCurrency
 	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
+	common.OptionMap["PlategaEnabled"] = strconv.FormatBool(setting.PlategaEnabled)
+	common.OptionMap["PlategaMinTopUp"] = strconv.Itoa(setting.PlategaMinTopUp)
+	common.OptionMap["PlategaUSDRate"] = strconv.FormatFloat(setting.PlategaUSDRate, 'f', -1, 64)
+	common.OptionMap["PlategaReturnURL"] = setting.PlategaReturnURL
+	common.OptionMap["PlategaFailedURL"] = setting.PlategaFailedURL
+	common.OptionMap["PlategaFeePercent"] = strconv.FormatFloat(setting.PlategaFeePercent, 'f', -1, 64)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -136,6 +147,10 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["AffRatio"] = strconv.Itoa(common.AffRatio)
+	common.OptionMap["FirstTopupPromoEnabled"] = strconv.FormatBool(common.FirstTopupPromoEnabled)
+	common.OptionMap["FirstTopupPromoDiscount"] = strconv.FormatFloat(common.FirstTopupPromoDiscount, 'f', -1, 64)
+	common.OptionMap["FirstTopupPromoAmount"] = strconv.Itoa(common.FirstTopupPromoAmount)
+	common.OptionMap["FirstTopupPromoWindowDays"] = strconv.Itoa(common.FirstTopupPromoWindowDays)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -382,6 +397,16 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "PayPalClientID":
+		setting.PayPalClientID = value
+	case "PayPalClientSecret":
+		setting.PayPalClientSecret = value
+	case "PayPalWebhookID":
+		setting.PayPalWebhookID = value
+	case "PayPalSandbox":
+		setting.PayPalSandbox = value == "true"
+	case "PayPalMinTopUp":
+		setting.PayPalMinTopUp, _ = strconv.Atoi(value)
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":
@@ -444,6 +469,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "PlategaEnabled":
+		setting.PlategaEnabled = value == "true"
+	case "PlategaMinTopUp":
+		setting.PlategaMinTopUp, _ = strconv.Atoi(value)
+	case "PlategaUSDRate":
+		setting.PlategaUSDRate, _ = strconv.ParseFloat(value, 64)
+	case "PlategaReturnURL":
+		setting.PlategaReturnURL = value
+	case "PlategaFailedURL":
+		setting.PlategaFailedURL = value
+	case "PlategaFeePercent":
+		setting.PlategaFeePercent, _ = strconv.ParseFloat(value, 64)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":
@@ -484,6 +521,14 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
 	case "AffRatio":
 		common.AffRatio, _ = strconv.Atoi(value)
+	case "FirstTopupPromoEnabled":
+		common.FirstTopupPromoEnabled, _ = strconv.ParseBool(value)
+	case "FirstTopupPromoDiscount":
+		common.FirstTopupPromoDiscount, _ = strconv.ParseFloat(value, 64)
+	case "FirstTopupPromoAmount":
+		common.FirstTopupPromoAmount, _ = strconv.Atoi(value)
+	case "FirstTopupPromoWindowDays":
+		common.FirstTopupPromoWindowDays, _ = strconv.Atoi(value)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

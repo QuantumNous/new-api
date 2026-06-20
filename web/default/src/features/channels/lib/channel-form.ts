@@ -84,10 +84,14 @@ export const channelFormSchema = z.object({
   manual_group_ratio: z.number().min(0).optional(),
   // 充值汇率：USD cost per 1 USDT of upstream credit (e.g. 1.0 for USD direct, 1/7.3 for 1RMB=1USDT)
   recharge_rate: z.number().min(0).optional(),
+  // APIMaster 价格倍率：用户最终价格 = 采购价 × 此倍率；留空/0 = 1.0（不加价），影响实际计费与广场展示价
+  apimaster_price_ratio: z.number().min(0).optional(),
   // Model Price Ratio：上游无 /api/pricing 时，用 romaapi 公开价格 × 此倍率作为回退定价；0 = 不启用
   model_price_ratio: z.number().min(0).optional(),
   // 检测接口格式：fingerprint 调用时使用的 API 格式（openai-compatible / anthropic）
   api_format: z.string().optional(),
+  // 客户端专属：空=通用 / codex / claude_code
+  client_exclusive: z.enum(['', 'codex', 'claude_code']).optional(),
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -148,8 +152,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   key_group: '',
   manual_group_ratio: undefined,
   recharge_rate: undefined,
+  apimaster_price_ratio: undefined,
   model_price_ratio: undefined,
   api_format: 'openai-compatible',
+  client_exclusive: '',
 }
 
 // ============================================================================
@@ -173,6 +179,7 @@ export function transformChannelToFormDefaults(
     key_group: '',
     manual_group_ratio: 0,
     model_price_ratio: 0,
+    client_exclusive: '' as '' | 'codex' | 'claude_code',
   }
 
   if (channel.setting) {
@@ -189,6 +196,9 @@ export function transformChannelToFormDefaults(
         manual_group_ratio: parsed.manual_group_ratio || 0,
         model_price_ratio: parsed.model_price_ratio || 0,
         api_format: parsed.api_format || 'openai-compatible',
+        client_exclusive: (parsed.client_exclusive === 'codex' || parsed.client_exclusive === 'claude_code'
+          ? parsed.client_exclusive
+          : '') as '' | 'codex' | 'claude_code',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -285,6 +295,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     recharge_rate: channel.recharge_rate ?? undefined,
+    apimaster_price_ratio: channel.apimaster_price_ratio ?? undefined,
   }
 }
 
@@ -302,6 +313,7 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     key_group: formData.key_group || '',
     manual_group_ratio: formData.manual_group_ratio || 0,
     model_price_ratio: formData.model_price_ratio || 0,
+    ...(formData.client_exclusive ? { client_exclusive: formData.client_exclusive } : {}),
   }
   return JSON.stringify(settingObj)
 }
@@ -449,6 +461,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
     recharge_rate: formData.recharge_rate ?? null,
+    apimaster_price_ratio: formData.apimaster_price_ratio ?? null,
   }
 
   // Clean up empty strings to null for optional fields
@@ -498,6 +511,7 @@ export function transformFormDataToUpdatePayload(
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
     recharge_rate: formData.recharge_rate ?? null,
+    apimaster_price_ratio: formData.apimaster_price_ratio ?? null,
   }
 
   // Only include key if it was changed (not empty)

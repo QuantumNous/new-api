@@ -25,6 +25,7 @@ import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { WorkspaceProvider } from '../context/workspace-context'
 import { AppSidebar } from './app-sidebar'
+import { MobileNavTabs } from './mobile-nav-tabs'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -48,6 +49,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
                 )}
               >
+                <MobileNavTabs />
                 {props.children ?? <AnimatedOutlet />}
               </SidebarInset>
             </div>

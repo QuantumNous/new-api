@@ -3,6 +3,7 @@ package controller
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -11,6 +12,16 @@ func isStripeTopUpEnabled() bool {
 	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
 		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
 		strings.TrimSpace(setting.StripePriceId) != ""
+}
+
+func isPayPalTopUpEnabled() bool {
+	return strings.TrimSpace(setting.PayPalClientID) != "" &&
+		strings.TrimSpace(setting.PayPalClientSecret) != "" &&
+		strings.TrimSpace(setting.PayPalWebhookID) != ""
+}
+
+func isPayPalWebhookEnabled() bool {
+	return isPayPalTopUpEnabled()
 }
 
 func isStripeWebhookConfigured() bool {
@@ -83,6 +94,17 @@ func isWaffoPancakeWebhookConfigured() bool {
 
 func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
+}
+
+func isPlategaTopUpEnabled() bool {
+	if !setting.PlategaEnabled {
+		return false
+	}
+	return service.PlategaConfigured()
+}
+
+func isPlategaWebhookEnabled() bool {
+	return isPlategaTopUpEnabled()
 }
 
 func isEpayTopUpEnabled() bool {

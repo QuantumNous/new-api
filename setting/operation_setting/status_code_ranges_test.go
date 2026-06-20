@@ -3,6 +3,7 @@ package operation_setting
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,4 +85,10 @@ func TestIsAlwaysSkipRetryStatusCode(t *testing.T) {
 	require.True(t, IsAlwaysSkipRetryStatusCode(504))
 	require.True(t, IsAlwaysSkipRetryStatusCode(524))
 	require.False(t, IsAlwaysSkipRetryStatusCode(500))
+}
+
+func TestIsAlwaysSkipRetryCode(t *testing.T) {
+	require.True(t, IsAlwaysSkipRetryCode(types.ErrorCodeContextTooLarge))
+	require.True(t, IsAlwaysSkipRetryCode(types.ErrorCodeContextLengthExceeded))
+	require.False(t, IsAlwaysSkipRetryCode(types.ErrorCodeBadResponse))
 }

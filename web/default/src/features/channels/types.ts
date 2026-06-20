@@ -72,6 +72,7 @@ export const channelSchema = z.object({
   }),
   settings: z.string().default('{}'), // other_settings JSON
   recharge_rate: z.number().nullish(), // USD cost per 1 USDT of upstream credit
+  apimaster_price_ratio: z.number().nullish(), // user_price = actual_price × this ratio; null/0 = 1.0
 })
 
 export type Channel = z.infer<typeof channelSchema>

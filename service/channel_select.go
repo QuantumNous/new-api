@@ -85,6 +85,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	pickFilter := ChannelPickFilter(param.Ctx, param.ModelName)
 
 	// Routing algorithm 0.1: when the token group is "auto-cheapest", bypass the
 	// priority/weight random selector and always pick the lowest-priced enabled
@@ -94,6 +95,11 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	if param.TokenGroup == AutoCheapestGroup {
 		ch, cheapErr := SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
 		if cheapErr != nil {
+			if errors.Is(cheapErr, ErrNoCheapestChannel) {
+				if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil && RequiresClientExclusivePolicy(param.ModelName) {
+					return nil, AutoCheapestGroup, policyErr
+				}
+			}
 			return nil, AutoCheapestGroup, cheapErr
 		}
 		return ch, AutoCheapestGroup, nil
@@ -128,7 +134,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, pickFilter)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -166,9 +172,14 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), pickFilter)
 		if err != nil {
 			return nil, param.TokenGroup, err
+		}
+	}
+	if channel == nil && RequiresClientExclusivePolicy(param.ModelName) {
+		if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil {
+			return nil, selectGroup, policyErr
 		}
 	}
 	return channel, selectGroup, nil

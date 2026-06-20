@@ -66,4 +66,10 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// ContextKeyIsCodexClient stores DetectCodexClient result for gpt-5.4/5.5 routing.
+	ContextKeyIsCodexClient ContextKey = "is_codex_client"
+
+	// ContextKeyClientType stores unified client classification: codex | claude_code | generic.
+	ContextKeyClientType ContextKey = "client_type"
 )

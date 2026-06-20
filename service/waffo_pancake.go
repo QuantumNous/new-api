@@ -65,14 +65,15 @@ type waffoPancakeCreateSessionResponse struct {
 }
 
 type waffoPancakeWebhookData struct {
-	ID          string              `json:"id"`
-	OrderID     string              `json:"orderId"`
-	BuyerEmail  string              `json:"buyerEmail"`
-	Currency    string              `json:"currency"`
-	Amount      dto.StringValue     `json:"amount"`
-	TaxAmount   dto.StringValue     `json:"taxAmount"`
-	ProductName string              `json:"productName"`
-	Metadata    map[string]string   `json:"metadata"`
+	ID            string            `json:"id"`
+	OrderID       string            `json:"orderId"`
+	BuyerEmail    string            `json:"buyerEmail"`
+	Currency      string            `json:"currency"`
+	Amount        dto.StringValue   `json:"amount"`
+	TaxAmount     dto.StringValue   `json:"taxAmount"`
+	ProductName   string            `json:"productName"`
+	Metadata      map[string]string `json:"metadata"`
+	OrderMetadata map[string]string `json:"orderMetadata"`
 }
 
 type waffoPancakeWebhookEvent struct {
@@ -170,14 +171,19 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 	candidates := []string{
 		strings.TrimSpace(event.Data.OrderID),
 	}
-	if event.Data.Metadata != nil {
-		if v := strings.TrimSpace(event.Data.Metadata["orderId"]); v != "" {
+	appendMetadataCandidates := func(meta map[string]string) {
+		if meta == nil {
+			return
+		}
+		if v := strings.TrimSpace(meta["orderId"]); v != "" {
 			candidates = append([]string{v}, candidates...)
 		}
-		if v := strings.TrimSpace(event.Data.Metadata["tradeNo"]); v != "" {
+		if v := strings.TrimSpace(meta["tradeNo"]); v != "" {
 			candidates = append([]string{v}, candidates...)
 		}
 	}
+	appendMetadataCandidates(event.Data.OrderMetadata)
+	appendMetadataCandidates(event.Data.Metadata)
 
 	seen := make(map[string]struct{}, len(candidates))
 	for _, candidate := range candidates {

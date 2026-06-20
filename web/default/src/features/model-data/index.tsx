@@ -40,22 +40,27 @@ interface DetectPoint {
   group_name?: string  // key_group at time of detection
   fingerprint_model_version?: string  // e.g. apimaster_fingerprint_cccli_v0.1
   top5?: TopKItem[]
+  top1_score_raw?: number  // raw top1 score before boost; non-zero only when boost was applied
 }
 
 interface ModelDataItem {
   channel_id: number
   channel_name: string
   key_group: string
+  client_exclusive?: string  // '' | codex | claude_code
   // null when upstream /api/pricing returned 401/404 or cookie-only auth —
   // we have no idea how much this channel costs. UI renders these as "—".
   model_price: number | null       // base price before group markup
   group_ratio: number | null       // upstream group multiplier
   recharge_rate: number            // platform recharge multiplier
   input_price: number | null       // model_price × group_ratio
-  actual_price: number | null           // input_price × recharge_rate
+  actual_price: number | null           // input_price × recharge_rate (采购价)
+  user_price: number | null             // actual_price × apimaster_price_ratio (用户最终价格)
+  apimaster_price_ratio: number         // per-channel markup; 1.0 when unset
   hub_price: number | null              // hub.romaapi.com listed price, matched by key_group
   output_price?: number | null
   actual_output_price?: number | null
+  actual_output_user_price?: number | null  // actual_output_price × apimaster_price_ratio
   cache_price?: number | null           // cache-read price before recharge
   actual_cache_price?: number | null    // cache_price × recharge_rate
   cache_creation_price?: number | null
@@ -63,6 +68,8 @@ interface ModelDataItem {
   fingerprint_history: DetectPoint[]
   uptime_history: DetectPoint[]
   latency_median_ms: number
+  latency_p95_ms: number
+  latency_cv_pct: number
   status: number  // 1 enabled / 2 manual-disabled / 3 auto-disabled
   consecutive_fingerprint_pass: number  // recovery counter; meaningful when status=3
   model_enabled: boolean  // abilities.enabled for this (channel, model) pair
@@ -99,15 +106,17 @@ type ModelTab = {
 }
 
 const MODEL_TABS: ModelTab[] = [
-  { label: 'MiniMax M3',        modelId: 'minimax-m3',        accent: '#f97316' },
+  { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
+  { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
   { label: 'Sonnet 4.6',      modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
   { label: 'Opus 4.7',        modelId: 'claude-opus-4-7',   accent: '#a855f7' },
   { label: 'Opus 4.8',        modelId: 'claude-opus-4-8',   accent: '#a855f7' },
+  { label: 'Fable 5',         modelId: 'claude-fable-5',    accent: '#a855f7' },
   { label: 'Haiku 4.5',       modelId: 'claude-haiku-4-5',  accent: '#a855f7' },
-  { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
-  { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
   { label: 'DeepSeek Flash',  modelId: 'deepseek-v4-flash', accent: '#a78bfa' },
   { label: 'DeepSeek Pro',    modelId: 'deepseek-v4-pro',   accent: '#a78bfa' },
+  { label: 'MiniMax M3',      modelId: 'minimax-m3',        accent: '#f97316' },
+  { label: 'Kimi K2.7 Code',  modelId: 'kimi-k2.7-code',    accent: '#818cf8' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
 ]
 
@@ -117,8 +126,8 @@ const UNIT_OPTIONS = [
   { label: '天',   value: 'day',    toMinutes: (v: number) => v * 1440 },
 ]
 
-const DOT_COUNT = 24       // 2 rows × 12 cols
-const DOTS_PER_ROW = 12
+const DOT_COUNT = 10       // 2 rows × 5 cols
+const DOTS_PER_ROW = 5
 
 function minutesToUnit(minutes: number): { value: number; unit: string } {
   if (minutes % 1440 === 0) return { value: minutes / 1440, unit: 'day' }
@@ -132,6 +141,23 @@ function fmtPrice(price: number | null | undefined): string {
   // 显示破折号而不是 "0"，避免被误认为"免费"渠道。
   if (price == null || price <= 0) return '—'
   return parseFloat(price.toFixed(4)).toString()
+}
+
+function ClientExclusiveBadge({ value }: { value?: string }) {
+  if (!value) return <span className='text-gray-300'>—</span>
+  const styles: Record<string, string> = {
+    codex: 'bg-cyan-100 text-cyan-800',
+    claude_code: 'bg-violet-100 text-violet-800',
+  }
+  const labels: Record<string, string> = {
+    codex: 'Codex',
+    claude_code: 'CC',
+  }
+  return (
+    <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${styles[value] ?? 'bg-gray-100 text-gray-600'}`}>
+      {labels[value] ?? value}
+    </span>
+  )
 }
 
 // Format unix-sec → "下次 18:42" or "即将 / Xs/Xm" depending on how soon.
@@ -235,7 +261,12 @@ function DotGrid({ history, onAnalyze }: { history: DetectPoint[] | null | undef
                         {p.top5.map((t, idx) => (
                           <div key={idx} className='flex items-center justify-between gap-3 text-[11px] font-mono'>
                             <span className='truncate'>{idx + 1}. {t.label}</span>
-                            <span className='opacity-80 tabular-nums'>{(t.score * 100).toFixed(1)}%</span>
+                            <span className='opacity-80 tabular-nums'>
+                              {(t.score * 100).toFixed(1)}%
+                              {idx === 0 && p.top1_score_raw != null && p.top1_score_raw > 0 && (
+                                <span className='ml-1 opacity-50 text-[10px]'>（原：{(p.top1_score_raw * 100).toFixed(1)}%）</span>
+                              )}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -416,6 +447,29 @@ export function ModelDataPage() {
   const [pricingRefreshMsg, setPricingRefreshMsg] = useState<string>('')
   const [hubRefreshing, setHubRefreshing] = useState(false)
   const [hubRefreshMsg, setHubRefreshMsg] = useState<string>('')
+  // modelId → true if fingerprint_enabled OR uptime_enabled (for tab dot style)
+  const [tabDetectEnabled, setTabDetectEnabled] = useState<Record<string, boolean>>({})
+
+  // Fetch detect config for all tabs once on mount to show filled/hollow dots
+  useEffect(() => {
+    Promise.all(
+      MODEL_TABS.map((tab) =>
+        api
+          .get('/api/admin/model-detect-config', {
+            params: { model: tab.modelId },
+            skipErrorHandler: true,
+          } as Parameters<typeof api.get>[1])
+          .then((res) => ({
+            modelId: tab.modelId,
+            enabled: !!(res.data?.data?.fingerprint_enabled || res.data?.data?.uptime_enabled),
+          }))
+          .catch(() => ({ modelId: tab.modelId, enabled: false }))
+      )
+    ).then((results) => {
+      setTabDetectEnabled(Object.fromEntries(results.map((r) => [r.modelId, r.enabled])))
+    })
+  }, [])
+
   // Per-channel detecting state: "channelId-modelId" → true while in-flight
   // Keyed by both channel and model so different model tabs don't share detecting state.
   const [detectingChannels, setDetectingChannels] = useState<Record<string, boolean>>({})
@@ -431,16 +485,17 @@ export function ModelDataPage() {
       .then((res) => {
         if (res.data?.success) {
           const raw: ModelDataItem[] = res.data.data ?? []
-          // Sort: enabled (model_enabled+status=1) by actual_price asc,
-          // then disabled by actual_price asc, then no-price last.
+          // Sort: enabled (model_enabled+status=1) by user_price asc,
+          // then disabled by user_price asc, then no-price last.
+          // 与公开市场页一致，按用户最终价格排序。
           const sorted = [...raw].sort((a, b) => {
             const aOn = a.model_enabled !== false && a.status === 1
             const bOn = b.model_enabled !== false && b.status === 1
             if (aOn !== bOn) return aOn ? -1 : 1
-            const aP = a.actual_price != null && a.actual_price > 0
-            const bP = b.actual_price != null && b.actual_price > 0
+            const aP = a.user_price != null && a.user_price > 0
+            const bP = b.user_price != null && b.user_price > 0
             if (aP !== bP) return aP ? -1 : 1
-            return (a.actual_price ?? Infinity) - (b.actual_price ?? Infinity)
+            return (a.user_price ?? Infinity) - (b.user_price ?? Infinity)
           })
           setData(sorted)
         }
@@ -568,6 +623,10 @@ export function ModelDataPage() {
     (patch: Partial<DetectConfig>) => {
       const next = { ...config, ...patch }
       setConfig(next)
+      setTabDetectEnabled((prev) => ({
+        ...prev,
+        [activeModel]: !!(next.fingerprint_enabled || next.uptime_enabled),
+      }))
       setConfigLoading(true)
       api
         .post('/api/admin/model-detect-config', {
@@ -666,7 +725,11 @@ export function ModelDataPage() {
                   >
                     <span
                       className='size-1.5 shrink-0 rounded-full'
-                      style={{ backgroundColor: tab.accent, boxShadow: active ? `0 0 6px ${tab.accent}` : undefined }}
+                      style={
+                        tabDetectEnabled[tab.modelId]
+                          ? { backgroundColor: tab.accent, boxShadow: active ? `0 0 6px ${tab.accent}` : undefined }
+                          : { border: `1.5px solid ${tab.accent}`, backgroundColor: 'transparent' }
+                      }
                     />
                     {tab.label}
                   </button>
@@ -760,25 +823,39 @@ export function ModelDataPage() {
         })()}
 
         {/* Table */}
-        <div className='rounded-xl border border-gray-200/80 overflow-hidden bg-white'>
-          <table className='w-full text-sm'>
+        <div className='rounded-xl border border-gray-200/80 overflow-x-auto bg-white'>
+          <table className='w-full min-w-max text-sm'>
             <thead>
               <tr className='border-b border-gray-100'>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>ID</th>
-                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide w-36'>站点</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点分组</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>客户端</th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>充值汇率</th>
                 <th className='text-right px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>gratio</th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  模型价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>模型价格</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  实际价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>采购价</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
-                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
-                  hub&nbsp;价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>用户价格</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
+                </th>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>HUB 价格</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
                 </th>
                 <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>P95</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>波动</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>检测结果</th>
                 <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>运行状态</th>
                 <th className='text-center px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>操作</th>
@@ -787,12 +864,12 @@ export function ModelDataPage() {
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={12} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={12} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
@@ -815,42 +892,49 @@ export function ModelDataPage() {
                 return (
                   <tr key={item.channel_id} className='hover:bg-gray-50/60 transition-colors'>
                     <td className={`px-3 py-2.5 text-gray-400 tabular-nums text-xs ${dim}`}>{item.channel_id}</td>
-                    <td className={`px-3 py-2.5 font-medium text-gray-800 ${dim}`}>
-                      {item.channel_name}
-                      {isAutoDisabled && (
-                        <TooltipProvider delay={0}>
-                          <Tooltip>
-                            <TooltipTrigger render={<span />}>
-                              <span className='ml-2 inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400 cursor-help'>
-                                <AlertTriangle size={10} />
-                                已禁用 {item.consecutive_fingerprint_pass}/12
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent className='max-w-xs'>
-                              <div className='space-y-1 text-xs'>
-                                <div className='font-medium text-red-400'>渠道已自动禁用</div>
-                                {item.status_reason && <div>原因：{item.status_reason}</div>}
-                                {item.status_time && item.status_time > 0 && (
-                                  <div>时间：{fmtTime(item.status_time)}</div>
-                                )}
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      {!isModelEnabled && (
-                        <span className='ml-2 text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>已禁用</span>
-                      )}
+                    <td className={`px-3 py-2.5 font-medium text-gray-800 w-36 max-w-[144px] ${dim}`}>
+                      <div className='flex flex-col gap-0.5'>
+                        <span className='truncate'>{item.channel_name}</span>
+                        <div className='flex flex-wrap gap-1'>
+                          {isAutoDisabled && (
+                            <TooltipProvider delay={0}>
+                              <Tooltip>
+                                <TooltipTrigger render={<span />}>
+                                  <span className='inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400 cursor-help'>
+                                    <AlertTriangle size={10} />
+                                    已禁用 {item.consecutive_fingerprint_pass}/12
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className='max-w-xs'>
+                                  <div className='space-y-1 text-xs'>
+                                    <div className='font-medium text-red-400'>渠道已自动禁用</div>
+                                    {item.status_reason && <div>原因：{item.status_reason}</div>}
+                                    {item.status_time && item.status_time > 0 && (
+                                      <div>时间：{fmtTime(item.status_time)}</div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {!isModelEnabled && (
+                            <span className='text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>已禁用</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className={`px-3 py-2.5 text-gray-500 ${dim}`}>{item.key_group || <span className='text-gray-300'>—</span>}</td>
+                    <td className={`px-3 py-2.5 ${dim}`}>
+                      <ClientExclusiveBadge value={item.client_exclusive} />
+                    </td>
                     <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
                       {item.recharge_rate != null ? item.recharge_rate.toFixed(4) : <span className='text-gray-300'>—</span>}
                     </td>
                     <td className={`px-2 py-3.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
                       {item.group_ratio != null ? item.group_ratio.toFixed(3) : <span className='text-gray-300'>—</span>}
                     </td>
-                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>{fmtPrice(item.model_price)}</td>
-                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
+                    <td className={`px-2 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>{fmtPrice(item.model_price)}</td>
+                    <td className={`px-2 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
                       <TooltipProvider delay={0}>
                       <Tooltip>
                         <TooltipTrigger render={
@@ -901,9 +985,25 @@ export function ModelDataPage() {
                       </Tooltip>
                       </TooltipProvider>
                     </td>
-                    <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
+                    <td className={`px-2 py-2.5 text-right font-semibold tabular-nums text-emerald-700 ${dim}`}>
+                      {fmtPrice(item.user_price)}
+                      {item.apimaster_price_ratio != null && item.apimaster_price_ratio !== 1 && (
+                        <span className='ml-1 text-[10px] font-normal text-emerald-500'>×{item.apimaster_price_ratio.toFixed(2)}</span>
+                      )}
+                    </td>
+                    <td className={`px-2 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
                     <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
                       {item.latency_median_ms > 0 ? `${(item.latency_median_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
+                      {item.latency_p95_ms > 0 ? `${(item.latency_p95_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums ${dim}`}>
+                      {item.latency_cv_pct > 0 ? (
+                        <span className={item.latency_cv_pct > 60 ? 'text-rose-500' : item.latency_cv_pct > 30 ? 'text-amber-500' : 'text-gray-500'}>
+                          {item.latency_cv_pct.toFixed(0)}%
+                        </span>
+                      ) : <span className='text-gray-300'>—</span>}
                     </td>
                     <td className={`px-3 py-2.5 ${dim}`}>
                       <DotGrid
