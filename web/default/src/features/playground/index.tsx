@@ -27,6 +27,33 @@ import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
 
+// Image-generation-only models that don't accept chat/completions requests.
+// Filtered out of the chat playground's model dropdown so users aren't presented
+// with options that produce confusing upstream errors when "sent". Aligned with
+// upstream PR #4701's image-workbench detection. Drop this list once #4701 lands.
+const IMAGE_MODEL_KEYWORDS = [
+  'gpt-image',
+  'chatgpt-image',
+  'dall-e',
+  'imagen',
+  'flux',
+  'qwen-image',
+  'z-image',
+  'nano-banana',
+  'gemini-2.5-flash-image',
+  'gemini-3-pro-image',
+  'gemini-3.1-flash-image',
+  'gemini-2.0-flash-exp-image',
+  'midjourney',
+  'stable-diffusion',
+  'wanx',
+  'grok-imagine',
+]
+function isImageOnlyModel(model: string): boolean {
+  const normalized = model.toLowerCase()
+  return IMAGE_MODEL_KEYWORDS.some((k) => normalized.includes(k))
+}
+
 export function Playground() {
   const { t } = useTranslation()
   const {
@@ -90,12 +117,18 @@ export function Playground() {
   useEffect(() => {
     if (!modelsData) return
 
-    setModels(modelsData)
+    // Chat playground sends /v1/chat/completions; image-generation models reject
+    // that request shape. Filter them out so users don't pick one and hit an
+    // upstream "not supported" error. See PR #4701 for the proper image
+    // workbench that handles these on /v1/images/generations.
+    const chatModels = modelsData.filter((m) => !isImageOnlyModel(m.value))
+
+    setModels(chatModels)
 
     // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
-    if (modelsData.length > 0 && !isCurrentModelValid) {
-      updateConfig('model', modelsData[0].value)
+    const isCurrentModelValid = chatModels.some((m) => m.value === config.model)
+    if (chatModels.length > 0 && !isCurrentModelValid) {
+      updateConfig('model', chatModels[0].value)
     }
   }, [modelsData, config.model, setModels, updateConfig])
 
