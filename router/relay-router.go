@@ -76,6 +76,10 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{
+		// Async image task fetch — no Distribute needed (reads from DB only)
+		relayV1Router.GET("/images/generations/:task_id", controller.RelayAsyncImageFetch)
+	}
+	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")
 		wsRouter.Use(middleware.Distribute())
@@ -121,7 +125,6 @@ func SetRelayRouter(router *gin.Engine) {
 				controller.Relay(c, types.RelayFormatOpenAIImage)
 			}
 		})
-		httpRouter.GET("/images/generations/:task_id", controller.RelayAsyncImageFetch)
 		httpRouter.POST("/images/edits", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})

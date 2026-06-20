@@ -131,6 +131,15 @@ func ImageAsyncHelper(c *gin.Context, info *relaycommon.RelayInfo, taskID string
 	}
 	httpResp.Body.Close()
 
+	// CDN post-processing: upload images to CDN and rewrite URLs
+	if info.CDNProvider == "qiniu" {
+		if processed, cdnErr := service.ProcessImageResponseCDN(c, rawBody); cdnErr == nil {
+			rawBody = processed
+		} else {
+			logger.LogWarn(c, "CDN processing failed for async image: "+cdnErr.Error())
+		}
+	}
+
 	// Parse usage from the response for billing
 	var usageResp dto.SimpleResponse
 	if err := common.Unmarshal(rawBody, &usageResp); err == nil {

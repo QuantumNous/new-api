@@ -39,6 +39,15 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	// CDN post-processing: upload images to CDN and rewrite URLs
+	if info.CDNProvider == "qiniu" {
+		if processed, cdnErr := service.ProcessImageResponseCDN(c, responseBody); cdnErr == nil {
+			responseBody = processed
+		} else {
+			logger.LogWarn(c, "CDN processing failed, returning original: "+cdnErr.Error())
+		}
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 

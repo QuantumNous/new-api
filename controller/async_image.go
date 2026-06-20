@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -166,11 +167,24 @@ func buildBackgroundContext(c *gin.Context, bodyBytes []byte) *gin.Context {
 // Phase 2 (async goroutine): run ImageAsyncHelper, update Task to
 //   SUCCESS/FAILURE, settle/refund billing.
 func RelayAsyncImage(c *gin.Context) {
+	logger.LogInfo(c, "async image: handler entered")
 	requestId := c.GetString(common.RequestIdKey)
 
 	var newAPIError *types.NewAPIError
 
 	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 2048)
+			n := runtime.Stack(buf, false)
+			logger.LogError(c, fmt.Sprintf("async image PANIC: %v\n%s", r, buf[:n]))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": &types.OpenAIError{
+					Message: fmt.Sprintf("internal panic: %v", r),
+					Type:    "internal_server_error",
+				},
+			})
+			return
+		}
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("async image relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
@@ -203,6 +217,15 @@ func RelayAsyncImage(c *gin.Context) {
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
+	}
+	if relayInfo == nil {
+		newAPIError = types.NewError(fmt.Errorf("GenRelayInfo returned nil relayInfo"), types.ErrorCodeGenRelayInfoFailed)
+		return
+	}
+
+	// Initialize TaskRelayInfo (embedded pointer, not set by GenRelayInfoImage)
+	if relayInfo.TaskRelayInfo == nil {
+		relayInfo.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
 	}
 
 	// Set action for image generation task
@@ -307,6 +330,14 @@ func RelayAsyncImage(c *gin.Context) {
 	}
 
 	// 6. Create Task record as IN_PROGRESS
+	if relayInfo == nil {
+		newAPIError = types.NewError(fmt.Errorf("relayInfo is nil before InitTask"), types.ErrorCodeGenRelayInfoFailed)
+		return
+	}
+	// Initialize ChannelMeta (not set by GenRelayInfoImage; InitTask reads ChannelId from it)
+	if relayInfo.ChannelMeta == nil {
+		relayInfo.InitChannelMeta(c)
+	}
 	task := model.InitTask(constant.TaskPlatformImage, relayInfo)
 	task.PrivateData.UpstreamTaskID = relayInfo.UpstreamModelName
 	task.PrivateData.BillingSource = relayInfo.BillingSource
@@ -354,14 +385,16 @@ func RelayAsyncImage(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
 				common.SysError(fmt.Sprintf("async image goroutine panic: %v", r))
-				// CAS update task to FAILURE
-				failTask := &model.Task{TaskID: taskID}
-				failTask.Status = model.TaskStatusFailure
-				failTask.FailReason = fmt.Sprintf("internal panic: %v", r)
-				failTask.FinishTime = time.Now().Unix()
-				failTask.UpdateWithStatus(model.TaskStatusInProgress)
-				// Refund billing
-				relayInfoCopy.Billing.Refund(c)
+				updated, casErr := updateAsyncTaskStatus(relayInfoCopy.UserId, taskID,
+					model.TaskStatusInProgress, model.TaskStatusFailure, map[string]any{
+						"fail_reason": fmt.Sprintf("internal panic: %v", r),
+						"finish_time": time.Now().Unix(),
+					})
+				if casErr != nil {
+					common.SysError("CAS update task to failure (panic) error: " + casErr.Error())
+				} else if updated {
+					relayInfoCopy.Billing.Refund(c)
+				}
 			}
 		}()
 
@@ -375,15 +408,14 @@ func RelayAsyncImage(c *gin.Context) {
 			// Failure — update task to FAILURE, refund billing
 			logger.LogError(c, fmt.Sprintf("async image generation failed: %s", common.LocalLogPreview(helperErr.Error())))
 
-			failTask := &model.Task{TaskID: taskID}
-			failTask.Status = model.TaskStatusFailure
-			failTask.FailReason = helperErr.Error()
-			failTask.FinishTime = time.Now().Unix()
-			updated, casErr := failTask.UpdateWithStatus(model.TaskStatusInProgress)
+			updated, casErr := updateAsyncTaskStatus(relayInfoCopy.UserId, taskID,
+				model.TaskStatusInProgress, model.TaskStatusFailure, map[string]any{
+					"fail_reason": helperErr.Error(),
+					"finish_time": time.Now().Unix(),
+				})
 			if casErr != nil {
 				common.SysError("CAS update task to failure error: " + casErr.Error())
 			} else if updated {
-				// Refund billing only if we successfully updated the task
 				relayInfoCopy.Billing.Refund(c)
 				service.ChargeViolationFeeIfNeeded(c, &relayInfoCopy, helperErr)
 			}
@@ -395,21 +427,23 @@ func RelayAsyncImage(c *gin.Context) {
 		}
 
 		// Success — update task to SUCCESS
-		successTask := &model.Task{TaskID: taskID}
-		successTask.Status = model.TaskStatusSuccess
-		successTask.Data = result.RawBody
-		successTask.Progress = "100%"
-		successTask.FinishTime = time.Now().Unix()
+		extraUpdates := map[string]any{
+			"data":        result.RawBody,
+			"progress":    "100%",
+			"finish_time": time.Now().Unix(),
+		}
 
-		// Parse image response to extract URL for ResultURL
+		// Parse image response to extract URL (store in fail_reason as fallback
+		// for GetResultURL — avoids overwriting private_data JSON column)
 		var imageResp dto.ImageResponse
 		if err := common.Unmarshal(result.RawBody, &imageResp); err == nil {
 			if len(imageResp.Data) > 0 && imageResp.Data[0].Url != "" {
-				successTask.PrivateData.ResultURL = imageResp.Data[0].Url
+				extraUpdates["fail_reason"] = imageResp.Data[0].Url
 			}
 		}
 
-		updated, casErr := successTask.UpdateWithStatus(model.TaskStatusInProgress)
+		updated, casErr := updateAsyncTaskStatus(relayInfoCopy.UserId, taskID,
+			model.TaskStatusInProgress, model.TaskStatusSuccess, extraUpdates)
 		if casErr != nil {
 			common.SysError("CAS update task to success error: " + casErr.Error())
 			return
@@ -520,4 +554,23 @@ func taskStatusToSimple(status model.TaskStatus) string {
 	default:
 		return "processing"
 	}
+}
+
+// updateAsyncTaskStatus performs a CAS status update on a task using a map-based
+// update. This avoids GORM's Select("*") primary key issue where a zero-value
+// ID in the struct causes Model(t) to add WHERE id = 0, matching no rows.
+func updateAsyncTaskStatus(userId int, taskId string, fromStatus, toStatus model.TaskStatus, extra map[string]any) (bool, error) {
+	updates := map[string]any{
+		"status": toStatus,
+	}
+	for k, v := range extra {
+		updates[k] = v
+	}
+	result := model.DB.Model(&model.Task{}).
+		Where("user_id = ? AND task_id = ? AND status = ?", userId, taskId, fromStatus).
+		Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }

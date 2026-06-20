@@ -115,6 +115,13 @@ var MemoryCacheEnabled bool
 var LogConsumeEnabled = true
 
 var TLSInsecureSkipVerify bool
+
+var (
+	QiniuAccessKey string
+	QiniuSecretKey string
+	QiniuBucket    string
+	QiniuCDNDomain string // e.g. "cdn.vencloud.cn"
+)
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 var SMTPServer = ""

@@ -170,6 +170,10 @@ type RelayInfo struct {
 
 	Request dto.Request
 
+	// CDNProvider is set from ImageRequest.Extra["cdn"] (e.g. "qiniu").
+	// When non-empty, image responses are uploaded to CDN before returning.
+	CDNProvider string
+
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat
@@ -422,6 +426,17 @@ func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAIImage
+
+	// Extract CDN provider from extra fields (e.g. {"cdn": "qiniu"})
+	if imageReq, ok := request.(*dto.ImageRequest); ok {
+		if cdnRaw, ok := imageReq.Extra["cdn"]; ok {
+			var cdnVal string
+			if err := common.Unmarshal(cdnRaw, &cdnVal); err == nil && cdnVal == "qiniu" {
+				info.CDNProvider = "qiniu"
+			}
+		}
+	}
+
 	return info
 }
 

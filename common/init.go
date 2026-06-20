@@ -84,6 +84,11 @@ func InitEnv() {
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	NodeName = os.Getenv("NODE_NAME")
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
+
+	QiniuAccessKey = GetEnvOrDefaultString("QINIU_ACCESS_KEY", "")
+	QiniuSecretKey = GetEnvOrDefaultString("QINIU_SECRET_KEY", "")
+	QiniuBucket = GetEnvOrDefaultString("QINIU_BUCKET", "")
+	QiniuCDNDomain = GetEnvOrDefaultString("QINIU_CDN_DOMAIN", "cdn.vencloud.cn")
 	if TLSInsecureSkipVerify {
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {
 			if tr.TLSClientConfig != nil {
