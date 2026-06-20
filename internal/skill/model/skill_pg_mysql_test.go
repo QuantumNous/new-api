@@ -27,7 +27,10 @@ func openPGDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open PG: %v", err)
 	}
-	t.Cleanup(func() { db.Exec("DROP TABLE IF EXISTS skills") })
+	t.Cleanup(func() {
+		db.Exec("DROP TABLE IF EXISTS skill_versions")
+		db.Exec("DROP TABLE IF EXISTS skills")
+	})
 	return db
 }
 
@@ -48,7 +51,10 @@ func openMySQLDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open MySQL: %v", err)
 	}
-	t.Cleanup(func() { db.Exec("DROP TABLE IF EXISTS skills") })
+	t.Cleanup(func() {
+		db.Exec("DROP TABLE IF EXISTS skill_versions")
+		db.Exec("DROP TABLE IF EXISTS skills")
+	})
 	return db
 }
 
@@ -220,6 +226,38 @@ func TestMigrateSkills_MySQL_SucceedsFromEmptyDB(t *testing.T) {
 	db := openMySQLDB(t)
 	if err := MigrateSkills(db); err != nil {
 		t.Fatalf("MigrateSkills on empty MySQL DB: %v", err)
+	}
+}
+
+func TestSkillVersions_OneActiveVersion_MySQL(t *testing.T) {
+	db := openMySQLDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateSkillVersions(db); err != nil {
+		t.Fatal(err)
+	}
+
+	skill := validSkill("mysql-one-active")
+	if err := db.Create(&skill).Error; err != nil {
+		t.Fatalf("create parent skill: %v", err)
+	}
+
+	active := validSkillVersion(skill.ID, 1)
+	active.Status = "active"
+	inactive := validSkillVersion(skill.ID, 2)
+	inactive.Status = "inactive"
+	secondActive := validSkillVersion(skill.ID, 3)
+	secondActive.Status = "active"
+
+	if err := db.Create(&active).Error; err != nil {
+		t.Fatalf("create active version: %v", err)
+	}
+	if err := db.Create(&inactive).Error; err != nil {
+		t.Fatalf("create inactive version beside active version: %v", err)
+	}
+	if err := db.Create(&secondActive).Error; err == nil {
+		t.Fatal("expected MySQL generated-column unique index to reject a second active version")
 	}
 }
 
