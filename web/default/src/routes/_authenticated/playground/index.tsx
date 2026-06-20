@@ -22,6 +22,15 @@ import { Main } from '@/components/layout'
 import { Playground } from '@/features/playground'
 
 export const Route = createFileRoute('/_authenticated/playground/')({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { first?: boolean } => {
+    // `?first=1` marks the post-registration first-run onboarding experience.
+    const first = search.first
+    return {
+      first: first === '1' || first === 1 || first === true || first === 'true',
+    }
+  },
   beforeLoad: () => {
     if (!isSidebarModuleEnabled('chat', 'playground')) {
       throw redirect({ to: '/dashboard' })
@@ -31,9 +40,10 @@ export const Route = createFileRoute('/_authenticated/playground/')({
 })
 
 function PlaygroundPage() {
+  const { first } = Route.useSearch()
   return (
     <Main className='p-0'>
-      <Playground />
+      <Playground firstRun={first} />
     </Main>
   )
 }

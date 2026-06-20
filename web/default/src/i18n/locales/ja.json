@@ -5107,6 +5107,15 @@
     "Your new key": "新しいキー",
     "cURL": "cURL",
     "your own code": "あなた自身のコード",
-    "Reset limit every...": "リセット周期…"
+    "Reset limit every...": "リセット周期…",
+    "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "flatkey へようこそ！メッセージを送るだけで、キーや設定なしに 30 秒で最初の API 呼び出しができます。",
+    "Hello!": "こんにちは！",
+    "Write a quicksort in Python": "Python でクイックソートを書いて",
+    "Explain Transformers": "Transformer を説明して",
+    "Nice — it works! Use it in your own code": "やった、動きました！自分のコードで使ってみましょう",
+    "Get my API key": "API キーを取得",
+    "View quickstart": "クイックスタートを見る",
+    "Dismiss": "閉じる",
+    "Account created!": "アカウントを作成しました！"
   }
 }

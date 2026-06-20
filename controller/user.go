@@ -153,8 +153,9 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 		"group":         user.Group,
 		"is_enterprise": user.IsEnterprise,
 	}
-	// Surfaced only for brand-new registrations (currently OAuth sign-up) so the frontend can
-	// trigger first-login onboarding. Omitted for normal logins (back-compat).
+	// Surfaced only for brand-new registrations (OAuth sign-up and password-register
+	// auto-login) so the frontend can trigger first-login onboarding. Omitted for
+	// normal logins (back-compat).
 	if len(isNewUser) > 0 && isNewUser[0] {
 		data["is_new_user"] = true
 	}
@@ -275,6 +276,20 @@ func Register(c *gin.Context) {
 	}
 
 	sendSignUpSuccessGA(c.Request.Context(), insertedUser.Id, inviterId, "password", user.GAClientID, user.GASessionID)
+
+	// Auto-login the freshly registered user so they land directly in the console
+	// (e.g. the Playground onboarding) without having to sign in again. setupLogin
+	// establishes the session cookie AND writes the JSON success response, marking
+	// is_new_user=true so the frontend can trigger the first-run onboarding flow.
+	//
+	// Guard: only auto-login when email verification is NOT required. When it is
+	// enabled we keep the legacy behavior (frontend redirects to sign-in) to avoid
+	// changing the verified-registration UX. In this deployment EmailVerification is
+	// off, so the common path auto-logs-in.
+	if !common.EmailVerificationEnabled {
+		setupLogin(&insertedUser, c, true)
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

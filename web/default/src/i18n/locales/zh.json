@@ -5107,6 +5107,15 @@
     "Your new key": "你的新密钥",
     "cURL": "cURL",
     "your own code": "你自己的代码",
-    "Reset limit every...": "重置周期…"
+    "Reset limit every...": "重置周期…",
+    "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "欢迎使用 flatkey！发送一条消息，30 秒内完成你的第一次 API 调用——无需密钥或任何配置。",
+    "Hello!": "你好！",
+    "Write a quicksort in Python": "用 Python 写一个快速排序",
+    "Explain Transformers": "解释一下 Transformer",
+    "Nice — it works! Use it in your own code": "成功啦！把它用到你自己的代码里",
+    "Get my API key": "获取我的 API 密钥",
+    "View quickstart": "查看快速开始",
+    "Dismiss": "关闭",
+    "Account created!": "账号创建成功！"
   }
 }
