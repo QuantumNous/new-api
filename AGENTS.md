@@ -111,6 +111,33 @@ Do NOT scatter custom logic into upstream files (`controller/`, `model/`, `servi
 
 See `AIRBOTIX.md` for the upstream-sync workflow.
 
+### Rule 9: Design System — Follow `docs/DESIGN.md` for ANY user-visible change
+
+Any change a user can see in `web/default/` (components, pages, CSS, Tailwind,
+colors, typography, spacing, buttons/inputs/badges/cards/modals, layout,
+hero/marketing sections) MUST follow the canonical design system. **This is the
+rule people break most** — generic enterprise styling keeps creeping back in.
+
+- **Read `docs/DESIGN.md` first** (or load the `design-system` skill, which
+  condenses it). DESIGN.md is layered: **§0–5 is canonical**; **§6–9 is
+  "Historical Inspiration"** and contradicts it (old "Camera Plain" font, 6px
+  radius, negative letter-spacing). On any conflict, **§0–5 wins** — do not pull
+  the historical specifics into production.
+- **Non-negotiable tokens:** cream `#F7F4ED` page background (never pure white) ·
+  soft-white `#FCFBF8` raised surfaces · charcoal `#1C1C1C` text (not black) ·
+  muted `#5F5F5D` · `#ECEAE4` **borders, not box-shadows**, contain cards ·
+  AI-blue `#2563FF` is an **accent only** (action/focus/selected/routing), never a
+  large gradient/orb/wash · **two weights only, 400 + 600** (no bold-700) ·
+  rectangular buttons/inputs **7px radius**, pills (999px) only for badges/icon
+  toggles · Plus Jakarta Sans · use theme tokens / `.dr-*` classes, not stray hex.
+- The logo is **PNG, never redrawn as SVG**; do not recolor/gradient/shadow it.
+- A design-correct change still has to satisfy CLAUDE.md §0 + the business PRDs on
+  customer-facing surfaces — design compliance is not an exemption from the
+  casual-user rules.
+
+A `PreToolUse` hook (`.claude/hooks/design-guard.py`) reminds you of this on every
+edit to a `web/default/` visual file. Don't ignore it.
+
 ### Rule 9: No Secrets in Code
 
 **Never** commit API keys, bearer tokens, or credentials of any kind into source files.

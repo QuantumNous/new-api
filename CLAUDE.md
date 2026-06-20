@@ -12,6 +12,7 @@ This file orients Claude before edits. Read top-to-bottom before working in this
 - `docs/BUSINESS-LOGIC.md` — consolidated business/commercial logic + open decisions (read for any customer-facing or pricing/billing work).
 - `docs/DeepRouter-BP.md` — 融资商业计划书 (investor-facing; revenue/pricing/margins/financials). Imported from `jr-academy-ai/deeprouter-brand/`.
 - `docs/DeepRouter-PRD-brand.md` — brand/product PRD (companion to the BP).
+- `docs/DESIGN.md` — **canonical visual design system. MANDATORY for any UI/visual change** (AGENTS.md Rule 9). §0–5 is canonical; §6–9 is "Historical Inspiration" and contradicts it (defer to §0–5). The `design-system` skill condenses it and auto-loads on UI work.
 - `docs/system-settings-guide.md` — operator-facing Chinese guide to every admin System Settings section (what each does, DeepRouter-recommended values, which fields need operator-supplied secrets).
 - `../CLAUDE.md` — umbrella file covering the AGPL/Apache process boundary between this repo and `../smart-router/`.
 

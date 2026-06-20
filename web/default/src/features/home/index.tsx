@@ -29,6 +29,8 @@ import {
   SmartRouting,
   Stats,
   ValueCalculator,
+  VideoExamples,
+  VoiceExamples,
 } from './components'
 import { useHomePageContent } from './hooks'
 
@@ -74,6 +76,8 @@ export function Home() {
       <SmartRouting />
       <Stats />
       <Features />
+      <VoiceExamples />
+      <VideoExamples />
       <ValueCalculator />
       <HowItWorks />
       <CTA isAuthenticated={isAuthenticated} />
