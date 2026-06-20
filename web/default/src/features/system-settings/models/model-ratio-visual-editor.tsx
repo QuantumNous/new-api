@@ -225,6 +225,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           isDraftNew: Boolean(!saved && draft),
         }
       })
+      .filter((row) => !row.isDraftDeleted)
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
     savedModelPrice,
@@ -392,6 +393,12 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+
+      if (editData?.name === name) {
+        setEditData(null)
+        setEditorOpen(false)
+        setSheetOpen(false)
+      }
     },
     [
       modelPrice,
@@ -405,6 +412,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode,
       billingExpr,
       onChange,
+      editData,
     ]
   )
 
