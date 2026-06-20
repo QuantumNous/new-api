@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -18,10 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react'
-import { type LucideIcon } from 'lucide-react'
+
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { stringToColor } from '@/lib/colors'
 import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 export const dotColorMap = {
   success: 'bg-success',
@@ -37,7 +38,7 @@ export const dotColorMap = {
   grey: 'bg-neutral',
   indigo: 'bg-chart-1',
   'light-blue': 'bg-info',
-  'light-green': 'bg-success',
+  'light-green': 'bg-emerald-400',
   lime: 'bg-chart-3',
   orange: 'bg-warning',
   pink: 'bg-chart-5',
@@ -61,7 +62,7 @@ export const textColorMap = {
   grey: 'text-muted-foreground',
   indigo: 'text-chart-1',
   'light-blue': 'text-info',
-  'light-green': 'text-success',
+  'light-green': 'text-emerald-500 dark:text-emerald-300',
   lime: 'text-chart-3',
   orange: 'text-warning',
   pink: 'text-chart-5',

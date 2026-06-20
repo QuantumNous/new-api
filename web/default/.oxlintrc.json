@@ -21,7 +21,7 @@
     "src/routeTree.gen.ts"
   ],
   "rules": {
-    "curly": "error",
+    "curly": ["error", "multi-line"],
     "eqeqeq": [
       "error",
       "always",

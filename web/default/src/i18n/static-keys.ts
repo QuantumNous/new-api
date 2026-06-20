@@ -30,6 +30,9 @@ export const STATIC_I18N_KEYS = [
   // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',
+  'Auto-disable rules',
+  'Channel health checks',
+  'Request retry',
 
   // System settings sidebar
   'System Administration',
@@ -39,6 +42,7 @@ export const STATIC_I18N_KEYS = [
   'Content',
   'Integrations',
   'Models',
+  'Routing Reliability',
   'Maintenance',
 
   // Pricing constants

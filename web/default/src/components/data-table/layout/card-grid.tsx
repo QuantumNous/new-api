@@ -1,3 +1,5 @@
+import type { Row, Table } from '@tanstack/react-table'
+import { Database } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,10 +19,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import type { Row, Table } from '@tanstack/react-table'
-import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Empty,
   EmptyDescription,
@@ -29,6 +29,8 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
+
 import { tableHasCompactMeta } from './card-cell-utils'
 import { CardRowContent } from './card-row-content'
 
@@ -78,7 +80,7 @@ function CardGridSkeleton(props: {
       {[1, 2, 3, 4, 5, 6].map((i) => (
         <div
           key={`${prefix}-${i}`}
-          className='bg-card space-y-3 rounded-lg border p-3'
+          className='space-y-3 rounded-lg border [background-color:var(--table-row)] p-3'
         >
           <div className='flex items-center justify-between gap-2'>
             <Skeleton className='h-4 w-32' />
@@ -157,8 +159,9 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
         return (
           <div
             key={key}
+            data-slot='data-table-card'
             className={cn(
-              'bg-card rounded-lg border px-3 py-2.5',
+              'rounded-lg border [background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5',
               props.getRowClassName?.(row)
             )}
           >

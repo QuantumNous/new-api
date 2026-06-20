@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
+
 import type { DataTableColumnClassName, DataTablePinnedColumn } from './types'
 
 export function getResolvedColumnClassName(
@@ -37,14 +38,18 @@ export function getResolvedColumnClassNameFromMap(
     const customClassName = getColumnClassName?.(columnId, kind)
     const pinnedColumn = pinnedColumnById?.get(columnId)
 
-    if (!pinnedColumn) return customClassName
+    if (!pinnedColumn) {
+      return customClassName
+    }
 
     return cn(customClassName, getPinnedColumnClassName(pinnedColumn, kind))
   }
 }
 
 export function getPinnedColumnMap(pinnedColumns?: DataTablePinnedColumn[]) {
-  if (!pinnedColumns?.length) return undefined
+  if (!pinnedColumns?.length) {
+    return undefined
+  }
 
   return new Map(pinnedColumns.map((column) => [column.columnId, column]))
 }
@@ -63,7 +68,7 @@ function getPinnedColumnClassName(
     pinnedColumn.side === 'left' ? 'left-0' : 'right-0',
     edgeClassName,
     kind === 'header'
-      ? '[background-color:var(--table-header-bg,var(--background))] group-hover:[background-color:color-mix(in_oklch,var(--muted)_50%,var(--background))] z-30'
+      ? '[background-color:var(--table-header-bg,var(--table-header))] group-hover:[background-color:var(--table-header-hover)] z-30'
       : 'bg-background z-10 group-hover:[background-color:color-mix(in_oklch,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted',
     pinnedColumn.className,
     kind === 'header'

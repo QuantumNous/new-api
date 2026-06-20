@@ -18,14 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
+
+import { StatusBadge } from '@/components/status-badge'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { StatusBadge } from '@/components/status-badge'
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
 
 interface ModelBadgeProps {
   modelName: string
@@ -109,11 +110,11 @@ function ModelBadgeContent(props: ModelBadgeProps) {
       <span className='flex max-w-none items-center gap-1.5'>
         {provider && (
           <span
-            className='flex size-3.5 shrink-0 items-center justify-center'
+            className='flex h-[18px] w-[18px] shrink-0 items-center justify-center'
             title={provider.label}
             aria-label={provider.label}
           >
-            {getLobeIcon(provider.icon, 14)}
+            {getLobeIcon(provider.icon, 18)}
           </span>
         )}
         <span className='whitespace-nowrap'>{props.modelName}</span>

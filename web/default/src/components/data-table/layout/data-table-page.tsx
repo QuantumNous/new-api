@@ -1,3 +1,8 @@
+import type {
+  ColumnDef,
+  Row,
+  Table as TanstackTable,
+} from '@tanstack/react-table'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,14 +22,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import {
-  type ColumnDef,
-  type Row,
-  type Table as TanstackTable,
-} from '@tanstack/react-table'
+
+import { PageFooterPortal } from '@/components/layout'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
-import { PageFooterPortal } from '@/components/layout'
+
 import {
   DataTableView,
   type DataTableColumnClassName,
@@ -32,15 +34,15 @@ import {
   type DataTableRenderRowHelpers,
 } from '../core/data-table-view'
 import { DataTablePagination } from '../core/pagination'
-import { DataTableToolbar } from '../toolbar/toolbar'
-import { DataTableViewModeToggle } from '../toolbar/view-mode-toggle'
 import {
   DATA_TABLE_VIEW_MODES,
   useDataTableViewMode,
   type DataTableViewMode,
 } from '../hooks/use-data-table-view-mode'
-import { MobileCardList } from './mobile-card-list'
+import { DataTableToolbar } from '../toolbar/toolbar'
+import { DataTableViewModeToggle } from '../toolbar/view-mode-toggle'
 import { DataTableCardGrid } from './card-grid'
+import { MobileCardList } from './mobile-card-list'
 
 /**
  * Pass-through configuration for the default {@link DataTableToolbar}.
@@ -130,17 +132,6 @@ export type DataTablePageProps<TData> = {
    * Useful for pages where the table is read-only and short.
    */
   hideMobile?: boolean
-
-  /**
-   * Render the card view on mobile instead of the default {@link MobileCardList}.
-   * When enabled, the mobile layout reuses the same {@link DataTableCardGrid}
-   * (and therefore `renderCard` / `cardGridClassName`) as the desktop card view,
-   * stacked in a single column. Falls back to the generic card content when no
-   * `renderCard` is provided. Ignored when a custom `mobile` slot is supplied.
-   *
-   * Defaults to `false`, so existing pages keep the list-style mobile layout.
-   */
-  mobileCardView?: boolean
 
   /**
    * Row className resolver — applied to both desktop `TableRow` and mobile card.
@@ -233,9 +224,8 @@ export type DataTablePageProps<TData> = {
    * pages render the table only and behave exactly as before. When enabled, a
    * {@link DataTableViewModeToggle} is injected into the default toolbar
    * (requires `toolbarProps`; ignored when a fully custom `toolbar` is used)
-   * and the desktop view switches between the table and a card grid.
-   *
-   * The mobile layout is unaffected — it always renders the mobile list.
+   * and the view switches between the table and a card grid on desktop and
+   * mobile. Mobile card mode reuses the same card renderer in a single column.
    */
   enableCardView?: boolean
 
@@ -321,7 +311,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
   ) : undefined
 
   const toolbarNode = renderToolbar(props, viewToggle)
-  const mobileNode = renderMobile(props, showMobile)
+  const mobileNode = renderMobile(props, showMobile, cardViewActive, viewMode)
   const desktopNode = renderDesktop(props, showMobile, cardViewActive, viewMode)
   const paginationNode = renderPagination(props)
 
@@ -376,7 +366,9 @@ function renderToolbar<TData>(
 function renderPagination<TData>(
   props: DataTablePageProps<TData>
 ): React.ReactNode {
-  if (props.showPagination === false) return null
+  if (props.showPagination === false) {
+    return null
+  }
 
   const pagination = <DataTablePagination table={props.table} />
 
@@ -389,10 +381,15 @@ function renderPagination<TData>(
 
 function renderMobile<TData>(
   props: DataTablePageProps<TData>,
-  showMobile: boolean
+  showMobile: boolean,
+  cardViewActive: boolean,
+  viewMode: DataTableViewMode
 ): React.ReactNode {
-  if (!showMobile) return null
+  if (!showMobile) {
+    return null
+  }
 
+  const isFetchingOnly = props.isFetching && !props.isLoading
   const ownGetRowClassName = props.getRowClassName
   const mobileGetRowClassName =
     props.mobileProps?.getRowClassName ??
@@ -402,29 +399,61 @@ function renderMobile<TData>(
 
   let mobileContent = props.mobile
   if (mobileContent === undefined) {
-    mobileContent = props.mobileCardView ? (
-      <DataTableCardGrid
-        table={props.table}
-        isLoading={props.isLoading}
-        emptyTitle={props.emptyTitle}
-        emptyDescription={props.emptyDescription}
-        emptyIcon={props.emptyIcon}
-        renderCard={props.renderCard}
-        gridClassName={props.cardGridClassName ?? 'grid grid-cols-1 gap-3'}
-        skeletonKeyPrefix={props.skeletonKeyPrefix}
-        getRowKey={props.mobileProps?.getRowKey}
-        getRowClassName={mobileGetRowClassName}
-      />
-    ) : (
-      <MobileCardList
-        table={props.table}
-        isLoading={props.isLoading}
-        emptyTitle={props.emptyTitle}
-        emptyDescription={props.emptyDescription}
-        getRowKey={props.mobileProps?.getRowKey}
-        getRowClassName={mobileGetRowClassName}
-      />
-    )
+    if (cardViewActive && viewMode === DATA_TABLE_VIEW_MODES.TABLE) {
+      mobileContent = (
+        <DataTableView
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          emptyIcon={props.emptyIcon}
+          emptyAction={props.emptyAction}
+          skeletonKeyPrefix={props.skeletonKeyPrefix}
+          renderRow={props.renderRow}
+          applyHeaderSize={props.applyHeaderSize}
+          tableHeaderClassName={cn(
+            '[background-color:var(--table-header)]',
+            props.tableHeaderClassName
+          )}
+          getColumnClassName={props.getColumnClassName}
+          pinnedColumns={props.pinnedColumns}
+          containerClassName={cn(
+            'transition-opacity duration-150',
+            isFetchingOnly && 'pointer-events-none opacity-60',
+            props.tableClassName
+          )}
+          getRowClassName={(row) =>
+            props.getRowClassName?.(row, { isMobile: false })
+          }
+        />
+      )
+    } else if (cardViewActive) {
+      mobileContent = (
+        <DataTableCardGrid
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          emptyIcon={props.emptyIcon}
+          renderCard={props.renderCard}
+          gridClassName={props.cardGridClassName ?? 'grid grid-cols-1 gap-3'}
+          skeletonKeyPrefix={props.skeletonKeyPrefix}
+          getRowKey={props.mobileProps?.getRowKey}
+          getRowClassName={mobileGetRowClassName}
+        />
+      )
+    } else {
+      mobileContent = (
+        <MobileCardList
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          getRowKey={props.mobileProps?.getRowKey}
+          getRowClassName={mobileGetRowClassName}
+        />
+      )
+    }
   }
 
   return <div className='min-h-0 flex-1 overflow-y-auto'>{mobileContent}</div>
@@ -436,7 +465,9 @@ function renderDesktop<TData>(
   cardViewActive: boolean,
   viewMode: DataTableViewMode
 ): React.ReactNode {
-  if (showMobile) return null
+  if (showMobile) {
+    return null
+  }
 
   const isFetchingOnly = props.isFetching && !props.isLoading
   const fixedHeight = props.fixedHeight !== false
@@ -481,8 +512,7 @@ function renderDesktop<TData>(
       splitHeader={fixedHeight}
       tableContainerClassName={fixedHeight ? 'h-full min-h-0' : undefined}
       tableHeaderClassName={cn(
-        fixedHeight &&
-          '[background-color:color-mix(in_oklch,var(--muted)_30%,var(--background))]',
+        fixedHeight && '[background-color:var(--table-header)]',
         props.tableHeaderClassName
       )}
       getColumnClassName={props.getColumnClassName}

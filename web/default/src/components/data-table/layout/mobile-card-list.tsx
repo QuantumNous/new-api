@@ -1,3 +1,5 @@
+import type { Row, Table } from '@tanstack/react-table'
+import { Database } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,10 +19,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import type { Row, Table } from '@tanstack/react-table'
-import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Empty,
   EmptyDescription,
@@ -29,6 +29,8 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
+
 import { tableHasCompactMeta } from './card-cell-utils'
 import { CardRowContent } from './card-row-content'
 
@@ -143,7 +145,10 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
         return (
           <div
             key={key}
-            className={cn('bg-card px-3 py-2.5', getRowClassName?.(row))}
+            className={cn(
+              '[background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5',
+              getRowClassName?.(row)
+            )}
           >
             <CardRowContent row={row} compact={hasCompactMeta} />
           </div>

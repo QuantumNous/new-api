@@ -167,6 +167,14 @@ export interface GetChannelResponse {
   data?: Channel
 }
 
+export interface ChannelOpsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    retry_times: number
+  }
+}
+
 export interface ChannelTestResponse {
   success: boolean
   message?: string
