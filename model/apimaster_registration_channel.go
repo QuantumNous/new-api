@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -133,6 +134,132 @@ func ListRegistrationChannels() ([]RegistrationChannel, error) {
 		}
 	}
 	return channels, nil
+}
+
+type RegistrationChannelStat struct {
+	Channel         string `json:"channel"`
+	RegisteredCount int    `json:"registered_count"`
+	PayingCount     int    `json:"paying_count"`
+	TopupAmount     int64  `json:"topup_amount"`
+}
+
+// channelDisplayExpr maps a user's raw source to its display key:
+// referral -> inviter email, direct -> "direct" (frontend renders 自然流量),
+// otherwise the managed channel name (if any) or the raw code.
+const channelDisplayExpr = `CASE
+		WHEN u.registration_channel_code = 'referral' THEN COALESCE(NULLIF(inv.email, ''), 'referral')
+		WHEN u.registration_channel_code = 'direct' THEN 'direct'
+		ELSE COALESCE(NULLIF(c.name, ''), u.registration_channel_code)
+	END`
+
+// ListRegistrationChannelStats aggregates registrations + paid topups per
+// acquisition source over the last `days` days (registrations by created_at,
+// topups by top_up.create_time, both within the window).
+func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
+	if err := EnsureApimasterRegistrationChannelSchema(); err != nil {
+		return nil, err
+	}
+	if days <= 0 {
+		days = 1
+	}
+
+	// 1) registrations in range, grouped by display channel.
+	type regRow struct {
+		Channel         string
+		RegisteredCount int
+	}
+	var regRows []regRow
+	if err := APIMASTER_PG_DB.Raw(`
+		SELECT `+channelDisplayExpr+` AS channel, COUNT(*)::int AS registered_count
+		FROM users u
+		LEFT JOIN registration_channels c ON c.code = u.registration_channel_code
+		LEFT JOIN users inv ON inv.id = u.referred_by
+		WHERE u.registration_channel_code IS NOT NULL AND u.registration_channel_code <> ''
+		  AND u.created_at >= now() - (? * interval '1 day')
+		GROUP BY 1
+	`, days).Scan(&regRows).Error; err != nil {
+		return nil, err
+	}
+
+	// 2) username -> display channel for every channeled user (topup join key).
+	type userChan struct {
+		Username string
+		Channel  string
+	}
+	var userChans []userChan
+	if err := APIMASTER_PG_DB.Raw(`
+		SELECT LEFT(REPLACE(u.id::text, '-', ''), 20) AS username, `+channelDisplayExpr+` AS channel
+		FROM users u
+		LEFT JOIN registration_channels c ON c.code = u.registration_channel_code
+		LEFT JOIN users inv ON inv.id = u.referred_by
+		WHERE u.registration_channel_code IS NOT NULL AND u.registration_channel_code <> ''
+	`).Scan(&userChans).Error; err != nil {
+		return nil, err
+	}
+	channelByUser := make(map[string]string, len(userChans))
+	for _, uc := range userChans {
+		channelByUser[uc.Username] = uc.Channel
+	}
+
+	// 3) successful topups in range (new-api DB), per username.
+	cutoff := common.GetTimestamp() - int64(days)*86400
+	type topupRow struct {
+		Username string
+		Amount   int64
+	}
+	var topups []topupRow
+	if err := DB.Raw(`
+		SELECT u.username AS username, COALESCE(SUM(t.amount), 0) AS amount
+		FROM top_ups t JOIN users u ON u.id = t.user_id
+		WHERE t.status = 'success' AND t.create_time >= ?
+		GROUP BY u.username
+	`, cutoff).Scan(&topups).Error; err != nil {
+		return nil, err
+	}
+
+	type agg struct {
+		reg    int
+		paying int
+		amount int64
+	}
+	byChannel := map[string]*agg{}
+	get := func(ch string) *agg {
+		a := byChannel[ch]
+		if a == nil {
+			a = &agg{}
+			byChannel[ch] = a
+		}
+		return a
+	}
+	for _, r := range regRows {
+		get(r.Channel).reg += r.RegisteredCount
+	}
+	for _, tp := range topups {
+		ch, ok := channelByUser[tp.Username]
+		if !ok || tp.Amount <= 0 {
+			continue
+		}
+		a := get(ch)
+		a.amount += tp.Amount
+		a.paying++
+	}
+
+	out := make([]RegistrationChannelStat, 0, len(byChannel))
+	for ch, a := range byChannel {
+		out = append(out, RegistrationChannelStat{
+			Channel:         ch,
+			RegisteredCount: a.reg,
+			PayingCount:     a.paying,
+			TopupAmount:     a.amount,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].RegisteredCount != out[j].RegisteredCount {
+			return out[i].RegisteredCount > out[j].RegisteredCount
+		}
+		return out[i].TopupAmount > out[j].TopupAmount
+	})
+	return out, nil
 }
 
 type channelTopupStat struct {

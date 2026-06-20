@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -15,13 +16,20 @@ type registrationChannelStatusRequest struct {
 }
 
 func ListRegistrationChannels(c *gin.Context) {
-	channels, err := model.ListRegistrationChannels()
+	// Source-attribution stats over the last N days (default 1).
+	days := 1
+	if d := c.Query("days"); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 {
+			days = n
+		}
+	}
+	stats, err := model.ListRegistrationChannelStats(days)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, gin.H{
-		"items": channels,
+		"items": stats,
 	})
 }
 
