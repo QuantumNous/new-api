@@ -1,9 +1,12 @@
 package skillmodel
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestMigrateSkillVersions_SQLite_SucceedsFromEmptyDB(t *testing.T) {
@@ -123,6 +126,27 @@ func TestSkillVersions_OneActiveVersion_SQLite(t *testing.T) {
 	}
 }
 
+func TestSkillVersions_ParentDeleteRestricted_SQLite(t *testing.T) {
+	db := openSQLiteFKDB(t)
+	skill := createSkillForVersionTest(t, db, "delete-restricted")
+	version := validSkillVersion(skill.ID, 1)
+
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create skill version: %v", err)
+	}
+	if err := db.Delete(&skill).Error; err == nil {
+		t.Fatal("expected parent skill delete to be restricted while skill_versions rows exist")
+	}
+
+	var count int64
+	if err := db.Model(&SkillVersion{}).Where("skill_id = ?", skill.ID).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("skill_versions row must remain after restricted parent delete, got %d", count)
+	}
+}
+
 func TestSkillVersions_CheckConstraints_SQLite(t *testing.T) {
 	db := openSQLiteDB(t)
 	skill := createSkillForVersionTest(t, db, "version-checks")
@@ -145,6 +169,24 @@ func TestSkillVersions_CheckConstraints_SQLite(t *testing.T) {
 	if err := db.Create(&badMaxInput).Error; err == nil {
 		t.Error("expected CHECK violation for max_input_tokens_snapshot=0")
 	}
+}
+
+func openSQLiteFKDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test_skill_versions_fk.db") + "?_pragma=foreign_keys(1)"
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite with FK enforcement: %v", err)
+	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			sqlDB.Close()
+		}
+	})
+	return db
 }
 
 func createSkillForVersionTest(t *testing.T, db *gorm.DB, slug string) Skill {
