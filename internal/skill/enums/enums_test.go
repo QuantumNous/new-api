@@ -154,7 +154,7 @@ func TestBlockReason_Valid(t *testing.T) {
 	valid := []BlockReason{
 		BlockReasonAuthRequired, BlockReasonSkillNotFound, BlockReasonSkillNotPublished,
 		BlockReasonSkillNotEnabled, BlockReasonPlanRequired, BlockReasonSubscriptionInactive,
-		BlockReasonQuotaExceeded, BlockReasonKidsModeBlocked, BlockReasonContextTooLong,
+		BlockReasonEvaluationNotPassed, BlockReasonQuotaExceeded, BlockReasonKidsModeBlocked, BlockReasonContextTooLong,
 		BlockReasonRateLimited, BlockReasonTimeout, BlockReasonSafetyViolation,
 		BlockReasonInternalError,
 	}
@@ -181,6 +181,7 @@ func TestBlockReason_StringValues(t *testing.T) {
 	assert.Equal(t, "skill_not_enabled", string(BlockReasonSkillNotEnabled))
 	assert.Equal(t, "plan_required", string(BlockReasonPlanRequired))
 	assert.Equal(t, "subscription_inactive", string(BlockReasonSubscriptionInactive))
+	assert.Equal(t, "evaluation_not_passed", string(BlockReasonEvaluationNotPassed))
 	assert.Equal(t, "quota_exceeded", string(BlockReasonQuotaExceeded))
 	assert.Equal(t, "kids_mode_blocked", string(BlockReasonKidsModeBlocked))
 	assert.Equal(t, "context_too_long", string(BlockReasonContextTooLong))
@@ -195,9 +196,9 @@ func TestBlockReason_StringValues(t *testing.T) {
 func TestEntryPoint_Valid(t *testing.T) {
 	valid := []EntryPoint{
 		EntryPointMarketplaceCard, EntryPointSkillDetail, EntryPointMySkills,
-		EntryPointPlaygroundPicker, EntryPointFeatured, EntryPointPopular,
-		EntryPointNew, EntryPointRecommended, EntryPointAdminPreview,
-		EntryPointSkillPackage,
+		EntryPointSavedList, EntryPointPlaygroundPicker, EntryPointFeatured,
+		EntryPointPopular, EntryPointNew, EntryPointRecommended, EntryPointAdminPreview,
+		EntryPointSearchResults, EntryPointSkillPackage,
 	}
 	for _, e := range valid {
 		assert.True(t, e.Valid(), "expected %q to be valid", e)
@@ -213,11 +214,13 @@ func TestEntryPoint_StringValues(t *testing.T) {
 	assert.Equal(t, "marketplace_card", string(EntryPointMarketplaceCard))
 	assert.Equal(t, "skill_detail", string(EntryPointSkillDetail))
 	assert.Equal(t, "my_skills", string(EntryPointMySkills))
+	assert.Equal(t, "saved_list", string(EntryPointSavedList))
 	assert.Equal(t, "playground_picker", string(EntryPointPlaygroundPicker))
 	assert.Equal(t, "featured", string(EntryPointFeatured))
 	assert.Equal(t, "popular", string(EntryPointPopular))
 	assert.Equal(t, "new", string(EntryPointNew))
 	assert.Equal(t, "recommended", string(EntryPointRecommended))
 	assert.Equal(t, "admin_preview", string(EntryPointAdminPreview))
+	assert.Equal(t, "search_results", string(EntryPointSearchResults))
 	assert.Equal(t, "skill_package", string(EntryPointSkillPackage))
 }

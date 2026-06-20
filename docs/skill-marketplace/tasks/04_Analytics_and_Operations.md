@@ -50,6 +50,8 @@ V1 analytics must answer:
 
 Analytics dashboards must not read or expose `instruction_template`, `prompt_guard_template`, raw full user input, provider raw payload, or Kids sensitive content.
 
+Retention implementation note: `skill_usage_events` is an append-only hot event stream, not the permanent warehouse. Keep raw rows hot for 90 days, then archive or aggregate before deletion; dashboards that need longer lookbacks must read aggregate/archive tables rather than extending raw retention by default.
+
 ---
 
 ## 3. Event Taxonomy

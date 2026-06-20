@@ -10,9 +10,10 @@ import (
 )
 
 func SetSkillRouter(router *gin.Engine) {
-	if platformmodel.DB != nil {
-		skillhandler.SetDB(platformmodel.DB)
+	if platformmodel.DB == nil {
+		panic("SetSkillRouter: platform DB is nil — skill routes require a live DB connection")
 	}
+	skillhandler.SetDB(platformmodel.DB)
 
 	v1 := router.Group("/api/v1")
 	v1.Use(middleware.RouteTag("skill_api"))

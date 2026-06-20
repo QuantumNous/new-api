@@ -154,6 +154,7 @@ func TestErrorCodeStringValues(t *testing.T) {
 	assert.Equal(t, "SKILL_NOT_ENABLED", string(ErrSkillNotEnabled))
 	assert.Equal(t, "SKILL_PLAN_REQUIRED", string(ErrSkillPlanRequired))
 	assert.Equal(t, "SKILL_SUBSCRIPTION_INACTIVE", string(ErrSkillSubscriptionInactive))
+	assert.Equal(t, "SKILL_EVALUATION_NOT_PASSED", string(ErrSkillEvaluationNotPassed))
 	assert.Equal(t, "SKILL_QUOTA_EXCEEDED", string(ErrSkillQuotaExceeded))
 	assert.Equal(t, "SKILL_KIDS_MODE_BLOCKED", string(ErrSkillKidsModeBlocked))
 	assert.Equal(t, "SKILL_CONTEXT_TOO_LONG", string(ErrSkillContextTooLong))
@@ -181,4 +182,8 @@ func TestBlockReasonMappingSpotCheck(t *testing.T) {
 	code, ok = ErrorCodeFor(enums.BlockReasonSkillNotFound)
 	require.True(t, ok)
 	assert.Equal(t, ErrSkillNotFound, code)
+
+	code, ok = ErrorCodeFor(enums.BlockReasonEvaluationNotPassed)
+	require.True(t, ok)
+	assert.Equal(t, ErrSkillEvaluationNotPassed, code)
 }

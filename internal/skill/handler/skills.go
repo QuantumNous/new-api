@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
@@ -18,9 +19,14 @@ import (
 	"gorm.io/gorm"
 )
 
-var db *gorm.DB
+var (
+	dbMu sync.RWMutex
+	db   *gorm.DB
+)
 
 func SetDB(database *gorm.DB) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
 	db = database
 }
 
@@ -294,10 +300,7 @@ func GetOpsSkillSummary(c *gin.Context) {
 	summary.ByStatus = map[string]int64{}
 	summary.ByCategory = map[string]int64{}
 
-	if err := db.Model(&skillmodel.Skill{}).Count(&summary.Total).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
+	// Query 1: status breakdown — also gives total and published count.
 	var statusRows []struct {
 		Status string
 		Count  int64
@@ -308,7 +311,11 @@ func GetOpsSkillSummary(c *gin.Context) {
 	}
 	for _, row := range statusRows {
 		summary.ByStatus[row.Status] = row.Count
+		summary.Total += row.Count
 	}
+	summary.Published = summary.ByStatus[string(enums.SkillStatusPublished)]
+
+	// Query 2: category breakdown.
 	var categoryRows []struct {
 		Category string
 		Count    int64
@@ -320,18 +327,23 @@ func GetOpsSkillSummary(c *gin.Context) {
 	for _, row := range categoryRows {
 		summary.ByCategory[row.Category] = row.Count
 	}
-	if err := db.Model(&skillmodel.Skill{}).Where("status = ?", enums.SkillStatusPublished).Count(&summary.Published).Error; err != nil {
+
+	// Query 3: featured and kids-safe published counts via conditional aggregation.
+	var pubCounts struct {
+		FeaturedPublished int64
+		KidsSafePublished int64
+	}
+	if err := db.Model(&skillmodel.Skill{}).Select(
+		"SUM(CASE WHEN status = ? AND featured_flag = ? THEN 1 ELSE 0 END) as featured_published,"+
+			" SUM(CASE WHEN status = ? AND is_kids_safe = ? THEN 1 ELSE 0 END) as kids_safe_published",
+		enums.SkillStatusPublished, true, enums.SkillStatusPublished, true,
+	).Scan(&pubCounts).Error; err != nil {
 		writeDBError(c, err)
 		return
 	}
-	if err := db.Model(&skillmodel.Skill{}).Where("status = ? AND featured_flag = ?", enums.SkillStatusPublished, true).Count(&summary.FeaturedPublished).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
-	if err := db.Model(&skillmodel.Skill{}).Where("status = ? AND is_kids_safe = ?", enums.SkillStatusPublished, true).Count(&summary.KidsSafePublished).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
+	summary.FeaturedPublished = pubCounts.FeaturedPublished
+	summary.KidsSafePublished = pubCounts.KidsSafePublished
+
 	skillapi.Success(c, summary)
 }
 
@@ -343,8 +355,12 @@ func applyPublicSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
 		query = query.Where("required_plan = ?", plan)
 	}
 	if q := strings.TrimSpace(c.Query("query")); q != "" {
-		like := "%" + q + "%"
-		query = query.Where("name LIKE ? OR short_description LIKE ? OR description LIKE ?", like, like, like)
+		escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q)
+		like := "%" + escaped + "%"
+		query = query.Where(
+			"name LIKE ? ESCAPE '!' OR short_description LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!'",
+			like, like, like,
+		)
 	}
 	return query
 }
@@ -393,7 +409,7 @@ func orderForSort(sort string, public bool) string {
 	column := columns[key]
 	if column == "" {
 		if public {
-			return "featured_rank ASC, published_at DESC, created_at DESC"
+			return "(featured_rank IS NULL) ASC, featured_rank ASC, published_at DESC, created_at DESC"
 		}
 		return "updated_at DESC"
 	}
@@ -402,7 +418,7 @@ func orderForSort(sort string, public bool) string {
 		direction = "DESC"
 	}
 	if key == "featured_rank" {
-		return column + " " + direction + ", published_at DESC, created_at DESC"
+		return "(featured_rank IS NULL) ASC, " + column + " " + direction + ", published_at DESC, created_at DESC"
 	}
 	return column + " " + direction
 }
@@ -478,11 +494,14 @@ func rawJSON(value skillmodel.SkillJSONB) json.RawMessage {
 }
 
 func skillDB(c *gin.Context) (*gorm.DB, bool) {
-	if db == nil {
+	dbMu.RLock()
+	d := db
+	dbMu.RUnlock()
+	if d == nil {
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Skill database is unavailable.", nil)
 		return nil, false
 	}
-	return db, true
+	return d, true
 }
 
 func writeSkillLookupError(c *gin.Context, err error) {

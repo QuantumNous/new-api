@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	appmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -103,8 +106,25 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 
 	skillMD := string(files["SKILL.md"])
 	assert.Contains(t, skillMD, "name: zip-skill")
+	assert.Contains(t, skillMD, `description: "Does zip things"`)
 	assert.Contains(t, skillMD, "Zip Skill")
 	assert.Contains(t, skillMD, "A full description.")
+}
+
+func TestBuildSkillMD_EscapesFrontMatterDescription(t *testing.T) {
+	s := testSkill("frontmatter-skill", "published")
+	s.ShortDescription = "quote \" slash \\ newline\n---"
+
+	skillMD := buildSkillMD(s)
+
+	assert.Contains(t, skillMD, `description: "quote \" slash \\ newline\n---"`)
+	separatorLines := 0
+	for _, line := range strings.Split(skillMD, "\n") {
+		if line == "---" {
+			separatorLines++
+		}
+	}
+	assert.Equal(t, 2, separatorLines, "description must not create extra YAML document separator lines")
 }
 
 // TestDownloadSkillPackage_ManifestIncludesSkillVersionID verifies that when a skill
@@ -271,18 +291,79 @@ func TestDownloadSkillPackage_EmitsSkillEnabledEvent(t *testing.T) {
 	require.NoError(t, db.Create(&s).Error)
 
 	c, w := testDownloadCtx("emit-skill", 99, "default")
+	start := time.Now().UTC()
+	DownloadSkillPackage(c)
+	end := time.Now().UTC()
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var evt skillmodel.SkillUsageEvent
+	err := db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).First(&evt).Error
+	require.NoError(t, err, "skill_usage_events must have a skill_enabled row after download")
+	assert.Equal(t, enums.SkillUsageEventTypeEnabled, evt.EventType)
+	assert.Equal(t, enums.EntryPointSkillPackage, evt.EntryPoint)
+	assert.NotZero(t, evt.OccurredAt)
+	assert.False(t, evt.OccurredAt.Before(start.Add(-time.Second)), "occurred_at must be near the download request")
+	assert.False(t, evt.OccurredAt.After(end.Add(time.Second)), "occurred_at must be near the download request")
+	_, err = uuid.Parse(evt.EventID)
+	require.NoError(t, err, "event_id must be a valid UUID")
+	require.NotNil(t, evt.UserID)
+	assert.Equal(t, int64(99), *evt.UserID)
+	require.NotNil(t, evt.Plan)
+	assert.Equal(t, enums.RequiredPlanFree, *evt.Plan)
+	require.NotNil(t, evt.Success)
+	assert.True(t, *evt.Success)
+}
+
+func TestDownloadSkillPackage_KidsSessionEventUsesPseudoID(t *testing.T) {
+	t.Setenv(kidsAnalyticsDailySaltEnv, "test-daily-salt")
+	t.Setenv(kidsAnalyticsSaltVersionEnv, "2026-06-21")
+
+	db := testDownloadDB(t)
+	require.NoError(t, db.AutoMigrate(&appmodel.User{}))
+	SetDB(db)
+	s := testSkill("kids-emit-skill", "published")
+	s.IsKidsSafe = true
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&appmodel.User{Id: 123, Username: "kids-user", Password: "password123", KidsMode: true}).Error)
+
+	c, w := testDownloadCtx("kids-emit-skill", 123, "default")
 	DownloadSkillPackage(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var evt skillmodel.SkillUsageEvent
-	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
-	require.NoError(t, err, "skill_usage_events must have a skill_enabled row after download")
-	assert.Equal(t, "skill_package", evt.EntryPoint)
-	require.NotNil(t, evt.UserID)
-	assert.Equal(t, int64(99), *evt.UserID)
-	require.NotNil(t, evt.Plan)
-	assert.Equal(t, "free", *evt.Plan)
+	err := db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).First(&evt).Error
+	require.NoError(t, err)
+	assert.True(t, evt.IsKidsSession)
+	assert.Nil(t, evt.UserID, "Kids analytics must not persist the real child user_id")
+	require.NotNil(t, evt.TenantID)
+	assert.Equal(t, int64(123), *evt.TenantID)
+	require.NotNil(t, evt.SessionID)
+	wantPseudoID, err := skillmodel.KidsSessionPseudoID(123, 123, "2026-06-21", []byte("test-daily-salt"))
+	require.NoError(t, err)
+	assert.Equal(t, wantPseudoID, *evt.SessionID)
+	require.NotNil(t, evt.IsKidsSafeSkill)
+	assert.True(t, *evt.IsKidsSafeSkill)
+}
+
+func TestDownloadSkillPackage_KidsSessionMissingSaltDoesNotPersistAnalytics(t *testing.T) {
+	db := testDownloadDB(t)
+	require.NoError(t, db.AutoMigrate(&appmodel.User{}))
+	SetDB(db)
+	s := testSkill("kids-no-salt-skill", "published")
+	s.IsKidsSafe = true
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&appmodel.User{Id: 124, Username: "kids-nosalt", Password: "password123", KidsMode: true}).Error)
+
+	c, w := testDownloadCtx("kids-no-salt-skill", 124, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code, "analytics failure must not block download")
+	var evtCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
+		Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).Count(&evtCount).Error)
+	assert.Equal(t, int64(0), evtCount, "Kids analytics must fail closed when pseudonymization salt is unavailable")
 }
 
 // TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan verifies that when a pro user
@@ -301,10 +382,10 @@ func TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var evt skillmodel.SkillUsageEvent
-	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
+	err := db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).First(&evt).Error
 	require.NoError(t, err)
 	require.NotNil(t, evt.Plan)
-	assert.Equal(t, "pro", *evt.Plan,
+	assert.Equal(t, enums.RequiredPlanPro, *evt.Plan,
 		"analytics event.plan must be the user's plan, not the skill's required_plan")
 }
 
@@ -344,7 +425,7 @@ func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
 	// not a separate skill_downloaded event.
 	var enabledCount, downloadedCount int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
-		Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).Count(&enabledCount).Error)
+		Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).Count(&enabledCount).Error)
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
 		Where("event_type = ? AND skill_id = ?", "skill_downloaded", s.ID).Count(&downloadedCount).Error)
 	assert.Equal(t, int64(1), enabledCount, "download must emit exactly one skill_enabled event")
@@ -438,6 +519,6 @@ func TestDownloadSkillPackage_ReDownloadPreservesExistingSource(t *testing.T) {
 	// The download act is still recorded by a skill_enabled event.
 	var evtCount int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
-		Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).Count(&evtCount).Error)
+		Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).Count(&evtCount).Error)
 	assert.Equal(t, int64(1), evtCount, "re-download must still emit skill_enabled")
 }
