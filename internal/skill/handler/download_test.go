@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
@@ -50,7 +51,7 @@ func TestDownloadSkillPackage_HappyPath(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Disposition"), "cool-skill.zip")
 	assert.NotEmpty(t, w.Body.Bytes())
 
-	// UES row must be upserted with source=skill_package on download.
+	// Fresh download-created UES row must use source=skill_package.
 	var ues skillmodel.UserEnabledSkill
 	err := db.Where("user_id = ? AND skill_id IN (SELECT id FROM skills WHERE slug = ?)", 42, "cool-skill").
 		First(&ues).Error
@@ -305,4 +306,138 @@ func TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan(t *testing.T) {
 	require.NotNil(t, evt.Plan)
 	assert.Equal(t, "pro", *evt.Plan,
 		"analytics event.plan must be the user's plan, not the skill's required_plan")
+}
+
+// TestDownloadSkillPackage_GrantsNoExecutionRight is the DR-55 download-side proof
+// for acceptance 2: a download writes a download/enablement state record only and
+// does NOT issue any standalone runtime execution grant. Runtime rejection without
+// a valid runner key + entitlement is enforced per call by DR-64/DR-68/M05 and is
+// out of DR-55 scope.
+//
+// Goal of the negative assertion = "no execution-grant artifact is issued", NOT
+// "the whole system writes only two tables". The test DB intentionally migrates
+// only skills + user_enabled_skills + skill_usage_events; there is no runtime-grant
+// / runner-token / entitlement-override / credential table in this schema, so we
+// make targeted assertions rather than a cross-DB side-effect proof.
+func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("ds-noexec", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("ds-noexec", 77, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// (a) Exactly one enablement record for (user, skill), enabled, source=skill_package.
+	var uesCount int64
+	require.NoError(t, db.Model(&skillmodel.UserEnabledSkill{}).
+		Where("user_id = ? AND skill_id = ?", 77, s.ID).Count(&uesCount).Error)
+	assert.Equal(t, int64(1), uesCount, "download must write exactly one enablement row")
+	var ues skillmodel.UserEnabledSkill
+	require.NoError(t, db.Where("user_id = ? AND skill_id = ?", 77, s.ID).First(&ues).Error)
+	assert.True(t, ues.Enabled)
+	assert.Equal(t, "skill_package", ues.Source)
+
+	// (b) Exactly one analytics event, and it is the canonical skill_enabled (DR-55 D-7),
+	// not a separate skill_downloaded event.
+	var enabledCount, downloadedCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
+		Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).Count(&enabledCount).Error)
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
+		Where("event_type = ? AND skill_id = ?", "skill_downloaded", s.ID).Count(&downloadedCount).Error)
+	assert.Equal(t, int64(1), enabledCount, "download must emit exactly one skill_enabled event")
+	assert.Equal(t, int64(0), downloadedCount, "skill_downloaded is not a separate V1 event (DR-55 D-7)")
+
+	// (c) No execution-grant artifact in the structured outputs. Structured checks, NOT a
+	// free-text blacklist scan of SKILL.md (which is author-controlled prose and would
+	// false-positive on legitimate words):
+	//   - response carries no auth/credential header,
+	//   - the zip contains only whitelisted files,
+	//   - manifest.json carries only allowlisted keys (no grant/token/credential/entitlement field).
+	assert.Empty(t, w.Header().Get("Authorization"), "response must not carry an Authorization header")
+	assert.Empty(t, w.Header().Get("Set-Cookie"), "response must not set a credential cookie")
+
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	require.NoError(t, err)
+	allowedFiles := map[string]bool{"manifest.json": true, "SKILL.md": true}
+	var manifestRaw []byte
+	for _, zf := range zr.File {
+		assert.True(t, allowedFiles[zf.Name], "zip must contain only whitelisted files, found %q", zf.Name)
+		if zf.Name == "manifest.json" {
+			rc, err := zf.Open()
+			require.NoError(t, err)
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(rc)
+			rc.Close()
+			manifestRaw = buf.Bytes()
+		}
+	}
+	require.NotNil(t, manifestRaw, "manifest.json must be present")
+
+	var manifestKeys map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(manifestRaw, &manifestKeys))
+	allowedKeys := map[string]bool{
+		"schema_version": true, "skill_id": true, "skill_version_id": true,
+		"slug": true, "name": true, "required_plan": true, "category": true,
+		"requires_deeprouter_key": true,
+	}
+	for k := range manifestKeys {
+		assert.Truef(t, allowedKeys[k], "manifest carries unexpected key %q (possible execution-grant artifact)", k)
+	}
+	for _, k := range []string{"grant", "token", "credential", "entitlement", "runner_token", "entitlement_override"} {
+		_, present := manifestKeys[k]
+		assert.Falsef(t, present, "manifest must not carry an execution-grant key %q", k)
+	}
+
+	// (d) The download path creates no other persistent state in this schema: skills is
+	// unchanged (no new row), so the only writes are the enablement record (a) and the
+	// analytics event (b). There is no runtime-grant/credential table to write to by design.
+	var skillCount int64
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Count(&skillCount).Error)
+	assert.Equal(t, int64(1), skillCount, "download must not create additional skill rows")
+}
+
+// TestDownloadSkillPackage_ReDownloadPreservesExistingSource documents the boundary for a
+// pre-existing enablement row: download re-enables it but does NOT overwrite source.
+// This matches the deliberate EnableSkillForUser contract ("source is NOT overwritten on
+// re-enable", locked by TestEnableSkillForUser_Reenable_PreservesOriginalSource[_MySQL]).
+// Only a *fresh* download-created row gets source=skill_package (see other tests). The
+// download act itself is still recorded by the enabled_at update + the skill_enabled event.
+func TestDownloadSkillPackage_ReDownloadPreservesExistingSource(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("redl-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	// Pre-existing row from an earlier acquisition: source="marketplace", currently disabled.
+	past := time.Now().UTC().Add(-24 * time.Hour)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID: 88, TenantID: 88, SkillID: s.ID,
+		Enabled: false, EnabledAt: past, DisabledAt: &past, Source: "marketplace",
+	}).Error)
+
+	c, w := testDownloadCtx("redl-skill", 88, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Still exactly one row; re-enabled; disabled_at cleared; source PRESERVED (not skill_package).
+	var rows int64
+	require.NoError(t, db.Model(&skillmodel.UserEnabledSkill{}).
+		Where("user_id = ? AND skill_id = ?", 88, s.ID).Count(&rows).Error)
+	assert.Equal(t, int64(1), rows, "re-download must not create a duplicate enablement row")
+
+	var ues skillmodel.UserEnabledSkill
+	require.NoError(t, db.Where("user_id = ? AND skill_id = ?", 88, s.ID).First(&ues).Error)
+	assert.True(t, ues.Enabled, "re-download must re-enable the row")
+	assert.Nil(t, ues.DisabledAt, "re-download must clear disabled_at")
+	assert.Equal(t, "marketplace", ues.Source,
+		"existing row's source must be preserved (EnableSkillForUser does not overwrite source)")
+
+	// The download act is still recorded by a skill_enabled event.
+	var evtCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
+		Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).Count(&evtCount).Error)
+	assert.Equal(t, int64(1), evtCount, "re-download must still emit skill_enabled")
 }

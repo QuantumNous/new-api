@@ -42,7 +42,8 @@ func (SkillUsageEvent) TableName() string { return "skill_usage_events" }
 // EmitSkillEnabled inserts a skill_enabled event (tasks/03 §4.4, §8.2).
 // skillVersionID may be nil until DR-41 (skill_versions) is implemented.
 // entryPoint must be a valid enums.EntryPoint string value.
-// plan is the string form of the skill's required_plan (free/pro/enterprise).
+// plan is the runner's resolved plan (free/pro/enterprise) — i.e. the downloading
+// user's own plan, NOT the skill's required_plan (see download.go: groupToPlan(group)).
 // On error the caller should log but must not block the user-facing response.
 func EmitSkillEnabled(db *gorm.DB, userID int64, skillID string, skillVersionID *string, entryPoint, plan string) error {
 	uid := userID
