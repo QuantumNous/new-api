@@ -84,23 +84,37 @@ func ListRegistrationChannels() ([]RegistrationChannel, error) {
 		return nil, err
 	}
 
+	// Show every source users actually arrived with (ch / referral / utm / referrer
+	// domain / direct), plus any deliberately-named channel even with 0 regs. Rows
+	// with an empty id are auto-discovered sources (no managed channel row).
 	var channels []RegistrationChannel
 	err := APIMASTER_PG_DB.Raw(`
 		SELECT
-			c.id::text AS id,
-			c.code,
-			c.name,
+			COALESCE(c.id::text, '') AS id,
+			codes.code AS code,
+			COALESCE(c.name, codes.code) AS name,
 			COALESCE(c.description, '') AS description,
-			c.landing_path,
-			c.enabled,
+			COALESCE(c.landing_path, '') AS landing_path,
+			COALESCE(c.enabled, true) AS enabled,
 			COALESCE(c.created_by, '') AS created_by,
-			c.created_at,
-			c.updated_at,
-			COUNT(u.id)::int AS registered_count
-		FROM registration_channels c
-		LEFT JOIN users u ON u.registration_channel_code = c.code
-		GROUP BY c.id, c.code, c.name, c.description, c.landing_path, c.enabled, c.created_by, c.created_at, c.updated_at
-		ORDER BY c.created_at DESC
+			COALESCE(c.created_at, now()) AS created_at,
+			COALESCE(c.updated_at, now()) AS updated_at,
+			COALESCE(reg.registered_count, 0) AS registered_count
+		FROM (
+			SELECT code FROM registration_channels
+			UNION
+			SELECT DISTINCT registration_channel_code
+			FROM users
+			WHERE registration_channel_code IS NOT NULL AND registration_channel_code <> ''
+		) codes
+		LEFT JOIN registration_channels c ON c.code = codes.code
+		LEFT JOIN (
+			SELECT registration_channel_code AS code, COUNT(*)::int AS registered_count
+			FROM users
+			WHERE registration_channel_code IS NOT NULL AND registration_channel_code <> ''
+			GROUP BY registration_channel_code
+		) reg ON reg.code = codes.code
+		ORDER BY registered_count DESC, codes.code ASC
 	`).Scan(&channels).Error
 	if err != nil {
 		return nil, err

@@ -265,19 +265,25 @@ export function RegistrationChannels() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className='flex max-w-[360px] items-center gap-2'>
-                        <code className='bg-muted min-w-0 truncate rounded px-2 py-1 text-xs'>
-                          {buildChannelUrl(channel)}
-                        </code>
-                        <Button
-                          variant='ghost'
-                          size='icon-sm'
-                          onClick={() => copyChannelUrl(channel)}
-                          aria-label={t('Copy')}
-                        >
-                          <Copy />
-                        </Button>
-                      </div>
+                      {channel.id ? (
+                        <div className='flex max-w-[360px] items-center gap-2'>
+                          <code className='bg-muted min-w-0 truncate rounded px-2 py-1 text-xs'>
+                            {buildChannelUrl(channel)}
+                          </code>
+                          <Button
+                            variant='ghost'
+                            size='icon-sm'
+                            onClick={() => copyChannelUrl(channel)}
+                            aria-label={t('Copy')}
+                          >
+                            <Copy />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className='text-muted-foreground text-xs'>
+                          {t('Auto-detected')}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>{channel.registered_count}</TableCell>
                     <TableCell>{channel.paying_count}</TableCell>
@@ -287,25 +293,31 @@ export function RegistrationChannels() {
                         : '—'}
                     </TableCell>
                     <TableCell>
-                      <div className='flex items-center gap-2'>
-                        <Switch
-                          checked={channel.enabled}
-                          onCheckedChange={() => toggleChannel(channel)}
-                        />
-                        <span className='text-sm'>
-                          {channel.enabled ? t('Enabled') : t('Disabled')}
-                        </span>
-                      </div>
+                      {channel.id ? (
+                        <div className='flex items-center gap-2'>
+                          <Switch
+                            checked={channel.enabled}
+                            onCheckedChange={() => toggleChannel(channel)}
+                          />
+                          <span className='text-sm'>
+                            {channel.enabled ? t('Enabled') : t('Disabled')}
+                          </span>
+                        </div>
+                      ) : (
+                        <Badge variant='secondary'>{t('Auto')}</Badge>
+                      )}
                     </TableCell>
                     <TableCell className='text-right'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => openEditDialog(channel)}
-                      >
-                        <Pencil />
-                        {t('Edit')}
-                      </Button>
+                      {channel.id ? (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => openEditDialog(channel)}
+                        >
+                          <Pencil />
+                          {t('Edit')}
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
