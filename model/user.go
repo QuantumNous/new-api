@@ -55,10 +55,11 @@ type User struct {
 	Country          string         `json:"country,omitempty" gorm:"type:varchar(10);default:''"`
 	Language         string         `json:"language,omitempty" gorm:"type:varchar(10);default:''"`
 
-	RegistrationChannelCode string `json:"registration_channel_code,omitempty" gorm:"-:all"`
-	RegistrationChannelName string `json:"registration_channel_name,omitempty" gorm:"-:all"`
-	RegistrationSourceURL   string `json:"registration_source_url,omitempty" gorm:"-:all"`
-	RegistrationUTM         string `json:"registration_utm,omitempty" gorm:"-:all"`
+	RegistrationChannelCode  string `json:"registration_channel_code,omitempty" gorm:"-:all"`
+	RegistrationChannelName  string `json:"registration_channel_name,omitempty" gorm:"-:all"`
+	RegistrationSourceURL    string `json:"registration_source_url,omitempty" gorm:"-:all"`
+	RegistrationUTM          string `json:"registration_utm,omitempty" gorm:"-:all"`
+	RegistrationInviterEmail string `json:"registration_inviter_email,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {

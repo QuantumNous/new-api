@@ -351,19 +351,25 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const user = row.original
         const channelCode = user.registration_channel_code
         const channelName = user.registration_channel_name
+        const inviterEmail = user.registration_inviter_email
         const sourceUrl = user.registration_source_url
         const registrationUtm = user.registration_utm
 
-        if (!channelCode) {
+        // direct (or unattributed) shows blank; referral shows the inviter email.
+        if (!channelCode || channelCode === 'direct') {
           return <span className='text-muted-foreground text-sm'>-</span>
         }
+        const headline =
+          channelCode === 'referral'
+            ? inviterEmail || channelName || channelCode
+            : channelName || channelCode
 
         return (
           <Tooltip>
             <TooltipTrigger render={<div className='cursor-help' />}>
               <div className='flex min-w-[140px] flex-col gap-1'>
                 <span className='text-sm font-medium'>
-                  {channelName || channelCode}
+                  {headline}
                 </span>
                 <code className='text-muted-foreground text-xs'>
                   {channelCode}

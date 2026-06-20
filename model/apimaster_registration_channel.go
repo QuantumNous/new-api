@@ -297,6 +297,7 @@ func EnrichUsersRegistrationChannels(users []*User) {
 		ChannelName     string
 		SourceUrl       string
 		RegistrationUtm string
+		InviterEmail    string
 	}
 	var rows []attribution
 	err := APIMASTER_PG_DB.Raw(`
@@ -305,9 +306,11 @@ func EnrichUsersRegistrationChannels(users []*User) {
 			COALESCE(u.registration_channel_code, '') AS channel_code,
 			COALESCE(c.name, '') AS channel_name,
 			COALESCE(u.registration_source_url, '') AS source_url,
-			COALESCE(u.registration_utm::text, '') AS registration_utm
+			COALESCE(u.registration_utm::text, '') AS registration_utm,
+			COALESCE(inv.email, '') AS inviter_email
 		FROM users u
 		LEFT JOIN registration_channels c ON c.code = u.registration_channel_code
+		LEFT JOIN users inv ON inv.id = u.referred_by
 		WHERE LEFT(REPLACE(u.id::text, '-', ''), 20) IN ?
 	`, usernames).Scan(&rows).Error
 	if err != nil {
@@ -331,5 +334,6 @@ func EnrichUsersRegistrationChannels(users []*User) {
 		user.RegistrationChannelName = row.ChannelName
 		user.RegistrationSourceURL = row.SourceUrl
 		user.RegistrationUTM = row.RegistrationUtm
+		user.RegistrationInviterEmail = row.InviterEmail
 	}
 }
