@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback } from 'react'
-import { Check, Copy, Loader2 } from 'lucide-react'
+import { BookOpen, Check, Copy, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,9 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
     loadingKeys,
     copiedKeyId,
     markKeyCopied,
+    setResolvedKey,
+    setCurrentRow,
+    setOpen,
   } = useApiKeys()
   const [popoverOpen, setPopoverOpen] = useState(false)
 
@@ -68,6 +71,23 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
       if (ok) markKeyCopied(apiKey.id)
     }
   }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied])
+
+  // Same action as the row menu's "Setup guide" — gives users a second,
+  // closer entry point to the integration wizard right next to Copy.
+  const handleGuide = useCallback(async () => {
+    const realKey = resolvedFullKey || (await resolveRealKey(apiKey.id))
+    if (!realKey) return
+    setResolvedKey(realKey)
+    setCurrentRow(apiKey)
+    setOpen('integration')
+  }, [
+    resolvedFullKey,
+    resolveRealKey,
+    apiKey,
+    setResolvedKey,
+    setCurrentRow,
+    setOpen,
+  ])
 
   return (
     <div className='flex items-center'>
@@ -135,6 +155,22 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
               ? t('Copied!')
               : t('Copy API key')}
         </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-7 shrink-0'
+              onClick={handleGuide}
+              disabled={isLoading}
+            />
+          }
+        >
+          <BookOpen className='size-3.5' />
+        </TooltipTrigger>
+        <TooltipContent>{t('Setup guide')}</TooltipContent>
       </Tooltip>
     </div>
   )
