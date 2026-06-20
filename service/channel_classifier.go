@@ -91,7 +91,7 @@ func messageMatchesBusinessKeyword(msg string) bool {
 		return false
 	}
 	lower := strings.ToLower(msg)
-	for _, kw := range operation_setting.BusinessErrorKeywords {
+	for _, kw := range operation_setting.BusinessErrorKeywordsSnapshot() {
 		if kw == "" {
 			continue
 		}

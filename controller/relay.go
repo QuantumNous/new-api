@@ -670,16 +670,18 @@ func buildChannelErrorFromContext(c *gin.Context, channel *model.Channel) types.
 		common.GetContextKeyString(c, constant.ContextKeyChannelKey),
 		channel.GetAutoBan(),
 	)
-	// Read the key index the distributor wrote. The context value
-	// is set for both single-key and multi-key channels, so
-	// there's no per-channel branching here. If the context is
-	// somehow empty (e.g. an error path that bypasses the
-	// distributor), leave KeyIndex nil — the cooldown handler
-	// falls back to whole-channel cooldown in that case, which
-	// is the right thing to do for a "we don't know which key
-	// failed" situation.
-	if idx := common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex); idx >= 0 {
-		ce.KeyIndex = &idx
+	// Read the key index the distributor wrote. We probe the
+	// context directly with c.Get (which returns ok) rather than
+	// c.GetInt (which returns the zero value when the key is
+	// missing). Without the ok check, a missing key would look
+	// identical to a present key with value 0, and the cooldown
+	// handler would mark key #0 on every error path that bypasses
+	// the distributor — a silent regression back to the
+	// hard-coded-0 behaviour the rewrite was supposed to fix.
+	if raw, ok := c.Get(string(constant.ContextKeyChannelMultiKeyIndex)); ok {
+		if idx, ok := raw.(int); ok && idx >= 0 {
+			ce.KeyIndex = &idx
+		}
 	}
 	return *ce
 }

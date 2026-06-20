@@ -1,6 +1,9 @@
 package operation_setting
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 var DemoSiteEnabled = false
 var SelfUseModeEnabled = false
@@ -26,6 +29,17 @@ var AutomaticDisableKeywords = []string{
 	"Operation not allowed",
 	"Your account is not authorized",
 }
+
+// businessErrorKeywordsMu guards BusinessErrorKeywords against torn
+// reads. The classifier consults this slice on every upstream error
+// (hot path), so a plain `var []string` is not safe: the previous
+// FromString implementation cleared the global slice and then
+// repopulated it, leaving concurrent readers with a partial or empty
+// list mid-update — which silently misclassifies errors and changes
+// cooldown behaviour. Writers build into a local slice, then swap
+// under the lock; readers copy the slice header under the same lock
+// before iterating.
+var businessErrorKeywordsMu sync.RWMutex
 
 // BusinessErrorKeywords are matched (case-insensitive) against the upstream
 // error message to classify an error as a business error. Business errors
@@ -57,6 +71,32 @@ var BusinessErrorKeywords = []string{
 	"terminated",
 }
 
+// BusinessErrorKeywordsSnapshot returns a copy of the current
+// BusinessErrorKeywords slice under the read lock. Callers iterate
+// over the returned slice without holding the lock. The copy is O(n)
+// and the read path is the hot path (every error classifier call),
+// so this is the right trade-off: writers are rare (config reload)
+// and pay an O(n) copy each, readers are common and pay a
+// constant-time RLock.
+func BusinessErrorKeywordsSnapshot() []string {
+	businessErrorKeywordsMu.RLock()
+	defer businessErrorKeywordsMu.RUnlock()
+	out := make([]string, len(BusinessErrorKeywords))
+	copy(out, BusinessErrorKeywords)
+	return out
+}
+
+// SetBusinessErrorKeywordsForTest atomically replaces the keyword
+// slice. Intended only for tests that need to pin the classifier to
+// a known keyword list. The caller is responsible for restoring the
+// previous value via t.Cleanup if the test mutates the slice in
+// place; a non-empty `next` is taken over verbatim.
+func SetBusinessErrorKeywordsForTest(next []string) {
+	businessErrorKeywordsMu.Lock()
+	BusinessErrorKeywords = next
+	businessErrorKeywordsMu.Unlock()
+}
+
 func AutomaticDisableKeywordsToString() string {
 	return strings.Join(AutomaticDisableKeywords, "\n")
 }
@@ -74,17 +114,26 @@ func AutomaticDisableKeywordsFromString(s string) {
 }
 
 func BusinessErrorKeywordsToString() string {
+	businessErrorKeywordsMu.RLock()
+	defer businessErrorKeywordsMu.RUnlock()
 	return strings.Join(BusinessErrorKeywords, "\n")
 }
 
 func BusinessErrorKeywordsFromString(s string) {
-	BusinessErrorKeywords = []string{}
 	ak := strings.Split(s, "\n")
+	next := make([]string, 0, len(ak))
 	for _, k := range ak {
 		k = strings.TrimSpace(k)
 		k = strings.ToLower(k)
 		if k != "" {
-			BusinessErrorKeywords = append(BusinessErrorKeywords, k)
+			next = append(next, k)
 		}
 	}
+	// Build the new slice into a local variable first, then swap under
+	// the write lock. This prevents concurrent readers (the classifier
+	// on every upstream error) from observing an empty or partially
+	// populated global list.
+	businessErrorKeywordsMu.Lock()
+	BusinessErrorKeywords = next
+	businessErrorKeywordsMu.Unlock()
 }

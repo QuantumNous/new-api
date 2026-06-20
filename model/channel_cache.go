@@ -141,22 +141,22 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 			// log is the operator's confirmation that the filter is
 			// actually firing — without it, the symptom is just "the
 			// user got 400 anyway" and the cause is invisible.
-		if _, skip := cooldown[channel.Id]; skip {
-			logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: in cooldown", channel.Id))
-			return nil, nil
-		}
-		// Per-key cooldown overlay: skip a single-channel group
-		// whose only served key is in cooldown. Without this, the
-		// fast path hands the channel to the distributor, the
-		// distributor's GetNextEnabledKey returns NoAvailableKey,
-		// and the controller's retry loop picks the same channel
-		// again — an infinite no-channel loop that surfaces as
-		// repeated upstream 400s.
-		if !channelHasAnyAvailableKey(channel, time.Now()) {
-			logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: every key in cooldown", channel.Id))
-			return nil, nil
-		}
-		return channel, nil
+			if _, skip := cooldown[channel.Id]; skip {
+				logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: in cooldown", channel.Id))
+				return nil, nil
+			}
+			// Per-key cooldown overlay: skip a single-channel group
+			// whose only served key is in cooldown. Without this, the
+			// fast path hands the channel to the distributor, the
+			// distributor's GetNextEnabledKey returns NoAvailableKey,
+			// and the controller's retry loop picks the same channel
+			// again — an infinite no-channel loop that surfaces as
+			// repeated upstream 400s.
+			if !channelHasAnyAvailableKey(channel, time.Now()) {
+				logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: every key in cooldown", channel.Id))
+				return nil, nil
+			}
+			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}

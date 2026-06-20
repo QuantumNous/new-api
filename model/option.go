@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -567,9 +568,17 @@ func updateOptionMap(key string, value string) (err error) {
 	case "BusinessErrorKeywords":
 		operation_setting.BusinessErrorKeywordsFromString(value)
 	case "TempErrorCooldownSeconds":
-		operation_setting.TempErrorCooldownSeconds, _ = strconv.Atoi(value)
+		v, convErr := strconv.Atoi(value)
+		if convErr != nil {
+			return fmt.Errorf("invalid TempErrorCooldownSeconds: %w", convErr)
+		}
+		operation_setting.TempErrorCooldownSeconds = v
 	case "BusinessErrorCooldownSeconds":
-		operation_setting.BusinessErrorCooldownSeconds, _ = strconv.Atoi(value)
+		v, convErr := strconv.Atoi(value)
+		if convErr != nil {
+			return fmt.Errorf("invalid BusinessErrorCooldownSeconds: %w", convErr)
+		}
+		operation_setting.BusinessErrorCooldownSeconds = v
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":

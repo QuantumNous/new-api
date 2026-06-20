@@ -234,21 +234,6 @@ func ClearKeyCooldown(channelId int, keyIndex int) {
 	delete(keyCooldownMap, k)
 }
 
-// gcExpiredKeyCooldown removes expired per-key entries and returns
-// the number removed. Safe to call concurrently.
-func gcExpiredKeyCooldown(now time.Time) int {
-	cooldownMu.Lock()
-	defer cooldownMu.Unlock()
-	removed := 0
-	for k, until := range keyCooldownMap {
-		if !now.Before(until) {
-			delete(keyCooldownMap, k)
-			removed++
-		}
-	}
-	return removed
-}
-
 // gcAllExpired sweeps both maps in a single critical section so the
 // per-key and per-channel views stay consistent. StartCooldownGC
 // calls this periodically.

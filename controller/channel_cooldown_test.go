@@ -192,10 +192,10 @@ func TestHandleChannelErrorCooldown_SingleKeyUsesKeyNotChannel(t *testing.T) {
 
 	channelId := 99006
 	t.Cleanup(func() { model.ClearKeyCooldown(channelId, 0) })
-	// KeyIndex is set to 0 by buildChannelErrorFromContext for
-// single-key channels (see the helper's body for why). The
-// cooldown handler must honour that and route to the per-key
-// map rather than the whole-channel map.
+	// KeyIndex=0 is what the distributor writes for single-key
+	// channels (it always writes the picked slot, which is 0 for
+	// the only key). The cooldown handler must honour that and
+	// route to the per-key map rather than the whole-channel map.
 	keyIndex := 0
 	channelError := types.ChannelError{
 		ChannelId: channelId,
@@ -235,11 +235,15 @@ func TestProcessChannelError_PerKeyCooldown(t *testing.T) {
 		ChannelInfo: model.ChannelInfo{IsMultiKey: false},
 		AutoBan:     intPtr(1),
 	}
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	// The distributor would normally have written the key into
-	// ContextKeyChannelKey; we mimic that here so the
-	// error-path log line has something to report.
+	// The distributor would normally have written both the key
+	// and its index into the context. Setting both is what
+	// mirrors the real distributor path: the helper reads the
+	// index verbatim, and the error-path log line has the key
+	// to report.
 	common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-xxxx")
+	common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, 0)
 
 	channelError := buildChannelErrorFromContext(c, channel)
 	err := &types.NewAPIError{
@@ -250,7 +254,7 @@ func TestProcessChannelError_PerKeyCooldown(t *testing.T) {
 	processChannelError(c, channelError, err)
 
 	require.True(t, model.IsKeyInCooldown(channelId, 0, time.Now()),
-		"buildChannelErrorFromContext must default KeyIndex to 0 for single-key channels, so the cooldown overlays the right map")
+		"processChannelError must route through handleChannelErrorCooldown so the cooldown overlays the right map")
 }
 func intPtr(v int) *int { return &v }
 
