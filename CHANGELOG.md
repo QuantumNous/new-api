@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-21
+
+- 更新 2026 H1 模型定价目录：修正部分现有模型输入/输出倍率，新增 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、GLM、Kimi、Doubao、MiniMax、Grok 等模型定价与 Quick Import 预设，并补充任务 PRD（`setting/ratio_setting/`, `web/default/src/features/channels/lib/provider-presets.ts`, `web/default/src/features/models/lib/model-presets.ts`, `docs/tasks/pricing-catalog-2026h1-prd.md`）
+
 ## 2026-06-20
 
 - 新增 `AGENTS.md` Rule 10（每次改动记 CHANGELOG）+ Rule 11（每个任务开工前先写/更新 `docs/tasks/*-prd.md`，带 spec→ship status）
