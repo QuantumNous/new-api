@@ -61,6 +61,7 @@ var defaultModelRatio = map[string]float64{
 	"gpt-image-1":                      2.5,  // $5 / 1M tokens
 	"gpt-image-2":                      2.5,  // text input $5 / 1M tokens (since 2026-04-21)
 	"gpt-image-2-2026-04-21":           2.5,  // snapshot
+	"gpt-image-1.5":                    2.5,  // bootstrap (≈gpt-image-2); refine via models.dev sync
 	"o1":                               7.5,  // $15 / 1M tokens
 	"o1-2024-12-17":                    7.5,  // $15 / 1M tokens
 	"o1-preview":                       7.5,  // $15 / 1M tokens
@@ -135,6 +136,7 @@ var defaultModelRatio = map[string]float64{
 	"text-moderation-latest":                    0.1,
 	"claude-3-haiku-20240307":                   0.125, // $0.25 / 1M tokens
 	"claude-3-5-haiku-20241022":                 0.5,   // $1 / 1M tokens
+	"claude-3-5-haiku-latest":                   0.5,   // alias of -20241022
 	"claude-haiku-4-5-20251001":                 0.5,   // $1 / 1M tokens
 	"claude-3-sonnet-20240229":                  1.5,   // $3 / 1M tokens
 	"claude-3-5-sonnet-20240620":                1.5,
@@ -142,20 +144,28 @@ var defaultModelRatio = map[string]float64{
 	"claude-3-7-sonnet-20250219":                1.5,
 	"claude-3-7-sonnet-20250219-thinking":       1.5,
 	"claude-sonnet-4-20250514":                  1.5,
+	"claude-sonnet-4-20250514-thinking":         1.5,
 	"claude-sonnet-4-5-20250929":                1.5,
+	"claude-sonnet-4-5-20250929-thinking":       1.5,
+	"claude-sonnet-4-6":                         1.5, // $3 / 1M tokens (Sonnet tier); -thinking covered by suffix fallback
+	"claude-sonnet-4-6-thinking":                1.5,
 	"claude-opus-4-5-20251101":                  2.5,
+	"claude-opus-4-5-20251101-thinking":         2.5,
 	"claude-opus-4-6":                           2.5,
+	"claude-opus-4-6-thinking":                  2.5,
 	"claude-opus-4-6-max":                       2.5,
 	"claude-opus-4-6-high":                      2.5,
 	"claude-opus-4-6-medium":                    2.5,
 	"claude-opus-4-6-low":                       2.5,
 	"claude-opus-4-8":                           2.5,
+	"claude-opus-4-8-thinking":                  2.5,
 	"claude-opus-4-8-max":                       2.5,
 	"claude-opus-4-8-xhigh":                     2.5,
 	"claude-opus-4-8-high":                      2.5,
 	"claude-opus-4-8-medium":                    2.5,
 	"claude-opus-4-8-low":                       2.5,
 	"claude-opus-4-7":                           2.5,
+	"claude-opus-4-7-thinking":                  2.5,
 	"claude-opus-4-7-max":                       2.5,
 	"claude-opus-4-7-xhigh":                     2.5,
 	"claude-opus-4-7-high":                      2.5,
@@ -163,7 +173,9 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-7-low":                       2.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
+	"claude-opus-4-20250514-thinking":           7.5,
 	"claude-opus-4-1-20250805":                  7.5,
+	"claude-opus-4-1-20250805-thinking":         7.5,
 	"ERNIE-4.0-8K":                              0.120 * RMB,
 	"ERNIE-3.5-8K":                              0.012 * RMB,
 	"ERNIE-3.5-8K-0205":                         0.024 * RMB,
@@ -188,6 +200,8 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-pro-preview-03-25":              0.625,
 	"gemini-3-pro":                              0.625, // bootstrap default; refine via models.dev sync
 	"gemini-3-pro-preview":                      0.625,
+	"gemini-3.1-pro-preview":                    0.625, // bootstrap default; refine via models.dev sync
+	"gemini-3-flash-preview":                    0.075, // bootstrap default (≈gemini-2.5-flash); refine via models.dev sync
 	"gemini-2.5-pro":                            0.625,
 	"gemini-2.5-flash-preview-04-17":            0.075,
 	"gemini-2.5-flash-preview-04-17-thinking":   0.075,
@@ -220,6 +234,7 @@ var defaultModelRatio = map[string]float64{
 	"glm-4v-plus":                               0.01 * RMB,
 	"qwen-turbo":                                0.8572, // ￥0.012 / 1k tokens
 	"qwen-plus":                                 10,     // ￥0.14 / 1k tokens
+	"qwen-max":                                  10,     // bootstrap (≈qwen-plus); refine via models.dev sync
 	"text-embedding-v1":                         0.05,   // ￥0.0007 / 1k tokens
 	"SparkDesk-v1.1":                            1.2858, // ￥0.018 / 1k tokens
 	"SparkDesk-v2.1":                            1.2858, // ￥0.018 / 1k tokens
@@ -270,9 +285,10 @@ var defaultModelRatio = map[string]float64{
 	"moonshot-v1-128k":     0.060 * RMB,
 	"kimi-k2-0905-preview": 0.004 * RMB,
 	// Doubao / VolcEngine (input, RMB per 1K tokens)
-	"doubao-pro-32k":  0.0008 * RMB,
-	"doubao-pro-128k": 0.005 * RMB,
-	"doubao-lite-32k": 0.0003 * RMB,
+	"doubao-pro-32k":                  0.0008 * RMB,
+	"doubao-pro-128k":                 0.005 * RMB,
+	"doubao-lite-32k":                 0.0003 * RMB,
+	"doubao-seed-1-6-thinking-250715": 0.0008 * RMB, // bootstrap (≈doubao-pro-32k); refine via models.dev sync
 	// Mistral (input, USD per 1K tokens)
 	"mistral-large-latest":  0.002 * USD,
 	"mistral-medium-latest": 0.0004 * USD,
@@ -318,6 +334,8 @@ var defaultModelPrice = map[string]float64{
 	"dall-e-3":                       0.04,
 	"imagen-3.0-generate-002":        0.03,
 	"black-forest-labs/flux-1.1-pro": 0.04,
+	"flux-1.1-pro":                   0.04,  // bare alias of black-forest-labs/flux-1.1-pro
+	"flux-schnell":                   0.003, // bootstrap (FLUX schnell ≈ $0.003/img); refine via models.dev sync
 	"gpt-4-gizmo-*":                  0.1,
 	"mj_video":                       0.8,
 	"mj_imagine":                     0.1,
@@ -344,6 +362,10 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	// Image / video presets — bootstrap defaults, refine via models.dev sync
+	"doubao-seedream-4-0-250828": 0.03, // image gen (≈imagen-3)
+	"doubao-seedance-2-0-260128": 0.15, // video gen (≈veo fast)
+	"kling-v2-master":            0.4,  // video gen (≈veo)
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -374,6 +396,7 @@ var defaultCompletionRatio = map[string]float64{
 	"gpt-4-all":      2,
 	"gpt-image-1":    8,
 	"gpt-image-2":    6, // image output $30/1M ÷ text input $5/1M = 6×
+	"gpt-image-1.5":  6, // bootstrap (≈gpt-image-2); refine via models.dev sync
 }
 
 // InitRatioSettings initializes all model related settings maps
@@ -447,6 +470,16 @@ func GetModelRatio(name string) (float64, bool, string) {
 				return wildcardRatio, true, name
 			}
 			//return 0, true, name
+		}
+		// Fallback: a plain "-thinking" variant (e.g. claude-opus-4-7-thinking)
+		// is priced the same as its base model — extended-thinking output bills at
+		// the normal output-token rate, so the input ratio is identical. This keeps
+		// thinking variants from hitting "价格未配置" even if a base model is added
+		// without explicitly enumerating its -thinking twin.
+		if base := strings.TrimSuffix(name, "-thinking"); base != name {
+			if baseRatio, ok := modelRatioMap.Get(base); ok {
+				return baseRatio, true, name
+			}
 		}
 		return 37.5, operation_setting.SelfUseModeEnabled, name
 	}
