@@ -123,10 +123,22 @@ export type VendorShareSeries = {
   buckets: number
 }
 
+export type UserRanking = {
+  rank: number
+  user_id: number
+  username: string
+  display_name: string
+  total_tokens: number
+  count: number
+  share: number
+  top_model: string
+}
+
 export type RankingsSnapshot = {
   // Overall (all categories) ------------------------------------------------
   models: ModelRanking[]
   vendors: VendorRanking[]
+  users: UserRanking[]
   /** Largest rank gainers in this period. */
   top_movers: RankingMover[]
   /** Largest rank losers in this period. */

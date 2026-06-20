@@ -23,6 +23,7 @@ const (
 type RankingsResponse struct {
 	Models             []RankedModel      `json:"models"`
 	Vendors            []RankedVendor     `json:"vendors"`
+	Users              []RankedUser       `json:"users"`
 	TopMovers          []RankingMover     `json:"top_movers"`
 	TopDroppers        []RankingMover     `json:"top_droppers"`
 	ModelsHistory      ModelHistorySeries `json:"models_history"`
@@ -49,6 +50,17 @@ type RankedVendor struct {
 	Share       float64 `json:"share"`
 	GrowthPct   float64 `json:"growth_pct"`
 	ModelsCount int     `json:"models_count"`
+	TopModel    string  `json:"top_model"`
+}
+
+type RankedUser struct {
+	Rank        int     `json:"rank"`
+	UserID      int     `json:"user_id"`
+	Username    string  `json:"username"`
+	DisplayName string  `json:"display_name"`
+	TotalTokens int64   `json:"total_tokens"`
+	Count       int     `json:"count"`
+	Share       float64 `json:"share"`
 	TopModel    string  `json:"top_model"`
 }
 
@@ -208,10 +220,12 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 	modelHistory := buildModelHistory(currentBuckets, currentTotals, meta, config)
 	vendorHistory := buildVendorShareHistory(currentBuckets, vendors, totalTokens, meta, config)
 	movers, droppers := buildRankingMovers(rankedModels)
+	users := buildRankedUsers(config, startTime, endTime)
 
 	return &RankingsResponse{
 		Models:             limitRankedModels(rankedModels, rankingLeaderboardLimit),
 		Vendors:            vendors,
+		Users:              users,
 		TopMovers:          movers,
 		TopDroppers:        droppers,
 		ModelsHistory:      modelHistory,
@@ -258,6 +272,33 @@ func modelMeta(modelName string, meta map[string]rankingModelMeta) rankingModelM
 		return item
 	}
 	return rankingModelMeta{vendor: rankingUnknownVendor}
+}
+
+func buildRankedUsers(config rankingPeriodConfig, startTime int64, endTime int64) []RankedUser {
+	userTotals, err := model.GetRankingUserTotals(startTime, endTime)
+	if err != nil || len(userTotals) == 0 {
+		return nil
+	}
+
+	totalTokens := int64(0)
+	for _, u := range userTotals {
+		totalTokens += u.TotalTokens
+	}
+
+	rows := make([]RankedUser, 0, len(userTotals))
+	for idx, u := range userTotals {
+		rows = append(rows, RankedUser{
+			Rank:        idx + 1,
+			UserID:      u.UserID,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			TotalTokens: u.TotalTokens,
+			Count:       u.Count,
+			Share:       rankingShare(u.TotalTokens, totalTokens),
+			TopModel:    u.TopModel,
+		})
+	}
+	return rows
 }
 
 func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, previousRanks map[string]int, previousTokens map[string]int64, meta map[string]rankingModelMeta, showGrowth bool) []RankedModel {

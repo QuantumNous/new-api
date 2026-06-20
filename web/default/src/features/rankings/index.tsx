@@ -22,10 +22,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import {
-  MarketShareSection,
   ModelsSection,
-  PulseSection,
   RankingsHero,
+  UsersSection,
 } from './components'
 import { useRankings } from './hooks/use-rankings'
 import type { RankingPeriod } from './types'
@@ -92,16 +91,7 @@ export function Rankings() {
                 period={period}
               />
 
-              <MarketShareSection
-                history={snapshot.vendor_share_history}
-                rows={snapshot.vendors}
-                period={period}
-              />
-
-              <PulseSection
-                movers={snapshot.top_movers}
-                droppers={snapshot.top_droppers}
-              />
+              <UsersSection rows={snapshot.users} period={period} />
             </>
           )}
         </PageTransition>
