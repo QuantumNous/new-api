@@ -1,13 +1,13 @@
-# Deployment compose - pulls the dev image published to your Docker Hub by CI
-# (.github/workflows/docker-image-dev.yml). The image is built from
-# Dockerfile.dev (backend-only, frontend served by the image placeholder).
+# Deployment compose - pulls the dev image published to the GitHub Container
+# Registry by CI (.github/workflows/docker-image-dev.yml). The image is built
+# from Dockerfile.dev (backend-only, frontend served by the image placeholder).
 #
-# Set DOCKERHUB_USERNAME to your Docker Hub namespace, or edit the image below.
+# If the GHCR package is private, log in first:
+#   echo $GITHUB_TOKEN | docker login ghcr.io -u <owner> --password-stdin
 #
 # Usage:
-#   1. export DOCKERHUB_USERNAME=gentlelijie   # your Docker Hub namespace
-#   2. docker compose -f docker-compose.deploy.yml up -d
-#   3. Open http://localhost:3000
+#   1. docker compose -f docker-compose.deploy.yml up -d
+#   2. Open http://localhost:3000
 #
 # Stop:
 #   docker compose -f docker-compose.deploy.yml down
@@ -17,7 +17,7 @@
 
 services:
   new-api:
-    image: ${DOCKERHUB_USERNAME:-gentlelijie}/new-api:dev
+    image: ghcr.io/gentle-lijie/new-api:dev
     container_name: new-api-deploy
     restart: unless-stopped
     ports:
