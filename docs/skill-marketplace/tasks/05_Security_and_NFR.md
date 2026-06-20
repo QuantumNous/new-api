@@ -6,27 +6,43 @@
 
 ---
 
+## 0. Security Model Direction (D-09) — READ FIRST
+
+**V1 Skill Marketplace 是内容分发平台，DeepRouter 不参与 Skill 执行。** 本文件须按以下口径解释：
+
+- **执行不在服务端发生。** 用户下载 zip（SKILL.md + manifest），在本地用任意 LLM 运行。DeepRouter 不提供执行 API、不计执行 token、不做运行时 entitlement 校验。
+- **`instruction_template` 不是机密资产。** 已发布的 SKILL.md 内容随 zip 分发、可读。草稿/未发布版本仍限 Super Admin 访问。
+- **真正需要保护的资产：** ① Admin 草稿 Skill 内容（发布前）；② Kids 会话数据；③ 用户账号与订阅信息；④ Evaluation Pipeline 内部评分逻辑；⑤ Tier 2 遥测数据（用户授权后的本地行为）。
+- **护城河 = 平台粘性，不是运行时硬依赖。** 安全控制点转移为：下载时订阅校验、Evaluation Pipeline 完整性、Kids 下载过滤、账号安全（Tier 2 consent）。
+- **仍然完全成立的控制：** Kids Session 下载过滤、Kids 数据不持久化、Evaluation 违规检测、Admin 审计日志、租户隔离、feature flag kill switch、telemetry 中不存储 raw input/PII。
+
+凡下文与本节冲突，以本节（D-09）为准。删除或忽略所有涉及"Relay 执行链"、"公开路由 API"、"执行时 entitlement"、"per-execution billing"、"thin client 回调"的安全控制条款。
+
+---
+
 ## 1. Security Scope
 
 ### 1.1 V1 Security Objectives
 
 | Objective | Requirement |
 |---|---|
-| Protect platform IP | `instruction_template` and `prompt_guard_template` must never be exposed to client, user APIs, public exports, analytics, billing, support views, or normal logs |
-| Enforce use-time authorization | Every Skill execution must validate auth, tenant, lifecycle, enabled state, entitlement, quota, Kids policy, model whitelist, rate limit, timeout, and context size before provider call |
-| Prevent prompt and relay bypass | User input must never be concatenated into system instructions; Relay must preserve policy precedence across provider adapters |
-| Protect Kids sessions | Kids state is server-derived only; unsafe Skills are blocked before prompt injection; Kids raw sensitive content is not persisted |
-| Preserve tenant isolation | All user, entitlement, event, billing, cache, and audit access must be scoped by `tenant_id` where applicable |
-| Enable incident response | Marketplace, individual Skills, Kids mode, model providers, and recommendation surfaces must be controllable by feature flag or kill switch |
-| Provide enterprise reliability | Skill execution must meet defined timeout, latency, availability, alerting, and rollback requirements |
+| Protect draft Skill content | Draft/unpublished SKILL.md, scripts, references must never be served to non-Super-Admin surfaces; only published packages are public |
+| Enforce download-time entitlement | Subscription level must be validated at download time; Free/Pro/Enterprise gate enforced before zip is served |
+| Protect Evaluation Pipeline integrity | Evaluation results must not be forged; Admin cannot publish a Skill with failed evaluation; evaluation issues list is tamper-evident |
+| Protect Kids sessions | Kids Session must be server-derived from user account state; Kids users cannot download non-Kids-Safe Skills; Kids raw sensitive content is not persisted |
+| Protect Tier 2 telemetry consent | Local behavior data (installed/used) is only accepted from users with explicit `tier2_telemetry_consent=true`; events without valid consent are discarded |
+| Preserve tenant isolation | All user, entitlement, event, save, rating, and audit access must be scoped by `tenant_id` where applicable |
+| Enable incident response | Marketplace, individual Skills, Kids mode, and Evaluation Pipeline must be controllable by feature flag or kill switch |
+| Provide platform reliability | Download, Evaluation, and Marketplace API must meet defined latency, availability, and alerting requirements |
 
 ### 1.2 Non-Scope
 
 | Item | Decision |
 |---|---|
 | User-created Skills | Not supported in V1 |
-| Public Skill API trigger | Not supported in V1 |
-| Public prompt export | Not supported |
+| Public routing/execution API for Skills | **Not in scope (D-09)**; DeepRouter does not execute Skills; users run downloaded zip locally with any LLM |
+| Prompt confidentiality for published Skills | **Not a security control**; published SKILL.md content ships in the package and is readable by design |
+| Per-execution entitlement / billing | **Not in scope**; entitlement is checked once at download time; no execution token billing |
 | Client-side DRM | Not trusted as a security control |
 | Full DLP for all user conversations | Existing platform scope; this file covers Skill Marketplace-specific data paths |
 
@@ -38,8 +54,10 @@
 
 | Asset | Classification | Primary Risk |
 |---|---|---|
-| `instruction_template` | Highly sensitive platform IP | Prompt theft, leakage through API/log/provider/debug UI |
-| `prompt_guard_template` | Sensitive platform IP | Guardrail bypass if exposed |
+| Provider credentials | Highly sensitive platform IP | Theft/exfiltration would let callers bypass DeepRouter and billing |
+| Server routing/model-selection logic | Highly sensitive platform IP | The proprietary capability the package depends on; must stay server-side |
+| Runner credential & identity/billing binding | Security/financial | Spoofing identity, mis-attributing or evading billing, credential sharing |
+| Published `instruction_template` | Public-by-distribution (R2) | Ships in package; not a theft target. Draft templates remain restricted |
 | Skill execution snapshot | Sensitive | Unauthorized use or stale entitlement |
 | Kids session state and content | Restricted sensitive | Child privacy and safety violation |
 | Billing attribution | Financial | Double charge, fraudulent charge, incorrect revenue reporting |
@@ -51,28 +69,28 @@
 
 | Threat ID | Abuse Case | Required Controls | Priority |
 |---|---|---|---|
-| T-01 | User asks model to reveal Skill hidden prompt | Structured message separation, hidden guard, output leakage detector, safe refusal | P0 |
+| T-01 | Model is steered to leak provider credentials or server routing internals via output | Structured message separation, output leakage detector for secrets/provider payloads, safe refusal (template text itself is public, so not a target) | P0 |
 | T-02 | Indirect prompt injection through user input | User content isolation, no string concatenation, attack classifier, output guard | P0 |
 | T-03 | Client sends fake `is_kids_session=false` | Server-derived Kids state only; ignore client field; audit spoof attempts | P0 |
 | T-04 | Free user executes Pro Skill by direct Relay request | Use-time entitlement in Relay; standard `SKILL_PLAN_REQUIRED` error; no charge | P0 |
 | T-05 | User executes disabled or archived Skill | Lifecycle and `user_enabled_skills` checks before injection | P0 |
 | T-06 | Tenant A reads Tenant B enablement/events | Tenant-scoped query filters, cache keys, tests, dashboards | P0 |
-| T-07 | Prompt leaks through logs, analytics, billing, audit, error, provider debug | Redaction, allowlisted telemetry schema, restricted provider logging, prompt hash only | P0 |
+| T-07 | Provider credentials / raw payloads / raw user input / PII leak through logs, analytics, billing, audit, error, provider debug | Redaction, allowlisted telemetry schema, restricted provider logging (published template is not a leakage target) | P0 |
 | T-08 | Unsupported model ignores system boundary | Model capability classification; block sensitive/Kids Skills on unsupported boundary models | P0 |
 | T-09 | Streaming emits unsafe or prompt-leaking chunk | Buffer or chunk safety check; abort stream; no charge by default | P1 unless streaming is launch P0 |
 | T-10 | Stale cache allows expired subscription | Short TTL, event-driven invalidation, use-time source-of-truth fallback | P0 |
 | T-11 | Admin modifies Kids flags without approval | RBAC, approval workflow, publish checklist, immutable audit | P0 if Kids enabled |
 | T-12 | Provider outage causes cascading failures | Timeout, circuit breaker, failover only within whitelist, graceful error | P0 |
 | T-13 | Provider legal/security terms incomplete | Provider DPA, data retention, ZDR/logging, region, subprocessors, and security review approved before production provider traffic | P0 for production provider launch |
-| T-14 | Streaming timeout free-riding | Timeout after delivered partial output is billed by actual consumed/output tokens under Finance-approved settlement | P0 if streaming enabled |
-| T-15 | Quota lost on provider timeout/internal error | Idempotent quota reservation and compensation rollback for eligible failures | P0 |
+| T-14 | Admin publishes Skill with forged evaluation result | Evaluation status is computed server-side by Evaluation Pipeline; Admin cannot write `evaluation_status` directly; publish API checks latest evaluation row | P0 |
+| T-15 | User downloads Pro Skill without Pro subscription by manipulating download request | Server-side subscription check at download endpoint; token-based auth; rate-limit download attempts | P0 |
 | T-16 | Kids abuse cannot be actioned because analytics is anonymous | Auth/Risk layer triggers account-level controls from restricted runtime identity, independent of business analytics | P0 if Kids enabled |
-| T-17 | Free quota burns unbounded input tokens | Enforce active version `max_input_tokens_snapshot` before provider call for Free Skills and free-quota paths | P0 |
-| T-18 | Free user reaches premium model through Free Skill whitelist | Effective model set is intersection of user-plan models and Skill whitelist | P0 |
-| T-19 | Kids prompt/data leaks to provider retention logs | Kids model pool requires provider ZDR/no-training/DPA path; unsupported providers are blocked | P0 if Kids enabled |
-| T-20 | Billing ledger mutation hides refunds/voids | Append-only billing event ledger with compensating rows for refund/void | P0 if charging enabled |
-| T-21 | Malicious tenant injects competitor `tenant_id` in payload to poison their analytics/billing/quota | Relay must extract `user_id` and `tenant_id` exclusively from validated auth token claims; any client-supplied tenant/user identifiers in request body, headers, or extensions must be stripped and discarded before use in any event, billing, quota, or audit path | P0 |
-| T-22 | Multi-turn context accumulation converts free single-turn quota into unbounded provider cost | V1 Relay enforces stateless single-turn: prior-turn messages are stripped at entry; per-request provider cost = instruction_template tokens + current user input tokens | P0 |
+| T-17 | Evaluation Pipeline is fed malicious SKILL.md that exfiltrates data during evaluation run | Evaluation runs in sandboxed environment; network egress blocked during evaluation; evaluation does not execute scripts in sandboxed path | P0 |
+| T-18 | Tier 2 telemetry accepted without user consent | Tier 2 endpoint validates `tier2_telemetry_consent=true` from user account server-side before persisting any event; client-supplied consent claim is not trusted | P1 |
+| T-19 | Kids package downloaded and used in non-Kids context | Kids Session determined server-side from user account; zip content has no enforcement mechanism; Kids safety relies on download gate (Kids Session cannot download non-Kids-Safe) and platform trust | P0 if Kids enabled |
+| T-20 | Rating or review contains PII or harmful content | Rating comment field max 280 chars; content moderation scan on submit; no raw output stored | P1 |
+| T-21 | Malicious Skill SKILL.md contains prompt injection instructions targeting evaluation LLM | Evaluation Pipeline input sanitization; structured evaluation prompts; evaluation result integrity check | P0 |
+| T-22 | Downloaded zip contains unexpected executables or malware | Build-time package content scan; manifest allowlist of permitted file types; zip content boundary enforced at package build | P0 |
 
 ---
 
@@ -82,18 +100,22 @@
 
 | Data | Classification | Storage | Access | Export |
 |---|---|---|---|---|
-| `instruction_template` | Highly sensitive platform IP | `skill_versions`; encrypted at rest where available | Super Admin write/read with audit; Relay read for execution | Never |
-| `prompt_guard_template` | Sensitive platform IP | `skill_versions`; same protection as instruction | Super Admin + Relay | Never |
+| Published `instruction_template` | Public-by-distribution (R2) | `skill_versions`; ships in package | Anyone with the package | Allowed (in package) |
+| Draft / unpublished `instruction_template` | Sensitive (pre-release) | `skill_versions`; encrypted at rest where available | Super Admin write/read with audit | Never until published |
+| Provider credentials & server routing/model-selection logic | Highly sensitive platform IP | Restricted server-side store | Relay/service account only | Never; never in package |
+| `prompt_guard_template` (if server-side only) | Sensitive platform IP | Server-side; not part of package | Super Admin + Relay | Never |
 | Public Skill metadata | Public | `skills`, `skills_i18n` | User APIs | Allowed |
 | User input / model output | User content | Not stored in Skill analytics by default | Existing platform rules | Not from Skill analytics |
 | Kids raw input/output | Restricted sensitive | Must not be persisted in Skill logs/events | Runtime safety path only | Never |
 | Usage events | Internal analytics | `skill_usage_events` | Ops/Product aggregate; Safety subset | Aggregate only, P1 |
-| Billing events | Financial | `skill_billing_events` | Finance/Super Admin/service account | Finance-controlled only |
+| Evaluation results | Internal quality | `skill_evaluations` | Admin/Ops aggregate | Admin only |
+| Ratings and saves | User content | `skill_ratings`, `skill_saves` | Ops aggregate | Aggregate only |
+| Tier 2 telemetry | User behavior (consented) | `skill_usage_events` (Tier 2 subset) | Analytics/Ops | Aggregate only; no raw input |
 | Audit logs | Security sensitive | `skill_audit_log` | Super Admin/Security | Security-approved only |
 
-### 3.2 Prompt Leakage Prohibitions
+### 3.2 Secret Leakage Prohibitions (R2)
 
-`instruction_template` and `prompt_guard_template` must be absent from:
+Provider credentials, server-side routing/model-selection logic, provider raw payloads, raw full user input, and PII must be absent from:
 
 - client API responses
 - frontend state, local storage, browser logs, and telemetry
@@ -106,8 +128,9 @@
 - support diagnostics
 - provider debug logs where provider controls allow disabling
 - streaming chunks and final model output
+- **the downloadable package** (manifest, bundled client, or any file in the zip)
 
-Template changes must be represented by `instruction_template_sha256`, version id, actor id, and changed field names only.
+The published `instruction_template` is **not** on this list — it is distributed in the package by design. Draft/unpublished templates must still be kept off all non-Super-Admin surfaces. `instruction_template_sha256` is retained as a package/version integrity check, not a secrecy measure.
 
 ### 3.3 Telemetry Allowlist
 
@@ -144,7 +167,8 @@ Reject or quarantine telemetry containing restricted keys such as `instruction_t
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Public Marketplace list/detail | Yes, public fields | Yes | Yes | Yes | Yes | Yes | Yes |
 | Enable/disable Skill | No | Own user only | No | No | No | Assisted status only | Audited support action only |
-| Playground Skill execution | No | Own user only | No | No | Preview only if allowed | No | Preview/test only |
+| Public routing API execution (via package) | No | Valid runner credential | No | No | Preview only if allowed | No | Admin Preview/test only |
+| View/edit `instruction_template` (published) | Via package | Via package | Via package | Via package | Via package | Via package | Edit: Yes with audit |
 | Ops aggregate dashboard | No | No | Yes | Yes | Safety subset | Limited diagnostics | Yes |
 | CSV export | No | No | P1 aggregate only | P1 aggregate only | No by default | No | Yes |
 | Create/edit Skill metadata | No | No | No | No | No | No | Yes |
@@ -176,7 +200,7 @@ Reject or quarantine telemetry containing restricted keys such as `instruction_t
 - HTTP request body fields (e.g., `"tenant_id": "..."` in JSON payload)
 - Query string parameters
 - HTTP headers other than the platform-signed auth token (e.g., `X-Tenant-ID` set by client)
-- Skill execution metadata sent by the Playground client
+- Skill execution metadata sent by the downloaded package / routing-API client
 - Any field that a client can arbitrarily set without platform authentication
 
 Relay must discard and overwrite any client-provided identity fields with the auth-token-derived identity before constructing any event, billing entry, quota key, or cache key. This must be enforced as a gateway-layer invariant, not a per-endpoint check. Violation of this rule allows a malicious tenant to write events, exhaust quota, or trigger safety alerts under a competitor's `tenant_id`.
@@ -189,25 +213,25 @@ Relay must discard and overwrite any client-provided identity fields with the au
 
 Skill execution must follow this order:
 
-1. Client / Playground sends `deeprouter.skill_id`.
+1. The downloaded package's client calls the public routing API with `deeprouter.skill_id` and the runner's `Authorization` credential.
 2. Gateway assigns `request_id`.
-3. Auth resolver validates logged-in user.
+3. Auth resolver validates the runner credential (missing/invalid → `AUTH_REQUIRED`, no execution).
 4. Tenant resolver establishes tenant scope.
 5. Session resolver derives Kids state server-side.
 6. Subscription and plan resolver loads active entitlement.
 7. Feature flag and kill switch checks run.
 8. Skill lifecycle and enabled-state checks run.
 9. Use-time entitlement, quota, and rate limit checks run.
-10. Kids Safety Gate runs before prompt injection.
-11. Immutable Skill version and execution snapshot are selected.
+10. Kids Safety Gate runs before any provider execution.
+11. Immutable Skill version and server-authoritative execution snapshot are selected (package-supplied template/routing hints are not trusted over the server snapshot).
 12. Model whitelist and provider capability checks run.
 13. Context/token estimation runs.
-14. `instruction_template` is injected server-side.
+14. Server performs routing/model selection and constructs the provider request using server-held provider credentials.
 15. Provider adapter sends structured request.
-16. Output safety and leakage guard validates response.
-17. Usage, billing, safety, and blocked events are emitted.
+16. Output safety and leakage guard validates response (guards against leaking provider secrets/payloads).
+17. Usage, billing (attributed to the runner credential), safety, and blocked events are emitted.
 
-If any check before step 14 fails, Relay must not load or inject prompt text into the provider request.
+If any check before step 14 fails, Relay must not perform provider execution.
 
 ### 5.1.1 Runtime Context vs Persisted Events
 
@@ -254,7 +278,7 @@ User input must never override a higher-precedence layer. The Relay must preserv
 | OpenAI-compatible messages | Place platform/Skill instruction in system/developer-equivalent channel according to adapter standard |
 | Anthropic | Use `system` parameter for system-level instruction |
 | Gemini | Use `systemInstruction` when available |
-| Models without reliable system boundary | Not eligible for Kids, Pro gated, high-sensitivity, or prompt-protected Skills unless Security explicitly approves |
+| Models without reliable system boundary | Not eligible for Kids, Pro gated, or high-sensitivity Skills unless Security explicitly approves |
 
 Provider adapters must not log raw payloads containing `instruction_template`. If provider SDK logging cannot be disabled or redacted, that provider is not allowed for Skill execution.
 
@@ -268,7 +292,7 @@ Kids provider rule:
 ### 5.4 Smart Router Boundary
 
 - Smart router may select models only from Relay-provided `allowed_models`.
-- Smart router must not receive `instruction_template`, entitlement details, billing policy, or Kids-sensitive content beyond required model constraints.
+- Smart router must not receive provider credentials, entitlement details, billing policy, or Kids-sensitive content beyond required model constraints (the published `instruction_template` is no longer secret).
 - Relay must compute `effective_allowed_models = intersection(user_plan_allowed_models, skill.model_whitelist_snapshot or skill.model_whitelist)`.
 - If `effective_allowed_models` is empty, Relay must return `SKILL_PLAN_REQUIRED` or an equivalent plan/model entitlement error before provider call.
 - Smart Router receives only `effective_allowed_models`, never the raw Skill whitelist if it includes models the current user plan cannot access.
@@ -311,11 +335,11 @@ Blocked output returns `SKILL_SAFETY_VIOLATION` or a safe replacement response a
 ### 6.3 Admin Preview
 
 - Preview is available only to Super Admin, and Safety Reviewer only for safety-scoped tests where approved.
-- Preview response must not echo the hidden prompt.
+- Preview response must not echo provider credentials or raw provider payloads.
 - Preview requests use `entry_point=admin_preview`.
 - Preview usage is excluded from business analytics and revenue.
 - Preview is not a free or ungoverned execution channel. It must have dedicated hard rate limits, default maximum 50 previews per admin per UTC day unless Security explicitly approves a different cap.
-- Preview must pass the same content safety, prompt leakage, output leakage, provider allowlist, and Kids/content-safety guardrails as production execution.
+- Preview must pass the same content safety, secret/provider-payload leakage, output leakage, provider allowlist, and Kids/content-safety guardrails as production execution.
 - Preview must emit audit/security telemetry outside business analytics, including actor, request id, Skill/version, model, token usage, safety result, and block/error status.
 - Preview abuse, suspicious volume, or unsafe output must trigger Security/Safety alerts and may revoke preview access or disable the affected Admin account/session.
 
@@ -336,7 +360,7 @@ Kids mode is disabled by default unless Product, Safety, Legal, Engineering, and
 | Skill eligibility | Kids Session can execute only Skills with `is_kids_safe=true` and approved Kids status |
 | Kids Exclusive | `is_kids_exclusive=true` Skills are blocked or hidden from normal sessions unless family-mode exception is approved |
 | Model pool | Kids executions use only approved safe model pool |
-| Injection order | Kids block occurs before prompt injection |
+| Injection order | Kids block occurs before any provider execution |
 | Output guard | Safety output guard is mandatory |
 | Logging | No raw Kids input/output in Skill logs, analytics, or support diagnostics |
 
@@ -506,7 +530,7 @@ Logs must include:
 - error code or block reason
 - latency and timeout fields
 
-Logs must not include `instruction_template`, raw full user input, raw Kids input, provider raw payload, or full model output.
+Logs must not include provider credentials, raw full user input, PII, raw Kids input, provider raw payload, or full model output (`instruction_template` is no longer a redaction target).
 
 ### 11.2 Metrics
 
@@ -600,9 +624,11 @@ Use Data/API Spec error codes:
 
 | Test | Required Assertion |
 |---|---|
-| Prompt leakage API test | No user/public/ops/support API returns `instruction_template` |
-| Prompt leakage log test | Logs, analytics, billing, audit, and errors contain no prompt text |
-| Prompt extraction jailbreak corpus | Model output does not reveal hidden instruction; blocked outputs emit safety event |
+| Secret leakage API test | No API, and no file in the package, returns provider credentials, server routing/model-selection logic, or draft templates |
+| Secret leakage log test | Logs, analytics, billing, audit, and errors contain no provider credentials, raw user input, PII, or provider raw payloads |
+| Identity/billing spoofing test | Package-supplied `user_id`/`tenant_id`/Kids fields are ignored; attribution binds to the validated runner credential (T-21/T-23) |
+| Runtime-dependency integrity test | Published packages contain no provider keys/routing logic; the public routing API executes only for authenticated runners (T-24) |
+| Output extraction jailbreak corpus | Model output does not reveal provider credentials or raw payloads; blocked outputs emit safety event |
 | Indirect injection corpus | User input cannot override policy precedence |
 | Kids spoof test | Client-provided `is_kids_session` is ignored |
 | Kids unsafe Skill test | Non-Kids-Safe Skill blocks before prompt injection |

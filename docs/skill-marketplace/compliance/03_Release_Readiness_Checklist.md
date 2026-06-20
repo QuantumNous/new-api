@@ -39,7 +39,8 @@
 - [ ] Relay accepts Skill execution only from authenticated supported entry points.
 - [ ] Deprecated and archived Skill behavior matches lifecycle rules.
 - [ ] P1 recommendation rails and CSV export are not required for P0 launch unless explicitly promoted.
-- [ ] Public Skill API, user-created Skills, creator marketplace, multi-Skill stacking, prompt download, and full sharing/referral are excluded from V1 P0.
+- [ ] User-created Skills, creator marketplace, multi-Skill stacking, and full referral attribution are excluded from V1 P0. (R2/D-09: the public routing API and package download ARE in V1 P0; the published template ships in the package.)
+- [ ] Publish produces a downloadable package (manifest + published template + thin client) with no provider credentials or server routing logic.
 
 ## 5. Data and API Readiness
 
@@ -58,15 +59,16 @@
 
 ## 6. Security and Privacy Readiness
 
-- [ ] `instruction_template` never appears in public, user, ops, support, analytics, billing, audit export, or error APIs.
+- [ ] Provider credentials and server routing/model-selection logic never appear in any API, telemetry, or the package. (R2: the published `instruction_template` is delivered only via the package-download path and is not a leakage concern; draft templates stay off non-Super-Admin surfaces.)
 - [ ] Playground frontend never receives raw template text.
 - [ ] Logs, errors, analytics, billing, audit diffs, support diagnostics, and exports contain no raw prompt, full user input, provider raw payload, raw Kids data, or full model output.
 - [ ] D-05 provider/model allowlist is approved.
 - [ ] Provider DPA, data retention, logging/ZDR, region, subprocessors, and security terms are approved before production provider traffic.
 - [ ] Kids provider/model pool includes only providers with approved DPA, no-training commitment, and ZDR/no-retention endpoint or request mode.
-- [ ] D-06 encryption and restricted access are approved.
-- [ ] Prompt leakage API, log, analytics, billing, audit, export, and error tests pass.
-- [ ] Prompt extraction/jailbreak corpus tests pass by detecting/blocking unsafe outputs.
+- [ ] D-06 (re-scoped under D-09) encryption and restricted access approved for draft templates and sensitive server-side config (provider creds, routing logic).
+- [ ] Provider-credential/routing-logic leakage and package-content boundary tests pass across API, log, analytics, billing, audit, export, error, and the package itself.
+- [ ] Identity/billing spoofing (T-23), runtime-dependency integrity (T-24), and credential-abuse (T-25) tests pass.
+- [ ] Output extraction/jailbreak corpus tests pass by detecting/blocking leakage of provider credentials or raw payloads.
 - [ ] Rate limit, timeout, circuit breaker, and kill switch tests pass.
 - [ ] Tenant isolation tests pass for API, Relay, cache, analytics, and audit paths.
 - [ ] Relay extracts `user_id` and `tenant_id` exclusively from validated auth token claims; tests prove that client-supplied tenant/user fields in request body, headers, or extensions are stripped and cannot influence analytics events, billing records, quota keys, or audit entries.
@@ -135,7 +137,7 @@
 - [ ] Content QA completed for D-08 launch catalog.
 - [ ] Admin preview is excluded from business analytics and revenue but still emits audit/security telemetry.
 - [ ] Admin preview has a dedicated hard limit, default maximum 50 previews per Admin per UTC day unless Security approves a different cap.
-- [ ] Admin preview output passes the same content safety, prompt leakage, output leakage, provider allowlist, and Kids/content-safety guardrails as production execution.
+- [ ] Admin preview output passes the same content safety, secret/provider-payload leakage, output leakage, provider allowlist, and Kids/content-safety guardrails as production execution.
 - [ ] Access reviews completed for Super Admin, Operation, Safety Reviewer, Product/Growth, Support.
 - [ ] Feature flags exist for Marketplace, Skill execution, single Skill disablement, Kids mode, provider path, billing path, and recommendation rails where enabled.
 - [ ] Rollback preserves usage, billing, and audit history after GA traffic.
@@ -158,7 +160,7 @@ Each Agent/module handoff must include:
 |---|---|
 | Product | Scope, launch catalog, plan/quota copy, UX states |
 | Engineering | API, Relay, integration, NFR, runbook |
-| Security | Prompt protection, RBAC, audit, provider allowlist, encryption |
+| Security | Package boundary & provider-secret protection, identity/billing integrity, public routing API abuse controls, RBAC, audit, provider allowlist |
 | Safety | Kids workflow, safety tests, incident response |
 | Legal / Privacy | Kids GA if enabled, privacy, retention, export policy, provider DPA/security terms, output/IP/copyright terms |
 | Data | Event schema, sink, dashboard source, data quality, freshness |

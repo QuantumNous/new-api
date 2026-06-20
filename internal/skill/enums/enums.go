@@ -179,7 +179,9 @@ const (
 	EntryPointNew              EntryPoint = "new"
 	EntryPointRecommended      EntryPoint = "recommended"
 	EntryPointAdminPreview     EntryPoint = "admin_preview"
-	EntryPointSkillPackage     EntryPoint = "skill_package"
+	// EntryPointSkillPackage is recorded when a user downloads the zip package
+	// from the Marketplace (DR-81). Used by the analytics skill_enabled event.
+	EntryPointSkillPackage EntryPoint = "skill_package"
 )
 
 var validEntryPoints = map[EntryPoint]struct{}{

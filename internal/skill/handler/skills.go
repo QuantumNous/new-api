@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -100,6 +101,22 @@ type AdminSkill struct {
 	ModelWhitelist     json.RawMessage          `json:"model_whitelist,omitempty"`
 }
 
+// DownloadCTA is the download entry-point advertised on the Skill detail
+// response. Points to the DR-81 package download endpoint.
+type DownloadCTA struct {
+	URL    string `json:"url"`
+	Method string `json:"method"`
+}
+
+// PublicSkillDetail extends PublicSkill with detail-page-only fields:
+// the DeepRouter runtime-dependency flag and the download entry point (DR-53).
+// Only returned by GetMarketplaceSkill, not by the list endpoint.
+type PublicSkillDetail struct {
+	PublicSkill
+	RequiresDeepRouterKey bool        `json:"requires_deeprouter_key"`
+	DownloadCTA           DownloadCTA `json:"download_cta"`
+}
+
 type OpsSkillSummary struct {
 	Total             int64            `json:"total"`
 	ByStatus          map[string]int64 `json:"by_status"`
@@ -174,9 +191,48 @@ func GetMarketplaceSkill(c *gin.Context) {
 		writeSkillLookupError(c, err)
 		return
 	}
-	skillapi.Success(c, publicSkillFromModel(s, true))
+	skillapi.Success(c, publicSkillDetailFromModel(s))
 }
 
+// listAdminSkillsSafeQuery returns a GORM query base scoped to the admin-safe
+// field allowlist for the skills table.
+//
+// TEMPORARY: This is a substitute for the DR-82 admin-safe DAO, used under an
+// approved dependency waiver (Exception Path, DR-45). It must be replaced with
+// the DR-82 DAO once that dependency is merged. See follow-up task in PR/Jira:
+// "Once DR-82 is merged, replace this helper with the DR-82 admin-safe DAO
+// before final ticket closure."
+//
+// The explicit Select prevents instruction_template and any future prompt fields
+// from leaking into the admin list response — the guarantee is structural, not
+// incidental to the current table schema.
+func listAdminSkillsSafeQuery(db *gorm.DB) *gorm.DB {
+	return db.Model(&skillmodel.Skill{}).Select([]string{
+		// Identity & display
+		"id", "slug", "name", "category", "tags", "icon_url", "default_locale",
+		"short_description", "description",
+		// Lifecycle & status
+		"status", "published_at", "deprecated_at", "archived_at",
+		"featured_flag", "featured_rank",
+		// Monetization & limits
+		"required_plan", "monetization_type", "price_markup",
+		"free_quota_per_month", "max_input_tokens", "timeout_seconds", "timeout_risk",
+		// Kids safety
+		"is_kids_safe", "is_kids_exclusive", "kids_approval_status",
+		"ai_disclosure_required",
+		// Versioning & authorship
+		"active_version_id", "created_by", "updated_by", "created_at", "updated_at",
+		// Hints & examples
+		"input_hints", "example_inputs", "example_outputs", "model_whitelist",
+	})
+}
+
+// ListAdminSkills serves GET /api/v1/admin/skills (Super Admin only).
+// Query base: listAdminSkillsSafeQuery — TEMPORARY substitute for the DR-82
+// admin-safe DAO, used under an approved dependency waiver (Exception Path,
+// DR-45). instruction_template and all prompt fields are excluded by the
+// explicit SELECT allowlist above. Replace with the DR-82 DAO once DR-82
+// merges (see follow-up task in PR/Jira).
 func ListAdminSkills(c *gin.Context) {
 	page, validationErr := skillapi.ParsePageParams(c)
 	if validationErr != nil {
@@ -204,7 +260,7 @@ func ListAdminSkills(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query := db.Model(&skillmodel.Skill{})
+	query := listAdminSkillsSafeQuery(db)
 	query = applyAdminSkillFilters(query, c)
 
 	var total int64
@@ -372,6 +428,21 @@ func publicSkillFromModel(s skillmodel.Skill, includeDetail bool) PublicSkill {
 		out.Tags = rawJSON(s.Tags)
 	}
 	return out
+}
+
+// publicSkillDetailFromModel builds the detail-page response.
+// download_cta.url uses slug (not ID) because slugs are human-readable and
+// stable. DR-81 must accept slug as the {id} path parameter — verify before
+// closing DR-81 or this CTA will produce broken URLs.
+func publicSkillDetailFromModel(s skillmodel.Skill) PublicSkillDetail {
+	return PublicSkillDetail{
+		PublicSkill:           publicSkillFromModel(s, true),
+		RequiresDeepRouterKey: true,
+		DownloadCTA: DownloadCTA{
+			URL:    "/api/v1/marketplace/skills/" + url.PathEscape(s.Slug) + "/download",
+			Method: "GET",
+		},
+	}
 }
 
 func adminSkillFromModel(s skillmodel.Skill) AdminSkill {

@@ -83,8 +83,9 @@ interface RechargeFormCardProps {
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
   enableAirwallexTopup?: boolean
+  airwallexAutoTopupEnabled?: boolean
   airwallexCurrencies?: AirwallexCurrency[]
-  onAirwallexPay?: (currency: string) => void
+  onAirwallexPay?: (currency: string, saveForFuture?: boolean) => void
   airwallexLoading?: boolean
 }
 
@@ -117,6 +118,7 @@ export function RechargeFormCard({
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
   enableAirwallexTopup,
+  airwallexAutoTopupEnabled,
   airwallexCurrencies,
   onAirwallexPay,
   airwallexLoading,
@@ -155,6 +157,7 @@ export function RechargeFormCard({
   const [airwallexCurrency, setAirwallexCurrency] = useState(
     defaultAirwallexCurrency
   )
+  const [airwallexSaveCard, setAirwallexSaveCard] = useState(false)
   useEffect(() => {
     if (
       hasAirwallexCurrencies &&
@@ -327,7 +330,7 @@ export function RechargeFormCard({
                           key={index}
                           variant='outline'
                           className={cn(
-                            'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'hover:border-foreground flex h-auto min-h-16 flex-col items-start justify-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5'
                               : 'border-muted'
@@ -482,11 +485,29 @@ export function RechargeFormCard({
                     <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                       {t('Pay with Airwallex')}
                     </Label>
-                    <p className='text-xs leading-relaxed text-amber-600'>
-                      {t(
-                        'Airwallex top-ups are one-time only. To enable auto-recharge (auto top-up when your balance is low), pay with Stripe instead.'
-                      )}
-                    </p>
+                    {airwallexAutoTopupEnabled ? (
+                      <label className='flex cursor-pointer items-start gap-2 text-xs leading-relaxed'>
+                        <input
+                          type='checkbox'
+                          checked={airwallexSaveCard}
+                          onChange={(e) =>
+                            setAirwallexSaveCard(e.target.checked)
+                          }
+                          className='mt-0.5'
+                        />
+                        <span className='text-muted-foreground'>
+                          {t(
+                            'Save this card for auto-recharge — top up automatically when your balance is low. You can turn it off anytime.'
+                          )}
+                        </span>
+                      </label>
+                    ) : (
+                      <p className='text-xs leading-relaxed text-amber-600'>
+                        {t(
+                          'Airwallex top-ups are one-time only. To enable auto-recharge (auto top-up when your balance is low), pay with Stripe instead.'
+                        )}
+                      </p>
+                    )}
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
                       <div className='flex gap-1.5 overflow-x-auto'>
                         {airwallexCurrencies!.map((c) => (
@@ -510,7 +531,9 @@ export function RechargeFormCard({
                         const cta = (
                           <Button
                             type='button'
-                            onClick={() => onAirwallexPay(airwallexCurrency)}
+                            onClick={() =>
+                              onAirwallexPay(airwallexCurrency, airwallexSaveCard)
+                            }
                             disabled={airwallexBelowMin || airwallexLoading}
                             className='h-9 sm:ml-auto'
                           >

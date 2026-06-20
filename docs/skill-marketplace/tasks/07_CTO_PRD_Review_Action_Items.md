@@ -20,7 +20,7 @@
 
 | Area | CTO Verdict | Notes |
 |---|---|---|
-| Product Direction | GO | Official hosted Skill Marketplace positioning is clear |
+| Product Direction | GO (R2 re-scoped) | Downloadable Skill-package marketplace; moat = runtime DeepRouter dependency + own-key auth/billing (D-09). Prompt confidentiality dropped |
 | Module PRD Quality | GO | `01-07` are now enterprise-level modular specs |
 | Sprint Planning | GO with defaults | Sprint 0 decisions are defaulted for planning; owner sign-off still required before affected implementation starts |
 | Implementation | CONDITIONAL GO | Per-module implementation can start when that module's defaulted decisions, dependencies, and security gates are accepted |
@@ -61,9 +61,9 @@ No module may be marked Sprint Ready unless:
 
 | Topic | Required Unified Decision | Current Status | Owner | Source |
 |---|---|---|---|---|
-| V1 execution surface | Playground only; no Public Skill API | Aligned | Product + Backend | FRD, UX, Data/API, WBS |
+| V1 execution surface | Downloaded package → public routing API (R2/D-09); Admin Preview retained; in-platform Playground execution replaced | Aligned | Product + Backend | FRD, UX, Data/API, WBS |
 | Skill supply | Official curated Skills only | Aligned | Product | FRD, WBS |
-| Prompt protection | `instruction_template` server-side only; never in user/ops/log/analytics/billing/export | Aligned | Security + Backend | FRD, Data/API, Security |
+| Platform IP protection (R2) | Published `instruction_template` ships in package (not protected); provider credentials + server routing/model-selection logic + identity/billing integrity are the protected boundary | Aligned | Security + Backend | FRD, Data/API, Security |
 | Lifecycle status | `draft`, `published`, `deprecated`, `archived`; `featured` is a flag | Aligned | Backend + Product | FRD, Data/API |
 | Featured/rails | P1 except optional configured Featured | Aligned | Product + Growth | UX, Analytics, WBS |
 | Kids mode | Conditional P0 if enabled; otherwise closed beta/off by default | Defaulted for Sprint Planning | Product + Safety + Legal | FRD, UX, Security, WBS |
@@ -123,9 +123,10 @@ Sprint 0 is complete only when the following decisions are signed off or explici
 | D-03 | Kids release mode | Closed beta/off unless GA controls pass | Product + Safety + Legal | M02, M05, M10, M15 | Required before any Kids launch path |
 | D-04 | Streaming launch scope | P1 by default | Product + Engineering + Finance | M05, M07, M10, M12 | Required before streaming implementation |
 | D-05 | Provider system-boundary allowlist and legal/security terms | Explicit allowlist plus provider DPA/security terms before production traffic | Security + Engineering + Legal/Privacy | M05, M10, M11, M15 | Required before production Relay provider integration |
-| D-06 | `instruction_template` encryption mechanism | DB/storage encryption; field encryption if available | Security + Backend | M01, M11 | Required before production data |
+| D-06 | `instruction_template` encryption mechanism | Re-scoped under D-09: encryption only for drafts + sensitive server-side config (provider creds, routing logic); published templates ship in package | Security + Backend | M01, M11 | Required before production data |
 | D-07 | Revenue counting statuses | Gross attribution uses positive `charged`; net/reconciliation includes negative refund/void compensation rows | Finance + Data | M07, M09 | Required before revenue dashboard |
 | D-08 | Initial official Skill catalog | 3-5 launch Skills | Product + Ops | M02, M14, M15 | Required before launch content QA |
+| D-09 | Skill distribution & runtime dependency model (R2) | Enabled: downloadable zip packages; template public in package; runtime-dependency + own-key auth/billing moat; public routing API is the execution entry; Playground execution replaced (Admin Preview retained) | Product + Architecture | M02, M03, M04, M05, M11, M15 | Foundational; gates packaging, routing API, and security reframe |
 
 ### 4.1 Decision Status
 
@@ -149,16 +150,16 @@ The following earlier review findings have been resolved or absorbed into the mo
 | Earlier Issue | Resolution | Source |
 |---|---|---|
 | P0/P1 scope overload | WBS now separates P0, P1, Conditional P0 | `06_Module_Breakdown_WBS.md` |
-| Public Skill API ambiguity | V1 is Playground-only | FRD, UX, Data/API, WBS |
+| Execution surface (R2/D-09) | Public routing API is the V1 execution entry, called by the downloaded package; Playground execution replaced; Admin Preview retained | FRD, UX, Data/API, WBS, Security |
 | `featured` as lifecycle status | Resolved as `featured_flag`/`featured_rank` | FRD, Data/API |
-| Prompt leakage scope too narrow | Expanded across API/logs/events/billing/audit/export/provider/streaming | Security/NFR |
+| Leakage scope (R2 reframe) | Protected set is now provider credentials + server routing logic + raw input/PII/provider payloads (published template excluded); package-content boundary added | Security/NFR §0, §3.2 |
 | Kids absolute safety promise risk | Reframed as conditional P0 / closed beta unless controls pass | FRD, UX, Security, WBS |
 | Streaming billing ambiguity | Default P1; safety/no-output partials not charged by default; timeout or client disconnect after usable partial output settles by actual tokens | FRD, Data/API, Analytics, Security, WBS |
 | RBAC ambiguity | Admin/Ops/Support/Safety/Super Admin split defined | FRD, UX, Data/API, Security |
 | Error JSON invalidity | Standard envelope defined | Data/API |
 | Anonymous response ambiguity | Anonymous list/detail semantics defined | Data/API, UX |
 | `user_enabled_skills` state model | Composite PK current-state model defined | Data/API |
-| Prompt leakage test gaps | Security tests matrix defined | Security/NFR |
+| Secret leakage / spoofing test gaps | Security tests matrix redefined for provider-secret/routing leakage, identity/billing spoofing (T-23), runtime-dependency integrity (T-24), credential abuse (T-25) | Security/NFR |
 | Module/Agent ambiguity | Agent-based WBS defined | WBS |
 | Multi-turn System Prompt Tax | FR-G19 added; V1 Relay enforces stateless single-turn; prior-turn history stripped; T-22 added to threat model | FRD §1.2 + FR-G19 + §3.3, Security NFR §4.3 + T-22, WBS M05, Release Checklist §6 |
 | Dangling Quota Reservation | Redis TTL `max(timeout_seconds + 10, 60)` added as safety net; compensation rule changed from enumeration-based to principle-based (no usable provider output → restore quota) | Security NFR §8.1.1, WBS M06, Release Checklist §6 + §9 |
@@ -292,4 +293,4 @@ Engineering may begin isolated foundation work only where decisions are not bloc
 - Relay non-streaming execution skeleton behind feature flag.
 - Analytics schema validation skeleton without dashboard source lock-in.
 
-Do not implement public Skill API, user-created Skills, recommendation ML, full streaming billing, or Kids GA behavior until explicitly approved.
+Do not implement user-created Skills, recommendation ML, full streaming billing, or Kids GA behavior until explicitly approved. (The public routing/execution API is now in V1 scope under D-09 as the package execution entry point.)

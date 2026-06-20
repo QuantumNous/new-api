@@ -8,36 +8,54 @@
 
 ### 1.1 V1 Product Scope
 
-V1 仅支持 **官方 curated Skills**。终端用户不能创建、上传、下载或复制 Skill 内部配置。Skill 的核心 `instruction_template` 必须由服务端托管，并且只在 Relay / Gateway 执行链路中注入。
+V1 仅支持 **官方 curated Skills**。Skill Marketplace 是 DeepRouter 订阅的内容附加价值层：Pro 订阅解锁 Pro Skills 下载权限，DeepRouter 不参与 Skill 执行、不计执行 token。
+
+Skill 包为 **Claude Code 原生兼容格式**，zip 解压到 `.claude/skills/` 即可用 `/skillname` 调用，也可在任何支持 SKILL.md 的工具中使用。zip 结构：
+
+```
+skillname/
+├── SKILL.md          ← 入口，Claude Code 原生格式（必须）
+├── manifest.json     ← Marketplace 元数据，version/skill_id/plan（必须）
+├── scripts/          ← 可选：bash/python/node 脚本
+├── references/       ← 可选：上下文文档、外部引用
+└── sub-agents/       ← 可选：子 agent 定义（.md）
+```
+
+每个 Skill 发布前须通过 **Evaluation Pipeline**（格式 / 任务完成度 / 违规 / 完整性）；evaluation failed 不能发布。
+
+护城河为 **Marketplace 平台粘性**：发现质量、官方策展、Evaluation 信任背书、社区评分。
+
+> 详见 `00_Overview.md` §0 与决策 `D-09`。
 
 V1 必须交付以下闭环：
 
 ```text
-Admin 创建 Skill
-→ 发布到 Marketplace
-→ 用户浏览 / 查看详情 / 启用
-→ Playground 选择 Skill
-→ Relay 服务端注入并执行
-→ Entitlement 使用时校验
-→ Billing / Analytics 归因
-→ Operations 根据数据优化
+Admin 创建 Skill（SKILL.md + 可选 scripts/references/sub-agents）
+→ 触发 Evaluation Pipeline（格式 / 任务完成度 / 违规 / 完整性）
+→ Evaluation passed → 发布到 Marketplace
+→ 用户浏览 / 搜索 / 收藏 / 查看详情（Tier 1 tracking）
+→ 用户下载 zip（一次性校验订阅级别）
+→ 用户在本地解压，用任意 LLM 运行
+→ 授权用户回传 installed / used（Tier 2 tracking，opt-in）
+→ Operations 根据下载量、转化率、评分、Evaluation 结果优化内容质量
 ```
 
 ### 1.2 In Scope
 
 | Area | V1 Requirement | Priority |
 |---|---|---|
-| Skill Supply | Super Admin 创建、编辑、预览、发布、归档官方 Skill | P0 |
-| Marketplace | 用户浏览、搜索、查看详情、启用、停用 Skill | P0 |
-| My Skills | 用户查看已启用 Skill 及可用/锁定状态 | P0 |
-| Playground | 用户选择一个已启用 Skill 并执行 | P0 |
-| Skill Execution Mode | V1 Skills 强制为**无状态单轮 (Stateless / Single-Turn)**：每次 Playground 提交都是独立请求，Relay 不维护跨请求的对话历史。`instruction_template` 每次注入成本固定、可预测。V2 如需多轮，须重新定义计费模型和上下文消耗警告。 | P0 |
-| Relay Execution | 服务端注入 `instruction_template`，客户端不可见 | P0 |
-| Entitlement | 每次使用前检查订阅、计划、quota、Skill 状态 | P0 |
-| Billing Attribution | Skill 执行事件可归因到 Skill、版本、用户、计划、入口 | P0 |
-| Analytics | 关键生命周期事件和 Data Entry Point | P0 |
-| Operations | 最小运营 Dashboard：Top、Blocked、Funnel、Revenue | P0 |
-| Kids Safety | 服务端 Kids Session 判断、Kids Safe 拦截、审批要求 | P0 if Kids enabled |
+| Skill Supply | Super Admin 创建、编辑、预览、发布、归档官方 Skill（支持复杂包：SKILL.md + scripts + references + sub-agents） | P0 |
+| Skill Packaging & Download | 发布时打包为 SKILL.md 兼容 zip；Marketplace 提供下载入口；下载时一次性校验订阅级别 | P0 |
+| Evaluation Pipeline | 每个 Skill 发布前须通过自动化评估（格式、任务完成度、违规、完整性）；failed 不能发布 | P0 |
+| Marketplace | 用户浏览、搜索、分类筛选、查看详情、下载 Skill 包 | P0 |
+| Marketplace Actions | 用户可收藏（save/favorite）、评分（1-5 星 + 短评）、举报 Skill | P0 |
+| My Skills | 用户查看已下载 Skill、订阅状态、锁定原因 | P0 |
+| Entitlement | 下载时一次性校验订阅级别；执行无服务端校验 | P0 |
+| Tier 1 Tracking | 平台侧事件：impression / detail_view / save / download / favorite / rating / report | P0 |
+| Tier 2 Tracking | 用户在账号设置中授权后，回传 installed / used 本地行为数据 | P1 |
+| Analytics | 关键事件、下载漏斗、转化率、评分、Evaluation 结果 | P0 |
+| Operations Dashboard | 每个 Skill：访问量、下载量、转化率、评分、举报、版本、verified 状态、evaluation 结果、persona/tenant 分布 | P0 |
+| Kids Safety | Kids Safe 标记、Kids Session 下载过滤、审批要求 | P0 if Kids enabled |
 | Audit | Admin 关键写操作进入 audit log | P0 |
 | Feature Flag | Marketplace 可灰度开启和快速关闭 | P0 |
 
@@ -45,15 +63,13 @@ Admin 创建 Skill
 
 | Item | V1 Decision | Target |
 |---|---|---|
-| 用户自建 Skill | 不支持 | V2 |
+| 用户自建 / 上传 Skill | 不支持；V1 仅官方 curated | V2 |
 | Creator Marketplace / 分成 | 不支持 | V2 |
-| Prompt 下载 | 永不作为 V1 形态 | N/A |
-| Public Skill API Trigger | V1 不做；仅 Playground 使用 | V1.1 |
-| 多 Skill 叠加 | 不支持；一次仅一个 active Skill | V2+ |
-| Tool Calling / Workflow / Agent Runtime | 不支持 | V3/V4 |
-| 社区评分评论 | 不支持 | V2 |
-| 完整推荐算法 | 不支持；V1 仅规则推荐 | V1.1/V2 |
-| A/B Experiment UI | 不作为 V1 P0 | V1.1 |
+| 站内 Playground 端到端执行 | 不作为终端用户执行面；Admin Preview 保留用于测试 | V2 |
+| 多 Skill 叠加 | 不支持 | V2+ |
+| DeepRouter 运行时绑定 / 执行 token 计费 | 不做；V1 不参与 Skill 执行 | 不列入路线图 |
+| 完整推荐算法 | V1 仅规则推荐 | V1.1/V2 |
+| Tier 2 遥测仪表盘（installed/used 聚合） | P1；需 Tier 2 数据量达到统计意义 | V1.1 |
 | 完整 Sharing / Referral | 不作为 V1 P0 | V1.1 |
 
 ### 1.4 Sprint 0 Decisions Required Before Sprint 1
@@ -83,7 +99,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | Normal User | 登录用户，可浏览、启用、停用、使用符合权限的 Skill |
 | Operation | 运营人员，可查看运营数据、创建 review、标记问题、处理质量反馈 |
 | Safety Reviewer | 安全审核人员，可审批 Kids Safe / Kids Exclusive 发布条件 |
-| Product / Growth | 产品和增长人员，可查看指标、管理推荐策略，不可查看 `instruction_template` |
+| Product / Growth | 产品和增长人员，可查看指标、管理推荐策略；`instruction_template` 随发布包公开，但 Product/Growth 不可编辑 |
 | Super Admin | 平台最高权限，可管理 Skill 内容、版本、发布、归档、Kids 标记和审计 |
 | Support | 客服人员，可查看有限诊断信息和用户反馈，不可查看 prompt 或敏感内容 |
 
@@ -100,7 +116,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | View user-level analytics | No | Own only if exposed | No by default | No | No | Limited support view | Yes with audit |
 | Export CSV | No | No | P1, aggregate only | No | P1, aggregate only | No | Yes |
 | Create / edit Skill metadata | No | No | No | No | No | No | Yes |
-| View `instruction_template` | No | No | No | No | No | No | Yes only |
+| View `instruction_template` | Via published package | Via published package | Via published package | Via published package | Via published package | Via published package | Yes (incl. drafts) |
 | Edit `instruction_template` | No | No | No | No | No | No | Yes only |
 | Preview Skill | No | No | No | Safety preview only | No | No | Yes |
 | Publish / Archive / Deprecate | No | No | No | No | No | No | Yes |
@@ -109,7 +125,9 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 
 ### 2.3 Permission Rules
 
-- `instruction_template` must never be visible to Normal User, Operation, Product/Growth, Support, or Anonymous users.
+- `instruction_template` of a **published** Skill is distributed inside the downloadable package and is therefore readable by anyone who obtains the package; it is no longer a confidentiality boundary. Draft/unpublished templates remain Super Admin only.
+- **Editing** `instruction_template` (and creating new versions) remains Super Admin only, regardless of who can read the published package.
+- The package must never contain provider credentials, server-side routing/model-selection logic, or any secret that would let it bypass DeepRouter; only Super Admin/Relay hold those.
 - Operation can create and manage `skill_reviews`, but cannot edit Skill content.
 - Safety Reviewer can approve Kids-related safety checks, but cannot publish a Skill unless also Super Admin.
 - Super Admin emergency override must create an audit log entry with reason.
@@ -138,27 +156,29 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 2. Marketplace emits `skill_impression` for visible cards.
 3. User opens Skill Detail.
 4. System emits `skill_detail_view`.
-5. Detail page displays plan requirement, example input/output, safety labels, and CTA.
-6. If user is anonymous, Enable CTA routes to login.
-7. If user is logged in, user can enable allowed visible Skill.
-8. System creates or updates `user_enabled_skills`.
-9. System emits `skill_enabled`.
+5. Detail page displays plan requirement, example input/output, safety labels, runtime-dependency note (Skill requires a DeepRouter key to run), and Download CTA.
+6. If user is anonymous, Download CTA routes to login/signup (so a DeepRouter credential exists for later runtime calls).
+7. If user is logged in, user downloads the Skill package (zip).
+8. System creates or updates `user_enabled_skills` as the download/entitlement record.
+9. System emits `skill_enabled` (download). Note: download grants no permanent execution right; entitlement is still checked at runtime per call.
 
-### 3.3 User Executes Skill in Playground
+### 3.3 User Runs a Downloaded Skill Package
 
-1. User opens Playground.
-2. User selects one enabled Skill from Skill Picker.
-3. User submits input.
-4. Client sends `skill_id` in internal metadata. **Client must not send conversation history from previous Skill turns; V1 execution is stateless.**
-5. Relay resolves authenticated user, tenant, session, and Kids Session server-side.
-6. Relay loads immutable Skill execution context.
-7. Relay performs status, enabled, entitlement, quota, Kids, model whitelist, token, and rate checks.
-8. Relay injects `instruction_template` server-side. **Relay does not concatenate prior-turn messages into the provider request; each request is a self-contained single-turn call.**
-9. Relay calls model provider.
+1. User downloads the Skill package (zip) from Marketplace, or obtains it via paste/share/forward from someone else.
+2. User runs the package in their own environment (e.g. its bundled client/script executes).
+3. The package's core work step calls the **DeepRouter public routing/execution API**, sending `skill_id`, the user input, and the runner's own DeepRouter credential. **The package must not send conversation history from previous Skill turns; V1 execution is stateless.**
+4. If no valid credential is present, the call fails with `AUTH_REQUIRED` and the package surfaces a signup/onboarding prompt; no execution occurs.
+5. Relay resolves the authenticated **runner** (user, tenant, session) and Kids Session **server-side from the validated credential** — never from package-supplied fields.
+6. Relay loads the immutable Skill execution context for `skill_id` + active `skill_version_id` (the server is the source of truth for routing/model selection, not the package).
+7. Relay performs status, entitlement, quota, Kids, model whitelist, token, and rate checks against the runner.
+8. Relay performs routing/model selection and executes. **Relay does not concatenate prior-turn messages into the provider request; each request is a self-contained single-turn call.**
+9. Relay calls the model provider with server-held provider credentials.
 10. Result is returned with AI-generated disclosure.
-11. System emits usage, analytics, and billing attribution events.
+11. System emits usage, analytics, and billing attribution events **attributed to the runner**.
 
-> **Stateless enforcement**: V1 Relay must not receive, store, or forward conversation history to the provider as part of Skill execution. `input_tokens` billed per request equals `instruction_template tokens + single user input tokens + output schema tokens` only. If the Playground client accumulates a visible conversation UI, each submission to Relay must be treated as a fresh, independent request with the same fixed Skill context cost.
+> **Stateless enforcement**: V1 Relay must not receive, store, or forward conversation history to the provider as part of Skill execution. `input_tokens` billed per request equals `instruction_template tokens + single user input tokens + output schema tokens` only. Each call from the downloaded package is treated as a fresh, independent request with the same fixed Skill context cost.
+
+> **Propagation = growth**: because step 3 is a mandatory call to DeepRouter and step 5 binds identity/billing to the runner's own credential, every forwarded copy of the package becomes an independent, self-billing source of API calls. Removing the DeepRouter call removes the Skill's routing capability, so the dependency cannot be stripped without breaking the Skill.
 
 ### 3.4 User Membership Expires
 
@@ -176,7 +196,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 1. User is in server-resolved Kids Session.
 2. User views Marketplace or Playground.
 3. Non-`is_kids_safe` Skills must be hidden, disabled, or blocked.
-4. If a direct request attempts execution, Relay blocks before injection.
+4. If a downloaded package attempts execution, Relay blocks before any provider execution.
 5. System emits `skill_blocked` with `block_reason=kids_mode_blocked`.
 6. No prompt, input, or sensitive Kids content is persisted.
 
@@ -202,67 +222,88 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-A11 | Set model whitelist | P0 | Relay must enforce whitelist |
 | FR-A12 | Mark Kids Safe | P0 if Kids enabled | Requires Safety Reviewer approval |
 | FR-A13 | Mark Kids Exclusive | P0 if Kids enabled | Requires Safety Reviewer approval |
-| FR-A14 | View version history | P1 | Version metadata visible; template visible only to Super Admin |
+| FR-A14 | View version history | P1 | Version metadata visible; published-version templates are public via package; drafts Super Admin only |
 | FR-A15 | View audit log | P0 | All writes show actor, timestamp, action, changed fields, reason |
 | FR-A16 | Manage publish checklist | P0 | Blocks publish if required checklist items fail |
 | FR-A17 | Run jailbreak / leakage tests | P1; P0 if Kids enabled or Security requires launch gate | Required before Kids publish; Security/NFR owns mandatory launch test suite |
 | FR-A18 | Manage beta whitelist | P1 | Used for rollout stages |
+| FR-A19 | Build downloadable Skill package on publish | P0 | Publish 触发 Evaluation → passed 后打包 zip（SKILL.md + manifest.json + 可选 scripts/references/sub-agents）；pinned to `skill_version_id` |
+| FR-A20 | Package build-time 安全检查 | P0 | zip 不含 credentials / API keys；SKILL.md 不含违规指令；引用路径可解析 |
+| FR-A21 | Admin 可查看 Evaluation 结果和 issue 详情 | P0 | 修改后可手动重新触发 Evaluation |
+| FR-A22 | Admin 可上传 scripts/references/sub-agents 作为 Skill 组成部分 | P0 | 支持复杂 Skill 包 |
+| FR-A23 | Verified 审核由 Super Admin 手动授予 | P1 | 独立于 Evaluation；记入 audit log |
 
 ### 4.2 End User: Marketplace
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
 | FR-U1 | Browse published Skills | P0 | Only public fields returned |
-| FR-U2 | View Skill Detail | P0 | Shows examples, plan, labels, CTA, AI disclosure |
-| FR-U3 | Enable Skill | P0 | Login required; archived/draft cannot be enabled; deprecated cannot be newly enabled or re-enabled after disable |
-| FR-U4 | Disable Skill | P0 | Existing usage history remains |
-| FR-U5 | View My Skills | P0 | Shows enabled Skills, status, lock reason, last used |
+| FR-U2 | View Skill Detail | P0 | Shows examples, plan, labels, runtime-dependency note, Download CTA, AI disclosure |
+| FR-U3 | Download Skill package | P0 | Login/signup required; archived/draft cannot be downloaded; deprecated cannot be newly downloaded |
+| FR-U4 | Remove from My Skills | P0 | Existing usage/billing history remains; does not invalidate already-downloaded copies (runtime auth still gates execution) |
+| FR-U5 | View My Skills | P0 | Shows downloaded Skills, status, lock reason, last used |
 | FR-U6 | See locked Skill state | P0 | Shows upgrade/renew/contact-sales CTA |
-| FR-U7 | Launch Playground from Detail | P0 | Skill preselected if enabled and executable |
-| FR-U8 | Search Skill name/description | P1 | Does not search hidden prompt |
+| FR-U7 | Download from Detail | P0 | Package available if Skill is published and user is entitled |
+| FR-U8 | Search Skill name/description | P1 | Searches public metadata only |
 | FR-U9 | Filter by category | P1 | Category list excludes empty unpublished categories |
 | FR-U10 | Anonymous public browsing | P1 | Anonymous cannot see enabled state; CTA routes to login |
 | FR-U11 | Submit output feedback | P2 | Creates review signal, not public rating |
 | FR-U12 | View Kids-compatible Skills | P0 if Kids enabled | Kids Session only sees safe or exclusive allowed Skills |
 | FR-U13 | Handle unavailable Skill | P0 | Shows friendly unavailable message for archived/deprecated cases |
 
-### 4.3 Playground Skill Picker
+### 4.3 Skill Package Format
+
+The downloadable package is a **Claude Code native compatible zip**. It is self-contained and runnable with any LLM. DeepRouter does not participate in execution.
+
+**Zip structure:**
+```
+skillname/
+├── SKILL.md          ← Entry point; Claude Code native format (required)
+├── manifest.json     ← Marketplace metadata (required)
+├── scripts/          ← Optional: bash / python / node scripts
+├── references/       ← Optional: context docs, external references
+└── sub-agents/       ← Optional: sub-agent definitions (.md files)
+```
+
+**manifest.json required fields:**
+```json
+{
+  "skill_id": "<uuid>",
+  "skill_version_id": "<uuid>",
+  "name": "Skill display name",
+  "required_plan": "free | pro | enterprise",
+  "published_at": "<ISO8601>",
+  "marketplace_url": "https://deeprouter.ai/skills/<slug>"
+}
+```
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-P1 | Display Skill Picker | P0 | Visible in Playground when feature flag enabled |
-| FR-P2 | Select exactly zero or one active Skill | P0 | Multi-Skill stacking is blocked |
-| FR-P3 | Pass `skill_id` to Relay | P0 | Internal metadata only; no template client exposure |
-| FR-P4 | Block disabled / unauthorized Skill | P0 | UI prevents where possible; Relay remains source of truth |
-| FR-P5 | Clear selected Skill | P0 | Returns Playground to normal non-Skill mode |
-| FR-P6 | Preselect from Skill Detail | P0 | Only if Skill is enabled or enable flow completes |
-| FR-P7 | Show lock and block reasons | P0 | Maps standard error codes to friendly messages |
-| FR-P8 | Empty state recommends Skills | P1 | Must include data entry point |
-| FR-P9 | Ignore client-provided Kids flags | P0 | Client cannot set or override `is_kids_session` |
+| FR-P1 | Package entry point is a valid SKILL.md | P0 | Must parse with Claude Code frontmatter; skill name from directory name |
+| FR-P2 | SKILL.md frontmatter fields: name, description, allowed-tools, user-invocable, model, context, argument-hint | P0 | All optional except content body; defaults applied per Claude Code spec |
+| FR-P3 | Package may include scripts/, references/, sub-agents/ directories | P0 | Optional; paths referenced in SKILL.md must resolve within zip |
+| FR-P4 | manifest.json present with required fields | P0 | Used for version management and update detection in My Skills |
+| FR-P5 | Package contains no credentials, API keys, or server-side secrets | P0 | Security gate at build time |
+| FR-P6 | Package is pinned to `skill_version_id` at build time | P0 | Re-download on version update |
+| FR-P7 | Admin Preview retained as in-platform test surface | P0 | `entry_point=admin_preview`; not end-user execution surface |
+| FR-P8 | Installation instructions shown on download | P0 | "Extract to .claude/skills/ and use /skillname in Claude Code" |
 
-### 4.4 Relay / Gateway Execution
+### 4.4 Evaluation Pipeline
+
+每个 Skill 在发布前必须通过自动化评估。Evaluation failed = 不能发布，Admin 须修改后重新触发。
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-G1 | Accept active `skill_id` | P0 | Only supported from Playground in V1 |
-| FR-G2 | Resolve authenticated user, tenant, session | P0 | Anonymous execution is not allowed |
-| FR-G3 | Resolve Kids Session server-side | P0 if Kids enabled | Client field ignored |
-| FR-G4 | Load immutable execution context | P0 | Snapshot includes skill, version, plan, model whitelist, `max_input_tokens`, monetization, template |
-| FR-G5 | Validate Skill lifecycle status | P0 | Draft/archived blocked; deprecated follows special rules |
-| FR-G6 | Validate `user_enabled_skills` | P0 | Required for published/deprecated execution |
-| FR-G7 | Perform use-time entitlement check | P0 | No permanent authorization from enable action |
-| FR-G8 | Enforce model whitelist | P0 | Disallowed model is rerouted or blocked per policy |
-| FR-G9 | Enforce precedence | P0 | `kids_mode > tenant_policy > platform_policy > skill > user message` |
-| FR-G10 | Inject `instruction_template` server-side | P0 | Never sent to client |
-| FR-G11 | Redact template from logs/errors/events | P0 | Applies to API logs, provider errors, billing, analytics |
-| FR-G12 | Estimate context size before provider call | P0 | Friendly error or safe truncation before provider 400 |
-| FR-G13 | Enforce rate limits | P0 | User/IP/Skill dimensions; returns 429 + Retry-After |
-| FR-G14 | Enforce timeout | P0 | Graceful timeout error; no hanging requests |
-| FR-G15 | Emit usage and blocked events | P0 | Includes block reason and entry point |
-| FR-G16 | Support non-Skill API compatibility | P0 | Existing non-Skill calls remain unchanged |
-| FR-G17 | Support streaming safety and billing semantics | P1 unless streaming is launch P0 | Must define usage vs charge behavior |
-| FR-G18 | Use cache and singleflight for metadata/entitlement | P1/P0 for scale launch | Cluster AC: at most N DB queries where N = relay instances |
-| FR-G19 | Enforce stateless single-turn execution | P0 | Relay must not forward prior-turn conversation history to provider; each Skill request is an independent, self-contained call; `input_tokens` billed = instruction_template tokens + current user input tokens only; client UI conversation display does not constitute server-side multi-turn context; if client sends history fields they must be stripped at Relay entry |
+| FR-EV1 | 发布动作触发 Evaluation Pipeline | P0 | Admin 点 Publish → 先跑 Evaluation，passed 才写入 published 状态 |
+| FR-EV2 | 格式检查：SKILL.md 可被 Claude Code 解析 | P0 | frontmatter 合法，content body 非空，manifest.json 字段完整 |
+| FR-EV3 | 完整性检查：scripts/references/sub-agents 内引用路径在 zip 内可解析 | P0 | broken reference = failed |
+| FR-EV4 | 任务完成度测试：用 Skill 描述的 example_input 跑一遍，输出与 example_output 做语义对比 | P0 | score < 阈值 = failed；阈值 Admin 可配 |
+| FR-EV5 | 违规检查：SKILL.md content 不含有害指令、PII 采集、越权工具调用 | P0 | 违规 = failed，记录 issue 类型 |
+| FR-EV6 | Evaluation 结果存入 skill record | P0 | status: passed/failed/warning；score 0-100；issues list |
+| FR-EV7 | Admin 可查看 Evaluation 详情和 issue 列表 | P0 | 用于修改后重新发布 |
+| FR-EV8 | Evaluation 结果在详情页展示（evaluation badge） | P0 | passed + verified 分开显示 |
+| FR-EV9 | Verified 状态由人工 Admin 审核授予，独立于 Evaluation | P1 | verified = 人工复核通过的高质量背书 |
+| FR-EV10 | 版本更新触发重新 Evaluation | P0 | 新版本须重新 passed 才能激活 |
 
 ### 4.5 Entitlement / Membership
 
@@ -278,49 +319,71 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | FR-E7 | Admin can change entitlement config | P0 | Change is audited; existing enabled users are checked at use time |
 | FR-E8 | Support Enterprise contact-sales state | P1 | CTA does not imply entitlement |
 
-### 4.6 Billing
+### 4.6 Entitlement（下载时）
+
+V1 仅在下载时做一次性订阅校验。执行无服务端 entitlement。
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-B1 | Usage event includes Skill attribution | P0 | `skill_id`, `skill_version_id`, entry point |
-| FR-B2 | Billing event includes monetization fields | P0 | type, markup, required plan |
-| FR-B3 | Blocked calls create no charge | P0 | Still create analytics event |
-| FR-B4 | Failed calls create no charge by default | P0 | Non-streaming/no-output failures do not charge; streaming timeout after usable partial output follows Finance-approved actual-token settlement |
-| FR-B5 | Revenue can be grouped by Skill | P0 | Required for dashboard |
-| FR-B6 | Revenue can be sliced by plan/persona/entry point | P1 | Required for growth analysis |
-| FR-B7 | Distinguish usage, billing, and charge events | P1/P0 if streaming launch | Prevent refund ambiguity |
-| FR-B8 | Support idempotency key for charge | P1/P0 if streaming launch | Prevent double billing |
+| FR-E1 | 下载时校验用户订阅级别 vs `required_plan` | P0 | free/pro/enterprise；不符合返回 403 + upgrade CTA |
+| FR-E2 | 订阅校验时机：点击 Download 时，非执行时 | P0 | 已下载的 zip 不受后续订阅变化影响 |
+| FR-E3 | Free Skill 任何登录用户可下载 | P0 | 无需订阅 |
+| FR-E4 | Pro Skill 须 Pro 或 Enterprise 订阅 | P0 | Free 用户看到 locked + Upgrade CTA |
+| FR-E5 | Enterprise Skill 须 Enterprise 订阅 | P0 | 非 Enterprise 用户看到 Contact Sales CTA |
+| FR-E6 | Kids Safe 过滤在下载时应用 | P0 if Kids enabled | Kids Session 不可下载非 kids_safe Skill |
+| FR-E7 | 订阅状态变化不影响已下载的 zip | P0 | 下载权是一次性的；执行权在用户本地 |
 
 ### 4.7 Analytics & Data Entry
 
-| ID | Requirement | Priority | Acceptance Notes |
+**Tier 1（平台侧，无需用户授权）**
+
+| ID | Event | Priority | Notes |
 |---|---|---|---|
-| FR-D1 | Emit `skill_impression` | P0 | Marketplace cards and recommendation surfaces |
-| FR-D2 | Emit `skill_detail_view` | P0 | Includes entry point |
-| FR-D3 | Emit `skill_enabled` / `skill_disabled` | P0 | Includes source |
-| FR-D4 | Emit `skill_first_use` | P0 | First successful execution per user/skill |
-| FR-D5 | Emit `skill_used` | P0 | Every successful execution |
-| FR-D6 | Emit `skill_repeat_use` | P0 | Subsequent use after first |
-| FR-D7 | Emit `skill_blocked` | P0 | Includes standard block reason |
-| FR-D8 | Emit admin actions | P0 | Skill create/update/publish/archive/kids approval |
-| FR-D9 | Emit safety events | P0 if Kids enabled | `skill_safety_violation` with stage |
-| FR-D10 | Every entry point has `entry_point` | P0 | No null / unknown for launch paths |
-| FR-D11 | Sensitive content not persisted | P0 | No prompt, no Kids sensitive input |
-| FR-D12 | Aggregation API supports dashboard | P0 | Overview, funnel, skill table |
+| FR-D1 | `skill_impression` | P0 | Marketplace 卡片曝光；含 entry_point |
+| FR-D2 | `skill_detail_view` | P0 | 详情页访问；含 referrer entry_point |
+| FR-D3 | `skill_saved` | P0 | 用户收藏/取消收藏 |
+| FR-D4 | `skill_downloaded` | P0 | 下载 zip；含 plan、version |
+| FR-D5 | `skill_favorited` | P0 | 加星 / 取消加星 |
+| FR-D6 | `skill_rated` | P0 | 提交评分；含 stars(1-5)、has_comment |
+| FR-D7 | `skill_reported` | P0 | 举报；含 report_reason |
+| FR-D8 | `skill_evaluation_completed` | P0 | Evaluation 结束；含 status、score |
+| FR-D9 | `skill_admin_action` | P0 | Admin 写操作：create/publish/archive/kids approval |
+| FR-D10 | `skill_kids_approved` | P0 if Kids | Kids 审批通过 |
+
+**Tier 2（用户在账号设置中授权后回传）**
+
+| ID | Event | Priority | Notes |
+|---|---|---|---|
+| FR-D11 | `skill_installed` | P1 | 用户解压到 .claude/skills/ 后回传；含 skill_id、version |
+| FR-D12 | `skill_used_local` | P1 | /skillname 被调用时回传；含 skill_id、用户 locale（无 raw input） |
+
+**通用规则**
+
+| ID | Requirement | Priority | Notes |
+|---|---|---|---|
+| FR-D13 | 每个事件含 entry_point，不得为 null | P0 | |
+| FR-D14 | 不存储 raw user input、PII、Kids 敏感输入 | P0 | |
+| FR-D15 | Tier 2 事件须在 header 中携带用户授权 token | P1 | 无授权 token 的 Tier 2 事件丢弃 |
+| FR-D16 | Aggregation API 支持 Dashboard | P0 | overview、funnel、skill table、conversion rate |
 
 ### 4.8 Operations Dashboard & Review
 
+**每个 Skill 的详情指标（Ops 可查）：**
+
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
-| FR-O1 | Show Top Skills | P0 | By usage and successful executions |
-| FR-O2 | Show blocked attempts | P0 | By skill, reason, plan |
-| FR-O3 | Show funnel | P0 | Impression to detail to enable to first use |
-| FR-O4 | Show basic revenue attribution | P0 | By skill and plan |
-| FR-O5 | Show one-time and repeat usage | P1 | Sticky vs one-time |
-| FR-O6 | Filter by plan/persona/channel/date | P1 | Persona may be coarse |
-| FR-O7 | Create `skill_review` | P1 | Manual Ops trigger plus automated safety threshold trigger defined in Analytics/Ops |
-| FR-O8 | Assign / resolve / escalate review | P1 | Operation workflow |
-| FR-O9 | CSV export | P2 | Aggregate only unless Super Admin |
+| FR-O1 | 详情页访问量、下载量、收藏数 | P0 | 按时间段 |
+| FR-O2 | 下载转化率 = downloads / detail_views | P0 | 核心健康指标 |
+| FR-O3 | 漏斗：impression → detail → download | P0 | 找掉落节点 |
+| FR-O4 | 评分均值、评分分布、评论数 | P0 | |
+| FR-O5 | 举报数量、举报类型分布 | P0 | 触发 review 阈值 |
+| FR-O6 | Evaluation status + score + issue 列表 | P0 | 每个版本 |
+| FR-O7 | Verified 状态 + 审核人 + 审核时间 | P1 | |
+| FR-O8 | 版本历史 + 每版本 evaluation 结果 | P1 | |
+| FR-O9 | 按 plan / persona / tenant / 日期 筛选 | P1 | Persona 可粗粒度 |
+| FR-O10 | Tier 2 数据：installed 数、used 数（授权用户子集） | P1 | 须注明数据覆盖范围 |
+| FR-O11 | Create / assign / resolve / escalate skill_review | P1 | Manual + 自动触发（举报 > 阈值） |
+| FR-O12 | CSV export（聚合，仅 Super Admin 可含明细） | P2 | |
 
 ### 4.9 Recommendation & Discovery
 
@@ -426,7 +489,7 @@ Kids functionality must be treated as a safety-critical path. If Kids Mode is no
 - Kids Skill publish requires Safety Reviewer approval.
 - Kids model/provider pool must support approved DPA, no-training, and ZDR/no-retention mode before use.
 - Kids request logs must not persist sensitive child input.
-- Kids safety block must happen before `instruction_template` injection.
+- Kids safety block must happen at Relay before any provider execution.
 - Safety events must not expose sensitive content.
 
 ### 7.2 Kids Publish Rules
@@ -446,7 +509,7 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 
 | Code | HTTP | Trigger | Charge? |
 |---|---:|---|---:|
-| `AUTH_REQUIRED` | 401 | Anonymous enable/use attempt | No |
+| `AUTH_REQUIRED` | 401 | Anonymous download attempt, or package runtime call with no/invalid DeepRouter credential | No |
 | `SKILL_NOT_FOUND` | 404 | Unknown `skill_id` | No |
 | `SKILL_NOT_PUBLISHED` | 403 | Draft, archived, or unavailable deprecated Skill | No |
 | `SKILL_NOT_ENABLED` | 403 | User attempts execution without enabling | No |
@@ -504,7 +567,7 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 
 ### 9.3 Data Quality Rules
 
-- No event may include `instruction_template`.
+- Events may include `skill_id`/`skill_version_id` (which the published package already exposes); they must not include raw user input, PII, or provider raw payloads.
 - Kids sensitive raw input must not be persisted.
 - `entry_point` cannot be null for launch paths.
 - Failed or blocked events must include `failure_reason` or `block_reason`.
@@ -517,13 +580,13 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 
 ### 10.1 P0 Launch Acceptance
 
-1. Super Admin can create draft Skill and publish it after checklist passes.
-2. Published Skill appears in Marketplace; draft and archived Skills do not.
-3. Normal User can view detail, enable, disable, and see Skill in My Skills.
-4. Playground can select exactly one enabled Skill.
-5. Relay injects `instruction_template` server-side only.
-6. `instruction_template` is absent from client API, UI, logs, errors, billing, and analytics.
-7. Execution performs use-time entitlement check.
+1. Super Admin can create draft Skill, publish after checklist passes, and publish produces a versioned downloadable package (FR-A19).
+2. Published Skill appears in Marketplace with a Download CTA; draft and archived Skills do not.
+3. Normal User can view detail, download, remove from My Skills, and see Skill in My Skills.
+4. The downloaded package calls the DeepRouter routing API with exactly one `skill_id` per call and surfaces signup on `AUTH_REQUIRED`.
+5. Provider credentials and server routing/model-selection logic never ship in the package; the package is inert without DeepRouter.
+6. Provider raw payloads, raw user input, PII, and Kids sensitive input are absent from logs, errors, billing, and analytics (`instruction_template` is no longer a redaction target).
+7. Execution performs use-time entitlement check against the runner's credential.
 8. Expired or insufficient-plan users are blocked with standard error code.
 9. Billing attribution includes `skill_id` and `skill_version_id` for successful execution.
 10. Blocked and failed calls do not create a charge by default.
@@ -549,8 +612,8 @@ Functional requirements must map blocked states to stable codes. UI text can be 
 
 ### 10.3 P2 Acceptance
 
-1. Public Skill API trigger.
-2. Full sharing/referral workflow.
+1. Public Skill routing/execution API — **moved to V1 P0** as the execution entry point (was P2).
+2. Full sharing/referral workflow (basic propagation is inherent to the package model; formal referral attribution remains P2).
 3. Community rating/review.
 4. Experiment rollout UI.
 5. Creator submission and revenue share.

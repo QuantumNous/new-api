@@ -30,6 +30,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
@@ -87,19 +88,15 @@ func decideAutoTopup(p autoTopupPreconditions) (shouldCharge bool, cents int64, 
 		return false, 0, "redis_not_enabled"
 	}
 	// Auto-topup is charged at the SELLING rate, not the cost basis. quotaUnits-
-	// ToStripeCents gives the cost-dollar value of the quota; we multiply by
-	// autoTopupSellMultiplier so the platform earns the same markup as a manual
-	// top-up instead of selling quota at cost. Operator-tunable later.
-	cents = quotaUnitsToStripeCents(p.Amount) * autoTopupSellMultiplier
-	if cents < 500 { // platform minimum auto-topup charge: $5.00 USD
+	// ToStripeCents gives the cost-dollar value of the quota; we multiply by the
+	// operator-configurable sell multiplier so the platform earns the same markup
+	// as a manual top-up instead of selling quota at cost.
+	cents = quotaUnitsToStripeCents(p.Amount) * operation_setting.AutoTopupSellMultiplier()
+	if cents < operation_setting.AutoTopupMinChargeCents() {
 		return false, cents, "amount_below_stripe_minimum"
 	}
 	return true, cents, ""
 }
-
-// autoTopupSellMultiplier is the USD selling price per cost-dollar of quota.
-// 5 ⇒ $5 charged per $1 of model usage (≈ the 8 AUD/unit manual price).
-const autoTopupSellMultiplier int64 = 5
 
 // MaybeAutoTopup checks the user's auto-topup config and, if conditions
 // are met, charges the saved Stripe payment method and increments the
@@ -108,6 +105,14 @@ func MaybeAutoTopup(ctx *gin.Context, userId int) AutoTopupResult {
 	user, err := model.GetUserById(userId, false)
 	if err != nil || user == nil {
 		return AutoTopupResult{SkipReason: "user_not_found", Err: err}
+	}
+
+	// Provider split: Airwallex off-session path takes precedence when the
+	// operator master flag is on AND the user has a saved Airwallex consent
+	// (mutually exclusive with Stripe — a user binds one provider). Default flag
+	// is OFF, so this is a no-op until an operator enables it after PR-9 testing.
+	if operation_setting.AutoTopupAirwallexEnabled() && user.AirwallexConsentID != "" {
+		return maybeAirwallexAutoTopup(ctx, user)
 	}
 
 	shouldCharge, cents, skipReason := decideAutoTopup(autoTopupPreconditions{
@@ -219,6 +224,22 @@ func quotaUnitsToStripeCents(quotaUnits int) int64 {
 	}
 	dollars := float64(quotaUnits) / common.QuotaPerUnit
 	return int64(dollars * 100)
+}
+
+// quotaUnitsToMajorAmount converts quota units to a charge amount in MAJOR
+// currency units (e.g. 5.00) at the selling multiplier — Airwallex amounts are
+// major units, not cents. The number is currency-neutral; the caller pairs it
+// with the right ISO code (AUD for the Airwallex path).
+//
+// NOTE: uses the same SellMultiplier markup as Stripe. Aligning auto-topup to
+// the per-currency AirwallexCurrencies unit_price (so manual & auto Airwallex
+// prices match exactly) is a future refinement.
+func quotaUnitsToMajorAmount(quotaUnits int) float64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	costDollars := float64(quotaUnits) / common.QuotaPerUnit
+	return costDollars * float64(operation_setting.AutoTopupSellMultiplier())
 }
 
 func looksLikeStripeKey(s string) bool {

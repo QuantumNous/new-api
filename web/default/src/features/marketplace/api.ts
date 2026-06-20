@@ -17,9 +17,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import type { AboutResponse } from './types'
+import type {
+  MarketplaceListResponse,
+  MarketplaceSkill,
+  MySkill,
+} from './types'
 
-export async function getAboutContent() {
-  const res = await api.get<AboutResponse>('/api/about')
+export async function getMarketplaceSkills(): Promise<
+  MarketplaceListResponse<MarketplaceSkill>
+> {
+  const res = await api.get('/api/v1/marketplace/skills', {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {
+  const res = await api.get('/api/v1/marketplace/my-skills', {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
   return res.data
 }

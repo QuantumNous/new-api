@@ -22,7 +22,7 @@ Kids Mode is disabled by default unless Product, Safety, Legal, Engineering, and
 | Client spoofing | Client-provided Kids fields are ignored and may be logged as spoof attempts without raw content. |
 | Eligibility | Kids Session may execute only Skills with `is_kids_safe=true` and `kids_approval_status='approved'`, except audited time-bounded `emergency_approved` incident override. |
 | Kids Exclusive | `is_kids_exclusive=true` Skills are blocked or hidden from normal sessions unless an approved family-mode exception exists. |
-| Injection order | Kids eligibility, entitlement, model whitelist, rate limit, timeout, and context checks run before prompt injection. |
+| Injection order | Kids eligibility, entitlement, model whitelist, rate limit, timeout, and context checks run before any provider execution. |
 | Model pool | Kids executions use only the approved safe model pool and provider allowlist. |
 | Provider retention | Kids executions may route only to providers/models with approved DPA, no-training commitment, and ZDR/no-retention endpoint or request mode. Providers without that capability are excluded from Kids Safe model pool. |
 | Failure mode | If Kids safety state, approval state, or safety service is uncertain, fail closed. |
@@ -42,13 +42,13 @@ Kids Mode is disabled by default unless Product, Safety, Legal, Engineering, and
 | Override | Emergency Super Admin override requires reason, time-bounded scope, incident reference, `kids_approval_status='emergency_approved'`, a non-null `kids_emergency_approval_expires_at` timestamp (maximum 72 hours from grant time unless extended by a second Super Admin), and audit log. |
 | Expiry enforcement | At execution time, if `kids_approval_status='emergency_approved'` and `kids_emergency_approval_expires_at < now()`, Relay must treat the Skill as `rejected` and fail closed for Kids sessions. A daily background job must scan for expired entries and emit `kids_emergency_approval_expired` alerts for Safety and Security review. |
 
-## 5. Prompt and Instruction Protection
+## 5. Platform Secret and IP Protection (R2/D-09)
 
-- `instruction_template` is stored server-side and injected only by Relay/Gateway.
-- Public, user, ops, support, analytics, billing, audit export, and error APIs must never return `instruction_template`.
-- Playground frontend must never receive raw template text.
-- Logs, errors, events, billing records, provider diagnostics, support views, and audit diffs must use `instruction_template_sha256` or safe metadata, not prompt text.
-- D-06 requires DB/storage encryption plus restricted access before production data; field encryption is required if the platform supports it.
+- The published `instruction_template` ships in the downloadable package and is readable; it is no longer a confidentiality boundary.
+- Provider credentials and server-side routing/model-selection logic are stored server-side only and must never appear in the package, public/user/ops/support/analytics/billing/audit-export/error APIs.
+- The downloadable package must never contain provider credentials, server routing logic, or draft templates.
+- Logs, errors, events, billing records, provider diagnostics, support views, and audit diffs must never contain provider credentials, raw user input, PII, or provider raw payloads. `instruction_template_sha256` is retained as a package/version integrity check.
+- D-06 (re-scoped under D-09) requires encryption-at-rest only for draft templates and sensitive server-side config (provider creds, routing logic), not for published templates that ship in the package.
 
 ## 6. Prompt Injection and Leakage Defense
 
@@ -97,7 +97,7 @@ Operational thresholds:
 
 | Severity | Trigger | Required Action |
 |---|---|---|
-| Critical | Confirmed unsafe Kids output, prompt leakage, or unauthorized template exposure | Disable affected Skill or feature flag through emergency invalidation/broadcast, page Safety/Security/Engineering, open incident, preserve audit trail. |
+| Critical | Confirmed unsafe Kids output, provider-credential/routing-logic exposure, or identity/billing spoofing | Disable affected Skill or feature flag through emergency invalidation/broadcast, page Safety/Security/Engineering, open incident, preserve audit trail. |
 | High | Repeated safety violations, suspicious admin access, or provider boundary failure | Review model, template, policy, and logs within 1 business day. |
 | Medium | Data quality, event quarantine, or monitoring gap | Quarantine affected events and fix before dashboard or launch use. |
 
@@ -107,9 +107,9 @@ Kids or safety-sensitive launch paths cannot ship unless:
 
 1. Kids mode is disabled, closed beta, or fully approved for GA.
 2. Client-provided Kids state is ignored in automated tests.
-3. Non-Kids-Safe Skills are blocked before prompt injection in Kids Sessions.
+3. Non-Kids-Safe Skills are blocked before any provider execution in Kids Sessions.
 4. `is_kids_exclusive=true` behavior matches normal-session hiding/blocking plus approved exception policy.
-5. Prompt leakage API, log, analytics, billing, audit, export, and error tests pass.
+5. Secret-leakage (provider creds/routing logic/raw input/PII), identity/billing-spoofing, and package-content boundary tests pass across API, log, analytics, billing, audit, export, and error paths.
 6. Provider/model allowlist and safe model pool are approved, including Kids-specific DPA, no-training, and ZDR/no-retention validation.
 7. Kids provider adapter test proves unsupported retention/logging paths fail closed.
 8. Safety incident response and kill switch are tested, including emergency invalidation/broadcast rather than waiting for normal cache TTL.

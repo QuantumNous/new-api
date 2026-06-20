@@ -57,6 +57,14 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
+// isAudioSpeechOnlyChannel reports whether a channel only supports the
+// text-to-speech (/v1/audio/speech) endpoint and therefore cannot be probed
+// with a chat-completions request. ElevenLabs is the only such provider today;
+// without this, its test always fails with "only supports text-to-speech".
+func isAudioSpeechOnlyChannel(channel *model.Channel) bool {
+	return channel != nil && channel.Type == constant.ChannelTypeElevenLabs
+}
+
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
@@ -132,6 +140,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/responses/compact"
 		}
 	}
+
+	// TTS-only channels (ElevenLabs) cannot be probed with chat completions —
+	// route them to the audio-speech endpoint so the test exercises the real path.
+	if isAudioSpeechOnlyChannel(channel) {
+		requestPath = "/v1/audio/speech"
+	}
+
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
 		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
@@ -216,6 +231,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
+		}
+		if c.Request.URL.Path == "/v1/audio/speech" {
+			relayFormat = types.RelayFormatOpenAIAudio
 		}
 	}
 
@@ -357,6 +375,18 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeAudioSpeech:
+		// TTS — the adaptor returns the upstream request body as an io.Reader
+		// rather than a struct to be marshalled (handled below).
+		if audioReq, ok := request.(*dto.AudioRequest); ok {
+			convertedRequest, err = adaptor.ConvertAudioRequest(c, info, *audioReq)
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid audio request type"),
+				newAPIError: types.NewError(errors.New("invalid audio request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
 	default:
 		// Chat/Completion 等其他请求类型
 		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
@@ -377,7 +407,14 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
 		}
 	}
-	jsonData, err := common.Marshal(convertedRequest)
+	// Audio-speech adaptors return the raw upstream body as an io.Reader;
+	// every other relay mode returns a struct that must be JSON-marshalled.
+	var jsonData []byte
+	if reader, ok := convertedRequest.(io.Reader); ok {
+		jsonData, err = io.ReadAll(reader)
+	} else {
+		jsonData, err = common.Marshal(convertedRequest)
+	}
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -741,6 +778,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 			}
 			return req
+		}
+	}
+
+	// TTS-only channels (ElevenLabs): probe the audio-speech endpoint instead
+	// of chat completions. Voice is left empty so the adaptor uses its default.
+	if isAudioSpeechOnlyChannel(channel) {
+		return &dto.AudioRequest{
+			Model: model,
+			Input: "DeepRouter channel test.",
 		}
 	}
 

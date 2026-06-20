@@ -13,13 +13,13 @@
 | File | Purpose | Primary Owners |
 |---|---|---|
 | `Skill_Marketplace_Compliance.md` | 合规控制板、发布状态、跨文档闸门 | CTO + Compliance |
-| `01_Safety_And_Kids_Mode.md` | Kids Mode、安全模型池、Prompt 防泄露、内容安全 | Safety + Security |
+| `01_Safety_And_Kids_Mode.md` | Kids Mode、安全模型池、平台密钥/路由逻辑防泄露与包内容边界（R2/D-09）、内容安全 | Safety + Security |
 | `02_Audit_RBAC_Privacy.md` | 审计日志、RBAC、隐私、导出与保留策略 | Security + Privacy |
 | `03_Release_Readiness_Checklist.md` | Sprint Ready / Implementation Ready / GA Launch 检查清单 | Release Manager + QA |
 
 ## Required Usage
 
-1. Sprint Planning 可以基于 `D-01` 到 `D-08` 默认值推进。
+1. Sprint Planning 可以基于 `D-01` 到 `D-09` 默认值推进（`D-09` = R2 可下载包 + 运行时依赖护城河，见 `tasks/00_Overview.md` §0）。
 2. 受影响模块实现前，必须完成对应 owner sign-off。
 3. GA Launch 仍为 NO-GO，直到 `03_Release_Readiness_Checklist.md` 中所有启用路径的 P0 闸门完成。
 4. 任何涉及 Kids、Prompt、审计、RBAC、隐私、导出、计费或安全事件的变更，必须同步更新本目录和对应 `tasks/*` PRD。

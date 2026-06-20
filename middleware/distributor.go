@@ -119,12 +119,18 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
-							return
+						// Airbotix: the playground is a first-party UI. If it sends a
+						// group the user isn't entitled to (e.g. a stale group cached
+						// in the browser, or a brand-new user whose only usable group
+						// differs from what the picker defaulted to), do NOT 403 with
+						// "No permission to access this group" — that dead-ends a new
+						// user on their very first request. Instead silently fall back
+						// to the user's own group (usingGroup). Falling back is strictly
+						// less privilege, so there's no abuse vector.
+						if service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) || playgroundRequest.Group == usingGroup {
+							usingGroup = playgroundRequest.Group
+							common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 						}
-						usingGroup = playgroundRequest.Group
-						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 					}
 				}
 

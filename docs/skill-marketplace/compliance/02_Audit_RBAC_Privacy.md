@@ -44,11 +44,11 @@ Audit diff must not store `instruction_template`, raw prompt, full user input, r
 | Role | Scope |
 |---|---|
 | Anonymous | Browse public published Marketplace metadata only. |
-| Normal User | Browse, enable/disable own Skills, execute enabled Skills in Playground. |
+| Normal User | Browse, download own Skill packages, run them via the public routing API with their own DeepRouter credential. |
 | Operation | Manage `skill_reviews`, review aggregate operations views, cannot edit Skill content or templates. |
 | Safety Reviewer | Review Kids/safety readiness, approve/reject Kids approval, cannot publish unless also Super Admin. |
-| Product/Growth | View aggregate metrics and manage recommendation strategy where delegated; cannot view templates. |
-| Support | View limited diagnostics and assisted user status; cannot view prompt, full input, Kids sensitive data, or provider raw logs. |
+| Product/Growth | View aggregate metrics and manage recommendation strategy where delegated; cannot edit templates. |
+| Support | View limited diagnostics and assisted user status; cannot view provider credentials, raw input, PII, Kids sensitive data, or provider raw logs. |
 | Super Admin | Full Skill CRUD, versioning, publication, sensitive settings, audit, and emergency controls. |
 
 ## 5. API Access Boundary
@@ -73,7 +73,7 @@ Audit diff must not store `instruction_template`, raw prompt, full user input, r
 | View user-level analytics | No | Own only if exposed | No by default | No | No | Limited support view | Yes with audit |
 | Export CSV/data | No | No | P1 aggregate only | No | P1 aggregate only | No | Yes with audit |
 | Create/edit Skill metadata | No | No | No | No | No | No | Yes |
-| View `instruction_template` | No | No | No | No | No | No | Yes only, audited |
+| View published `instruction_template` | Via package | Via package | Via package | Via package | Via package | Via package | Yes incl. drafts, audited |
 | Edit `instruction_template` | No | No | No | No | No | No | Yes only, audited |
 | Publish/archive/deprecate | No | No | No | No | No | No | Yes |
 | Approve Kids safety | No | No | No | Yes | No | No | Yes if assigned |
@@ -151,11 +151,12 @@ CSV/export is not a P0 launch requirement.
 
 Required before launch:
 
-1. No public/user/ops/support API returns `instruction_template`.
-2. Logs, analytics, billing, audit, exports, and errors contain no restricted data.
+1. No API and no package file returns provider credentials, server routing/model-selection logic, or draft templates. (The published template is delivered only via the package-download path by design.)
+2. Logs, analytics, billing, audit, exports, and errors contain no restricted data (provider creds, raw input, PII, provider payloads).
 3. `/admin/*` sensitive operations require Super Admin.
 4. `/ops/*` returns aggregate views only.
-5. Support diagnostics cannot expose prompt, Kids raw data, provider raw logs, or full model output.
+5. Support diagnostics cannot expose provider credentials, Kids raw data, provider raw logs, raw user input/PII, or full model output.
+9. Identity/billing cannot be spoofed by package-supplied fields; per-call attribution binds to the validated runner credential.
 6. Unauthorized admin access is denied and security-relevant attempts are monitored.
 7. Metadata allowlist rejects or quarantines restricted keys.
 8. Audit records are created for all sensitive admin, Kids, export, and emergency actions.

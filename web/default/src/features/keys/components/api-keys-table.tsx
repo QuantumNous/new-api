@@ -177,7 +177,13 @@ export function ApiKeysTable() {
   const columns = useApiKeysColumns()
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  // Hide low-value columns by default so the connection-relevant columns
+  // (Name / Status / API Key / Quota) stay visible without horizontal scroll.
+  // Users can re-enable these from the column visibility menu.
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    accessed_time: false,
+    group: false,
+  })
 
   const {
     globalFilter,

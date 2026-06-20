@@ -93,22 +93,26 @@ export function ApiKeySuccessDialog({
                 'Paste it into the AI tool you already use — find the "API Key" field in its settings.'
               )}
             </p>
+            {/* Primary action is the self-check (onboarding-v2 §7.6) — it
+              * proves "my money turns into AI replies", which is the decisive
+              * casual step. Code examples are a developer extra, demoted to a
+              * quiet secondary link so non-coders aren't pushed toward code. */}
             <div className='mt-2 flex flex-wrap gap-2'>
               <Button
                 size='sm'
-                className='rounded-full text-xs'
-                onClick={() => setShowGuide(true)}
-              >
-                {t('View code examples →')}
-              </Button>
-              <Button
-                size='sm'
-                variant='outline'
                 className='rounded-full text-xs'
                 render={
                   <a href='/keys/test'>{t('Test this key →')}</a>
                 }
               />
+              <Button
+                size='sm'
+                variant='ghost'
+                className='rounded-full text-xs'
+                onClick={() => setShowGuide(true)}
+              >
+                {t('Setup guide')}
+              </Button>
             </div>
           </div>
         </div>

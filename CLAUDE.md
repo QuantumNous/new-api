@@ -3,16 +3,87 @@
 This file orients Claude before edits. Read top-to-bottom before working in this repo.
 
 **Sister files**:
-- `AGENTS.md` — coding rules (JSON wrapper, cross-DB, branding lock, billing expression, pointer omitempty). Treat those rules as mandatory; this file does not repeat them.
+- `AGENTS.md` — coding rules (JSON wrapper, cross-DB, branding lock, billing expression, pointer omitempty, **Rule 10 changelog-every-change, Rule 11 PRD-first-per-task**). Treat those rules as mandatory; this file does not repeat them.
+- `CHANGELOG.md` — every meaningful change gets an entry (AGENTS.md Rule 10).
 - `ARCHITECTURE.md` — upstream-derived module tour (`router/` → `controller/` → `service/` → `model/`).
 - `AIRBOTIX.md` — what the fork customises vs upstream + upstream-sync workflow.
 - `DEV.md` — 5-minute local quickstart.
 - `PLAN.md` — phase plan to V0 launch.
 - `docs/PRD.md` — engineering PRD.
+- `docs/BUSINESS-LOGIC.md` — consolidated business/commercial logic + open decisions (read for any customer-facing or pricing/billing work).
+- `docs/DeepRouter-BP.md` — 融资商业计划书 (investor-facing; revenue/pricing/margins/financials). Imported from `jr-academy-ai/deeprouter-brand/`.
+- `docs/DeepRouter-PRD-brand.md` — brand/product PRD (companion to the BP).
+- `docs/DESIGN.md` — **canonical visual design system. MANDATORY for any UI/visual change** (AGENTS.md Rule 9). §0–5 is canonical; §6–9 is "Historical Inspiration" and contradicts it (defer to §0–5). The `design-system` skill condenses it and auto-loads on UI work.
 - `docs/system-settings-guide.md` — operator-facing Chinese guide to every admin System Settings section (what each does, DeepRouter-recommended values, which fields need operator-supplied secrets).
 - `../CLAUDE.md` — umbrella file covering the AGPL/Apache process boundary between this repo and `../smart-router/`.
 
 **Operator config tooling** (`scripts/seed-models/`): `seed.py` upserts all upstream channels + model lists from `channels.yaml`; `seed_options.py` pushes a curated set of safe system-settings defaults. Both are idempotent, talk to the admin API (`Authorization: Bearer <access-token>` **plus** a `New-Api-User: <user-id>` header — admin endpoints require both), and read config from a gitignored `.env`. See `scripts/seed-models/README.md`.
+
+## 0. Who you are building for — READ BEFORE ANY CUSTOMER-FACING CHANGE
+
+If your change touches `web/default/src/features/keys/`, the console, onboarding,
+pricing, the Setup guide, or anything an end user sees: re-read
+`docs/BUSINESS-LOGIC.md` (the consolidated source of truth — start here, esp.
+its §0 "DECISIONS NEEDED"), then `docs/onboarding-v2-prd.md` (§3 personas,
+§7.5 调用密钥页, §7.6 自检), `docs/tasks/casual-ux-prd.md`,
+`docs/tasks/api-key-simple-advanced-prd.md`, and
+`docs/tasks/casual-journey-readiness-prd.md` (the register→use→success
+execution/gap-closure plan — AS-IS audit + prioritized P0/P1 backlog +
+decision-gated items) FIRST. Those PRDs are the law; this section is just the anchor that keeps every
+change pointed at the same user. Most customer-facing mistakes in this repo come
+from drifting back into "developer using a gateway" thinking — which is exactly
+the persona DeepRouter is NOT built for.
+
+**The end user is NOT a developer.** Paying users are lawyers, doctors,
+designers, teachers, students, content creators (PRD §3). They buy an API key
+and leave to paste it into an AI tool they already use (Cherry Studio, opencode,
+Cursor, …). They will not write code, read SDK docs, or debug a Base URL. They
+are not cold-start — they already know what they want AI for.
+
+**DeepRouter is a utility (account + wallet), not a destination (chat /
+assistant).** "不做 chat 是红线" (onboarding-v2-prd.md §2 insight #1).
+
+**Payment is multi-currency. Pricing is USD-denominated** (top-ups quoted in
+USD, min $5); the user pays in **USD / AUD (via Airwallex) / CNY (WeChat &
+Alipay)**. CNY/AUD are *payment methods*, not the pricing unit — never describe
+DeepRouter as "RMB-only" or "RMB-priced." See `value-calculator.tsx` /
+`stats.tsx` ("pricing is USD-denominated; CNY is just one accepted payment
+method") and `docs/tasks/airwallex-autocharge-design.md`.
+
+**The product's core job is to hand-hold a non-technical user through
+configuring it and actually using it well — including which model to use for
+what** (写作 / 代码 / 翻译 / 图像 / 语音 …). The win is not "we have a gateway";
+it is "a 小白 got set up in 2 minutes and knows which model to point at their
+task." Keep onboarding, the key-setup guide, and model-purpose guidance as the
+center of gravity (`docs/onboarding-v2-prd.md`,
+`docs/tasks/key-setup-guide-prd.md`,
+`docs/tasks/casual-journey-readiness-prd.md`).
+
+**Golden path = 2 minutes, zero support:** 注册 → 充值 → 拿密钥 → 确认能用.
+On the key page the real final step is the **self-check (自检)** that proves
+"我的钱变成了 AI 算力" (§7.6) — NOT a code snippet.
+
+Hard rules for customer-facing surfaces (default = casual mode):
+
+1. **Jargon ban (PRD §7.4).** Do NOT surface to a casual user: `API`, `token`,
+   `Base URL`, `模型路由`, `网关`, `SDK`, or third-party client brand names.
+   These live behind an explicit **Developer mode** toggle only.
+2. **"How do I use my key?" = "粘贴到你正在用的 AI 工具的设置里，找带 API Key 的
+   输入框，粘进去保存"** → then run the self-check. cURL / Python / Node snippets
+   are a Developer-mode extra, never the default answer.
+3. **Every value shown to a user MUST actually work — verify it against a live
+   gateway call before shipping.** Anti-example caught 2026-06-08: the Setup
+   guide shipped model name `deeprouter` (gateway returns **503** — only
+   `deeprouter-auto` routes today) and Base URL `:17231/v1` (frontend dev port,
+   `/v1` not proxied; the real gateway is `:3300`). Both fixed 2026-06-11
+   (`modelNameForPurpose()` → always `deeprouter-auto`; dev proxy now covers
+   `/v1`) — but the rule stands: re-verify before every change. A guide that
+   shows broken values is worse than no guide.
+4. **Plain language, English term in parentheses once** ("调用密钥(API Key)"),
+   not English-first.
+
+When unsure on a customer surface, optimize for the non-technical user who
+pastes-and-goes; push everything else behind Developer mode.
 
 ## 1. What this codebase is
 

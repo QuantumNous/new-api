@@ -12,7 +12,8 @@
 
 | Decision | V1 UX Baseline |
 |---|---|
-| Public Skill API | Not exposed in UX; V1 only supports Playground execution |
+| Distribution & execution (D-09) | Marketplace offers downloadable SKILL.md-compatible zip packages; Detail shows a Download CTA with installation instructions ("Extract to .claude/skills/ and use /skillname"). DeepRouter does not execute Skills. Admin Preview retained for Admin testing only |
+| No runtime dependency | Skills run locally with any LLM; Detail page must NOT state "requires DeepRouter key to run"; instead show "Works with Claude Code and other compatible tools" |
 | Kids Mode | Closed beta / feature-flagged by default until Product + Safety declare GA |
 | Kids UI when flag off | Hide Kids filters and Kids-exclusive browsing entry from normal users |
 | Kids UI when flag on | Apply all Kids blocked, Kids Safe, Kids Exclusive states in this spec |
@@ -29,8 +30,8 @@
 
 | Principle | Requirement |
 |---|---|
-| Hosted Capability, Not Prompt Download | UI 不得暗示用户可下载、复制或查看 Skill prompt |
-| Use-Time Entitlement | 启用不等于永久可用；UI 必须显示当前执行可用性 |
+| Downloadable Capability, Server-Side Moat | UI 鼓励下载 Skill 包；可读模板不是机密，但 UI 不得暗示用户可获得 provider 凭证或绕过 DeepRouter 运行 |
+| Use-Time Entitlement | 下载不等于永久可用；UI 必须显示当前执行可用性，并提示运行需 DeepRouter key |
 | Safety First | Kids / policy / entitlement block 必须清晰、克制、不可绕过 |
 | Operations Ready | Admin / Ops 页面必须支持排查、审计、筛选和追踪 |
 | Clear State Over Clever UI | 所有 locked、expired、deprecated、archived、quota、error 状态必须明确 |
@@ -202,13 +203,21 @@ Help users understand what the Skill does, what input it needs, what output to e
 | Archived | Unavailable | Back | No execution CTA |
 | Kids blocked | Not available in Kids Mode | Back | No switch-mode CTA in V1 |
 
-#### 4.2.4 Privacy and Hosted Prompt Copy
+#### 4.2.4 Privacy and Runtime-Dependency Copy
 
 Use concise user-facing copy:
 
 ```text
-This Skill is hosted by DeepRouter. Its internal instructions are not visible or downloadable.
+Download this Skill to use it in your own environment.
+Extract the zip to .claude/skills/ and use /skillname in Claude Code — or any compatible tool.
 Generated results are AI-assisted and should be reviewed before use.
+```
+
+Installation instruction block (shown after download):
+```text
+1. Extract the zip to your .claude/skills/ directory
+2. Type /skillname in Claude Code to use it
+3. Works with any Claude Code-compatible tool
 ```
 
 For China-facing surfaces, include required AI-generated content disclosure as product UI text, not model output.
@@ -252,7 +261,13 @@ Primary action: `Explore Skills`.
 
 ---
 
-### 4.4 Playground Skill Picker
+### 4.4 Playground Skill Picker (Legacy — Removed in D-09)
+
+> **Note:** In-platform Playground execution is not the V1 end-user execution surface. Users run downloaded Skill packages locally with any LLM. Admin Preview is retained for Admin testing only. This section is retained for historical reference; do not implement as end-user flow.
+
+---
+
+### 4.4-Legacy Playground Skill Picker
 
 #### 4.4.1 Goal
 
@@ -374,7 +389,7 @@ Publish button is disabled until all required checks pass:
 - `max_input_tokens` set when `required_plan='free'`, `monetization_type='free'`, or `free_quota_per_month` is configured. The field must appear in the Editor and show a validation error if blank for these configurations.
 - Model whitelist set.
 - Preview test completed successfully.
-- No visible prompt leakage in preview.
+- Package build succeeds and contains no provider credentials or server routing logic (R2).
 - Kids approval complete if Kids flags are set.
 - Reason captured for publish.
 
@@ -455,7 +470,11 @@ Support internal review workflows for quality, low activation, safety signals, a
 | `PlanBadge` | Free, Pro, Enterprise |
 | `KidsBadge` | Kids Safe, Kids Exclusive, Pending, Blocked |
 | `LockState` | plan_required, subscription_inactive, quota_exceeded, kids_blocked |
-| `SkillCTA` | view, enable, use, upgrade, renew, contact_sales, unavailable |
+| `SkillCTA` | view, download, upgrade, renew, contact_sales, unavailable |
+| `SkillActions` | save, unsave, favorite, unfavorite, rate, report |
+| `RatingWidget` | 1-5 stars, optional comment (280 chars max), submit/update |
+| `EvaluationBadge` | passed, failed, warning, pending; separate from verified badge |
+| `VerifiedBadge` | human-reviewed, shown on detail and card |
 | `SkillPicker` | empty, selected, locked, error, loading |
 | `EmptyState` | search, category, my-skills, analytics, feature-off |
 | `ErrorBanner` | retryable, non-retryable, request-id |
@@ -531,7 +550,8 @@ Support internal review workflows for quality, low activation, safety signals, a
 
 | State | Example Copy |
 |---|---|
-| Hosted prompt | This Skill is hosted by DeepRouter. Its internal instructions are not visible or downloadable. |
+| Runtime dependency | Download to use. Running this Skill requires a DeepRouter API key; it routes its work through DeepRouter. |
+| Needs key | You need a DeepRouter API key to run this Skill. Sign up or add your key to continue. |
 | AI generated disclosure | Generated by AI. Review before use. |
 | Pro locked | This Skill requires Pro. |
 | Enterprise locked | This Skill requires Enterprise access. |
@@ -567,11 +587,11 @@ No tracking payload may include `instruction_template` or Kids sensitive raw inp
 
 ### 10.1 P0 UX Acceptance
 
-1. Anonymous users can browse public Marketplace and Skill Detail, but cannot enable or execute.
-2. Logged-in users can enable, disable, and view My Skills.
+1. Anonymous users can browse public Marketplace and Skill Detail, but cannot download (Download CTA routes to login/signup).
+2. Logged-in users can download, remove from My Skills, and view My Skills.
 3. Marketplace cards show plan, availability, and correct CTA for Free/Pro/Enterprise states.
-4. Skill Detail shows examples, hosted prompt copy, AI disclosure, and correct CTA.
-5. Playground Picker supports zero or one selected Skill and shows lock/error states.
+4. Skill Detail shows examples, runtime-dependency copy (needs a DeepRouter key), AI disclosure, and correct Download CTA.
+5. The downloaded package surfaces lock/error states and prompts signup on `AUTH_REQUIRED`.
 6. Archived Skills have no enable/use CTA.
 7. Deprecated enabled Skills appear only in My Skills and show warning; execution CTA appears only when backend returns executable state.
 8. Kids UI is hidden when Kids feature flag is off; Kids blocked state is visible and non-bypassable when Kids feature flag is on.
