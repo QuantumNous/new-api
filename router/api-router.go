@@ -13,6 +13,12 @@ import (
 
 func SetApiRouter(router *gin.Engine) {
 	apiRouter := router.Group("/api")
+	// CORS must apply to the whole /api group so actual responses (not just the
+	// OPTIONS preflight) carry Access-Control-Allow-Origin. Without this the
+	// browser-based JINN taskpane is blocked from cookie-authed endpoints
+	// (/api/user/login/*, /api/token/*, /api/user/self) — the preflight passes
+	// but the real response lacks the header. Mirrors relay-router's /v1 setup.
+	apiRouter.Use(middleware.CORS())
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
