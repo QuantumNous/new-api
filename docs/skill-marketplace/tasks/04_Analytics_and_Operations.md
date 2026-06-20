@@ -189,6 +189,7 @@ Use the same enum as Data/API Spec.
 | `marketplace_card` | Card impression or action from Marketplace |
 | `skill_detail` | Detail page CTA |
 | `my_skills` | My Skills page |
+| `saved_list` | Saved/Favorited Skills list |
 | `skill_package` | Execution from a downloaded Skill package via the public routing API (R2 primary execution entry) |
 | `playground_picker` | Legacy: in-platform Playground Skill Picker (historical events only) |
 | `featured` | Featured rail |
@@ -196,6 +197,7 @@ Use the same enum as Data/API Spec.
 | `new` | New rail |
 | `recommended` | Recommended Lite rail |
 | `admin_preview` | Admin preview/test execution |
+| `search_results` | Marketplace search results |
 
 V1 execution events primarily use `entry_point=skill_package` (downloaded package via the public routing API). `playground_picker` is retained only for historical events and is not produced by new V1 execution.
 
@@ -575,7 +577,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_789",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": "66666666-6666-4666-8666-666666666666",
-  "entry_point": "playground_picker",
+  "entry_point": "skill_package",
   "plan": "pro",
   "subscription_status": "active",
   "persona": "developer",
@@ -611,7 +613,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_blocked_123",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": null,
-  "entry_point": "playground_picker",
+  "entry_point": "skill_package",
   "plan": "free",
   "subscription_status": "active",
   "is_kids_session": false,
