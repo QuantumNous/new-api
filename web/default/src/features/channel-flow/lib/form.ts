@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import z from 'zod'
 import type {
   ChannelFlowBindingPayload,
@@ -39,7 +38,10 @@ function parseTimeInputToMinute(value: string): number {
 }
 
 function minuteToTimeInput(minute: number): string {
-  const clamped = Math.max(0, Math.min(1439, Number.isFinite(minute) ? minute : 0))
+  const clamped = Math.max(
+    0,
+    Math.min(1439, Number.isFinite(minute) ? minute : 0)
+  )
   const hours = Math.floor(clamped / 60)
   const minutes = clamped % 60
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
@@ -85,6 +87,7 @@ export const channelFlowPoolFormSchema = z
     enabled: z.boolean(),
     backend: z.enum(['memory', 'redis']),
     max_inflight: nonNegativeInt,
+    max_inflight_per_user: nonNegativeInt,
     max_queue_size: nonNegativeInt,
     max_queue_per_user: nonNegativeInt,
     queue_timeout_ms: positiveInt,
@@ -102,8 +105,12 @@ export const channelFlowPoolFormSchema = z
     effective_end_time: nonNegativeInt,
     schedule_windows: z.string().default(''),
     schedule_weekdays: z.array(z.number().int().min(0).max(6)),
-    schedule_start_time: z.string().regex(timeInputPattern, 'Start time is invalid'),
-    schedule_end_time: z.string().regex(timeInputPattern, 'End time is invalid'),
+    schedule_start_time: z
+      .string()
+      .regex(timeInputPattern, 'Start time is invalid'),
+    schedule_end_time: z
+      .string()
+      .regex(timeInputPattern, 'End time is invalid'),
   })
   .superRefine((values, ctx) => {
     if (values.schedule_mode === 'datetime_range') {
@@ -152,6 +159,17 @@ export const channelFlowPoolFormSchema = z
         })
       }
     }
+    if (
+      values.max_inflight_per_user > 0 &&
+      values.max_inflight > 0 &&
+      values.max_inflight_per_user > values.max_inflight
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['max_inflight_per_user'],
+        message: 'Per-user inflight cap cannot exceed max inflight',
+      })
+    }
   })
 
 export type ChannelFlowPoolFormValues = z.infer<
@@ -176,6 +194,7 @@ export const defaultPoolFormValues: ChannelFlowPoolFormValues = {
   enabled: true,
   backend: 'memory',
   max_inflight: 60,
+  max_inflight_per_user: 0,
   max_queue_size: 240,
   max_queue_per_user: 0,
   queue_timeout_ms: 120000,
@@ -221,6 +240,7 @@ export function poolToFormValues(
     enabled: pool.enabled,
     backend: pool.backend,
     max_inflight: pool.max_inflight,
+    max_inflight_per_user: pool.max_inflight_per_user,
     max_queue_size: pool.max_queue_size,
     max_queue_per_user: pool.max_queue_per_user,
     queue_timeout_ms: pool.queue_timeout_ms,
@@ -241,8 +261,12 @@ export function poolToFormValues(
       firstScheduleWindow?.weekdays?.length > 0
         ? firstScheduleWindow.weekdays
         : [...defaultScheduleWeekdays],
-    schedule_start_time: minuteToTimeInput(firstScheduleWindow?.start_minute ?? 540),
-    schedule_end_time: minuteToTimeInput(firstScheduleWindow?.end_minute ?? 1080),
+    schedule_start_time: minuteToTimeInput(
+      firstScheduleWindow?.start_minute ?? 540
+    ),
+    schedule_end_time: minuteToTimeInput(
+      firstScheduleWindow?.end_minute ?? 1080
+    ),
   }
 }
 
@@ -256,6 +280,7 @@ export function poolFormToPayload(
     enabled: values.enabled,
     backend: values.backend,
     max_inflight: values.max_inflight,
+    max_inflight_per_user: values.max_inflight_per_user,
     max_queue_size: values.max_queue_size,
     max_queue_per_user: values.max_queue_per_user,
     queue_timeout_ms: values.queue_timeout_ms,
@@ -268,9 +293,12 @@ export function poolFormToPayload(
     lease_ms: values.lease_ms,
     renew_interval_ms: values.renew_interval_ms,
     schedule_mode: values.schedule_mode,
-    schedule_timezone: values.schedule_timezone.trim() || defaultScheduleTimezone,
+    schedule_timezone:
+      values.schedule_timezone.trim() || defaultScheduleTimezone,
     effective_start_time:
-      values.schedule_mode === 'datetime_range' ? values.effective_start_time : 0,
+      values.schedule_mode === 'datetime_range'
+        ? values.effective_start_time
+        : 0,
     effective_end_time:
       values.schedule_mode === 'datetime_range' ? values.effective_end_time : 0,
     schedule_windows: buildScheduleWindows(values),

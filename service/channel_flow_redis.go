@@ -42,6 +42,7 @@ type redisFlowGuard struct {
 	pool        model.ChannelFlowPool
 	poolKey     string
 	requestID   string
+	userID      int
 	released    atomic.Bool
 	releaseFunc atomic.Value
 }
@@ -122,7 +123,7 @@ func (b *redisFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Flo
 			return nil, decision, fmt.Errorf("channel flow queue timeout")
 		}
 
-		_ = b.cleanupExpired(acquireCtx, rdb, keys)
+		_ = b.cleanupExpired(acquireCtx, rdb, keys, req.Pool)
 		attempt, err := b.tryAcquireOnce(acquireCtx, rdb, keys, req, enqueued, sequenceScore, queuedAt)
 		if err != nil {
 			if errors.Is(err, redis.TxFailedErr) {
@@ -155,6 +156,7 @@ func (b *redisFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Flo
 					pool:      req.Pool,
 					poolKey:   req.Pool.PoolKey,
 					requestID: req.RequestID,
+					userID:    req.UserID,
 				}, decision, nil
 			}
 		}
@@ -181,7 +183,7 @@ func (b *redisFlowBackend) Status(ctx context.Context, pool model.ChannelFlowPoo
 		return PoolStatus{}, err
 	}
 	keys := redisKeysForPool(pool)
-	_ = b.cleanupExpired(ctx, rdb, keys)
+	_ = b.cleanupExpired(ctx, rdb, keys, pool)
 
 	running, err := rdb.ZCard(ctx, keys.Running).Result()
 	if err != nil {
@@ -234,6 +236,9 @@ func (b *redisFlowBackend) tryAcquireOnce(
 	watchKeys := []string{keys.Running, keys.Waiting}
 	if req.UserID > 0 {
 		watchKeys = append(watchKeys, keys.userWaiting(req.UserID))
+		if req.Pool.MaxInflightPerUser > 0 {
+			watchKeys = append(watchKeys, keys.userRunning(req.UserID))
+		}
 	}
 	err := rdb.Watch(ctx, func(tx *redis.Tx) error {
 		running, err := tx.ZCard(ctx, keys.Running).Result()
@@ -248,13 +253,27 @@ func (b *redisFlowBackend) tryAcquireOnce(
 		attempt.decision.queuedNow = int(waiting)
 
 		if !enqueued {
-			if redisFlowHasCapacity(running, req.Pool.MaxInflight) && waiting == 0 {
+			userInflightFull := false
+			if req.Pool.MaxInflightPerUser > 0 && req.UserID > 0 {
+				userRunning, err := tx.ZCard(ctx, keys.userRunning(req.UserID)).Result()
+				if err != nil {
+					return err
+				}
+				userInflightFull = userRunning >= int64(req.Pool.MaxInflightPerUser)
+			}
+			if redisFlowHasCapacity(running, req.Pool.MaxInflight) && waiting == 0 && !userInflightFull {
 				expiresAtMs := time.Now().Add(redisLeaseDuration(req.Pool)).UnixMilli()
 				_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 					pipe.ZAdd(ctx, keys.Running, &redis.Z{
 						Score:  float64(expiresAtMs),
 						Member: req.RequestID,
 					})
+					if req.Pool.MaxInflightPerUser > 0 && req.UserID > 0 {
+						pipe.ZAdd(ctx, keys.userRunning(req.UserID), &redis.Z{
+							Score:  float64(expiresAtMs),
+							Member: req.RequestID,
+						})
+					}
 					b.writeRequestMeta(ctx, pipe, keys, req, "running", 0, expiresAtMs)
 					return nil
 				})
@@ -268,7 +287,11 @@ func (b *redisFlowBackend) tryAcquireOnce(
 			}
 			if req.Pool.OnLimit != model.ChannelFlowOnLimitQueue {
 				attempt.done = true
-				attempt.decision.rejectCode = FlowDecisionRejectQueueFull
+				if userInflightFull {
+					attempt.decision.rejectCode = FlowDecisionRejectPerUserInflightFull
+				} else {
+					attempt.decision.rejectCode = FlowDecisionRejectQueueFull
+				}
 				return nil
 			}
 			if req.Pool.MaxQueueSize > 0 && waiting >= int64(req.Pool.MaxQueueSize) {
@@ -331,8 +354,24 @@ func (b *redisFlowBackend) tryAcquireOnce(
 			return err
 		}
 		attempt.decision.queuePos = int(rank) + 1
-		if rank != 0 || !redisFlowHasCapacity(running, req.Pool.MaxInflight) {
+		if !redisFlowHasCapacity(running, req.Pool.MaxInflight) {
 			return nil
+		}
+		eligible, err := b.isEligibleWaitingRequest(ctx, tx, keys, req)
+		if err != nil {
+			return err
+		}
+		if !eligible {
+			return nil
+		}
+		if req.Pool.MaxInflightPerUser > 0 && req.UserID > 0 {
+			userRunning, err := tx.ZCard(ctx, keys.userRunning(req.UserID)).Result()
+			if err != nil {
+				return err
+			}
+			if userRunning >= int64(req.Pool.MaxInflightPerUser) {
+				return nil
+			}
 		}
 		expiresAtMs := time.Now().Add(redisLeaseDuration(req.Pool)).UnixMilli()
 		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
@@ -345,6 +384,12 @@ func (b *redisFlowBackend) tryAcquireOnce(
 				Score:  float64(expiresAtMs),
 				Member: req.RequestID,
 			})
+			if req.Pool.MaxInflightPerUser > 0 && req.UserID > 0 {
+				pipe.ZAdd(ctx, keys.userRunning(req.UserID), &redis.Z{
+					Score:  float64(expiresAtMs),
+					Member: req.RequestID,
+				})
+			}
 			b.writeRequestMeta(ctx, pipe, keys, req, "running", 0, expiresAtMs)
 			return nil
 		})
@@ -362,6 +407,45 @@ func (b *redisFlowBackend) tryAcquireOnce(
 	return attempt, err
 }
 
+func (b *redisFlowBackend) isEligibleWaitingRequest(ctx context.Context, tx *redis.Tx, keys redisFlowKeys, req AcquireRequest) (bool, error) {
+	waiting, err := tx.ZRange(ctx, keys.Waiting, 0, redisFlowCleanupBatch-1).Result()
+	if err != nil {
+		return false, err
+	}
+	for _, requestID := range waiting {
+		userID, err := b.requestIntFromTx(ctx, tx, keys, requestID, "user_id")
+		if err != nil {
+			return false, err
+		}
+		if req.Pool.MaxInflightPerUser > 0 && userID > 0 {
+			userRunning, err := tx.ZCard(ctx, keys.userRunning(userID)).Result()
+			if err != nil {
+				return false, err
+			}
+			if userRunning >= int64(req.Pool.MaxInflightPerUser) {
+				continue
+			}
+		}
+		return requestID == req.RequestID, nil
+	}
+	return false, nil
+}
+
+func (b *redisFlowBackend) requestIntFromTx(ctx context.Context, tx *redis.Tx, keys redisFlowKeys, requestID string, field string) (int, error) {
+	value, err := tx.HGet(ctx, keys.request(requestID), field).Result()
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, redisFlowUnavailable(err)
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, nil
+	}
+	return parsed, nil
+}
+
 func (b *redisFlowBackend) removeWaiting(ctx context.Context, rdb *redis.Client, keys redisFlowKeys, requestID string, userID int) error {
 	pipe := rdb.TxPipeline()
 	pipe.ZRem(ctx, keys.Waiting, requestID)
@@ -374,7 +458,7 @@ func (b *redisFlowBackend) removeWaiting(ctx context.Context, rdb *redis.Client,
 	return redisFlowUnavailable(err)
 }
 
-func (b *redisFlowBackend) release(ctx context.Context, pool model.ChannelFlowPool, requestID string) error {
+func (b *redisFlowBackend) release(ctx context.Context, pool model.ChannelFlowPool, requestID string, userID int) error {
 	rdb, err := b.client()
 	if err != nil {
 		return err
@@ -382,12 +466,15 @@ func (b *redisFlowBackend) release(ctx context.Context, pool model.ChannelFlowPo
 	keys := redisKeysForPool(pool)
 	pipe := rdb.TxPipeline()
 	pipe.ZRem(ctx, keys.Running, requestID)
+	if pool.MaxInflightPerUser > 0 && userID > 0 {
+		pipe.ZRem(ctx, keys.userRunning(userID), requestID)
+	}
 	pipe.Del(ctx, keys.request(requestID))
 	_, err = pipe.Exec(ctx)
 	return redisFlowUnavailable(err)
 }
 
-func (b *redisFlowBackend) renew(ctx context.Context, pool model.ChannelFlowPool, requestID string) error {
+func (b *redisFlowBackend) renew(ctx context.Context, pool model.ChannelFlowPool, requestID string, userID int) error {
 	rdb, err := b.client()
 	if err != nil {
 		return err
@@ -409,16 +496,43 @@ func (b *redisFlowBackend) renew(ctx context.Context, pool model.ChannelFlowPool
 		Score:  float64(expiresAtMs),
 		Member: requestID,
 	})
+	if pool.MaxInflightPerUser > 0 && userID > 0 {
+		pipe.ZAdd(ctx, keys.userRunning(userID), &redis.Z{
+			Score:  float64(expiresAtMs),
+			Member: requestID,
+		})
+	}
 	pipe.HSet(ctx, keys.request(requestID), "expires_at_ms", strconv.FormatInt(expiresAtMs, 10))
 	pipe.Expire(ctx, keys.request(requestID), redisRequestTTL(pool))
 	_, err = pipe.Exec(ctx)
 	return redisFlowUnavailable(err)
 }
 
-func (b *redisFlowBackend) cleanupExpired(ctx context.Context, rdb *redis.Client, keys redisFlowKeys) error {
+func (b *redisFlowBackend) cleanupExpired(ctx context.Context, rdb *redis.Client, keys redisFlowKeys, pool model.ChannelFlowPool) error {
 	nowMs := time.Now().UnixMilli()
-	if err := rdb.ZRemRangeByScore(ctx, keys.Running, "-inf", strconv.FormatInt(nowMs, 10)).Err(); err != nil {
+	expiredRunning, err := rdb.ZRangeByScore(ctx, keys.Running, &redis.ZRangeBy{
+		Min:    "-inf",
+		Max:    strconv.FormatInt(nowMs, 10),
+		Offset: 0,
+		Count:  redisFlowCleanupBatch,
+	}).Result()
+	if err != nil {
 		return redisFlowUnavailable(err)
+	}
+	if len(expiredRunning) > 0 {
+		pipe := rdb.TxPipeline()
+		pipe.ZRemRangeByScore(ctx, keys.Running, "-inf", strconv.FormatInt(nowMs, 10))
+		for _, requestID := range expiredRunning {
+			userID, _ := b.requestInt(ctx, rdb, keys, requestID, "user_id")
+			if pool.MaxInflightPerUser > 0 && userID > 0 {
+				pipe.ZRem(ctx, keys.userRunning(userID), requestID)
+			}
+			pipe.Del(ctx, keys.request(requestID))
+		}
+		_, err = pipe.Exec(ctx)
+		if err != nil {
+			return redisFlowUnavailable(err)
+		}
 	}
 	expired, err := rdb.ZRangeByScore(ctx, keys.Deadline, &redis.ZRangeBy{
 		Min:    "-inf",
@@ -519,7 +633,7 @@ func (g *redisFlowGuard) Release(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return g.backend.release(ctx, g.pool, g.requestID)
+	return g.backend.release(ctx, g.pool, g.requestID, g.userID)
 }
 
 func (g *redisFlowGuard) RenewLease(ctx context.Context) error {
@@ -529,7 +643,7 @@ func (g *redisFlowGuard) RenewLease(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return g.backend.renew(ctx, g.pool, g.requestID)
+	return g.backend.renew(ctx, g.pool, g.requestID, g.userID)
 }
 
 func (g *redisFlowGuard) PoolKey() string {
@@ -583,6 +697,10 @@ func (k redisFlowKeys) userWaiting(userID int) string {
 	return fmt.Sprintf("%s:user:%d:waiting", k.Base, userID)
 }
 
+func (k redisFlowKeys) userRunning(userID int) string {
+	return fmt.Sprintf("%s:user:%d:running", k.Base, userID)
+}
+
 func redisFlowHasCapacity(running int64, maxInflight int) bool {
 	return maxInflight <= 0 || running < int64(maxInflight)
 }
@@ -617,6 +735,8 @@ func sleepRedisFlowPoll(ctx context.Context, delay time.Duration) error {
 
 func redisRejectError(code string) error {
 	switch code {
+	case FlowDecisionRejectPerUserInflightFull:
+		return fmt.Errorf("channel flow per-user inflight limit reached")
 	case FlowDecisionRejectPerUserQueueFull:
 		return fmt.Errorf("channel flow per-user queue is full")
 	case FlowDecisionRejectQueueTimeout:

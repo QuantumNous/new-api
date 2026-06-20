@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -117,7 +116,9 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
       <div className='space-y-3 rounded-lg border p-4'>
         <div className='flex items-start justify-between gap-3'>
           <div className='min-w-0'>
-            <h3 className='truncate text-sm font-semibold'>{props.pool.name}</h3>
+            <h3 className='truncate text-sm font-semibold'>
+              {props.pool.name}
+            </h3>
             <p className='text-muted-foreground mt-1 truncate text-xs'>
               {props.pool.pool_key}
             </p>
@@ -128,7 +129,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
           </div>
         </div>
 
-        <div className='space-y-3 rounded-lg border bg-muted/20 p-3'>
+        <div className='bg-muted/20 space-y-3 rounded-lg border p-3'>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
             <div>
               <div className='text-xs font-medium'>{t('Latest status')}</div>
@@ -162,20 +163,24 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
               value={running}
               max={maxInflight}
             />
-            <CapacityMeter label={t('Queued')} value={queued} max={maxQueueSize} />
+            <CapacityMeter
+              label={t('Queued')}
+              value={queued}
+              max={maxQueueSize}
+            />
           </div>
         </div>
 
         <div className='grid grid-cols-2 gap-2 text-xs'>
-          <Metric label={t('Oldest wait')} value={formatMs(status?.oldest_wait_ms)} />
+          <Metric
+            label={t('Oldest wait')}
+            value={formatMs(status?.oldest_wait_ms)}
+          />
           <Metric
             label={t('Config version')}
             value={String(status?.config_version ?? props.pool.config_version)}
           />
-          <Metric
-            label={t('Backend')}
-            value={backendLabel}
-          />
+          <Metric label={t('Backend')} value={backendLabel} />
           <Metric
             label={t('Schedule')}
             value={getScheduleModeLabel(props.pool.schedule_mode, t)}
@@ -183,6 +188,10 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
           <Metric
             label={t('Per-user queue cap')}
             value={formatLimit(props.pool.max_queue_per_user)}
+          />
+          <Metric
+            label={t('Per-user inflight cap')}
+            value={formatLimit(props.pool.max_inflight_per_user)}
           />
           <Metric
             label={t('Lease renew failures')}
@@ -205,7 +214,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
               {t('Selected range summary')}: {t(selectedRangeLabel)}
             </p>
           </div>
-          <div className='inline-flex w-fit rounded-md border bg-muted/20 p-0.5'>
+          <div className='bg-muted/20 inline-flex w-fit rounded-md border p-0.5'>
             {props.trendRangeOptions.map((option) => {
               const selected = option.minutes === props.trendRangeMinutes
               return (
@@ -215,7 +224,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
                   aria-pressed={selected}
                   className={
                     selected
-                      ? 'bg-background text-foreground shadow-xs h-7 rounded px-2.5 text-xs font-medium'
+                      ? 'bg-background text-foreground h-7 rounded px-2.5 text-xs font-medium shadow-xs'
                       : 'text-muted-foreground hover:text-foreground h-7 rounded px-2.5 text-xs font-medium'
                   }
                   onClick={() => props.onTrendRangeChange(option.minutes)}
@@ -231,10 +240,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
             label={t('Total requests')}
             value={formatCount(requestCount)}
           />
-          <Metric
-            label={t('Succeeded')}
-            value={formatCount(succeededCount)}
-          />
+          <Metric label={t('Succeeded')} value={formatCount(succeededCount)} />
           <Metric
             label={t('Success rate')}
             value={formatPercent(succeededCount, requestCount)}
@@ -267,7 +273,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
               ? t('Capacity peaks per minute')
               : t('Request outcomes per minute')}
           </p>
-          <div className='inline-flex w-fit rounded-md border bg-muted/20 p-0.5'>
+          <div className='bg-muted/20 inline-flex w-fit rounded-md border p-0.5'>
             {trendChartModes.map((option) => {
               const selected = option.value === chartMode
               return (
@@ -277,7 +283,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
                   aria-pressed={selected}
                   className={
                     selected
-                      ? 'bg-background text-foreground shadow-xs h-7 rounded px-2.5 text-xs font-medium'
+                      ? 'bg-background text-foreground h-7 rounded px-2.5 text-xs font-medium shadow-xs'
                       : 'text-muted-foreground hover:text-foreground h-7 rounded px-2.5 text-xs font-medium'
                   }
                   onClick={() => setChartMode(option.value)}
@@ -410,8 +416,11 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
   )
 }
 
-function formatTrendTooltipValue(value: unknown, name: unknown) {
-  return [formatTrendCount(value), name]
+function formatTrendTooltipValue(
+  value: unknown,
+  name: unknown
+): [string, string] {
+  return [formatTrendCount(value), String(name ?? '')]
 }
 
 function formatTrendCount(value: unknown) {
@@ -445,7 +454,8 @@ function formatPercent(value?: number, total?: number): string {
 
 function CapacityMeter(props: { label: string; value: number; max: number }) {
   const displayMax = props.max > 0 ? props.max : '∞'
-  const percent = props.max > 0 ? Math.min(100, (props.value / props.max) * 100) : 0
+  const percent =
+    props.max > 0 ? Math.min(100, (props.value / props.max) * 100) : 0
 
   return (
     <div className='space-y-2'>
@@ -462,9 +472,11 @@ function CapacityMeter(props: { label: string; value: number; max: number }) {
 
 function Metric(props: { label: string; value: string }) {
   return (
-    <div className='rounded-md border bg-muted/20 p-2'>
+    <div className='bg-muted/20 rounded-md border p-2'>
       <div className='text-muted-foreground'>{props.label}</div>
-      <div className='mt-1 truncate font-medium tabular-nums'>{props.value}</div>
+      <div className='mt-1 truncate font-medium tabular-nums'>
+        {props.value}
+      </div>
     </div>
   )
 }

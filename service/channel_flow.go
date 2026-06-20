@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	FlowDecisionRejectQueueFull        = "queue_full"
-	FlowDecisionRejectQueueTimeout     = "queue_timeout"
-	FlowDecisionRejectContextExceeded  = "context_exceeded"
-	FlowDecisionRejectPerUserQueueFull = "per_user_queue_full"
-	FlowDecisionRejectBackendDisabled  = "backend_disabled"
+	FlowDecisionRejectQueueFull           = "queue_full"
+	FlowDecisionRejectQueueTimeout        = "queue_timeout"
+	FlowDecisionRejectContextExceeded     = "context_exceeded"
+	FlowDecisionRejectPerUserQueueFull    = "per_user_queue_full"
+	FlowDecisionRejectPerUserInflightFull = "per_user_inflight_full"
+	FlowDecisionRejectBackendDisabled     = "backend_disabled"
 )
 
 type AcquireRequest struct {
@@ -471,6 +472,8 @@ func flowDecisionToAPIError(decision *AcquireDecision, err error) *types.NewAPIE
 			statusCode = http.StatusBadRequest
 		case FlowDecisionRejectPerUserQueueFull:
 			errorCode = types.ErrorCodeChannelFlowPerUserQueueFull
+		case FlowDecisionRejectPerUserInflightFull:
+			errorCode = types.ErrorCodeChannelFlowPerUserInflightFull
 		case FlowDecisionRejectBackendDisabled:
 			errorCode = types.ErrorCodeChannelFlowBackendUnavailable
 			statusCode = http.StatusServiceUnavailable
@@ -576,7 +579,9 @@ func (b *memoryFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Fl
 		slot.mu.Unlock()
 		return nil, decision, fmt.Errorf("request context tokens %d exceeds flow pool max_context_tokens %d", req.ContextTokens, req.Pool.MaxContextTokens)
 	}
-	if slot.hasCapacityLocked() && queued == 0 {
+	userInflightFull := req.Pool.MaxInflightPerUser > 0 && req.UserID > 0 &&
+		slot.userRunningLocked(req.UserID) >= req.Pool.MaxInflightPerUser
+	if slot.hasCapacityLocked() && queued == 0 && !userInflightFull {
 		request := slot.newRequestLocked(req, memoryFlowStateRunning, now)
 		request.dispatchedAt = now
 		slot.queue = append(slot.queue, request)
@@ -590,7 +595,11 @@ func (b *memoryFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Fl
 		return guard, decision, nil
 	}
 	if req.Pool.OnLimit != model.ChannelFlowOnLimitQueue {
-		decision.RejectCode = FlowDecisionRejectQueueFull
+		if userInflightFull {
+			decision.RejectCode = FlowDecisionRejectPerUserInflightFull
+		} else {
+			decision.RejectCode = FlowDecisionRejectQueueFull
+		}
 		slot.mu.Unlock()
 		return nil, decision, fmt.Errorf("channel flow pool is busy")
 	}
@@ -732,11 +741,28 @@ func (s *memoryFlowSlot) hasCapacityLocked() bool {
 	return running < s.config.MaxInflight
 }
 
+func (s *memoryFlowSlot) userRunningLocked(userID int) int {
+	if userID <= 0 || s.config.MaxInflightPerUser <= 0 {
+		return 0
+	}
+	count := 0
+	for _, req := range s.queue {
+		if req.userID == userID && req.state == memoryFlowStateRunning && !req.cancelled {
+			count++
+		}
+	}
+	return count
+}
+
 func (s *memoryFlowSlot) dispatchLocked(now time.Time) {
 	for s.hasCapacityLocked() {
 		dispatched := false
 		for _, req := range s.queue {
 			if req.state != memoryFlowStateWaiting || req.cancelled {
+				continue
+			}
+			if s.config.MaxInflightPerUser > 0 && req.userID > 0 &&
+				s.userRunningLocked(req.userID) >= s.config.MaxInflightPerUser {
 				continue
 			}
 			req.state = memoryFlowStateRunning

@@ -498,3 +498,437 @@ func eventuallyFlowStatus(t *testing.T, backend FlowBackend, pool model.ChannelF
 	}
 	t.Fatalf("status predicate not met, last=%+v err=%v", last, lastErr)
 }
+
+// ── Lifecycle Consistency Tests ─────────────────────────────────────────
+//
+// These tests verify Phase 1/P0 lifecycle guarantees:
+//   - Guard.Release() is idempotent (safe to call multiple times)
+//   - Client abort during wait properly cleans up and releases capacity
+//   - max_inflight_per_user limits are enforced (Memory backend)
+
+func TestMemoryFlowGuardReleaseIdempotent(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+
+	guard, decision, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "idempotent-req",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil {
+		t.Fatalf("acquire failed: %v", err)
+	}
+	if !decision.Admitted {
+		t.Fatalf("should be admitted immediately")
+	}
+
+	// First Release must succeed and free capacity
+	if err := guard.Release(context.Background()); err != nil {
+		t.Fatalf("first release failed: %v", err)
+	}
+
+	// Second release must be a no-op (not panic, not error)
+	if err := guard.Release(context.Background()); err != nil {
+		t.Fatalf("second release should be no-op: %v", err)
+	}
+
+	// Third release via BindRelease callback — also no-op
+	if err := guard.Release(context.Background()); err != nil {
+		t.Fatalf("third release should be no-op: %v", err)
+	}
+
+	// Capacity must be restored after first release
+	guard2, decision2, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "idempotent-req-2",
+		Pool:           pool,
+		UserID:         2,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil {
+		t.Fatalf("acquire after idempotent releases failed: %v", err)
+	}
+	if !decision2.Admitted {
+		t.Fatalf("capacity should be available after release")
+	}
+	guard2.Release(context.Background())
+}
+
+func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+
+	// Fill inflight to capacity
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "abort-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil {
+		t.Fatalf("first acquire failed: %v", err)
+	}
+	defer guard1.Release(context.Background())
+
+	// Create cancellable context to simulate client abort
+	abortCtx, abortCancel := context.WithCancel(context.Background())
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, _, err := backend.Acquire(abortCtx, AcquireRequest{
+			RequestID:      "abort-2",
+			Pool:           pool,
+			UserID:         2,
+			QueueTimeoutMs: 5000, // long timeout so abort is the trigger
+		})
+		resultCh <- err
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify queued
+	status, err := backend.Status(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("status failed: %v", err)
+	}
+	if status.Queued != 1 {
+		t.Fatalf("expected 1 queued, got %d", status.Queued)
+	}
+
+	// Simulate client abort
+	abortCancel()
+
+	select {
+	case err := <-resultCh:
+		if err == nil {
+			t.Fatal("acquire should return error on client abort")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("acquire did not return after client abort")
+	}
+
+	// After abort, queued count should be 0
+	status, err = backend.Status(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("status after abort failed: %v", err)
+	}
+	if status.Queued != 0 {
+		t.Fatalf("expected 0 queued after abort, got %d", status.Queued)
+	}
+	if status.Running != 1 {
+		t.Fatalf("running count should remain 1, got %d", status.Running)
+	}
+}
+
+func TestMemoryFlowBackendMaxInflightPerUser(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+	pool.MaxInflight = 5
+	pool.MaxInflightPerUser = 2
+	pool.MaxQueueSize = 2
+
+	// User 1: 2 requests should be admitted (hits max_inflight_per_user)
+	guard1a, d1a, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "user1-req-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil || !d1a.Admitted {
+		t.Fatalf("user1 req1 should be admitted: %v, decision=%+v", err, d1a)
+	}
+	defer guard1a.Release(context.Background())
+
+	guard1b, d1b, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "user1-req-2",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil || !d1b.Admitted {
+		t.Fatalf("user1 req2 should be admitted: %v, decision=%+v", err, d1b)
+	}
+	defer guard1b.Release(context.Background())
+
+	user1Third := make(chan error, 1)
+	user1ThirdCtx, cancelUser1Third := context.WithCancel(context.Background())
+	defer cancelUser1Third()
+	go func() {
+		guard, decision, err := backend.Acquire(user1ThirdCtx, AcquireRequest{
+			RequestID:      "user1-req-3",
+			Pool:           pool,
+			UserID:         1,
+			QueueTimeoutMs: 5000,
+		})
+		if err == nil {
+			if guard == nil || decision == nil || !decision.Admitted || !decision.Queued {
+				user1Third <- fmt.Errorf("expected queued admission after release, decision=%+v guard=%v", decision, guard)
+				return
+			}
+			_ = guard.Release(context.Background())
+		}
+		user1Third <- err
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	status, err := backend.Status(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("status failed: %v", err)
+	}
+	if status.Queued != 1 {
+		t.Fatalf("expected user1 third request to queue at per-user inflight limit, got queued=%d", status.Queued)
+	}
+
+	// User 2: should still be admitted (different user, pool has capacity)
+	guard2, d2, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "user2-req-1",
+		Pool:           pool,
+		UserID:         2,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil || !d2.Admitted {
+		t.Fatalf("user2 req1 should be admitted: %v, decision=%+v", err, d2)
+	}
+	defer guard2.Release(context.Background())
+
+	if err := guard1a.Release(context.Background()); err != nil {
+		t.Fatalf("release user1 req1 failed: %v", err)
+	}
+	select {
+	case err := <-user1Third:
+		if err != nil {
+			t.Fatalf("user1 queued request should be admitted after release: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("user1 queued request was not admitted after release")
+	}
+}
+
+func TestMemoryFlowBackendDispatchRespectsMaxInflightPerUser(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+	pool.MaxInflight = 2
+	pool.MaxInflightPerUser = 1
+	pool.MaxQueueSize = 5
+
+	// User 1: fill inflight slot
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "dispatch-user1-req-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: 5000,
+	})
+	if err != nil {
+		t.Fatalf("user1 req1 acquire failed: %v", err)
+	}
+
+	// User 2: fill another inflight slot
+	guard2, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "dispatch-user2-req-1",
+		Pool:           pool,
+		UserID:         2,
+		QueueTimeoutMs: 5000,
+	})
+	if err != nil {
+		t.Fatalf("user2 req1 acquire failed: %v", err)
+	}
+
+	// User 1: queued (2nd request, user1 already has 1 running)
+	ch1 := make(chan error, 1)
+	go func() {
+		_, _, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      "dispatch-user1-req-2",
+			Pool:           pool,
+			UserID:         1,
+			QueueTimeoutMs: 5000,
+		})
+		ch1 <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	// User 3: queued (user3 has 0 running, should be dispatchable)
+	ch3 := make(chan error, 1)
+	go func() {
+		g3, d3, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      "dispatch-user3-req-1",
+			Pool:           pool,
+			UserID:         3,
+			QueueTimeoutMs: 5000,
+		})
+		if err == nil && d3.Admitted {
+			g3.Release(context.Background())
+		}
+		ch3 <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	// Release user2's slot — user3 should be dispatched (not user1, since user1 already at max_inflight_per_user)
+	if err := guard2.Release(context.Background()); err != nil {
+		t.Fatalf("guard2 release failed: %v", err)
+	}
+
+	select {
+	case err := <-ch3:
+		if err != nil {
+			t.Fatalf("user3 should be admitted after release: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("user3 was not dispatched after release — dispatch may be blocked by user1's per-user limit")
+	}
+
+	// Cleanup
+	guard1.Release(context.Background())
+
+	// user1's queued request should timeout or complete
+	select {
+	case <-ch1:
+	case <-time.After(2 * time.Second):
+	}
+}
+
+// ── Redis Lifecycle Tests ───────────────────────────────────────────────
+// These are only run when REDIS_CONN_STRING is set.
+
+func TestRedisFlowGuardReleaseIdempotent(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+
+	guard, decision, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-idempotent-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil {
+		t.Fatalf("redis acquire failed: %v", err)
+	}
+	if !decision.Admitted {
+		t.Fatalf("should be admitted immediately")
+	}
+
+	// First Release
+	if err := guard.Release(context.Background()); err != nil {
+		t.Fatalf("first release failed: %v", err)
+	}
+
+	// Second Release must be no-op
+	if err := guard.Release(context.Background()); err != nil {
+		t.Fatalf("second release should be no-op: %v", err)
+	}
+
+	// Third Release also no-op
+	if err := guard.Release(context.Background()); err != nil {
+		t.Fatalf("third release should be no-op: %v", err)
+	}
+
+	// Capacity restored
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 0
+	})
+}
+
+func TestRedisFlowBackendMaxInflightPerUser(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.MaxInflight = 3
+	pool.MaxInflightPerUser = 2
+
+	// User 1: 2 requests admitted
+	guard1a, d1a, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-max-inflight-user1-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil || !d1a.Admitted {
+		t.Fatalf("user1 req1 should be admitted: %v, decision=%+v", err, d1a)
+	}
+	defer guard1a.Release(context.Background())
+
+	guard1b, d1b, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-max-inflight-user1-2",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil || !d1b.Admitted {
+		t.Fatalf("user1 req2 should be admitted: %v, decision=%+v", err, d1b)
+	}
+	defer guard1b.Release(context.Background())
+
+	// User 2: 1 request admitted (different user)
+	guard2, d2, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-max-inflight-user2-1",
+		Pool:           pool,
+		UserID:         2,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	if err != nil || !d2.Admitted {
+		t.Fatalf("user2 req1 should be admitted: %v, decision=%+v", err, d2)
+	}
+	defer guard2.Release(context.Background())
+
+	// User 1: 3rd request cannot acquire (per-user inflight limit already hit)
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 3
+	})
+
+	// User1's 3rd request can queue, but after release it must not be promoted
+	// because user1 already has 2 running
+	waitCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queuedCh := make(chan error, 1)
+	go func() {
+		_, _, err := backend.Acquire(waitCtx, AcquireRequest{
+			RequestID:      "redis-max-inflight-user1-3",
+			Pool:           pool,
+			UserID:         1,
+			QueueTimeoutMs: 10000,
+		})
+		queuedCh <- err
+	}()
+
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Queued >= 1
+	})
+
+	// Also enqueue User3 which should be promoted when a slot opens
+	waitCtx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	user3Ch := make(chan error, 1)
+	go func() {
+		g, d, err := backend.Acquire(waitCtx2, AcquireRequest{
+			RequestID:      "redis-max-inflight-user3-1",
+			Pool:           pool,
+			UserID:         3,
+			QueueTimeoutMs: 10000,
+		})
+		if err == nil && d.Admitted {
+			g.Release(context.Background())
+		}
+		user3Ch <- err
+	}()
+
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Queued >= 2
+	})
+
+	// Release user2's slot — user3 should get it (user1 already at per-user limit)
+	guard2.Release(context.Background())
+
+	select {
+	case err := <-user3Ch:
+		if err != nil {
+			t.Fatalf("user3 should be admitted after release: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("user3 was not promoted — dispatch may be blocked by per-user inflight limit")
+	}
+
+	cancel2()
+	cancel()
+	select {
+	case <-queuedCh:
+	case <-time.After(2 * time.Second):
+	}
+}

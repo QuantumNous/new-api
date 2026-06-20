@@ -53,6 +53,7 @@ type ChannelFlowPool struct {
 	Enabled            bool   `json:"enabled" gorm:"default:true"`
 	Backend            string `json:"backend" gorm:"type:varchar(32);default:'memory'"`
 	MaxInflight        int    `json:"max_inflight" gorm:"default:0"`
+	MaxInflightPerUser int    `json:"max_inflight_per_user" gorm:"default:0"`
 	MaxQueueSize       int    `json:"max_queue_size" gorm:"default:0"`
 	MaxQueuePerUser    int    `json:"max_queue_per_user" gorm:"default:0"`
 	QueueTimeoutMs     int64  `json:"queue_timeout_ms" gorm:"bigint;default:120000"`
@@ -189,8 +190,11 @@ func (p *ChannelFlowPool) Validate() error {
 	if p.Name == "" {
 		return fmt.Errorf("flow pool name cannot be empty")
 	}
-	if p.MaxInflight < 0 || p.MaxQueueSize < 0 || p.MaxQueuePerUser < 0 {
+	if p.MaxInflight < 0 || p.MaxInflightPerUser < 0 || p.MaxQueueSize < 0 || p.MaxQueuePerUser < 0 {
 		return fmt.Errorf("flow pool limits cannot be negative")
+	}
+	if p.MaxInflightPerUser > 0 && p.MaxInflight > 0 && p.MaxInflightPerUser > p.MaxInflight {
+		return fmt.Errorf("max_inflight_per_user cannot exceed max_inflight")
 	}
 	if p.MaxInflight == 0 && p.MaxContextTokens == 0 && p.MaxContextChars == 0 {
 		return fmt.Errorf("max_inflight or context limit must be configured")

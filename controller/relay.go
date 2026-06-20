@@ -203,6 +203,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = flowErr
 			break
 		}
+		defer func(guard service.FlowGuard) {
+			if r := recover(); r != nil {
+				if guard != nil {
+					_ = guard.Release(context.Background())
+				}
+				panic(r)
+			}
+		}(flowGuard)
 
 		attemptPriceData, priceErr := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 		if priceErr != nil {

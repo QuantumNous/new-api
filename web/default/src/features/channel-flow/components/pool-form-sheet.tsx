@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { useEffect } from 'react'
 import { type Resolver, type UseFormReturn, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { formatTimestampForInput, parseTimestampFromInput } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -52,10 +52,6 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  formatTimestampForInput,
-  parseTimestampFromInput,
-} from '@/lib/format'
-import {
   channelFlowPoolFormSchema,
   defaultPoolFormValues,
   poolToFormValues,
@@ -73,6 +69,7 @@ type PoolFormSheetProps = {
 
 const numberFields = [
   'max_inflight',
+  'max_inflight_per_user',
   'max_queue_size',
   'max_queue_per_user',
   'queue_timeout_ms',
@@ -110,11 +107,12 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
     { value: 'memory', label: t('Memory') },
     { value: 'redis', label: t('Redis (experimental)') },
   ]
-  const onLimitOptions: SelectOption<ChannelFlowPoolFormValues['on_limit']>[] = [
-    { value: 'queue', label: t('Queue') },
-    { value: 'reject', label: t('Reject') },
-    { value: 'fallback', label: t('Fallback') },
-  ]
+  const onLimitOptions: SelectOption<ChannelFlowPoolFormValues['on_limit']>[] =
+    [
+      { value: 'queue', label: t('Queue') },
+      { value: 'reject', label: t('Reject') },
+      { value: 'fallback', label: t('Fallback') },
+    ]
   const queuePolicyOptions: SelectOption<
     ChannelFlowPoolFormValues['queue_policy']
   >[] = [{ value: 'fifo', label: t('FIFO') }]
@@ -175,7 +173,9 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                   <div className='space-y-1'>
                     <FormLabel>{t('Enabled')}</FormLabel>
                     <FormDescription>
-                      {t('Disabled pools keep their bindings but do not gate traffic.')}
+                      {t(
+                        'Disabled pools keep their bindings but do not gate traffic.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -243,7 +243,9 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                   <FormControl>
                     <Textarea
                       className='min-h-20'
-                      placeholder={t('Shared upstream pool for channels that hit the same physical capacity.')}
+                      placeholder={t(
+                        'Shared upstream pool for channels that hit the same physical capacity.'
+                      )}
                       {...field}
                     />
                   </FormControl>
@@ -261,7 +263,10 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Schedule mode')}</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
                           <SelectTrigger className='w-full'>
                             <SelectValue>
@@ -278,7 +283,9 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {t('Outside the active window, traffic bypasses this Flow Pool.')}
+                        {t(
+                          'Outside the active window, traffic bypasses this Flow Pool.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -318,7 +325,7 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
               )}
 
               {scheduleMode === 'weekly' && (
-                <div className='space-y-3 rounded-lg border bg-muted/20 p-3'>
+                <div className='bg-muted/20 space-y-3 rounded-lg border p-3'>
                   <FormField
                     control={form.control}
                     name='schedule_weekdays'
@@ -331,7 +338,7 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                             return (
                               <label
                                 key={option.value}
-                                className='flex h-8 items-center gap-2 rounded-md border bg-background px-2.5 text-xs font-medium'
+                                className='bg-background flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs font-medium'
                               >
                                 <Checkbox
                                   checked={checked}
@@ -372,19 +379,29 @@ export function PoolFormSheet(props: PoolFormSheetProps) {
                     />
                   </div>
                   <p className='text-muted-foreground text-xs'>
-                    {t('End time earlier than start time means the window crosses midnight.')}
+                    {t(
+                      'End time earlier than start time means the window crosses midnight.'
+                    )}
                   </p>
                 </div>
               )}
             </div>
 
             <div className='space-y-3'>
-              <h3 className='text-sm font-medium'>{t('Concurrency and queue')}</h3>
+              <h3 className='text-sm font-medium'>
+                {t('Concurrency and queue')}
+              </h3>
               <div className='grid gap-4 sm:grid-cols-3'>
                 <NumberField
                   form={form}
                   name='max_inflight'
                   label={t('Max inflight')}
+                  description={t('0 means unlimited')}
+                />
+                <NumberField
+                  form={form}
+                  name='max_inflight_per_user'
+                  label={t('Per-user inflight cap')}
                   description={t('0 means unlimited')}
                 />
                 <NumberField

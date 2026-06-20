@@ -95,6 +95,7 @@ const (
 	ErrorCodeChannelFlowConfigInvalid          ErrorCode = "channel_flow_config_invalid"
 	ErrorCodeChannelFlowBillingFailedAfterWait ErrorCode = "channel_flow_billing_failed_after_wait"
 	ErrorCodeChannelFlowPerUserQueueFull       ErrorCode = "channel_flow_per_user_queue_full"
+	ErrorCodeChannelFlowPerUserInflightFull    ErrorCode = "channel_flow_per_user_inflight_full"
 )
 
 type NewAPIError struct {

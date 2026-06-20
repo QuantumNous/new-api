@@ -21,6 +21,7 @@ type channelFlowPoolRequest struct {
 	Enabled            *bool  `json:"enabled"`
 	Backend            string `json:"backend"`
 	MaxInflight        int    `json:"max_inflight"`
+	MaxInflightPerUser int    `json:"max_inflight_per_user"`
 	MaxQueueSize       int    `json:"max_queue_size"`
 	MaxQueuePerUser    int    `json:"max_queue_per_user"`
 	QueueTimeoutMs     int64  `json:"queue_timeout_ms"`
@@ -315,6 +316,7 @@ func channelFlowPoolFromRequest(req channelFlowPoolRequest, existing *model.Chan
 	}
 	pool.Backend = req.Backend
 	pool.MaxInflight = req.MaxInflight
+	pool.MaxInflightPerUser = req.MaxInflightPerUser
 	pool.MaxQueueSize = req.MaxQueueSize
 	pool.MaxQueuePerUser = req.MaxQueuePerUser
 	pool.QueueTimeoutMs = req.QueueTimeoutMs

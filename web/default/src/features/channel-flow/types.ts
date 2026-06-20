@@ -54,6 +54,7 @@ export type ChannelFlowPool = {
   enabled: boolean
   backend: ChannelFlowBackend
   max_inflight: number
+  max_inflight_per_user: number
   max_queue_size: number
   max_queue_per_user: number
   queue_timeout_ms: number
