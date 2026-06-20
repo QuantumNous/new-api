@@ -22,16 +22,16 @@ type BrandEmailData struct {
 
 // DeepRouter brand tokens (docs/DESIGN.md §1).
 const (
-	emailBgCream    = "#F7F4ED"
-	emailCardSurf   = "#FCFBF8"
-	emailCharcoal   = "#1C1C1C"
-	emailMutedText  = "#5F5F5D"
-	emailBorder     = "#ECEAE4"
-	emailAIBlue     = "#2563FF"
-	emailFontStack  = "'Plus Jakarta Sans','Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
-	emailMonoStack  = "'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace"
-	emailSiteURL    = "https://deeprouter.co"
-	emailSiteLabel  = "deeprouter.co"
+	emailBgCream   = "#F7F4ED"
+	emailCardSurf  = "#FCFBF8"
+	emailCharcoal  = "#1C1C1C"
+	emailMutedText = "#5F5F5D"
+	emailBorder    = "#ECEAE4"
+	emailAIBlue    = "#2563FF"
+	emailFontStack = "'Plus Jakarta Sans','Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+	emailMonoStack = "'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace"
+	emailSiteURL   = "https://deeprouter.co"
+	emailSiteLabel = "deeprouter.co"
 )
 
 // RenderBrandEmail wraps transactional copy in the DeepRouter-branded HTML shell.
