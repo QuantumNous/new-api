@@ -12,7 +12,7 @@ Skills need immutable version records so runtime execution can reference the exa
 
 - Add a cross-database `skill_versions` table migration for SQLite, MySQL, and PostgreSQL.
 - Enforce one active version per skill across supported databases.
-- Preserve immutable execution configs by preventing parent skill deletion while versions exist.
+- Preserve immutable execution configs by preventing parent skill deletion or ID mutation while versions exist.
 - Wire the migration into application startup.
 
 ## Non-Goals
@@ -25,7 +25,7 @@ Skills need immutable version records so runtime execution can reference the exa
 
 - `skill_versions` stores version number, status, execution config, metadata, lifecycle timestamps, and parent `skill_id`.
 - Active-version uniqueness works for SQLite, MySQL, and PostgreSQL.
-- Parent skill deletion is restricted when version rows exist.
+- Parent skill deletion and ID updates are restricted when version rows exist.
 - Migration tests cover empty-database startup and MySQL active-version uniqueness.
 - The app startup migration path invokes skill version migration after skills are migrated.
 

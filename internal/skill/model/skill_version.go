@@ -36,7 +36,7 @@ type SkillVersion struct {
 	ActivatedAt *time.Time `gorm:"column:activated_at"`
 	ArchivedAt  *time.Time `gorm:"column:archived_at"`
 
-	Skill *Skill `gorm:"foreignKey:SkillID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Skill *Skill `gorm:"foreignKey:SkillID;references:ID;constraint:OnUpdate:RESTRICT,OnDelete:RESTRICT"`
 }
 
 func (SkillVersion) TableName() string { return "skill_versions" }

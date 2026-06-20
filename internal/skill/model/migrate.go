@@ -80,7 +80,7 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			created_at datetime NOT NULL,
 			activated_at datetime,
 			archived_at datetime,
-			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
 			CONSTRAINT chk_skill_versions_status CHECK (status IN ('draft','active','inactive','archived')),
 			CONSTRAINT chk_skill_versions_required_plan_snapshot CHECK (required_plan_snapshot IN ('free','pro','enterprise')),
 			CONSTRAINT chk_skill_versions_max_input_tokens_snapshot CHECK (max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0),
@@ -114,7 +114,7 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			active_skill_id char(36) GENERATED ALWAYS AS (CASE WHEN status = 'active' THEN skill_id ELSE NULL END) STORED,
 			PRIMARY KEY (id),
 			KEY idx_skill_versions_skill_id (skill_id),
-			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE CASCADE ON DELETE RESTRICT
+			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE RESTRICT ON DELETE RESTRICT
 		)
 	`).Error
 }
