@@ -50,7 +50,7 @@ func DownloadSkillPackage(c *gin.Context) {
 	}
 
 	userID := int64(c.GetInt("id"))
-	if err := skillmodel.EnableSkillForUser(db, userID, userID, s.ID, "marketplace"); err != nil {
+	if err := skillmodel.EnableSkillForUser(db, userID, userID, s.ID, "skill_package"); err != nil {
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Failed to record download.", nil)
 		return
 	}
@@ -95,13 +95,16 @@ func downloadPlanLevel(p enums.RequiredPlan) int {
 // ─── Zip builder ─────────────────────────────────────────────────────────────
 
 type skillManifest struct {
-	SchemaVersion         string `json:"schema_version"`
-	SkillID               string `json:"skill_id"`
-	Slug                  string `json:"slug"`
-	Name                  string `json:"name"`
-	RequiredPlan          string `json:"required_plan"`
-	Category              string `json:"category"`
-	RequiresDeepRouterKey bool   `json:"requires_deeprouter_key"`
+	SchemaVersion         string  `json:"schema_version"`
+	SkillID               string  `json:"skill_id"`
+	// SkillVersionID is nil until DR-41 (skill_versions table) is implemented.
+	// When non-nil it pins the zip to the published version at download time.
+	SkillVersionID        *string `json:"skill_version_id,omitempty"`
+	Slug                  string  `json:"slug"`
+	Name                  string  `json:"name"`
+	RequiredPlan          string  `json:"required_plan"`
+	Category              string  `json:"category"`
+	RequiresDeepRouterKey bool    `json:"requires_deeprouter_key"`
 }
 
 func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
@@ -111,6 +114,7 @@ func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
 	manifest := skillManifest{
 		SchemaVersion:         "1.0",
 		SkillID:               s.ID,
+		SkillVersionID:        s.ActiveVersionID,
 		Slug:                  s.Slug,
 		Name:                  s.Name,
 		RequiredPlan:          string(s.RequiredPlan),

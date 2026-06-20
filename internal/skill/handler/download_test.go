@@ -49,12 +49,13 @@ func TestDownloadSkillPackage_HappyPath(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Disposition"), "cool-skill.zip")
 	assert.NotEmpty(t, w.Body.Bytes())
 
-	// UES row must be upserted on download.
+	// UES row must be upserted with source=skill_package on download.
 	var ues skillmodel.UserEnabledSkill
 	err := db.Where("user_id = ? AND skill_id IN (SELECT id FROM skills WHERE slug = ?)", 42, "cool-skill").
 		First(&ues).Error
 	require.NoError(t, err, "user_enabled_skills row must be created on download")
 	assert.True(t, ues.Enabled)
+	assert.Equal(t, "skill_package", ues.Source, "UES source must be skill_package, not marketplace")
 }
 
 // TestDownloadSkillPackage_ZipContainsManifestAndSkillMD verifies that the zip
@@ -95,11 +96,44 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Equal(t, "zip-skill", m.Slug)
 	assert.Equal(t, "Zip Skill", m.Name)
 	assert.True(t, m.RequiresDeepRouterKey, "manifest must advertise requires_deeprouter_key: true")
+	// skill_version_id is nil when active_version_id is not set (DR-41 not yet done).
+	assert.Nil(t, m.SkillVersionID, "skill_version_id must be omitted when active_version_id is nil")
 
 	skillMD := string(files["SKILL.md"])
 	assert.Contains(t, skillMD, "name: zip-skill")
 	assert.Contains(t, skillMD, "Zip Skill")
 	assert.Contains(t, skillMD, "A full description.")
+}
+
+// TestDownloadSkillPackage_ManifestIncludesSkillVersionID verifies that when a skill
+// has active_version_id set, the manifest includes skill_version_id (DR-41 path).
+func TestDownloadSkillPackage_ManifestIncludesSkillVersionID(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	versionID := "aaaabbbb-cccc-dddd-eeee-ffffffffffff"
+	s := testSkill("versioned-skill", "published")
+	s.ActiveVersionID = &versionID
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("versioned-skill", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	require.NoError(t, err)
+	for _, f := range zr.File {
+		if f.Name != "manifest.json" {
+			continue
+		}
+		rc, _ := f.Open()
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(rc)
+		rc.Close()
+		var m skillManifest
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &m))
+		require.NotNil(t, m.SkillVersionID)
+		assert.Equal(t, versionID, *m.SkillVersionID)
+	}
 }
 
 // TestDownloadSkillPackage_NotFound verifies that a non-existent skill returns 404.
