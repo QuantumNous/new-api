@@ -55,9 +55,10 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
+		apiRouter.POST("/paypal/webhook", controller.PayPalWebhook)
 		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)
-		//apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
+		apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
@@ -101,11 +102,13 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/amount", controller.RequestAmount)
 				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
+				selfRoute.POST("/paypal/pay", middleware.CriticalRateLimit(), controller.RequestPayPalPay)
+				selfRoute.POST("/paypal/amount", controller.RequestPayPalAmount)
 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
 				selfRoute.POST("/waffo/amount", controller.RequestWaffoAmount)
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
-				//selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
-				//selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
+				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
+				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
 				selfRoute.POST("/crypto/submit", middleware.CriticalRateLimit(), controller.SubmitCryptoDeposit)
 				selfRoute.GET("/crypto/deposit/:id", controller.GetCryptoDeposit)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
@@ -141,6 +144,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/", controller.CreateUser)
 				adminRoute.POST("/manage", controller.ManageUser)
 				adminRoute.PUT("/", controller.UpdateUser)
+				adminRoute.POST("/set-language", controller.SetUserLanguage)
 				adminRoute.DELETE("/:id", controller.DeleteUser)
 				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
 
@@ -234,6 +238,9 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.GET("/model-detect-config", controller.GetModelDetectConfig)
 			adminRoute.POST("/model-detect-config", controller.SaveModelDetectConfig)
 			adminRoute.GET("/user-dashboard-stats", controller.GetUserDashboardStats)
+			adminRoute.GET("/registration-channels", controller.ListRegistrationChannels)
+			adminRoute.POST("/registration-channels", controller.UpsertRegistrationChannel)
+			adminRoute.PATCH("/registration-channels/status", controller.SetRegistrationChannelStatus)
 		}
 
 		channelRoute := apiRouter.Group("/channel")

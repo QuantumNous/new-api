@@ -188,6 +188,10 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		BuyerEmail:       getWaffoPancakeBuyerEmail(user),
 		SuccessURL:       getWaffoPancakeReturnURL(),
 		ExpiresInSeconds: &expiresInSeconds,
+		Metadata: map[string]string{
+			"orderId": tradeNo,
+			"tradeNo": tradeNo,
+		},
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 创建结账会话失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))

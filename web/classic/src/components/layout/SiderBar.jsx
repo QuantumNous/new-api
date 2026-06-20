@@ -38,6 +38,7 @@ const routerMap = {
   topup: '/console/topup',
   user: '/console/user',
   subscription: '/console/subscription',
+  registration_channels: '/console/registration-channels',
   log: '/console/log',
   midjourney: '/console/midjourney',
   setting: '/console/setting',
@@ -175,6 +176,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('注册渠道'),
+        itemKey: 'registration_channels',
+        to: '/registration-channels',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

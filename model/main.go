@@ -65,11 +65,11 @@ var DB *gorm.DB
 
 var LOG_DB *gorm.DB
 
-// APIMASTER_PG_DB is a read-only connection to apimaster's PostgreSQL.
+// APIMASTER_PG_DB connects to apimaster's PostgreSQL for attribution sync and admin writes.
 // Set via APIMASTER_PG_DSN env var. Nil if not configured.
 var APIMASTER_PG_DB *gorm.DB
 
-// InitApimasterPGDB opens a read-only connection to apimaster's PostgreSQL.
+// InitApimasterPGDB opens a connection to apimaster's PostgreSQL.
 // It is a no-op (returns nil) if APIMASTER_PG_DSN is not set.
 func InitApimasterPGDB() error {
 	dsn := os.Getenv("APIMASTER_PG_DSN")
@@ -91,7 +91,7 @@ func InitApimasterPGDB() error {
 	sqlDB.SetMaxOpenConns(5)
 	sqlDB.SetConnMaxLifetime(60 * time.Second)
 	APIMASTER_PG_DB = db
-	common.SysLog("connected to apimaster PG (detection sync enabled)")
+	common.SysLog("connected to apimaster PG")
 	return nil
 }
 

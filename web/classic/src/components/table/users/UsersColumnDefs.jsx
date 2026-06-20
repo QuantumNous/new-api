@@ -200,6 +200,23 @@ const renderInviteInfo = (text, record, t) => {
   );
 };
 
+const renderRegistrationChannel = (text, record, t) => {
+  if (!record.registration_channel_code) {
+    return <span className='text-gray-400'>-</span>;
+  }
+
+  return (
+    <div>
+      <Tag color='blue' shape='circle' className='!text-xs'>
+        {record.registration_channel_name || record.registration_channel_code}
+      </Tag>
+      <div className='mt-1 text-xs text-gray-500'>
+        {record.registration_channel_code}
+      </div>
+    </div>
+  );
+};
+
 /**
  * Render operations column
  */
@@ -356,6 +373,12 @@ export const getUsersColumns = ({
       title: t('邀请信息'),
       dataIndex: 'invite',
       render: (text, record, index) => renderInviteInfo(text, record, t),
+    },
+    {
+      title: t('注册渠道'),
+      dataIndex: 'registration_channel_code',
+      render: (text, record, index) =>
+        renderRegistrationChannel(text, record, t),
     },
     {
       title: t('创建时间'),

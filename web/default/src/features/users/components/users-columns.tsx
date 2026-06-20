@@ -30,7 +30,7 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
-import { StatusBadge, dotColorMap } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -280,15 +280,24 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipTrigger render={<div className='cursor-help' />}>
               <div className='flex items-center gap-1.5 text-sm font-medium'>
                 <span>{affCount}</span>
-                <span className='text-muted-foreground text-xs'>{t('people')}</span>
+                <span className='text-muted-foreground text-xs'>
+                  {t('people')}
+                </span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
-                <div>{t('Number of users invited')}: {affCount}</div>
-                <div>{t('Total invitation revenue')}: {formatQuota(affHistoryQuota)}</div>
+                <div>
+                  {t('Number of users invited')}: {affCount}
+                </div>
+                <div>
+                  {t('Total invitation revenue')}:{' '}
+                  {formatQuota(affHistoryQuota)}
+                </div>
                 {inviterId > 0 && (
-                  <div>{t('Invited by user ID')} {inviterId}</div>
+                  <div>
+                    {t('Invited by user ID')} {inviterId}
+                  </div>
                 )}
               </div>
             </TooltipContent>
@@ -297,6 +306,57 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       enableSorting: false,
       meta: { label: t('Invited Count'), mobileHidden: true },
+    },
+    {
+      id: 'registration_channel',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Registration Channel')}
+        />
+      ),
+      cell: ({ row }) => {
+        const user = row.original
+        const channelCode = user.registration_channel_code
+        const channelName = user.registration_channel_name
+        const sourceUrl = user.registration_source_url
+        const registrationUtm = user.registration_utm
+
+        if (!channelCode) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
+
+        return (
+          <Tooltip>
+            <TooltipTrigger render={<div className='cursor-help' />}>
+              <div className='flex min-w-[140px] flex-col gap-1'>
+                <span className='text-sm font-medium'>
+                  {channelName || channelCode}
+                </span>
+                <code className='text-muted-foreground text-xs'>
+                  {channelCode}
+                </code>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className='max-w-[320px] space-y-1 text-xs'>
+                {sourceUrl && (
+                  <div className='break-all'>
+                    {t('Source')}: {sourceUrl}
+                  </div>
+                )}
+                {registrationUtm && (
+                  <div className='break-all'>
+                    {t('UTM')}: {registrationUtm}
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('Registration Channel'), mobileHidden: true },
     },
     {
       accessorKey: 'created_at',

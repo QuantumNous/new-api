@@ -64,6 +64,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       models: true,
       deployment: true,
       redemption: true,
+      registration_channels: true,
       user: true,
       subscription: true,
       setting: true,
@@ -269,6 +270,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'registration_channels',
+          title: t('注册渠道'),
+          description: t('渠道注册链接管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

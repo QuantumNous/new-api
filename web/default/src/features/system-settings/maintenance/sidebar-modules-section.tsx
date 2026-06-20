@@ -132,6 +132,10 @@ export function SidebarModulesSection({
         title: t('Redeem codes'),
         description: t('Create and review invite or credit codes.'),
       },
+      registration_channels: {
+        title: t('Registration Channels'),
+        description: t('Create channel-coded registration links.'),
+      },
       user: {
         title: t('Users'),
         description: t('Administer user accounts and roles.'),

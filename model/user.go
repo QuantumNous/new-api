@@ -52,6 +52,11 @@ type User struct {
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+
+	RegistrationChannelCode string `json:"registration_channel_code,omitempty" gorm:"-:all"`
+	RegistrationChannelName string `json:"registration_channel_name,omitempty" gorm:"-:all"`
+	RegistrationSourceURL   string `json:"registration_source_url,omitempty" gorm:"-:all"`
+	RegistrationUTM         string `json:"registration_utm,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -130,22 +135,24 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	if userRole == common.RoleAdminUser {
 		// 管理员可以访问管理员区域，但不能访问系统设置
 		defaultConfig["admin"] = map[string]interface{}{
-			"enabled":    true,
-			"channel":    true,
-			"models":     true,
-			"redemption": true,
-			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"enabled":               true,
+			"channel":               true,
+			"models":                true,
+			"redemption":            true,
+			"registration_channels": true,
+			"user":                  true,
+			"setting":               false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
 		defaultConfig["admin"] = map[string]interface{}{
-			"enabled":    true,
-			"channel":    true,
-			"models":     true,
-			"redemption": true,
-			"user":       true,
-			"setting":    true,
+			"enabled":               true,
+			"channel":               true,
+			"models":                true,
+			"redemption":            true,
+			"registration_channels": true,
+			"user":                  true,
+			"setting":               true,
 		}
 	}
 	// 普通用户不包含admin区域
@@ -221,6 +228,8 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 		return nil, 0, err
 	}
 
+	EnrichUsersRegistrationChannels(users)
+
 	return users, total, nil
 }
 
@@ -287,6 +296,8 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
+
+	EnrichUsersRegistrationChannels(users)
 
 	return users, total, nil
 }

@@ -24,6 +24,7 @@ import {
   Wallet,
   Box,
   Users,
+  Tags,
   Ticket,
   User,
   Command,
@@ -153,6 +154,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Registration Channels'),
+            url: '/registration-channels',
+            icon: Tags,
           },
           {
             title: t('Redemption Codes'),

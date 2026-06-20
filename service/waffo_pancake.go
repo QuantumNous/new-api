@@ -44,6 +44,7 @@ type WaffoPancakeCreateSessionParams struct {
 	BuyerEmail       string                     `json:"buyerEmail,omitempty"`
 	SuccessURL       string                     `json:"successUrl,omitempty"`
 	ExpiresInSeconds *int                       `json:"expiresInSeconds,omitempty"`
+	Metadata         map[string]string          `json:"metadata,omitempty"`
 }
 
 type WaffoPancakeCheckoutSession struct {
@@ -64,13 +65,14 @@ type waffoPancakeCreateSessionResponse struct {
 }
 
 type waffoPancakeWebhookData struct {
-	ID          string          `json:"id"`
-	OrderID     string          `json:"orderId"`
-	BuyerEmail  string          `json:"buyerEmail"`
-	Currency    string          `json:"currency"`
-	Amount      dto.StringValue `json:"amount"`
-	TaxAmount   dto.StringValue `json:"taxAmount"`
-	ProductName string          `json:"productName"`
+	ID          string              `json:"id"`
+	OrderID     string              `json:"orderId"`
+	BuyerEmail  string              `json:"buyerEmail"`
+	Currency    string              `json:"currency"`
+	Amount      dto.StringValue     `json:"amount"`
+	TaxAmount   dto.StringValue     `json:"taxAmount"`
+	ProductName string              `json:"productName"`
+	Metadata    map[string]string   `json:"metadata"`
 }
 
 type waffoPancakeWebhookEvent struct {
@@ -165,14 +167,37 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 		return "", fmt.Errorf("missing webhook event")
 	}
 
-	if tradeNo := strings.TrimSpace(event.Data.OrderID); tradeNo != "" {
-		topUp := model.GetTopUpByTradeNo(tradeNo)
-		if topUp != nil && topUp.PaymentMethod == model.PaymentMethodWaffoPancake {
-			return tradeNo, nil
+	candidates := []string{
+		strings.TrimSpace(event.Data.OrderID),
+	}
+	if event.Data.Metadata != nil {
+		if v := strings.TrimSpace(event.Data.Metadata["orderId"]); v != "" {
+			candidates = append([]string{v}, candidates...)
 		}
-		return "", fmt.Errorf("waffo pancake order not found for webhook orderId=%s", tradeNo)
+		if v := strings.TrimSpace(event.Data.Metadata["tradeNo"]); v != "" {
+			candidates = append([]string{v}, candidates...)
+		}
 	}
 
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+
+		topUp := model.GetTopUpByTradeNo(candidate)
+		if topUp != nil && topUp.PaymentMethod == model.PaymentMethodWaffoPancake {
+			return candidate, nil
+		}
+	}
+
+	if first := strings.TrimSpace(event.Data.OrderID); first != "" {
+		return "", fmt.Errorf("waffo pancake order not found for webhook orderId=%s", first)
+	}
 	return "", fmt.Errorf("missing webhook orderId")
 }
 
