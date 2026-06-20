@@ -45,6 +45,9 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
 }
 
 export function DateTimePicker({
@@ -52,6 +55,9 @@ export function DateTimePicker({
   onChange,
   placeholder,
   className,
+  id,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -115,7 +121,10 @@ export function DateTimePicker({
         <PopoverTrigger
           render={
             <Button
+              id={id}
               variant='outline'
+              aria-describedby={ariaDescribedBy}
+              aria-invalid={ariaInvalid}
               className={cn(
                 'flex-1 justify-between font-normal',
                 !date && 'text-muted-foreground'
