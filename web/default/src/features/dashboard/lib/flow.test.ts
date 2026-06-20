@@ -133,6 +133,43 @@ describe('dashboard flow data', () => {
     )
   })
 
+  test('reconnects links when a middle stage is hidden', () => {
+    const result = buildDashboardFlowData(rows, 'quota', {
+      role: 'admin',
+      visibleStages: ['user', 'model', 'channel'],
+    })
+
+    assert.deepEqual(
+      result.flow.links.map((link) => [link.source, link.target, link.value]),
+      [
+        ['model:claude-4-sonnet', 'channel:101', 70],
+        ['model:gpt-4.1', 'channel:101', 100],
+        ['model:gpt-4.1', 'channel:102', 50],
+        ['user:1', 'model:gpt-4.1', 150],
+        ['user:2', 'model:claude-4-sonnet', 70],
+      ]
+    )
+    assert.equal(
+      result.flow.nodes.some((node) => node.kind === 'group'),
+      false
+    )
+  })
+
+  test('ignores stage filters that would leave fewer than two columns', () => {
+    const result = buildDashboardFlowData(rows.slice(0, 2), 'quota', {
+      role: 'user',
+      visibleStages: ['model'],
+    })
+
+    assert.deepEqual(
+      result.flow.links.map((link) => [link.source, link.target, link.value]),
+      [
+        ['group:vip', 'model:gpt-4.1', 150],
+        ['token:11', 'group:vip', 150],
+      ]
+    )
+  })
+
   test('builds user filter options with stable values', () => {
     const options = buildFlowFilterOptions(rows, 'quota')
 

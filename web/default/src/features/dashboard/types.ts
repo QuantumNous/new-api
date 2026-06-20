@@ -64,6 +64,10 @@ export interface FlowBuildOptions {
   role?: FlowRole
   selectedUsers?: string[]
   colorPalette?: readonly string[]
+  visibleStages?: FlowNodeKind[]
+  // Resolves the label for a token whose record no longer exists (deleted).
+  // Lets the caller inject a localized string such as "Deleted (123)".
+  deletedTokenLabel?: (tokenId: number) => string
 }
 
 export interface DashboardFlowNode {

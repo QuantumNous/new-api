@@ -1,3 +1,5 @@
+import type { Row, Table } from '@tanstack/react-table'
+import { Database } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,15 +18,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  flexRender,
-  type Cell,
-  type Row,
-  type Table,
-} from '@tanstack/react-table'
-import { Database } from 'lucide-react'
+import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Empty,
   EmptyDescription,
@@ -33,6 +29,10 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
+
+import { tableHasCompactMeta } from './card-cell-utils'
+import { CardRowContent } from './card-row-content'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -41,34 +41,6 @@ interface MobileCardListProps<TData> {
   emptyDescription?: string
   getRowKey?: (row: Row<TData>) => string | number
   getRowClassName?: (row: Row<TData>) => string | undefined
-}
-
-interface MobileColumnMeta {
-  label?: string
-  mobileTitle?: boolean
-  mobileBadge?: boolean
-  mobileHidden?: boolean
-}
-
-function getCellMeta<TData>(
-  cell: Cell<TData, unknown>
-): MobileColumnMeta | undefined {
-  return cell.column.columnDef.meta as MobileColumnMeta | undefined
-}
-
-function getCellLabel<TData>(cell: Cell<TData, unknown>): string | null {
-  const meta = getCellMeta(cell)
-  if (meta?.label) return meta.label
-  const header = cell.column.columnDef.header
-  return typeof header === 'string' ? header : null
-}
-
-function renderCellContent<TData>(cell: Cell<TData, unknown>): React.ReactNode {
-  const cellRenderer = cell.column.columnDef.cell
-  if (cellRenderer) {
-    return flexRender(cellRenderer, cell.getContext())
-  }
-  return cell.getValue() as React.ReactNode
 }
 
 function ListSkeleton() {
@@ -114,142 +86,14 @@ function FallbackListSkeleton() {
 }
 
 /**
- * Compact list row — structured layout with title header + side-by-side fields.
- * Used when columns define mobileTitle or mobileBadge meta.
- *
- * Visual structure per row:
- *   [Title content]             [Badge]
- *   [Field1 label] [Field2 label]
- *   [Field1 value] [Field2 value]
- *                          [Actions ⋯]
- */
-function CompactRow<TData>({ row }: { row: Row<TData> }) {
-  const allCells = row
-    .getVisibleCells()
-    .filter((cell) => cell.column.id !== 'select')
-
-  const titleCell = allCells.find((c) => getCellMeta(c)?.mobileTitle)
-  const badgeCell = allCells.find((c) => getCellMeta(c)?.mobileBadge)
-  const actionsCell = allCells.find((c) => c.column.id === 'actions')
-
-  const fieldCells = allCells.filter(
-    (c) =>
-      c !== titleCell &&
-      c !== badgeCell &&
-      c !== actionsCell &&
-      !getCellMeta(c)?.mobileHidden
-  )
-
-  return (
-    <>
-      {/* Row 1: Title + Badge */}
-      <div className='flex items-center justify-between gap-2'>
-        {titleCell && (
-          <div className='min-w-0 flex-1 overflow-hidden text-sm font-medium'>
-            {renderCellContent(titleCell)}
-          </div>
-        )}
-        {badgeCell && (
-          <div className='shrink-0'>{renderCellContent(badgeCell)}</div>
-        )}
-      </div>
-
-      {/* Row 2: Key fields wrap into compact columns instead of squeezing */}
-      {fieldCells.length > 0 && (
-        <div className='mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5'>
-          {fieldCells.map((cell) => {
-            const label = getCellLabel(cell)
-            return (
-              <div key={cell.id} className='min-w-0 flex-1 overflow-hidden'>
-                {label && (
-                  <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
-                    {label}
-                  </div>
-                )}
-                <div className='min-w-0 overflow-hidden text-xs'>
-                  {renderCellContent(cell) ?? '-'}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Actions */}
-      {actionsCell && (
-        <div className='mt-1 -mb-0.5 flex justify-end'>
-          {renderCellContent(actionsCell)}
-        </div>
-      )}
-    </>
-  )
-}
-
-/**
- * Fallback list row — condensed label:value pairs for tables without
- * mobileTitle/mobileBadge. Still respects mobileHidden.
- */
-function FallbackRow<TData>({ row }: { row: Row<TData> }) {
-  const allCells = row
-    .getVisibleCells()
-    .filter((cell) => cell.column.id !== 'select')
-
-  const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const contentCells = allCells.filter(
-    (c) => c.column.id !== 'actions' && !getCellMeta(c)?.mobileHidden
-  )
-
-  return (
-    <>
-      {contentCells.map((cell) => {
-        const label = getCellLabel(cell)
-        const content = renderCellContent(cell)
-
-        if (!label) {
-          return (
-            <div key={cell.id} className='flex justify-end overflow-hidden'>
-              {content}
-            </div>
-          )
-        }
-
-        return (
-          <div
-            key={cell.id}
-            className='flex items-start justify-between gap-2 overflow-hidden'
-          >
-            <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
-              {label}
-            </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs'>
-              {content ?? '-'}
-            </div>
-          </div>
-        )
-      })}
-      {actionsCell && (
-        <div className='-mb-0.5 flex justify-end pt-0.5'>
-          {renderCellContent(actionsCell)}
-        </div>
-      )}
-    </>
-  )
-}
-
-/**
  * Mobile-optimized list view for table data.
  *
  * Renders rows inside a single bordered container with dividers —
  * a Vercel/Stripe-style list rather than individual cards.
  *
- * Column meta extensions:
- * - `mobileTitle`  — card header (left, larger text)
- * - `mobileBadge`  — inline with title (right, e.g. status badge)
- * - `mobileHidden` — hidden on mobile
- *
- * When mobileTitle or mobileBadge is set on any column, uses a structured
- * two-tier layout: title+badge header, then 2 key fields side-by-side.
- * Otherwise falls back to a condensed single-column label:value list.
+ * Per-row content is shared with the desktop card view via
+ * {@link CardRowContent}; see `card-row-content.tsx` for the column-meta
+ * extensions (`mobileTitle`, `mobileBadge`, `mobileHidden`).
  */
 export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   const {
@@ -265,10 +109,12 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   const resolvedEmptyTitle = emptyTitle ?? t('No Data')
   const resolvedEmptyDescription = emptyDescription ?? t('No data available')
 
-  const hasCompactMeta = table.getVisibleLeafColumns().some((col) => {
-    const meta = col.columnDef.meta as MobileColumnMeta | undefined
-    return meta?.mobileTitle || meta?.mobileBadge
-  })
+  const visibleColumns = table.getVisibleLeafColumns()
+  const hasCompactMeta = React.useMemo(
+    () => tableHasCompactMeta(table),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleColumns]
+  )
 
   if (isLoading) {
     return hasCompactMeta ? <ListSkeleton /> : <FallbackListSkeleton />
@@ -292,8 +138,6 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
     )
   }
 
-  const RowComponent = hasCompactMeta ? CompactRow : FallbackRow
-
   return (
     <div className='divide-y overflow-hidden rounded-lg border'>
       {rows.map((row) => {
@@ -301,9 +145,12 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
         return (
           <div
             key={key}
-            className={cn('bg-card px-3 py-2.5', getRowClassName?.(row))}
+            className={cn(
+              '[background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5',
+              getRowClassName?.(row)
+            )}
           >
-            <RowComponent row={row} />
+            <CardRowContent row={row} compact={hasCompactMeta} />
           </div>
         )
       })}

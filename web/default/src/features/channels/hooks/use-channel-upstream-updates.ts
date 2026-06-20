@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api, type ApiRequestConfig } from '@/lib/api'
@@ -285,20 +285,41 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
     }
   }, [refresh, t])
 
-  return {
-    showModal,
-    channel,
-    addModels,
-    removeModels,
-    preferredTab,
-    applyLoading,
-    detectAllLoading,
-    applyAllLoading,
-    openModal,
-    closeModal,
-    applyUpdates,
-    applyAllUpdates,
-    detectChannelUpdates,
-    detectAllUpdates,
-  }
+  // Memoized so consumers (and the channels context value built from this) get
+  // a stable reference unless an actual field changes. Callbacks above are all
+  // useCallback-stable, so this only changes when relevant state changes.
+  return useMemo(
+    () => ({
+      showModal,
+      channel,
+      addModels,
+      removeModels,
+      preferredTab,
+      applyLoading,
+      detectAllLoading,
+      applyAllLoading,
+      openModal,
+      closeModal,
+      applyUpdates,
+      applyAllUpdates,
+      detectChannelUpdates,
+      detectAllUpdates,
+    }),
+    [
+      showModal,
+      channel,
+      addModels,
+      removeModels,
+      preferredTab,
+      applyLoading,
+      detectAllLoading,
+      applyAllLoading,
+      openModal,
+      closeModal,
+      applyUpdates,
+      applyAllUpdates,
+      detectChannelUpdates,
+      detectAllUpdates,
+    ]
+  )
 }

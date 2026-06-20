@@ -20,32 +20,31 @@ import { type ReactNode } from 'react'
 import i18next from 'i18next'
 import { CreditCard, Landmark } from 'lucide-react'
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
+import { ReactIconByName } from '@/components/react-icon-by-name'
 import { PAYMENT_TYPES, PAYMENT_ICON_COLORS } from '../constants'
 
 // ============================================================================
 // UI Helper Functions
 // ============================================================================
 
-const HAS_LOCATION =
-  typeof globalThis !== 'undefined' && 'location' in globalThis
-
 /**
- * Resolves a backend-provided image URL to http(s) only. Rejects javascript:,
- * data:, blob:, file:, and URLs with userinfo, which are unsafe in <img src/>.
+ * Resolves a backend-provided image URL to https only. Rejects http:,
+ * data:, blob:, file:, relative paths, and URLs with userinfo, which are unsafe
+ * or ambiguous in <img src/>.
  */
 function normalizeHttpIconUrl(raw: string | undefined | null): string | null {
   if (!raw) return null
   const s = raw.trim()
   if (!s) return null
+  if (!/^https:\/\//i.test(s)) return null
+
   let url: URL
   try {
-    url = HAS_LOCATION
-      ? new URL(s, (globalThis as { location: Location }).location.href)
-      : new URL(s)
+    url = new URL(s)
   } catch {
     return null
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+  if (url.protocol !== 'https:') {
     return null
   }
   if (url.username || url.password) {
@@ -57,16 +56,18 @@ function normalizeHttpIconUrl(raw: string | undefined | null): string | null {
 /**
  * Get payment method icon component
  *
- * When iconUrl is provided, render an <img/> with that URL so custom
- * gateway logos can be configured per-method.
+ * When icon is provided, render a safe http(s) image URL or resolve it as a
+ * react-icons component name. Invalid configured icons intentionally render
+ * nothing instead of falling back to the payment type.
  */
 export function getPaymentIcon(
   paymentType: string | undefined,
   className: string = 'h-4 w-4',
-  iconUrl?: string,
+  icon?: string,
   altName?: string
 ): ReactNode {
-  const safeIconUrl = normalizeHttpIconUrl(iconUrl)
+  const iconValue = icon?.trim()
+  const safeIconUrl = normalizeHttpIconUrl(iconValue)
   if (safeIconUrl) {
     return (
       <img
@@ -77,6 +78,15 @@ export function getPaymentIcon(
         loading='lazy'
         decoding='async'
         referrerPolicy='no-referrer'
+      />
+    )
+  }
+  if (iconValue) {
+    return (
+      <ReactIconByName
+        name={iconValue}
+        className={className}
+        title={altName || paymentType || iconValue}
       />
     )
   }

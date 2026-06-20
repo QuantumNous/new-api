@@ -112,20 +112,18 @@ func fillFlowTokenNames(rows []*FlowQuotaData) error {
 		Id   int    `gorm:"column:id"`
 		Name string `gorm:"column:name"`
 	}
-	if err := DB.Unscoped().Model(&Token{}).Select("id, name").Where("id IN ?", tokenIDs).Find(&tokens).Error; err != nil {
+	if err := DB.Model(&Token{}).Select("id, name").Where("id IN ?", tokenIDs).Find(&tokens).Error; err != nil {
 		return err
 	}
 	tokenNameByID := make(map[int]string, len(tokens))
 	for _, token := range tokens {
 		tokenNameByID[token.Id] = token.Name
 	}
+	// Deleted tokens are intentionally not resolved here: leave TokenName empty
+	// so the frontend can render a localized "deleted (id)" label instead.
 	for _, row := range rows {
 		if name := tokenNameByID[row.TokenID]; name != "" {
 			row.TokenName = name
-			continue
-		}
-		if row.TokenID > 0 {
-			row.TokenName = fmt.Sprintf("token-%d", row.TokenID)
 		}
 	}
 	return nil
@@ -148,16 +146,24 @@ func fillFlowChannelNames(rows []*FlowQuotaData) error {
 		return nil
 	}
 
-	var channels []struct {
-		Id   int    `gorm:"column:id"`
-		Name string `gorm:"column:name"`
-	}
-	if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
-		return err
-	}
-	channelNameByID := make(map[int]string, len(channels))
-	for _, channel := range channels {
-		channelNameByID[channel.Id] = channel.Name
+	channelNameByID := make(map[int]string, len(channelIDs))
+	if common.MemoryCacheEnabled {
+		for _, channelID := range channelIDs {
+			if channel, err := CacheGetChannel(channelID); err == nil {
+				channelNameByID[channelID] = channel.Name
+			}
+		}
+	} else {
+		var channels []struct {
+			Id   int    `gorm:"column:id"`
+			Name string `gorm:"column:name"`
+		}
+		if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+			return err
+		}
+		for _, channel := range channels {
+			channelNameByID[channel.Id] = channel.Name
+		}
 	}
 	for _, row := range rows {
 		if name := channelNameByID[row.ChannelID]; name != "" {

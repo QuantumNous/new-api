@@ -53,6 +53,12 @@ type FlowPathNode = {
   kind: FlowNodeKind
 }
 
+type FlowPathContext = {
+  deletedTokenLabel?: (tokenId: number) => string
+}
+
+const EMPTY_FLOW_PATH_CONTEXT: FlowPathContext = {}
+
 const DEFAULT_FLOW_ROLE: FlowRole = 'user'
 
 const DEFAULT_FLOW_SANKEY_LABELS: FlowSankeyLabels = {
@@ -93,7 +99,7 @@ function userNode(row: FlowQuotaDataItem): FlowPathNode {
 }
 
 function nodeNameNode(row: FlowQuotaDataItem): FlowPathNode {
-  const nodeName = row.node_name || 'default'
+  const nodeName = row.node_name || 'default-node'
   return {
     id: `node:${nodeName}`,
     label: nodeName,
@@ -101,14 +107,21 @@ function nodeNameNode(row: FlowQuotaDataItem): FlowPathNode {
   }
 }
 
-function tokenNode(row: FlowQuotaDataItem): FlowPathNode {
+function tokenNode(
+  row: FlowQuotaDataItem,
+  ctx: FlowPathContext
+): FlowPathNode {
   const tokenID = numberValue(row.token_id)
   return {
     id: tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`,
-    label:
-      row.token_name || (tokenID > 0 ? `token-${tokenID}` : 'Unknown Token'),
+    label: row.token_name || deletedTokenLabel(tokenID, ctx),
     kind: 'token',
   }
+}
+
+function deletedTokenLabel(tokenID: number, ctx: FlowPathContext): string {
+  if (tokenID <= 0) return 'Unknown Token'
+  return ctx.deletedTokenLabel?.(tokenID) ?? `token-${tokenID}`
 }
 
 function groupNode(row: FlowQuotaDataItem): FlowPathNode {
@@ -142,21 +155,52 @@ function channelNode(row: FlowQuotaDataItem): FlowPathNode {
   }
 }
 
-function flowPath(row: FlowQuotaDataItem, role: FlowRole): FlowPathNode[] {
-  if (role === 'root') {
-    return [
-      userNode(row),
-      nodeNameNode(row),
-      tokenNode(row),
-      groupNode(row),
-      modelNode(row),
-      channelNode(row),
-    ]
-  }
-  if (role === 'admin') {
-    return [userNode(row), groupNode(row), modelNode(row), channelNode(row)]
-  }
-  return [tokenNode(row), groupNode(row), modelNode(row)]
+const NODE_BUILDERS: Record<
+  FlowNodeKind,
+  (row: FlowQuotaDataItem, ctx: FlowPathContext) => FlowPathNode
+> = {
+  user: userNode,
+  node: nodeNameNode,
+  token: tokenNode,
+  group: groupNode,
+  model: modelNode,
+  channel: channelNode,
+}
+
+const ROLE_FLOW_STAGES: Record<FlowRole, FlowNodeKind[]> = {
+  root: ['user', 'node', 'token', 'group', 'model', 'channel'],
+  admin: ['user', 'group', 'model', 'channel'],
+  user: ['token', 'group', 'model'],
+}
+
+// A Sankey needs at least two columns to draw any link, so hiding stages can
+// never collapse the path below this many columns.
+const MIN_FLOW_STAGES = 2
+
+export function getFlowStages(role: FlowRole): FlowNodeKind[] {
+  return ROLE_FLOW_STAGES[role] ?? ROLE_FLOW_STAGES.user
+}
+
+function resolveVisibleStages(
+  role: FlowRole,
+  visibleStages?: FlowNodeKind[]
+): FlowNodeKind[] {
+  const stages = getFlowStages(role)
+  if (!visibleStages) return stages
+  const visible = new Set(visibleStages)
+  const filtered = stages.filter((stage) => visible.has(stage))
+  return filtered.length >= MIN_FLOW_STAGES ? filtered : stages
+}
+
+function flowPath(
+  row: FlowQuotaDataItem,
+  role: FlowRole,
+  visibleStages?: FlowNodeKind[],
+  ctx: FlowPathContext = EMPTY_FLOW_PATH_CONTEXT
+): FlowPathNode[] {
+  return resolveVisibleStages(role, visibleStages).map((stage) =>
+    NODE_BUILDERS[stage](row, ctx)
+  )
 }
 
 function colorAt(index: number, palette?: readonly string[]): string {
@@ -208,9 +252,15 @@ function stableColorMap(
   return map
 }
 
-function rootColorKeys(rows: FlowQuotaDataItem[], role: FlowRole): string[] {
+function rootColorKeys(
+  rows: FlowQuotaDataItem[],
+  role: FlowRole,
+  visibleStages?: FlowNodeKind[]
+): string[] {
   return Array.from(
-    new Set(rows.map((row) => flowPath(row, role)[0]?.id ?? 'unknown'))
+    new Set(
+      rows.map((row) => flowPath(row, role, visibleStages)[0]?.id ?? 'unknown')
+    )
   ).sort((a, b) => a.localeCompare(b))
 }
 
@@ -346,14 +396,19 @@ function buildFlowGraph(
   rows: FlowQuotaDataItem[],
   metric: FlowMetric,
   role: FlowRole,
-  palette?: readonly string[]
+  palette?: readonly string[],
+  visibleStages?: FlowNodeKind[],
+  ctx: FlowPathContext = EMPTY_FLOW_PATH_CONTEXT
 ): DashboardFlowGraph {
   const nodes = new Map<string, DashboardFlowNode>()
   const links = new Map<string, DashboardFlowLink>()
-  const colors = stableColorMap(rootColorKeys(rows, role), palette)
+  const colors = stableColorMap(
+    rootColorKeys(rows, role, visibleStages),
+    palette
+  )
 
   for (const row of rows) {
-    const path = flowPath(row, role)
+    const path = flowPath(row, role, visibleStages, ctx)
     const root = path[0]
     if (!root) continue
     const metrics = rowMetrics(row)
@@ -376,7 +431,7 @@ function buildFlowGraph(
   )
   const firstStepSources = new Set(
     rows
-      .map((row) => flowPath(row, role)[0]?.id)
+      .map((row) => flowPath(row, role, visibleStages)[0]?.id)
       .filter((id): id is string => Boolean(id))
   )
   const total = flowLinks
@@ -457,7 +512,9 @@ export function buildDashboardFlowData(
 
   return {
     summary: buildSummary(filteredRows),
-    flow: buildFlowGraph(filteredRows, metric, role, palette),
+    flow: buildFlowGraph(filteredRows, metric, role, palette, options.visibleStages, {
+      deletedTokenLabel: options.deletedTokenLabel,
+    }),
     filterOptions: buildFlowFilterOptions(rows, metric, palette),
   }
 }

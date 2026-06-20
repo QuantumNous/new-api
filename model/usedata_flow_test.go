@@ -90,12 +90,14 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	rootRows, err := GetFlowQuotaData(900, 2000, "", 0, common.RoleRootUser)
 	require.NoError(t, err)
 	require.Len(t, rootRows, 3)
+	// Token 11 was soft-deleted, so its name is intentionally left empty for the
+	// frontend to render a localized "deleted (id)" label instead.
 	require.Equal(t, FlowQuotaData{
 		UserID:      1,
 		Username:    "alice",
 		NodeName:    "node-a",
 		TokenID:     11,
-		TokenName:   "primary",
+		TokenName:   "",
 		UseGroup:    "vip",
 		ChannelID:   1,
 		ChannelName: "east",
@@ -104,6 +106,9 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 		Count:       3,
 		Quota:       150,
 	}, *rootRows[0])
+	// A token that still exists resolves to its current name.
+	require.Equal(t, 22, rootRows[1].TokenID)
+	require.Equal(t, "backup", rootRows[1].TokenName)
 
 	adminRows, err := GetFlowQuotaData(900, 2000, "alice", 0, common.RoleAdminUser)
 	require.NoError(t, err)
@@ -122,7 +127,7 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	require.Empty(t, selfRows[0].Username)
 	require.Equal(t, 0, selfRows[0].ChannelID)
 	require.Empty(t, selfRows[0].ChannelName)
-	require.Equal(t, "primary", selfRows[0].TokenName)
+	require.Empty(t, selfRows[0].TokenName)
 	require.Equal(t, "vip", selfRows[0].UseGroup)
 	require.Equal(t, 175, selfRows[0].Quota)
 }

@@ -16,14 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import {
   Activity,
+  ChevronRight,
   CircleAlert,
+  EyeOff,
   GitBranch,
   Hash,
+  Info,
   Loader2,
   Route,
   WalletCards,
@@ -34,6 +37,7 @@ import { formatNumber, formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { computeTimeRange } from '@/lib/time'
 import { useChartTheme } from '@/lib/use-chart-theme'
+import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -45,6 +49,13 @@ import {
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Toggle } from '@/components/ui/toggle'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { MultiSelect } from '@/components/multi-select'
 import { getFlowQuotaDates } from '@/features/dashboard/api'
 import {
@@ -52,6 +63,7 @@ import {
   buildFlowSankeySpec,
   buildQueryParams,
   getDefaultDays,
+  getFlowStages,
 } from '@/features/dashboard/lib'
 import {
   compactFlowSelectionLabel,
@@ -61,6 +73,7 @@ import {
 import type {
   DashboardFilters,
   FlowMetric,
+  FlowNodeKind,
   FlowRole,
   FlowSummary,
 } from '@/features/dashboard/types'
@@ -79,6 +92,39 @@ const FLOW_METRIC_OPTIONS = [
   { value: 'tokens', labelKey: 'Tokens', icon: Hash },
   { value: 'requests', labelKey: 'Requests', icon: Activity },
 ] as const
+
+// A Sankey needs at least two columns to render any link.
+const MIN_VISIBLE_STAGES = 2
+
+const FLOW_STAGE_META: Record<
+  FlowNodeKind,
+  { labelKey: string; descKey: string }
+> = {
+  user: {
+    labelKey: 'User',
+    descKey: 'The user who made the requests',
+  },
+  node: {
+    labelKey: 'Node',
+    descKey: 'The deployment node that handled the requests',
+  },
+  token: {
+    labelKey: 'Token',
+    descKey: 'The API key used for the requests',
+  },
+  group: {
+    labelKey: 'Group',
+    descKey: 'The user group applied to the requests',
+  },
+  model: {
+    labelKey: 'Model',
+    descKey: 'The model that was requested',
+  },
+  channel: {
+    labelKey: 'Channel',
+    descKey: 'The upstream channel that served the requests',
+  },
+}
 
 function FlowStats(props: FlowStatsProps) {
   const { t } = useTranslation()
@@ -143,6 +189,26 @@ export function FlowCharts(props: FlowChartsProps) {
   const flowRole: FlowRole = isRoot ? 'root' : isAdmin ? 'admin' : 'user'
   const [metric, setMetric] = useState<FlowMetric>('quota')
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [hiddenStages, setHiddenStages] = useState<FlowNodeKind[]>([])
+
+  const stages = useMemo(() => getFlowStages(flowRole), [flowRole])
+  const visibleStages = useMemo(
+    () => stages.filter((stage) => !hiddenStages.includes(stage)),
+    [stages, hiddenStages]
+  )
+  const toggleStage = (stage: FlowNodeKind) => {
+    setHiddenStages((prev) => {
+      const hidden = new Set(prev)
+      if (hidden.has(stage)) {
+        hidden.delete(stage)
+      } else {
+        const remaining = stages.filter((item) => !hidden.has(item)).length
+        if (remaining <= MIN_VISIBLE_STAGES) return prev
+        hidden.add(stage)
+      }
+      return stages.filter((item) => hidden.has(item))
+    })
+  }
 
   const timeRange = useMemo(
     () =>
@@ -180,8 +246,10 @@ export function FlowCharts(props: FlowChartsProps) {
       buildDashboardFlowData(isLoading ? [] : (flowRows ?? []), metric, {
         role: flowRole,
         selectedUsers,
+        visibleStages,
+        deletedTokenLabel: (tokenId) => t('Deleted ({{id}})', { id: tokenId }),
       }),
-    [flowRole, flowRows, isLoading, metric, selectedUsers]
+    [flowRole, flowRows, isLoading, metric, selectedUsers, visibleStages, t]
   )
   const userFilterOptions = useMemo(
     () =>
@@ -207,6 +275,7 @@ export function FlowCharts(props: FlowChartsProps) {
     metric,
     flowRole,
     selectedUsers.join(','),
+    visibleStages.join(','),
     flowRows?.length ?? 0,
     resolvedTheme,
   ].join('-')
@@ -271,6 +340,55 @@ export function FlowCharts(props: FlowChartsProps) {
             <GitBranch className='text-muted-foreground/60 size-4 shrink-0' />
             <div className='text-sm font-semibold'>{chartTitle}</div>
           </div>
+          <TooltipProvider>
+            <div className='flex min-w-0 items-center gap-1 overflow-x-auto pb-1 lg:justify-end lg:pb-0'>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type='button'
+                      className='text-muted-foreground/60 hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md'
+                      aria-label={t('Show or hide flow columns')}
+                    />
+                  }
+                >
+                  <Info className='size-3.5' />
+                </TooltipTrigger>
+                <TooltipContent className='max-w-[16rem]'>
+                  {t('Click a stage to show or hide that column')}
+                </TooltipContent>
+              </Tooltip>
+              {stages.map((stage, index) => {
+                const meta = FLOW_STAGE_META[stage]
+                const visible = !hiddenStages.includes(stage)
+                return (
+                  <Fragment key={stage}>
+                    {index > 0 && (
+                      <ChevronRight className='text-muted-foreground/40 size-3.5 shrink-0' />
+                    )}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Toggle
+                            variant='outline'
+                            size='sm'
+                            pressed={visible}
+                            onPressedChange={() => toggleStage(stage)}
+                            aria-label={t(meta.labelKey)}
+                            className={cn('shrink-0', !visible && 'opacity-50')}
+                          />
+                        }
+                      >
+                        {!visible && <EyeOff className='size-3' />}
+                        {t(meta.labelKey)}
+                      </TooltipTrigger>
+                      <TooltipContent>{t(meta.descKey)}</TooltipContent>
+                    </Tooltip>
+                  </Fragment>
+                )
+              })}
+            </div>
+          </TooltipProvider>
         </div>
         <div className='h-[560px] p-1.5 sm:h-[680px] sm:p-2 2xl:h-[760px]'>
           {displayState === 'loading' ? (

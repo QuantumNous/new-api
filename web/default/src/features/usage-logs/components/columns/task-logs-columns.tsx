@@ -25,7 +25,6 @@ import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
@@ -94,9 +93,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   const columns: ColumnDef<TaskLog>[] = [
     {
       accessorKey: 'submit_time',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Submit Time')} />
-      ),
+      header: t('Submit Time'),
       cell: ({ row }) => {
         const log = row.original
         const submitTime = row.getValue('submit_time') as number
@@ -117,17 +114,14 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         )
       },
       size: 180,
-      meta: { label: t('Submit Time') },
     },
   ]
 
   if (isAdmin) {
     columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
       id: 'user',
+      header: t('User'),
       accessorFn: (row) => row.username || row.user_id,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('User')} />
-      ),
       cell: function UserCell({ row }) {
         const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
           useUsageLogsContext()
@@ -163,16 +157,13 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </button>
         )
       },
-      meta: { label: t('User') },
     })
   }
 
   columns.push(
     {
       accessorKey: 'task_id',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Task ID')} />
-      ),
+      header: t('Task ID'),
       cell: ({ row }) => {
         const log = row.original
         const taskId = row.getValue('task_id') as string
@@ -183,9 +174,10 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           <div className='flex max-w-[170px] flex-col gap-0.5'>
             <StatusBadge
               label={taskId}
-              autoColor={taskId}
+              copyText={taskId}
+              variant='neutral'
               size='sm'
-              className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+              className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
@@ -193,7 +185,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </div>
         )
       },
-      meta: { label: t('Task ID'), mobileTitle: true },
+      meta: { mobileTitle: true },
     },
     createDurationColumn<TaskLog>({
       submitTimeKey: 'submit_time',
@@ -204,9 +196,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     }),
     {
       accessorKey: 'status',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Status')} />
-      ),
+      header: t('Status'),
       cell: ({ row }) => {
         const status = row.getValue('status') as string
         return (
@@ -215,17 +205,15 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             variant={taskStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
+            className='-ml-1.5'
           />
         )
       },
-      meta: { label: t('Status') },
     },
     createProgressColumn<TaskLog>({ headerLabel: t('Progress') }),
     {
       accessorKey: 'fail_reason',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Details')} />
-      ),
+      header: t('Details'),
       cell: function DetailsCell({ row }) {
         const log = row.original
         const failReason = row.getValue('fail_reason') as string
@@ -295,7 +283,6 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </>
         )
       },
-      meta: { label: t('Details') },
       size: 200,
       maxSize: 220,
     }
