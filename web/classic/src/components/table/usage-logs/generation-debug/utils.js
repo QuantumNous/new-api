@@ -112,7 +112,8 @@ export function derivePromptCacheView(
     let cacheStatus = 'partial';
     if (unit.estimated_tokens === 0) {
       cacheStatus =
-        unit.cumulative_start < estimatedCachedTokens ||
+        (estimatedCachedTokens > 0 &&
+          unit.cumulative_start <= estimatedCachedTokens) ||
         (estimatedCachedTokens > 0 && estimatedCachedTokens >= estimatedTotal)
           ? 'hit'
           : 'miss';
@@ -143,19 +144,23 @@ export function derivePromptCacheView(
       ...existingBoundary,
       cached_tokens: cachedTokens,
       prompt_tokens: promptTokens,
-      cache_hit_rate: hitRate,
-      estimated_cached_tokens: estimatedCachedTokens,
-      break_unit_index: breakUnit?.index ?? -1,
-      break_unit_path: breakUnit?.path,
-      break_unit_role: breakUnit?.role,
-      break_offset_tokens: breakUnit
-        ? Math.min(
-            breakUnit.estimated_tokens,
-            Math.max(estimatedCachedTokens - breakUnit.cumulative_start, 0),
-          )
-        : 0,
-      source: 'cache_boundary_inference',
-      confidence: 'inferred',
+      cache_hit_rate: existingBoundary?.cache_hit_rate ?? hitRate,
+      estimated_cached_tokens:
+        existingBoundary?.estimated_cached_tokens ?? estimatedCachedTokens,
+      break_unit_index:
+        existingBoundary?.break_unit_index ?? breakUnit?.index ?? -1,
+      break_unit_path: existingBoundary?.break_unit_path ?? breakUnit?.path,
+      break_unit_role: existingBoundary?.break_unit_role ?? breakUnit?.role,
+      break_offset_tokens:
+        existingBoundary?.break_offset_tokens ??
+        (breakUnit
+          ? Math.min(
+              breakUnit.estimated_tokens,
+              Math.max(estimatedCachedTokens - breakUnit.cumulative_start, 0),
+            )
+          : 0),
+      source: existingBoundary?.source ?? 'cache_boundary_inference',
+      confidence: existingBoundary?.confidence ?? 'inferred',
     },
   };
 }

@@ -48,7 +48,7 @@ export function JsonViewer(props: JsonViewerProps) {
           {props.label && (
             <span className='truncate text-xs font-medium'>{props.label}</span>
           )}
-          <Badge variant='secondary'>JSON</Badge>
+          <Badge variant='secondary'>{t('JSON')}</Badge>
           {props.rawMeta?.truncated && (
             <Badge variant='destructive'>{t('Truncated')}</Badge>
           )}

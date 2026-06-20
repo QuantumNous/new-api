@@ -149,7 +149,11 @@ export function PromptDebugPanel(props: PromptDebugPanelProps) {
             selectedUnit={selectedUnit}
             onSelectUnit={(unit) => {
               setShowRawRequest(false)
-              setSelectedUnitIndex(unit.index)
+              const position = units.findIndex(
+                (candidate) =>
+                  candidate.index === unit.index && candidate.path === unit.path
+              )
+              setSelectedUnitIndex(Math.max(position, 0))
             }}
           />
         </div>
@@ -197,9 +201,9 @@ function CacheBoundaryCard(props: {
   const { t } = useTranslation()
   const accounting = props.prompt?.token_accounting
   const promptTokens =
-    props.providerPromptTokens ||
-    accounting?.prompt_tokens ||
-    props.prompt?.total_estimated_tokens ||
+    props.providerPromptTokens ??
+    accounting?.prompt_tokens ??
+    props.prompt?.total_estimated_tokens ??
     0
   const cachedTokens = props.providerCachedTokens
   const cacheHitRate =

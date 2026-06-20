@@ -375,7 +375,12 @@ const PromptDebugPanel = ({
             selectedUnit={selectedUnit}
             onSelectUnit={(unit) => {
               setShowRawRequest(false);
-              setSelectedUnitIndex(unit.index);
+              const position = units.findIndex(
+                (candidate) =>
+                  candidate.index === unit.index &&
+                  candidate.path === unit.path,
+              );
+              setSelectedUnitIndex(Math.max(position, 0));
             }}
             t={t}
           />

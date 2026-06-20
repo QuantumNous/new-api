@@ -190,7 +190,9 @@ func TestPromptCacheBoundaryZeroTokenUnitDoesNotCreateFalseGap(t *testing.T) {
 		Units: []PromptUnit{
 			{Index: 0, EstimatedTokens: 4, CumulativeStart: 0, CumulativeEnd: 4},
 			{Index: 1, EstimatedTokens: 0, CumulativeStart: 4, CumulativeEnd: 4},
-			{Index: 2, EstimatedTokens: 4, CumulativeStart: 4, CumulativeEnd: 8},
+			{Index: 2, EstimatedTokens: 2, CumulativeStart: 4, CumulativeEnd: 6},
+			{Index: 3, EstimatedTokens: 0, CumulativeStart: 6, CumulativeEnd: 6},
+			{Index: 4, EstimatedTokens: 2, CumulativeStart: 6, CumulativeEnd: 8},
 		},
 	}
 
@@ -198,9 +200,11 @@ func TestPromptCacheBoundaryZeroTokenUnitDoesNotCreateFalseGap(t *testing.T) {
 
 	assert.Equal(t, "hit", prompt.Units[0].CacheStatus)
 	assert.Equal(t, "hit", prompt.Units[1].CacheStatus)
-	assert.Equal(t, "partial", prompt.Units[2].CacheStatus)
-	assert.Equal(t, 2, prompt.CacheBoundary.BreakUnitIndex)
-	assert.Equal(t, 2, prompt.CacheBoundary.BreakOffsetTokens)
+	assert.Equal(t, "hit", prompt.Units[2].CacheStatus)
+	assert.Equal(t, "hit", prompt.Units[3].CacheStatus)
+	assert.Equal(t, "miss", prompt.Units[4].CacheStatus)
+	assert.Equal(t, 4, prompt.CacheBoundary.BreakUnitIndex)
+	assert.Equal(t, 0, prompt.CacheBoundary.BreakOffsetTokens)
 }
 
 func TestCombinePromptsUsesUpstreamFieldsForProviderAccounting(t *testing.T) {
