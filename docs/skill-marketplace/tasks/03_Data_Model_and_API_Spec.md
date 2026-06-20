@@ -57,7 +57,7 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `evaluation_issue_type` | `format`, `completeness`, `task_completion`, `violation` |
 | `save_type` | `saved`, `favorited` |
 | `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `plan_required`, `subscription_inactive`, `kids_mode_blocked`, `evaluation_not_passed` |
-| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results` |
+| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results`, `skill_package` |
 | `tier2_event_type` | `skill_installed`, `skill_used_local` |
 
 ---
@@ -757,6 +757,8 @@ Response item:
 ### 8.4 Enable Skill
 
 `POST /api/v1/marketplace/skills/{skill_id}/enable`
+
+> **V1 note (DR-55):** Enable is superseded by `GET /api/v1/marketplace/skills/{id}/download` (download == enable); a successful package download writes/updates `user_enabled_skills` and emits `skill_enabled`. No standalone `POST .../enable` route is registered in V1. The rules below describe the enablement semantics now carried by the download path. (Disable / Remove from My Skills is owned by DR-56.)
 
 Rules:
 - Auth required.
