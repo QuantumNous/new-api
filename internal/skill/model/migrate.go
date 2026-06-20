@@ -221,7 +221,7 @@ func createSkillVersionsJSONBColumns(db *gorm.DB) error {
 		col        string
 		defaultVal string
 	}{
-		{"output_schema", ""},              // NULL = no output schema (PRD §4.2)
+		{"output_schema", ""}, // NULL = no output schema (PRD §4.2)
 		{"model_whitelist_snapshot", "'[]'::jsonb"},
 		{"monetization_snapshot", "'{}'::jsonb"}, // object shape, not array
 	}

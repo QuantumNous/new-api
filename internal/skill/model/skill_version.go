@@ -20,7 +20,7 @@ type SkillVersion struct {
 	InstructionTemplate       string `gorm:"column:instruction_template;type:text;not null"`
 	InstructionTemplateSHA256 string `gorm:"column:instruction_template_sha256;type:char(64);not null"`
 
-	PromptGuardTemplate *string    `gorm:"column:prompt_guard_template;type:text"`
+	PromptGuardTemplate *string `gorm:"column:prompt_guard_template;type:text"`
 	// OutputSchema is nullable: NULL means "no structured output schema" (PRD §4.2).
 	// Callers must handle nil before unmarshaling.
 	OutputSchema *SkillJSONB `gorm:"column:output_schema;type:text"`
@@ -28,8 +28,8 @@ type SkillVersion struct {
 	ModelWhitelistSnapshot SkillJSONB         `gorm:"column:model_whitelist_snapshot;type:text;not null"`
 	RequiredPlanSnapshot   enums.RequiredPlan `gorm:"column:required_plan_snapshot;type:varchar(32);not null;check:chk_skill_versions_required_plan_snapshot,required_plan_snapshot IN ('free','pro','enterprise')"`
 	// MonetizationSnapshot is an object (not an array): {} means "no monetization config".
-	MonetizationSnapshot   SkillJSONB         `gorm:"column:monetization_snapshot;type:text;not null"`
-	MaxInputTokensSnapshot *int               `gorm:"column:max_input_tokens_snapshot;type:integer;check:chk_skill_versions_max_input_tokens_snapshot,max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0"`
+	MonetizationSnapshot   SkillJSONB `gorm:"column:monetization_snapshot;type:text;not null"`
+	MaxInputTokensSnapshot *int       `gorm:"column:max_input_tokens_snapshot;type:integer;check:chk_skill_versions_max_input_tokens_snapshot,max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0"`
 
 	RolloutPercentage int     `gorm:"column:rollout_percentage;not null;default:100;check:chk_skill_versions_rollout_percentage,rollout_percentage BETWEEN 0 AND 100"`
 	ExperimentName    *string `gorm:"column:experiment_name;type:varchar(128)"`
