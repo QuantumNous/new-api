@@ -186,18 +186,21 @@ export function SignUpForm({
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })
-        // Guide the new user through card-binding onboarding on first login.
-        setPendingOnboarding()
         if (emailVerificationRequired) {
-          // When email verification is enabled the backend does NOT auto-login the
-          // new user, so fall back to the legacy sign-in redirect.
+          // Email verification on: the backend does NOT auto-login the new user.
+          // Arm the legacy first-login card-bind onboarding so it can trigger after
+          // they sign in manually (handleLoginSuccess opens it only when there is no
+          // explicit redirect and the feature is enabled).
+          setPendingOnboarding()
           toast.success(t('Account created! Please sign in'))
           redirectToLogin(redirectTo)
         } else {
-          // The backend auto-logged-in the new user (session cookie set by
-          // setupLogin). Land them straight in the Playground first-run experience
-          // so they can make their first API call with zero config. An explicit
-          // redirectTo (e.g. ?redirect=/keys from "Get API Key") still wins.
+          // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
+          // them in the Playground first-run so they make their first API call with
+          // zero config. We intentionally do NOT arm the card-bind promo dialog here —
+          // top-up is surfaced later via the low-balance banner, once the user has
+          // experienced value. An explicit redirectTo (e.g. ?redirect=/keys from
+          // "Get API Key") still wins.
           toast.success(t('Account created!'))
           await handleLoginSuccess(
             res.data as { id?: number } | null,
