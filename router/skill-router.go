@@ -29,6 +29,18 @@ func SetSkillRouter(router *gin.Engine) {
 			marketplaceRoute.GET("/skills/:id", skillhandler.GetMarketplaceSkill)
 		}
 
+		// Download requires an authenticated, entitled user (DR-81): a separate
+		// /marketplace group with required auth (SkillUserAuth) so an anonymous
+		// caller is rejected with AUTH_REQUIRED instead of TryUserAuth's pass-through.
+		marketplaceAuthRoute := v1.Group("/marketplace")
+		marketplaceAuthRoute.Use(middleware.SkillUserAuth())
+		if common.GlobalApiRateLimitEnable {
+			marketplaceAuthRoute.Use(middleware.SkillUserRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKD"))
+		}
+		{
+			marketplaceAuthRoute.GET("/skills/:id/download", skillhandler.DownloadSkillPackage)
+		}
+
 		adminRoute := v1.Group("/admin")
 		adminRoute.Use(middleware.SkillRootAuth())
 		if common.GlobalApiRateLimitEnable {

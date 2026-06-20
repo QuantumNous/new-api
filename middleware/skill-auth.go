@@ -98,6 +98,15 @@ func abortSkillAuth(c *gin.Context, message string, detail any, code errcodes.Er
 	c.Abort()
 }
 
+// SkillUserAuth requires an authenticated, non-banned user of at least common
+// role. Used by entitled-user endpoints (e.g. package download, DR-81): an
+// unauthenticated caller is rejected with AUTH_REQUIRED.
+func SkillUserAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		skillAuthHelper(c, common.RoleCommonUser)
+	}
+}
+
 func SkillAdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		skillAuthHelper(c, common.RoleAdminUser)
