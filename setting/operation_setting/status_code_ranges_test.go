@@ -85,3 +85,38 @@ func TestIsAlwaysSkipRetryStatusCode(t *testing.T) {
 	require.True(t, IsAlwaysSkipRetryStatusCode(524))
 	require.False(t, IsAlwaysSkipRetryStatusCode(500))
 }
+
+func TestIsBusinessErrorStatusCode_Default(t *testing.T) {
+	// Restore the default ranges if a previous test mutated them.
+	orig := BusinessErrorStatusCodeRanges
+	t.Cleanup(func() { BusinessErrorStatusCodeRanges = orig })
+	BusinessErrorStatusCodeRanges = []StatusCodeRange{
+		{Start: 400, End: 400},
+		{Start: 402, End: 402},
+		{Start: 403, End: 403},
+		{Start: 422, End: 422},
+		{Start: 451, End: 451},
+	}
+	for _, code := range []int{400, 402, 403, 422, 451} {
+		require.Truef(t, IsBusinessErrorStatusCode(code),
+			"expected business for status %d", code)
+	}
+	// Negative cases: success, 5xx, 408 (408 is a temp error, not business),
+	// 401 (auth, neither business nor auto-disabled by the default rules).
+	for _, code := range []int{200, 401, 408, 500, 503, 599} {
+		require.Falsef(t, IsBusinessErrorStatusCode(code),
+			"expected non-business for status %d", code)
+	}
+}
+
+func TestBusinessErrorStatusCodesFromString(t *testing.T) {
+	orig := BusinessErrorStatusCodeRanges
+	t.Cleanup(func() { BusinessErrorStatusCodeRanges = orig })
+
+	require.NoError(t, BusinessErrorStatusCodesFromString("400,402-403,422"))
+	require.Equal(t, []StatusCodeRange{
+		{Start: 400, End: 400},
+		{Start: 402, End: 403},
+		{Start: 422, End: 422},
+	}, BusinessErrorStatusCodeRanges)
+}

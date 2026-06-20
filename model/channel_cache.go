@@ -127,9 +127,36 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		return nil, nil
 	}
 
+	// Snapshot the cooldown set once so multiple checks below are consistent.
+	// The map is small (at most one entry per enabled channel) and the read
+	// is O(N) under its own RLock — the cost is negligible vs. the channel
+	// cache lookup it gates.
+	cooldown := InCooldownIDs(time.Now())
+
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
+			// Single-channel fast path: respect cooldown so we don't keep
+			// hammering a temporarily broken channel. Returning (nil, nil)
+			// signals the caller to retry / move groups / fail. The debug
+			// log is the operator's confirmation that the filter is
+			// actually firing — without it, the symptom is just "the
+			// user got 400 anyway" and the cause is invisible.
+		if _, skip := cooldown[channel.Id]; skip {
+			logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: in cooldown", channel.Id))
+			return nil, nil
+		}
+		// Per-key cooldown overlay: skip a single-channel group
+		// whose only served key is in cooldown. Without this, the
+		// fast path hands the channel to the distributor, the
+		// distributor's GetNextEnabledKey returns NoAvailableKey,
+		// and the controller's retry loop picks the same channel
+		// again — an infinite no-channel loop that surfaces as
+		// repeated upstream 400s.
+		if !channelHasAnyAvailableKey(channel, time.Now()) {
+			logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: every key in cooldown", channel.Id))
+			return nil, nil
+		}
+		return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}
@@ -153,12 +180,36 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
+	// Build the candidate list for the chosen priority bucket, skipping any
+	// channel currently in cooldown. If the entire bucket is in cooldown we
+	// still return (nil, nil) so the outer loop can advance to the next
+	// priority or next group.
 	var sumWeight = 0
 	var targetChannels []*Channel
+	now := time.Now()
 	for _, channelId := range channels {
+		if _, skip := cooldown[channelId]; skip {
+			logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: in cooldown (priority bucket)", channelId))
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
+				// Per-key cooldown overlay: skip a channel
+				// whose only served key is in cooldown. For
+				// single-key channels this is the only key,
+				// so we check index 0 directly. For multi-key
+				// channels we enumerate the key list; if
+				// every key is cooldowned, the channel is
+				// effectively unusable. This is the
+				// selector-level counterpart to the
+				// GetNextEnabledKey check on the distributor
+				// side: it makes sure we don't *hand* a
+				// channel to the distributor that we already
+				// know is going to fail there.
+				if !channelHasAnyAvailableKey(channel, now) {
+					logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: every key in cooldown", channelId))
+					continue
+				}
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
@@ -168,10 +219,17 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		// Either no channel at this priority, or all of them are in cooldown.
+		// Both cases are retryable; the outer loop will try the next priority
+		// / group, or eventually surface a no-channel error to the user. Log
+		// the case that *is* unusual (whole bucket cooldowned) so an
+		// operator skimming logs can spot "all my channels are in cooldown"
+		// even when the user-facing error is a generic 500.
+		if len(channels) > 0 {
+			logger.LogInfo(nil, fmt.Sprintf("selector: all %d channels in priority bucket are in cooldown, returning nil", len(channels)))
+		}
+		return nil, nil
 	}
-
-	// smoothing factor and adjustment
 	smoothingFactor := 1
 	smoothingAdjustment := 0
 
@@ -244,13 +302,45 @@ func CacheGetChannel(id int) (*Channel, error) {
 	return c, nil
 }
 
+// channelHasAnyAvailableKey reports whether a channel has at
+// least one key that is not in the per-key cooldown overlay.
+// The selector uses this to avoid handing a channel to the
+// distributor that we already know is going to fail there.
+// For single-key channels the answer is just "is key 0 in
+// cooldown". For multi-key channels we enumerate the key list
+// to give an exact answer: a channel with 3 keys, 2 of which
+// are cooldowned, is still usable (GetNextEnabledKey will
+// pick the surviving one).
+func channelHasAnyAvailableKey(channel *Channel, now time.Time) bool {
+	if !channel.ChannelInfo.IsMultiKey {
+		_, skip := InCooldownKeyIndices(channel.Id, now)[0]
+		return !skip
+	}
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		// No keys at all = nothing to serve. Returning true
+		// here would let the selector hand an unusable
+		// channel to the distributor; returning false is
+		// the right answer even though it's the same
+		// outcome as "all keys in cooldown".
+		return false
+	}
+	cooldowns := InCooldownKeyIndices(channel.Id, now)
+	for i := range keys {
+		if _, skip := cooldowns[i]; !skip {
+			return true
+		}
+	}
+	return false
+}
+
 func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 	if !common.MemoryCacheEnabled {
 		channel, err := GetChannelById(id, true)
 		if err != nil {
 			return nil, err
 		}
-		return &channel.ChannelInfo, nil
+		return &channel.ChannelInfo, err
 	}
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()

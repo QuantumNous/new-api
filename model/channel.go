@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,7 +20,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
 type Channel struct {
 	Id                 int     `json:"id"`
 	Type               int     `json:"type" gorm:"default:0"`
@@ -197,8 +197,28 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
-	// If not in multi-key mode, return the original key string directly.
+	// Single-key channel fast path. The selector hands us the
+	// original key, but the per-key cooldown overlay may have
+	// marked this very key out of service since the last
+	// request. Skipping the check here would let a known-broken
+	// single-key channel keep getting picked, defeating the
+	// whole point of the cooldown overlay. We mirror the
+	// multi-key path's behaviour: if the only key is in
+	// cooldown, return ErrorCodeChannelNoAvailableKey so the
+	// upstream retry loop (or the distributor) treats this as
+	// a non-fatal skip rather than a request failure.
 	if !channel.ChannelInfo.IsMultiKey {
+		// Guard against nil map indexing: InCooldownKeyIndices
+		// returns nil when no cooldowns are set (the hot-path
+		// common case). We use the comma-ok form rather than
+		// indexing into a possibly-nil map, even though Go's
+		// "index of nil map is zero value" semantics would
+		// produce the same result here — the comma-ok form
+		// makes the intent (key index 0 == the only key) clear.
+		cooldownKeys := InCooldownKeyIndices(channel.Id, time.Now())
+		if _, skip := cooldownKeys[0]; skip {
+			return "", 0, types.NewError(errors.New("only key in cooldown"), types.ErrorCodeChannelNoAvailableKey)
+		}
 		return channel.Key, 0, nil
 	}
 
@@ -225,19 +245,27 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return common.ChannelStatusEnabled
 	}
 
-	// Collect indexes of enabled keys
+	// Collect indexes of enabled keys. Per-key cooldown overlays this:
+	// a key with Status=Enabled but currently in cooldown must be
+	// skipped so the broken key doesn't keep getting picked while
+	// siblings on the same channel still work. A single
+	// InCooldownKeyIndices call avoids probing each key individually.
+	keyCooldown := InCooldownKeyIndices(channel.Id, time.Now())
 	enabledIdx := make([]int, 0, len(keys))
 	for i := range keys {
+		if _, skip := keyCooldown[i]; skip {
+			continue
+		}
 		if getStatus(i) == common.ChannelStatusEnabled {
 			enabledIdx = append(enabledIdx, i)
 		}
 	}
-	// If no specific status list or none enabled, return an explicit error so caller can
-	// properly handle a channel with no available keys (e.g. mark channel disabled).
-	// Returning the first key here caused requests to keep using an already-disabled key.
-	if len(enabledIdx) == 0 {
-		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
-	}
+ 	// If no specific status list or none enabled, return an explicit error so caller can
+ 	// properly handle a channel with no available keys (e.g. mark channel disabled).
+ 	// Returning the first key here caused requests to keep using an already-disabled key.
+ 	if len(enabledIdx) == 0 {
+ 		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+ 	}
 
 	switch channel.ChannelInfo.MultiKeyMode {
 	case constant.MultiKeyModeRandom:

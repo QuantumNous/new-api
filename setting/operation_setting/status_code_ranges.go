@@ -16,6 +16,23 @@ type StatusCodeRange struct {
 
 var AutomaticDisableStatusCodeRanges = []StatusCodeRange{{Start: 401, End: 401}}
 
+// BusinessErrorStatusCodeRanges identifies status codes that indicate a
+// business-side failure (account/quota/billing) rather than a temporary
+// upstream fault. Errors matching these codes skip the retry path and are
+// routed to the long-cooldown / disable path so users do not get stuck
+// in a retry loop on a channel that will keep returning the same error.
+// Default covers the most common 4xx "client/account" responses seen in
+// real provider APIs (Aliyun DashScope, OpenAI plan errors, Anthropic
+// billing errors, Google Cloud billing, etc.). Operators can override
+// via the system settings UI.
+var BusinessErrorStatusCodeRanges = []StatusCodeRange{
+	{Start: 400, End: 400},
+	{Start: 402, End: 402},
+	{Start: 403, End: 403},
+	{Start: 422, End: 422},
+	{Start: 451, End: 451},
+}
+
 // Default behavior matches legacy hardcoded retry rules in controller/relay.go shouldRetry:
 // retry for 1xx, 3xx, 4xx(except 400/408), 5xx(except 504/524), and no retry for 2xx.
 var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
@@ -52,6 +69,27 @@ func AutomaticDisableStatusCodesFromString(s string) error {
 
 func ShouldDisableByStatusCode(code int) bool {
 	return shouldMatchStatusCodeRanges(AutomaticDisableStatusCodeRanges, code)
+}
+
+func BusinessErrorStatusCodesToString() string {
+	return statusCodeRangesToString(BusinessErrorStatusCodeRanges)
+}
+
+func BusinessErrorStatusCodesFromString(s string) error {
+	ranges, err := ParseHTTPStatusCodeRanges(s)
+	if err != nil {
+		return err
+	}
+	BusinessErrorStatusCodeRanges = ranges
+	return nil
+}
+
+// IsBusinessErrorStatusCode returns true when the given upstream status code
+// indicates a business-side failure (account/quota/billing) rather than a
+// transient upstream fault. The default list covers 400/402/403/422/451 and
+// can be overridden in the system settings UI.
+func IsBusinessErrorStatusCode(code int) bool {
+	return shouldMatchStatusCodeRanges(BusinessErrorStatusCodeRanges, code)
 }
 
 func AutomaticRetryStatusCodesToString() string {

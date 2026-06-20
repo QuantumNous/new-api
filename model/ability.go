@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -122,6 +124,26 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPath(abilities, requestPath)
+
+	// Filter out abilities whose channel is currently in cooldown. This
+	// mirrors the filter applied in the in-memory cache path
+	// (GetRandomSatisfiedChannel). Without it, the no-cache code path
+	// would re-pick a channel the user just put in cooldown, which
+	// defeats the whole point of the cooldown overlay. The snapshot
+	// of the cooldown set is taken once per call so the filter is
+	// consistent across the candidate list.
+	cooldown := InCooldownIDs(time.Now())
+	if len(cooldown) > 0 {
+		filtered := abilities[:0]
+		for _, a := range abilities {
+			if _, skip := cooldown[a.ChannelId]; skip {
+				logger.LogInfo(nil, fmt.Sprintf("selector skipped channel #%d: in cooldown (db path)", a.ChannelId))
+				continue
+			}
+			filtered = append(filtered, a)
+		}
+		abilities = filtered
+	}
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -140,6 +162,12 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 			}
 		}
 	} else {
+		// Either no abilities at this priority / model, or every
+		// ability here points at a channel currently in cooldown.
+		// Returning (nil, nil) is the same signal the in-memory
+		// path uses: the outer retry loop will bump the retry
+		// index, which causes getChannelQuery to pick the next
+		// priority bucket.
 		return nil, nil
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error

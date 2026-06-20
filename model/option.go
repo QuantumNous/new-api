@@ -172,6 +172,10 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableKeywords"] = operation_setting.AutomaticDisableKeywordsToString()
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
+	common.OptionMap["BusinessErrorStatusCodes"] = operation_setting.BusinessErrorStatusCodesToString()
+	common.OptionMap["BusinessErrorKeywords"] = operation_setting.BusinessErrorKeywordsToString()
+	common.OptionMap["TempErrorCooldownSeconds"] = strconv.Itoa(operation_setting.TempErrorCooldownSeconds)
+	common.OptionMap["BusinessErrorCooldownSeconds"] = strconv.Itoa(operation_setting.BusinessErrorCooldownSeconds)
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
 	// 自动添加所有注册的模型配置
@@ -558,6 +562,14 @@ func updateOptionMap(key string, value string) (err error) {
 		err = operation_setting.AutomaticDisableStatusCodesFromString(value)
 	case "AutomaticRetryStatusCodes":
 		err = operation_setting.AutomaticRetryStatusCodesFromString(value)
+	case "BusinessErrorStatusCodes":
+		err = operation_setting.BusinessErrorStatusCodesFromString(value)
+	case "BusinessErrorKeywords":
+		operation_setting.BusinessErrorKeywordsFromString(value)
+	case "TempErrorCooldownSeconds":
+		operation_setting.TempErrorCooldownSeconds, _ = strconv.Atoi(value)
+	case "BusinessErrorCooldownSeconds":
+		operation_setting.BusinessErrorCooldownSeconds, _ = strconv.Atoi(value)
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":
