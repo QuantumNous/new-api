@@ -4,33 +4,27 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-
-	"github.com/bytedance/sonic"
 )
 
-// jsonAPI 使用 sonic 的标准兼容配置（EscapeHTML + SortMapKeys），与 encoding/json
-// 保持字节级一致（保护 JSON 签名等依赖 map 顺序的场景），同时获得 sonic 的性能。
-var jsonAPI = sonic.ConfigStd
-
 func Unmarshal(data []byte, v any) error {
-	return jsonAPI.Unmarshal(data, v)
+	return json.Unmarshal(data, v)
 }
 
 func UnmarshalJsonStr(data string, v any) error {
-	return jsonAPI.UnmarshalFromString(data, v)
+	return json.Unmarshal(StringToByteSlice(data), v)
 }
 
 func DecodeJson(reader io.Reader, v any) error {
-	return jsonAPI.NewDecoder(reader).Decode(v)
+	return json.NewDecoder(reader).Decode(v)
 }
 
 func Marshal(v any) ([]byte, error) {
-	return jsonAPI.Marshal(v)
+	return json.Marshal(v)
 }
 
 // ValidJson 校验数据是否为合法 JSON（替代 encoding/json 的 json.Valid）。
 func ValidJson(data []byte) bool {
-	return jsonAPI.Valid(data)
+	return json.Valid(data)
 }
 
 func GetJsonType(data json.RawMessage) string {
