@@ -117,6 +117,8 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'DeepSeek Pro',    modelId: 'deepseek-v4-pro',   accent: '#a78bfa' },
   { label: 'MiniMax M3',      modelId: 'minimax-m3',        accent: '#f97316' },
   { label: 'Kimi K2.7 Code',  modelId: 'kimi-k2.7-code',    accent: '#818cf8' },
+  { label: 'Qwen 3.7 Max',    modelId: 'qwen3.7-max',       accent: '#06b6d4' },
+  { label: 'Qwen 3.7 Plus',   modelId: 'qwen3.7-plus',      accent: '#06b6d4' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
 ]
 
