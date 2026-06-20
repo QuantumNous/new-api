@@ -60,17 +60,14 @@ const CLIENTS: Array<{ name: string; tagline: string; href: string }> = [
     tagline: 'Lightweight desktop chat client',
     href: 'https://chatboxai.app',
   },
-  {
-    name: 'Claude Code',
-    tagline: 'Terminal AI coding agent',
-    href: 'https://docs.claude.com/en/docs/claude-code',
-  },
 ]
 
 const LANGUAGES: Array<{ id: IntegrationLanguage; label: string }> = [
+  { id: 'claude-code', label: 'Claude Code' },
+  { id: 'opencode', label: 'opencode' },
   { id: 'curl', label: 'cURL' },
   { id: 'python', label: 'Python' },
-  { id: 'node', label: 'Node.js' },
+  { id: 'node', label: 'Node' },
 ]
 
 const TOTAL_STEPS = 3
@@ -93,7 +90,7 @@ export function ApiKeyIntegrationDialog({
 }: ApiKeyIntegrationDialogProps) {
   const { t } = useTranslation()
   const [step, setStep] = useState(1)
-  const [lang, setLang] = useState<IntegrationLanguage>('curl')
+  const [lang, setLang] = useState<IntegrationLanguage>('claude-code')
 
   const baseUrl = defaultBaseUrl()
   const model = modelNameForPurpose(purpose)
@@ -105,7 +102,7 @@ export function ApiKeyIntegrationDialog({
   const handleClose = () => {
     onClose()
     setStep(1)
-    setLang('curl')
+    setLang('claude-code')
   }
 
   return (

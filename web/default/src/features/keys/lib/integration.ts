@@ -34,24 +34,25 @@ export function defaultBaseUrl(): string {
   return `${protocol}//${host}/v1`
 }
 
-export function modelNameForPurpose(purpose?: SimplePurposeId | string): string {
-  switch (purpose) {
-    case 'coding':
-      return 'deeprouter-coding'
-    case 'image':
-      return 'deeprouter-image'
-    case 'video':
-      return 'deeprouter-video'
-    case 'voice':
-      return 'deeprouter-voice'
-    case 'chat':
-    case 'all':
-    default:
-      return 'deeprouter'
-  }
+/**
+ * The ONLY model name the gateway routes today is the `deeprouter-auto`
+ * virtual model (smart-router). Purpose-specific aliases (deeprouter-coding /
+ * -image / …) and the bare `deeprouter` name are NOT provisioned and return
+ * 503 — verified against a live gateway 2026-06-11. Per CLAUDE.md §0 rule 3,
+ * never surface a model name here without re-testing it end to end.
+ */
+export function modelNameForPurpose(
+  _purpose?: SimplePurposeId | string
+): string {
+  return 'deeprouter-auto'
 }
 
-export type IntegrationLanguage = 'curl' | 'python' | 'node'
+export type IntegrationLanguage =
+  | 'claude-code'
+  | 'opencode'
+  | 'curl'
+  | 'python'
+  | 'node'
 
 export type SnippetInput = {
   baseUrl: string
@@ -72,6 +73,34 @@ export function buildIntegrationSnippets({
   apiKey,
 }: SnippetInput): Record<IntegrationLanguage, string> {
   const key = apiKey || API_KEY_PLACEHOLDER
+  // Claude Code wants the gateway origin WITHOUT /v1 — its SDK appends
+  // /v1/messages itself (the gateway speaks the Anthropic protocol natively).
+  const origin = baseUrl.replace(/\/v1\/?$/, '')
+
+  const claudeCode = `# Run in your terminal, then start \`claude\` as usual.
+# (Or put these in ~/.claude/settings.json under "env" to persist.)
+export ANTHROPIC_BASE_URL="${origin}"
+export ANTHROPIC_AUTH_TOKEN="${key}"
+export ANTHROPIC_MODEL="${model}"
+export ANTHROPIC_SMALL_FAST_MODEL="${model}"
+claude`
+
+  const opencode = `// ~/.config/opencode/opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "deeprouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DeepRouter",
+      "options": {
+        "baseURL": "${baseUrl}",
+        "apiKey": "${key}"
+      },
+      "models": { "${model}": { "name": "DeepRouter Auto" } }
+    }
+  }
+}
+// Then run \`opencode\` → /models → DeepRouter → DeepRouter Auto`
 
   const curl = `curl ${baseUrl}/chat/completions \\
   -H "Authorization: Bearer ${key}" \\
@@ -109,5 +138,5 @@ const resp = await client.chat.completions.create({
 });
 console.log(resp.choices[0].message.content);`
 
-  return { curl, python, node }
+  return { 'claude-code': claudeCode, opencode, curl, python, node }
 }

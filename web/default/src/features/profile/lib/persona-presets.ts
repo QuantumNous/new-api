@@ -81,7 +81,11 @@ const TEAM_SIDEBAR = DEV_SIDEBAR
 export const PERSONA_PRESETS: Record<Persona, PersonaPreset> = {
   casual: {
     sidebarModules: JSON.stringify(CASUAL_SIDEBAR),
-    defaultRoute: '/playground',
+    // Land on the key page, NOT Playground — "不做 chat 是红线"
+    // (onboarding-v2 §2/§9). /keys is the "决定性一页" (§7.5): it carries the
+    // tutorial card + the self-check, which is the golden-path proof step.
+    // Decided 2026-06-13 (BUSINESS-LOGIC §0 D10b).
+    defaultRoute: '/keys',
     defaultCreateMode: 'simple',
   },
   dev: {
@@ -97,11 +101,16 @@ export const PERSONA_PRESETS: Record<Persona, PersonaPreset> = {
 }
 
 /**
- * Persona for legacy users (created before this field existed). Their
- * setting JSON has the `persona` key absent. We default them to 'dev' so
- * the UI does not visibly shift when they log in next.
+ * Persona for legacy users (created before this field existed) and any
+ * `setting` JSON we cannot parse. Defaults to 'casual': DeepRouter's paying
+ * audience is non-technical (onboarding-v2 §3), so the safe fallback is the
+ * guided casual surface (tutorial card + self-check on /keys), not the
+ * developer console. Without this, fallback users land on /keys in dev mode
+ * with the tutorial card hidden — i.e. "注册成功了不知道该做什么".
+ * Decided 2026-06-13 (BUSINESS-LOGIC §0 D10a). New accounts are unaffected:
+ * Register stamps the 'unset' sentinel and the persona picker prompts.
  */
-export const LEGACY_USER_PERSONA: Persona = 'dev'
+export const LEGACY_USER_PERSONA: Persona = 'casual'
 
 /**
  * Sentinel value written by backend Register for new accounts. The
