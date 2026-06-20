@@ -24,8 +24,8 @@ import type {
   FlowFilterOptions,
   FlowMetric,
   FlowNodeKind,
-  FlowPathMode,
   FlowQuotaDataItem,
+  FlowRole,
   FlowSummary,
   ProcessedFlowData,
 } from '@/features/dashboard/types'
@@ -37,34 +37,27 @@ type VChartSpec = Record<string, any>
 type FlowMetrics = {
   quota: number
   tokens: number
-  inputTokens: number
-  promptTokens: number
-  completionTokens: number
-  cacheTokens: number
-  cacheWriteTokens: number
   requests: number
 }
 
 type FlowSankeyLabels = {
   quota: string
   tokens: string
-  inputTokens: string
-  outputTokens: string
-  cacheRead: string
-  cacheWrite: string
   requests: string
   share: string
 }
 
-const DEFAULT_FLOW_PATH_MODE: FlowPathMode = 'channel'
+type FlowPathNode = {
+  id: string
+  label: string
+  kind: FlowNodeKind
+}
+
+const DEFAULT_FLOW_ROLE: FlowRole = 'user'
 
 const DEFAULT_FLOW_SANKEY_LABELS: FlowSankeyLabels = {
   quota: 'Quota',
   tokens: 'Tokens',
-  inputTokens: 'Input Tokens',
-  outputTokens: 'Output Tokens',
-  cacheRead: 'Cache Read',
-  cacheWrite: 'Cache Write',
   requests: 'Requests',
   share: 'Share',
 }
@@ -76,52 +69,11 @@ function numberValue(value: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-function requestCount(row: FlowQuotaDataItem): number {
-  return numberValue(row.count)
-}
-
-function tokenCount(row: FlowQuotaDataItem): number {
-  const computed = inputTokenCount(row) + numberValue(row.completion_tokens)
-  if (computed > 0) return computed
-  return numberValue(row.token_used)
-}
-
-function cacheReadTokenCount(row: FlowQuotaDataItem): number {
-  return numberValue(row.cache_tokens)
-}
-
-function cacheWriteTokenCount(row: FlowQuotaDataItem): number {
-  return numberValue(row.cache_write_tokens)
-}
-
-function inputTokenCount(row: FlowQuotaDataItem): number {
-  const explicitInputTokens = numberValue(row.input_tokens)
-  if (explicitInputTokens > 0) return explicitInputTokens
-
-  const promptTokens = numberValue(row.prompt_tokens)
-  const cacheTokens = cacheReadTokenCount(row)
-  const cacheWriteTokens = cacheWriteTokenCount(row)
-  if (cacheTokens > 0 || cacheWriteTokens > 0) {
-    return Math.max(promptTokens - cacheTokens - cacheWriteTokens, 0)
-  }
-  return promptTokens
-}
-
 function rowMetrics(row: FlowQuotaDataItem): FlowMetrics {
-  const promptTokens = numberValue(row.prompt_tokens)
-  const completionTokens = numberValue(row.completion_tokens)
-  const inputTokens = inputTokenCount(row)
-  const cacheTokens = cacheReadTokenCount(row)
-  const cacheWriteTokens = cacheWriteTokenCount(row)
   return {
     quota: numberValue(row.quota),
-    tokens: tokenCount(row),
-    inputTokens,
-    promptTokens,
-    completionTokens,
-    cacheTokens,
-    cacheWriteTokens,
-    requests: requestCount(row),
+    tokens: numberValue(row.token_used),
+    requests: numberValue(row.count),
   }
 }
 
@@ -131,51 +83,80 @@ function metricValue(metrics: FlowMetrics, metric: FlowMetric): number {
   return metrics.quota
 }
 
-function userNodeId(row: FlowQuotaDataItem): string {
-  return `user:${numberValue(row.user_id)}`
-}
-
-function tokenNodeId(row: FlowQuotaDataItem): string {
-  const tokenID = numberValue(row.token_id)
-  if (tokenID > 0) return `token:${tokenID}`
-  return `token:${row.token_name || 'unknown'}`
-}
-
-function modelNodeId(row: FlowQuotaDataItem): string {
-  return `model:${row.model_name || 'unknown'}`
-}
-
-function channelNodeId(row: FlowQuotaDataItem): string {
-  const channelID = numberValue(row.channel_id)
-  if (channelID > 0) return `channel:${channelID}`
-  return `channel:${row.channel_name || 'unknown'}`
-}
-
-function userLabel(row: FlowQuotaDataItem): string {
+function userNode(row: FlowQuotaDataItem): FlowPathNode {
   const userID = numberValue(row.user_id)
-  return row.username || (userID > 0 ? `user-${userID}` : 'Unknown User')
+  return {
+    id: userID > 0 ? `user:${userID}` : `user:${row.username || 'unknown'}`,
+    label: row.username || (userID > 0 ? `user-${userID}` : 'Unknown User'),
+    kind: 'user',
+  }
 }
 
-function tokenLabel(row: FlowQuotaDataItem): string {
+function nodeNameNode(row: FlowQuotaDataItem): FlowPathNode {
+  const nodeName = row.node_name || 'default'
+  return {
+    id: `node:${nodeName}`,
+    label: nodeName,
+    kind: 'node',
+  }
+}
+
+function tokenNode(row: FlowQuotaDataItem): FlowPathNode {
   const tokenID = numberValue(row.token_id)
-  return row.token_name || (tokenID > 0 ? `token-${tokenID}` : 'Unknown Token')
+  return {
+    id: tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`,
+    label:
+      row.token_name || (tokenID > 0 ? `token-${tokenID}` : 'Unknown Token'),
+    kind: 'token',
+  }
 }
 
-function modelLabel(row: FlowQuotaDataItem): string {
-  return row.model_name || 'Unknown Model'
+function groupNode(row: FlowQuotaDataItem): FlowPathNode {
+  const useGroup = row.use_group || 'unknown'
+  return {
+    id: `group:${useGroup}`,
+    label: useGroup,
+    kind: 'group',
+  }
 }
 
-function channelLabel(row: FlowQuotaDataItem): string {
+function modelNode(row: FlowQuotaDataItem): FlowPathNode {
+  const model = row.model_name || 'unknown'
+  return {
+    id: `model:${model}`,
+    label: row.model_name || 'Unknown Model',
+    kind: 'model',
+  }
+}
+
+function channelNode(row: FlowQuotaDataItem): FlowPathNode {
   const channelID = numberValue(row.channel_id)
-  return (
-    row.channel_name || (channelID > 0 ? `channel-${channelID}` : 'Unknown')
-  )
+  return {
+    id:
+      channelID > 0
+        ? `channel:${channelID}`
+        : `channel:${row.channel_name || 'unknown'}`,
+    label:
+      row.channel_name || (channelID > 0 ? `channel-${channelID}` : 'Unknown'),
+    kind: 'channel',
+  }
 }
 
-function formatNumber(value: number): string {
-  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-    value
-  )
+function flowPath(row: FlowQuotaDataItem, role: FlowRole): FlowPathNode[] {
+  if (role === 'root') {
+    return [
+      userNode(row),
+      nodeNameNode(row),
+      tokenNode(row),
+      groupNode(row),
+      modelNode(row),
+      channelNode(row),
+    ]
+  }
+  if (role === 'admin') {
+    return [userNode(row), groupNode(row), modelNode(row), channelNode(row)]
+  }
+  return [tokenNode(row), groupNode(row), modelNode(row)]
 }
 
 function colorAt(index: number, palette?: readonly string[]): string {
@@ -227,33 +208,10 @@ function stableColorMap(
   return map
 }
 
-function userColorMap(
-  rows: FlowQuotaDataItem[],
-  palette?: readonly string[]
-): Map<string, string> {
-  return stableColorMap(sortedUniqueNodeIds(rows, userNodeId), palette)
-}
-
-function sortedUniqueNodeIds(
-  rows: FlowQuotaDataItem[],
-  idForRow: (row: FlowQuotaDataItem) => string
-): string[] {
-  return Array.from(new Set(rows.map(idForRow))).sort((a, b) =>
-    a.localeCompare(b)
-  )
-}
-
-function flowColorMap(
-  rows: FlowQuotaDataItem[],
-  palette?: readonly string[]
-): Map<string, string> {
-  const keys = [
-    ...sortedUniqueNodeIds(rows, userNodeId),
-    ...sortedUniqueNodeIds(rows, tokenNodeId),
-    ...sortedUniqueNodeIds(rows, modelNodeId),
-    ...sortedUniqueNodeIds(rows, channelNodeId),
-  ]
-  return stableColorMap(keys, palette)
+function rootColorKeys(rows: FlowQuotaDataItem[], role: FlowRole): string[] {
+  return Array.from(
+    new Set(rows.map((row) => flowPath(row, role)[0]?.id ?? 'unknown'))
+  ).sort((a, b) => a.localeCompare(b))
 }
 
 function filterRows(
@@ -261,44 +219,26 @@ function filterRows(
   options: FlowBuildOptions = {}
 ): FlowQuotaDataItem[] {
   const selectedUsers = new Set(options.selectedUsers ?? [])
-  const selectedTokensByUser = options.selectedTokensByUser ?? {}
-
-  return rows.filter((row) => {
-    const userID = userNodeId(row)
-    const tokenID = tokenNodeId(row)
-    if (selectedUsers.size > 0 && !selectedUsers.has(userID)) return false
-
-    const selectedTokens = selectedTokensByUser[userID] ?? []
-    if (selectedTokens.length > 0 && !selectedTokens.includes(tokenID)) {
-      return false
-    }
-    return true
-  })
+  if (selectedUsers.size === 0) return rows
+  return rows.filter((row) => selectedUsers.has(userNode(row).id))
 }
 
 function addNode(
   map: Map<string, DashboardFlowNode>,
-  id: string,
-  label: string,
-  kind: FlowNodeKind,
+  pathNode: FlowPathNode,
   metrics: FlowMetrics,
   metric: FlowMetric,
   color: string,
   colorKey: string
 ): void {
-  const previous = map.get(id) ?? {
-    id,
-    label,
-    kind,
+  const previous = map.get(pathNode.id) ?? {
+    id: pathNode.id,
+    label: pathNode.label,
+    kind: pathNode.kind,
     value: 0,
     requests: 0,
     quota: 0,
     tokens: 0,
-    inputTokens: 0,
-    promptTokens: 0,
-    completionTokens: 0,
-    cacheTokens: 0,
-    cacheWriteTokens: 0,
     color,
     colorKey,
   }
@@ -306,40 +246,28 @@ function addNode(
   previous.requests += metrics.requests
   previous.quota += metrics.quota
   previous.tokens += metrics.tokens
-  previous.inputTokens += metrics.inputTokens
-  previous.promptTokens += metrics.promptTokens
-  previous.completionTokens += metrics.completionTokens
-  previous.cacheTokens += metrics.cacheTokens
-  previous.cacheWriteTokens += metrics.cacheWriteTokens
-  map.set(id, previous)
+  map.set(pathNode.id, previous)
 }
 
 function addLink(
   map: Map<string, DashboardFlowLink>,
-  source: string,
-  target: string,
-  sourceLabel: string,
-  targetLabel: string,
+  source: FlowPathNode,
+  target: FlowPathNode,
   metrics: FlowMetrics,
   metric: FlowMetric,
   color: string,
   colorKey: string
 ): void {
-  const key = `${source}\u0000${target}`
+  const key = `${source.id}\u0000${target.id}`
   const previous = map.get(key) ?? {
-    source,
-    target,
+    source: source.id,
+    target: target.id,
     value: 0,
     requests: 0,
     quota: 0,
     tokens: 0,
-    inputTokens: 0,
-    promptTokens: 0,
-    completionTokens: 0,
-    cacheTokens: 0,
-    cacheWriteTokens: 0,
-    sourceLabel,
-    targetLabel,
+    sourceLabel: source.label,
+    targetLabel: target.label,
     color,
     linkColor: color,
     linkAlpha: 1,
@@ -351,11 +279,6 @@ function addLink(
   previous.requests += metrics.requests
   previous.quota += metrics.quota
   previous.tokens += metrics.tokens
-  previous.inputTokens += metrics.inputTokens
-  previous.promptTokens += metrics.promptTokens
-  previous.completionTokens += metrics.completionTokens
-  previous.cacheTokens += metrics.cacheTokens
-  previous.cacheWriteTokens += metrics.cacheWriteTokens
   map.set(key, previous)
 }
 
@@ -408,20 +331,12 @@ function buildSummary(rows: FlowQuotaDataItem[]): FlowSummary {
       const metrics = rowMetrics(row)
       summary.quota += metrics.quota
       summary.tokens += metrics.tokens
-      summary.inputTokens += metrics.inputTokens
-      summary.completionTokens += metrics.completionTokens
-      summary.cacheTokens += metrics.cacheTokens
-      summary.cacheWriteTokens += metrics.cacheWriteTokens
       summary.requests += metrics.requests
       return summary
     },
     {
       quota: 0,
       tokens: 0,
-      inputTokens: 0,
-      completionTokens: 0,
-      cacheTokens: 0,
-      cacheWriteTokens: 0,
       requests: 0,
     }
   )
@@ -430,191 +345,58 @@ function buildSummary(rows: FlowQuotaDataItem[]): FlowSummary {
 function buildFlowGraph(
   rows: FlowQuotaDataItem[],
   metric: FlowMetric,
-  pathMode: FlowPathMode = DEFAULT_FLOW_PATH_MODE,
-  includeTokenLayer = true,
+  role: FlowRole,
   palette?: readonly string[]
 ): DashboardFlowGraph {
-  const userNodes = new Map<string, DashboardFlowNode>()
-  const tokenNodes = new Map<string, DashboardFlowNode>()
-  const modelNodes = new Map<string, DashboardFlowNode>()
-  const channelNodes = new Map<string, DashboardFlowNode>()
-  const userTokenLinks = new Map<string, DashboardFlowLink>()
-  const userModelLinks = new Map<string, DashboardFlowLink>()
-  const userChannelLinks = new Map<string, DashboardFlowLink>()
-  const tokenModelLinks = new Map<string, DashboardFlowLink>()
-  const tokenChannelLinks = new Map<string, DashboardFlowLink>()
-  const modelChannelLinks = new Map<string, DashboardFlowLink>()
-  const colors = flowColorMap(rows, palette)
+  const nodes = new Map<string, DashboardFlowNode>()
+  const links = new Map<string, DashboardFlowLink>()
+  const colors = stableColorMap(rootColorKeys(rows, role), palette)
 
   for (const row of rows) {
+    const path = flowPath(row, role)
+    const root = path[0]
+    if (!root) continue
     const metrics = rowMetrics(row)
-    const userID = userNodeId(row)
-    const tokenID = tokenNodeId(row)
-    const modelID = modelNodeId(row)
-    const channelID = channelNodeId(row)
-    const userColor = colors.get(userID) ?? colorAt(0, palette)
-    const tokenColor = colors.get(tokenID) ?? userColor
-    const modelColor = colors.get(modelID) ?? userColor
-    const channelColor = colors.get(channelID) ?? modelColor
+    const color = colors.get(root.id) ?? colorAt(0, palette)
 
-    addNode(
-      userNodes,
-      userID,
-      userLabel(row),
-      'user',
-      metrics,
-      metric,
-      userColor,
-      userID
-    )
-
-    if (includeTokenLayer) {
-      addNode(
-        tokenNodes,
-        tokenID,
-        tokenLabel(row),
-        'token',
-        metrics,
-        metric,
-        tokenColor,
-        tokenID
-      )
-      addLink(
-        userTokenLinks,
-        userID,
-        tokenID,
-        userLabel(row),
-        tokenLabel(row),
-        metrics,
-        metric,
-        userColor,
-        userID
-      )
+    for (const node of path) {
+      addNode(nodes, node, metrics, metric, color, root.id)
     }
-
-    if (pathMode === 'model' || pathMode === 'model-channel') {
-      addNode(
-        modelNodes,
-        modelID,
-        modelLabel(row),
-        'model',
-        metrics,
-        metric,
-        modelColor,
-        modelID
-      )
-      const modelSourceID = includeTokenLayer ? tokenID : userID
-      const modelSourceLabel = includeTokenLayer
-        ? tokenLabel(row)
-        : userLabel(row)
-      const modelSourceColor = includeTokenLayer ? tokenColor : userColor
-      const modelSourceColorKey = includeTokenLayer ? tokenID : userID
-      addLink(
-        includeTokenLayer ? tokenModelLinks : userModelLinks,
-        modelSourceID,
-        modelID,
-        modelSourceLabel,
-        modelLabel(row),
-        metrics,
-        metric,
-        modelSourceColor,
-        modelSourceColorKey
-      )
-    }
-
-    if (pathMode === 'channel' || pathMode === 'model-channel') {
-      addNode(
-        channelNodes,
-        channelID,
-        channelLabel(row),
-        'channel',
-        metrics,
-        metric,
-        channelColor,
-        channelID
-      )
-    }
-
-    if (pathMode === 'channel') {
-      const channelSourceID = includeTokenLayer ? tokenID : userID
-      const channelSourceLabel = includeTokenLayer
-        ? tokenLabel(row)
-        : userLabel(row)
-      const channelSourceColor = includeTokenLayer ? tokenColor : userColor
-      const channelSourceColorKey = includeTokenLayer ? tokenID : userID
-      addLink(
-        includeTokenLayer ? tokenChannelLinks : userChannelLinks,
-        channelSourceID,
-        channelID,
-        channelSourceLabel,
-        channelLabel(row),
-        metrics,
-        metric,
-        channelSourceColor,
-        channelSourceColorKey
-      )
-    }
-
-    if (pathMode === 'model-channel') {
-      addLink(
-        modelChannelLinks,
-        modelID,
-        channelID,
-        modelLabel(row),
-        channelLabel(row),
-        metrics,
-        metric,
-        modelColor,
-        modelID
-      )
+    for (let i = 0; i < path.length - 1; i++) {
+      const source = path[i]
+      const target = path[i + 1]
+      if (!source || !target) continue
+      addLink(links, source, target, metrics, metric, color, root.id)
     }
   }
 
-  const links = [
-    ...Array.from(userTokenLinks.values()).sort(
-      (a, b) =>
-        a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
-    ),
-    ...Array.from(userModelLinks.values()).sort(
-      (a, b) =>
-        a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
-    ),
-    ...Array.from(userChannelLinks.values()).sort(
-      (a, b) =>
-        a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
-    ),
-    ...Array.from(tokenModelLinks.values()).sort(
-      (a, b) =>
-        a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
-    ),
-    ...Array.from(tokenChannelLinks.values()).sort(
-      (a, b) =>
-        a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
-    ),
-    ...Array.from(modelChannelLinks.values()).sort(
-      (a, b) =>
-        a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
-    ),
-  ]
-  const total = links
-    .filter((link) => link.source.startsWith('user:'))
+  const flowLinks = Array.from(links.values()).sort(
+    (a, b) =>
+      a.source.localeCompare(b.source) || a.target.localeCompare(b.target)
+  )
+  const firstStepSources = new Set(
+    rows
+      .map((row) => flowPath(row, role)[0]?.id)
+      .filter((id): id is string => Boolean(id))
+  )
+  const total = flowLinks
+    .filter((link) => firstStepSources.has(link.source))
     .reduce((sum, link) => sum + link.value, 0)
-  for (const link of links) {
+  for (const link of flowLinks) {
     link.share = total > 0 ? link.value / total : 0
   }
-  assignLinkDisplayColors(links)
+  assignLinkDisplayColors(flowLinks)
 
   return {
-    nodes: [
-      ...Array.from(userNodes.values()).sort((a, b) =>
-        a.label.localeCompare(b.label)
-      ),
-      ...Array.from(tokenNodes.values()).sort(byValueThenLabel),
-      ...Array.from(modelNodes.values()).sort(byValueThenLabel),
-      ...Array.from(channelNodes.values()).sort(byValueThenLabel),
-    ],
-    links,
+    nodes: Array.from(nodes.values()).sort(byValueThenLabel),
+    links: flowLinks,
   }
+}
+
+function formatNumber(value: number): string {
+  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    value
+  )
 }
 
 export function buildFlowFilterOptions(
@@ -628,30 +410,25 @@ export function buildFlowFilterOptions(
       label: string
       value: number
       color: string
-      tokens: Map<string, { label: string; value: number }>
     }
   >()
-  const colors = userColorMap(rows, palette)
+  const colors = stableColorMap(
+    rows.map((row) => userNode(row).id).sort((a, b) => a.localeCompare(b)),
+    palette
+  )
 
   for (const row of rows) {
-    const userID = userNodeId(row)
-    const tokenID = tokenNodeId(row)
+    const user = userNode(row)
+    if (!row.user_id && !row.username) continue
     const metrics = rowMetrics(row)
     const value = metricValue(metrics, metric)
-    const user = users.get(userID) ?? {
-      label: userLabel(row),
+    const current = users.get(user.id) ?? {
+      label: user.label,
       value: 0,
-      color: colors.get(userID) ?? colorAt(0, palette),
-      tokens: new Map<string, { label: string; value: number }>(),
+      color: colors.get(user.id) ?? colorAt(0, palette),
     }
-    user.value += value
-    const token = user.tokens.get(tokenID) ?? {
-      label: tokenLabel(row),
-      value: 0,
-    }
-    token.value += value
-    user.tokens.set(tokenID, token)
-    users.set(userID, user)
+    current.value += value
+    users.set(user.id, current)
   }
 
   return {
@@ -662,16 +439,6 @@ export function buildFlowFilterOptions(
         valueLabel: formatNumber(user.value),
         valueRaw: user.value,
         color: user.color,
-        tokens: Array.from(user.tokens.entries())
-          .map(([tokenValue, token]) => ({
-            value: tokenValue,
-            label: token.label,
-            valueLabel: formatNumber(token.value),
-            valueRaw: token.value,
-          }))
-          .sort(
-            (a, b) => b.valueRaw - a.valueRaw || a.label.localeCompare(b.label)
-          ),
       }))
       .sort(
         (a, b) => b.valueRaw - a.valueRaw || a.label.localeCompare(b.label)
@@ -684,20 +451,13 @@ export function buildDashboardFlowData(
   metric: FlowMetric = 'quota',
   options: FlowBuildOptions = {}
 ): ProcessedFlowData {
-  const pathMode = options.pathMode ?? DEFAULT_FLOW_PATH_MODE
-  const includeTokenLayer = options.includeTokenLayer ?? true
+  const role = options.role ?? DEFAULT_FLOW_ROLE
   const filteredRows = filterRows(rows, options)
   const palette = options.colorPalette
 
   return {
     summary: buildSummary(filteredRows),
-    flow: buildFlowGraph(
-      filteredRows,
-      metric,
-      pathMode,
-      includeTokenLayer,
-      palette
-    ),
+    flow: buildFlowGraph(filteredRows, metric, role, palette),
     filterOptions: buildFlowFilterOptions(rows, metric, palette),
   }
 }
@@ -757,30 +517,6 @@ function tooltipMetricLines(
         formattedNumber(datum, 'tokens'),
     },
     {
-      key: labels.inputTokens,
-      value: (datum: Record<string, unknown>) =>
-        formattedNumber(datum, 'inputTokens'),
-    },
-    {
-      key: labels.outputTokens,
-      value: (datum: Record<string, unknown>) =>
-        formattedNumber(datum, 'completionTokens'),
-    },
-    {
-      key: labels.cacheRead,
-      value: (datum: Record<string, unknown>) =>
-        formattedNumber(datum, 'cacheTokens'),
-      visible: (datum: Record<string, unknown>) =>
-        hasMetric(datum, 'cacheTokens'),
-    },
-    {
-      key: labels.cacheWrite,
-      value: (datum: Record<string, unknown>) =>
-        formattedNumber(datum, 'cacheWriteTokens'),
-      visible: (datum: Record<string, unknown>) =>
-        hasMetric(datum, 'cacheWriteTokens'),
-    },
-    {
       key: labels.requests,
       value: (datum: Record<string, unknown>) =>
         formattedNumber(datum, 'requests'),
@@ -816,11 +552,6 @@ export function buildFlowSankeySpec(
               requests: node.requests,
               quota: node.quota,
               tokens: node.tokens,
-              inputTokens: node.inputTokens,
-              promptTokens: node.promptTokens,
-              completionTokens: node.completionTokens,
-              cacheTokens: node.cacheTokens,
-              cacheWriteTokens: node.cacheWriteTokens,
               color: node.color,
               colorKey: node.colorKey,
             })),
@@ -837,11 +568,6 @@ export function buildFlowSankeySpec(
                 requests: link.requests,
                 quota: link.quota,
                 tokens: link.tokens,
-                inputTokens: link.inputTokens,
-                promptTokens: link.promptTokens,
-                completionTokens: link.completionTokens,
-                cacheTokens: link.cacheTokens,
-                cacheWriteTokens: link.cacheWriteTokens,
                 color: link.color,
                 linkColor: link.linkColor,
                 linkAlpha: link.linkAlpha,

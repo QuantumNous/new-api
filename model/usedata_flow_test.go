@@ -7,211 +7,182 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seedFlowLog(t *testing.T, log Log) {
+func seedFlowQuotaData(t *testing.T, quotaData QuotaData) {
 	t.Helper()
-	require.NoError(t, LOG_DB.Create(&log).Error)
+	require.NoError(t, DB.Create(&quotaData).Error)
 }
 
-func TestGetFlowQuotaDataAggregatesConsumeLogsByUserTokenAndChannel(t *testing.T) {
-	truncateTables(t)
-
+func seedFlowLookupData(t *testing.T) {
+	t.Helper()
 	require.NoError(t, DB.Create(&Channel{Id: 1, Name: "east"}).Error)
 	require.NoError(t, DB.Create(&Channel{Id: 2, Name: "west"}).Error)
-
-	seedFlowLog(t, Log{
-		UserId:           1,
-		Username:         "alice",
-		CreatedAt:        1100,
-		Type:             LogTypeConsume,
-		TokenId:          11,
-		TokenName:        "primary",
-		ChannelId:        1,
-		ModelName:        "gpt-a",
-		Group:            "default",
-		Quota:            100,
-		PromptTokens:     7,
-		CompletionTokens: 3,
-	})
-	seedFlowLog(t, Log{
-		UserId:           1,
-		Username:         "alice",
-		CreatedAt:        1200,
-		Type:             LogTypeConsume,
-		TokenId:          11,
-		TokenName:        "primary",
-		ChannelId:        1,
-		ModelName:        "gpt-a",
-		Group:            "default",
-		Quota:            50,
-		PromptTokens:     5,
-		CompletionTokens: 1,
-	})
-	seedFlowLog(t, Log{
-		UserId:           1,
-		Username:         "alice",
-		CreatedAt:        1300,
-		Type:             LogTypeConsume,
-		TokenId:          11,
-		TokenName:        "primary",
-		ChannelId:        2,
-		ModelName:        "gpt-a",
-		Group:            "default",
-		Quota:            25,
-		PromptTokens:     2,
-		CompletionTokens: 2,
-	})
-	seedFlowLog(t, Log{
-		UserId:           2,
-		Username:         "bob",
-		CreatedAt:        1400,
-		Type:             LogTypeConsume,
-		TokenId:          22,
-		TokenName:        "backup",
-		ChannelId:        1,
-		ModelName:        "gpt-b",
-		Group:            "vip",
-		Quota:            70,
-		PromptTokens:     4,
-		CompletionTokens: 6,
-	})
-	seedFlowLog(t, Log{
-		UserId:    1,
-		Username:  "alice",
-		CreatedAt: 1500,
-		Type:      LogTypeError,
-		TokenId:   11,
-		TokenName: "primary",
-		ChannelId: 1,
-		Quota:     999,
-	})
-	seedFlowLog(t, Log{
-		UserId:    1,
-		Username:  "alice",
-		CreatedAt: 900,
-		Type:      LogTypeConsume,
-		TokenId:   33,
-		TokenName: "outside",
-		ChannelId: 2,
-		Quota:     500,
-	})
-
-	rows, err := GetFlowQuotaData(1000, 2000, "", 0)
-	require.NoError(t, err)
-	require.Len(t, rows, 3)
-
-	require.Equal(t, FlowQuotaData{
-		UserID:           1,
-		Username:         "alice",
-		UserGroup:        "default",
-		TokenID:          11,
-		TokenName:        "primary",
-		ChannelID:        1,
-		ChannelName:      "east",
-		ModelName:        "gpt-a",
-		Count:            2,
-		Quota:            150,
-		PromptTokens:     12,
-		InputTokens:      12,
-		CompletionTokens: 4,
-		TokenUsed:        16,
-	}, *rows[0])
-	require.Equal(t, "bob", rows[1].Username)
-	require.Equal(t, "backup", rows[1].TokenName)
-	require.Equal(t, "east", rows[1].ChannelName)
-	require.Equal(t, 10, rows[1].TokenUsed)
-	require.Equal(t, "west", rows[2].ChannelName)
-	require.Equal(t, 25, rows[2].Quota)
+	require.NoError(t, DB.Create(&Token{Id: 11, UserId: 1, Key: "sk-primary", Name: "primary"}).Error)
+	require.NoError(t, DB.Create(&Token{Id: 22, UserId: 2, Key: "sk-backup", Name: "backup"}).Error)
+	require.NoError(t, DB.Delete(&Token{Id: 11}).Error)
 }
 
-func TestGetFlowQuotaDataFiltersByUsernameAndSelfUserID(t *testing.T) {
+func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	truncateTables(t)
+	seedFlowLookupData(t)
 
-	require.NoError(t, DB.Create(&Channel{Id: 1, Name: "east"}).Error)
-	seedFlowLog(t, Log{
-		UserId:    1,
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    1,
 		Username:  "alice",
-		CreatedAt: 1100,
-		Type:      LogTypeConsume,
-		TokenId:   11,
-		TokenName: "primary",
-		ChannelId: 1,
-		Group:     "default",
+		NodeName:  "node-a",
+		TokenID:   11,
+		UseGroup:  "vip",
+		ModelName: "gpt-a",
+		ChannelID: 1,
+		CreatedAt: 1000,
+		Count:     2,
 		Quota:     100,
+		TokenUsed: 40,
 	})
-	seedFlowLog(t, Log{
-		UserId:    2,
-		Username:  "bob",
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    1,
+		Username:  "alice",
+		NodeName:  "node-a",
+		TokenID:   11,
+		UseGroup:  "vip",
+		ModelName: "gpt-a",
+		ChannelID: 1,
+		CreatedAt: 1100,
+		Count:     1,
+		Quota:     50,
+		TokenUsed: 20,
+	})
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    1,
+		Username:  "alice",
+		NodeName:  "node-a",
+		TokenID:   11,
+		UseGroup:  "vip",
+		ModelName: "gpt-a",
+		ChannelID: 2,
 		CreatedAt: 1200,
-		Type:      LogTypeConsume,
-		TokenId:   22,
-		TokenName: "backup",
-		ChannelId: 1,
-		Group:     "vip",
+		Count:     1,
+		Quota:     25,
+		TokenUsed: 10,
+	})
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    2,
+		Username:  "bob",
+		NodeName:  "node-b",
+		TokenID:   22,
+		UseGroup:  "default",
+		ModelName: "gpt-b",
+		ChannelID: 1,
+		CreatedAt: 1300,
+		Count:     3,
 		Quota:     70,
+		TokenUsed: 30,
+	})
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    1,
+		Username:  "alice",
+		ModelName: "legacy",
+		CreatedAt: 1400,
+		Count:     99,
+		Quota:     999,
+		TokenUsed: 999,
 	})
 
-	adminRows, err := GetFlowQuotaData(1000, 2000, "bob", 0)
+	rootRows, err := GetFlowQuotaData(900, 2000, "", 0, common.RoleRootUser)
 	require.NoError(t, err)
-	require.Len(t, adminRows, 1)
-	require.Equal(t, "bob", adminRows[0].Username)
+	require.Len(t, rootRows, 3)
+	require.Equal(t, FlowQuotaData{
+		UserID:      1,
+		Username:    "alice",
+		NodeName:    "node-a",
+		TokenID:     11,
+		TokenName:   "primary",
+		UseGroup:    "vip",
+		ChannelID:   1,
+		ChannelName: "east",
+		ModelName:   "gpt-a",
+		TokenUsed:   60,
+		Count:       3,
+		Quota:       150,
+	}, *rootRows[0])
 
-	selfRows, err := GetFlowQuotaData(1000, 2000, "", 1)
+	adminRows, err := GetFlowQuotaData(900, 2000, "alice", 0, common.RoleAdminUser)
+	require.NoError(t, err)
+	require.Len(t, adminRows, 2)
+	require.Equal(t, 0, adminRows[0].TokenID)
+	require.Empty(t, adminRows[0].TokenName)
+	require.Empty(t, adminRows[0].NodeName)
+	require.Equal(t, "alice", adminRows[0].Username)
+	require.Equal(t, "vip", adminRows[0].UseGroup)
+	require.Equal(t, "east", adminRows[0].ChannelName)
+	require.Equal(t, 150, adminRows[0].Quota)
+
+	selfRows, err := GetFlowQuotaData(900, 2000, "", 1, common.RoleCommonUser)
 	require.NoError(t, err)
 	require.Len(t, selfRows, 1)
-	require.Equal(t, "alice", selfRows[0].Username)
+	require.Empty(t, selfRows[0].Username)
+	require.Equal(t, 0, selfRows[0].ChannelID)
+	require.Empty(t, selfRows[0].ChannelName)
+	require.Equal(t, "primary", selfRows[0].TokenName)
+	require.Equal(t, "vip", selfRows[0].UseGroup)
+	require.Equal(t, 175, selfRows[0].Quota)
 }
 
-func TestGetFlowQuotaDataAggregatesCacheTokensAndNonCacheInput(t *testing.T) {
+func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	truncateTables(t)
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
 
-	require.NoError(t, DB.Create(&Channel{Id: 1, Name: "east"}).Error)
-
-	seedFlowLog(t, Log{
-		UserId:           1,
-		Username:         "alice",
-		CreatedAt:        1100,
-		Type:             LogTypeConsume,
-		TokenId:          11,
-		TokenName:        "primary",
-		ChannelId:        1,
-		ModelName:        "gpt-a",
-		Group:            "default",
-		Quota:            100,
-		PromptTokens:     100,
-		CompletionTokens: 10,
-		Other: common.MapToJsonStr(map[string]interface{}{
-			"cache_tokens":       20,
-			"cache_write_tokens": 5,
-		}),
+	LogQuotaData(QuotaDataLogParams{
+		UserID:    1,
+		Username:  "alice",
+		ModelName: "gpt-a",
+		CreatedAt: 3661,
+		UseGroup:  "vip",
+		TokenID:   11,
+		ChannelID: 1,
+		NodeName:  "node-a",
+		Quota:     100,
+		TokenUsed: 40,
 	})
-	seedFlowLog(t, Log{
-		UserId:           1,
-		Username:         "alice",
-		CreatedAt:        1200,
-		Type:             LogTypeConsume,
-		TokenId:          11,
-		TokenName:        "primary",
-		ChannelId:        1,
-		ModelName:        "gpt-a",
-		Group:            "default",
-		Quota:            50,
-		PromptTokens:     70,
-		CompletionTokens: 8,
-		Other: common.MapToJsonStr(map[string]interface{}{
-			"cache_tokens":       30,
-			"cache_write_tokens": 4,
-			"usage_semantic":     "anthropic",
-		}),
+	LogQuotaData(QuotaDataLogParams{
+		UserID:    1,
+		Username:  "alice",
+		ModelName: "gpt-a",
+		CreatedAt: 3700,
+		UseGroup:  "vip",
+		TokenID:   11,
+		ChannelID: 1,
+		NodeName:  "node-a",
+		Quota:     50,
+		TokenUsed: 20,
+	})
+	LogQuotaData(QuotaDataLogParams{
+		UserID:    1,
+		Username:  "alice",
+		ModelName: "gpt-a",
+		CreatedAt: 3700,
+		UseGroup:  "default",
+		TokenID:   11,
+		ChannelID: 1,
+		NodeName:  "node-a",
+		Quota:     25,
+		TokenUsed: 10,
 	})
 
-	rows, err := GetFlowQuotaData(1000, 2000, "", 0)
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
+	SaveQuotaDataCache()
 
-	require.Equal(t, 170, rows[0].PromptTokens)
-	require.Equal(t, 145, rows[0].InputTokens)
-	require.Equal(t, 18, rows[0].CompletionTokens)
-	require.Equal(t, 50, rows[0].CacheTokens)
-	require.Equal(t, 9, rows[0].CacheWriteTokens)
-	require.Equal(t, 163, rows[0].TokenUsed)
+	var rows []QuotaData
+	require.NoError(t, DB.Order("quota DESC").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	require.Equal(t, int64(3600), rows[0].CreatedAt)
+	require.Equal(t, "vip", rows[0].UseGroup)
+	require.Equal(t, 11, rows[0].TokenID)
+	require.Equal(t, 1, rows[0].ChannelID)
+	require.Equal(t, "node-a", rows[0].NodeName)
+	require.Equal(t, 2, rows[0].Count)
+	require.Equal(t, 150, rows[0].Quota)
+	require.Equal(t, 60, rows[0].TokenUsed)
+	require.Equal(t, "default", rows[1].UseGroup)
+	require.Equal(t, 25, rows[1].Quota)
 }

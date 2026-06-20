@@ -5,8 +5,6 @@ import {
   compactFlowSelectionLabel,
   flowDisplayState,
   requireSuccessfulFlowRows,
-  selectedTokenValuesForUser,
-  updateSelectedTokensForUser,
   visibleFlowUsers,
 } from './flow-selection'
 
@@ -17,20 +15,6 @@ const users: FlowUserFilterOption[] = [
     valueLabel: '100',
     valueRaw: 100,
     color: '#1664ff',
-    tokens: [
-      {
-        value: 'token:11',
-        label: 'dry-primary',
-        valueLabel: '80',
-        valueRaw: 80,
-      },
-      {
-        value: 'token:12',
-        label: 'dry-backup',
-        valueLabel: '20',
-        valueRaw: 20,
-      },
-    ],
   },
   {
     value: 'user:2',
@@ -38,14 +22,6 @@ const users: FlowUserFilterOption[] = [
     valueLabel: '70',
     valueRaw: 70,
     color: '#1ac6ff',
-    tokens: [
-      {
-        value: 'token:22',
-        label: 'jrc-key',
-        valueLabel: '70',
-        valueRaw: 70,
-      },
-    ],
   },
 ]
 
@@ -61,44 +37,17 @@ describe('dashboard flow selection helpers', () => {
     )
   })
 
-  test('updates token selections independently per user', () => {
-    const selected = updateSelectedTokensForUser({}, 'user:1', ['token:12'])
-    assert.deepEqual(selected, { 'user:1': ['token:12'] })
-    assert.deepEqual(selectedTokenValuesForUser(selected, 'user:1'), [
-      'token:12',
-    ])
-
-    const next = updateSelectedTokensForUser(selected, 'user:2', ['token:22'])
-    assert.deepEqual(next, {
-      'user:1': ['token:12'],
-      'user:2': ['token:22'],
-    })
-  })
-
-  test('keeps hidden user token selections available for later visibility', () => {
-    const selected = {
-      'user:1': ['token:12'],
-      'user:2': ['token:22'],
-    }
+  test('filters visible users without mutating the source options', () => {
+    const visible = visibleFlowUsers(users, ['user:1'])
 
     assert.deepEqual(
-      visibleFlowUsers(users, ['user:1']).map((user) => user.value),
+      visible.map((user) => user.value),
       ['user:1']
     )
-    assert.deepEqual(selectedTokenValuesForUser(selected, 'user:2'), [
-      'token:22',
-    ])
-  })
-
-  test('removes a user token override when no tokens are selected', () => {
-    const selected = {
-      'user:1': ['token:12'],
-      'user:2': ['token:22'],
-    }
-    const next = updateSelectedTokensForUser(selected, 'user:1', [])
-
-    assert.deepEqual(next, { 'user:2': ['token:22'] })
-    assert.deepEqual(selectedTokenValuesForUser(next, 'user:1'), [])
+    assert.deepEqual(
+      users.map((user) => user.value),
+      ['user:1', 'user:2']
+    )
   })
 
   test('formats compact selected counts for flow multiselect summaries', () => {

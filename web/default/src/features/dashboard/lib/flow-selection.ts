@@ -21,7 +21,6 @@ import type {
   FlowUserFilterOption,
 } from '@/features/dashboard/types'
 
-export type SelectedTokensByUser = Record<string, string[]>
 export type FlowDisplayState = 'loading' | 'error' | 'empty' | 'chart'
 
 export interface FlowResponse {
@@ -64,26 +63,4 @@ export function visibleFlowUsers(
   if (selectedUsers.length === 0) return users
   const selected = new Set(selectedUsers)
   return users.filter((user) => selected.has(user.value))
-}
-
-export function selectedTokenValuesForUser(
-  selectedTokensByUser: SelectedTokensByUser,
-  userID: string
-): string[] {
-  return selectedTokensByUser[userID] ?? []
-}
-
-export function updateSelectedTokensForUser(
-  selectedTokensByUser: SelectedTokensByUser,
-  userID: string,
-  tokenIDs: string[]
-): SelectedTokensByUser {
-  const next = { ...selectedTokensByUser }
-  const uniqueTokenIDs = Array.from(new Set(tokenIDs))
-  if (uniqueTokenIDs.length === 0) {
-    delete next[userID]
-  } else {
-    next[userID] = uniqueTokenIDs
-  }
-  return next
 }

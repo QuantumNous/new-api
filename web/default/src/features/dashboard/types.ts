@@ -36,7 +36,8 @@ export interface QuotaDataItem {
 export interface FlowQuotaDataItem {
   user_id?: number
   username?: string
-  user_group?: string
+  node_name?: string
+  use_group?: string
   token_id?: number
   token_name?: string
   channel_id?: number
@@ -45,24 +46,23 @@ export interface FlowQuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
-  input_tokens?: number
-  prompt_tokens?: number
-  completion_tokens?: number
-  cache_tokens?: number
-  cache_write_tokens?: number
 }
 
 export type FlowMetric = 'quota' | 'tokens' | 'requests'
 
-export type FlowPathMode = 'model' | 'channel' | 'model-channel'
+export type FlowRole = 'user' | 'admin' | 'root'
 
-export type FlowNodeKind = 'user' | 'token' | 'model' | 'channel'
+export type FlowNodeKind =
+  | 'user'
+  | 'node'
+  | 'token'
+  | 'group'
+  | 'model'
+  | 'channel'
 
 export interface FlowBuildOptions {
-  pathMode?: FlowPathMode
-  includeTokenLayer?: boolean
+  role?: FlowRole
   selectedUsers?: string[]
-  selectedTokensByUser?: Record<string, string[]>
   colorPalette?: readonly string[]
 }
 
@@ -74,11 +74,6 @@ export interface DashboardFlowNode {
   requests: number
   quota: number
   tokens: number
-  inputTokens: number
-  promptTokens: number
-  completionTokens: number
-  cacheTokens: number
-  cacheWriteTokens: number
   color: string
   colorKey: string
 }
@@ -90,11 +85,6 @@ export interface DashboardFlowLink {
   requests: number
   quota: number
   tokens: number
-  inputTokens: number
-  promptTokens: number
-  completionTokens: number
-  cacheTokens: number
-  cacheWriteTokens: number
   sourceLabel: string
   targetLabel: string
   color: string
@@ -110,20 +100,12 @@ export interface DashboardFlowGraph {
   links: DashboardFlowLink[]
 }
 
-export interface FlowTokenFilterOption {
-  value: string
-  label: string
-  valueLabel: string
-  valueRaw: number
-}
-
 export interface FlowUserFilterOption {
   value: string
   label: string
   valueLabel: string
   valueRaw: number
   color: string
-  tokens: FlowTokenFilterOption[]
 }
 
 export interface FlowFilterOptions {
@@ -133,10 +115,6 @@ export interface FlowFilterOptions {
 export interface FlowSummary {
   quota: number
   tokens: number
-  inputTokens: number
-  completionTokens: number
-  cacheTokens: number
-  cacheWriteTokens: number
   requests: number
 }
 
