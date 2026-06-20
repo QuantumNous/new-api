@@ -40,6 +40,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var responseTextBuilder strings.Builder
 	var toolCount int
 	var containStreamUsage bool
+	var lastStreamData string
 
 	helper.SetEventStreamHeaders(c)
 
@@ -60,8 +61,23 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 
 		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
+		if openaiResponse == nil {
+			return
+		}
 		_ = openai.ProcessStreamResponse(*openaiResponse, &responseTextBuilder, &toolCount)
-		if err := helper.ObjectData(c, openaiResponse); err != nil {
+		openaiResponseData, err := common.Marshal(openaiResponse)
+		if err != nil {
+			common.SysLog(err.Error())
+			sr.Error(err)
+			return
+		}
+		lastStreamData = string(openaiResponseData)
+		if info.RelayFormat == types.RelayFormatClaude {
+			err = openai.HandleStreamFormat(c, info, lastStreamData, false, false)
+		} else {
+			err = helper.ObjectData(c, openaiResponse)
+		}
+		if err != nil {
 			common.SysLog(err.Error())
 			sr.Error(err)
 		}
@@ -72,7 +88,13 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		usage.CompletionTokens += toolCount * 7
 	}
 
-	helper.Done(c)
+	if info.RelayFormat == types.RelayFormatClaude {
+		if lastStreamData != "" {
+			openai.HandleFinalResponse(c, info, lastStreamData, "", 0, info.UpstreamModelName, "", usage, containStreamUsage)
+		}
+	} else {
+		helper.Done(c)
+	}
 	service.CloseResponseBodyGracefully(resp)
 	return usage, nil
 }
@@ -94,13 +116,28 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 		xaiResponse.Usage.CompletionTokenDetails.TextTokens = xaiResponse.Usage.CompletionTokens - xaiResponse.Usage.CompletionTokenDetails.ReasoningTokens
 	}
 
-	// new body
-	encodeJson, err := common.Marshal(xaiResponse)
+	openAIResponse := dto.OpenAITextResponse{
+		Id:      xaiResponse.Id,
+		Object:  xaiResponse.Object,
+		Created: xaiResponse.Created,
+		Model:   xaiResponse.Model,
+		Choices: xaiResponse.Choices,
+	}
+	if xaiResponse.Usage != nil {
+		openAIResponse.Usage = *xaiResponse.Usage
+	}
+
+	var responseObject any = xaiResponse
+	if info.RelayFormat == types.RelayFormatClaude {
+		responseObject = service.ResponseOpenAI2Claude(&openAIResponse, info)
+	}
+
+	encodeJson, err := common.Marshal(responseObject)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	service.IOCopyBytesGracefully(c, resp, encodeJson)
 
-	return xaiResponse.Usage, nil
+	return &openAIResponse.Usage, nil
 }
