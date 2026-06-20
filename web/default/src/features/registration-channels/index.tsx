@@ -57,6 +57,8 @@ type RegistrationChannel = {
   created_at: string
   updated_at: string
   registered_count: number
+  paying_count: number
+  topup_amount: number
 }
 
 type ChannelForm = {
@@ -230,6 +232,8 @@ export function RegistrationChannels() {
                   <TableHead>{t('Channel')}</TableHead>
                   <TableHead>{t('Registration Link')}</TableHead>
                   <TableHead>{t('Registered Users')}</TableHead>
+                  <TableHead>{t('Paying Users')}</TableHead>
+                  <TableHead>{t('Topup Amount (USD)')}</TableHead>
                   <TableHead>{t('Status')}</TableHead>
                   <TableHead className='text-right'>{t('Actions')}</TableHead>
                 </TableRow>
@@ -238,7 +242,7 @@ export function RegistrationChannels() {
                 {channels.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={7}
                       className='text-muted-foreground h-24 text-center'
                     >
                       {loading ? t('Loading...') : t('No data')}
@@ -276,6 +280,12 @@ export function RegistrationChannels() {
                       </div>
                     </TableCell>
                     <TableCell>{channel.registered_count}</TableCell>
+                    <TableCell>{channel.paying_count}</TableCell>
+                    <TableCell>
+                      {channel.topup_amount > 0
+                        ? `$${channel.topup_amount}`
+                        : '—'}
+                    </TableCell>
                     <TableCell>
                       <div className='flex items-center gap-2'>
                         <Switch

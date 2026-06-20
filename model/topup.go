@@ -1,8 +1,11 @@
 package model
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -212,7 +215,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
-	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodStripe)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodStripe, topUp.TradeNo)
 
 	return nil
 }
@@ -266,7 +269,7 @@ func RechargePayPal(referenceId string, callerIp string) (err error) {
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 PayPal 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPayPal)
-	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodPayPal)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodPayPal, topUp.TradeNo)
 
 	return nil
 }
@@ -616,7 +619,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
-	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodCreem)
+	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodCreem, topUp.TradeNo)
 
 	return nil
 }
@@ -679,7 +682,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
-		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffo)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffo, topUp.TradeNo)
 	}
 
 	return nil
@@ -741,7 +744,7 @@ func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake)
-		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake)
+		OnTopupSucceeded(topUp.UserId, quotaToAdd, PaymentMethodWaffoPancake, topUp.TradeNo)
 	}
 
 	return nil
@@ -750,9 +753,10 @@ func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 // OnTopupSucceeded is the single hook called after every successful topup.
 // Centralises affiliate commission + Feishu notification so new payment methods
 // only need one call here instead of wiring each individually.
-func OnTopupSucceeded(userId int, quotaAdded int, paymentMethod string) {
+func OnTopupSucceeded(userId int, quotaAdded int, paymentMethod string, tradeNo string) {
 	ProcessAffCommission(userId, quotaAdded)
 	NotifyPaymentSuccess(userId, quotaAdded, paymentMethod)
+	SendGAPurchase(userId, quotaAdded, tradeNo)
 }
 
 // HasSuccessfulTopUp 该用户是否有过成功充值（用于「首次充值」判定）。
@@ -815,6 +819,62 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 			fmt.Sprintf("方式：%s", methodLabel),
 		}
 		_ = common.SendFeishuCard(chatID, "💰 付款成功", lines)
+	}()
+}
+
+// SendGAPurchase reports a GA4 `purchase` conversion via Measurement Protocol so
+// the ad → register → topup funnel is complete in GA. It looks up the GA client
+// id stored on the apimaster user at registration (registration_utm.ga_client_id),
+// keyed by the derived username. No-ops if unconfigured or the user has no client
+// id. Runs in a goroutine so it never blocks the topup flow.
+func SendGAPurchase(userId int, quotaAdded int, tradeNo string) {
+	apiSecret := os.Getenv("GA_MP_API_SECRET")
+	if apiSecret == "" || APIMASTER_PG_DB == nil {
+		return
+	}
+	measurementID := os.Getenv("GA_MP_MEASUREMENT_ID")
+	if measurementID == "" {
+		measurementID = "G-C518KE3E9Y"
+	}
+	// Use the real order number so GA4 dedups retried webhooks by transaction_id.
+	transactionID := tradeNo
+	if transactionID == "" {
+		transactionID = fmt.Sprintf("u%d-%d", userId, common.GetTimestamp())
+	}
+	go func() {
+		user, err := GetUserById(userId, false)
+		if err != nil || user == nil || user.Username == "" {
+			return
+		}
+		var clientID string
+		if err := APIMASTER_PG_DB.Raw(
+			`SELECT registration_utm->>'ga_client_id' FROM users WHERE LEFT(REPLACE(id::text, '-', ''), 20) = ? LIMIT 1`,
+			user.Username,
+		).Scan(&clientID).Error; err != nil || clientID == "" {
+			return
+		}
+		payload := map[string]interface{}{
+			"client_id": clientID,
+			"events": []map[string]interface{}{{
+				"name": "purchase",
+				"params": map[string]interface{}{
+					"currency":       "USD",
+					"value":          float64(quotaAdded) / common.QuotaPerUnit,
+					"transaction_id": transactionID,
+				},
+			}},
+		}
+		body, err := common.Marshal(payload)
+		if err != nil {
+			return
+		}
+		url := fmt.Sprintf("https://www.google-analytics.com/mp/collect?measurement_id=%s&api_secret=%s", measurementID, apiSecret)
+		resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+		if err != nil {
+			common.SysLog("SendGAPurchase: " + err.Error())
+			return
+		}
+		_ = resp.Body.Close()
 	}()
 }
 

@@ -383,7 +383,7 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 	rec.Status = "confirmed"
 	common.SysLog(fmt.Sprintf("crypto: confirmed userId=%d txHash=%s usd=%.4f quota=%d", rec.UserId, rec.TxHash, usdValue, quotaToAdd))
 	model.RecordTopupLog(rec.UserId, fmt.Sprintf("使用加密货币充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), usdValue), "", "crypto", "crypto")
-	model.OnTopupSucceeded(rec.UserId, quotaToAdd, "crypto")
+	model.OnTopupSucceeded(rec.UserId, quotaToAdd, "crypto", rec.TxHash)
 }
 
 // ============================================================================

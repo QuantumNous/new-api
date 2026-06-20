@@ -23,6 +23,9 @@ type RegistrationChannel struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	RegisteredCount int       `json:"registered_count"`
+	// Paid-conversion stats joined from new-api top_ups (per channel).
+	TopupAmount int64 `json:"topup_amount"` // sum of successful top_ups (USD integer)
+	PayingCount int   `json:"paying_count"` // distinct users in this channel who topped up
 }
 
 type RegistrationChannelInput struct {
@@ -99,7 +102,92 @@ func ListRegistrationChannels() ([]RegistrationChannel, error) {
 		GROUP BY c.id, c.code, c.name, c.description, c.landing_path, c.enabled, c.created_by, c.created_at, c.updated_at
 		ORDER BY c.created_at DESC
 	`).Scan(&channels).Error
-	return channels, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge paid-conversion stats (top_ups joined by channel). Best-effort: a
+	// failure here must not break the channel list, so just log and continue.
+	if stats, statErr := getChannelTopupStats(); statErr != nil {
+		common.SysLog("failed to load channel topup stats: " + statErr.Error())
+	} else {
+		for i := range channels {
+			if s := stats[channels[i].Code]; s != nil {
+				channels[i].TopupAmount = s.amount
+				channels[i].PayingCount = s.paying
+			}
+		}
+	}
+	return channels, nil
+}
+
+type channelTopupStat struct {
+	amount int64
+	paying int
+}
+
+// getChannelTopupStats aggregates successful top_ups per registration channel.
+// top_ups live in new-api's own DB while channel attribution lives in apimaster
+// PG, so the join is done in Go via the derived username key (apimaster user
+// uuid with hyphens stripped, first 20 chars == new-api username).
+func getChannelTopupStats() (map[string]*channelTopupStat, error) {
+	if APIMASTER_PG_DB == nil {
+		return map[string]*channelTopupStat{}, nil
+	}
+
+	// 1) new-api username -> summed successful top_up amount (only payers appear).
+	type topupRow struct {
+		Username string
+		Amount   int64
+	}
+	var topups []topupRow
+	if err := DB.Raw(`
+		SELECT u.username AS username, COALESCE(SUM(t.amount), 0) AS amount
+		FROM top_ups t
+		JOIN users u ON u.id = t.user_id
+		WHERE t.status = 'success'
+		GROUP BY u.username
+	`).Scan(&topups).Error; err != nil {
+		return nil, err
+	}
+	if len(topups) == 0 {
+		return map[string]*channelTopupStat{}, nil
+	}
+	amountByUser := make(map[string]int64, len(topups))
+	for _, t := range topups {
+		amountByUser[t.Username] = t.Amount
+	}
+
+	// 2) derived username -> channel code (apimaster PG).
+	type userChannelRow struct {
+		Username string
+		Code     string
+	}
+	var userChannels []userChannelRow
+	if err := APIMASTER_PG_DB.Raw(`
+		SELECT LEFT(REPLACE(u.id::text, '-', ''), 20) AS username, u.registration_channel_code AS code
+		FROM users u
+		WHERE u.registration_channel_code IS NOT NULL AND u.registration_channel_code <> ''
+	`).Scan(&userChannels).Error; err != nil {
+		return nil, err
+	}
+
+	// 3) aggregate per channel code.
+	stats := map[string]*channelTopupStat{}
+	for _, uc := range userChannels {
+		amount, ok := amountByUser[uc.Username]
+		if !ok || amount <= 0 {
+			continue
+		}
+		s := stats[uc.Code]
+		if s == nil {
+			s = &channelTopupStat{}
+			stats[uc.Code] = s
+		}
+		s.amount += amount
+		s.paying++
+	}
+	return stats, nil
 }
 
 func UpsertRegistrationChannel(input RegistrationChannelInput, createdBy string) (*RegistrationChannel, error) {
