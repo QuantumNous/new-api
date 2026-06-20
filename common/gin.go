@@ -199,8 +199,53 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 func ApiError(c *gin.Context, err error) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": false,
-		"message": err.Error(),
+		"message": translateLegacyErrorMessage(c, err.Error()),
 	})
+}
+
+func translateLegacyErrorMessage(c *gin.Context, message string) string {
+	switch message {
+	case "未提供兑换码":
+		return TranslateMessage(c, "redemption.not_provided")
+	case "无效的兑换码":
+		return TranslateMessage(c, "redemption.invalid")
+	case "该兑换码已被使用":
+		return TranslateMessage(c, "redemption.used")
+	case "该兑换码已过期":
+		return TranslateMessage(c, "redemption.expired")
+	case "原密码错误":
+		return TranslateMessage(c, "user.original_password_error")
+	case "邀请额度不足！":
+		return TranslateMessage(c, "user.invite_quota_insufficient")
+	case "搜索模式中不允许包含连续的 % 通配符":
+		return TranslateMessage(c, "token.search_percent_repeat")
+	case "搜索模式中最多允许包含 2 个 % 通配符":
+		return TranslateMessage(c, "token.search_percent_max")
+	case "使用模糊搜索时，关键词长度至少为 2 个字符":
+		return TranslateMessage(c, "token.search_keyword_short")
+	case "获取令牌数量失败":
+		return TranslateMessage(c, "token.search_count_failed")
+	case "令牌数量超过上限，仅允许精确搜索，请勿使用 % 通配符":
+		return TranslateMessage(c, "token.search_exact_only")
+	case "搜索令牌失败":
+		return TranslateMessage(c, "token.search_failed")
+	case "签到功能未启用":
+		return TranslateMessage(c, "checkin.disabled")
+	case "今日已签到":
+		return TranslateMessage(c, "checkin.already_today")
+	case "签到失败，请稍后重试":
+		return TranslateMessage(c, "checkin.failed")
+	case "签到失败：更新额度出错":
+		return TranslateMessage(c, "checkin.quota_failed")
+	}
+
+	const transferMinimumPrefix = "转移额度最小为"
+	if strings.HasPrefix(message, transferMinimumPrefix) {
+		minimum := strings.TrimSuffix(strings.TrimPrefix(message, transferMinimumPrefix), "！")
+		return TranslateMessage(c, "user.transfer_quota_minimum", map[string]any{"Min": minimum})
+	}
+
+	return message
 }
 
 func ApiErrorMsg(c *gin.Context, msg string) {
