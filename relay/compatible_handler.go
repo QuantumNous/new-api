@@ -120,10 +120,17 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	// DR-68: for skill relay requests, load version snapshot and rewrite request
 	// (server-authoritative model selection + FR-G19 single-turn enforcement).
-	// In path (a) above this runs after applyAirbotixPolicy (D5 fix — ensures the
-	// direct-TextHelper path checks policy against the client model before rewriting).
-	// In path (b) this is a defense-in-depth re-apply; LoadAndApply is idempotent.
-	if skillCtx, isSkill := skillrelay.Get(c); isSkill {
+	//
+	// Two paths:
+	//   a) Direct (unit tests / non-Distribute callers): SkillVersionID is empty.
+	//      LoadAndApply fetches the snapshot and rewrites the request here.
+	//      Runs after applyAirbotixPolicy so kids-mode sees the original client model.
+	//   b) Distribute path: prepareSkillRelayForDistribution already called LoadAndApply
+	//      and set SkillVersionID. Re-loading here would be a TOCTOU race — if
+	//      active_version_id changed between Distribute and TextHelper, the provider
+	//      payload would be rebuilt from a different snapshot than the channel was
+	//      selected for, breaking server-authoritative routing. Skip the reload.
+	if skillCtx, isSkill := skillrelay.Get(c); isSkill && skillCtx.SkillVersionID == "" {
 		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
 		if execErrCode != "" {
 			return types.NewErrorWithStatusCode(

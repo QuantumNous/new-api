@@ -11,8 +11,7 @@ package skillrelay
 //   - Provider credentials stay server-side; instruction_template is not a secret (R2/D-09).
 
 import (
-	"encoding/json"
-
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
@@ -98,7 +97,7 @@ func parseModelWhitelist(raw skillmodel.SkillJSONB) ([]string, error) {
 		return nil, nil
 	}
 	var models []string
-	if err := json.Unmarshal(raw, &models); err != nil {
+	if err := common.Unmarshal(raw, &models); err != nil {
 		return nil, err
 	}
 	return models, nil
