@@ -564,8 +564,8 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	a1 := dto.Message{Role: "assistant"}
 	a1.SetStringContent("Hello!")
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
-		Model:    "gpt-4o",       // must be overridden by server-selected "deeprouter-auto"
-		Messages: []dto.Message{userMsg("first question"), a1, userMsg("second question")},
+		Model:      "gpt-4o", // must be overridden by server-selected "deeprouter-auto"
+		Messages:   []dto.Message{userMsg("first question"), a1, userMsg("second question")},
 		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
 	}))
 

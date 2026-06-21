@@ -98,13 +98,18 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}
 
-	// Airbotix / DeepRouter policy: checked against the client-requested model
-	// name BEFORE channel model_mapping so that a kids_mode whitelist entry like
-	// "gpt-4o-mini" is honoured even when the channel remaps it to a different
-	// upstream model name (e.g. llama-3.1-8b-instant on Groq).
-	// For skill relay reached through Distribute, request.Model has already been
-	// rewritten from the server SkillVersion snapshot. Direct TextHelper tests may
-	// still arrive with the client model and are re-applied below.
+	// Airbotix / DeepRouter policy check.
+	// Two paths reach here:
+	//   a) Direct (unit tests / non-Distribute callers): request.Model is still the
+	//      client-supplied model, so policy sees the original client model name. The
+	//      LoadAndApply block below then overwrites it with the server snapshot model.
+	//   b) Distribute (public routing API): prepareSkillRelayForDistribution already
+	//      called LoadAndApply and replaced the request body, so request.Model is the
+	//      server whitelist model (e.g. "deeprouter-auto") by the time we reach here.
+	//      Kids-mode filtering against virtual alias names is intentionally out of scope
+	//      for V1 (DR-68 PRD §kids-session); the Distribute path's rewrite is applied
+	//      before channel model_mapping so a kids_mode whitelist entry for a real model
+	//      name is still honoured once smart-router resolves the virtual alias.
 	if d, ok := common.GetContextKey(c, constant.ContextKeyPolicyDecision); ok {
 		if decision, castOk := d.(policy.Decision); castOk {
 			if reject := applyAirbotixPolicy(decision, info.ChannelType, request); reject != "" {
@@ -115,8 +120,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	// DR-68: for skill relay requests, load version snapshot and rewrite request
 	// (server-authoritative model selection + FR-G19 single-turn enforcement).
-	// Runs AFTER applyAirbotixPolicy so kids-mode model eligibility is checked against
-	// the client model, then the server-selected whitelist model takes over for forwarding.
+	// In path (a) above this runs after applyAirbotixPolicy (D5 fix — ensures the
+	// direct-TextHelper path checks policy against the client model before rewriting).
+	// In path (b) this is a defense-in-depth re-apply; LoadAndApply is idempotent.
 	if skillCtx, isSkill := skillrelay.Get(c); isSkill {
 		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
 		if execErrCode != "" {
