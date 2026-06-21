@@ -50,6 +50,7 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	ActualBaseURL     *string `json:"actual_base_url,omitempty" gorm:"column:actual_base_url;type:text;default:''"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -527,6 +528,26 @@ func (channel *Channel) GetBaseURL() string {
 		url = constant.GetChannelBaseURL(channel.Type)
 	}
 	return url
+}
+
+func (channel *Channel) GetActualBaseURL() string {
+	if channel.ActualBaseURL == nil {
+		return ""
+	}
+	return strings.TrimSpace(*channel.ActualBaseURL)
+}
+
+// GetRuntimeBaseURL 返回服务端实际出站应使用的地址：actual 非空用 actual，否则回退展示地址。
+func (channel *Channel) GetRuntimeBaseURL() string {
+	if a := channel.GetActualBaseURL(); a != "" {
+		return a
+	}
+	return channel.GetBaseURL()
+}
+
+// GetDisplayBaseURL 返回对外展示/脱敏目标地址，恒等于 base_url。
+func (channel *Channel) GetDisplayBaseURL() string {
+	return channel.GetBaseURL()
 }
 
 func (channel *Channel) GetModelMapping() string {
