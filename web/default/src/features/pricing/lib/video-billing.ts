@@ -7,7 +7,6 @@ Runtime billing lives in Go relay/task helpers; this module is for UI labels.
 
 /** Default USD/s @ 720p (matches setting/ratio_setting/model_ratio.go). */
 export const VIDEO_PER_SECOND_DEFAULT_PRICES: Record<string, number> = {
-  sora: 0.08,
   'sora-2': 0.08,
   'sora-2-pro': 0.24,
 }
@@ -29,5 +28,5 @@ export function getVideoPerSecondDefaultPrice(
 export function getVideoPerSecondDetailKey(modelName: string): string {
   return modelName.toLowerCase() === 'sora-2-pro'
     ? 'Video per-second detail sora-2-pro'
-    : 'Video per-second detail sora'
+    : 'Video per-second detail sora-2'
 }

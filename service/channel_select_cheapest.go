@@ -69,7 +69,7 @@ func selectCheapestChannelID(modelName string, bannedIDs []int) int {
 	}
 
 	// Candidate model names: canonical + known aliases + model_mapping targets
-	candidates := modelPricingLookupNames(modelName)
+	candidates := ModelPricingLookupNames(modelName)
 
 	modelsCol := "c.models"
 	if common.UsingPostgreSQL {

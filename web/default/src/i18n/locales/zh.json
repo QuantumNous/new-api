@@ -1729,7 +1729,7 @@
     "Fixed price (USD)": "固定价格 (USD)",
     "Fixed request price": "固定按次价格",
     "Fixed per-second price": "720p 基准价；按视频时长计费",
-    "Video per-second detail sora": "720p 基准单价；× 视频秒数",
+    "Video per-second detail sora-2": "720p 基准单价；× 视频秒数",
     "Video per-second detail sora-2-pro": "720p 基准；1024p×1.667；1080p×2.333；× 视频秒数",
     "Video base price (720p)": "视频基准价（720p）",
     "Cost in USD per second of video at 720p base resolution.": "720p 基准分辨率的视频单价（美元/秒），实际费用 = 单价 × 时长 × 分辨率系数。",

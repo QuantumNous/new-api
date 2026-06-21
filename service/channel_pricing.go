@@ -583,7 +583,7 @@ func LookupPublicManualPricing(setting *string, modelName string) (PublicManualP
 }
 
 func lookupPublicModelPrice(modelName string) (model.PublicModelPrice, bool) {
-	names := modelPricingLookupNames(modelName)
+	names := ModelPricingLookupNames(modelName)
 	pub, err := model.GetPublicModelPriceByNames(names)
 	if err != nil || pub == nil || pub.InputPrice <= 0 {
 		return model.PublicModelPrice{}, false

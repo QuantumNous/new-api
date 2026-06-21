@@ -192,6 +192,18 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
+	if !usePrice {
+		for _, candidate := range service.ModelPricingLookupNames(info.OriginModelName) {
+			if candidate == info.OriginModelName {
+				continue
+			}
+			if price, ok := ratio_setting.GetModelPrice(candidate, false); ok {
+				modelPrice = price
+				usePrice = true
+				break
+			}
+		}
+	}
 
 	// Prefer channel user price (input × recharge × apimaster) for per-unit tasks like video/image.
 	if channelID := c.GetInt("channel_id"); channelID > 0 {
@@ -204,7 +216,17 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	var modelRatio float64
 
 	if !usePrice {
-		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
+		defaultMap := ratio_setting.GetDefaultModelPriceMap()
+		defaultPrice, ok := defaultMap[info.OriginModelName]
+		if !ok {
+			for _, candidate := range service.ModelPricingLookupNames(info.OriginModelName) {
+				if price, found := defaultMap[candidate]; found {
+					defaultPrice = price
+					ok = true
+					break
+				}
+			}
+		}
 		if ok {
 			modelPrice = defaultPrice
 			usePrice = true

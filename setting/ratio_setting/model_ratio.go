@@ -303,8 +303,7 @@ var defaultModelPrice = map[string]float64{
 	"mj_upscale":                     0.05,
 	"swap_face":                      0.05,
 	"mj_upload":                      0.05,
-	"sora":                           0.08, // USD/s @ 720p (official $0.10/s × 80%)
-	"sora-2":                         0.08,
+	"sora-2":                         0.08, // USD/s @ 720p (official $0.10/s × 80%)
 	"sora-2-pro":                     0.24, // USD/s @ 720p (official $0.30/s × 80%)
 	"gpt-4o-mini-tts":                0.3,
 	"veo-3.0-generate-001":           0.4,
