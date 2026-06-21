@@ -53,6 +53,7 @@ func insertSkill(t *testing.T, database *gorm.DB, s *skillmodel.Skill) *skillmod
 }
 
 func defaultSkill() *skillmodel.Skill {
+	versionID := "aaaaaaaa-bbbb-cccc-dddd-000000000001"
 	return &skillmodel.Skill{
 		Slug:             "test-skill",
 		Status:           enums.SkillStatusPublished,
@@ -63,6 +64,7 @@ func defaultSkill() *skillmodel.Skill {
 		ShortDescription: "A test skill",
 		Description:      "A test skill for unit tests",
 		CreatedBy:        1,
+		ActiveVersionID:  &versionID,
 	}
 }
 
@@ -170,6 +172,66 @@ func TestResolve_DBNilAfterUserResolved_ReturnsInternalError(t *testing.T) {
 	ctx, code := resolve(c, nil, "some-skill-id")
 	assert.Nil(t, ctx)
 	assert.Equal(t, errcodes.ErrSkillInternalError, code)
+}
+
+func TestResolve_DraftSkill_ReturnsNotPublished(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(13))
+
+	database := newTestDB(t)
+	s := defaultSkill()
+	s.Status = enums.SkillStatusDraft
+	skill := insertSkill(t, database, s)
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, code,
+		"draft skill must be blocked at relay entry with SKILL_NOT_PUBLISHED")
+}
+
+func TestResolve_ArchivedSkill_ReturnsNotPublished(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(14))
+
+	database := newTestDB(t)
+	s := defaultSkill()
+	s.Status = enums.SkillStatusArchived
+	skill := insertSkill(t, database, s)
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, code,
+		"archived skill must be blocked at relay entry with SKILL_NOT_PUBLISHED")
+}
+
+func TestResolve_DeprecatedSkill_ReturnsNotPublished(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(15))
+
+	database := newTestDB(t)
+	s := defaultSkill()
+	s.Status = enums.SkillStatusDeprecated
+	skill := insertSkill(t, database, s)
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, code,
+		"deprecated skill must be blocked at relay entry with SKILL_NOT_PUBLISHED")
+}
+
+func TestResolve_NilActiveVersionID_ReturnsNotPublished(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(16))
+
+	database := newTestDB(t)
+	s := defaultSkill()
+	s.ActiveVersionID = nil // published but no runnable version
+	skill := insertSkill(t, database, s)
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, code,
+		"published skill with nil active_version_id must be blocked — no runnable version")
 }
 
 // ── resolve — success paths ───────────────────────────────────────────────────

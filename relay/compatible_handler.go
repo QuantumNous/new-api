@@ -47,33 +47,35 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	// DR-64: skill relay entry point — resolve user identity and load the target Skill
 	// for requests that carry deeprouter.skill_id (tasks/05 §5.1 steps 1-6).
 	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
-	if request.Deeprouter != nil && request.Deeprouter.SkillID != "" {
-		skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
-		if errCode != "" {
-			return types.NewErrorWithStatusCode(
-				fmt.Errorf("%s", errCode),
-				skillRelayErrType(errCode),
-				errcodes.HTTPStatusFor(errCode),
-				types.ErrOptionWithSkipRetry(),
-			)
-		}
-		// Carry entry_point into relay context for analytics (tasks/03 §9).
-		// Default to playground_picker per V1 spec; package clients set skill_package explicitly.
-		skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
-		if request.Deeprouter.EntryPoint != "" {
-			ep := enums.EntryPoint(request.Deeprouter.EntryPoint)
-			if !ep.Valid() {
+	if request.Deeprouter != nil {
+		if request.Deeprouter.SkillID != "" {
+			skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+			if errCode != "" {
 				return types.NewErrorWithStatusCode(
-					fmt.Errorf("invalid entry_point: %q", request.Deeprouter.EntryPoint),
-					types.ErrorCodeInvalidRequest,
-					http.StatusBadRequest,
+					fmt.Errorf("%s", errCode),
+					skillRelayErrType(errCode),
+					errcodes.HTTPStatusFor(errCode),
 					types.ErrOptionWithSkipRetry(),
 				)
 			}
-			skillCtx.EntryPoint = string(ep)
+			// Carry entry_point into relay context for analytics (tasks/03 §9).
+			// Default to playground_picker per V1 spec; package clients set skill_package explicitly.
+			skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
+			if request.Deeprouter.EntryPoint != "" {
+				ep := enums.EntryPoint(request.Deeprouter.EntryPoint)
+				if !ep.Valid() {
+					return types.NewErrorWithStatusCode(
+						fmt.Errorf("invalid entry_point: %q", request.Deeprouter.EntryPoint),
+						types.ErrorCodeInvalidRequest,
+						http.StatusBadRequest,
+						types.ErrOptionWithSkipRetry(),
+					)
+				}
+				skillCtx.EntryPoint = string(ep)
+			}
+			skillrelay.Set(c, skillCtx)
 		}
-		skillrelay.Set(c, skillCtx)
-		request.Deeprouter = nil // strip vendor extension before provider forwarding
+		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}
 
 	// Airbotix / DeepRouter policy: checked against the client-requested model

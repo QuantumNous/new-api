@@ -118,6 +118,7 @@ func TestTextHelper_SkillRelay_SkillNotFound_Returns404(t *testing.T) {
 // expected; we only assert the relay-entry contract here.
 func TestTextHelper_SkillRelay_SkillFound_ContextSet(t *testing.T) {
 	testDB := newSkillTestDB(t)
+	versionID := "aaaaaaaa-bbbb-cccc-dddd-000000000001"
 	skill := &skillmodel.Skill{
 		Slug:             "test-skill",
 		Status:           enums.SkillStatusPublished,
@@ -128,6 +129,7 @@ func TestTextHelper_SkillRelay_SkillFound_ContextSet(t *testing.T) {
 		ShortDescription: "short",
 		Description:      "A test skill",
 		CreatedBy:        1,
+		ActiveVersionID:  &versionID,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
 
@@ -197,10 +199,12 @@ func TestTextHelper_SkillRelay_EmptySkillID_NotAffected(t *testing.T) {
 // to "playground_picker" per tasks/03 §9 V1 spec (Playground-only execution).
 func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T) {
 	testDB := newSkillTestDB(t)
+	versionID2 := "aaaaaaaa-bbbb-cccc-dddd-000000000002"
 	skill := &skillmodel.Skill{
 		Slug: "ep-default", Status: enums.SkillStatusPublished, Category: "test",
 		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
 		Name: "EP Default", ShortDescription: "s", Description: "d", CreatedBy: 1,
+		ActiveVersionID: &versionID2,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
 	skillrelay.SetDB(testDB)
@@ -224,10 +228,12 @@ func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T
 // This prevents arbitrary strings from poisoning downstream analytics events.
 func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 	testDB := newSkillTestDB(t)
+	versionID3 := "aaaaaaaa-bbbb-cccc-dddd-000000000003"
 	skill := &skillmodel.Skill{
 		Slug: "ep-invalid", Status: enums.SkillStatusPublished, Category: "test",
 		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
 		Name: "EP Invalid", ShortDescription: "s", Description: "d", CreatedBy: 1,
+		ActiveVersionID: &versionID3,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
 	skillrelay.SetDB(testDB)
@@ -255,10 +261,12 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 // SkillRelayContext.EntryPoint carries that value through for analytics.
 func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 	testDB := newSkillTestDB(t)
+	versionID4 := "aaaaaaaa-bbbb-cccc-dddd-000000000004"
 	skill := &skillmodel.Skill{
 		Slug: "ep-explicit", Status: enums.SkillStatusPublished, Category: "test",
 		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
 		Name: "EP Explicit", ShortDescription: "s", Description: "d", CreatedBy: 1,
+		ActiveVersionID: &versionID4,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
 	skillrelay.SetDB(testDB)

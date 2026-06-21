@@ -75,6 +75,17 @@ func resolve(c *gin.Context, database *gorm.DB, skillID string) (*SkillRelayCont
 		}
 		return nil, errcodes.ErrSkillInternalError
 	}
+	// Only published skills with an active version are executable.
+	// draft/deprecated/archived → SKILL_NOT_PUBLISHED (HTTP 403).
+	if skill.Status != enums.SkillStatusPublished {
+		return nil, errcodes.ErrSkillNotPublished
+	}
+	// active_version_id = NULL means the skill has no runnable version yet.
+	// DR-88 (prompt injection) will dereference this pointer — guard it here
+	// so no downstream handler ever receives a nil ActiveVersionID.
+	if skill.ActiveVersionID == nil {
+		return nil, errcodes.ErrSkillNotPublished
+	}
 
 	return &SkillRelayContext{
 		RequestID:     uuid.New().String(),
