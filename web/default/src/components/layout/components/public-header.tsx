@@ -28,7 +28,10 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { NotificationPopover } from '@/components/notification-popover'
+import {
+  NotificationDialog,
+  NotificationPopover,
+} from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { defaultTopNavLinks } from '../config/top-nav.config'
@@ -216,6 +219,18 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   return (
     <>
+      {showNotifications && (
+        <NotificationDialog
+          open={notifications.forceDialogOpen}
+          onOpenChange={notifications.setForceDialogOpen}
+          activeTab={notifications.activeTab}
+          onTabChange={notifications.setActiveTab}
+          notice={notifications.notice}
+          announcements={notifications.announcements}
+          loading={notifications.loading}
+          onCloseToday={notifications.closeToday}
+        />
+      )}
       <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
         <div
           className={cn(

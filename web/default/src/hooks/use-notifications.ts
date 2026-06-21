@@ -104,6 +104,7 @@ function mergeVisibleAnnouncements(
  */
 export function useNotifications() {
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const [forceDialogOpen, setForceDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<NotificationTab>('notice')
 
   // Fetch Notice from API
@@ -249,7 +250,7 @@ export function useNotifications() {
     if (nextTab === 'announcements') {
       markAnnouncementsAsRead()
     }
-    setPopoverOpen(true)
+    setForceDialogOpen(true)
     return true
   }, [
     markNoticeRead,
@@ -264,6 +265,7 @@ export function useNotifications() {
     const today = new Date().toDateString()
     setClosedUntilDate(today)
     setPopoverOpen(false)
+    setForceDialogOpen(false)
   }
 
   return {
@@ -281,15 +283,17 @@ export function useNotifications() {
     popoverOpen,
     setPopoverOpen: handlePopoverOpenChange,
     // Backward-compatible dialog aliases used by force-popup callers.
-    dialogOpen: popoverOpen,
-    setDialogOpen: handlePopoverOpenChange,
+    dialogOpen: forceDialogOpen,
+    setDialogOpen: setForceDialogOpen,
+    forceDialogOpen,
+    setForceDialogOpen,
     activeTab,
     setActiveTab: handleTabChange,
 
     // Actions
     openDialog: handleOpenPopover,
     openForcePopup: handleOpenForcePopup,
-    closeDialog: () => setPopoverOpen(false),
+    closeDialog: () => setForceDialogOpen(false),
     closeToday: handleCloseToday,
     openPopover: handleOpenPopover,
     closePopover: () => setPopoverOpen(false),

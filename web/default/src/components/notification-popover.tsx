@@ -25,6 +25,14 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -60,6 +68,17 @@ interface NotificationPopoverProps {
   announcements: AnnouncementItem[]
   loading: boolean
   className?: string
+}
+
+interface NotificationDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  activeTab: 'notice' | 'announcements'
+  onTabChange: (tab: 'notice' | 'announcements') => void
+  notice: string
+  announcements: AnnouncementItem[]
+  loading: boolean
+  onCloseToday?: () => void
 }
 
 /**
@@ -265,6 +284,93 @@ function AnnouncementsContent({
   )
 }
 
+function NotificationTabs({
+  activeTab,
+  onTabChange,
+  notice,
+  announcements,
+  loading,
+  t,
+}: {
+  activeTab: 'notice' | 'announcements'
+  onTabChange: (tab: 'notice' | 'announcements') => void
+  notice: string
+  announcements: AnnouncementItem[]
+  loading: boolean
+  t: TFunction
+}) {
+  return (
+    <Tabs
+      value={activeTab}
+      onValueChange={onTabChange as (value: string) => void}
+    >
+      <TabsList className='grid w-full grid-cols-2'>
+        <TabsTrigger value='notice' className='gap-1.5'>
+          <Bell className='size-3.5' />
+          {t('Notice')}
+        </TabsTrigger>
+        <TabsTrigger value='announcements' className='gap-1.5'>
+          <Megaphone className='size-3.5' />
+          {t('Timeline')}
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value='notice' className='mt-2'>
+        <NoticeContent notice={notice} loading={loading} t={t} />
+      </TabsContent>
+
+      <TabsContent value='announcements' className='mt-2'>
+        <AnnouncementsContent
+          announcements={announcements}
+          loading={loading}
+          t={t}
+        />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+export function NotificationDialog(props: NotificationDialogProps) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent className='max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] max-w-none gap-3 overflow-hidden p-4 sm:max-w-none'>
+        <DialogHeader className='gap-1'>
+          <DialogTitle>{t('System Announcements')}</DialogTitle>
+          <DialogDescription>
+            {t('Latest platform updates and notices')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <NotificationTabs
+          activeTab={props.activeTab}
+          onTabChange={props.onTabChange}
+          notice={props.notice}
+          announcements={props.announcements}
+          loading={props.loading}
+          t={t}
+        />
+
+        <DialogFooter className='bg-transparent -mx-4 -mb-4 border-t px-4 py-3'>
+          {props.onCloseToday ? (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={props.onCloseToday}
+            >
+              {t('Close Today')}
+            </Button>
+          ) : null}
+          <Button size='sm' onClick={() => props.onOpenChange(false)}>
+            {t('Close')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /**
  * Notification popover with Notice and Announcements tabs
  */
@@ -315,33 +421,14 @@ export function NotificationPopover({
           </p>
         </PopoverHeader>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={onTabChange as (value: string) => void}
-        >
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='notice' className='gap-1.5'>
-              <Bell className='size-3.5' />
-              {t('Notice')}
-            </TabsTrigger>
-            <TabsTrigger value='announcements' className='gap-1.5'>
-              <Megaphone className='size-3.5' />
-              {t('Timeline')}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value='notice' className='mt-2'>
-            <NoticeContent notice={notice} loading={loading} t={t} />
-          </TabsContent>
-
-          <TabsContent value='announcements' className='mt-2'>
-            <AnnouncementsContent
-              announcements={announcements}
-              loading={loading}
-              t={t}
-            />
-          </TabsContent>
-        </Tabs>
+        <NotificationTabs
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          notice={notice}
+          announcements={announcements}
+          loading={loading}
+          t={t}
+        />
 
         <div className='flex justify-end'>
           <Button size='sm' onClick={() => onOpenChange(false)}>
