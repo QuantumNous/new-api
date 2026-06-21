@@ -168,21 +168,33 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.RelayMode != relayconstant.RelayModeResponsesCompact {
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		}
-		requestPath := info.RequestURLPath
-		if info.RelayMode == relayconstant.RelayModeImagesGenerations &&
-			common.UsesAsyncImageTaskUpstream(info.OriginModelName) {
-			if strings.HasSuffix(requestPath, "/images/generations/async") {
-				// APIMart (and similar OpenAI-compatible hubs) return task_id from the sync
-				// /v1/images/generations path; /async is not implemented (404).
-				if strings.Contains(strings.ToLower(info.ChannelBaseUrl), "apimart.ai") {
-					requestPath = strings.TrimSuffix(requestPath, "/async")
-				}
-			} else if strings.HasSuffix(requestPath, "/images/generations") {
-				requestPath = requestPath + "/async"
-			}
-		}
+		requestPath := normalizeImageGenerationsRequestPath(
+			info.RequestURLPath,
+			info.ChannelBaseUrl,
+			info.RelayMode,
+			info.OriginModelName,
+		)
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestPath, info.ChannelType), nil
 	}
+}
+
+// normalizeImageGenerationsRequestPath maps client async/sync paths to upstream capabilities.
+// APIMart serves task_id from POST /v1/images/generations only; /async returns 404.
+func normalizeImageGenerationsRequestPath(requestPath, channelBaseURL string, relayMode int, modelName string) string {
+	if relayMode != relayconstant.RelayModeImagesGenerations || !common.UsesAsyncImageTaskUpstream(modelName) {
+		return requestPath
+	}
+	isApimart := strings.Contains(strings.ToLower(channelBaseURL), "apimart.ai")
+	if strings.HasSuffix(requestPath, "/images/generations/async") {
+		if isApimart {
+			return strings.TrimSuffix(requestPath, "/async")
+		}
+		return requestPath
+	}
+	if strings.HasSuffix(requestPath, "/images/generations") && !isApimart {
+		return requestPath + "/async"
+	}
+	return requestPath
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
