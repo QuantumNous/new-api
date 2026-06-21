@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -69,6 +70,22 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	// Image generation/edits are per-call user-priced like video/MJ tasks:
+	// bill at channel user price (input × recharge × apimaster) × group_ratio × N,
+	// matching ModelPriceHelperPerCall. Unlike those tasks, image relay routes
+	// through this token-path helper, so the override must live here too.
+	// Only fires when a channel pricing row resolves (>0); otherwise the
+	// configured fixed price / channel-ratio fallback below is unchanged.
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations ||
+		info.RelayMode == relayconstant.RelayModeImagesEdits {
+		if channelID := c.GetInt("channel_id"); channelID > 0 {
+			if resolved, err := service.ChannelActualPricesResolved(channelID, info.OriginModelName); err == nil && resolved != nil && resolved.InputPrice > 0 {
+				modelPrice = resolved.InputPrice
+				usePrice = true
+			}
+		}
+	}
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
