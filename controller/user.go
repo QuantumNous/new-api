@@ -327,6 +327,14 @@ func setupLogin(user *model.User, c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	// Return the user's system access token in the body so non-browser surfaces
+	// (JINN desktop, Excel add-in) can authenticate follow-up management calls
+	// via the Authorization header instead of the session cookie. Office
+	// webviews refuse cross-registrable-domain third-party cookies, so the
+	// cookie alone can't carry the session to the cross-origin token-mint calls;
+	// an Authorization-header access token is immune to that restriction. The
+	// browser dashboard ignores this field and keeps using the cookie.
+	accessToken := ensureAccessToken(user)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -337,8 +345,37 @@ func setupLogin(user *model.User, c *gin.Context) {
 			"role":         user.Role,
 			"status":       user.Status,
 			"group":        user.Group,
+			"access_token": accessToken,
 		},
 	})
+}
+
+// ensureAccessToken returns the user's persistent system access token, lazily
+// generating and persisting one on first need. It re-fetches the row when the
+// in-memory user lacks the column so it never clobbers an existing token (some
+// OAuth callers pass a partially-loaded user). Returns "" only if generation or
+// persistence fails, in which case the caller simply omits a usable token.
+func ensureAccessToken(user *model.User) string {
+	if token := user.GetAccessToken(); token != "" {
+		return token
+	}
+	if fresh, err := model.GetUserById(user.Id, true); err == nil && fresh.GetAccessToken() != "" {
+		user.SetAccessToken(fresh.GetAccessToken())
+		return user.GetAccessToken()
+	}
+	randI := common.GetRandomInt(4)
+	key, err := common.GenerateRandomKey(29 + randI)
+	if err != nil {
+		common.SysLog("ensureAccessToken: failed to generate access token: " + err.Error())
+		return ""
+	}
+	user.SetAccessToken(key)
+	if err := user.Update(false); err != nil {
+		common.SysLog("ensureAccessToken: failed to persist access token: " + err.Error())
+		user.SetAccessToken("")
+		return ""
+	}
+	return user.GetAccessToken()
 }
 
 func Logout(c *gin.Context) {
