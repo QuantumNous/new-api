@@ -39,6 +39,7 @@ import {
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
+import { isVideoPerSecondModel } from '../lib/video-billing'
 import type { PricingModel, TokenUnit } from '../types'
 
 // ----------------------------------------------------------------------------
@@ -139,10 +140,16 @@ export function usePricingColumns(
       meta: { label: t('Type') },
       header: t('Type'),
       cell: ({ row }) => {
-        const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
+        const model = row.original
+        const isVideoPerSecond = isVideoPerSecondModel(model.model_name)
+        const isTokenBased = model.quota_type === QUOTA_TYPE_VALUES.TOKEN
         return (
           <span className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-            {isTokenBased ? t('Token') : t('Request')}
+            {isTokenBased
+              ? t('Token')
+              : isVideoPerSecond
+                ? t('Per second')
+                : t('Request')}
           </span>
         )
       },
@@ -262,12 +269,13 @@ export function usePricingColumns(
             usdExchangeRate
           )
         )
+        const isVideoPerSecond = isVideoPerSecondModel(model.model_name)
 
         return (
           <div className='min-w-[100px]'>
             <span className='font-mono text-sm tabular-nums'>{price}</span>
             <div className='text-muted-foreground/50 text-[10px]'>
-              / {t('request')}
+              / {isVideoPerSecond ? t('second') : t('request')}
             </div>
           </div>
         )

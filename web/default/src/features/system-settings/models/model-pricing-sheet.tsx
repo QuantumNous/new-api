@@ -65,6 +65,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import {
+  getVideoPerSecondDetailKey,
+  isVideoPerSecondModel,
+} from '@/features/pricing/lib/video-billing'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 
 const createModelPricingSchema = (t: (key: string) => string) =>
@@ -311,11 +315,16 @@ function buildPreviewRows(
   }
 
   if (mode === 'per-request') {
+    const isVideo = isVideoPerSecondModel(values.name)
     return [
       {
         key: 'price',
-        label: 'ModelPrice',
-        value: values.price || t('Empty'),
+        label: isVideo ? t('Video base price (720p)') : 'ModelPrice',
+        value: values.price
+          ? isVideo
+            ? `$${values.price} / ${t('second')}`
+            : values.price
+          : t('Empty'),
       },
     ]
   }
@@ -615,6 +624,9 @@ export function ModelPricingEditorPanel({
   }
 
   const watchedValues = form.watch()
+  const activeModelName = watchedValues.name || editData?.name || ''
+  const isVideoPerSecond =
+    pricingMode === 'per-request' && isVideoPerSecondModel(activeModelName)
   const previewRows = useMemo(
     () =>
       buildPreviewRows(
@@ -752,7 +764,7 @@ export function ModelPricingEditorPanel({
             </p>
           </div>
           <Badge variant={getModeBadgeVariant(pricingMode)}>
-            {t(getModeLabel(pricingMode))}
+            {t(isVideoPerSecond ? 'Per second' : getModeLabel(pricingMode))}
           </Badge>
         </div>
       </div>
@@ -861,7 +873,11 @@ export function ModelPricingEditorPanel({
                     name='price'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Fixed price')}</FormLabel>
+                        <FormLabel>
+                          {isVideoPerSecond
+                            ? t('Video base price (720p)')
+                            : t('Fixed price')}
+                        </FormLabel>
                         <FormControl>
                           <InputGroup>
                             <InputGroupAddon>$</InputGroupAddon>
@@ -877,14 +893,20 @@ export function ModelPricingEditorPanel({
                               }}
                             />
                             <InputGroupAddon align='inline-end'>
-                              {t('per request')}
+                              {isVideoPerSecond
+                                ? t('per second')
+                                : t('per request')}
                             </InputGroupAddon>
                           </InputGroup>
                         </FormControl>
                         <FormDescription>
-                          {t(
-                            'Cost in USD per request, regardless of tokens used.'
-                          )}
+                          {isVideoPerSecond
+                            ? t(
+                                getVideoPerSecondDetailKey(activeModelName)
+                              )
+                            : t(
+                                'Cost in USD per request, regardless of tokens used.'
+                              )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

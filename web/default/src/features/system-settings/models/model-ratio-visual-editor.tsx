@@ -59,6 +59,12 @@ import {
   combineBillingExpr,
   splitBillingExprAndRequestRules,
 } from '@/features/pricing/lib/billing-expr'
+import {
+  getVideoPerSecondDefaultPrice,
+  getVideoPerSecondDetailKey,
+  isVideoPerSecondModel,
+  VIDEO_PER_SECOND_DEFAULT_PRICES,
+} from '@/features/pricing/lib/video-billing'
 import { safeJsonParse } from '../utils/json-parser'
 import {
   ModelPricingEditorPanel,
@@ -126,15 +132,40 @@ const filterBySelectedValues = (
 }
 
 const getModeLabel = (mode?: string) => {
+  if (mode === 'per-second') return 'Per second'
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
 }
 
 const getModeVariant = (mode?: string): 'warning' | 'info' | 'success' => {
+  if (mode === 'per-second') return 'warning'
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
   return 'success'
+}
+
+const resolveRowPrice = (
+  name: string,
+  priceMap: Record<string, number>
+): string => {
+  if (priceMap[name] !== undefined) {
+    return priceMap[name].toString()
+  }
+  const defaultPrice = getVideoPerSecondDefaultPrice(name)
+  return defaultPrice !== undefined ? formatPrice(defaultPrice) : ''
+}
+
+const resolveBillingMode = (
+  name: string,
+  price: string,
+  modeForModel?: string
+): ModelRow['billingMode'] => {
+  if (modeForModel === 'tiered_expr') return 'tiered_expr'
+  if (price !== '') {
+    return isVideoPerSecondModel(name) ? 'per-second' : 'per-request'
+  }
+  return 'per-token'
 }
 
 const getExpressionSummary = (row: ModelRow, t: (key: string) => string) => {
@@ -148,6 +179,9 @@ const getExpressionSummary = (row: ModelRow, t: (key: string) => string) => {
 const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
+  }
+  if (row.billingMode === 'per-second') {
+    return row.price ? `$${row.price} / ${t('second')}` : t('Unset price')
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -175,6 +209,9 @@ const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  if (row.billingMode === 'per-second') {
+    return t(getVideoPerSecondDetailKey(row.name))
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
@@ -320,10 +357,11 @@ export const ModelRatioVisualEditor = memo(
         ...Object.keys(audioCompletionMap),
         ...Object.keys(billingModeMap),
         ...Object.keys(billingExprMap),
+        ...Object.keys(VIDEO_PER_SECOND_DEFAULT_PRICES),
       ])
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
-        const price = priceMap[name]?.toString() || ''
+        const price = resolveRowPrice(name, priceMap)
         const ratio = ratioMap[name]?.toString() || ''
         const cache = cacheMap[name]?.toString() || ''
         const createCache = createCacheMap[name]?.toString() || ''
@@ -367,7 +405,7 @@ export const ModelRatioVisualEditor = memo(
           imageRatio: image,
           audioRatio: audio,
           audioCompletionRatio: audioCompletion,
-          billingMode: price !== '' ? 'per-request' : 'per-token',
+          billingMode: resolveBillingMode(name, price, modeForModel),
           hasConflict:
             price !== '' &&
             (ratio !== '' ||
@@ -399,6 +437,7 @@ export const ModelRatioVisualEditor = memo(
         models.reduce(
           (acc, model) => {
             const mode =
+              model.billingMode === 'per-second' ||
               model.billingMode === 'per-request' ||
               model.billingMode === 'tiered_expr'
                 ? model.billingMode
@@ -408,9 +447,13 @@ export const ModelRatioVisualEditor = memo(
           },
           {
             'per-token': 0,
+            'per-second': 0,
             'per-request': 0,
             tiered_expr: 0,
-          } as Record<'per-token' | 'per-request' | 'tiered_expr', number>
+          } as Record<
+            'per-token' | 'per-second' | 'per-request' | 'tiered_expr',
+            number
+          >
         ),
       [models]
     )
@@ -896,6 +939,11 @@ export const ModelRatioVisualEditor = memo(
                       label: 'Per-request',
                       value: 'per-request',
                       count: modeCounts['per-request'],
+                    },
+                    {
+                      label: 'Per second',
+                      value: 'per-second',
+                      count: modeCounts['per-second'],
                     },
                     {
                       label: 'Expression',
