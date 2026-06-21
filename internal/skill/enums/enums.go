@@ -215,20 +215,24 @@ func (e SkillUsageEventType) Valid() bool { _, ok := validSkillUsageEventTypes[e
 type EntryPoint string
 
 const (
-	EntryPointMarketplaceCard  EntryPoint = "marketplace_card"
-	EntryPointSkillDetail      EntryPoint = "skill_detail"
-	EntryPointMySkills         EntryPoint = "my_skills"
-	EntryPointSavedList        EntryPoint = "saved_list"
-	EntryPointPlaygroundPicker EntryPoint = "playground_picker"
-	EntryPointFeatured         EntryPoint = "featured"
-	EntryPointPopular          EntryPoint = "popular"
-	EntryPointNew              EntryPoint = "new"
-	EntryPointRecommended      EntryPoint = "recommended"
-	EntryPointAdminPreview     EntryPoint = "admin_preview"
-	EntryPointSearchResults    EntryPoint = "search_results"
-	// EntryPointSkillPackage is recorded when a user downloads the zip package
-	// from the Marketplace (DR-81). Used by the analytics skill_enabled event.
+	EntryPointMarketplaceCard EntryPoint = "marketplace_card"
+	EntryPointSkillDetail     EntryPoint = "skill_detail"
+	EntryPointMySkills        EntryPoint = "my_skills"
+	EntryPointSavedList       EntryPoint = "saved_list"
+	EntryPointFeatured        EntryPoint = "featured"
+	EntryPointPopular         EntryPoint = "popular"
+	EntryPointNew             EntryPoint = "new"
+	EntryPointRecommended     EntryPoint = "recommended"
+	EntryPointAdminPreview    EntryPoint = "admin_preview"
+	EntryPointSearchResults   EntryPoint = "search_results"
+	// EntryPointSkillPackage is the primary R2 execution entry for downloaded
+	// Skill packages calling the public routing API. It is also used by the
+	// package-download skill_enabled event.
 	EntryPointSkillPackage EntryPoint = "skill_package"
+	// EntryPointPlaygroundPicker is retained only so historical Playground
+	// execution events continue to parse. New V1/R2 execution flows must emit
+	// EntryPointSkillPackage instead.
+	EntryPointPlaygroundPicker EntryPoint = "playground_picker"
 )
 
 var validEntryPoints = map[EntryPoint]struct{}{

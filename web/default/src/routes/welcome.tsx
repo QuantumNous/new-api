@@ -20,18 +20,14 @@ import { z } from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { Welcome } from '@/features/welcome'
 
-// Wizard step is encoded in the URL so browser back/forward and refresh
-// land on the same step the user was on. Default = 'persona' (step 1).
+// The welcome screen is now single-page (result + 3 steps + optional
+// persona). The `step` search param is kept for backward-compatible deep
+// links / bookmarks (?step=...) but is no longer used to drive the UI.
 const welcomeSearchSchema = z.object({
   step: z.enum(['persona', 'brand']).optional(),
 })
 
 export const Route = createFileRoute('/welcome')({
-  component: RouteComponent,
+  component: Welcome,
   validateSearch: welcomeSearchSchema,
 })
-
-function RouteComponent() {
-  const { step = 'persona' } = Route.useSearch()
-  return <Welcome step={step} />
-}

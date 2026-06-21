@@ -57,7 +57,7 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `evaluation_issue_type` | `format`, `completeness`, `task_completion`, `violation` |
 | `save_type` | `saved`, `favorited` |
 | `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `plan_required`, `subscription_inactive`, `kids_mode_blocked`, `evaluation_not_passed` |
-| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results`, `skill_package` |
+| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results`, `skill_package`, `playground_picker` (legacy parse only) |
 | `tier2_event_type` | `skill_installed`, `skill_used_local` |
 
 ---
@@ -278,6 +278,7 @@ Rules:
 - Any required user-level safety/audit trace must live in restricted audit/support systems, not business analytics.
 - `metadata` is allowlisted, not free-form. V1 allowed analytics metadata keys are `source_entry_point`, `repeat_index`, `surface_id`, `card_position`, `query_hash`, `filter_hash`, `schema_version`, `producer`, and `client_event_time`.
 - `metadata.source_entry_point` must use the same `entry_point` enum when present.
+- New R2 Skill package execution producers must emit `entry_point=skill_package`. `playground_picker` remains in the enum only so historical Playground analytics rows and legacy payloads continue to parse; new V1/R2 flows must not emit it.
 - `metadata.repeat_index` must be a positive integer when present and is required for `skill_repeat_use` until promoted to a first-class column.
 - Restricted keys such as `instruction_template`, `prompt`, `system_prompt`, `raw_messages`, `provider_payload`, `kids_raw_input`, `full_user_input`, `raw_output`, and `model_output` must be rejected or quarantined.
 
@@ -724,7 +725,7 @@ The Detail response is public metadata only and must not include provider raw co
 - Returns the versioned zip package (manifest + published `instruction_template` + thin client) for the active published version, pinned to `skill_version_id`.
 - Requires a logged-in, entitled user; archived/draft are 403/404 per the entitlement table.
 - The package must not contain provider credentials, server routing/model-selection logic, or draft templates.
-- Emits `skill_enabled` (download) with `entry_point` of the originating surface.
+- Emits `skill_enabled` (download) with `entry_point=skill_package`; the originating surface, when needed, belongs in allowlisted `metadata.source_entry_point`.
 - The package's bundled client targets the public routing API (§9) and authenticates with the runner's own DeepRouter credential at runtime.
 
 ### 8.3 My Skills

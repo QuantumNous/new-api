@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, ArrowRight, Check, Copy, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -48,19 +48,6 @@ type ApiKeyIntegrationDialogProps = {
   apiKey?: string | null
   purpose?: SimplePurposeId | string
 }
-
-const CLIENTS: Array<{ name: string; tagline: string; href: string }> = [
-  {
-    name: 'Cherry Studio',
-    tagline: 'Chat / writing — Mac / Win / Linux',
-    href: 'https://cherry-ai.com',
-  },
-  {
-    name: 'Chatbox',
-    tagline: 'Lightweight desktop chat client',
-    href: 'https://chatboxai.app',
-  },
-]
 
 const LANGUAGES: Array<{ id: IntegrationLanguage; label: string }> = [
   { id: 'claude-code', label: 'Claude Code' },
@@ -192,25 +179,6 @@ export function ApiKeyIntegrationDialog({
                     'Prefer a ready-made app? Open its settings, find the "API key" and "Base URL" (sometimes "Endpoint") fields, paste both, and save.'
                   )}
                 </p>
-                <div className='mt-3 grid gap-2 sm:grid-cols-3'>
-                  {CLIENTS.map((c) => (
-                    <a
-                      key={c.name}
-                      href={c.href}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='group bg-background hover:border-foreground/40 flex flex-col rounded-md border p-2 transition-colors'
-                    >
-                      <span className='flex items-center justify-between text-[11px] font-medium'>
-                        {c.name}
-                        <ExternalLink className='text-muted-foreground group-hover:text-foreground h-3 w-3' />
-                      </span>
-                      <span className='text-muted-foreground text-[10px]'>
-                        {c.tagline}
-                      </span>
-                    </a>
-                  ))}
-                </div>
               </TabsContent>
             </Tabs>
           )}

@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/common"
 	skillhandler "github.com/QuantumNous/new-api/internal/skill/handler"
+	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/middleware"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/gzip"
@@ -10,10 +11,10 @@ import (
 )
 
 func SetSkillRouter(router *gin.Engine) {
-	if platformmodel.DB == nil {
-		panic("SetSkillRouter: platform DB is nil — skill routes require a live DB connection")
+	if platformmodel.DB != nil {
+		skillhandler.SetDB(platformmodel.DB)
+		skillrelay.SetDB(platformmodel.DB)
 	}
-	skillhandler.SetDB(platformmodel.DB)
 
 	v1 := router.Group("/api/v1")
 	v1.Use(middleware.RouteTag("skill_api"))
