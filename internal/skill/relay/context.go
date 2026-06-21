@@ -18,7 +18,7 @@ import (
 type SkillRelayContext struct {
 	RequestID      string
 	SkillID        string
-	SkillVersionID string             // populated by LoadAndApply (DR-68) after version snapshot is loaded
+	SkillVersionID string // populated by LoadAndApply (DR-68) after version snapshot is loaded
 	UserID         int
 	IsKidsSession  bool
 	Plan           enums.RequiredPlan

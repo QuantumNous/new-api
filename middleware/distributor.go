@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/internal/skill/errcodes"
+	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -35,6 +38,14 @@ func Distribute() func(c *gin.Context) {
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+			return
+		}
+		// DR-68: skill requests must choose their model from the server SkillVersion
+		// snapshot before token model limits, smart-router, and channel selection run.
+		// This prevents a downloaded package from steering routing through its
+		// client-supplied model/history/system hints.
+		if errCode := prepareSkillRelayForDistribution(c, modelRequest); errCode != "" {
+			abortWithOpenAiMessage(c, errcodes.HTTPStatusFor(errCode), string(errCode), types.ErrorCode(errCode))
 			return
 		}
 		// DeepRouter smart routing: deeprouter-auto triggers an HTTP call
@@ -197,6 +208,64 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func prepareSkillRelayForDistribution(c *gin.Context, modelRequest *ModelRequest) errcodes.ErrorCode {
+	if modelRequest == nil || relayconstant.Path2RelayMode(c.Request.URL.Path) != relayconstant.RelayModeChatCompletions {
+		return ""
+	}
+
+	var request dto.GeneralOpenAIRequest
+	if err := common.UnmarshalBodyReusable(c, &request); err != nil {
+		return errcodes.ErrInvalidRequest
+	}
+	if request.Deeprouter == nil || request.Deeprouter.SkillID == "" {
+		return ""
+	}
+
+	skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+	if errCode != "" {
+		return errCode
+	}
+	rewritten, errCode := skillrelay.LoadAndApply(skillCtx, &request)
+	if errCode != "" {
+		return errCode
+	}
+	// Keep the skill marker only until TextHelper sees it and strips it before
+	// provider forwarding. All other client-controlled provider params were dropped.
+	rewritten.Deeprouter = request.Deeprouter
+
+	if errCode := replaceReusableRequestBody(c, rewritten); errCode != "" {
+		return errCode
+	}
+	modelRequest.Model = rewritten.Model
+	skillrelay.Set(c, skillCtx)
+	return ""
+}
+
+func replaceReusableRequestBody(c *gin.Context, request *dto.GeneralOpenAIRequest) errcodes.ErrorCode {
+	jsonData, err := common.Marshal(request)
+	if err != nil {
+		return errcodes.ErrSkillInternalError
+	}
+	storage, err := common.CreateBodyStorage(jsonData)
+	if err != nil {
+		return errcodes.ErrSkillInternalError
+	}
+	if old, exists := c.Get(common.KeyBodyStorage); exists {
+		if oldStorage, ok := old.(common.BodyStorage); ok && oldStorage != nil {
+			_ = oldStorage.Close()
+		}
+	}
+	if _, err := storage.Seek(0, io.SeekStart); err != nil {
+		_ = storage.Close()
+		return errcodes.ErrSkillInternalError
+	}
+	c.Set(common.KeyBodyStorage, storage)
+	c.Request.Body = io.NopCloser(storage)
+	c.Request.ContentLength = int64(len(jsonData))
+	c.Request.Header.Set("Content-Type", "application/json")
+	return ""
 }
 
 // getModelFromRequest 从请求中读取模型信息

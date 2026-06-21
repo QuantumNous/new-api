@@ -216,6 +216,35 @@ func TestRewriteForSingleTurn_DoesNotMutateOriginalRequest(t *testing.T) {
 	assert.Equal(t, origMsgs, len(req.Messages), "original messages must not be mutated")
 }
 
+func TestRewriteForSingleTurn_StripsClientControlledProviderFields(t *testing.T) {
+	stream := true
+	includeUsage := &dto.StreamOptions{IncludeUsage: true}
+	temperature := 0.9
+	maxTokens := uint(99)
+	req := userOnlyRequest("hello")
+	req.Stream = &stream
+	req.StreamOptions = includeUsage
+	req.Temperature = &temperature
+	req.MaxTokens = &maxTokens
+	req.ToolChoice = "required"
+	req.ResponseFormat = &dto.ResponseFormat{Type: "json_object"}
+	req.User = json.RawMessage(`{"user_id":999,"tenant_id":"evil"}`)
+	req.Metadata = json.RawMessage(`{"route_hint":"expensive"}`)
+
+	got, errCode := rewriteForSingleTurn(req, "server template", "server-model")
+
+	require.Equal(t, errcodes.ErrorCode(""), errCode)
+	assert.Equal(t, "server-model", got.Model)
+	assert.Same(t, req.Stream, got.Stream, "stream flag is an execution transport option and should survive")
+	assert.Same(t, req.StreamOptions, got.StreamOptions, "stream usage option should survive")
+	assert.Nil(t, got.Temperature, "client generation params must not be forwarded for skill relay")
+	assert.Nil(t, got.MaxTokens, "client token cap must not override server execution snapshot")
+	assert.Nil(t, got.ToolChoice, "client tool routing hints must not be forwarded")
+	assert.Nil(t, got.ResponseFormat, "client response format hints must not be forwarded")
+	assert.Empty(t, got.User, "package-supplied user identity must not reach provider payload")
+	assert.Empty(t, got.Metadata, "package-supplied metadata/routing hints must not reach provider payload")
+}
+
 // ── loadAndApply integration tests ───────────────────────────────────────────
 
 func TestLoadAndApply_HappyPath(t *testing.T) {

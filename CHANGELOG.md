@@ -2,8 +2,9 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
-## 2026-06-21 (DR-68)
+## 2026-06-21
 
+- DR-68 pre-PR 修复：`middleware/distributor.go` 在 token model limit、smart-router 和 channel selection 之前加载 SkillVersion snapshot 并重写 reusable request body，确保 package/client 提供的 `model`、system/history 与 routing hints 不能参与路由；`rewriteForSingleTurn` 改为白名单构造 provider payload，仅保留 server-selected model、`instruction_template` + last user message，以及 stream 传输选项；新增 `middleware/distributor_skill_test.go` 覆盖 smart-router 只能看到 server snapshot context。
 - DR-68 server-side routing/model-selection + provider call rewrite：新增 `internal/skill/relay/executor.go`（`LoadAndApply`、`loadSnapshot`、`selectModel`、`rewriteForSingleTurn`）；`internal/skill/relay/context.go` 新增 `SkillVersionID` 字段；`relay/compatible_handler.go` 將 `LoadAndApply` 移至 `applyAirbotixPolicy` 之後執行（修復 D5：kids_mode 對 whitelist 虛擬模型名 "deeprouter-auto" 的錯誤拒絕），從 `model_whitelist_snapshot` 選取 server-authoritative 模型（client 提供的 `model` 字段丟棄），注入 `instruction_template` 為 system message，剝除所有多輪歷史（FR-G19 stateless single-turn）；空 whitelist → `SKILL_INTERNAL_ERROR`（500），無 user 訊息 → `INVALID_REQUEST`（400）；修復 D4：channel-level `SystemPrompt` 注入現在對 skill relay 請求跳過（`instruction_template` 是唯一權威 system message）；移除 `loadSnapshot` 中的 dead `errors.Is` 分支（D7）；`rewriteForSingleTurn` 加 V1 text-only 限制注釋（D3）；新增 `internal/skill/relay/executor_test.go`（19 個單元測試覆蓋 `loadSnapshot`/`selectModel`/`rewriteForSingleTurn`/`loadAndApply` 所有路徑）；更新 `relay/compatible_handler_skill_test.go`（新增 `insertVersionForSkill` helper，補 SkillVersion fixture + user message 到 4 個已有測試，新增 `TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed` 整合測試驗 SkillVersionID 被正確填充）；新增 `docs/tasks/dr68-routing-model-selection-prd.md`
 
 

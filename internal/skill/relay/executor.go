@@ -137,8 +137,11 @@ func rewriteForSingleTurn(request *dto.GeneralOpenAIRequest, instructionTemplate
 		return nil, errcodes.ErrInvalidRequest
 	}
 
-	built := *request // shallow copy; Messages and Model are replaced below
-	built.Model = model
+	built := &dto.GeneralOpenAIRequest{
+		Model:         model,
+		Stream:        request.Stream,
+		StreamOptions: request.StreamOptions,
+	}
 
 	systemMsg := dto.Message{Role: "system"}
 	systemMsg.SetStringContent(instructionTemplate)
@@ -146,5 +149,5 @@ func rewriteForSingleTurn(request *dto.GeneralOpenAIRequest, instructionTemplate
 	userMsg.SetStringContent(userContent)
 	built.Messages = []dto.Message{systemMsg, userMsg}
 
-	return &built, ""
+	return built, ""
 }
