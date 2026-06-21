@@ -28,6 +28,30 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+// normalizeDistributorUsingGroup returns the token/user routing group, falling back to
+// "default" when the context holds a stale or pricing-only label (e.g. key_group "image").
+func normalizeDistributorUsingGroup(c *gin.Context) string {
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if tokenGroup := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyTokenGroup)); tokenGroup != "" {
+		usingGroup = tokenGroup
+	} else if userGroup := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyUserGroup)); userGroup != "" {
+		usingGroup = userGroup
+	}
+	usingGroup = strings.TrimSpace(usingGroup)
+	if usingGroup == "" {
+		usingGroup = service.AutoCheapestGroup
+	}
+	if usingGroup == service.AutoCheapestGroup || usingGroup == "auto" {
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+		return usingGroup
+	}
+	if _, ok := service.GetUserUsableGroups(usingGroup)[usingGroup]; !ok {
+		usingGroup = service.AutoCheapestGroup
+	}
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+	return usingGroup
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -89,7 +113,7 @@ func Distribute() func(c *gin.Context) {
 					return
 				}
 				var selectGroup string
-				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				usingGroup := normalizeDistributorUsingGroup(c)
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}
@@ -329,6 +353,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/tasks/") {
 		modelRequest.Model = common.GetStringIfEmpty(c.Query("model"), "gpt-image-2")
+		// Task poll must reuse the submit channel (see RelayImageTask); distributor
+		// re-selection can fail when token group ≠ channel key_group pricing label.
+		if c.Request.Method == http.MethodGet {
+			shouldSelectChannel = false
+		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
 		contentType := c.ContentType()

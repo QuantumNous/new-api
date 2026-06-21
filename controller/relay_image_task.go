@@ -10,6 +10,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,7 +33,23 @@ func RelayImageTask(c *gin.Context) {
 		return
 	}
 
+	modelName := common.GetStringIfEmpty(c.Query("model"), "gpt-image-2")
+
 	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
+	if baseURL == "" {
+		if err := setupImageTaskPollChannel(c, modelName, taskID); err != nil {
+			requestId := c.GetString(common.RequestIdKey)
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": gin.H{
+					"message": common.MessageWithRequestId(err.Error(), requestId),
+					"type":    "new_api_error",
+					"code":    types.ErrorCodeModelNotFound,
+				},
+			})
+			return
+		}
+		baseURL = strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
+	}
 	if baseURL == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -85,4 +105,42 @@ func RelayImageTask(c *gin.Context) {
 		contentType = "application/json"
 	}
 	c.Data(resp.StatusCode, contentType, body)
+}
+
+func setupImageTaskPollChannel(c *gin.Context, modelName, taskID string) error {
+	userID := c.GetInt("id")
+
+	if channelID, ok := model.FindChannelIDForImageTask(userID, taskID); ok {
+		ch, err := model.GetChannelById(channelID, true)
+		if err == nil && ch != nil && ch.Status == common.ChannelStatusEnabled {
+			if policyErr := service.ValidateChannelClientPolicy(c, ch, modelName); policyErr == nil {
+				if setupErr := middleware.SetupContextForSelectedChannel(c, ch, modelName); setupErr == nil {
+					return nil
+				}
+			}
+		}
+	}
+
+	if channelID, ok := model.FindRecentImageChannelID(userID, 2*3600); ok {
+		ch, err := model.GetChannelById(channelID, true)
+		if err == nil && ch != nil && ch.Status == common.ChannelStatusEnabled {
+			if policyErr := service.ValidateChannelClientPolicy(c, ch, modelName); policyErr == nil {
+				if setupErr := middleware.SetupContextForSelectedChannel(c, ch, modelName); setupErr == nil {
+					return nil
+				}
+			}
+		}
+	}
+
+	ch, err := service.SelectCheapestEnabledChannel(c, modelName)
+	if err != nil {
+		return fmt.Errorf("no available channel for model %s (task poll): %v", modelName, err)
+	}
+	if ch == nil {
+		return fmt.Errorf("no available channel for model %s (task poll)", modelName)
+	}
+	if setupErr := middleware.SetupContextForSelectedChannel(c, ch, modelName); setupErr != nil {
+		return fmt.Errorf("failed to configure channel for task poll: %s", setupErr.Error())
+	}
+	return nil
 }

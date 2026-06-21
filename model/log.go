@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -71,6 +72,40 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
 	formatUserLogs(logs, 0)
 	return logs, err
+}
+
+// FindChannelIDForImageTask looks up which channel submitted an async image task (task_id in log content).
+func FindChannelIDForImageTask(userID int, taskID string) (int, bool) {
+	if userID <= 0 || strings.TrimSpace(taskID) == "" {
+		return 0, false
+	}
+	var row Log
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND model_name LIKE ? AND content LIKE ?", userID, "gpt-image%", "%"+taskID+"%").
+		Order("id DESC").
+		First(&row).Error
+	if err != nil || row.ChannelId <= 0 {
+		return 0, false
+	}
+	return row.ChannelId, true
+}
+
+// FindRecentImageChannelID returns the channel from the user's latest gpt-image consume within withinSec.
+func FindRecentImageChannelID(userID int, withinSec int64) (int, bool) {
+	if userID <= 0 || withinSec <= 0 {
+		return 0, false
+	}
+	since := common.GetTimestamp() - withinSec
+	var row Log
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND model_name LIKE ? AND type = ? AND channel_id > 0 AND created_at >= ?",
+			userID, "gpt-image%", LogTypeConsume, since).
+		Order("id DESC").
+		First(&row).Error
+	if err != nil || row.ChannelId <= 0 {
+		return 0, false
+	}
+	return row.ChannelId, true
 }
 
 func RecordLog(userId int, logType int, content string) {
