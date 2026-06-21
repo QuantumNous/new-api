@@ -19,16 +19,32 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { formatLogQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { useIsAdmin } from '@/hooks/use-admin'
-import { Skeleton } from '@/components/ui/skeleton'
+
 import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
 import { buildApiParams } from '../lib/utils'
+import type { LogStatistics } from '../types'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
+
+function statNumber(value: number | undefined): number {
+  return Number.isFinite(value) ? Number(value) : 0
+}
+
+function formatStatNumber(value: number): string {
+  return new Intl.NumberFormat().format(value)
+}
 
 function StatBadge(props: {
   label: string
@@ -43,6 +59,88 @@ function StatBadge(props: {
         {props.value}
       </span>
     </span>
+  )
+}
+
+function TpmBreakdownHoverCard(props: { stats: LogStatistics | undefined }) {
+  const { t } = useTranslation()
+  const tpmStats = {
+    cacheRead: statNumber(props.stats?.cache_read_tokens),
+    cacheWrite: statNumber(props.stats?.cache_write_tokens),
+    input: statNumber(props.stats?.input_tokens),
+    output: statNumber(props.stats?.output_tokens),
+  }
+  const tpmTotal = statNumber(props.stats?.tpm)
+  const tpmItems = [
+    {
+      label: t('Cache Read'),
+      value: tpmStats.cacheRead,
+      accent: 'bg-emerald-500/70',
+    },
+    {
+      label: t('Cache Write'),
+      value: tpmStats.cacheWrite,
+      accent: 'bg-amber-500/75',
+    },
+    {
+      label: t('Input'),
+      value: tpmStats.input,
+      accent: 'bg-sky-500/70',
+    },
+    {
+      label: t('Output'),
+      value: tpmStats.output,
+      accent: 'bg-violet-500/70',
+    },
+  ]
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger
+        delay={0}
+        closeDelay={80}
+        render={
+          <span>
+            <StatBadge
+              label={t('TPM')}
+              value={formatStatNumber(tpmTotal)}
+              accent='bg-slate-400/70'
+            />
+          </span>
+        }
+      />
+      <HoverCardContent
+        align='end'
+        className='w-auto max-w-[calc(100vw-2rem)] min-w-[280px] p-3'
+      >
+        <div className='flex items-center justify-between gap-6 border-b pb-2'>
+          <span className='text-muted-foreground text-xs font-medium'>
+            {t('TPM')}
+          </span>
+          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+            {formatStatNumber(tpmTotal)}
+          </span>
+        </div>
+        <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>
+          {tpmItems.map((item) => (
+            <div
+              key={item.label}
+              className='border-border/60 bg-muted/25 rounded-md border px-2.5 py-2'
+            >
+              <div className='mb-1 flex items-center gap-1.5'>
+                <span className={cn('h-2 w-2 rounded-full', item.accent)} />
+                <span className='text-muted-foreground text-xs'>
+                  {item.label}
+                </span>
+              </div>
+              <div className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                {formatStatNumber(item.value)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 
@@ -96,11 +194,7 @@ export function CommonLogsStats() {
         value={stats?.rpm || 0}
         accent='bg-rose-500/65'
       />
-      <StatBadge
-        label={t('TPM')}
-        value={stats?.tpm || 0}
-        accent='bg-slate-400/70'
-      />
+      <TpmBreakdownHoverCard stats={stats} />
     </div>
   )
 }

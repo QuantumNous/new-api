@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -548,26 +549,112 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 }
 
 type Stat struct {
-	Quota int `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Quota            int `json:"quota"`
+	Rpm              int `json:"rpm"`
+	Tpm              int `json:"tpm"`
+	CacheReadTokens  int `json:"cache_read_tokens"`
+	CacheWriteTokens int `json:"cache_write_tokens"`
+	InputTokens      int `json:"input_tokens"`
+	OutputTokens     int `json:"output_tokens"`
+}
+
+func statOtherInt(other map[string]interface{}, keys ...string) int {
+	if other == nil {
+		return 0
+	}
+	for _, key := range keys {
+		value, ok := other[key]
+		if !ok {
+			continue
+		}
+		switch typedValue := value.(type) {
+		case int:
+			return typedValue
+		case int64:
+			return int(typedValue)
+		case float64:
+			return int(typedValue)
+		case string:
+			number, _ := strconv.Atoi(strings.TrimSpace(typedValue))
+			return number
+		}
+	}
+	return 0
+}
+
+func statOtherString(other map[string]interface{}, key string) string {
+	if other == nil {
+		return ""
+	}
+	value, ok := other[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return text
+}
+
+func addRecentTpmBreakdown(stat *Stat, baseTx *gorm.DB, recentStart int64) error {
+	var logs []*Log
+	if err := baseTx.Where("created_at >= ? AND type = ?", recentStart, LogTypeConsume).
+		Select("prompt_tokens, completion_tokens, other").
+		Find(&logs).Error; err != nil {
+		return err
+	}
+
+	for _, log := range logs {
+		other, _ := common.StrToMap(log.Other)
+		cacheRead := statOtherInt(other, "cache_tokens")
+		cacheWrite := statOtherInt(other, "cache_creation_tokens")
+		if cacheWrite == 0 {
+			cacheWrite = statOtherInt(other, "cache_creation_tokens_5m") + statOtherInt(other, "cache_creation_tokens_1h")
+		}
+
+		input := log.PromptTokens
+		if statOtherString(other, "usage_semantic") != "anthropic" {
+			input -= cacheRead + cacheWrite
+		}
+		if input < 0 {
+			input = 0
+		}
+
+		output := log.CompletionTokens
+		if output < 0 {
+			output = 0
+		}
+
+		stat.CacheReadTokens += cacheRead
+		stat.CacheWriteTokens += cacheWrite
+		stat.InputTokens += input
+		stat.OutputTokens += output
+	}
+	stat.Tpm = stat.CacheReadTokens + stat.CacheWriteTokens + stat.InputTokens + stat.OutputTokens
+	return nil
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+	rpmQuery := LOG_DB.Table("logs").Select("count(*) rpm")
+	tpmQuery := LOG_DB.Table("logs")
 
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err
 	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+	if rpmQuery, err = applyExplicitLogTextFilter(rpmQuery, "username", username); err != nil {
+		return stat, err
+	}
+	if tpmQuery, err = applyExplicitLogTextFilter(tpmQuery, "username", username); err != nil {
 		return stat, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
-		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+		rpmQuery = rpmQuery.Where("token_name = ?", tokenName)
+		tpmQuery = tpmQuery.Where("token_name = ?", tokenName)
 	}
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
@@ -578,31 +665,41 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
 		return stat, err
 	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
+	if rpmQuery, err = applyExplicitLogTextFilter(rpmQuery, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if tpmQuery, err = applyExplicitLogTextFilter(tpmQuery, "model_name", modelName); err != nil {
 		return stat, err
 	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
-		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
+		rpmQuery = rpmQuery.Where("channel_id = ?", channel)
+		tpmQuery = tpmQuery.Where("channel_id = ?", channel)
 	}
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
-		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+		rpmQuery = rpmQuery.Where(logGroupCol+" = ?", group)
+		tpmQuery = tpmQuery.Where(logGroupCol+" = ?", group)
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)
-	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	rpmQuery = rpmQuery.Where("type = ?", LogTypeConsume)
 
 	// 只统计最近60秒的rpm和tpm
-	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+	recentStart := time.Now().Add(-60 * time.Second).Unix()
+	rpmQuery = rpmQuery.Where("created_at >= ?", recentStart)
 
 	// 执行查询
 	if err := tx.Scan(&stat).Error; err != nil {
 		common.SysError("failed to query log stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
-	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
-		common.SysError("failed to query rpm/tpm stat: " + err.Error())
+	if err := rpmQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query rpm stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if err := addRecentTpmBreakdown(&stat, tpmQuery, recentStart); err != nil {
+		common.SysError("failed to query tpm breakdown stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
 
