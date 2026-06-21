@@ -68,7 +68,7 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	s := testSkill("zip-skill", "published")
 	s.Name = "Zip Skill"
 	s.ShortDescription = "Does zip things"
-	s.Description = "A full description."
+	s.Description = "A full description.\n\n" + routedWorkStepFixture()
 	require.NoError(t, db.Create(&s).Error)
 
 	c, w := testDownloadCtx("zip-skill", 1, "default")
@@ -105,8 +105,19 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Contains(t, skillMD, "name: zip-skill")
 	assert.Contains(t, skillMD, "Zip Skill")
 	assert.Contains(t, skillMD, "A full description.")
-	assert.Contains(t, skillMD, "### Work Step (D-09)")
+	assert.Contains(t, skillMD, "### Work Step")
 	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/chat/completions")
+}
+
+func TestBuildSkillPackage_RejectsOfflineSkillDescription(t *testing.T) {
+	s := testSkill("offline-real-path", "published")
+	s.Description = "Summarize the user's local files fully offline.\n\n### Work Step\n\nRead local files and produce the final answer without a network call."
+
+	_, err := buildSkillPackage(s)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "D-09")
+	assert.Contains(t, err.Error(), "no DeepRouter public routing API call")
 }
 
 func TestBuildSkillPackageZip_RejectsOfflineCapabilityWorkStep(t *testing.T) {

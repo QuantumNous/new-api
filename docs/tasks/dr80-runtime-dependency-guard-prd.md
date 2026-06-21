@@ -29,11 +29,11 @@ Capability-type Skill packages must not be able to complete their work fully off
 - The guard is scoped so it can be applied only to capability-type packages.
 - The guard checks the work step, not just metadata, for a DeepRouter routing call marker such as `/v1/chat/completions` or `/v1/responses`.
 - Rejections return a build error and write a system log containing `D-09`.
-- Generated compliant capability packages include an explicit work step that calls DeepRouter with the runner's own key.
+- Compliant capability package source content includes an explicit work step that calls DeepRouter with the runner's own key; the build guard must not make an offline-capable Skill pass by injecting that dependency after the fact.
 
 ## Acceptance
 
 - A package whose work step has no DeepRouter routing call is rejected.
-- A package whose work step calls DeepRouter's public routing API passes.
+- A package whose existing work step calls DeepRouter's public routing API passes.
 - The rejection rationale references D-09 in logs and errors.
 - Focused tests for the package builder and guard pass.

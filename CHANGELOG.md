@@ -4,7 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-21
 
-- 新增 DR-80 运行时依赖构建期守卫：capability-type Skill package 构建前校验 Work Step 必须调用 DeepRouter public routing API，离线 work step 会以 D-09 理由拒绝并记录日志（`internal/skill/handler/download.go`, `internal/skill/handler/download_test.go`, `docs/tasks/dr80-runtime-dependency-guard-prd.md`）
+- 新增 DR-80 运行时依赖构建期守卫：capability-type Skill package 构建前校验既有 Work Step 必须调用 DeepRouter public routing API，离线 work step 会以 D-09 理由拒绝并记录日志，构建器不会自动注入调用来绕过校验（`internal/skill/handler/download.go`, `internal/skill/handler/download_test.go`, `docs/tasks/dr80-runtime-dependency-guard-prd.md`）
 - 更新 2026 H1 模型定价目录：修正部分现有模型输入/输出倍率，新增 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、GLM、Kimi、Doubao、MiniMax、Grok 等模型定价与 Quick Import 预设，并补充任务 PRD（`setting/ratio_setting/`, `web/default/src/features/channels/lib/provider-presets.ts`, `web/default/src/features/models/lib/model-presets.ts`, `docs/tasks/pricing-catalog-2026h1-prd.md`）
 
 ## 2026-06-20
