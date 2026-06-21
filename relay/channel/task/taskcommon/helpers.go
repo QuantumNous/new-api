@@ -3,6 +3,8 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -64,6 +66,40 @@ func DecodeLocalTaskID(id string) (string, error) {
 // e.g., "https://your-server.com/v1/videos/task_xxxx/content"
 func BuildProxyURL(taskID string) string {
 	return fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, taskID)
+}
+
+// ShouldProxyVideoURL reports whether a provider URL must not be exposed to clients.
+func ShouldProxyVideoURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.HasPrefix(raw, "data:") {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return true
+	}
+	host := strings.ToLower(u.Host)
+	if host == "" {
+		return false
+	}
+	if strings.Contains(host, "apimart.ai") || strings.Contains(host, "apib.ai") || strings.Contains(host, "cdn.apimart") {
+		return true
+	}
+	return false
+}
+
+// ApplyVideoResultURL stores upstream CDN URL privately and exposes proxy URL to clients.
+func ApplyVideoResultURL(task *model.Task, upstreamURL string) {
+	upstreamURL = strings.TrimSpace(upstreamURL)
+	if upstreamURL == "" || task == nil {
+		return
+	}
+	if ShouldProxyVideoURL(upstreamURL) {
+		task.PrivateData.UpstreamVideoURL = upstreamURL
+		task.PrivateData.ResultURL = BuildProxyURL(task.TaskID)
+		return
+	}
+	task.PrivateData.ResultURL = upstreamURL
 }
 
 // Status-to-progress mapping constants for polling updates.

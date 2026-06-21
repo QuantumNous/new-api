@@ -149,7 +149,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if platform == "" {
 		platform = GetTaskPlatform(c)
 	}
-	adaptor := GetTaskAdaptor(platform)
+	platform = ResolveTaskPlatform(c, platform, info)
+	adaptor := ResolveTaskAdaptor(c, platform, info)
 	if adaptor == nil {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
 	}
@@ -424,7 +425,9 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 	if channelModel.Type != constant.ChannelTypeVertexAi && channelModel.Type != constant.ChannelTypeGemini {
-		return nil
+		if task.Platform != constant.TaskPlatformApimartVideo {
+			return nil
+		}
 	}
 
 	baseURL := constant.ChannelBaseURLs[channelModel.Type]
@@ -432,7 +435,10 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		baseURL = channelModel.GetBaseURL()
 	}
 	proxy := channelModel.GetSetting().Proxy
-	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+	adaptor := GetTaskAdaptor(task.Platform)
+	if adaptor == nil {
+		adaptor = GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+	}
 	if adaptor == nil {
 		return nil
 	}
@@ -467,7 +473,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
 	} else if ti.Url != "" {
-		task.PrivateData.ResultURL = ti.Url
+		taskcommon.ApplyVideoResultURL(task, ti.Url)
 	} else if task.Status == model.TaskStatusSuccess {
 		// No URL from adaptor — construct proxy URL using public task ID
 		task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)

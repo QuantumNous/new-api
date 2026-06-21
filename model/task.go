@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -97,9 +98,10 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key              string `json:"key,omitempty"`
+	UpstreamTaskID   string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL        string `json:"result_url,omitempty"`       // 返回给客户端的视频 URL（通常为代理地址）
+	UpstreamVideoURL string `json:"upstream_video_url,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
@@ -133,6 +135,11 @@ func (t *Task) GetResultURL() string {
 		return t.PrivateData.ResultURL
 	}
 	return t.FailReason
+}
+
+// GetUpstreamVideoURL returns the provider CDN URL used by VideoProxy.
+func (t *Task) GetUpstreamVideoURL() string {
+	return strings.TrimSpace(t.PrivateData.UpstreamVideoURL)
 }
 
 // GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID
