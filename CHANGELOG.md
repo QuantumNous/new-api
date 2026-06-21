@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-21
 
+- DR-62（Skill package runtime client，R2/mock-path implementation）：下载包从 `manifest.json + SKILL.md` 升级为 runnable zip，新增 published `instruction_template.md`、嵌入式 runtime client `runtime/deeprouter_skill_runner.py` 与 `runtime/README.md`，并要求 package builder 仅使用 pinned active `skill_version`；若无 active version 或 `instruction_template` 为空则明确失败，不产出 zip。runtime client 采用 Python 3 standard library only，读取 `DEEPROUTER_API_KEY` 与 `DEEPROUTER_EXECUTION_API_URL`，在 mock transport path 下仅发送 `messages + deeprouter.skill_id + deeprouter.skill_version_id`，不转发 identity/Kids 字段，也不发送 raw `instruction_template`。新增下载链路与解压后 runner 测试，覆盖 zip 内容、package build 失败、missing key、mock success、mock `AUTH_REQUIRED` 错误映射（`internal/skill/handler/download.go`, `internal/skill/handler/download_test.go`, `internal/skill/packageassets/`）(DR-62)
 - 更新 2026 H1 模型定价目录：修正部分现有模型输入/输出倍率，新增 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、GLM、Kimi、Doubao、MiniMax、Grok 等模型定价与 Quick Import 预设，并补充任务 PRD（`setting/ratio_setting/`, `web/default/src/features/channels/lib/provider-presets.ts`, `web/default/src/features/models/lib/model-presets.ts`, `docs/tasks/pricing-catalog-2026h1-prd.md`）
 
 ## 2026-06-20

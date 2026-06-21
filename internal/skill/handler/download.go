@@ -3,6 +3,7 @@ package handler
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -13,7 +14,14 @@ import (
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	"github.com/QuantumNous/new-api/internal/skill/packageassets"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+var (
+	errNoActiveSkillVersion       = errors.New("no active skill version for package build")
+	errMissingInstructionTemplate = errors.New("active skill version missing instruction_template")
 )
 
 // DownloadSkillPackage handles GET /api/v1/marketplace/skills/:id/download.
@@ -43,8 +51,9 @@ func DownloadSkillPackage(c *gin.Context) {
 		return
 	}
 
-	zipBytes, err := buildSkillPackage(s)
+	zipBytes, err := buildSkillPackage(db, s)
 	if err != nil {
+		logSkillPackageBuildFailure(s, err)
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Failed to build skill package.", nil)
 		return
 	}
@@ -109,26 +118,29 @@ func downloadPlanLevel(p enums.RequiredPlan) int {
 // ─── Zip builder ─────────────────────────────────────────────────────────────
 
 type skillManifest struct {
-	SchemaVersion string `json:"schema_version"`
-	SkillID       string `json:"skill_id"`
-	// SkillVersionID is nil until DR-41 (skill_versions table) is implemented.
-	// When non-nil it pins the zip to the published version at download time.
-	SkillVersionID        *string `json:"skill_version_id,omitempty"`
-	Slug                  string  `json:"slug"`
-	Name                  string  `json:"name"`
-	RequiredPlan          string  `json:"required_plan"`
-	Category              string  `json:"category"`
-	RequiresDeepRouterKey bool    `json:"requires_deeprouter_key"`
+	SchemaVersion         string `json:"schema_version"`
+	SkillID               string `json:"skill_id"`
+	SkillVersionID        string `json:"skill_version_id"`
+	Slug                  string `json:"slug"`
+	Name                  string `json:"name"`
+	RequiredPlan          string `json:"required_plan"`
+	Category              string `json:"category"`
+	RequiresDeepRouterKey bool   `json:"requires_deeprouter_key"`
 }
 
-func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
+func buildSkillPackage(db *gorm.DB, s skillmodel.Skill) ([]byte, error) {
+	version, err := activeSkillVersionForPackage(db, s)
+	if err != nil {
+		return nil, err
+	}
+
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
 
 	manifest := skillManifest{
 		SchemaVersion:         "1.0",
 		SkillID:               s.ID,
-		SkillVersionID:        s.ActiveVersionID,
+		SkillVersionID:        version.ID,
 		Slug:                  s.Slug,
 		Name:                  s.Name,
 		RequiredPlan:          string(s.RequiredPlan),
@@ -145,11 +157,61 @@ func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
 	if err := addZipEntry(w, "SKILL.md", []byte(buildSkillMD(s))); err != nil {
 		return nil, err
 	}
+	if err := addZipEntry(w, "instruction_template.md", []byte(version.InstructionTemplate)); err != nil {
+		return nil, err
+	}
+	if err := addZipEntry(w, "runtime/deeprouter_skill_runner.py", packageassets.RuntimeClient()); err != nil {
+		return nil, err
+	}
+	if err := addZipEntry(w, "runtime/README.md", packageassets.RuntimeREADME()); err != nil {
+		return nil, err
+	}
 
 	if err := w.Close(); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func activeSkillVersionForPackage(db *gorm.DB, s skillmodel.Skill) (skillmodel.SkillVersion, error) {
+	if s.ActiveVersionID == nil || strings.TrimSpace(*s.ActiveVersionID) == "" {
+		return skillmodel.SkillVersion{}, errNoActiveSkillVersion
+	}
+
+	var version skillmodel.SkillVersion
+	err := db.Where("id = ? AND skill_id = ? AND status = ?", *s.ActiveVersionID, s.ID, enums.SkillVersionStatusActive).
+		First(&version).Error
+	if err != nil {
+		return skillmodel.SkillVersion{}, errNoActiveSkillVersion
+	}
+	if strings.TrimSpace(version.InstructionTemplate) == "" {
+		return skillmodel.SkillVersion{}, errMissingInstructionTemplate
+	}
+	return version, nil
+}
+
+func logSkillPackageBuildFailure(s skillmodel.Skill, err error) {
+	activeVersionID := "<nil>"
+	if s.ActiveVersionID != nil && strings.TrimSpace(*s.ActiveVersionID) != "" {
+		activeVersionID = strings.TrimSpace(*s.ActiveVersionID)
+	}
+
+	reason := "package build failed"
+	switch {
+	case errors.Is(err, errNoActiveSkillVersion):
+		reason = "package build failed: active skill_version missing or not active"
+	case errors.Is(err, errMissingInstructionTemplate):
+		reason = "package build failed: active skill_version missing instruction_template"
+	}
+
+	common.SysLog(fmt.Sprintf(
+		"DownloadSkillPackage %s (skill_id=%s slug=%s active_version_id=%s): %v",
+		reason,
+		s.ID,
+		s.Slug,
+		activeVersionID,
+		err,
+	))
 }
 
 func addZipEntry(w *zip.Writer, name string, content []byte) error {
@@ -161,9 +223,8 @@ func addZipEntry(w *zip.Writer, name string, content []byte) error {
 	return err
 }
 
-// buildSkillMD assembles a SKILL.md from the skills table fields available before
-// DR-41 (skill_versions / instruction_template) is implemented. The result is a
-// valid Claude Code SKILL.md that users can load immediately.
+// buildSkillMD emits a Claude-compatible wrapper that points runners at the
+// packaged DeepRouter runtime client instead of describing a local-only skill.
 func buildSkillMD(s skillmodel.Skill) string {
 	var sb strings.Builder
 
@@ -174,7 +235,27 @@ func buildSkillMD(s skillmodel.Skill) string {
 	sb.WriteString("---\n\n")
 
 	sb.WriteString("## " + s.Name + "\n\n")
-	sb.WriteString(s.Description + "\n")
+	if strings.TrimSpace(s.Description) != "" {
+		sb.WriteString(s.Description + "\n\n")
+	}
+
+	sb.WriteString("This Skill runs through the DeepRouter runtime client.\n\n")
+	sb.WriteString("### Required Environment\n\n")
+	sb.WriteString("- `DEEPROUTER_API_KEY`\n")
+	sb.WriteString("- `DEEPROUTER_EXECUTION_API_URL`\n\n")
+	sb.WriteString("### Run\n\n")
+	sb.WriteString("```bash\n")
+	sb.WriteString("python runtime/deeprouter_skill_runner.py --input \"...\"\n")
+	sb.WriteString("```\n\n")
+	sb.WriteString("If `python3` is the available Python 3 command in your environment, use:\n\n")
+	sb.WriteString("```bash\n")
+	sb.WriteString("python3 runtime/deeprouter_skill_runner.py --input \"...\"\n")
+	sb.WriteString("```\n\n")
+	sb.WriteString("### Runtime Behavior\n\n")
+	sb.WriteString("- The runtime client reads `manifest.json` and `instruction_template.md` from this package.\n")
+	sb.WriteString("- The work step must call the DeepRouter execution API using the runner's own credential.\n")
+	sb.WriteString("- Do not execute this package as a standalone local-only prompt or direct local LLM skill.\n")
+	sb.WriteString("- Do not treat the local `instruction_template.md` as authoritative execution truth.\n")
 
 	var hints []string
 	if common.Unmarshal(s.InputHints, &hints) == nil && len(hints) > 0 {
