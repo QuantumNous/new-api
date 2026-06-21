@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
   Check,
+  CheckCircle2,
   Copy,
+  CreditCard,
   Gift,
   KeyRound,
   MessageSquare,
@@ -40,7 +42,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
-// Step 2 — persona (3 cards, reuses PersonaPickerDialog content shape)
+// Optional persona picker (secondary — never blocks the golden path).
 const PERSONAS: Array<{
   id: Persona
   icon: LucideIcon
@@ -51,35 +53,23 @@ const PERSONAS: Array<{
   {
     id: 'casual',
     icon: MessageSquare,
-    titleKey: 'Casual',
+    titleKey: 'Everyday use',
     descKey:
-      'For chatting, writing, translation, image generation. No code needed — paste your key into the AI app you already use.',
+      'Chatting, writing, translation, images. No code — paste your key into the AI app you already use.',
+    badge: 'Most users',
   },
   {
     id: 'dev',
     icon: Terminal,
-    titleKey: 'Developer',
-    descKey:
-      "For coding and API integration. You'll write code or use the API directly.",
-    badge: 'Most users',
+    titleKey: 'Building / coding',
+    descKey: "Coding and API integration. You'll use the API directly.",
   },
   {
     id: 'team',
     icon: Users,
-    titleKey: 'Team / Enterprise',
-    descKey:
-      'For shared API keys, audit trails, and team integration. UI is the same as Developer for now; team-only tools coming soon.',
+    titleKey: 'Team',
+    descKey: 'Shared keys, audit trails, team integration.',
   },
-]
-
-// Step 3 — brand preference (1-click chips)
-type BrandId = 'claude' | 'openai' | 'gemini' | 'deepseek' | ''
-const BRANDS: Array<{ id: BrandId; label: string }> = [
-  { id: 'claude', label: 'Claude' },
-  { id: 'openai', label: 'OpenAI' },
-  { id: 'gemini', label: 'Gemini' },
-  { id: 'deepseek', label: 'DeepSeek' },
-  { id: '', label: 'No preference' },
 ]
 
 const QUOTA_PER_USD = 500_000
@@ -96,79 +86,50 @@ function formatChatsCount(n: number): string {
   return `${Math.floor(n / 1000)}k`
 }
 
-export type WelcomeStep = 'persona' | 'brand'
-
-export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
+export function Welcome() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.auth.user)
   const setUser = useAuthStore((s) => s.auth.setUser)
 
-  // Read the one-shot register handoff exactly once on mount. After
-  // this, the default token is gone — refresh erases it (intentional).
+  // Read the one-shot register handoff exactly once on mount. After this the
+  // default token is gone — refresh erases it (intentional, security).
   const [handoff] = useState<RegisterResponseData | null>(() =>
     takeWelcomeHandoff<RegisterResponseData>()
   )
 
-  // Unauthenticated visitors get bounced to /sign-in. Otherwise stay on
-  // the wizard even without a handoff — covers:
-  //   * Old backend (didn't return data) — user is logged in, just no
-  //     default-token banner
-  //   * OAuth signups landing here via PersonaPickerHost redirect
-  //   * Privacy-mode browsers where sessionStorage write failed
-  //   * User navigating to /welcome on their own to redo the picker
-  // The default-token banner is conditionally rendered against `handoff`.
+  // Unauthenticated visitors get bounced to /sign-in. Logged-in users without
+  // a handoff still see the screen (OAuth signup, refresh, privacy-mode, or
+  // re-visiting /welcome) — the key card degrades to a "view on Keys" link.
   useEffect(() => {
     if (!user) {
       navigate({ to: '/sign-in', replace: true })
     }
   }, [user, navigate])
 
-  // Default-select Casual so the Step 1 "Continue" is enabled on landing
-  // and non-technical users see a sensible pick highlighted. Brand defaults
-  // to "No preference" (empty) — same as the original. Client is left
-  // null and gets auto-suggested from the chosen persona below.
   const [persona, setPersona] = useState<Persona | null>('casual')
-  const [brand, setBrand] = useState<BrandId>('')
   const [submitting, setSubmitting] = useState(false)
 
-  const goToStep = (next: WelcomeStep) => {
-    navigate({ to: '/welcome', search: { step: next } })
-  }
-  // Sanitize deep-links: someone landing on ?step=brand or ?step=client
-  // without a persona pick gets rewound to step=persona.
-  useEffect(() => {
-    if (step !== 'persona' && !persona) {
-      goToStep('persona')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step])
-
-  const handleFinish = async (skipAll = false) => {
+  // Persist persona (+ its sidebar preset), then navigate to `target`.
+  // EVERY CTA on this screen goes through here: PersonaPickerHost redirects
+  // any user whose persona is still unset back to /welcome, so we MUST save
+  // before leaving or the user bounces straight back. Save is best-effort —
+  // we navigate regardless so a transient API hiccup never traps the user.
+  const finishTo = async (target: string) => {
     if (submitting) return
     setSubmitting(true)
     try {
-      const finalPersona = persona ?? 'dev' // legacy-safe default
-      const finalBrand = brand
-      const settingPatch: Partial<UserSettings> = {
-        persona: finalPersona,
-        brand_preference: finalBrand as UserSettings['brand_preference'],
-      }
-      // Snap the right sidebar preset for the chosen persona so the
-      // dashboard's sidebar config takes effect on next page load.
+      const finalPersona = persona ?? 'casual'
+      const settingPatch: Partial<UserSettings> = { persona: finalPersona }
       const preset = PERSONA_PRESETS[finalPersona]
       if (preset?.sidebarModules) {
         ;(settingPatch as { sidebar_modules?: string }).sidebar_modules =
           preset.sidebarModules
       }
       const res = await updateUserSettings(settingPatch)
-      if (!res?.success && !skipAll) {
+      if (!res?.success) {
         toast.error(res?.message || t('Could not save your selection.'))
-        return
-      }
-      // Sync the auth store so anything that reads persona (sidebar,
-      // mode-picker default) sees the fresh value without a refresh.
-      if (user) {
+      } else if (user) {
         const rawSetting = user.setting
         const currentSetting: UserSettings =
           typeof rawSetting === 'string'
@@ -185,212 +146,178 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
             user.sidebar_modules,
         })
       }
-
-      // Land on wallet (PRD §7.4): the user just signed up — first action
-      // they need to take is top up, not pick a client. Backend hint wins
-      // if it has one (e.g. magic-link flow). `||` (not `??`) because the
-      // backend returns `next: ""` when no preferred_client was captured,
-      // and an empty string must fall through to the persona default —
-      // otherwise navigate({to: ''}) drops the search params and the
-      // /welcome route rewinds to step=persona.
-      const target: string =
-        handoff?.next || preset?.defaultRoute || '/wallet'
-      // Tell PersonaPickerHost to skip its very next redirect. After
-      // navigate fires, AuthenticatedLayout will mount on the target
-      // route and PersonaPickerHost's effect re-reads from authStore;
-      // if our setUser hasn't propagated to that subscriber yet,
-      // shouldPrompt is still true and the host bounces back to
-      // /welcome (defaulting to step=persona — exactly the bug
-      // reported). The flag is one-shot; PersonaPickerHost consumes
-      // it on the next render and resumes normal behaviour after.
+      // Tell PersonaPickerHost to skip its very next redirect — setUser may
+      // not have propagated to its subscriber by the time the destination
+      // route mounts, which would otherwise bounce the user back to /welcome.
       if (typeof window !== 'undefined') {
         try {
           window.sessionStorage.setItem('dr_welcome_just_finished', '1')
         } catch {
-          /* private mode — host will still try to redirect, but
-           * setUser usually wins the race anyway. */
+          /* private mode — host may still redirect; setUser usually wins */
         }
       }
       navigate({ to: target as never, replace: true })
     } catch {
       toast.error(t('Could not save your selection.'))
-    } finally {
       setSubmitting(false)
     }
   }
 
   if (!user) return null
 
+  const name = handoff?.display_name || user?.username || ''
+  const trialQuota = handoff?.trial_quota ?? 0
+
   return (
-    <div className='mx-auto max-w-3xl px-4 py-6 sm:py-10'>
-      {/* Welcome banner — surfaces the 3 things the user just got */}
-      <div className='bg-card mb-6 rounded-2xl border p-5 sm:p-6'>
-        <div className='flex items-center gap-2 text-sm'>
-          <span className='text-xl'>👋</span>
-          <span className='text-foreground font-medium'>
-            {t('Welcome to DeepRouter, {{name}}', {
-              name: handoff?.display_name || user?.username || '',
-            })}
-          </span>
-        </div>
-        <div className='mt-4 grid gap-3 sm:grid-cols-2'>
-          <WelcomeCard
-            icon={Gift}
-            label={t('Trial credit')}
-            value={
-              handoff?.trial_quota
-                ? `¥${(handoff.trial_quota / 500000).toFixed(2)}`
-                : '—'
-            }
-            sub={
-              handoff?.trial_quota
-                ? t('≈ {{count}} chats free to try', {
-                    count: formatChatsCount(estimateChats(handoff.trial_quota)),
-                  })
-                : ''
-            }
-          />
-          {handoff?.default_token ? (
-            <CopyCard
-              icon={KeyRound}
-              label={t('Your default API key (shown once)')}
-              value={handoff.default_token}
-            />
-          ) : (
-            <WelcomeCard
-              icon={KeyRound}
-              label={t('Default API key')}
-              value={t('Available in /keys')}
-              sub=''
-            />
-          )}
+    <div className='mx-auto max-w-2xl px-4 py-8 sm:py-12'>
+      {/* H1 — the RESULT, not a question */}
+      <div className='mb-6 flex items-start gap-3'>
+        <span className='mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300'>
+          <CheckCircle2 className='h-6 w-6' aria-hidden='true' />
+        </span>
+        <div>
+          <h1 className='text-2xl font-bold sm:text-3xl'>
+            {t('Your account is ready, {{name}}', { name })} 🎉
+          </h1>
+          <p className='text-muted-foreground mt-1.5 text-sm'>
+            {t(
+              "Everything's set up. Here's what you got — and how to start using it."
+            )}
+          </p>
         </div>
       </div>
 
-      <Stepper
-        currentStep={step === 'persona' ? 1 : 2}
-        totalSteps={2}
-      />
-
-      {step === 'persona' && (
-        <Section
-          title={t('How do you plan to use DeepRouter?')}
-          stepLabel={t('Step 1 of 2')}
-        >
-          <div className='grid gap-3 sm:grid-cols-3'>
-            {PERSONAS.map((p) => (
-              <ChoiceCard
-                key={p.id}
-                icon={<p.icon className='h-5 w-5' />}
-                title={t(p.titleKey)}
-                description={t(p.descKey)}
-                badge={p.badge ? t(p.badge) : undefined}
-                selected={persona === p.id}
-                onClick={() => setPersona(p.id)}
-              />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {step === 'brand' && (
-        <Section
-          title={t('Pick your favourite AI provider (optional)')}
-          subtitle={t(
-            'Your default key will route to this brand when you call model: "deeprouter".'
-          )}
-          stepLabel={t('Step 2 of 2')}
-        >
-          <div className='flex flex-wrap gap-2'>
-            {BRANDS.map((b) => (
-              <Button
-                key={b.id || 'none'}
-                type='button'
-                variant={brand === b.id ? 'default' : 'outline'}
-                size='sm'
-                onClick={() => setBrand(b.id)}
-                className='rounded-full text-xs'
-              >
-                {t(b.label)}
-              </Button>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <div className='mt-6 flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-2'>
-          {step !== 'persona' && (
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={submitting}
-              onClick={() => goToStep('persona')}
-            >
-              {t('Back')}
-            </Button>
-          )}
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            disabled={submitting}
-            onClick={() => handleFinish(true)}
-          >
-            {t('Skip — set this later')}
-          </Button>
-        </div>
-        {step === 'brand' ? (
-          <Button
-            type='button'
-            disabled={!persona || submitting}
-            onClick={() => handleFinish()}
-          >
-            {submitting ? t('Saving...') : t('Finish')}
-            <ArrowRight className='ml-1.5 h-4 w-4' />
-          </Button>
+      {/* What you just got */}
+      <div className='mb-6 grid gap-3 sm:grid-cols-2'>
+        <WelcomeCard
+          icon={Gift}
+          label={t('Free trial credit')}
+          value={trialQuota ? `¥${(trialQuota / 500000).toFixed(2)}` : '—'}
+          sub={
+            trialQuota
+              ? t('≈ {{count}} chats, on us', {
+                  count: formatChatsCount(estimateChats(trialQuota)),
+                })
+              : ''
+          }
+        />
+        {handoff?.default_token ? (
+          <CopyCard
+            icon={KeyRound}
+            label={t('Your key (API Key)')}
+            value={handoff.default_token}
+          />
         ) : (
-          <Button
-            type='button'
-            disabled={!persona}
-            onClick={() => goToStep('brand')}
-          >
-            {t('Continue')}
-            <ArrowRight className='ml-1.5 h-4 w-4' />
-          </Button>
+          <KeyFallbackCard />
         )}
       </div>
+
+      {/* Start in 3 steps — concrete next actions */}
+      <section className='bg-card mb-6 rounded-2xl border p-4 sm:p-5'>
+        <h2 className='text-sm font-semibold sm:text-base'>
+          {t('Start using it in 3 steps')}
+        </h2>
+        <ol className='mt-3 space-y-2.5'>
+          <Step n={1} text={t('Copy your key above.')} />
+          <Step
+            n={2}
+            text={t(
+              'Paste it into the AI tool you already use — find the field labelled “API Key” in its settings and save.'
+            )}
+          />
+          <Step
+            n={3}
+            text={t(
+              'Come back and check it works — one tap confirms your key and credit are live.'
+            )}
+          />
+        </ol>
+      </section>
+
+      {/* Primary + secondary action */}
+      <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+        <Button
+          type='button'
+          size='lg'
+          disabled={submitting}
+          onClick={() => finishTo('/keys/test')}
+          className='sm:flex-1'
+        >
+          {submitting ? t('Just a sec…') : t('Check it works')}
+          <ArrowRight className='ml-1.5 h-4 w-4' aria-hidden='true' />
+        </Button>
+        <Button
+          type='button'
+          variant='outline'
+          size='lg'
+          disabled={submitting}
+          onClick={() => finishTo('/wallet')}
+        >
+          <CreditCard className='mr-1.5 h-4 w-4' aria-hidden='true' />
+          {t('Add credit')}
+        </Button>
+      </div>
+      <p className='text-muted-foreground mt-2 text-xs'>
+        {t('Your free credit is enough to start — top up later when it runs out.')}
+      </p>
+
+      {/* Optional persona — secondary, never blocks the golden path */}
+      <section className='mt-8 border-t pt-6'>
+        <p className='text-muted-foreground mb-3 text-xs'>
+          {t(
+            'Optional: what will you mostly use it for? Helps us tailor your dashboard — you can change this anytime.'
+          )}
+        </p>
+        <div className='grid gap-3 sm:grid-cols-3'>
+          {PERSONAS.map((p) => (
+            <ChoiceCard
+              key={p.id}
+              icon={<p.icon className='h-5 w-5' />}
+              title={t(p.titleKey)}
+              description={t(p.descKey)}
+              badge={p.badge ? t(p.badge) : undefined}
+              selected={persona === p.id}
+              onClick={() => setPersona(p.id)}
+            />
+          ))}
+        </div>
+      </section>
     </div>
   )
 }
 
-function Section({
-  title,
-  subtitle,
-  stepLabel,
-  children,
-}: {
-  title: string
-  subtitle?: string
-  stepLabel: string
-  children: React.ReactNode
-}) {
+function Step({ n, text }: { n: number; text: string }) {
   return (
-    <section className='bg-card mb-4 rounded-xl border p-4 sm:p-5'>
-      <div className='mb-3 flex items-baseline justify-between gap-2'>
-        <h3 className='text-sm font-semibold sm:text-base'>{title}</h3>
-        <span className='text-muted-foreground text-[11px] font-medium'>
-          {stepLabel}
-        </span>
-      </div>
-      {subtitle && (
-        <p className='text-muted-foreground mb-3 text-xs sm:text-sm'>
-          {subtitle}
+    <li className='flex gap-2.5'>
+      <span className='bg-foreground text-background flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold'>
+        {n}
+      </span>
+      <span className='text-muted-foreground text-sm leading-relaxed'>
+        {text}
+      </span>
+    </li>
+  )
+}
+
+function KeyFallbackCard() {
+  const { t } = useTranslation()
+  return (
+    <Link
+      to='/keys'
+      className='bg-background hover:border-foreground/40 flex items-start gap-3 rounded-lg border p-3 transition-colors'
+    >
+      <span className='bg-muted text-muted-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-md border'>
+        <KeyRound className='h-5 w-5' aria-hidden='true' />
+      </span>
+      <div className='min-w-0 flex-1'>
+        <p className='text-muted-foreground text-[11px] font-medium'>
+          {t('Your key (API Key)')}
         </p>
-      )}
-      {children}
-    </section>
+        <p className='text-sm font-semibold'>
+          {t('Ready — view it on the Keys page →')}
+        </p>
+      </div>
+    </Link>
   )
 }
 
@@ -414,7 +341,7 @@ function ChoiceCard({
       type='button'
       onClick={onClick}
       className={cn(
-        'group relative flex h-full flex-col items-start gap-2 rounded-lg border bg-background p-3 text-left transition-all hover:shadow-sm',
+        'group bg-background relative flex h-full flex-col items-start gap-2 rounded-lg border p-3 text-left transition-all hover:shadow-sm',
         selected
           ? 'border-foreground ring-foreground/15 ring-2'
           : 'border-border hover:border-foreground/40'
@@ -463,9 +390,7 @@ function WelcomeCard({
       <div className='min-w-0 flex-1'>
         <p className='text-muted-foreground text-[11px] font-medium'>{label}</p>
         <p className='font-mono text-base font-semibold'>{value}</p>
-        {sub && (
-          <p className='text-muted-foreground/80 text-[11px]'>{sub}</p>
-        )}
+        {sub && <p className='text-muted-foreground/80 text-[11px]'>{sub}</p>}
       </div>
     </div>
   )
@@ -516,36 +441,10 @@ function CopyCard({
             )}
           </Button>
         </div>
-        <p className='text-amber-600 mt-0.5 text-[10px] dark:text-amber-400'>
-          {t("Copy now — won't be shown again after navigating away.")}
+        <p className='mt-0.5 text-[10px] text-amber-600 dark:text-amber-400'>
+          {t("Copy now — won't be shown again after you leave this page.")}
         </p>
       </div>
-    </div>
-  )
-}
-
-function Stepper({
-  currentStep,
-  totalSteps,
-}: {
-  currentStep: number
-  totalSteps: number
-}) {
-  const items = useMemo(
-    () => Array.from({ length: totalSteps }, (_, i) => i + 1),
-    [totalSteps]
-  )
-  return (
-    <div className='mb-4 flex items-center gap-2'>
-      {items.map((n) => (
-        <div
-          key={n}
-          className={cn(
-            'h-1 flex-1 rounded-full transition-colors',
-            n <= currentStep ? 'bg-foreground' : 'bg-muted'
-          )}
-        />
-      ))}
     </div>
   )
 }

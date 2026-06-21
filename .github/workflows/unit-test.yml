@@ -1,0 +1,73 @@
+# Unit Tests — required gate on every PR.
+#
+# Unlike airbotix-internal.yml (push/path-filtered) and dr40-skill-integration.yml
+# (scoped to internal/skill/**), this workflow runs on EVERY pull request with no
+# path filter, so it can be marked a **required status check** in branch
+# protection. AGENTS.md Rule 12 ("Unit Tests Required") is the human-facing half
+# of this gate; this workflow is the machine-enforced half.
+#
+# Scope rationale (same as airbotix-internal.yml): we run the Airbotix-owned unit
+# layer plus the focused upstream-adjacent tests we wire into — NOT a blanket
+# `go test ./...`. The wider relay/channel/* tree pulls in upstream NewAPI tests
+# that need external services (MySQL/Redis) or carry pre-existing diagnostics; the
+# docker/release builds gate those. Keeping this gate fast and deterministic is
+# what lets it stay *required*.
+name: Unit Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-test:
+    name: go vet + gofmt + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Resolve module deps
+        run: go mod download
+
+      - name: gofmt (Airbotix-owned packages)
+        run: |
+          unformatted=$(gofmt -l ./internal/ ./middleware/ ./relay/airbotix_policy.go ./service/airbotix_billing.go)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet (Airbotix-owned packages)
+        # Limited to packages with our additions; the wider relay tree carries
+        # upstream "unreachable code" diagnostics that build/test gate instead.
+        run: go vet ./internal/... ./middleware/...
+
+      - name: Build the tree we wire into
+        run: |
+          go build ./internal/...
+          go build ./model/... ./constant/... ./middleware/... ./service/... ./relay/...
+          go build ./controller/... ./router/... ./dto/... ./common/...
+
+      - name: Run unit tests
+        run: |
+          # Airbotix-internal packages — full suite, race-enabled.
+          go test ./internal/... -count=1 -race -timeout 120s
+          # Upstream-adjacent fork tests (kept in sync with airbotix-internal.yml).
+          go test ./model/ -run 'TestUser_Airbotix' -count=1 -timeout 60s
+          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
+          go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestListModels|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
+          go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
+
+      - name: Verify kids coverage matrix
+        run: bash scripts/check-kids-coverage-matrix.sh

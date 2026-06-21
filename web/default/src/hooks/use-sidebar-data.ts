@@ -28,7 +28,6 @@ import {
   User,
   Command,
   Radio,
-  FlaskConical,
   // MessageSquare,  // un-comment when restoring chat-presets dropdown
   CreditCard,
   ListTodo,
@@ -54,24 +53,11 @@ export function useSidebarData(): SidebarData {
       },
     ],
     navGroups: [
-      {
-        id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
-          // DeepRouter: chat-presets dropdown hidden — restore by
-          // un-commenting MessageSquare import + the entry below.
-          // {
-          //   title: t('Chat'),
-          //   icon: MessageSquare,
-          //   type: 'chat-presets',
-          // },
-        ],
-      },
+      // DeepRouter: the "Chat / Playground" nav group is removed — the
+      // playground is a developer console inherited from upstream new-api
+      // and end users never use it ("不做 chat 是红线"). /playground itself
+      // redirects to the dashboard. Re-add a group here if a developer-mode
+      // playground is ever reintroduced.
       {
         id: 'general',
         title: t('General'),

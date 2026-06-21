@@ -27,9 +27,10 @@ Capability-type Skill packages must not be able to complete their work fully off
 
 - The package builder runs the guard before writing the zip.
 - The guard is scoped so it can be applied only to capability-type packages.
-- The guard checks the work step, not just metadata, for a DeepRouter routing call marker such as `/v1/chat/completions` or `/v1/responses`.
+- The guard checks the work step, not just metadata, for a DeepRouter routing call marker such as `/v1/routing/chat/completions`, `/v1/chat/completions`, or `/v1/responses`.
 - Rejections return a build error and write a system log containing `D-09`.
 - Compliant capability package source content includes an explicit work step that calls DeepRouter with the runner's own key; the build guard must not make an offline-capable Skill pass by injecting that dependency after the fact.
+- Legacy unversioned downloads (`active_version_id` absent) are not treated as capability packages until the publish/version pipeline has pinned package metadata; this avoids regressing pre-DR-79 published Skill downloads.
 
 ## Acceptance
 

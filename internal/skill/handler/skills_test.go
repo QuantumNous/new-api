@@ -607,5 +607,5 @@ func testSkill(slug string, status string) skillmodel.Skill {
 }
 
 func routedWorkStepFixture() string {
-	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.ai/v1/chat/completions with the runner's own key, then base the final answer on the returned routing result."
+	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.ai/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
 }

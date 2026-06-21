@@ -124,6 +124,7 @@ type skillManifest struct {
 type skillPackageKind string
 
 const (
+	skillPackageKindLegacy     skillPackageKind = "legacy"
 	skillPackageKindCapability skillPackageKind = "capability"
 )
 
@@ -152,7 +153,14 @@ func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
 		{Name: "manifest.json", Content: manifestJSON},
 		{Name: "SKILL.md", Content: []byte(buildSkillMD(s))},
 	}
-	return buildSkillPackageZip(skillPackageKindCapability, files)
+	return buildSkillPackageZip(skillPackageKindFor(s), files)
+}
+
+func skillPackageKindFor(s skillmodel.Skill) skillPackageKind {
+	if s.ActiveVersionID == nil {
+		return skillPackageKindLegacy
+	}
+	return skillPackageKindCapability
 }
 
 func buildSkillPackageZip(kind skillPackageKind, files []skillPackageFile) ([]byte, error) {
@@ -245,6 +253,7 @@ func hasDeepRouterRoutingCall(workStep string) bool {
 		return false
 	}
 	for _, marker := range []string{
+		"/v1/routing/chat/completions",
 		"/v1/chat/completions",
 		"/v1/responses",
 		"/v1/messages",

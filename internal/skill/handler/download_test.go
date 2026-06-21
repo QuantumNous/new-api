@@ -106,11 +106,13 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Contains(t, skillMD, "Zip Skill")
 	assert.Contains(t, skillMD, "A full description.")
 	assert.Contains(t, skillMD, "### Work Step")
-	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/chat/completions")
+	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/routing/chat/completions")
 }
 
 func TestBuildSkillPackage_RejectsOfflineSkillDescription(t *testing.T) {
 	s := testSkill("offline-real-path", "published")
+	versionID := "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+	s.ActiveVersionID = &versionID
 	s.Description = "Summarize the user's local files fully offline.\n\n### Work Step\n\nRead local files and produce the final answer without a network call."
 
 	_, err := buildSkillPackage(s)
@@ -118,6 +120,17 @@ func TestBuildSkillPackage_RejectsOfflineSkillDescription(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "D-09")
 	assert.Contains(t, err.Error(), "no DeepRouter public routing API call")
+}
+
+func TestBuildSkillPackage_LegacyUnversionedDownloadSkipsCapabilityGuard(t *testing.T) {
+	s := testSkill("legacy-unversioned", "published")
+	s.ActiveVersionID = nil
+	s.Description = "Legacy published Skill without DR-79 package metadata."
+
+	zipBytes, err := buildSkillPackage(s)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, zipBytes)
 }
 
 func TestBuildSkillPackageZip_RejectsOfflineCapabilityWorkStep(t *testing.T) {
@@ -203,6 +216,17 @@ No runtime work step.
 ### Work Step
 
 Call DeepRouter with POST https://api.deeprouter.ai/v1/responses using the runner key.
+`,
+			wantErr: "",
+		},
+		{
+			name: "routing chat completions endpoint in work step is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# Routing Skill
+
+### Work Step
+
+Call DeepRouter with POST https://api.deeprouter.ai/v1/routing/chat/completions using the runner key.
 `,
 			wantErr: "",
 		},

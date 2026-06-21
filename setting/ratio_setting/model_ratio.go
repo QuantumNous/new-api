@@ -155,7 +155,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-sonnet-4-5-20250929":                1.5,
 	"claude-sonnet-4-6":                         1.5, // $3 / 1M tokens (Sonnet tier); -thinking covered by suffix fallback
 	"claude-sonnet-4-6-thinking":                1.5,
-	"claude-fable-5":                            5.0, // $10/$50 per 1M (GA 2026-06-09, top tier above Opus); completion set explicitly
+	"claude-fable-5":                            5.0, // $10/$50 per 1M; TEMPORARILY UNAVAILABLE (kept priced/dormant, pulled from quick-import presets)
 	"claude-fable-5-thinking":                   5.0,
 	"claude-opus-4-5-20251101":                  2.5,
 	"claude-opus-4-6":                           2.5,
