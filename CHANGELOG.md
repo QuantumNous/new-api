@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-22
 
+- 修复 DR-47 PR review 阻断问题：`version_activated` 审计 before_value 改为目标版本自身的激活前状态，after_value 增加 `previous_active_version_id`；创建版本号增加事务锁与唯一冲突重试，避免并发创建冒成 500（`internal/skill/handler/versions.go`）
 - 新增 DR-47 Skill version API：Super Admin 可创建 draft 版本、查看版本列表/详情、激活版本并自动降级旧 active；版本写入 instruction_template sha256 与执行 snapshot，并新增不含 prompt 正文的 skill_audit_log 审计记录（`internal/skill/handler/versions.go`, `internal/skill/model/skill_audit_log.go`, `router/skill-router.go`）
 - 新增 DR-47 Skill version API 任务 PRD，定义版本创建、列表、详情、激活与审计日志范围（`docs/tasks/dr47-skill-version-api-prd.md`）
 

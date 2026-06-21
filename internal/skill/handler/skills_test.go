@@ -682,8 +682,26 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	var audit skillmodel.SkillAuditLog
 	require.NoError(t, db.First(&audit, "skill_version_id = ? AND action = ?", v2.ID, "version_activated").Error)
 	require.NotNil(t, audit.AfterValue)
+	require.NotNil(t, audit.BeforeValue)
 	assert.NotContains(t, string(*audit.AfterValue), gotV2.InstructionTemplate)
 	assert.Contains(t, string(*audit.AfterValue), gotV2.InstructionTemplateSHA256)
+
+	var before map[string]any
+	require.NoError(t, json.Unmarshal(*audit.BeforeValue, &before))
+	assert.Equal(t, v2.ID, before["skill_version_id"], "before_value must describe the version being activated, not the prior active version")
+	assert.Equal(t, string(enums.SkillVersionStatusDraft), before["status"])
+
+	var after map[string]any
+	require.NoError(t, json.Unmarshal(*audit.AfterValue, &after))
+	assert.Equal(t, v2.ID, after["skill_version_id"])
+	assert.Equal(t, v1.ID, after["previous_active_version_id"])
+	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
+}
+
+func TestSkillVersionNumberConflictDetection(t *testing.T) {
+	err := fmt.Errorf("UNIQUE constraint failed: skill_versions.skill_id, skill_versions.version_number")
+	assert.True(t, isSkillVersionNumberConflict(err))
+	assert.False(t, isSkillVersionNumberConflict(fmt.Errorf("UNIQUE constraint failed: other_table.id")))
 }
 
 // listResponse is a typed helper for unmarshalling the List envelope in tests.

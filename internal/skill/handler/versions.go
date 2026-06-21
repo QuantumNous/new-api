@@ -144,24 +144,7 @@ func CreateAdminSkillVersion(c *gin.Context) {
 	role := strconv.Itoa(c.GetInt("role"))
 	skillID := c.Param("skill_id")
 	var created skillmodel.SkillVersion
-	err := database.Transaction(func(tx *gorm.DB) error {
-		var skill skillmodel.Skill
-		if err := tx.First(&skill, "id = ?", skillID).Error; err != nil {
-			return err
-		}
-		version, err := buildVersionFromSkill(tx, skill, req, outputSchema, actorID)
-		if err != nil {
-			return err
-		}
-		if err := tx.Create(&version).Error; err != nil {
-			return err
-		}
-		if err := writeVersionAuditLog(tx, c, "version_created", skill.ID, version.ID, actorID, role, nil, nil, versionAuditAfter(version)); err != nil {
-			return err
-		}
-		created = version
-		return nil
-	})
+	err := createSkillVersionWithRetry(database, c, skillID, req, outputSchema, actorID, role, &created)
 	if err != nil {
 		writeSkillVersionMutationError(c, err)
 		return
@@ -201,6 +184,7 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 		if version.Status == enums.SkillVersionStatusArchived {
 			return errArchivedVersion
 		}
+		before := versionAuditBefore(&version)
 
 		now := time.Now().UTC()
 		var prior *skillmodel.SkillVersion
@@ -234,7 +218,7 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 		if err := tx.First(&activated, "id = ?", versionID).Error; err != nil {
 			return err
 		}
-		if err := writeVersionAuditLog(tx, c, "version_activated", skill.ID, version.ID, actorID, role, req.Reason, versionAuditBefore(prior), versionAuditAfter(activated)); err != nil {
+		if err := writeVersionAuditLog(tx, c, "version_activated", skill.ID, version.ID, actorID, role, req.Reason, before, versionActivationAuditAfter(activated, prior)); err != nil {
 			return err
 		}
 		return nil
@@ -244,6 +228,39 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 		return
 	}
 	skillapi.Success(c, skillVersionMetadataFromModel(activated))
+}
+
+func createSkillVersionWithRetry(db *gorm.DB, c *gin.Context, skillID string, req CreateSkillVersionRequest, outputSchema *skillmodel.SkillJSONB, actorID int64, role string, created *skillmodel.SkillVersion) error {
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err := db.Transaction(func(tx *gorm.DB) error {
+			var skill skillmodel.Skill
+			if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&skill, "id = ?", skillID).Error; err != nil {
+				return err
+			}
+			version, err := buildVersionFromSkill(tx, skill, req, outputSchema, actorID)
+			if err != nil {
+				return err
+			}
+			if err := tx.Create(&version).Error; err != nil {
+				return err
+			}
+			if err := writeVersionAuditLog(tx, c, "version_created", skill.ID, version.ID, actorID, role, nil, nil, versionAuditAfter(version)); err != nil {
+				return err
+			}
+			*created = version
+			return nil
+		})
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isSkillVersionNumberConflict(err) {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: %v", errVersionNumberConflict, lastErr)
 }
 
 func buildVersionFromSkill(tx *gorm.DB, skill skillmodel.Skill, req CreateSkillVersionRequest, outputSchema *skillmodel.SkillJSONB, actorID int64) (skillmodel.SkillVersion, error) {
@@ -331,6 +348,23 @@ func versionAuditAfter(version skillmodel.SkillVersion) *skillmodel.SkillJSONB {
 		"monetization_snapshot_sha256":    sha256Hex(version.MonetizationSnapshot),
 		"max_input_tokens_snapshot":       version.MaxInputTokensSnapshot,
 	})
+}
+
+func versionActivationAuditAfter(version skillmodel.SkillVersion, prior *skillmodel.SkillVersion) *skillmodel.SkillJSONB {
+	payload := map[string]any{
+		"skill_version_id":                version.ID,
+		"version_number":                  version.VersionNumber,
+		"status":                          version.Status,
+		"instruction_template_sha256":     version.InstructionTemplateSHA256,
+		"model_whitelist_snapshot_sha256": sha256Hex(version.ModelWhitelistSnapshot),
+		"required_plan_snapshot":          version.RequiredPlanSnapshot,
+		"monetization_snapshot_sha256":    sha256Hex(version.MonetizationSnapshot),
+		"max_input_tokens_snapshot":       version.MaxInputTokensSnapshot,
+	}
+	if prior != nil && prior.ID != version.ID {
+		payload["previous_active_version_id"] = prior.ID
+	}
+	return auditJSON(payload)
 }
 
 func auditJSON(v any) *skillmodel.SkillJSONB {
@@ -425,7 +459,23 @@ func findSkillVersion(db *gorm.DB, skillID, versionID string) (skillmodel.SkillV
 	return version, err
 }
 
-var errArchivedVersion = errors.New("archived skill version cannot be activated")
+var (
+	errArchivedVersion       = errors.New("archived skill version cannot be activated")
+	errVersionNumberConflict = errors.New("skill version number allocation conflicted")
+)
+
+func isSkillVersionNumberConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if !strings.Contains(msg, "skill_versions") {
+		return false
+	}
+	return strings.Contains(msg, "unique") ||
+		strings.Contains(msg, "duplicate") ||
+		strings.Contains(msg, "constraint")
+}
 
 func writeSkillVersionMutationError(c *gin.Context, err error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -434,6 +484,17 @@ func writeSkillVersionMutationError(c *gin.Context, err error) {
 	}
 	if errors.Is(err, errArchivedVersion) {
 		skillapi.Error(c, errcodes.ErrInvalidRequest, "Archived skill versions cannot be activated.", nil)
+		return
+	}
+	if errors.Is(err, errVersionNumberConflict) {
+		c.JSON(http.StatusConflict, skillapi.ErrorEnvelope{
+			Error: skillapi.ErrorBody{
+				Code:      errcodes.ErrInvalidRequest,
+				Message:   "Could not allocate a unique skill version number; retry the request.",
+				Detail:    gin.H{"reason": "VERSION_NUMBER_CONFLICT"},
+				RequestID: skillapi.RequestID(c),
+			},
+		})
 		return
 	}
 	writeDBError(c, err)
