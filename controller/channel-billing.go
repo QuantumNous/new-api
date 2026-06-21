@@ -277,21 +277,24 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	// Domestic accounts return CNY; international accounts return USD.
 	// Prefer USD, fall back to CNY with exchange rate conversion.
 	var balance float64
+	var found bool
 	for _, info := range response.BalanceInfos {
 		switch info.Currency {
 		case "USD":
-			if balance, err = strconv.ParseFloat(info.TotalBalance, 64); err == nil && balance > 0 {
+			if balance, err = strconv.ParseFloat(info.TotalBalance, 64); err == nil {
+				found = true
 				channel.UpdateBalance(balance)
 				return balance, nil
 			}
 		case "CNY":
 			if cny, e := strconv.ParseFloat(info.TotalBalance, 64); e == nil {
 				balance = cny / operation_setting.USDExchangeRate
+				found = true
 			}
 		}
 	}
-	if balance <= 0 {
-		return 0, errors.New("no positive USD or CNY balance found")
+	if !found {
+		return 0, errors.New("no USD or CNY balance found")
 	}
 	channel.UpdateBalance(balance)
 	return balance, nil
