@@ -17,6 +17,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 MATRIX="docs/kids-coverage-matrix.md"
+export GOCACHE="${GOCACHE:-$REPO_ROOT/.cache/go-build}"
+mkdir -p "$GOCACHE"
 
 # ── 1. Extract required function names from matrix table rows ──────────────
 # Only lines containing "|" are table rows. Strips trailing "_" produced by
@@ -37,10 +39,16 @@ echo "Matrix requires ${#REQUIRED[@]} function(s). Verifying with go test -list.
 
 # ── 2. Collect available test names from the packages referenced by the matrix ─
 PACKAGES=(./internal/... ./model/ ./relay/ ./middleware/ ./controller/)
+AVAILABLE_RAW="$(mktemp)"
+trap 'rm -f "$AVAILABLE_RAW"' EXIT
+
+for pkg in "${PACKAGES[@]}"; do
+  echo "  scanning $pkg"
+  go test -list '.' "$pkg" >>"$AVAILABLE_RAW"
+done
+
 mapfile -t AVAILABLE < <(
-  go test -list '.' "${PACKAGES[@]}" 2>/dev/null \
-    | grep '^Test' \
-    | sort -u
+  grep '^Test' "$AVAILABLE_RAW" | sort -u
 )
 
 # ── 3. Compare ─────────────────────────────────────────────────────────────

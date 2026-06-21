@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/relay/channel"
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -24,6 +25,12 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 		return
 	}
 	if info.ChannelSetting.SystemPrompt == "" {
+		return
+	}
+	// Skill relay: instruction_template from SkillVersion is the authoritative system
+	// message (DR-68). Channel-level SystemPrompt must not prepend or override it.
+	// This guard mirrors the one in compatible_handler.go's conversion path.
+	if _, isSkillRelay := skillrelay.Get(c); isSkillRelay {
 		return
 	}
 

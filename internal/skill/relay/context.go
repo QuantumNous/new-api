@@ -13,17 +13,18 @@ import (
 //
 // Downstream handlers read from this context:
 //   - DR-67 (entitlement): calls availability.Resolve with Skill + identity fields
-//   - DR-88 (prompt injection): reads Skill.ActiveVersionID to load instruction template
-//     and EntryPoint to record the correct analytics entry_point (tasks/03 §9)
+//   - DR-68 (routing): LoadAndApply populates SkillVersionID and rewrites the request
+//   - DR-88 (prompt injection — superseded by DR-68): EntryPoint records analytics surface
 type SkillRelayContext struct {
-	RequestID     string
-	SkillID       string
-	UserID        int
-	IsKidsSession bool
-	Plan          enums.RequiredPlan
-	SubActive     bool
-	Skill         *skillmodel.Skill
-	EntryPoint    string // enums.EntryPoint value; set by TextHelper from deeprouter.entry_point
+	RequestID      string
+	SkillID        string
+	SkillVersionID string // populated by LoadAndApply (DR-68) after version snapshot is loaded
+	UserID         int
+	IsKidsSession  bool
+	Plan           enums.RequiredPlan
+	SubActive      bool
+	Skill          *skillmodel.Skill
+	EntryPoint     string // enums.EntryPoint value; set by TextHelper from deeprouter.entry_point
 }
 
 // Set stores ctx in the gin context under ContextKeySkillRelayCtx.
