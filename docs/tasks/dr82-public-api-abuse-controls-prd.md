@@ -34,11 +34,19 @@ Downloaded Skill packages call the public routing API with each runner's own Dee
 - Add `internal/abuse` as the Airbotix-owned implementation package.
 - Wire a public routing middleware before `Distribute()` for `/v1/routing/chat/completions`.
 - Re-read the token from the source database for public routing requests and reject disabled, expired, exhausted, or missing credentials.
-- Use Redis when available and in-memory fallback otherwise.
+- Use Redis when available and in-memory fallback only when Redis is disabled. If Redis is enabled but command execution fails, fail closed with HTTP 500 so a broken shared limiter cannot silently permit abusive public routing traffic across nodes.
 - Expose anomaly flags through context, response headers, and server logs for follow-up investigation.
+
+## Operational Notes
+
+- Shared-credential fanout is detection-only in DR-82. The middleware flags `shared_ip_fanout` and/or `shared_client_fanout` but does not block solely on fanout, because legitimate runner deployments may fan out across networks.
+- Operators can consume `X-DeepRouter-Abuse-Flags` on responses and `PublicRoutingAbuseControl anomaly ... flags=...` system logs for alerting, manual revocation, or a future policy-driven blocklist.
+- Automatic fanout blocking is intentionally deferred until operations has a reviewed threshold and exception policy.
 
 ## Verification
 
 - Focused unit tests for the abuse package rate limiter and anomaly detector.
+- Env-gated Redis integration test for the Redis Lua/set path (`DR82_REDIS_URL`).
+- Redis failure tests confirming fail-closed behavior.
 - Middleware tests for throttling, anomaly flags, and revoked-key fail-closed.
 - Token update regression test for persisting status and DR-13 limit fields.

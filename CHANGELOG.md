@@ -4,7 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-22
 
-- 新增 DR-82 public routing API abuse controls：`/v1/routing/chat/completions` 在通道选择前执行 public API 专用 abuse gate，按 runner credential 做默认 RPM 限流，DB 强校验 revoked/expired/exhausted key fail-closed，并对共享凭据 IP/User-Agent fanout 写入 flags、响应头和系统日志；补 `model.Token.Update()` 持久化 `status` 与 DR-13 limit 字段，新增任务 PRD 与聚焦测试（`internal/abuse`, `middleware/public_routing_abuse.go`, `router/relay-router.go`, `model/token.go`, `docs/tasks/dr82-public-api-abuse-controls-prd.md`）
+- 新增 DR-82 public routing API abuse controls：`/v1/routing/chat/completions` 在通道选择前执行 public API 专用 abuse gate，按 runner credential 做默认 RPM 限流，DB 强校验 revoked/expired/exhausted key fail-closed，并对共享凭据 IP/User-Agent fanout 写入 flags、响应头和系统日志；补 `model.Token.Update()` 持久化 `status` 与 DR-13 limit 字段；补 Redis failure fail-closed 测试、env-gated Redis 路径测试说明、fanout 运营消费说明；新增任务 PRD 与聚焦测试（`internal/abuse`, `middleware/public_routing_abuse.go`, `router/relay-router.go`, `model/token.go`, `docs/tasks/dr82-public-api-abuse-controls-prd.md`）
 
 ## 2026-06-21
 

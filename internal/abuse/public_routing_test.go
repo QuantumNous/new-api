@@ -2,7 +2,11 @@ package abuse
 
 import (
 	"context"
+	"os"
 	"testing"
+	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
 func resetPublicRoutingTestState() {
@@ -86,5 +90,100 @@ func TestPublicRoutingSharedCredentialFanoutFlagsAnomaly(t *testing.T) {
 	}
 	if decision.Flags[0] != FlagSharedIPFanout || decision.Flags[1] != FlagSharedClientFanout {
 		t.Fatalf("unexpected flags: %+v", decision.Flags)
+	}
+}
+
+func TestPublicRoutingRedisFailureReturnsError(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.RPMLimit = 1
+	rdb := redis.NewClient(&redis.Options{
+		Addr:        "127.0.0.1:1",
+		DialTimeout: 20 * time.Millisecond,
+		ReadTimeout: 20 * time.Millisecond,
+		MaxRetries:  0,
+	})
+	defer rdb.Close()
+
+	_, err := CheckPublicRoutingCredential(context.Background(), rdb, 999, "203.0.113.9", "runner-fail", cfg)
+	if err == nil {
+		t.Fatal("Redis command failure must surface an error so middleware can fail closed")
+	}
+}
+
+func TestPublicRoutingRedisPath_Integration(t *testing.T) {
+	redisURL := os.Getenv("DR82_REDIS_URL")
+	if redisURL == "" {
+		t.Skip("DR82_REDIS_URL not set")
+	}
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		t.Fatalf("parse DR82_REDIS_URL: %v", err)
+	}
+	rdb := redis.NewClient(opt)
+	defer rdb.Close()
+
+	ctx := context.Background()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		t.Fatalf("ping redis: %v", err)
+	}
+
+	tokenID := int(time.Now().UnixNano() % 1000000000)
+	cfg := DefaultConfig()
+	cfg.RPMLimit = 2
+	cfg.SharedIPLimit = 1
+	cfg.SharedClientLimit = 2
+
+	t.Cleanup(func() {
+		patterns := []string{
+			"prabuse:rpm:*",
+			"prabuse:ips:*",
+			"prabuse:clients:*",
+		}
+		for _, pattern := range patterns {
+			var cursor uint64
+			for {
+				keys, next, err := rdb.Scan(ctx, cursor, pattern, 100).Result()
+				if err != nil {
+					return
+				}
+				if len(keys) > 0 {
+					_ = rdb.Del(ctx, keys...).Err()
+				}
+				cursor = next
+				if cursor == 0 {
+					break
+				}
+			}
+		}
+	})
+
+	for i := 0; i < 2; i++ {
+		decision, err := CheckPublicRoutingCredential(ctx, rdb, tokenID, "203.0.113.1", "runner-a", cfg)
+		if err != nil {
+			t.Fatalf("redis path request %d error: %v", i+1, err)
+		}
+		if !decision.Allowed {
+			t.Fatalf("redis path request %d should be allowed", i+1)
+		}
+	}
+	decision, err := CheckPublicRoutingCredential(ctx, rdb, tokenID, "203.0.113.2", "runner-b", cfg)
+	if err != nil {
+		t.Fatalf("redis path limit request error: %v", err)
+	}
+	if decision.Allowed {
+		t.Fatal("redis path third request should be throttled")
+	}
+
+	fanoutTokenID := tokenID + 1
+	_, err = CheckPublicRoutingCredential(ctx, rdb, fanoutTokenID, "203.0.113.10", "runner-a", cfg)
+	if err != nil {
+		t.Fatalf("redis fanout first request error: %v", err)
+	}
+	decision, err = CheckPublicRoutingCredential(ctx, rdb, fanoutTokenID, "203.0.113.11", "runner-b", cfg)
+	if err != nil {
+		t.Fatalf("redis fanout second request error: %v", err)
+	}
+	if len(decision.Flags) != 1 || decision.Flags[0] != FlagSharedIPFanout {
+		t.Fatalf("expected redis fanout IP flag, got %+v", decision.Flags)
 	}
 }

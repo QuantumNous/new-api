@@ -4,12 +4,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
@@ -118,5 +120,29 @@ func TestPublicRoutingAbuseControlFlagsSharedCredential(t *testing.T) {
 	}
 	if got := recorder.Header().Get("X-DeepRouter-Abuse-Flags"); got != "shared_ip_fanout,shared_client_fanout" {
 		t.Fatalf("unexpected abuse flags: %q", got)
+	}
+}
+
+func TestPublicRoutingAbuseControlRedisFailureFailsClosed(t *testing.T) {
+	db := setupPublicRoutingAbuseTest(t)
+	token := seedPublicRoutingToken(t, db, common.TokenStatusEnabled)
+	t.Setenv("PUBLIC_ROUTING_API_RPM_LIMIT", "1")
+
+	common.RedisEnabled = true
+	common.RDB = redis.NewClient(&redis.Options{
+		Addr:        "127.0.0.1:1",
+		DialTimeout: 20 * time.Millisecond,
+		ReadTimeout: 20 * time.Millisecond,
+		MaxRetries:  0,
+	})
+	t.Cleanup(func() {
+		_ = common.RDB.Close()
+		common.RedisEnabled = false
+		common.RDB = nil
+	})
+
+	recorder := runPublicRoutingAbuseMiddleware(t, token, "203.0.113.20", "runner-redis-down")
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("Redis failure must fail closed with 500, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
