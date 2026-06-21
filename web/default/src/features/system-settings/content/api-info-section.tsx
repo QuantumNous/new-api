@@ -518,8 +518,11 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
             <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
-                ? 'This API shortcut will be removed from the list.'
-                : `${selectedIds.length} API shortcuts will be removed from the list.`}
+                ? t('This API shortcut will be removed from the list.')
+                : t(
+                    '{{count}} API shortcuts will be removed from the list.',
+                    { count: selectedIds.length }
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

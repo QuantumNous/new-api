@@ -143,16 +143,18 @@ export function PrefillGroupManagementDialog({
     try {
       const response = await deletePrefillGroup(deleteState.group.id)
       if (response.success) {
-        toast.success(`Deleted "${deleteState.group.name}"`)
+        toast.success(
+          t('Deleted "{{name}}"', { name: deleteState.group.name })
+        )
         queryClient.invalidateQueries({
           queryKey: prefillGroupsQueryKeys.lists(),
         })
         setDeleteState({ open: false, group: null })
       } else {
-        toast.error(response.message || 'Failed to delete group')
+        toast.error(response.message || t('Failed to delete group'))
       }
     } catch (err: unknown) {
-      toast.error((err as Error)?.message || 'Failed to delete group')
+      toast.error((err as Error)?.message || t('Failed to delete group'))
     } finally {
       setIsDeleting(false)
     }
@@ -222,7 +224,7 @@ export function PrefillGroupManagementDialog({
                   onClick={() => onEditGroup(group)}
                 >
                   <Pencil className='h-4 w-4' />
-                  <span className='sr-only'>Edit group</span>
+                  <span className='sr-only'>{t('Edit group')}</span>
                 </Button>
                 <Button
                   size='icon'
@@ -231,7 +233,7 @@ export function PrefillGroupManagementDialog({
                   onClick={() => handleDeleteClick(group)}
                 >
                   <Trash2 className='h-4 w-4' />
-                  <span className='sr-only'>Delete group</span>
+                  <span className='sr-only'>{t('Delete group')}</span>
                 </Button>
               </div>
             </CardHeader>
@@ -454,13 +456,14 @@ export function PrefillGroupManagementDialog({
         title={t('Delete group')}
         desc={
           <p>
-            {t('Are you sure you want to delete')}{' '}
-            <span className='font-medium'>{deleteState.group?.name}</span>
-            {t('? This action cannot be undone.')}
+            {t(
+              'Are you sure you want to delete group "{{name}}"? This action cannot be undone.',
+              { name: deleteState.group?.name ?? '' }
+            )}
           </p>
         }
         destructive
-        confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+        confirmText={isDeleting ? t('Deleting...') : t('Delete')}
         isLoading={isDeleting}
         handleConfirm={handleDeleteConfirm}
       />

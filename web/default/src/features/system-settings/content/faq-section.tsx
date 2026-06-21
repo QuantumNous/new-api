@@ -397,8 +397,10 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
-                ? 'This FAQ entry will be removed from the list.'
-                : `${selectedIds.length} FAQ entries will be removed from the list.`}
+                ? t('This FAQ entry will be removed from the list.')
+                : t('{{count}} FAQ entries will be removed from the list.', {
+                    count: selectedIds.length,
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

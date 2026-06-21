@@ -436,8 +436,11 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
-                ? 'This Uptime Kuma group will be removed from the list.'
-                : `${selectedIds.length} Uptime Kuma groups will be removed from the list.`}
+                ? t('This Uptime Kuma group will be removed from the list.')
+                : t(
+                    '{{count}} Uptime Kuma groups will be removed from the list.',
+                    { count: selectedIds.length }
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
