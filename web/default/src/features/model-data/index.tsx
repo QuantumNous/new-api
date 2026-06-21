@@ -120,6 +120,8 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'Qwen 3.7 Max',    modelId: 'qwen3.7-max',       accent: '#06b6d4' },
   { label: 'Qwen 3.7 Plus',   modelId: 'qwen3.7-plus',      accent: '#06b6d4' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
+  { label: 'Sora',            modelId: 'sora',              accent: '#22d3ee' },
+  { label: 'Sora 2',          modelId: 'sora-2',            accent: '#22d3ee' },
 ]
 
 const UNIT_OPTIONS = [

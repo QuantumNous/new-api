@@ -49,6 +49,7 @@ var ModelIDCandidates = map[string][]string{
 	"kimi-k2.7-code":    {"moonshotai/kimi-k2.7-code", "kimi-k2-7-code"},
 	"qwen3.7-max":       {"qwen3-7-max", "Qwen3.7-Max"},
 	"qwen3.7-plus":      {"qwen3-7-plus", "Qwen3.7-Plus"},
+	"sora":              {"sora-2"},
 }
 
 // ModelNameCandidates returns the canonical name plus all known aliases.
