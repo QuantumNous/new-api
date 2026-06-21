@@ -83,6 +83,8 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				logger.LogDebug(c, fmt.Sprintf("image request body: %s", string(jsonData)))
 			}
 			requestBody = bytes.NewBuffer(jsonData)
+			// Client img2img may POST multipart; upstream OpenAI-compatible hubs expect JSON.
+			c.Request.Header.Set("Content-Type", "application/json")
 		}
 	}
 
