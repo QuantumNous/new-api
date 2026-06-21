@@ -29,4 +29,3 @@ Production Redis backend work should only proceed if this spike stays within the
 target SLO for the expected deployment concurrency. If `tx_conflicts` or p99 are
 too high, benchmark a Lua version or redesign the queue before wiring Redis into
 the live relay path.
-

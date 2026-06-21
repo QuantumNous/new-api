@@ -1198,4 +1198,3 @@ Pass condition:
 ```
 
 If conflict rate or latency is unacceptable, then design a Lua backend as Phase 3.5.
-

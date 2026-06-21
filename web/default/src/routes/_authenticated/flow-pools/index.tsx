@@ -34,4 +34,3 @@ export const Route = createFileRoute('/_authenticated/flow-pools/')({
   },
   component: ChannelFlowPools,
 })
-

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -171,6 +172,51 @@ func ResolveChannelFlowPool(channelID int) (*model.ChannelFlowPoolBinding, *mode
 	return binding, pool, true, nil
 }
 
+func buildChannelFlowAcquireRequest(requestID string, pool model.ChannelFlowPool, channelID int, info *relaycommon.RelayInfo, now time.Time) AcquireRequest {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if requestID == "" {
+		requestID = common.GetUUID()
+	}
+	upstreamModel := ""
+	userID := 0
+	tokenID := 0
+	contextTokens := 0
+	if info != nil {
+		upstreamModel = info.OriginModelName
+		if info.ChannelMeta != nil && info.UpstreamModelName != "" {
+			upstreamModel = info.UpstreamModelName
+		}
+		userID = info.UserId
+		tokenID = info.TokenId
+		contextTokens = info.GetEstimatePromptTokens()
+	}
+	return AcquireRequest{
+		RequestID:      requestID,
+		Pool:           pool,
+		ChannelID:      channelID,
+		UpstreamModel:  upstreamModel,
+		UserID:         userID,
+		TokenID:        tokenID,
+		ContextTokens:  contextTokens,
+		ContextChars:   estimateChannelFlowContextChars(pool, info),
+		CreatedAtMs:    now.UnixMilli(),
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	}
+}
+
+func estimateChannelFlowContextChars(pool model.ChannelFlowPool, info *relaycommon.RelayInfo) int {
+	if pool.MaxContextChars <= 0 || info == nil || info.Request == nil {
+		return 0
+	}
+	meta := info.Request.GetTokenCountMeta()
+	if meta == nil || meta.CombineText == "" {
+		return 0
+	}
+	return utf8.RuneCountInString(meta.CombineText)
+}
+
 func AcquireChannelFlowGuard(c *gin.Context, channelID int, info *relaycommon.RelayInfo) (FlowGuard, *AcquireDecision, *types.NewAPIError) {
 	if c == nil || info == nil {
 		return nil, nil, nil
@@ -187,27 +233,10 @@ func AcquireChannelFlowGuard(c *gin.Context, channelID int, info *relaycommon.Re
 	} else if fallbackPool != nil {
 		pool = fallbackPool
 	}
-	upstreamModel := info.OriginModelName
-	if info.ChannelMeta != nil && info.UpstreamModelName != "" {
-		upstreamModel = info.UpstreamModelName
-	}
-	req := AcquireRequest{
-		RequestID:      c.GetString(common.RequestIdKey),
-		Pool:           *pool,
-		ChannelID:      channelID,
-		UpstreamModel:  upstreamModel,
-		UserID:         info.UserId,
-		TokenID:        info.TokenId,
-		ContextTokens:  info.GetEstimatePromptTokens(),
-		CreatedAtMs:    time.Now().UnixMilli(),
-		QueueTimeoutMs: pool.QueueTimeoutMs,
-	}
-	if req.RequestID == "" {
-		req.RequestID = common.GetUUID()
-	}
+	req := buildChannelFlowAcquireRequest(c.GetString(common.RequestIdKey), *pool, channelID, info, time.Now())
 	guard, decision, acquireErr := GetChannelFlowController().Acquire(c.Request.Context(), req)
 	if acquireErr != nil {
-		if req.Pool.OnLimit == model.ChannelFlowOnLimitFallback {
+		if shouldPassThroughChannelFlowFallback(req.Pool, decision, acquireErr) {
 			return nil, nil, nil
 		}
 		if passThrough, fallbackPool, apiErr := handleRedisFlowAcquireError(c.Request.Context(), *pool, decision, acquireErr); apiErr != nil || passThrough {
@@ -458,6 +487,20 @@ func retryAfterSeconds(timeoutMs int64) int {
 		return 30
 	}
 	return seconds
+}
+
+func shouldPassThroughChannelFlowFallback(pool model.ChannelFlowPool, decision *AcquireDecision, err error) bool {
+	if err == nil || decision == nil || pool.OnLimit != model.ChannelFlowOnLimitFallback {
+		return false
+	}
+	switch decision.RejectCode {
+	case FlowDecisionRejectQueueFull,
+		FlowDecisionRejectPerUserQueueFull,
+		FlowDecisionRejectPerUserInflightFull:
+		return true
+	default:
+		return false
+	}
 }
 
 func flowDecisionToAPIError(decision *AcquireDecision, err error) *types.NewAPIError {

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +28,44 @@ func testFlowPool() model.ChannelFlowPool {
 		OnLimit:        model.ChannelFlowOnLimitQueue,
 		ConfigVersion:  1,
 	}
+}
+
+func TestBuildChannelFlowAcquireRequestIncludesRelayContextChars(t *testing.T) {
+	pool := testFlowPool()
+	info := &relaycommon.RelayInfo{
+		UserId:          7,
+		TokenId:         11,
+		OriginModelName: "gpt-test",
+		Request: &dto.GeneralOpenAIRequest{
+			Messages: []dto.Message{{Role: "user", Content: "hello"}},
+		},
+	}
+	info.SetEstimatePromptTokens(42)
+	pool.MaxContextChars = 100
+
+	req := buildChannelFlowAcquireRequest("req-context-chars", pool, 99, info, time.UnixMilli(1234))
+
+	require.Equal(t, "req-context-chars", req.RequestID)
+	require.Equal(t, 99, req.ChannelID)
+	require.Equal(t, 42, req.ContextTokens)
+	require.Equal(t, len([]rune("user\nhello")), req.ContextChars)
+	require.Equal(t, int64(1234), req.CreatedAtMs)
+	require.Equal(t, pool.QueueTimeoutMs, req.QueueTimeoutMs)
+}
+
+func TestChannelFlowFallbackOnlyPassesCapacityRejections(t *testing.T) {
+	pool := testFlowPool()
+	pool.OnLimit = model.ChannelFlowOnLimitFallback
+
+	require.True(t, shouldPassThroughChannelFlowFallback(pool, &AcquireDecision{RejectCode: FlowDecisionRejectQueueFull}, fmt.Errorf("queue full")))
+	require.True(t, shouldPassThroughChannelFlowFallback(pool, &AcquireDecision{RejectCode: FlowDecisionRejectPerUserQueueFull}, fmt.Errorf("per-user queue full")))
+	require.True(t, shouldPassThroughChannelFlowFallback(pool, &AcquireDecision{RejectCode: FlowDecisionRejectPerUserInflightFull}, fmt.Errorf("per-user inflight full")))
+	require.False(t, shouldPassThroughChannelFlowFallback(pool, &AcquireDecision{RejectCode: FlowDecisionRejectContextExceeded}, fmt.Errorf("context exceeded")))
+	require.False(t, shouldPassThroughChannelFlowFallback(pool, &AcquireDecision{RejectCode: FlowDecisionRejectBackendDisabled}, fmt.Errorf("backend disabled")))
+	require.False(t, shouldPassThroughChannelFlowFallback(pool, nil, fmt.Errorf("unknown acquire failure")))
+
+	pool.OnLimit = model.ChannelFlowOnLimitReject
+	require.False(t, shouldPassThroughChannelFlowFallback(pool, &AcquireDecision{RejectCode: FlowDecisionRejectQueueFull}, fmt.Errorf("queue full")))
 }
 
 func TestMemoryFlowBackendReleaseDispatchesWaitingRequest(t *testing.T) {

@@ -1475,4 +1475,3 @@ Use this checklist when reviewing the design:
 - Can administrators see in-flight and queued trends?
 - Can operators trace queue-full and queue-timeout events?
 - Are DB changes compatible with SQLite, MySQL, and PostgreSQL?
-
