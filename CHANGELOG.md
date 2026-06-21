@@ -8,6 +8,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - DR-43 review fix — Kids session privacy：`ApplyKidsSessionAnalyticsIdentity` 原本只清空 `user_id`，仍写入 `tenant_id`（V1 两者相等→等同泄露真实 child ID）。现改为同时清空 `user_id` 和 `tenant_id`；`validateSUEKidsSessionPrivacy` 同步添加 `tenant_id IS NULL` 校验；DB CHECK `chk_sue_kids_privacy` 约束表达式更新为同时约束 `user_id IS NULL AND tenant_id IS NULL`；`download_test.go` 中断言 `TenantID != nil` 的旧错误行为已修正为 `assert.Nil`（`internal/skill/model/skill_usage_event.go`, `sue_event_migrate.go`, `skill_usage_event_integration_test.go`, `internal/skill/handler/download_test.go`）
 - DR-43 review fix — JSON wrapper rule：`skill_usage_event.go` 将 `encoding/json` 直接调用替换为 `common.Unmarshal`（AGENTS Rule 1）
 - DR-43 review fix — DB metadata 约束仅检查顶层 key：新增代码注释（`sueRestrictedMetadataJSONPaths`、`validateSUEEventMetadata`、SQLite DDL）说明 DB CHECK 约束为顶层 only、应用层 `BeforeCreate → jsonContainsRestrictedMetadataKey` 为权威递归守卫；新增 `TestSUEMetadataDBConstraintTopLevelOnly` 测试记录边界行为
+- 更新 2026 H1 模型定价目录：修正部分现有模型输入/输出倍率，新增 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、GLM、Kimi、Doubao、MiniMax、Grok 等模型定价与 Quick Import 预设，并补充任务 PRD（`setting/ratio_setting/`, `web/default/src/features/channels/lib/provider-presets.ts`, `web/default/src/features/models/lib/model-presets.ts`, `docs/tasks/pricing-catalog-2026h1-prd.md`）
 
 ## 2026-06-20
 
