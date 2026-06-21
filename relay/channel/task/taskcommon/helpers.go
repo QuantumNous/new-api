@@ -3,7 +3,9 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -84,6 +86,7 @@ func ExtractVideoURLFromJSON(raw []byte) string {
 	s := string(raw)
 	for _, path := range []string{
 		"video_url",
+		"content.video_url",
 		"data.video_url",
 		"data.url",
 		"remixed_from_video_id",
@@ -100,14 +103,83 @@ func ResolveTaskVideoURL(task *model.Task) string {
 	if task == nil {
 		return ""
 	}
-	url := strings.TrimSpace(task.GetResultURL())
-	if url != "" && !IsTaskProxyContentURL(url, task.TaskID) {
-		return url
+	stored := strings.TrimSpace(task.GetResultURL())
+	if stored != "" && !IsTaskProxyContentURL(stored, task.TaskID) && !IsLikelyExpiredSignedVideoURL(stored) {
+		return stored
+	}
+	if u := ExtractVideoURLFromJSON(task.Data); u != "" && !IsLikelyExpiredSignedVideoURL(u) {
+		return u
+	}
+	if stored != "" && !IsTaskProxyContentURL(stored, task.TaskID) {
+		return stored
 	}
 	if u := ExtractVideoURLFromJSON(task.Data); u != "" {
 		return u
 	}
-	return url
+	return ""
+}
+
+// ExtractUpstreamTaskIDFromJSON returns a provider task id stored in task data when it differs from the public task id.
+func ExtractUpstreamTaskIDFromJSON(data []byte, publicTaskID string) string {
+	if len(data) == 0 {
+		return ""
+	}
+	publicTaskID = strings.TrimSpace(publicTaskID)
+	for _, path := range []string{"id", "task_id", "video_id"} {
+		id := strings.TrimSpace(gjson.GetBytes(data, path).String())
+		if id == "" || id == publicTaskID {
+			continue
+		}
+		if publicTaskID == "" || id != publicTaskID {
+			return id
+		}
+	}
+	return ""
+}
+
+// IsLikelyExpiredSignedVideoURL reports whether a signed object-storage URL is probably expired.
+func IsLikelyExpiredSignedVideoURL(rawURL string) bool {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return false
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	query := parsed.Query()
+	expiresRaw := strings.TrimSpace(query.Get("X-Tos-Expires"))
+	dateRaw := strings.TrimSpace(query.Get("X-Tos-Date"))
+	if expiresRaw == "" || dateRaw == "" {
+		return false
+	}
+	expiresSec, err := time.ParseDuration(expiresRaw + "s")
+	if err != nil {
+		return false
+	}
+	signedAt, err := time.Parse("20060102T150405Z", dateRaw)
+	if err != nil {
+		return false
+	}
+	return time.Now().After(signedAt.Add(expiresSec))
+}
+
+// PickTaskResultURL stores the best available result URL, avoiding proxy self-reference when possible.
+func PickTaskResultURL(task *model.Task, candidateURL string, data []byte) string {
+	candidateURL = strings.TrimSpace(candidateURL)
+	if strings.HasPrefix(candidateURL, "data:") {
+		return BuildProxyURL(task.TaskID)
+	}
+	if candidateURL != "" && !IsTaskProxyContentURL(candidateURL, task.TaskID) {
+		return candidateURL
+	}
+	if u := ExtractVideoURLFromJSON(data); u != "" {
+		return u
+	}
+	if candidateURL != "" {
+		return candidateURL
+	}
+	return BuildProxyURL(task.TaskID)
 }
 
 // Status-to-progress mapping constants for polling updates.

@@ -39,7 +39,7 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	userID := c.GetInt("id")
-	task, exists, err := model.GetByTaskId(userID, taskID)
+	task, exists, err := lookupVideoProxyTask(userID, taskID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query task %s: %s", taskID, err.Error()))
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
@@ -113,6 +113,12 @@ func VideoProxy(c *gin.Context) {
 	default:
 		// Video URL is stored in PrivateData.ResultURL; fall back to task data when proxy URL self-references.
 		videoURL = taskcommon.ResolveTaskVideoURL(task)
+		if videoURL == "" || taskcommon.IsLikelyExpiredSignedVideoURL(videoURL) {
+			if refreshedURL, responseBody, refreshErr := refreshTaskVideoURL(channel, task); refreshErr == nil && refreshedURL != "" {
+				videoURL = refreshedURL
+				persistRefreshedTaskVideo(task, refreshedURL, responseBody)
+			}
+		}
 	}
 
 	videoURL = strings.TrimSpace(videoURL)
@@ -153,6 +159,12 @@ func VideoProxy(c *gin.Context) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if refreshedURL, responseBody, refreshErr := refreshTaskVideoURL(channel, task); refreshErr == nil && refreshedURL != "" && refreshedURL != videoURL {
+			persistRefreshedTaskVideo(task, refreshedURL, responseBody)
+			if retryErr := streamVideoFromURL(c, client, refreshedURL); retryErr == nil {
+				return
+			}
+		}
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Upstream returned status %d for %s", resp.StatusCode, videoURL))
 		videoProxyError(c, http.StatusBadGateway, "server_error",
 			fmt.Sprintf("Upstream service returned status %d", resp.StatusCode))
@@ -170,6 +182,47 @@ func VideoProxy(c *gin.Context) {
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
 	}
+}
+
+func streamVideoFromURL(c *gin.Context, client *http.Client, videoURL string) error {
+	videoURL = strings.TrimSpace(videoURL)
+	if videoURL == "" {
+		return fmt.Errorf("empty video url")
+	}
+
+	fetchSetting := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(videoURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, videoURL, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("upstream returned status %d", resp.StatusCode)
+	}
+
+	for key, values := range resp.Header {
+		for _, value := range values {
+			c.Writer.Header().Add(key, value)
+		}
+	}
+
+	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")
+	c.Writer.WriteHeader(resp.StatusCode)
+	_, err = io.Copy(c.Writer, resp.Body)
+	return err
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {

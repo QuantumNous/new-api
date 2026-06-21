@@ -452,14 +452,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if strings.HasPrefix(taskResult.Url, "data:") {
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
-		} else if taskResult.Url != "" {
-			// Direct upstream URL (e.g. Kling, Ali, Doubao, etc.)
-			task.PrivateData.ResultURL = taskResult.Url
-		} else if u := taskcommon.ExtractVideoURLFromJSON(task.Data); u != "" {
-			task.PrivateData.ResultURL = u
 		} else {
-			// No URL from adaptor — construct proxy URL using public task ID
-			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+			task.PrivateData.ResultURL = taskcommon.PickTaskResultURL(task, taskResult.Url, task.Data)
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
